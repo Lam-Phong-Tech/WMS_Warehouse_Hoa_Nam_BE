@@ -1,5 +1,6 @@
 *.log
 *.md
+!docs/HN-INT-001_BE1_API_CONTRACT_APPROVAL.md
 .DS_Store
 .env
 .env.backup
@@ -27,4 +28,7 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /docs/
+!/docs/
+!docs/HN-INT-001_BE1_API_CONTRACT_APPROVAL.md
+!docs/HN-INT-001_BE1_payload_samples.postman_collection.json
 CLAUDE.md

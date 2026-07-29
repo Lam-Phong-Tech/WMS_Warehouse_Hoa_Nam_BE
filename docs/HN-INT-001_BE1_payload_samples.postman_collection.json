@@ -1,0 +1,410 @@
+{
+  "info": {
+    "name": "HN-INT-001 BE1 API Payload Samples",
+    "description": "Payload samples for WWHN-40 / HN-INT-001 BE1 API contract approved handoff.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "warehouse_id",
+      "value": ""
+    },
+    {
+      "key": "src_warehouse_id",
+      "value": ""
+    },
+    {
+      "key": "dst_warehouse_id",
+      "value": ""
+    },
+    {
+      "key": "product_id",
+      "value": ""
+    },
+    {
+      "key": "stock_document_id",
+      "value": ""
+    },
+    {
+      "key": "stock_document_line_id",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-login-001"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/auth/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"secret123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Stock Document - Create Receipt",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-create-receipt-001"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "HN-INT-001-create-receipt-001"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"doc_type\": \"receipt\",\n  \"doc_no\": \"PN-20260729-0001\",\n  \"doc_date\": \"2026-07-29\",\n  \"dst_warehouse_id\": \"{{warehouse_id}}\",\n  \"lines\": [\n    {\n      \"product_id\": \"{{product_id}}\",\n      \"qty_planned\": 10\n    }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "Stock Document - Post Full Receipt",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-post-receipt-001"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "HN-INT-001-post-receipt-001"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents/{{stock_document_id}}/post",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents",
+            "{{stock_document_id}}",
+            "post"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "Stock Document - Post Partial Receipt",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-post-partial-001"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "HN-INT-001-post-partial-001"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents/{{stock_document_id}}/post",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents",
+            "{{stock_document_id}}",
+            "post"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lines\": [\n    {\n      \"line_id\": \"{{stock_document_line_id}}\",\n      \"qty_actual\": 4\n    }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "Stock Document - Create Issue",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-create-issue-001"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "HN-INT-001-create-issue-001"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"doc_type\": \"issue\",\n  \"doc_no\": \"PX-20260729-0001\",\n  \"doc_date\": \"2026-07-29\",\n  \"src_warehouse_id\": \"{{warehouse_id}}\",\n  \"lines\": [\n    {\n      \"product_id\": \"{{product_id}}\",\n      \"qty_planned\": 3\n    }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "Stock Document - Create Transfer",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-create-transfer-001"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "HN-INT-001-create-transfer-001"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"doc_type\": \"transfer\",\n  \"doc_no\": \"DC-20260729-0001\",\n  \"doc_date\": \"2026-07-29\",\n  \"src_warehouse_id\": \"{{src_warehouse_id}}\",\n  \"dst_warehouse_id\": \"{{dst_warehouse_id}}\",\n  \"lines\": [\n    {\n      \"product_id\": \"{{product_id}}\",\n      \"qty_planned\": 8\n    }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "Stock Document - Receive Transfer Partial",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-receive-transfer-001"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "HN-INT-001-receive-transfer-001"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents/{{stock_document_id}}/receive",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents",
+            "{{stock_document_id}}",
+            "receive"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lines\": [\n    {\n      \"line_id\": \"{{stock_document_line_id}}\",\n      \"qty_actual\": 8\n    }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "Negative - Missing Idempotency Key",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-negative-no-idem"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents/{{stock_document_id}}/post",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents",
+            "{{stock_document_id}}",
+            "post"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "Negative - Invalid Line Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "HN-INT-001-negative-line-payload"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "HN-INT-001-negative-line-payload"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/stock-documents/{{stock_document_id}}/post",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "stock-documents",
+            "{{stock_document_id}}",
+            "post"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lines\": [\n    {\n      \"line_id\": \"{{stock_document_line_id}}\"\n    }\n  ]\n}"
+        }
+      }
+    }
+  ]
+}

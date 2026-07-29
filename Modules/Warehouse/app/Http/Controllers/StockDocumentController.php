@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Modules\Warehouse\Http\Requests\StoreStockDocumentRequest;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
@@ -88,7 +89,7 @@ class StockDocumentController extends Controller
 
         $idemKey = $this->requireIdempotencyKey($request);
         $hash = IdempotencyStore::requestHash($request);
-        $linesInput = collect($request->input('lines', []))->keyBy('line_id')->map(fn ($l) => $l['qty_actual'])->all();
+        $linesInput = $this->validatedLinesInput($request, $doc, 'qty_actual');
 
         [$code, $body] = IdempotencyStore::handle($idemKey, "post_stock_document_{$doc->id}", $this->userId(), $hash, function () use ($doc, $linesInput) {
             $posted = $doc->doc_type === StockDocument::TYPE_RECEIPT
@@ -119,7 +120,7 @@ class StockDocumentController extends Controller
         $doc = $this->find($id);
         $idemKey = $this->requireIdempotencyKey($request);
         $hash = IdempotencyStore::requestHash($request);
-        $linesInput = collect($request->input('lines', []))->keyBy('line_id')->map(fn ($l) => $l['qty_actual'])->all();
+        $linesInput = $this->validatedLinesInput($request, $doc, 'qty_actual');
 
         [$code, $body] = IdempotencyStore::handle($idemKey, "receive_stock_document_{$doc->id}", $this->userId(), $hash, function () use ($doc, $linesInput) {
             return [200, $this->envelope('Nhận hàng điều chuyển thành công', $this->service->receive($doc, $linesInput, $this->userId()))];
@@ -131,7 +132,7 @@ class StockDocumentController extends Controller
     public function recordLoss(string $id, Request $request)
     {
         $doc = $this->find($id);
-        $linesInput = collect($request->input('lines', []))->keyBy('line_id')->map(fn ($l) => $l['qty_lost'])->all();
+        $linesInput = $this->validatedLinesInput($request, $doc, 'qty_lost');
 
         return $this->respondSuccess(
             $this->service->recordTransferLoss($doc, $linesInput, $this->userId(), $request->input('reason')),
@@ -175,6 +176,48 @@ class StockDocumentController extends Controller
         }
 
         return $idemKey;
+    }
+
+    /**
+     * Partial action payload contract: omitted `lines` means post/receive the remaining quantity;
+     * provided `lines` must reference existing lines on the current document and include a non-negative qty.
+     *
+     * @return array<string, mixed>
+     */
+    private function validatedLinesInput(Request $request, StockDocument $doc, string $qtyField): array
+    {
+        if (! $request->has('lines')) {
+            return [];
+        }
+
+        $validator = Validator::make($request->all(), [
+            'lines' => ['array', 'min:1'],
+            'lines.*.line_id' => ['required', 'uuid'],
+            "lines.*.{$qtyField}" => ['required', 'numeric', 'gte:0'],
+        ]);
+
+        if ($validator->fails()) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'Payload lines khong hop le.', $validator->errors()->toArray());
+        }
+
+        $allowedLineIds = $doc->lines->pluck('id')->all();
+        $unknownLineIds = collect($request->input('lines', []))
+            ->pluck('line_id')
+            ->reject(fn ($lineId) => in_array($lineId, $allowedLineIds, true))
+            ->values()
+            ->all();
+
+        if ($unknownLineIds !== []) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'Payload lines co line_id khong thuoc chung tu hien tai.', [
+                'lines.line_id' => ['line_id phai thuoc stock_document hien tai.'],
+                'unknown_line_ids' => $unknownLineIds,
+            ]);
+        }
+
+        return collect($request->input('lines', []))
+            ->keyBy('line_id')
+            ->map(fn ($line) => $line[$qtyField])
+            ->all();
     }
 
     private function envelope(string $message, $data): array

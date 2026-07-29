@@ -160,6 +160,76 @@ class StockDocumentIdempotencyTest extends TestCase
         $response->assertStatus(428)->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
     }
 
+    public function test_idempotency_key_reused_with_different_payload_is_rejected(): void
+    {
+        $headers = $this->authHeaders();
+
+        $warehouse = Warehouse::create(['code' => 'KHOTONG-IDEM', 'name' => 'Kho idem', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP-IDEM', 'name' => 'May idem', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+
+        $first = $this->postJson('/api/v1/stock-documents', [
+            'doc_type' => 'receipt',
+            'doc_no' => 'PN-IDEM-0001',
+            'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id,
+            'lines' => [['product_id' => $product->id, 'qty_planned' => 5]],
+        ], $headers + ['Idempotency-Key' => 'create-idem-conflict']);
+
+        $first->assertCreated();
+
+        $conflict = $this->postJson('/api/v1/stock-documents', [
+            'doc_type' => 'receipt',
+            'doc_no' => 'PN-IDEM-0002',
+            'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id,
+            'lines' => [['product_id' => $product->id, 'qty_planned' => 6]],
+        ], $headers + ['Idempotency-Key' => 'create-idem-conflict']);
+
+        $conflict->assertStatus(409)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error.code', 'IDEMPOTENCY_ERROR');
+    }
+
+    public function test_post_rejects_invalid_partial_line_payload_before_stock_mutation(): void
+    {
+        $headers = $this->authHeaders();
+
+        $warehouse = Warehouse::create(['code' => 'KHOTONG-LINE', 'name' => 'Kho line', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP-LINE', 'name' => 'May line', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+
+        $createResponse = $this->postJson('/api/v1/stock-documents', [
+            'doc_type' => 'receipt',
+            'doc_no' => 'PN-LINE-0001',
+            'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id,
+            'lines' => [['product_id' => $product->id, 'qty_planned' => 5]],
+        ], $headers + ['Idempotency-Key' => 'create-line-contract']);
+
+        $docId = $createResponse->json('data.id');
+
+        $missingQty = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
+            'lines' => [['line_id' => $createResponse->json('data.lines.0.id')]],
+        ], $headers + ['Idempotency-Key' => 'post-line-missing-qty']);
+
+        $missingQty->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
+
+        $unknownLine = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
+            'lines' => [['line_id' => (string) Str::uuid(), 'qty_actual' => 2]],
+        ], $headers + ['Idempotency-Key' => 'post-line-unknown']);
+
+        $unknownLine->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
+
+        $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
+        $this->assertDatabaseMissing('inventory_balances', [
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $product->id,
+        ]);
+    }
+
     public function test_issue_more_than_available_stock_is_rejected_at_post_commit(): void
     {
         $headers = $this->authHeaders();
