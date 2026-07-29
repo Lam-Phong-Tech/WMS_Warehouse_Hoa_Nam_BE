@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreWarehouseRequest;
 use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
 
@@ -24,6 +25,15 @@ class WarehouseController extends Controller
     public function store(StoreWarehouseRequest $request)
     {
         $warehouse = $this->warehouses->create($request->validated() + ['status' => 'ACTIVE']);
+
+        AuditLogger::record(
+            'CREATE',
+            'warehouse',
+            $warehouse->getKey(),
+            auth('api')->id(),
+            $request->attributes->get('request_id'),
+            afterData: $warehouse->only(['id', 'code', 'name', 'address', 'status'])
+        );
 
         return $this->respondCreated($warehouse, 'Tạo kho thành công');
     }
