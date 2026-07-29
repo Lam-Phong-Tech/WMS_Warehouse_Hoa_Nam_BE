@@ -1,0 +1,219 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Str;
+
+class ApiConventionMiddleware
+{
+    public function handle(Request $request, Closure $next)
+    {
+        $requestId = $request->header('X-Request-ID');
+        if (empty($requestId) || ! is_string($requestId) || ! preg_match('/^[a-zA-Z0-9\-\._:\/=\+]{2,255}$/', $requestId)) {
+            $requestId = (string) Str::uuid();
+            $request->headers->set('X-Request-ID', $requestId);
+        }
+
+        $request->attributes->set('request_id', $requestId);
+        if (class_exists(Context::class)) {
+            Context::add('request_id', $requestId);
+        }
+
+        if ($request->isJson() && trim($request->getContent()) !== '') {
+            json_decode($request->getContent(), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dữ liệu JSON không hợp lệ hoặc sai định dạng request.',
+                    'error' => [
+                        'code' => 'MALFORMED_JSON',
+                        'details' => [],
+                    ],
+                    'meta' => [
+                        'request_id' => $requestId,
+                    ],
+                ], 400)->header('X-Request-ID', $requestId);
+            }
+        }
+
+        $response = $next($request);
+
+        if ($request->is('docs') || $request->is('docs/*') || $request->is('api/documentation')) {
+            return $response;
+        }
+
+        if ($request->is('api/*') || $request->expectsJson()) {
+            $statusCode = $response->getStatusCode();
+            $content = $response->getContent();
+
+            $data = json_decode($content, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
+
+                if ($statusCode >= 200 && $statusCode < 300) {
+
+                    if (isset($data['data']) && is_array($data['data']) && isset($data['data']['current_page'])) {
+                        $paginator = $data['data'];
+
+                        // Extract custom meta fields from the original payload or meta key
+                        $extraMeta = [];
+                        foreach ($data as $k => $v) {
+                            if (! in_array($k, ['success', 'message', 'data', 'meta', 'links'], true)) {
+                                $extraMeta[$k] = $v;
+                            }
+                        }
+                        if (isset($data['meta']) && is_array($data['meta'])) {
+                            foreach ($data['meta'] as $k => $v) {
+                                if (! in_array($k, ['current_page', 'per_page', 'last_page', 'total', 'from', 'to', 'request_id'], true)) {
+                                    $extraMeta[$k] = $v;
+                                }
+                            }
+                        }
+
+                        $newBody = [
+                            'success' => true,
+                            'data' => $paginator['data'] ?? [],
+                            'meta' => array_merge([
+                                'current_page' => $paginator['current_page'],
+                                'per_page' => $paginator['per_page'],
+                                'last_page' => $paginator['last_page'],
+                                'total' => $paginator['total'],
+                                'from' => $paginator['from'] ?? null,
+                                'to' => $paginator['to'] ?? null,
+                                'request_id' => $requestId,
+                            ], $extraMeta),
+                            'links' => [
+                                'first' => $paginator['first_page_url'] ?? null,
+                                'last' => $paginator['last_page_url'] ?? null,
+                                'prev' => $paginator['prev_page_url'] ?? null,
+                                'next' => $paginator['next_page_url'] ?? null,
+                            ],
+                        ];
+
+                        $newBody['message'] = $data['message'] ?? 'Thành công';
+
+                        $data = $newBody;
+                    } else {
+                        $hasStatus = isset($data['status']);
+                        $hasData = isset($data['data']);
+                        $hasSuccess = isset($data['success']);
+
+                        if ($hasSuccess) {
+                            $newBody = $data;
+                            if (! isset($newBody['meta'])) {
+                                $newBody['meta'] = [];
+                            }
+                            if (! isset($newBody['meta']['request_id'])) {
+                                $newBody['meta']['request_id'] = $requestId;
+                            }
+                        } else {
+                            $newBody = [
+                                'success' => true,
+                                'message' => $data['message'] ?? 'Thành công',
+                                'meta' => [
+                                    'request_id' => $data['meta']['request_id'] ?? ($data['request_id'] ?? $requestId),
+                                ],
+                            ];
+
+                            if ($hasData) {
+                                $newBody['data'] = $data['data'];
+                            } elseif ($hasStatus) {
+                                $temp = $data;
+                                unset($temp['status'], $temp['message'], $temp['request_id']);
+                                $newBody['data'] = empty($temp) ? (object) [] : $temp;
+                            } else {
+                                $newBody['data'] = $data;
+                            }
+                        }
+                        $data = $newBody;
+                    }
+                } elseif ($statusCode >= 400) {
+                    $defaultErrorCode = 'BUSINESS_RULE_ERROR';
+                    $message = $data['message'] ?? 'Đã xảy ra lỗi.';
+
+                    switch ($statusCode) {
+                        case 400:
+                            if (str_contains(strtolower($message), 'tồn kho') || str_contains(strtolower($message), 'stock') || str_contains(strtolower($message), 'không đủ')) {
+                                $defaultErrorCode = 'INSUFFICIENT_STOCK';
+                            } else {
+                                $defaultErrorCode = 'BAD_REQUEST';
+                            }
+                            break;
+                        case 401:
+                            $defaultErrorCode = 'UNAUTHENTICATED';
+                            break;
+                        case 403:
+                            $defaultErrorCode = 'ACCESS_DENIED';
+                            break;
+                        case 404:
+                            $defaultErrorCode = 'RESOURCE_NOT_FOUND';
+                            break;
+                        case 405:
+                            $defaultErrorCode = 'METHOD_NOT_ALLOWED';
+                            break;
+                        case 409:
+                            if (str_contains(strtolower($message), 'idempotency')) {
+                                $defaultErrorCode = 'IDEMPOTENCY_ERROR';
+                            } elseif (str_contains(strtolower($message), 'trùng') || str_contains(strtolower($message), 'duplicate') || str_contains(strtolower($message), 'unique') || str_contains(strtolower($message), 'đã tồn tại')) {
+                                $defaultErrorCode = 'DUPLICATE_RESOURCE';
+                            } else {
+                                $defaultErrorCode = 'STATE_CONFLICT';
+                            }
+                            break;
+                        case 422:
+                            if (str_contains(strtolower($message), 'tồn kho') || str_contains(strtolower($message), 'stock') || str_contains(strtolower($message), 'không đủ')) {
+                                $defaultErrorCode = 'INSUFFICIENT_STOCK';
+                            } else {
+                                $defaultErrorCode = 'BUSINESS_RULE_ERROR';
+                            }
+                            break;
+                        case 500:
+                            $defaultErrorCode = 'INTERNAL_SERVER_ERROR';
+                            break;
+                    }
+
+                    $newBody = [
+                        'success' => false,
+                        'message' => $message,
+                        'error' => [
+                            'code' => $data['error']['code'] ?? ($data['error_code'] ?? $defaultErrorCode),
+                            'details' => $data['error']['details'] ?? ($data['errors'] ?? []),
+                        ],
+                        'meta' => [
+                            'request_id' => $data['meta']['request_id'] ?? $requestId,
+                        ],
+                    ];
+
+                    if (isset($data['data'])) {
+                        $newBody['data'] = $data['data'];
+                    }
+
+                    if (config('app.debug')) {
+                        if (isset($data['exception'])) {
+                            $newBody['exception'] = $data['exception'];
+                        }
+                        if (isset($data['file'])) {
+                            $newBody['file'] = $data['file'];
+                        }
+                        if (isset($data['line'])) {
+                            $newBody['line'] = $data['line'];
+                        }
+                        if (isset($data['trace'])) {
+                            $newBody['trace'] = $data['trace'];
+                        }
+                    }
+
+                    $data = $newBody;
+                }
+
+                $response->setContent(json_encode($data));
+            }
+        }
+
+        $response->headers->set('X-Request-ID', $requestId);
+
+        return $response;
+    }
+}
