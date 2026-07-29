@@ -6,20 +6,22 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Exceptions\WarehouseException;
 use Modules\Warehouse\Models\DocumentStatusHistory;
-use Modules\Warehouse\Models\InTransitLedger;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
+use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 
 /**
- * Điều phối vòng đời chứng từ kho (Nhập/Xuất/Điều chuyển) — port từ StockDocumentService của
- * ERP-Backend M2, giữ nguyên state machine và business rule, chỉ bỏ phần ERP-specific:
- * multi-branch warehouse_type check, EventOutbox, lot_no/expiry_date, WarehouseOutboxLogger.
+ * Điều phối vòng đời chứng từ Nhập/Xuất kho — port từ StockDocumentService của ERP-Backend M2,
+ * giữ nguyên state machine và business rule, chỉ bỏ phần ERP-specific: multi-branch warehouse_type
+ * check, EventOutbox, lot_no/expiry_date, WarehouseOutboxLogger, và toàn bộ doc_type điều chuyển
+ * (Hoà Nam chỉ vận hành 1 kho tổng nên không cần transfer).
  *
- * draft → pending → approved → received|issued (receipt/issue)
- *                             → in_transit → completed|completed_with_loss (transfer)
- *                                          → return_in_transit → returned
+ * draft → pending → approved → post-receipt|post-issue (received|issued, đổi tồn 1 lần cho toàn bộ)
+ *                             → scan (nhiều lần, đổi tồn từng phần) → received|issued khi đủ, hoặc
+ *                               partially_posted nếu còn thiếu → close-remainder (closed, phần thiếu = shortage)
+ *                → reverse (từ received|issued|closed → reversed, đảo ngược toàn bộ movement đã ghi)
  * cancelled: chỉ từ draft/pending/approved. rejected: chỉ từ pending.
  */
 class StockDocumentService
@@ -27,7 +29,6 @@ class StockDocumentService
     private const PREFIX = [
         StockDocument::TYPE_RECEIPT => 'PN',
         StockDocument::TYPE_ISSUE => 'PX',
-        StockDocument::TYPE_TRANSFER => 'DC',
     ];
 
     public function __construct(private readonly StockLedger $ledger) {}
@@ -37,10 +38,6 @@ class StockDocumentService
         return DB::transaction(function () use ($type, $data, $userId) {
             $src = $data['src_warehouse_id'] ?? null;
             $dst = $data['dst_warehouse_id'] ?? null;
-
-            if ($type === StockDocument::TYPE_TRANSFER && $src && $dst && $src === $dst) {
-                WarehouseException::invalidStatus('Kho nguồn và kho đích không được trùng nhau.');
-            }
 
             $this->assertWarehouseActive($src);
             $this->assertWarehouseActive($dst);
@@ -57,20 +54,34 @@ class StockDocumentService
                 'created_by' => $userId,
             ]);
 
-            foreach (array_values($data['lines']) as $index => $l) {
-                StockDocumentLine::create([
-                    'stock_document_id' => $doc->id,
-                    'line_no' => $index + 1,
-                    'product_id' => $l['product_id'],
-                    'qty_planned' => $l['qty_planned'],
-                    'qty_actual' => $l['qty_planned'],
-                ]);
-            }
+            $this->syncLines($doc, $data['lines']);
 
             $this->logStatusHistory($doc, null, StockDocument::STATUS_DRAFT, 'create', $userId);
             AuditLogger::record('CREATE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), afterData: ['doc_no' => $doc->doc_no, 'doc_type' => $doc->doc_type]);
 
             return $doc->load('lines');
+        });
+    }
+
+    /** Chỉ cho phép sửa khi phiếu còn ở draft (chưa gửi duyệt). */
+    public function update(StockDocument $doc, array $data, string $userId): StockDocument
+    {
+        return DB::transaction(function () use ($doc, $data, $userId) {
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT], 'sửa');
+
+            $doc->update(array_filter([
+                'doc_no' => $data['doc_no'] ?? null,
+                'doc_date' => $data['doc_date'] ?? null,
+                'note' => $data['note'] ?? $doc->note,
+                'updated_by' => $userId,
+            ], fn ($v) => $v !== null));
+
+            if (array_key_exists('lines', $data)) {
+                $doc->lines()->delete();
+                $this->syncLines($doc, $data['lines']);
+            }
+
+            return $doc->fresh('lines');
         });
     }
 
@@ -95,7 +106,7 @@ class StockDocumentService
         return DB::transaction(function () use ($doc, $userId) {
             $this->assertStatus($doc, [StockDocument::STATUS_PENDING], 'duyệt');
 
-            if (in_array($doc->doc_type, [StockDocument::TYPE_ISSUE, StockDocument::TYPE_TRANSFER], true)) {
+            if ($doc->doc_type === StockDocument::TYPE_ISSUE) {
                 $this->assertWarehouseActive($doc->src_warehouse_id);
                 $this->precheckStock($doc, $doc->src_warehouse_id);
             }
@@ -139,7 +150,7 @@ class StockDocumentService
         });
     }
 
-    /** Thực hiện Nhập kho — chứng từ phải ở APPROVED. */
+    /** Thực hiện Nhập kho toàn bộ trong 1 lần — chứng từ phải ở APPROVED. */
     public function postReceipt(StockDocument $doc, string $userId): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId) {
@@ -148,6 +159,7 @@ class StockDocumentService
 
             foreach ($doc->lines as $line) {
                 $this->ledger->inbound($doc, $line, $userId);
+                $line->update(['scanned_qty' => $line->qty_planned]);
             }
 
             $from = $doc->status;
@@ -159,7 +171,7 @@ class StockDocumentService
         });
     }
 
-    /** Thực hiện Xuất kho — chứng từ phải ở APPROVED. */
+    /** Thực hiện Xuất kho toàn bộ trong 1 lần — chứng từ phải ở APPROVED. */
     public function postIssue(StockDocument $doc, string $userId): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId) {
@@ -168,6 +180,7 @@ class StockDocumentService
 
             foreach ($doc->lines as $line) {
                 $this->ledger->outbound($doc, $line, $userId);
+                $line->update(['scanned_qty' => $line->qty_planned]);
             }
 
             $from = $doc->status;
@@ -179,193 +192,129 @@ class StockDocumentService
         });
     }
 
-    /** Điều chuyển — Xuất tại kho nguồn + tạo dòng InTransitLedger. */
-    public function dispatch(StockDocument $doc, string $userId): StockDocument
+    /**
+     * Scan (nhận/xuất từng phần theo dòng, có thể gọi nhiều lần cho tới khi đủ qty_planned).
+     * Cho phép gọi khi phiếu đang approved hoặc đã partially_posted từ lần scan trước.
+     */
+    public function scanLine(StockDocument $doc, string $lineId, string $qty, string $userId): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId) {
-            $this->assertTransfer($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'xuất điều chuyển');
-            $this->assertWarehouseActive($doc->src_warehouse_id);
+        return DB::transaction(function () use ($doc, $lineId, $qty, $userId) {
+            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED, StockDocument::STATUS_PARTIALLY_POSTED], 'scan');
 
-            foreach ($doc->lines as $line) {
-                $this->ledger->transferOut($doc, $line, $userId);
+            $line = $doc->lines()->where('id', $lineId)->lockForUpdate()->firstOrFail();
+            $remaining = bcsub((string) $line->qty_planned, (string) $line->scanned_qty, 3);
 
-                InTransitLedger::create([
-                    'stock_document_id' => $doc->id,
-                    'stock_document_line_id' => $line->id,
-                    'product_id' => $line->product_id,
-                    'src_warehouse_id' => $doc->src_warehouse_id,
-                    'dst_warehouse_id' => $doc->dst_warehouse_id,
-                    'qty_dispatched' => $line->qty_planned,
-                    'status' => InTransitLedger::STATUS_IN_TRANSIT,
-                    'dispatched_at' => now(),
-                ]);
+            if (bccomp($qty, $remaining, 3) > 0) {
+                WarehouseException::invalidStatus("Số lượng scan không được vượt quá số còn lại (dòng {$line->line_no}).");
+            }
+            if (bccomp($qty, '0', 3) <= 0) {
+                WarehouseException::invalidStatus('Số lượng scan phải lớn hơn 0.');
             }
 
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_IN_TRANSIT, 'dispatched_by' => $userId, 'dispatched_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_IN_TRANSIT, 'dispatch', $userId);
+            if ($doc->doc_type === StockDocument::TYPE_RECEIPT) {
+                $this->assertWarehouseActive($doc->dst_warehouse_id);
+                $this->ledger->scanReceipt($doc, $line, $qty, $userId);
+            } else {
+                $this->assertWarehouseActive($doc->src_warehouse_id);
+                $this->ledger->scanIssue($doc, $line, $qty, $userId);
+            }
 
-            return $doc->fresh('lines');
+            $newScanned = bcadd((string) $line->scanned_qty, $qty, 3);
+            $line->update(['scanned_qty' => $newScanned]);
+
+            $allScanned = $doc->lines()->get()->every(fn (StockDocumentLine $l) => bccomp(
+                $l->id === $line->id ? $newScanned : (string) $l->scanned_qty,
+                (string) $l->qty_planned,
+                3
+            ) >= 0);
+
+            $from = $doc->status;
+            if ($allScanned) {
+                $finalStatus = $doc->doc_type === StockDocument::TYPE_RECEIPT ? StockDocument::STATUS_RECEIVED : StockDocument::STATUS_ISSUED;
+                $doc->update(['status' => $finalStatus, 'posted_by' => $userId, 'posted_at' => now()]);
+                $this->logStatusHistory($doc, $from, $finalStatus, 'scan_complete', $userId);
+            } elseif ($from !== StockDocument::STATUS_PARTIALLY_POSTED) {
+                $doc->update(['status' => StockDocument::STATUS_PARTIALLY_POSTED]);
+                $this->logStatusHistory($doc, $from, StockDocument::STATUS_PARTIALLY_POSTED, 'scan', $userId);
+            }
+
+            return $doc->fresh(['lines', 'movements']);
         });
     }
 
     /**
-     * Điều chuyển — Nhận hàng tại kho đích. Mỗi dòng nhận đúng 1 lần (không hỗ trợ nhận nhiều
-     * đợt như bản ERP gốc — đơn giản hoá cho base). `linesInput`: [line_id => qty_actual].
+     * Đóng phần còn lại chưa scan đủ — đánh dấu shortage trên từng dòng còn thiếu, chuyển
+     * phiếu sang closed. Chỉ áp dụng khi phiếu đang approved (chưa scan gì) hoặc partially_posted.
      */
-    public function receive(StockDocument $doc, array $linesInput, string $userId): StockDocument
+    public function closeRemainder(StockDocument $doc, string $userId, ?string $reason): StockDocument
     {
-        return DB::transaction(function () use ($doc, $linesInput, $userId) {
-            $this->assertTransfer($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_IN_TRANSIT], 'nhận hàng điều chuyển');
-            $this->assertWarehouseActive($doc->dst_warehouse_id);
+        return DB::transaction(function () use ($doc, $userId, $reason) {
+            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED, StockDocument::STATUS_PARTIALLY_POSTED], 'đóng phần còn thiếu');
 
-            $allCompleted = true;
             foreach ($doc->lines as $line) {
-                $itl = InTransitLedger::where('stock_document_line_id', $line->id)->lockForUpdate()->firstOrFail();
-                $qtyReceived = (string) ($linesInput[$line->id] ?? $itl->qty_dispatched);
-                $remaining = bcsub((string) $itl->qty_dispatched, (string) $itl->qty_received, 3);
-
-                if (bccomp($qtyReceived, $remaining, 3) > 0) {
-                    WarehouseException::invalidStatus("Số thực nhận không được vượt quá số lượng còn lại (dòng {$line->line_no}).");
-                }
-
-                if (bccomp($qtyReceived, '0', 3) > 0) {
-                    $this->ledger->transferIn($doc, $line, $qtyReceived, $userId);
-                }
-
-                $newReceived = bcadd((string) $itl->qty_received, $qtyReceived, 3);
-                $stillRemaining = bcsub((string) $itl->qty_dispatched, $newReceived, 3);
-                $itlStatus = bccomp($stillRemaining, '0', 3) <= 0 ? InTransitLedger::STATUS_COMPLETED : InTransitLedger::STATUS_PARTIALLY_RECEIVED;
-
-                $itl->update(['qty_received' => $newReceived, 'status' => $itlStatus, 'received_at' => now()]);
-
-                if ($itlStatus !== InTransitLedger::STATUS_COMPLETED) {
-                    $allCompleted = false;
+                $remaining = bcsub((string) $line->qty_planned, (string) $line->scanned_qty, 3);
+                if (bccomp($remaining, '0', 3) > 0) {
+                    $line->update([
+                        'qty_actual' => $line->scanned_qty,
+                        'completion_type' => 'shortage',
+                        'shortage_reason' => $reason,
+                    ]);
                 }
             }
 
             $from = $doc->status;
-            $newStatus = $allCompleted ? StockDocument::STATUS_COMPLETED : StockDocument::STATUS_IN_TRANSIT;
-            $doc->update(['status' => $newStatus, 'received_by' => $userId, 'received_at' => now()]);
-            $this->logStatusHistory($doc, $from, $newStatus, 'receive', $userId);
+            $doc->update(['status' => StockDocument::STATUS_CLOSED, 'closed_by' => $userId, 'closed_at' => now()]);
+            $this->logStatusHistory($doc, $from, StockDocument::STATUS_CLOSED, 'close_remainder', $userId, $reason);
+            AuditLogger::record('CLOSE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), reason: $reason);
 
             return $doc->fresh('lines');
         });
     }
 
-    /**
-     * Điều chuyển — Ghi nhận mất mát trong quá trình vận chuyển. Không sinh stock_movement
-     * (không có kho nào bị trừ thật — hàng đã xuất khỏi kho nguồn từ bước dispatch), chỉ cập
-     * nhật InTransitLedger.qty_lost. `linesInput`: [line_id => qty_lost].
-     */
-    public function recordTransferLoss(StockDocument $doc, array $linesInput, string $userId, ?string $reason): StockDocument
+    /** Đảo ngược toàn bộ movement đã ghi cho phiếu (reverse/correction). */
+    public function reverseDocument(StockDocument $doc, string $userId, ?string $reason): StockDocument
     {
-        return DB::transaction(function () use ($doc, $linesInput, $userId, $reason) {
-            $this->assertTransfer($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_IN_TRANSIT], 'ghi nhận mất mát điều chuyển');
+        return DB::transaction(function () use ($doc, $userId, $reason) {
+            $this->assertStatus($doc, [StockDocument::STATUS_RECEIVED, StockDocument::STATUS_ISSUED, StockDocument::STATUS_CLOSED], 'đảo ngược');
 
-            $allCompleted = true;
-            foreach ($doc->lines as $line) {
-                $itl = InTransitLedger::where('stock_document_line_id', $line->id)->lockForUpdate()->firstOrFail();
-                $qtyLost = (string) ($linesInput[$line->id] ?? 0);
-                $remaining = bcsub(bcsub((string) $itl->qty_dispatched, (string) $itl->qty_received, 3), (string) $itl->qty_lost, 3);
+            $movements = StockMovement::where('stock_document_id', $doc->id)
+                ->whereNull('original_movement_id')
+                ->get();
 
-                if (bccomp($qtyLost, $remaining, 3) > 0) {
-                    WarehouseException::invalidStatus("Số lượng mất mát không được vượt quá số lượng còn lại (dòng {$line->line_no}).");
-                }
-
-                $newLost = bcadd((string) $itl->qty_lost, $qtyLost, 3);
-                $stillRemaining = bcsub($remaining, $qtyLost, 3);
-                $itlStatus = bccomp($stillRemaining, '0', 3) <= 0 ? InTransitLedger::STATUS_COMPLETED_WITH_LOSS : InTransitLedger::STATUS_PARTIALLY_RECEIVED;
-
-                $itl->update(['qty_lost' => $newLost, 'status' => $itlStatus]);
-                if (bccomp($qtyLost, '0', 3) > 0) {
-                    $line->update(['shortage_reason' => $reason]);
-                }
-
-                if ($itlStatus !== InTransitLedger::STATUS_COMPLETED_WITH_LOSS) {
-                    $allCompleted = false;
-                }
-            }
-
-            if ($allCompleted) {
-                $from = $doc->status;
-                $doc->update(['status' => StockDocument::STATUS_COMPLETED_WITH_LOSS]);
-                $this->logStatusHistory($doc, $from, StockDocument::STATUS_COMPLETED_WITH_LOSS, 'record_loss', $userId, $reason);
-            }
-
-            return $doc->fresh('lines');
-        });
-    }
-
-    /** Điều chuyển — Bước 1: yêu cầu trả lại hàng (chưa đổi tồn thật, chỉ đánh dấu). */
-    public function returnTransfer(StockDocument $doc, ?string $reason, string $userId): StockDocument
-    {
-        return DB::transaction(function () use ($doc, $reason, $userId) {
-            $this->assertTransfer($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_IN_TRANSIT], 'trả lại hàng điều chuyển');
-
-            foreach ($doc->lines as $line) {
-                $itl = InTransitLedger::where('stock_document_line_id', $line->id)->lockForUpdate()->firstOrFail();
-                $remaining = bcsub(bcsub((string) $itl->qty_dispatched, (string) $itl->qty_received, 3), (string) $itl->qty_lost, 3);
-                if (bccomp($remaining, '0', 3) <= 0) {
+            foreach ($movements as $movement) {
+                $alreadyReversed = StockMovement::where('original_movement_id', $movement->id)->exists();
+                if ($alreadyReversed) {
                     continue;
                 }
-
-                $itl->update([
-                    'qty_return_in_transit' => bcadd((string) $itl->qty_return_in_transit, $remaining, 3),
-                    'status' => InTransitLedger::STATUS_RETURN_IN_TRANSIT,
-                ]);
+                $this->ledger->reverse($movement, $userId);
             }
 
             $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_RETURN_IN_TRANSIT, 'return_reason' => $reason]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_RETURN_IN_TRANSIT, 'return', $userId, $reason);
+            $doc->update(['status' => StockDocument::STATUS_REVERSED, 'reversed_by' => $userId, 'reversed_at' => now(), 'reverse_reason' => $reason]);
+            $this->logStatusHistory($doc, $from, StockDocument::STATUS_REVERSED, 'reverse', $userId, $reason);
+            AuditLogger::record('REVERSE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), reason: $reason);
 
-            return $doc->fresh('lines');
+            return $doc->fresh(['lines', 'movements']);
         });
     }
 
-    /** Điều chuyển — Bước 2: xác nhận đã nhận lại hàng trả về tại kho nguồn (đổi tồn thật). */
-    public function confirmReturn(StockDocument $doc, string $userId): StockDocument
+    private function syncLines(StockDocument $doc, array $lines): void
     {
-        return DB::transaction(function () use ($doc, $userId) {
-            $this->assertTransfer($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_RETURN_IN_TRANSIT], 'xác nhận nhận lại hàng trả về');
-            $this->assertWarehouseActive($doc->src_warehouse_id);
-
-            foreach ($doc->lines as $line) {
-                $itl = InTransitLedger::where('stock_document_line_id', $line->id)->lockForUpdate()->firstOrFail();
-                $pending = bcsub((string) $itl->qty_return_in_transit, (string) $itl->qty_returned, 3);
-                if (bccomp($pending, '0', 3) <= 0) {
-                    continue;
-                }
-
-                $this->ledger->transferReturn($doc, $line, $pending, $userId);
-                $itl->update(['qty_returned' => bcadd((string) $itl->qty_returned, $pending, 3), 'status' => InTransitLedger::STATUS_RETURNED, 'returned_at' => now()]);
-            }
-
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_RETURNED, 'returned_by' => $userId, 'returned_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_RETURNED, 'confirm_return', $userId);
-
-            return $doc->fresh('lines');
-        });
+        foreach (array_values($lines) as $index => $l) {
+            StockDocumentLine::create([
+                'stock_document_id' => $doc->id,
+                'line_no' => $index + 1,
+                'product_id' => $l['product_id'],
+                'qty_planned' => $l['qty_planned'],
+                'qty_actual' => $l['qty_planned'],
+            ]);
+        }
     }
 
     private function assertStatus(StockDocument $doc, array $allowed, string $action): void
     {
         if (! in_array($doc->status, $allowed, true)) {
             WarehouseException::invalidStatus("Không thể {$action} khi phiếu đang ở trạng thái \"{$doc->status}\".");
-        }
-    }
-
-    private function assertTransfer(StockDocument $doc): void
-    {
-        if ($doc->doc_type !== StockDocument::TYPE_TRANSFER) {
-            WarehouseException::invalidStatus('Thao tác chỉ áp dụng cho phiếu điều chuyển.');
         }
     }
 

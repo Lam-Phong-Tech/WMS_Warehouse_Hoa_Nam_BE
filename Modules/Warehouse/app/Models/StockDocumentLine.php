@@ -5,7 +5,6 @@ namespace Modules\Warehouse\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class StockDocumentLine extends Model
 {
@@ -18,7 +17,7 @@ class StockDocumentLine extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'stock_document_id', 'line_no', 'product_id', 'qty_planned', 'qty_actual',
+        'stock_document_id', 'line_no', 'product_id', 'qty_planned', 'qty_actual', 'scanned_qty',
         'completion_type', 'shortage_reason',
     ];
 
@@ -30,10 +29,5 @@ class StockDocumentLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
-    }
-
-    public function inTransitLedger(): HasOne
-    {
-        return $this->hasOne(InTransitLedger::class);
     }
 }

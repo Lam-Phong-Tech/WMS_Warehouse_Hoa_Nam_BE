@@ -15,6 +15,7 @@ return new class extends Migration
             $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
             $table->decimal('qty_planned', 18, 3)->default(0);
             $table->decimal('qty_actual', 18, 3)->default(0);
+            $table->decimal('scanned_qty', 18, 3)->default(0); // luỹ kế đã scan qua các lần gọi /scan
             $table->string('completion_type', 20)->default('full'); // full | shortage | loss
             $table->string('shortage_reason', 1000)->nullable();
             $table->timestamps();

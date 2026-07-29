@@ -19,8 +19,9 @@ class AuthController extends Controller
 
     #[OA\Post(
         path: '/api/v1/auth/login',
+        operationId: 'auth_login',
         summary: 'Đăng nhập bằng username/password, trả về JWT access token + refresh token',
-        tags: ['Auth'],
+        tags: ['01. Authentication'],
         security: [],
         requestBody: new OA\RequestBody(
             required: true,
@@ -71,6 +72,24 @@ class AuthController extends Controller
         ], 'Đăng nhập thành công');
     }
 
+    #[OA\Post(
+        path: '/api/v1/auth/refresh',
+        operationId: 'auth_refresh',
+        summary: 'Làm mới access token bằng refresh token (xoay vòng — refresh token cũ bị thu hồi)',
+        tags: ['01. Authentication'],
+        security: [],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['refresh_token'],
+                properties: [new OA\Property(property: 'refresh_token', type: 'string')]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Làm mới token thành công'),
+            new OA\Response(response: 401, description: 'Refresh token không hợp lệ hoặc đã hết hạn'),
+        ]
+    )]
     public function refresh(Request $request)
     {
         $request->validate(['refresh_token' => ['required', 'string']]);
@@ -91,6 +110,22 @@ class AuthController extends Controller
         ], 'Làm mới token thành công');
     }
 
+    #[OA\Post(
+        path: '/api/v1/auth/logout',
+        operationId: 'auth_logout',
+        summary: 'Đăng xuất — thu hồi refresh token (nếu có) và huỷ access token hiện tại',
+        security: [['bearerAuth' => []]],
+        tags: ['01. Authentication'],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'refresh_token', type: 'string', nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đăng xuất thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+        ]
+    )]
     public function logout(Request $request)
     {
         $request->validate(['refresh_token' => ['nullable', 'string']]);
@@ -104,6 +139,17 @@ class AuthController extends Controller
         return $this->respondSuccess(null, 'Đăng xuất thành công');
     }
 
+    #[OA\Get(
+        path: '/api/v1/auth/me',
+        operationId: 'auth_me',
+        summary: 'Thông tin tài khoản đang đăng nhập + danh sách permission_key',
+        security: [['bearerAuth' => []]],
+        tags: ['01. Authentication'],
+        responses: [
+            new OA\Response(response: 200, description: 'Thông tin tài khoản'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+        ]
+    )]
     public function me(Request $request)
     {
         /** @var User $user */
