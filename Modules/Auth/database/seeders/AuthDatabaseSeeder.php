@@ -3,7 +3,6 @@
 namespace Modules\Auth\Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
@@ -12,151 +11,157 @@ use Modules\Auth\Models\User;
 
 class AuthDatabaseSeeder extends Seeder
 {
+    /**
+     * Danh mục permission_key hiện đang được route Warehouse/AuditLog tham chiếu qua
+     * middleware `permission:<CODE>`. SUPER_ADMIN bypass toàn bộ nên không cần gán ở đây,
+     * nhưng các row này bắt buộc phải tồn tại để sau này gán cho role không phải admin.
+     */
     private const PERMISSIONS = [
-        'master-data.warehouse.view' => ['Warehouse view', 'WAREHOUSE'],
-        'master-data.warehouse.create' => ['Warehouse create', 'WAREHOUSE'],
-        'master-data.product.view' => ['Product view', 'FUNCTION'],
-        'master-data.product.create' => ['Product create', 'FUNCTION'],
-        'warehouse.stock-document.view' => ['Stock document view', 'WAREHOUSE'],
-        'warehouse.stock-document.create' => ['Stock document create', 'WAREHOUSE'],
-        'warehouse.stock-document.submit' => ['Stock document submit', 'WAREHOUSE'],
-        'warehouse.stock-document.approve' => ['Stock document approve/reject', 'WAREHOUSE'],
-        'warehouse.stock-document.post' => ['Stock document post/dispatch/receive', 'WAREHOUSE'],
-        'warehouse.stock-document.cancel' => ['Stock document cancel', 'WAREHOUSE'],
-        'warehouse.stock-request.view' => ['Stock request view', 'WAREHOUSE'],
-        'warehouse.stock-request.create' => ['Stock request create', 'WAREHOUSE'],
-        'warehouse.stock-request.submit' => ['Stock request submit', 'WAREHOUSE'],
-        'warehouse.stock-request.approve' => ['Stock request approve/reject', 'WAREHOUSE'],
-        'warehouse.stock-request.cancel' => ['Stock request cancel', 'WAREHOUSE'],
-        'warehouse.stock-request.convert' => ['Stock request convert', 'WAREHOUSE'],
-        'warehouse.safe-stock.view' => ['Safe stock view', 'WAREHOUSE'],
-        'warehouse.safe-stock.manage' => ['Safe stock manage', 'WAREHOUSE'],
-        'report.inventory.view' => ['Inventory report view', 'WAREHOUSE'],
-        'audit-log.view' => ['Audit log view', 'SYSTEM'],
+        ['warehouse.view', 'Xem kho'],
+        ['warehouse.manage', 'Tạo/sửa kho'],
+        ['product.view', 'Xem sản phẩm'],
+        ['product.manage', 'Tạo/sửa sản phẩm'],
+        ['stock_document.view', 'Xem phiếu kho'],
+        ['stock_document.create', 'Tạo phiếu kho'],
+        ['stock_document.submit', 'Gửi duyệt phiếu kho'],
+        ['stock_document.approve', 'Duyệt/từ chối phiếu kho'],
+        ['stock_document.post', 'Hạch toán phiếu kho (post-receipt/post-issue/scan/close-remainder)'],
+        ['stock_document.cancel', 'Huỷ phiếu kho'],
+        ['stock_document.reverse', 'Đảo ngược (reverse/correction) phiếu kho đã hạch toán'],
+        ['safe_stock.view', 'Xem định mức/cảnh báo tồn kho an toàn'],
+        ['safe_stock.manage', 'Cấu hình định mức tồn kho an toàn'],
+        ['inventory.view', 'Xem tồn kho hiện tại và lịch sử biến động (stock-movements)'],
+        ['report.view', 'Xem báo cáo tồn kho'],
+        ['audit_log.view', 'Xem nhật ký audit'],
     ];
 
-    private const ROLE_PERMISSIONS = [
-        'WAREHOUSE_OPERATOR' => [
-            'master-data.warehouse.view',
-            'master-data.product.view',
-            'warehouse.stock-document.view',
-            'warehouse.stock-document.create',
-            'warehouse.stock-document.submit',
-            'warehouse.stock-document.post',
-            'warehouse.stock-request.view',
-            'warehouse.stock-request.create',
-            'warehouse.stock-request.submit',
-            'warehouse.safe-stock.view',
+    /**
+     * Role demo theo nhóm quyền (ngoài SUPER_ADMIN) để test middleware `permission:<CODE>`
+     * với user không bypass. permission_key liệt kê ở đây phải là tập con của self::PERMISSIONS.
+     */
+    private const ROLES = [
+        'WAREHOUSE_STAFF' => [
+            'name' => 'Nhân viên kho',
+            'permissions' => [
+                'warehouse.view', 'product.view',
+                'stock_document.view', 'stock_document.create', 'stock_document.submit',
+                'safe_stock.view', 'inventory.view', 'report.view',
+            ],
+        ],
+        'WAREHOUSE_APPROVER' => [
+            'name' => 'Người duyệt phiếu',
+            'permissions' => [
+                'warehouse.view', 'product.view',
+                'stock_document.view', 'stock_document.approve',
+                'safe_stock.view', 'inventory.view', 'report.view',
+            ],
+        ],
+        'WAREHOUSE_KEEPER' => [
+            'name' => 'Thủ kho (hạch toán)',
+            'permissions' => [
+                'warehouse.view', 'product.view',
+                'stock_document.view', 'stock_document.post', 'stock_document.cancel', 'stock_document.reverse',
+                'safe_stock.view', 'safe_stock.manage', 'inventory.view', 'report.view',
+            ],
+        ],
+        'VIEWER' => [
+            'name' => 'Chỉ xem/báo cáo',
+            'permissions' => [
+                'warehouse.view', 'product.view', 'stock_document.view',
+                'safe_stock.view', 'inventory.view', 'report.view', 'audit_log.view',
+            ],
         ],
         'WAREHOUSE_MANAGER' => [
-            'master-data.warehouse.view',
-            'master-data.warehouse.create',
-            'master-data.product.view',
-            'master-data.product.create',
-            'warehouse.stock-document.view',
-            'warehouse.stock-document.create',
-            'warehouse.stock-document.submit',
-            'warehouse.stock-document.approve',
-            'warehouse.stock-document.post',
-            'warehouse.stock-document.cancel',
-            'warehouse.stock-request.view',
-            'warehouse.stock-request.create',
-            'warehouse.stock-request.submit',
-            'warehouse.stock-request.approve',
-            'warehouse.stock-request.cancel',
-            'warehouse.stock-request.convert',
-            'warehouse.safe-stock.view',
-            'warehouse.safe-stock.manage',
-            'report.inventory.view',
-        ],
-        'AUDITOR' => [
-            'master-data.warehouse.view',
-            'master-data.product.view',
-            'warehouse.stock-document.view',
-            'warehouse.stock-request.view',
-            'warehouse.safe-stock.view',
-            'report.inventory.view',
-            'audit-log.view',
+            'name' => 'Quản lý kho',
+            'permissions' => [
+                'warehouse.view', 'warehouse.manage', 'product.view', 'product.manage',
+                'stock_document.view', 'stock_document.create', 'stock_document.submit',
+                'stock_document.approve', 'stock_document.post', 'stock_document.cancel', 'stock_document.reverse',
+                'safe_stock.view', 'safe_stock.manage', 'inventory.view', 'report.view', 'audit_log.view',
+            ],
         ],
     ];
 
+    /**
+     * Tài khoản demo cho từng role, dùng chung mật khẩu Cntt@1234 để tiện test theo permission.
+     */
+    private const USERS = [
+        ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@wms-hoanam.local', 'role' => 'WAREHOUSE_STAFF'],
+        ['username' => 'approver01', 'display_name' => 'Người duyệt 01', 'email' => 'approver01@wms-hoanam.local', 'role' => 'WAREHOUSE_APPROVER'],
+        ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@wms-hoanam.local', 'role' => 'WAREHOUSE_KEEPER'],
+        ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@wms-hoanam.local', 'role' => 'VIEWER'],
+        ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@wms-hoanam.local', 'role' => 'WAREHOUSE_MANAGER'],
+    ];
+
+    private const DEFAULT_PASSWORD = 'Cntt@1234';
+
+    /**
+     * Seed tối thiểu để smoke test base: role SUPER_ADMIN (bypass mọi permission) + admin,
+     * cộng thêm 4 role demo theo nhóm quyền + 1 user mỗi role để test permission thật.
+     * Không phải seed đầy đủ theo BRD — chỉ đủ để chứng minh Auth chạy được.
+     */
     public function run(): void
     {
-        $permissions = $this->seedPermissions();
-
-        $superAdmin = Role::firstOrCreate(
-            ['role_code' => 'SUPER_ADMIN'],
-            ['role_name' => 'System administrator', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
-        );
-
-        foreach (self::ROLE_PERMISSIONS as $roleCode => $permissionKeys) {
-            $role = Role::firstOrCreate(
-                ['role_code' => $roleCode],
-                [
-                    'role_name' => str_replace('_', ' ', Str::headline(strtolower($roleCode))),
-                    'scope_type' => $roleCode === 'AUDITOR' ? 'SYSTEM' : 'WAREHOUSE',
-                    'status' => 'ACTIVE',
-                ]
+        $permissionsByKey = [];
+        foreach (self::PERMISSIONS as [$key, $name]) {
+            $permissionsByKey[$key] = Permission::firstOrCreate(
+                ['permission_key' => $key],
+                ['permission_name' => $name, 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
             );
-
-            $this->syncRolePermissions($role, $permissionKeys, $permissions);
         }
 
-        $this->syncRolePermissions($superAdmin, array_keys(self::PERMISSIONS), $permissions);
+        $superAdminRole = Role::firstOrCreate(
+            ['role_code' => 'SUPER_ADMIN'],
+            ['role_name' => 'Quản trị hệ thống', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
+        );
 
-        $user = User::firstOrCreate(
+        $adminUser = User::firstOrCreate(
             ['username' => 'admin'],
             [
                 'display_name' => 'Administrator',
                 'email' => 'admin@wms-hoanam.local',
-                'password_hash' => Hash::make('ChangeMe123!'),
+                'password_hash' => Hash::make(self::DEFAULT_PASSWORD),
                 'status' => 'ACTIVE',
                 'version' => 1,
             ]
         );
+        $this->attachRole($adminUser, $superAdminRole);
 
-        if (! $user->roles()->where('role.role_id', $superAdmin->role_id)->exists()) {
-            $user->roles()->attach($superAdmin->role_id, ['user_role_id' => (string) Str::uuid()]);
-        }
-    }
-
-    /**
-     * @return array<string, Permission>
-     */
-    private function seedPermissions(): array
-    {
-        $permissions = [];
-
-        foreach (self::PERMISSIONS as $key => [$name, $scopeType]) {
-            $permissions[$key] = Permission::firstOrCreate(
-                ['permission_key' => $key],
-                ['permission_name' => $name, 'scope_type' => $scopeType, 'status' => 'ACTIVE']
+        $roleModels = [];
+        foreach (self::ROLES as $code => $def) {
+            $role = Role::firstOrCreate(
+                ['role_code' => $code],
+                ['role_name' => $def['name'], 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
             );
+
+            $pivotData = [];
+            foreach ($def['permissions'] as $key) {
+                $pivotData[$permissionsByKey[$key]->permission_id] = ['role_permission_id' => (string) Str::uuid()];
+            }
+            $role->permissions()->sync($pivotData);
+
+            $roleModels[$code] = $role;
         }
 
-        return $permissions;
-    }
-
-    /**
-     * @param  array<int, string>  $permissionKeys
-     * @param  array<string, Permission>  $permissions
-     */
-    private function syncRolePermissions(Role $role, array $permissionKeys, array $permissions): void
-    {
-        foreach ($permissionKeys as $permissionKey) {
-            $permission = $permissions[$permissionKey];
-
-            DB::table('role_permission')->updateOrInsert(
+        foreach (self::USERS as $u) {
+            $user = User::firstOrCreate(
+                ['username' => $u['username']],
                 [
-                    'role_id' => $role->role_id,
-                    'permission_id' => $permission->permission_id,
-                ],
-                [
-                    'role_permission_id' => (string) Str::uuid(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'display_name' => $u['display_name'],
+                    'email' => $u['email'],
+                    'password_hash' => Hash::make(self::DEFAULT_PASSWORD),
+                    'status' => 'ACTIVE',
+                    'version' => 1,
                 ]
             );
+            $this->attachRole($user, $roleModels[$u['role']]);
+        }
+    }
+
+    private function attachRole(User $user, Role $role): void
+    {
+        if (! $user->roles()->where('role.role_id', $role->role_id)->exists()) {
+            $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
         }
     }
 }

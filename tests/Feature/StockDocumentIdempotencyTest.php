@@ -12,7 +12,6 @@ use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 class StockDocumentIdempotencyTest extends TestCase
 {
@@ -35,7 +34,7 @@ class StockDocumentIdempotencyTest extends TestCase
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
 
-        $token = JWTAuth::fromUser($user);
+        $token = auth('api')->login($user);
 
         return ['Authorization' => "Bearer {$token}"];
     }
@@ -75,16 +74,41 @@ class StockDocumentIdempotencyTest extends TestCase
             ->assertJsonPath('error.code', 'UNAUTHENTICATED');
     }
 
-    /** submit -> approve -> post (receipt), lặp lại Post cùng Idempotency-Key phải không tăng tồn lần 2. */
-    public function test_receipt_full_lifecycle_and_post_is_idempotent(): void
+    public function test_warehouse_index_returns_single_warehouse_without_pagination(): void
+    {
+        $headers = $this->authHeaders();
+        $warehouse = Warehouse::create(['code' => 'KHOTONG', 'name' => 'Kho tong', 'status' => 'ACTIVE']);
+
+        $response = $this->getJson('/api/v1/warehouses', $headers);
+
+        $response->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $warehouse->id);
+    }
+
+    public function test_warehouse_update_changes_contact_info(): void
+    {
+        $headers = $this->authHeaders();
+        $warehouse = Warehouse::create(['code' => 'KHOTONG-U', 'name' => 'Kho tong', 'status' => 'ACTIVE']);
+
+        $response = $this->patchJson("/api/v1/warehouses/{$warehouse->id}", [
+            'address' => 'Số 1 Đường ABC',
+            'contact_person' => 'Nguyễn Văn A',
+            'phone' => '0900000000',
+        ], $headers);
+
+        $response->assertOk()
+            ->assertJsonPath('data.address', 'Số 1 Đường ABC')
+            ->assertJsonPath('data.contact_person', 'Nguyễn Văn A');
+    }
+
+    /** submit -> approve -> post-receipt, lặp lại cùng Idempotency-Key phải không tăng tồn lần 2. */
+    public function test_inbound_full_lifecycle_and_post_is_idempotent(): void
     {
         $headers = $this->authHeaders();
 
         $warehouse = Warehouse::create(['code' => 'KHOTONG', 'name' => 'Kho tong', 'status' => 'ACTIVE']);
         $product = Product::create(['code' => 'SP001', 'name' => 'May khoan', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $createResponse = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt',
+        $createResponse = $this->postJson('/api/v1/inbound-documents', [
             'doc_no' => 'PN-TEST-0001',
             'doc_date' => '2026-07-29',
             'dst_warehouse_id' => $warehouse->id,
@@ -96,10 +120,13 @@ class StockDocumentIdempotencyTest extends TestCase
         $createResponse->assertCreated()->assertJsonPath('data.status', 'draft');
         $docId = $createResponse->json('data.id');
 
-        $first = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-1']);
-        $first->assertOk()->assertJsonPath('data.status', 'posted');
+        $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk()->assertJsonPath('data.status', 'pending');
+        $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk()->assertJsonPath('data.status', 'approved');
 
-        $second = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-1']);
+        $first = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-1']);
+        $first->assertOk()->assertJsonPath('data.status', 'received');
+
+        $second = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-1']);
         $second->assertOk();
 
         $this->assertSame(
@@ -113,15 +140,14 @@ class StockDocumentIdempotencyTest extends TestCase
         $this->assertEquals(10, (float) $balance->available_qty);
     }
 
-    public function test_receipt_can_post_without_prior_approval(): void
+    public function test_post_receipt_without_prior_approval_is_rejected(): void
     {
         $headers = $this->authHeaders();
 
         $warehouse = Warehouse::create(['code' => 'KHOTONG2', 'name' => 'Kho tong 2', 'status' => 'ACTIVE']);
         $product = Product::create(['code' => 'SP002', 'name' => 'May cua', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $createResponse = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt',
+        $createResponse = $this->postJson('/api/v1/inbound-documents', [
             'doc_no' => 'PN-TEST-0002',
             'doc_date' => '2026-07-29',
             'dst_warehouse_id' => $warehouse->id,
@@ -133,20 +159,19 @@ class StockDocumentIdempotencyTest extends TestCase
         $docId = $createResponse->json('data.id');
 
         // Vẫn ở trạng thái draft — chưa submit/approve — post phải bị từ chối (409 STATE_CONFLICT).
-        $response = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-2']);
+        $response = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-2']);
 
-        $response->assertOk()->assertJsonPath('data.status', 'posted');
+        $response->assertStatus(409)->assertJsonPath('error.code', 'STATE_CONFLICT');
     }
 
-    public function test_post_without_idempotency_key_is_rejected(): void
+    public function test_post_receipt_without_idempotency_key_is_rejected(): void
     {
         $headers = $this->authHeaders();
 
         $warehouse = Warehouse::create(['code' => 'KHOTONG3', 'name' => 'Kho tong 3', 'status' => 'ACTIVE']);
         $product = Product::create(['code' => 'SP003', 'name' => 'May mai', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $createResponse = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt',
+        $createResponse = $this->postJson('/api/v1/inbound-documents', [
             'doc_no' => 'PN-TEST-0003',
             'doc_date' => '2026-07-29',
             'dst_warehouse_id' => $warehouse->id,
@@ -154,91 +179,23 @@ class StockDocumentIdempotencyTest extends TestCase
         ], $headers + ['Idempotency-Key' => 'create-3']);
         $docId = $createResponse->json('data.id');
 
+        $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk();
+
         // Cố tình KHÔNG gửi Idempotency-Key ở lệnh post này.
-        $response = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers);
+        $response = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers);
 
         $response->assertStatus(428)->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
     }
 
-    public function test_idempotency_key_reused_with_different_payload_is_rejected(): void
-    {
-        $headers = $this->authHeaders();
-
-        $warehouse = Warehouse::create(['code' => 'KHOTONG-IDEM', 'name' => 'Kho idem', 'status' => 'ACTIVE']);
-        $product = Product::create(['code' => 'SP-IDEM', 'name' => 'May idem', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
-
-        $first = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt',
-            'doc_no' => 'PN-IDEM-0001',
-            'doc_date' => '2026-07-29',
-            'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $product->id, 'qty_planned' => 5]],
-        ], $headers + ['Idempotency-Key' => 'create-idem-conflict']);
-
-        $first->assertCreated();
-
-        $conflict = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt',
-            'doc_no' => 'PN-IDEM-0002',
-            'doc_date' => '2026-07-29',
-            'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $product->id, 'qty_planned' => 6]],
-        ], $headers + ['Idempotency-Key' => 'create-idem-conflict']);
-
-        $conflict->assertStatus(409)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('error.code', 'IDEMPOTENCY_ERROR');
-    }
-
-    public function test_post_rejects_invalid_partial_line_payload_before_stock_mutation(): void
-    {
-        $headers = $this->authHeaders();
-
-        $warehouse = Warehouse::create(['code' => 'KHOTONG-LINE', 'name' => 'Kho line', 'status' => 'ACTIVE']);
-        $product = Product::create(['code' => 'SP-LINE', 'name' => 'May line', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
-
-        $createResponse = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt',
-            'doc_no' => 'PN-LINE-0001',
-            'doc_date' => '2026-07-29',
-            'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $product->id, 'qty_planned' => 5]],
-        ], $headers + ['Idempotency-Key' => 'create-line-contract']);
-
-        $docId = $createResponse->json('data.id');
-
-        $missingQty = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
-            'lines' => [['line_id' => $createResponse->json('data.lines.0.id')]],
-        ], $headers + ['Idempotency-Key' => 'post-line-missing-qty']);
-
-        $missingQty->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
-
-        $unknownLine = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
-            'lines' => [['line_id' => (string) Str::uuid(), 'qty_actual' => 2]],
-        ], $headers + ['Idempotency-Key' => 'post-line-unknown']);
-
-        $unknownLine->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
-
-        $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
-        $this->assertDatabaseMissing('inventory_balances', [
-            'warehouse_id' => $warehouse->id,
-            'product_id' => $product->id,
-        ]);
-    }
-
-    public function test_issue_more_than_available_stock_is_rejected_at_post_commit(): void
+    public function test_issue_more_than_available_stock_is_rejected_at_approve(): void
     {
         $headers = $this->authHeaders();
 
         $warehouse = Warehouse::create(['code' => 'KHOTONG4', 'name' => 'Kho tong 4', 'status' => 'ACTIVE']);
         $product = Product::create(['code' => 'SP004', 'name' => 'May mai 2', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $createResponse = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'issue',
+        $createResponse = $this->postJson('/api/v1/outbound-documents', [
             'doc_no' => 'PX-TEST-0001',
             'doc_date' => '2026-07-29',
             'src_warehouse_id' => $warehouse->id,
@@ -246,118 +203,102 @@ class StockDocumentIdempotencyTest extends TestCase
         ], $headers + ['Idempotency-Key' => 'create-4']);
         $docId = $createResponse->json('data.id');
 
-        $response = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-issue-no-stock']);
+        $this->postJson("/api/v1/outbound-documents/{$docId}/submit", [], $headers)->assertOk();
+
+        // approve() đã precheck tồn khả dụng cho phiếu xuất — chưa có tồn nào nên phải chặn ở đây.
+        $response = $this->postJson("/api/v1/outbound-documents/{$docId}/approve", [], $headers);
 
         $response->assertStatus(422)->assertJsonPath('error.code', 'INSUFFICIENT_STOCK');
     }
 
-    /** Điều chuyển đầy đủ: draft->pending->approved->dispatch->receive(completed), tồn di chuyển đúng giữa 2 kho. */
-    public function test_receipt_supports_partial_multi_post_without_double_counting(): void
+    /** Scan từng phần: 2 lần scan cộng dồn đủ qty_planned -> tự động chuyển received. */
+    public function test_scan_partial_receipt_completes_when_fully_scanned(): void
     {
         $headers = $this->authHeaders();
 
-        $warehouse = Warehouse::create(['code' => 'KHOTONG-PART', 'name' => 'Kho partial', 'status' => 'ACTIVE']);
-        $product = Product::create(['code' => 'SP-PART', 'name' => 'May partial', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $warehouse = Warehouse::create(['code' => 'KHO-SCAN', 'name' => 'Kho scan', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP008', 'name' => 'May khoan 3', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $createResponse = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt',
-            'doc_no' => 'PN-PART-0001',
-            'doc_date' => '2026-07-29',
-            'dst_warehouse_id' => $warehouse->id,
-            'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
-            ],
-        ], $headers + ['Idempotency-Key' => 'create-part']);
-
+        $createResponse = $this->postJson('/api/v1/inbound-documents', [
+            'doc_no' => 'PN-SCAN-0001', 'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
+        ], $headers + ['Idempotency-Key' => 'create-scan']);
         $docId = $createResponse->json('data.id');
         $lineId = $createResponse->json('data.lines.0.id');
 
-        $first = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
-            'lines' => [['line_id' => $lineId, 'qty_actual' => 4]],
-        ], $headers + ['Idempotency-Key' => 'post-part-1']);
-        $first->assertOk()
-            ->assertJsonPath('data.status', 'partially_posted');
-        $this->assertEquals(4, (float) $first->json('data.lines.0.qty_posted'));
+        $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk();
 
-        $retry = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
-            'lines' => [['line_id' => $lineId, 'qty_actual' => 4]],
-        ], $headers + ['Idempotency-Key' => 'post-part-1']);
-        $retry->assertOk()->assertJsonPath('data.status', 'partially_posted');
+        $firstScan = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
+            'line_id' => $lineId, 'qty' => 4,
+        ], $headers + ['Idempotency-Key' => 'scan-1']);
+        $firstScan->assertOk()->assertJsonPath('data.status', 'partially_posted');
 
-        $second = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
-            'lines' => [['line_id' => $lineId, 'qty_actual' => 6]],
-        ], $headers + ['Idempotency-Key' => 'post-part-2']);
-        $second->assertOk()
-            ->assertJsonPath('data.status', 'posted');
-        $this->assertEquals(10, (float) $second->json('data.lines.0.qty_posted'));
-
-        $this->assertSame(2, StockMovement::where('stock_document_id', $docId)->count());
+        $secondScan = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
+            'line_id' => $lineId, 'qty' => 6,
+        ], $headers + ['Idempotency-Key' => 'scan-2']);
+        $secondScan->assertOk()->assertJsonPath('data.status', 'received');
 
         $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
         $this->assertEquals(10, (float) $balance->available_qty);
     }
 
-    public function test_transfer_full_lifecycle_moves_stock_between_warehouses(): void
+    /** Đóng phần còn thiếu: scan 6/10 rồi close-remainder -> closed, dòng đánh dấu shortage. */
+    public function test_close_remainder_marks_shortage_on_unfulfilled_qty(): void
     {
         $headers = $this->authHeaders();
 
-        $whA = Warehouse::create(['code' => 'KHO-A', 'name' => 'Kho A', 'status' => 'ACTIVE']);
-        $whB = Warehouse::create(['code' => 'KHO-B', 'name' => 'Kho B', 'status' => 'ACTIVE']);
-        $product = Product::create(['code' => 'SP005', 'name' => 'May khoan 2', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $warehouse = Warehouse::create(['code' => 'KHO-CLOSE', 'name' => 'Kho close', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP009', 'name' => 'May khoan 4', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        // Nhập trước 20 vào kho A để có tồn mà điều chuyển.
-        $receipt = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt', 'doc_no' => 'PN-TRF-0001', 'doc_date' => '2026-07-29',
-            'dst_warehouse_id' => $whA->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 20]],
-        ], $headers + ['Idempotency-Key' => 'create-trf-recv'])->json('data.id');
-        $this->postJson("/api/v1/stock-documents/{$receipt}/post", [], $headers + ['Idempotency-Key' => 'post-trf-recv']);
+        $createResponse = $this->postJson('/api/v1/inbound-documents', [
+            'doc_no' => 'PN-CLOSE-0001', 'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
+        ], $headers + ['Idempotency-Key' => 'create-close']);
+        $docId = $createResponse->json('data.id');
+        $lineId = $createResponse->json('data.lines.0.id');
 
-        $transferResponse = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'transfer', 'doc_no' => 'DC-TEST-0001', 'doc_date' => '2026-07-29',
-            'src_warehouse_id' => $whA->id, 'dst_warehouse_id' => $whB->id,
-            'lines' => [['product_id' => $product->id, 'qty_planned' => 8]],
-        ], $headers + ['Idempotency-Key' => 'create-trf']);
-        $docId = $transferResponse->json('data.id');
-        $lineId = $transferResponse->json('data.lines.0.id');
+        $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
+            'line_id' => $lineId, 'qty' => 6,
+        ], $headers + ['Idempotency-Key' => 'scan-close-1'])->assertOk();
 
-        $this->postJson("/api/v1/stock-documents/{$docId}/submit", [], $headers)->assertOk();
-        $this->postJson("/api/v1/stock-documents/{$docId}/approve", [], $headers)->assertOk();
-        $this->postJson("/api/v1/stock-documents/{$docId}/dispatch", [], $headers + ['Idempotency-Key' => 'dispatch-1'])
-            ->assertOk()->assertJsonPath('data.status', 'in_transit');
+        $closeResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/close-remainder", [
+            'reason' => 'Nhà cung cấp thiếu hàng',
+        ], $headers);
 
-        $receiveResponse = $this->postJson("/api/v1/stock-documents/{$docId}/receive", [
-            'lines' => [['line_id' => $lineId, 'qty_actual' => 8]],
-        ], $headers + ['Idempotency-Key' => 'receive-1']);
-        $receiveResponse->assertOk()->assertJsonPath('data.status', 'completed');
-
-        $balanceA = InventoryBalance::where('warehouse_id', $whA->id)->where('product_id', $product->id)->first();
-        $balanceB = InventoryBalance::where('warehouse_id', $whB->id)->where('product_id', $product->id)->first();
-
-        $this->assertEquals(12, (float) $balanceA->available_qty);
-        $this->assertEquals(8, (float) $balanceB->available_qty);
+        $closeResponse->assertOk()->assertJsonPath('data.status', 'closed');
+        $this->assertSame('shortage', $closeResponse->json('data.lines.0.completion_type'));
     }
 
-    /** StockRequest: draft->pending->approved->convert thành StockDocument (draft). */
-    public function test_stock_request_converts_to_stock_document(): void
+    /** Đảo ngược phiếu đã hạch toán: tồn quay lại đúng như trước khi post. */
+    public function test_reverse_document_restores_balance(): void
     {
         $headers = $this->authHeaders();
 
-        $warehouse = Warehouse::create(['code' => 'KHOTONG5', 'name' => 'Kho tong 5', 'status' => 'ACTIVE']);
-        $product = Product::create(['code' => 'SP006', 'name' => 'May mai 3', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $warehouse = Warehouse::create(['code' => 'KHO-REV', 'name' => 'Kho reverse', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP010', 'name' => 'May khoan 5', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $requestResponse = $this->postJson('/api/v1/stock-requests', [
-            'request_type' => 'receipt',
-            'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $product->id, 'qty_planned' => 15]],
-        ], $headers);
-        $requestResponse->assertCreated()->assertJsonPath('data.status', 'draft');
-        $requestId = $requestResponse->json('data.id');
+        $createResponse = $this->postJson('/api/v1/inbound-documents', [
+            'doc_no' => 'PN-REV-0001', 'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
+        ], $headers + ['Idempotency-Key' => 'create-rev']);
+        $docId = $createResponse->json('data.id');
 
-        $this->postJson("/api/v1/stock-requests/{$requestId}/submit", [], $headers)->assertOk()->assertJsonPath('data.status', 'pending');
-        $this->postJson("/api/v1/stock-requests/{$requestId}/approve", [], $headers)->assertOk()->assertJsonPath('data.status', 'approved');
+        $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-rev'])->assertOk();
 
-        $convertResponse = $this->postJson("/api/v1/stock-requests/{$requestId}/convert", [], $headers);
-        $convertResponse->assertOk()->assertJsonPath('data.status', 'draft')->assertJsonPath('data.ref_doc_type', 'stock_request');
+        $reverseResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/reverse", [
+            'reason' => 'Nhập sai chứng từ',
+        ], $headers + ['Idempotency-Key' => 'reverse-1']);
+
+        $reverseResponse->assertOk()->assertJsonPath('data.status', 'reversed');
+
+        $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
+        $this->assertEquals(0, (float) $balance->available_qty);
+        $this->assertSame(2, StockMovement::where('stock_document_id', $docId)->count());
     }
 
     /** Định mức tồn kho an toàn: available_qty vượt max -> ghi 1 dòng lịch sử cảnh báo "overflow". */
@@ -376,14 +317,72 @@ class StockDocumentIdempotencyTest extends TestCase
             'effective_from' => '2026-01-01',
         ], $headers)->assertCreated();
 
-        $receipt = $this->postJson('/api/v1/stock-documents', [
-            'doc_type' => 'receipt', 'doc_no' => 'PN-SSA-0001', 'doc_date' => '2026-07-29',
+        $receipt = $this->postJson('/api/v1/inbound-documents', [
+            'doc_no' => 'PN-SSA-0001', 'doc_date' => '2026-07-29',
             'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
         ], $headers + ['Idempotency-Key' => 'create-ssa'])->json('data.id');
-        $this->postJson("/api/v1/stock-documents/{$receipt}/post", [], $headers + ['Idempotency-Key' => 'post-ssa']);
+        $this->postJson("/api/v1/inbound-documents/{$receipt}/submit", [], $headers);
+        $this->postJson("/api/v1/inbound-documents/{$receipt}/approve", [], $headers);
+        $this->postJson("/api/v1/inbound-documents/{$receipt}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-ssa']);
 
         $alerts = $this->getJson('/api/v1/safe-stock-alerts?product_id='.$product->id, $headers);
         $alerts->assertOk();
         $this->assertSame('overflow', $alerts->json('data.0.new_status'));
+    }
+
+    public function test_inventory_balances_and_stock_movements_endpoints(): void
+    {
+        $headers = $this->authHeaders();
+
+        $warehouse = Warehouse::create(['code' => 'KHOTONG7', 'name' => 'Kho tong 7', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP011', 'name' => 'May khoan 6', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+
+        $receipt = $this->postJson('/api/v1/inbound-documents', [
+            'doc_no' => 'PN-INV-0001', 'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 7]],
+        ], $headers + ['Idempotency-Key' => 'create-inv'])->json('data.id');
+        $this->postJson("/api/v1/inbound-documents/{$receipt}/submit", [], $headers);
+        $this->postJson("/api/v1/inbound-documents/{$receipt}/approve", [], $headers);
+        $this->postJson("/api/v1/inbound-documents/{$receipt}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-inv']);
+
+        $balances = $this->getJson('/api/v1/inventory/balances?product_id='.$product->id, $headers);
+        $balances->assertOk()->assertJsonPath('data.0.status', 'normal');
+        $this->assertEquals(7, (float) $balances->json('data.0.available_qty'));
+
+        $movements = $this->getJson('/api/v1/stock-movements?product_id='.$product->id, $headers);
+        $movements->assertOk()->assertJsonCount(1, 'data');
+        $movementId = $movements->json('data.0.id');
+
+        $trace = $this->getJson("/api/v1/stock-movements/{$movementId}/trace-source", $headers);
+        $trace->assertOk()->assertJsonPath('data.document.id', $receipt);
+    }
+
+    public function test_dashboard_quick_reports_period_totals_and_partial_documents(): void
+    {
+        $headers = $this->authHeaders();
+
+        $warehouse = Warehouse::create(['code' => 'KHOTONG8', 'name' => 'Kho tong 8', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP012', 'name' => 'May khoan 7', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+
+        $createResponse = $this->postJson('/api/v1/inbound-documents', [
+            'doc_no' => 'PN-DASH-0001', 'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
+        ], $headers + ['Idempotency-Key' => 'create-dash']);
+        $docId = $createResponse->json('data.id');
+        $lineId = $createResponse->json('data.lines.0.id');
+
+        $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk();
+        $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
+            'line_id' => $lineId, 'qty' => 4,
+        ], $headers + ['Idempotency-Key' => 'scan-dash-1'])->assertOk()->assertJsonPath('data.status', 'partially_posted');
+
+        $response = $this->getJson('/api/v1/reports/dashboard-quick?from_date=2026-07-01&to_date=2026-07-31', $headers);
+
+        $response->assertOk()
+            ->assertJsonPath('data.receipt_qty', 4)
+            ->assertJsonPath('data.documents_partial.inbound', 1)
+            ->assertJsonPath('data.documents_partial.outbound', 0)
+            ->assertJsonStructure(['data' => ['warranty_cases_by_status', 'reconciliation_warnings']]);
     }
 }

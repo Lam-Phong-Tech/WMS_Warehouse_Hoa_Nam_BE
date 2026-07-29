@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('code', 30)->unique();
             $table->string('name', 200);
             $table->string('address', 500)->nullable();
+            $table->string('contact_person', 200)->nullable();
+            $table->string('phone', 30)->nullable();
             $table->string('status', 20)->default('ACTIVE'); // ACTIVE | INACTIVE
             $table->timestamps();
         });

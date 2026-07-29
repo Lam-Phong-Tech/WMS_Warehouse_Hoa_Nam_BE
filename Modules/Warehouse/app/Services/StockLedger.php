@@ -4,7 +4,6 @@ namespace Modules\Warehouse\Services;
 
 use Illuminate\Support\Str;
 use Modules\Warehouse\Exceptions\WarehouseException;
-use Modules\Warehouse\Models\InTransitLedger;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
@@ -25,32 +24,61 @@ class StockLedger
 
     public function __construct(private readonly SafeStockAlertService $safeStockAlerts) {}
 
-    public function inbound(StockDocument $doc, StockDocumentLine $line, string $userId, string|float|null $qty = null, ?string $businessKeySuffix = null): ?StockMovement
+    public function inbound(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
     {
-        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty ?? $line->qty_actual, StockMovement::RECEIPT_IN, $doc, $line, $userId, '+', $businessKeySuffix);
+        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $line->qty_actual, StockMovement::RECEIPT_IN, $doc, $line, $userId, '+', $this->businessKey(StockMovement::RECEIPT_IN, $doc->id, $line->id));
     }
 
-    public function outbound(StockDocument $doc, StockDocumentLine $line, string $userId, string|float|null $qty = null, ?string $businessKeySuffix = null): ?StockMovement
+    public function outbound(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
     {
-        return $this->mutate($doc->src_warehouse_id, $line->product_id, $qty ?? $line->qty_actual, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-', $businessKeySuffix);
+        return $this->mutate($doc->src_warehouse_id, $line->product_id, $line->qty_actual, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-', $this->businessKey(StockMovement::ISSUE_OUT, $doc->id, $line->id));
     }
 
-    /** Xuất điều chuyển: kho nguồn -qty_planned. */
-    public function transferOut(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
+    /**
+     * Ghi nhận 1 lần scan (nhận/xuất từng phần) — mỗi lần gọi là 1 sự kiện độc lập nên
+     * business_key luôn khác nhau; chống retry trùng ở tầng HTTP dựa vào IdempotencyStore
+     * của controller, không dựa vào business_key ở đây.
+     */
+    public function scanReceipt(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
     {
-        return $this->mutate($doc->src_warehouse_id, $line->product_id, $line->qty_planned, StockMovement::TRANSFER_OUT, $doc, $line, $userId, '-');
+        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty, StockMovement::RECEIPT_IN, $doc, $line, $userId, '+', $this->scanKey($doc->id, $line->id));
     }
 
-    /** Nhận điều chuyển: kho đích +qty (có thể nhận từng phần). */
-    public function transferIn(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId, ?string $businessKeySuffix = null): ?StockMovement
+    public function scanIssue(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
     {
-        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty, StockMovement::TRANSFER_IN, $doc, $line, $userId, '+', $businessKeySuffix);
+        return $this->mutate($doc->src_warehouse_id, $line->product_id, $qty, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-', $this->scanKey($doc->id, $line->id));
     }
 
-    /** Trả lại điều chuyển: kho nguồn +qty (hàng trả về sau khi đã dispatch). */
-    public function transferReturn(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
+    /**
+     * Đảo ngược 1 movement gốc (reverse/correction) — cộng/trừ ngược dấu, tham chiếu
+     * `original_movement_id`. Không cho đảo ngược 1 movement đã bị đảo ngược trước đó
+     * (caller — StockDocumentService::reverseDocument — chịu trách nhiệm kiểm tra).
+     */
+    public function reverse(StockMovement $original, string $userId): StockMovement
     {
-        return $this->mutate($doc->src_warehouse_id, $line->product_id, $qty, StockMovement::TRANSFER_RETURN, $doc, $line, $userId, '+');
+        $reversedType = $original->movement_type === StockMovement::ISSUE_OUT
+            ? StockMovement::ISSUE_REVERSED
+            : StockMovement::RECEIPT_REVERSED;
+
+        $sign = bccomp((string) $original->qty_delta, '0', self::SCALE) >= 0 ? '-' : '+';
+        $qty = bcmul((string) $original->qty_delta, '-1', self::SCALE);
+        $qty = ltrim($qty, '-');
+
+        $doc = $original->document;
+        $line = $original->stock_document_line_id ? StockDocumentLine::find($original->stock_document_line_id) : null;
+
+        return $this->mutate(
+            $original->warehouse_id,
+            $original->product_id,
+            $qty,
+            $reversedType,
+            $doc,
+            $line,
+            $userId,
+            $sign,
+            $this->businessKey('reverse_'.$reversedType, $doc->id, $original->id),
+            $original->id
+        );
     }
 
     private function mutate(
@@ -59,18 +87,17 @@ class StockLedger
         string|float $qty,
         string $movementType,
         StockDocument $doc,
-        StockDocumentLine $line,
+        ?StockDocumentLine $line,
         string $userId,
         string $sign,
-        ?string $businessKeySuffix = null
+        string $businessKey,
+        ?string $originalMovementId = null
     ): ?StockMovement {
         if ($warehouseId === null) {
             return null;
         }
 
-        $businessKey = $this->businessKey($movementType, $doc->id, $line->id, $businessKeySuffix);
-
-        // Idempotent no-op: nếu movement này đã tồn tại (retry cùng document/line/action),
+        // Idempotent no-op: nếu movement này đã tồn tại (retry cùng business_key),
         // không cộng/trừ tồn lần hai.
         $existing = StockMovement::where('business_key', $businessKey)->first();
         if ($existing) {
@@ -79,7 +106,6 @@ class StockLedger
 
         $balance = InventoryBalance::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
-            ->where('stock_status', 'AVAILABLE')
             ->lockForUpdate()
             ->first();
 
@@ -90,7 +116,6 @@ class StockLedger
                 'on_hand_qty' => 0,
                 'available_qty' => 0,
                 'reserved_qty' => 0,
-                'stock_status' => 'AVAILABLE',
                 'version' => 1,
             ]);
         }
@@ -100,7 +125,7 @@ class StockLedger
         $qtyAfter = $sign === '+' ? bcadd($qtyBefore, $qty, self::SCALE) : bcsub($qtyBefore, $qty, self::SCALE);
 
         if ($sign === '-' && bccomp($qtyAfter, '0', self::SCALE) < 0) {
-            WarehouseException::insufficientStock($line->product->code ?? $productId);
+            WarehouseException::insufficientStock($line?->product?->code ?? $productId);
         }
 
         $affected = InventoryBalance::where('id', $balance->id)
@@ -122,12 +147,12 @@ class StockLedger
             'movement_type' => $movementType,
             'warehouse_id' => $warehouseId,
             'product_id' => $productId,
-            'stock_status' => 'AVAILABLE',
             'qty_before' => $qtyBefore,
             'qty_delta' => $sign === '+' ? $qty : bcmul($qty, '-1', self::SCALE),
             'qty_after' => $qtyAfter,
             'stock_document_id' => $doc->id,
-            'stock_document_line_id' => $line->id,
+            'stock_document_line_id' => $line?->id,
+            'original_movement_id' => $originalMovementId,
             'created_by' => $userId,
             'occurred_at' => now(),
             'created_at' => now(),
@@ -138,12 +163,13 @@ class StockLedger
         return $movement;
     }
 
-    private function businessKey(string $movementType, string $docId, string $lineId, ?string $suffix = null): string
+    private function businessKey(string $movementType, string $docId, string $lineId): string
     {
-        // Khác ERP gốc (idempotency_key theo action rời rạc từng bước nhận/mất mát): base chỉ
-        // cần 1 business_key cố định theo (movement_type, document, line) vì receive/loss ở
-        // base xử lý toàn bộ phần còn lại của InTransitLedger trong 1 lần gọi duy nhất, không
-        // chia nhiều lần nhận từng phần như ERP gốc.
-        return sha1("{$movementType}|{$docId}|{$lineId}|".($suffix ?? 'full'));
+        return sha1("{$movementType}|{$docId}|{$lineId}");
+    }
+
+    private function scanKey(string $docId, string $lineId): string
+    {
+        return sha1("scan|{$docId}|{$lineId}|".Str::uuid());
     }
 }
