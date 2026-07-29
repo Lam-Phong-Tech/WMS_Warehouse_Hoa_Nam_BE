@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class StockDocumentIdempotencyTest extends TestCase
 {
@@ -34,7 +35,7 @@ class StockDocumentIdempotencyTest extends TestCase
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
 
-        $token = auth('api')->login($user);
+        $token = JWTAuth::fromUser($user);
 
         return ['Authorization' => "Bearer {$token}"];
     }

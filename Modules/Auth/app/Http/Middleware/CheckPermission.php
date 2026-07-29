@@ -6,6 +6,7 @@ use App\Support\ApiError;
 use Closure;
 use Illuminate\Http\Request;
 use Modules\Auth\Models\User;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * Middleware alias `permission:<CODE>` — vd `->middleware('permission:inbound.post')`.
@@ -16,7 +17,17 @@ class CheckPermission
     public function handle(Request $request, Closure $next, string $permission)
     {
         /** @var User|null $user */
-        $user = auth('api')->user();
+        $user = null;
+
+        if ($request->bearerToken()) {
+            try {
+                $user = JWTAuth::setToken($request->bearerToken())->authenticate();
+            } catch (\Throwable) {
+                $user = null;
+            }
+        }
+
+        $user ??= auth('api')->user();
 
         if (! $user) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Chưa xác thực');

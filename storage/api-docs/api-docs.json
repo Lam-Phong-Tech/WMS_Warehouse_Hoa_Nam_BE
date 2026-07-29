@@ -17,7 +17,7 @@
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Đăng nhập bằng username/password, trả về JWT access token + refresh token",
+                "summary": "Login with username/password and return JWT access token plus refresh token",
                 "operationId": "ccce227a6532e9aa9166893b0a10946a",
                 "requestBody": {
                     "required": true,
@@ -45,13 +45,13 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Đăng nhập thành công"
+                        "description": "Login success"
                     },
                     "401": {
-                        "description": "Sai tên đăng nhập hoặc mật khẩu"
+                        "description": "Invalid credentials"
                     },
                     "403": {
-                        "description": "Tài khoản bị khoá/ngừng hoạt động"
+                        "description": "Inactive or locked account"
                     }
                 },
                 "security": []
