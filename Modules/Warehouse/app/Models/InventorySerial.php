@@ -16,7 +16,10 @@ class InventorySerial extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['product_id', 'warehouse_id', 'serial_no', 'status'];
+    protected $fillable = [
+        'product_id', 'warehouse_id', 'serial_no', 'physical_code_id',
+        'condition', 'stock_condition', 'item_condition', 'status',
+    ];
 
     public function product(): BelongsTo
     {

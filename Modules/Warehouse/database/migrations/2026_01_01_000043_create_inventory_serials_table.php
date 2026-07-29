@@ -18,6 +18,10 @@ return new class extends Migration
             $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
             $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
             $table->string('serial_no', 150)->unique();
+            $table->string('physical_code_id', 36)->nullable()->index();
+            $table->string('condition', 30)->default('GOOD');
+            $table->string('stock_condition', 30)->default('AVAILABLE');
+            $table->string('item_condition', 30)->default('NEW');
             $table->string('status', 20)->default('IN_STOCK'); // IN_STOCK | ISSUED | IN_TRANSIT
             $table->timestamps();
         });

@@ -19,7 +19,7 @@ class StockDocumentLine extends Model
 
     protected $fillable = [
         'stock_document_id', 'line_no', 'product_id', 'qty_planned', 'qty_actual',
-        'completion_type', 'shortage_reason',
+        'qty_posted', 'completion_type', 'shortage_reason',
     ];
 
     public function document(): BelongsTo

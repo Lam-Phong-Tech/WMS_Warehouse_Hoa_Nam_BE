@@ -20,12 +20,15 @@ class ApiError
         $payload = [
             'success' => false,
             'message' => $message,
+            'error_code' => $errorCode,
+            'errors' => $details,
             'error' => [
                 'code' => $errorCode,
                 'details' => $details,
             ],
             'meta' => [
                 'request_id' => is_string($requestId) ? $requestId : (string) Str::uuid(),
+                'timestamp' => now()->toIso8601String(),
             ],
         ];
 

@@ -17,9 +17,17 @@ return new class extends Migration
         Schema::create('products', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('code', 100)->unique();
+            $table->string('sku_code', 100)->nullable()->unique();
             $table->string('name', 255);
             $table->string('unit', 30)->default('cái');
             $table->string('sku_type', 20)->default('PRODUCT'); // PRODUCT | COMPONENT
+            $table->string('brand_code', 100)->nullable()->index();
+            $table->string('category_code', 100)->nullable()->index();
+            $table->string('model_code', 100)->nullable()->index();
+            $table->string('power_or_voltage', 100)->nullable();
+            $table->string('package_variant', 100)->nullable();
+            $table->unsignedInteger('version')->default(1);
+            $table->boolean('published_to_app')->default(false);
             $table->boolean('is_serial_tracked')->default(false);
             $table->string('status', 20)->default('ACTIVE'); // ACTIVE | INACTIVE
             $table->timestamps();

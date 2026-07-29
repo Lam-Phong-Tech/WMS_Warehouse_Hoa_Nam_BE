@@ -25,14 +25,14 @@ class StockLedger
 
     public function __construct(private readonly SafeStockAlertService $safeStockAlerts) {}
 
-    public function inbound(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
+    public function inbound(StockDocument $doc, StockDocumentLine $line, string $userId, string|float|null $qty = null, ?string $businessKeySuffix = null): ?StockMovement
     {
-        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $line->qty_actual, StockMovement::RECEIPT_IN, $doc, $line, $userId, '+');
+        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty ?? $line->qty_actual, StockMovement::RECEIPT_IN, $doc, $line, $userId, '+', $businessKeySuffix);
     }
 
-    public function outbound(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
+    public function outbound(StockDocument $doc, StockDocumentLine $line, string $userId, string|float|null $qty = null, ?string $businessKeySuffix = null): ?StockMovement
     {
-        return $this->mutate($doc->src_warehouse_id, $line->product_id, $line->qty_actual, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-');
+        return $this->mutate($doc->src_warehouse_id, $line->product_id, $qty ?? $line->qty_actual, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-', $businessKeySuffix);
     }
 
     /** Xuất điều chuyển: kho nguồn -qty_planned. */
@@ -42,9 +42,9 @@ class StockLedger
     }
 
     /** Nhận điều chuyển: kho đích +qty (có thể nhận từng phần). */
-    public function transferIn(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
+    public function transferIn(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId, ?string $businessKeySuffix = null): ?StockMovement
     {
-        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty, StockMovement::TRANSFER_IN, $doc, $line, $userId, '+');
+        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty, StockMovement::TRANSFER_IN, $doc, $line, $userId, '+', $businessKeySuffix);
     }
 
     /** Trả lại điều chuyển: kho nguồn +qty (hàng trả về sau khi đã dispatch). */
@@ -61,13 +61,14 @@ class StockLedger
         StockDocument $doc,
         StockDocumentLine $line,
         string $userId,
-        string $sign
+        string $sign,
+        ?string $businessKeySuffix = null
     ): ?StockMovement {
         if ($warehouseId === null) {
             return null;
         }
 
-        $businessKey = $this->businessKey($movementType, $doc->id, $line->id);
+        $businessKey = $this->businessKey($movementType, $doc->id, $line->id, $businessKeySuffix);
 
         // Idempotent no-op: nếu movement này đã tồn tại (retry cùng document/line/action),
         // không cộng/trừ tồn lần hai.
@@ -78,6 +79,7 @@ class StockLedger
 
         $balance = InventoryBalance::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
+            ->where('stock_status', 'AVAILABLE')
             ->lockForUpdate()
             ->first();
 
@@ -88,6 +90,7 @@ class StockLedger
                 'on_hand_qty' => 0,
                 'available_qty' => 0,
                 'reserved_qty' => 0,
+                'stock_status' => 'AVAILABLE',
                 'version' => 1,
             ]);
         }
@@ -119,6 +122,7 @@ class StockLedger
             'movement_type' => $movementType,
             'warehouse_id' => $warehouseId,
             'product_id' => $productId,
+            'stock_status' => 'AVAILABLE',
             'qty_before' => $qtyBefore,
             'qty_delta' => $sign === '+' ? $qty : bcmul($qty, '-1', self::SCALE),
             'qty_after' => $qtyAfter,
@@ -134,12 +138,12 @@ class StockLedger
         return $movement;
     }
 
-    private function businessKey(string $movementType, string $docId, string $lineId): string
+    private function businessKey(string $movementType, string $docId, string $lineId, ?string $suffix = null): string
     {
         // Khác ERP gốc (idempotency_key theo action rời rạc từng bước nhận/mất mát): base chỉ
         // cần 1 business_key cố định theo (movement_type, document, line) vì receive/loss ở
         // base xử lý toàn bộ phần còn lại của InTransitLedger trong 1 lần gọi duy nhất, không
         // chia nhiều lần nhận từng phần như ERP gốc.
-        return sha1("{$movementType}|{$docId}|{$lineId}");
+        return sha1("{$movementType}|{$docId}|{$lineId}|".($suffix ?? 'full'));
     }
 }

@@ -63,7 +63,8 @@ class StockDocumentService
                     'line_no' => $index + 1,
                     'product_id' => $l['product_id'],
                     'qty_planned' => $l['qty_planned'],
-                    'qty_actual' => $l['qty_planned'],
+                    'qty_actual' => 0,
+                    'qty_posted' => 0,
                 ]);
             }
 
@@ -76,6 +77,10 @@ class StockDocumentService
 
     public function submit(StockDocument $doc, string $userId): StockDocument
     {
+        if (in_array($doc->doc_type, [StockDocument::TYPE_RECEIPT, StockDocument::TYPE_ISSUE], true)) {
+            WarehouseException::invalidStatus('Phiếu nhập/xuất Hoa Nam không có bước gửi duyệt; hãy scan hoặc post trực tiếp.');
+        }
+
         return DB::transaction(function () use ($doc, $userId) {
             $this->assertStatus($doc, [StockDocument::STATUS_DRAFT], 'gửi duyệt');
             if ($doc->lines()->count() < 1) {
@@ -92,6 +97,10 @@ class StockDocumentService
 
     public function approve(StockDocument $doc, string $userId): StockDocument
     {
+        if (in_array($doc->doc_type, [StockDocument::TYPE_RECEIPT, StockDocument::TYPE_ISSUE], true)) {
+            WarehouseException::invalidStatus('Phiếu nhập/xuất Hoa Nam không có bước duyệt; tồn chỉ thay đổi khi Post.');
+        }
+
         return DB::transaction(function () use ($doc, $userId) {
             $this->assertStatus($doc, [StockDocument::STATUS_PENDING], 'duyệt');
 
@@ -128,7 +137,7 @@ class StockDocumentService
     public function cancel(StockDocument $doc, string $userId, ?string $reason): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $reason) {
-            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_PENDING, StockDocument::STATUS_APPROVED], 'huỷ');
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], 'huỷ');
 
             $from = $doc->status;
             $doc->update(['status' => StockDocument::STATUS_CANCELLED, 'cancel_reason' => $reason, 'cancelled_by' => $userId, 'cancelled_at' => now()]);
@@ -140,43 +149,98 @@ class StockDocumentService
     }
 
     /** Thực hiện Nhập kho — chứng từ phải ở APPROVED. */
-    public function postReceipt(StockDocument $doc, string $userId): StockDocument
+    public function postReceipt(StockDocument $doc, string $userId, array $linesInput = []): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId) {
-            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện nhập kho');
+        return DB::transaction(function () use ($doc, $userId, $linesInput) {
+            if ($doc->status === StockDocument::STATUS_POSTED) {
+                return $doc->fresh(['lines', 'movements']);
+            }
+
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING, StockDocument::STATUS_PARTIALLY_POSTED], 'post receipt');
             $this->assertWarehouseActive($doc->dst_warehouse_id);
 
             foreach ($doc->lines as $line) {
-                $this->ledger->inbound($doc, $line, $userId);
+                $qtyToPost = $this->qtyToPost($line, $linesInput, $linesInput !== []);
+                if (bccomp($qtyToPost, '0', 3) <= 0) {
+                    continue;
+                }
+
+                $targetPosted = bcadd((string) $line->qty_posted, $qtyToPost, 3);
+                $this->ledger->inbound($doc, $line, $userId, $qtyToPost, $targetPosted);
+                $line->update(['qty_posted' => $targetPosted, 'qty_actual' => $targetPosted]);
             }
 
             $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_RECEIVED, 'posted_by' => $userId, 'posted_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_RECEIVED, 'post_receipt', $userId);
-            AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => StockDocument::STATUS_RECEIVED]);
+            $newStatus = $this->allLinesFullyPosted($doc) ? StockDocument::STATUS_POSTED : StockDocument::STATUS_PARTIALLY_POSTED;
+            $doc->update(['status' => $newStatus, 'posted_by' => $userId, 'posted_at' => now()]);
+            $this->logStatusHistory($doc, $from, $newStatus, 'post_receipt', $userId);
+            AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => $newStatus]);
 
             return $doc->fresh(['lines', 'movements']);
         });
     }
 
     /** Thực hiện Xuất kho — chứng từ phải ở APPROVED. */
-    public function postIssue(StockDocument $doc, string $userId): StockDocument
+    public function postIssue(StockDocument $doc, string $userId, array $linesInput = []): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId) {
-            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện xuất kho');
+        return DB::transaction(function () use ($doc, $userId, $linesInput) {
+            if ($doc->status === StockDocument::STATUS_POSTED) {
+                return $doc->fresh(['lines', 'movements']);
+            }
+
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING, StockDocument::STATUS_PARTIALLY_POSTED], 'post issue');
             $this->assertWarehouseActive($doc->src_warehouse_id);
 
             foreach ($doc->lines as $line) {
-                $this->ledger->outbound($doc, $line, $userId);
+                $qtyToPost = $this->qtyToPost($line, $linesInput, $linesInput !== []);
+                if (bccomp($qtyToPost, '0', 3) <= 0) {
+                    continue;
+                }
+
+                $targetPosted = bcadd((string) $line->qty_posted, $qtyToPost, 3);
+                $this->ledger->outbound($doc, $line, $userId, $qtyToPost, $targetPosted);
+                $line->update(['qty_posted' => $targetPosted, 'qty_actual' => $targetPosted]);
             }
 
             $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_ISSUED, 'posted_by' => $userId, 'posted_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_ISSUED, 'post_issue', $userId);
-            AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => StockDocument::STATUS_ISSUED]);
+            $newStatus = $this->allLinesFullyPosted($doc) ? StockDocument::STATUS_POSTED : StockDocument::STATUS_PARTIALLY_POSTED;
+            $doc->update(['status' => $newStatus, 'posted_by' => $userId, 'posted_at' => now()]);
+            $this->logStatusHistory($doc, $from, $newStatus, 'post_issue', $userId);
+            AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => $newStatus]);
 
             return $doc->fresh(['lines', 'movements']);
         });
+    }
+
+    private function qtyToPost(StockDocumentLine $line, array $linesInput, bool $partialMode): string
+    {
+        $remaining = bcsub((string) $line->qty_planned, (string) $line->qty_posted, 3);
+        if ($partialMode && ! array_key_exists($line->id, $linesInput)) {
+            return '0';
+        }
+
+        $requested = array_key_exists($line->id, $linesInput) ? (string) $linesInput[$line->id] : $remaining;
+
+        if (bccomp($requested, '0', 3) < 0) {
+            WarehouseException::invalidStatus("Sá»‘ lÆ°á»£ng post khÃ´ng Ä‘Æ°á»£c Ã¢m (dÃ²ng {$line->line_no}).");
+        }
+
+        if (bccomp($requested, $remaining, 3) > 0) {
+            WarehouseException::invalidStatus("Sá»‘ lÆ°á»£ng post khÃ´ng Ä‘Æ°á»£c vÆ°á»£t quÃ¡ sá»‘ cÃ²n láº¡i (dÃ²ng {$line->line_no}).");
+        }
+
+        return $requested;
+    }
+
+    private function allLinesFullyPosted(StockDocument $doc): bool
+    {
+        foreach ($doc->lines()->get() as $line) {
+            if (bccomp((string) $line->qty_posted, (string) $line->qty_planned, 3) < 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** Điều chuyển — Xuất tại kho nguồn + tạo dòng InTransitLedger. */
@@ -231,11 +295,11 @@ class StockDocumentService
                     WarehouseException::invalidStatus("Số thực nhận không được vượt quá số lượng còn lại (dòng {$line->line_no}).");
                 }
 
+                $newReceived = bcadd((string) $itl->qty_received, $qtyReceived, 3);
                 if (bccomp($qtyReceived, '0', 3) > 0) {
-                    $this->ledger->transferIn($doc, $line, $qtyReceived, $userId);
+                    $this->ledger->transferIn($doc, $line, $qtyReceived, $userId, $newReceived);
                 }
 
-                $newReceived = bcadd((string) $itl->qty_received, $qtyReceived, 3);
                 $stillRemaining = bcsub((string) $itl->qty_dispatched, $newReceived, 3);
                 $itlStatus = bccomp($stillRemaining, '0', 3) <= 0 ? InTransitLedger::STATUS_COMPLETED : InTransitLedger::STATUS_PARTIALLY_RECEIVED;
 

@@ -82,13 +82,18 @@ class StockDocumentController extends Controller
     public function post(string $id, Request $request)
     {
         $doc = $this->find($id);
+        if (! in_array($doc->doc_type, [StockDocument::TYPE_RECEIPT, StockDocument::TYPE_ISSUE], true)) {
+            ApiError::abort(409, 'STATE_CONFLICT', 'Endpoint post chá»‰ Ã¡p dá»¥ng cho phiáº¿u nháº­p/xuáº¥t.');
+        }
+
         $idemKey = $this->requireIdempotencyKey($request);
         $hash = IdempotencyStore::requestHash($request);
+        $linesInput = collect($request->input('lines', []))->keyBy('line_id')->map(fn ($l) => $l['qty_actual'])->all();
 
-        [$code, $body] = IdempotencyStore::handle($idemKey, "post_stock_document_{$doc->id}", $this->userId(), $hash, function () use ($doc) {
+        [$code, $body] = IdempotencyStore::handle($idemKey, "post_stock_document_{$doc->id}", $this->userId(), $hash, function () use ($doc, $linesInput) {
             $posted = $doc->doc_type === StockDocument::TYPE_RECEIPT
-                ? $this->service->postReceipt($doc, $this->userId())
-                : $this->service->postIssue($doc, $this->userId());
+                ? $this->service->postReceipt($doc, $this->userId(), $linesInput)
+                : $this->service->postIssue($doc, $this->userId(), $linesInput);
 
             return [200, $this->envelope('Post chứng từ thành công', $posted)];
         });
@@ -178,7 +183,10 @@ class StockDocumentController extends Controller
             'success' => true,
             'message' => $message,
             'data' => $data->toArray(),
-            'meta' => ['request_id' => $this->currentRequestId()],
+            'meta' => [
+                'request_id' => $this->currentRequestId(),
+                'timestamp' => now()->toIso8601String(),
+            ],
         ];
     }
 

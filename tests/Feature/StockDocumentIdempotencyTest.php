@@ -95,11 +95,8 @@ class StockDocumentIdempotencyTest extends TestCase
         $createResponse->assertCreated()->assertJsonPath('data.status', 'draft');
         $docId = $createResponse->json('data.id');
 
-        $this->postJson("/api/v1/stock-documents/{$docId}/submit", [], $headers)->assertOk()->assertJsonPath('data.status', 'pending');
-        $this->postJson("/api/v1/stock-documents/{$docId}/approve", [], $headers)->assertOk()->assertJsonPath('data.status', 'approved');
-
         $first = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-1']);
-        $first->assertOk()->assertJsonPath('data.status', 'received');
+        $first->assertOk()->assertJsonPath('data.status', 'posted');
 
         $second = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-1']);
         $second->assertOk();
@@ -115,7 +112,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $this->assertEquals(10, (float) $balance->available_qty);
     }
 
-    public function test_post_without_prior_approval_is_rejected(): void
+    public function test_receipt_can_post_without_prior_approval(): void
     {
         $headers = $this->authHeaders();
 
@@ -137,7 +134,7 @@ class StockDocumentIdempotencyTest extends TestCase
         // Vẫn ở trạng thái draft — chưa submit/approve — post phải bị từ chối (409 STATE_CONFLICT).
         $response = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-2']);
 
-        $response->assertStatus(409)->assertJsonPath('error.code', 'STATE_CONFLICT');
+        $response->assertOk()->assertJsonPath('data.status', 'posted');
     }
 
     public function test_post_without_idempotency_key_is_rejected(): void
@@ -156,16 +153,13 @@ class StockDocumentIdempotencyTest extends TestCase
         ], $headers + ['Idempotency-Key' => 'create-3']);
         $docId = $createResponse->json('data.id');
 
-        $this->postJson("/api/v1/stock-documents/{$docId}/submit", [], $headers)->assertOk();
-        $this->postJson("/api/v1/stock-documents/{$docId}/approve", [], $headers)->assertOk();
-
         // Cố tình KHÔNG gửi Idempotency-Key ở lệnh post này.
         $response = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers);
 
         $response->assertStatus(428)->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
     }
 
-    public function test_issue_more_than_available_stock_is_rejected_at_approve(): void
+    public function test_issue_more_than_available_stock_is_rejected_at_post_commit(): void
     {
         $headers = $this->authHeaders();
 
@@ -181,15 +175,57 @@ class StockDocumentIdempotencyTest extends TestCase
         ], $headers + ['Idempotency-Key' => 'create-4']);
         $docId = $createResponse->json('data.id');
 
-        $this->postJson("/api/v1/stock-documents/{$docId}/submit", [], $headers)->assertOk();
-
-        // approve() đã precheck tồn khả dụng cho phiếu xuất — chưa có tồn nào nên phải chặn ở đây.
-        $response = $this->postJson("/api/v1/stock-documents/{$docId}/approve", [], $headers);
+        $response = $this->postJson("/api/v1/stock-documents/{$docId}/post", [], $headers + ['Idempotency-Key' => 'post-issue-no-stock']);
 
         $response->assertStatus(422)->assertJsonPath('error.code', 'INSUFFICIENT_STOCK');
     }
 
     /** Điều chuyển đầy đủ: draft->pending->approved->dispatch->receive(completed), tồn di chuyển đúng giữa 2 kho. */
+    public function test_receipt_supports_partial_multi_post_without_double_counting(): void
+    {
+        $headers = $this->authHeaders();
+
+        $warehouse = Warehouse::create(['code' => 'KHOTONG-PART', 'name' => 'Kho partial', 'status' => 'ACTIVE']);
+        $product = Product::create(['code' => 'SP-PART', 'name' => 'May partial', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+
+        $createResponse = $this->postJson('/api/v1/stock-documents', [
+            'doc_type' => 'receipt',
+            'doc_no' => 'PN-PART-0001',
+            'doc_date' => '2026-07-29',
+            'dst_warehouse_id' => $warehouse->id,
+            'lines' => [
+                ['product_id' => $product->id, 'qty_planned' => 10],
+            ],
+        ], $headers + ['Idempotency-Key' => 'create-part']);
+
+        $docId = $createResponse->json('data.id');
+        $lineId = $createResponse->json('data.lines.0.id');
+
+        $first = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
+            'lines' => [['line_id' => $lineId, 'qty_actual' => 4]],
+        ], $headers + ['Idempotency-Key' => 'post-part-1']);
+        $first->assertOk()
+            ->assertJsonPath('data.status', 'partially_posted');
+        $this->assertEquals(4, (float) $first->json('data.lines.0.qty_posted'));
+
+        $retry = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
+            'lines' => [['line_id' => $lineId, 'qty_actual' => 4]],
+        ], $headers + ['Idempotency-Key' => 'post-part-1']);
+        $retry->assertOk()->assertJsonPath('data.status', 'partially_posted');
+
+        $second = $this->postJson("/api/v1/stock-documents/{$docId}/post", [
+            'lines' => [['line_id' => $lineId, 'qty_actual' => 6]],
+        ], $headers + ['Idempotency-Key' => 'post-part-2']);
+        $second->assertOk()
+            ->assertJsonPath('data.status', 'posted');
+        $this->assertEquals(10, (float) $second->json('data.lines.0.qty_posted'));
+
+        $this->assertSame(2, StockMovement::where('stock_document_id', $docId)->count());
+
+        $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
+        $this->assertEquals(10, (float) $balance->available_qty);
+    }
+
     public function test_transfer_full_lifecycle_moves_stock_between_warehouses(): void
     {
         $headers = $this->authHeaders();
@@ -203,8 +239,6 @@ class StockDocumentIdempotencyTest extends TestCase
             'doc_type' => 'receipt', 'doc_no' => 'PN-TRF-0001', 'doc_date' => '2026-07-29',
             'dst_warehouse_id' => $whA->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 20]],
         ], $headers + ['Idempotency-Key' => 'create-trf-recv'])->json('data.id');
-        $this->postJson("/api/v1/stock-documents/{$receipt}/submit", [], $headers);
-        $this->postJson("/api/v1/stock-documents/{$receipt}/approve", [], $headers);
         $this->postJson("/api/v1/stock-documents/{$receipt}/post", [], $headers + ['Idempotency-Key' => 'post-trf-recv']);
 
         $transferResponse = $this->postJson('/api/v1/stock-documents', [
@@ -275,8 +309,6 @@ class StockDocumentIdempotencyTest extends TestCase
             'doc_type' => 'receipt', 'doc_no' => 'PN-SSA-0001', 'doc_date' => '2026-07-29',
             'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
         ], $headers + ['Idempotency-Key' => 'create-ssa'])->json('data.id');
-        $this->postJson("/api/v1/stock-documents/{$receipt}/submit", [], $headers);
-        $this->postJson("/api/v1/stock-documents/{$receipt}/approve", [], $headers);
         $this->postJson("/api/v1/stock-documents/{$receipt}/post", [], $headers + ['Idempotency-Key' => 'post-ssa']);
 
         $alerts = $this->getJson('/api/v1/safe-stock-alerts?product_id='.$product->id, $headers);

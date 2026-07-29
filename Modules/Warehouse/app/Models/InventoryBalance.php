@@ -16,7 +16,7 @@ class InventoryBalance extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['warehouse_id', 'product_id', 'on_hand_qty', 'available_qty', 'reserved_qty', 'version'];
+    protected $fillable = ['warehouse_id', 'product_id', 'stock_status', 'on_hand_qty', 'available_qty', 'reserved_qty', 'version'];
 
     public function warehouse(): BelongsTo
     {

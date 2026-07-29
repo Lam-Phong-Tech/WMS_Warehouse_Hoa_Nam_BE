@@ -19,9 +19,15 @@ class Product extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['code', 'name', 'unit', 'sku_type', 'is_serial_tracked', 'status'];
+    protected $fillable = [
+        'code', 'sku_code', 'name', 'unit', 'sku_type',
+        'brand_code', 'category_code', 'model_code', 'power_or_voltage', 'package_variant',
+        'version', 'published_to_app', 'is_serial_tracked', 'status',
+    ];
 
     protected $casts = [
+        'version' => 'integer',
+        'published_to_app' => 'boolean',
         'is_serial_tracked' => 'boolean',
     ];
 }
