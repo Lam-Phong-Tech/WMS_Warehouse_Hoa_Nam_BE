@@ -196,6 +196,155 @@
                 ]
             }
         },
+        "/api/v1/document-status-history": {
+            "get": {
+                "tags": [
+                    "06. Warehouse"
+                ],
+                "summary": "Lịch sử chuyển trạng thái chứng từ (inbound/outbound documents)",
+                "operationId": "document_status_history_list",
+                "parameters": [
+                    {
+                        "name": "stock_document_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách lịch sử chuyển trạng thái"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/document-status-transitions": {
+            "get": {
+                "tags": [
+                    "06. Warehouse"
+                ],
+                "summary": "Danh sách transitions của state machine chứng từ kho",
+                "operationId": "document_status_transition_list",
+                "parameters": [
+                    {
+                        "name": "doc_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "receipt",
+                                "issue",
+                                "transfer"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "is_active",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách transitions"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền warehouse.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/document-status-transitions/{id}/toggle": {
+            "patch": {
+                "tags": [
+                    "06. Warehouse"
+                ],
+                "summary": "Bật/tắt một transition trong danh mục tham khảo",
+                "operationId": "document_status_transition_toggle",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Đã cập nhật transition"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền warehouse.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy transition"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/inbound-documents": {
             "get": {
                 "tags": [
@@ -982,6 +1131,243 @@
                     },
                     "403": {
                         "description": "Không có quyền inventory.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inventory-reservations": {
+            "get": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Danh sách đặt giữ tồn kho (non-MVP, chưa wire vào engine xuất kho)",
+                "operationId": "inventory_reservation_list",
+                "parameters": [
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "active",
+                                "completed",
+                                "cancelled",
+                                "released"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách đặt giữ tồn kho"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền inventory.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inventory-reservations/{id}": {
+            "get": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Chi tiết một đặt giữ tồn kho",
+                "operationId": "inventory_reservation_show",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết đặt giữ"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy bản ghi đặt giữ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inventory-snapshots": {
+            "get": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Danh sách snapshot tồn kho chốt cuối kỳ",
+                "operationId": "inventory_snapshot_list",
+                "parameters": [
+                    {
+                        "name": "snapshot_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "period_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "daily",
+                                "weekly",
+                                "monthly"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách snapshot tồn kho"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền inventory.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inventory-snapshots/generate": {
+            "post": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Chốt snapshot tồn kho theo ngày/kỳ",
+                "description": "Sao chụp toàn bộ tồn (đầu kỳ, nhập, xuất, điều chuyển, điều chỉnh, cuối kỳ) thành snapshot cho ngày/kỳ chỉ định bằng cách tổng hợp dữ liệu biến động kho.",
+                "operationId": "inventory_snapshot_generate",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "snapshot_date"
+                                ],
+                                "properties": {
+                                    "snapshot_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2026-07-30"
+                                    },
+                                    "period_type": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "daily",
+                                            "weekly",
+                                            "monthly"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Chốt snapshot thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền warehouse.manage"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
                     }
                 },
                 "security": [
@@ -2097,6 +2483,65 @@
                 ]
             }
         },
+        "/api/v1/safe-stock-alerts/history": {
+            "get": {
+                "tags": [
+                    "08. Safe Stock"
+                ],
+                "summary": "Alias lịch sử cảnh báo tồn kho an toàn (giống index, giữ tương thích đường dẫn cũ)",
+                "operationId": "safe_stock_alert_history",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách lịch sử cảnh báo"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền safe_stock.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/safe-stock-configs": {
             "get": {
                 "tags": [
@@ -2245,6 +2690,122 @@
                         "bearerAuth": []
                     }
                 ]
+            },
+            "delete": {
+                "tags": [
+                    "08. Safe Stock"
+                ],
+                "summary": "Xoá định mức tồn kho an toàn",
+                "operationId": "safe_stock_config_delete",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Xoá thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền safe_stock.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy định mức"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "08. Safe Stock"
+                ],
+                "summary": "Sửa định mức tồn kho an toàn",
+                "operationId": "safe_stock_config_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "product_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "min_qty": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "nullable": true
+                                    },
+                                    "max_qty": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "nullable": true
+                                    },
+                                    "effective_from": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "effective_to": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền safe_stock.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy định mức"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
             }
         },
         "/api/v1/stock-movements": {
@@ -2368,6 +2929,1254 @@
                     },
                     "404": {
                         "description": "Không tìm thấy movement"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stock-requests": {
+            "get": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Danh sách yêu cầu xuất/nhập/điều chuyển kho",
+                "description": "Yêu cầu xuất/nhập/điều chuyển kho — bước tiền duyệt trước khi tạo stock_documents thật.",
+                "operationId": "stock_request_list",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "draft",
+                                "pending",
+                                "approved",
+                                "rejected",
+                                "converted",
+                                "cancelled"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "request_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "receipt",
+                                "issue",
+                                "transfer"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách yêu cầu"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền stock_request.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Tạo yêu cầu mới (nháp)",
+                "operationId": "stock_request_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "request_type",
+                                    "request_date",
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "request_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "receipt",
+                                            "issue",
+                                            "transfer"
+                                        ]
+                                    },
+                                    "request_no": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "request_date": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "src_warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "dst_warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "note": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "product_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "qty_planned": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "unit_cost": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "nullable": true
+                                                },
+                                                "note": {
+                                                    "type": "string",
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền stock_request.create"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stock-requests/{id}": {
+            "get": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Chi tiết yêu cầu",
+                "operationId": "stock_request_show",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết yêu cầu"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Xoá yêu cầu nháp",
+                "operationId": "stock_request_delete",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Xoá thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    },
+                    "409": {
+                        "description": "Chỉ xoá được yêu cầu ở trạng thái nháp"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Cập nhật yêu cầu (chỉ khi còn draft)",
+                "operationId": "stock_request_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stock-requests/{id}/submit": {
+            "post": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Gửi duyệt yêu cầu",
+                "operationId": "stock_request_submit",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Gửi duyệt thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stock-requests/{id}/approve": {
+            "post": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Duyệt yêu cầu",
+                "operationId": "stock_request_approve",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Duyệt thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stock-requests/{id}/reject": {
+            "post": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Từ chối duyệt yêu cầu",
+                "operationId": "stock_request_reject",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Từ chối thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "422": {
+                        "description": "Thiếu lý do từ chối"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stock-requests/{id}/convert": {
+            "post": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Chuyển đổi yêu cầu đã duyệt thành phiếu nghiệp vụ (stock_documents)",
+                "operationId": "stock_request_convert",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chuyển đổi thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại hoặc đã chuyển đổi trước đó"
+                    },
+                    "422": {
+                        "description": "request_type=transfer chưa hỗ trợ tự động convert"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stock-requests/{id}/cancel": {
+            "post": {
+                "tags": [
+                    "07. Inventory / Stock"
+                ],
+                "summary": "Hủy yêu cầu kho",
+                "operationId": "stock_request_cancel",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Hủy thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy yêu cầu"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders": {
+            "get": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Danh sách phiếu điều chuyển kho",
+                "description": "Phiếu điều chuyển kho (doc_type=transfer). Cần ≥ 2 kho khác nhau (src ≠ dst) để có ý nghĩa\nthực tế — base hiện chỉ có 1 kho tổng nên nhánh nghiệp vụ này port sẵn code, chưa dùng được\ncho tới khi Hoà Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).\n\nindex/show/submit/approve/reject/cancel dùng chung Concerns\\InteractsWithStockDocuments với\nInbound/Outbound; dispatch/receive/record-loss/return/confirm-return là action riêng của\ntransfer, xử lý qua TransferService.",
+                "operationId": "transfer_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "draft",
+                                "pending",
+                                "approved",
+                                "in_transit",
+                                "return_in_transit",
+                                "completed",
+                                "completed_with_loss",
+                                "returned",
+                                "cancelled",
+                                "rejected"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách phiếu điều chuyển"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền transfer.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Tạo phiếu điều chuyển kho (nháp)",
+                "operationId": "transfer_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "src_warehouse_id",
+                                    "dst_warehouse_id",
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "doc_no": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 80
+                                    },
+                                    "doc_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "nullable": true
+                                    },
+                                    "src_warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "dst_warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "note": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "product_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "qty_planned": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo phiếu điều chuyển thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền transfer.create"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (vd: src = dst, kho không active)"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}": {
+            "get": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Chi tiết phiếu điều chuyển kho",
+                "operationId": "transfer_show",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết phiếu điều chuyển"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Sửa phiếu điều chuyển kho (chỉ khi còn draft)",
+                "operationId": "transfer_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc phiếu không còn ở trạng thái draft"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/submit": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Gửi duyệt phiếu điều chuyển kho",
+                "operationId": "transfer_submit",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Gửi duyệt thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/approve": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Duyệt phiếu điều chuyển kho",
+                "operationId": "transfer_approve",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Duyệt thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "422": {
+                        "description": "Kho nguồn không đủ tồn hoặc kho không active"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/reject": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Từ chối duyệt phiếu điều chuyển kho",
+                "operationId": "transfer_reject",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Từ chối thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/cancel": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Hủy phiếu điều chuyển kho",
+                "operationId": "transfer_cancel",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hủy thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/dispatch": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Xuất điều chuyển (approved → in_transit, trừ tồn kho nguồn)",
+                "description": "Đổi tồn kho thật. Bắt buộc header Idempotency-Key.",
+                "operationId": "transfer_dispatch",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Đã xuất điều chuyển"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền transfer.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/receive": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Nhận hàng điều chuyển tại kho đích (in_transit → completed|completed_with_loss)",
+                "description": "Đổi tồn kho thật (cộng vào kho đích theo qty_actual). Bắt buộc header Idempotency-Key.",
+                "operationId": "transfer_receive",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "line_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "qty_actual": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Đã nhận hàng điều chuyển"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền transfer.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ hoặc dòng"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (qty_actual vượt quá qty_dispatched)"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/record-loss": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Ghi nhận hàng mất mát trong quá trình vận chuyển",
+                "description": "Không tạo biến động tồn (hàng chưa từng cộng vào kho đích) — chỉ ghi nhận trên in_transit_ledger. Bắt buộc header Idempotency-Key để chống ghi trùng.",
+                "operationId": "transfer_record_loss",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "line_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "qty_lost": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "reason": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Đã ghi nhận hàng mất mát"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền transfer.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ hoặc dòng"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "422": {
+                        "description": "Số lượng mất mát vượt quá số lượng còn lại"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/return": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Bước 1: yêu cầu trả lại hàng điều chuyển (in_transit → return_in_transit)",
+                "description": "KHÔNG đổi tồn kho thật — chỉ đánh dấu ý định trả hàng. Tồn kho nguồn chỉ thật sự được cộng lại ở bước confirm-return.",
+                "operationId": "transfer_return",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Đã đánh dấu trả lại hàng điều chuyển"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền transfer.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/transfer-orders/{id}/confirm-return": {
+            "post": {
+                "tags": [
+                    "10. Transfer"
+                ],
+                "summary": "Bước 2: kho nguồn xác nhận đã nhận lại hàng trả về (return_in_transit → returned)",
+                "description": "Đổi tồn kho thật — cộng lại tồn khả dụng kho nguồn. Bắt buộc header Idempotency-Key.",
+                "operationId": "transfer_confirm_return",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Đã xác nhận nhận lại hàng trả về"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền transfer.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Sai trạng thái hiện tại"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
                     }
                 },
                 "security": [
@@ -2574,8 +4383,12 @@
             "description": "Nhật ký audit các thao tác quan trọng (tạo/duyệt/hạch toán/huỷ...), chỉ đọc qua API."
         },
         {
-            "name": "00. Platform",
-            "description": "00. Platform"
+            "name": "07. Inventory / Stock",
+            "description": "07. Inventory / Stock"
+        },
+        {
+            "name": "10. Transfer",
+            "description": "10. Transfer"
         }
     ]
 }

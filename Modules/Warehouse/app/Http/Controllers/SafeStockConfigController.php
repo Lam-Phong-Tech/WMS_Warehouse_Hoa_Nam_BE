@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Http\Requests\StoreSafeStockConfigRequest;
+use Modules\Warehouse\Http\Requests\UpdateSafeStockConfigRequest;
 use Modules\Warehouse\Repositories\Contracts\SafeStockConfigRepositoryInterface;
 use OpenApi\Attributes as OA;
 
@@ -94,5 +95,66 @@ class SafeStockConfigController extends Controller
         $config = $this->configs->find($id);
 
         return $config ? $this->respondSuccess($config) : $this->respondNotFound('Không tìm thấy định mức.');
+    }
+
+    #[OA\Patch(
+        path: '/api/v1/safe-stock-configs/{id}',
+        operationId: 'safe_stock_config_update',
+        summary: 'Sửa định mức tồn kho an toàn',
+        security: [['bearerAuth' => []]],
+        tags: ['08. Safe Stock'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'min_qty', type: 'number', format: 'float', nullable: true),
+                new OA\Property(property: 'max_qty', type: 'number', format: 'float', nullable: true),
+                new OA\Property(property: 'effective_from', type: 'string', format: 'date'),
+                new OA\Property(property: 'effective_to', type: 'string', format: 'date', nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền safe_stock.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy định mức'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        ]
+    )]
+    public function update(UpdateSafeStockConfigRequest $request, string $id)
+    {
+        if (! $this->configs->find($id)) {
+            return $this->respondNotFound('Không tìm thấy định mức.');
+        }
+
+        $config = $this->configs->update($id, $request->validated());
+
+        return $this->respondSuccess($config, 'Cập nhật định mức tồn kho an toàn thành công');
+    }
+
+    #[OA\Delete(
+        path: '/api/v1/safe-stock-configs/{id}',
+        operationId: 'safe_stock_config_delete',
+        summary: 'Xoá định mức tồn kho an toàn',
+        security: [['bearerAuth' => []]],
+        tags: ['08. Safe Stock'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Xoá thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền safe_stock.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy định mức'),
+        ]
+    )]
+    public function destroy(string $id)
+    {
+        if (! $this->configs->find($id)) {
+            return $this->respondNotFound('Không tìm thấy định mức.');
+        }
+
+        $this->configs->delete($id);
+
+        return $this->respondSuccess(null, 'Xoá định mức tồn kho an toàn thành công');
     }
 }

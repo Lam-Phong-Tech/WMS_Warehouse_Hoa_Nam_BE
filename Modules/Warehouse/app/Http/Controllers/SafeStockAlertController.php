@@ -43,4 +43,27 @@ class SafeStockAlertController extends Controller
 
         return $this->respondPaginated($query->orderByDesc('created_at')->paginate((int) $request->input('per_page', 15)));
     }
+
+    #[OA\Get(
+        path: '/api/v1/safe-stock-alerts/history',
+        operationId: 'safe_stock_alert_history',
+        summary: 'Alias lịch sử cảnh báo tồn kho an toàn (giống index, giữ tương thích đường dẫn cũ)',
+        security: [['bearerAuth' => []]],
+        tags: ['08. Safe Stock'],
+        parameters: [
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách lịch sử cảnh báo'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền safe_stock.view'),
+        ]
+    )]
+    public function history(Request $request)
+    {
+        return $this->index($request);
+    }
 }
