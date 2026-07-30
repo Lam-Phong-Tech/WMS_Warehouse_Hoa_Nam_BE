@@ -1,65 +1,93 @@
 services:
-  app:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html:delegated
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - wms
+
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      APP_NAME: WMS_HoaNam
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_URL: http://localhost:8000
-      APP_TIMEZONE: Asia/Ho_Chi_Minh
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_DATABASE: wms_hoanam
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      SESSION_DRIVER: redis
-      CACHE_STORE: redis
-      QUEUE_CONNECTION: redis
-      REDIS_CLIENT: predis
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      FILESYSTEM_DISK: local
-      JWT_TTL: "60"
-      REFRESH_TOKEN_TTL_MINUTES: "20160"
-      RUN_MIGRATIONS: "false"
+      dockerfile: docker/php/Dockerfile
     volumes:
-      - .:/var/www/html
-      - /var/www/html/vendor
-      - /var/www/html/node_modules
+      - .:/var/www/html:delegated
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_started
+    networks:
+      - wms
 
   postgres:
-    image: postgres:17-alpine
-    ports:
-      - "5432:5432"
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: wms_hoanam
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - wms_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d wms_hoanam"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    networks:
+      - wms
 
-  redis:
-    image: redis:8-alpine
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
+      - wms_valkey_data:/data
+    networks:
+      - wms
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    networks:
+      - wms
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console
+    volumes:
+      - wms_minio_data:/data
+    networks:
+      - wms
+
+networks:
+  wms:
+    driver: bridge
 
 volumes:
-  postgres-data:
-  redis-data:
+  wms_postgres_data:
+  wms_valkey_data:
+  wms_minio_data:
