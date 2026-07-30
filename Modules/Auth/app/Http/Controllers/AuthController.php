@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Modules\Auth\Http\Requests\LoginRequest;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
+use Modules\AuditLog\Services\AuditLogger;
 use OpenApi\Attributes as OA;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -15,7 +16,10 @@ class AuthController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly RefreshTokenService $refreshTokens) {}
+    public function __construct(
+        private readonly RefreshTokenService $refreshTokens,
+        private readonly AuditLogger $auditLogger,
+    ) {}
 
     #[OA\Post(
         path: '/api/v1/auth/login',
@@ -44,6 +48,18 @@ class AuthController extends Controller
         $credentials = $request->only('username', 'password');
 
         if (! $accessToken = auth('api')->attempt($credentials)) {
+            $user = User::where('username', $credentials['username'] ?? null)->first();
+            $this->auditLogger->log(
+                'LOGIN_FAILED',
+                'app_user',
+                $user?->user_id,
+                $user?->user_id,
+                $this->currentRequestId(),
+                [],
+                ['username' => $credentials['username'] ?? null],
+                'Invalid username or password'
+            );
+
             return $this->respondError('Tên đăng nhập hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
         }
 
@@ -52,11 +68,22 @@ class AuthController extends Controller
 
         if ($user->status !== 'ACTIVE') {
             auth('api')->logout();
+            $this->auditLogger->log(
+                'LOGIN_DENIED',
+                'app_user',
+                $user->user_id,
+                $user->user_id,
+                $this->currentRequestId(),
+                [],
+                ['status' => $user->status],
+                'Inactive or locked account'
+            );
 
             return $this->respondError('Tài khoản đang bị khoá hoặc ngừng hoạt động.', [], 403, 'ACCESS_DENIED');
         }
 
         $refreshToken = $this->refreshTokens->issue($user, $request);
+        $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
 
         return $this->respondSuccess([
             'access_token' => $accessToken,
@@ -67,6 +94,17 @@ class AuthController extends Controller
                 'user_id' => $user->user_id,
                 'username' => $user->username,
                 'display_name' => $user->display_name,
+                'roles' => $user->roles()
+                    ->where('role.status', 'ACTIVE')
+                    ->orderBy('role_code')
+                    ->get(['role.role_id', 'role.role_code', 'role.role_name'])
+                    ->map(fn ($role) => [
+                        'role_id' => $role->role_id,
+                        'role_code' => $role->role_code,
+                        'role_name' => $role->role_name,
+                    ])
+                    ->values()
+                    ->all(),
                 'permissions' => $user->permissionCodes(),
             ],
         ], 'Đăng nhập thành công');
@@ -101,12 +139,15 @@ class AuthController extends Controller
         }
 
         $accessToken = JWTAuth::fromUser($rotated['user']);
+        $user = $rotated['user'];
+        $this->auditLogger->log('TOKEN_REFRESH', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
 
         return $this->respondSuccess([
             'access_token' => $accessToken,
             'refresh_token' => $rotated['raw'],
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
+            'user' => $this->userPayload($user),
         ], 'Làm mới token thành công');
     }
 
@@ -129,12 +170,15 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $request->validate(['refresh_token' => ['nullable', 'string']]);
+        /** @var User $user */
+        $user = auth('api')->user();
 
         if ($request->filled('refresh_token')) {
             $this->refreshTokens->revoke($request->input('refresh_token'));
         }
 
         auth('api')->logout();
+        $this->auditLogger->log('LOGOUT', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
 
         return $this->respondSuccess(null, 'Đăng xuất thành công');
     }
@@ -160,7 +204,36 @@ class AuthController extends Controller
             'username' => $user->username,
             'display_name' => $user->display_name,
             'email' => $user->email,
-            'permissions' => $user->permissionCodes(),
+            'status' => $user->status,
+            ...$this->userAuthorizationPayload($user),
         ]);
+    }
+
+    private function userPayload(User $user): array
+    {
+        return [
+            'user_id' => $user->user_id,
+            'username' => $user->username,
+            'display_name' => $user->display_name,
+            ...$this->userAuthorizationPayload($user),
+        ];
+    }
+
+    private function userAuthorizationPayload(User $user): array
+    {
+        return [
+            'roles' => $user->roles()
+                ->where('role.status', 'ACTIVE')
+                ->orderBy('role_code')
+                ->get(['role.role_id', 'role.role_code', 'role.role_name'])
+                ->map(fn ($role) => [
+                    'role_id' => $role->role_id,
+                    'role_code' => $role->role_code,
+                    'role_name' => $role->role_name,
+                ])
+                ->values()
+                ->all(),
+            'permissions' => $user->permissionCodes(),
+        ];
     }
 }

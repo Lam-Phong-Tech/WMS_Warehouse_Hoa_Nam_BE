@@ -17,7 +17,7 @@ Implemented the frontend baseline for environment, build metadata, and health vi
 |---|---|
 | Deployable frontend reviewed | `npm run build` produces Vite assets from `resources/css/app.css` and `resources/js/app.js`. |
 | Env contract standardized | `.env.example` now includes `VITE_APP_ENV`, `VITE_API_BASE_URL`, `VITE_HEALTH_ENDPOINT`, `VITE_BUILD_VERSION`, and `VITE_BUILD_SHA`. |
-| Health visibility | The root screen calls the configured `VITE_HEALTH_ENDPOINT`, defaulting to Laravel `/up`. |
+| Health visibility | The root screen calls the configured `VITE_HEALTH_ENDPOINT`, defaulting to backend `/api/health`. |
 | CI-safe build | Remote build-time font fetching was removed from Vite; the shell uses system font fallback. |
 | UI states | The health screen includes loading, success, error, empty, disabled refresh, and an RBAC/permission note. |
 | RBAC/API contract | No FE-only authorization is introduced. The screen explicitly states backend API middleware enforces RBAC. |
@@ -31,7 +31,7 @@ Implemented the frontend baseline for environment, build metadata, and health vi
 | `VITE_APP_NAME` | Display application name | `${APP_NAME}` |
 | `VITE_APP_ENV` | Display environment and guard production-like metadata | `${APP_ENV}` |
 | `VITE_API_BASE_URL` | Approved API base for FE integrations | `${APP_URL}/api/v1` |
-| `VITE_HEALTH_ENDPOINT` | Health endpoint called by FE shell | `${APP_URL}/up` |
+| `VITE_HEALTH_ENDPOINT` | Health endpoint called by FE shell | `${APP_URL}/api/health` |
 | `VITE_BUILD_VERSION` | Release/version label for QA evidence | `local-dev` |
 | `VITE_BUILD_SHA` | Commit SHA for deploy traceability | `local` |
 

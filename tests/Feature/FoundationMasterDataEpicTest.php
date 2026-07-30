@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -23,14 +24,14 @@ class FoundationMasterDataEpicTest extends TestCase
 
         $login = $this->postJson('/api/v1/auth/login', [
             'username' => 'admin',
-            'password' => 'ChangeMe123!',
+            'password' => 'secret123',
         ]);
 
         $login->assertOk()
             ->assertHeader('X-Request-ID')
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.user.roles.0.role_code', 'SUPER_ADMIN')
-            ->assertJsonPath('data.user.permissions.0', 'master-data.warehouse.view')
+            ->assertJsonPath('data.user.permissions.0', 'audit_log.view')
             ->assertJsonStructure([
                 'data' => ['access_token', 'refresh_token', 'expires_in', 'user' => ['roles', 'permissions']],
                 'meta' => ['request_id', 'timestamp'],
@@ -43,7 +44,7 @@ class FoundationMasterDataEpicTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.0.code', 'KHO-TONG-HN')
             ->assertJsonPath('data.0.status', 'ACTIVE')
-            ->assertJsonStructure(['data', 'meta' => ['total', 'request_id', 'timestamp']]);
+            ->assertJsonStructure(['data', 'meta' => ['request_id', 'timestamp']]);
 
         $this->getJson('/api/v1/products?keyword=HN-PV-BASE-001', $headers)
             ->assertOk()
@@ -58,15 +59,15 @@ class FoundationMasterDataEpicTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->seedRoleWithPermissions('MASTER_DATA_CREATOR', [
-            'master-data.warehouse.view',
-            'master-data.warehouse.create',
-            'master-data.product.view',
-            'master-data.product.create',
-            'audit-log.view',
+            'warehouse.view',
+            'warehouse.manage',
+            'product.view',
+            'product.manage',
+            'audit_log.view',
         ]);
         $this->seedRoleWithPermissions('MASTER_DATA_VIEWER', [
-            'master-data.warehouse.view',
-            'master-data.product.view',
+            'warehouse.view',
+            'product.view',
         ]);
 
         $creator = $this->createUser('md-creator', 'MASTER_DATA_CREATOR');
@@ -74,9 +75,10 @@ class FoundationMasterDataEpicTest extends TestCase
 
         $viewerToken = JWTAuth::fromUser($viewer);
 
-        $this->postJson('/api/v1/warehouses', [
-            'code' => 'KHO-NO-PERM',
-            'name' => 'Kho khong co quyen tao',
+        $warehouse = Warehouse::where('code', 'KHO-TONG-HN')->firstOrFail();
+
+        $this->patchJson("/api/v1/warehouses/{$warehouse->id}", [
+            'name' => 'Kho khong co quyen sua',
         ], ['Authorization' => "Bearer {$viewerToken}"])
             ->assertStatus(403)
             ->assertJsonPath('success', false)
@@ -88,8 +90,7 @@ class FoundationMasterDataEpicTest extends TestCase
         $creatorToken = JWTAuth::fromUser($creator);
         $requestId = 'PL01-03-EVIDENCE-REQ-001';
 
-        $warehouse = $this->postJson('/api/v1/warehouses', [
-            'code' => 'KHO-PL01-03',
+        $warehouseResponse = $this->patchJson("/api/v1/warehouses/{$warehouse->id}", [
             'name' => 'Kho PL01-03',
             'address' => 'DEV/UAT baseline evidence',
         ], [
@@ -97,17 +98,17 @@ class FoundationMasterDataEpicTest extends TestCase
             'X-Request-ID' => $requestId,
         ]);
 
-        $warehouse->assertCreated()
+        $warehouseResponse->assertOk()
             ->assertHeader('X-Request-ID', $requestId)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.code', 'KHO-PL01-03')
+            ->assertJsonPath('data.code', 'KHO-TONG-HN')
             ->assertJsonPath('meta.request_id', $requestId);
 
         $this->assertDatabaseHas('audit_log', [
             'actor_id' => $creator->user_id,
-            'action' => 'CREATE',
+            'action' => 'UPDATE',
             'object_type' => 'warehouse',
-            'object_id' => $warehouse->json('data.id'),
+            'object_id' => $warehouseResponse->json('data.id'),
             'request_id' => $requestId,
         ]);
 

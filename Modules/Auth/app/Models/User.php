@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
+use Modules\Auth\Models\Permission;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 class User extends Model implements AuthenticatableContract, JWTSubject
@@ -62,6 +63,17 @@ class User extends Model implements AuthenticatableContract, JWTSubject
      */
     public function permissionCodes(): array
     {
+        if ($this->isSuperAdmin()) {
+            return Cache::remember("auth:user:{$this->user_id}:super-admin-permissions", 300, function () {
+                return Permission::query()
+                    ->where('status', 'ACTIVE')
+                    ->orderBy('permission_key')
+                    ->pluck('permission_key')
+                    ->values()
+                    ->all();
+            });
+        }
+
         return Cache::remember("auth:user:{$this->user_id}:permissions", 300, function () {
             return $this->roles()
                 ->where('role.status', 'ACTIVE')

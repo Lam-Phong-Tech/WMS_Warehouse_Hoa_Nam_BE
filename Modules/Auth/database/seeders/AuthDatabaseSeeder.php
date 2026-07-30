@@ -83,7 +83,7 @@ class AuthDatabaseSeeder extends Seeder
     ];
 
     /**
-     * Tài khoản demo cho từng role, dùng chung mật khẩu Cntt@1234 để tiện test theo permission.
+     * Tài khoản demo cho từng role, dùng chung mật khẩu baseline để tiện test theo permission.
      */
     private const USERS = [
         ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@wms-hoanam.local', 'role' => 'WAREHOUSE_STAFF'],
@@ -93,7 +93,7 @@ class AuthDatabaseSeeder extends Seeder
         ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@wms-hoanam.local', 'role' => 'WAREHOUSE_MANAGER'],
     ];
 
-    private const DEFAULT_PASSWORD = 'Cntt@1234';
+    private const DEFAULT_PASSWORD = 'secret123';
 
     /**
      * Seed tối thiểu để smoke test base: role SUPER_ADMIN (bypass mọi permission) + admin,
@@ -115,7 +115,7 @@ class AuthDatabaseSeeder extends Seeder
             ['role_name' => 'Quản trị hệ thống', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
         );
 
-        $adminUser = User::firstOrCreate(
+        $adminUser = User::updateOrCreate(
             ['username' => 'admin'],
             [
                 'display_name' => 'Administrator',
@@ -144,7 +144,7 @@ class AuthDatabaseSeeder extends Seeder
         }
 
         foreach (self::USERS as $u) {
-            $user = User::firstOrCreate(
+            $user = User::updateOrCreate(
                 ['username' => $u['username']],
                 [
                     'display_name' => $u['display_name'],

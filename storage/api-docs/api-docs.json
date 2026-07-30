@@ -2506,6 +2506,24 @@
                     }
                 ]
             }
+        },
+        "/api/health": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "Public backend health endpoint for environment, database, migration and seed baseline checks",
+                "operationId": "backend_health",
+                "responses": {
+                    "200": {
+                        "description": "Backend health check passed"
+                    },
+                    "503": {
+                        "description": "Backend health check degraded"
+                    }
+                },
+                "security": []
+            }
         }
     },
     "components": {
@@ -2553,6 +2571,10 @@
         {
             "name": "15. Audit Log",
             "description": "Nhật ký audit các thao tác quan trọng (tạo/duyệt/hạch toán/huỷ...), chỉ đọc qua API."
+        },
+        {
+            "name": "00. Platform",
+            "description": "00. Platform"
         }
     ]
 }

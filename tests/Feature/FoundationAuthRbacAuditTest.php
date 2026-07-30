@@ -29,8 +29,8 @@ class FoundationAuthRbacAuditTest extends TestCase
     public function test_login_me_refresh_logout_contract_and_audit_are_recorded(): void
     {
         $this->seedRoleWithPermissions('WAREHOUSE_MANAGER', [
-            'master-data.warehouse.view',
-            'warehouse.stock-document.view',
+            'warehouse.view',
+            'stock_document.view',
         ]);
 
         $user = $this->createUser('manager', 'WAREHOUSE_MANAGER');
@@ -46,7 +46,7 @@ class FoundationAuthRbacAuditTest extends TestCase
             ->assertJsonPath('data.token_type', 'bearer')
             ->assertJsonPath('data.user.username', 'manager')
             ->assertJsonPath('data.user.roles.0.role_code', 'WAREHOUSE_MANAGER')
-            ->assertJsonPath('data.user.permissions.0', 'master-data.warehouse.view')
+            ->assertJsonPath('data.user.permissions.0', 'warehouse.view')
             ->assertJsonStructure([
                 'data' => ['access_token', 'refresh_token', 'expires_in', 'user' => ['roles', 'permissions']],
                 'meta' => ['request_id', 'timestamp'],
@@ -117,13 +117,13 @@ class FoundationAuthRbacAuditTest extends TestCase
         Warehouse::create(['code' => 'KHO-RBAC', 'name' => 'Kho RBAC', 'status' => 'ACTIVE']);
 
         $this->seedRoleWithPermissions('NO_WAREHOUSE_ACCESS', []);
-        $this->seedRoleWithPermissions('WAREHOUSE_VIEWER', ['master-data.warehouse.view']);
+        $this->seedRoleWithPermissions('WAREHOUSE_VIEWER', ['warehouse.view']);
 
         $deniedUser = $this->createUser('denied', 'NO_WAREHOUSE_ACCESS');
         $allowedUser = $this->createUser('viewer', 'WAREHOUSE_VIEWER');
 
-        $this->assertFalse($deniedUser->fresh()->hasPermission('master-data.warehouse.view'));
-        $this->assertTrue($allowedUser->fresh()->hasPermission('master-data.warehouse.view'));
+        $this->assertFalse($deniedUser->fresh()->hasPermission('warehouse.view'));
+        $this->assertTrue($allowedUser->fresh()->hasPermission('warehouse.view'));
 
         $deniedToken = JWTAuth::fromUser($deniedUser);
         $allowedToken = JWTAuth::fromUser($allowedUser);
@@ -158,14 +158,14 @@ class FoundationAuthRbacAuditTest extends TestCase
             ->assertStatus(401)
             ->assertJsonPath('error.code', 'UNAUTHENTICATED');
 
-        $this->seedRoleWithPermissions('WAREHOUSE_VIEWER', ['master-data.warehouse.view']);
-        $this->seedRoleWithPermissions('AUDITOR', ['audit-log.view']);
+        $this->seedRoleWithPermissions('WAREHOUSE_VIEWER', ['warehouse.view']);
+        $this->seedRoleWithPermissions('AUDITOR', ['audit_log.view']);
 
         $viewer = $this->createUser('viewer2', 'WAREHOUSE_VIEWER');
         $auditor = $this->createUser('auditor', 'AUDITOR');
 
-        $this->assertFalse($viewer->fresh()->hasPermission('audit-log.view'));
-        $this->assertTrue($auditor->fresh()->hasPermission('audit-log.view'));
+        $this->assertFalse($viewer->fresh()->hasPermission('audit_log.view'));
+        $this->assertTrue($auditor->fresh()->hasPermission('audit_log.view'));
 
         $viewerToken = JWTAuth::fromUser($viewer);
         $auditorToken = JWTAuth::fromUser($auditor);
