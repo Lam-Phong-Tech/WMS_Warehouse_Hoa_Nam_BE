@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
@@ -135,6 +136,7 @@ class StockDocumentIdempotencyTest extends TestCase
             'Post lặp lại cùng Idempotency-Key phải trả về đúng 1 movement, không tạo movement mới.'
         );
         $this->assertSame(1, StockMovement::where('stock_document_id', $docId)->count());
+        $this->assertSame(1, DB::table('posting_event')->where('operation', "post_receipt_{$docId}")->where('idempotency_key', 'post-1')->count());
 
         $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
         $this->assertEquals(10, (float) $balance->available_qty);
@@ -241,6 +243,8 @@ class StockDocumentIdempotencyTest extends TestCase
 
         $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
         $this->assertEquals(10, (float) $balance->available_qty);
+        $this->assertSame(1, DB::table('posting_event')->where('operation', "scan_stock_document_{$docId}_{$lineId}")->where('idempotency_key', 'scan-1')->count());
+        $this->assertSame(1, DB::table('posting_event')->where('operation', "scan_stock_document_{$docId}_{$lineId}")->where('idempotency_key', 'scan-2')->count());
     }
 
     /** Đóng phần còn thiếu: scan 6/10 rồi close-remainder -> closed, dòng đánh dấu shortage. */
@@ -299,6 +303,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
         $this->assertEquals(0, (float) $balance->available_qty);
         $this->assertSame(2, StockMovement::where('stock_document_id', $docId)->count());
+        $this->assertSame(1, DB::table('posting_event')->where('operation', "reverse_stock_document_{$docId}")->where('idempotency_key', 'reverse-1')->count());
     }
 
     /** Định mức tồn kho an toàn: available_qty vượt max -> ghi 1 dòng lịch sử cảnh báo "overflow". */

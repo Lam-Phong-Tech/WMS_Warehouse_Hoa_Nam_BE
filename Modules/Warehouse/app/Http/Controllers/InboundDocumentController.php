@@ -322,8 +322,9 @@ class InboundDocumentController extends Controller
         $idemKey = $this->requireIdempotencyKey($request);
         $hash = IdempotencyStore::requestHash($request);
 
-        [$code, $body] = IdempotencyStore::handle($idemKey, "post_receipt_{$doc->id}", $this->userId(), $hash, function () use ($doc) {
-            return [200, $this->envelope('Hạch toán nhập kho thành công', $this->documentService->postReceipt($doc, $this->userId()))];
+        $operation = "post_receipt_{$doc->id}";
+        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $this->userId(), $hash, function () use ($doc, $idemKey, $hash, $operation) {
+            return [200, $this->envelope('Hạch toán nhập kho thành công', $this->documentService->postReceipt($doc, $this->userId(), $idemKey, $hash, $operation))];
         });
 
         return response()->json($body, $code);

@@ -67,8 +67,9 @@ trait InteractsWithStockDocuments
         $lineId = $request->input('line_id');
         $qty = (string) $request->input('qty');
 
-        [$code, $body] = IdempotencyStore::handle($idemKey, "scan_stock_document_{$doc->id}_{$lineId}", $this->userId(), $hash, function () use ($doc, $lineId, $qty) {
-            return [200, $this->envelope('Ghi nhận scan thành công', $this->service()->scanLine($doc, $lineId, $qty, $this->userId()))];
+        $operation = "scan_stock_document_{$doc->id}_{$lineId}";
+        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $this->userId(), $hash, function () use ($doc, $lineId, $qty, $idemKey, $hash, $operation) {
+            return [200, $this->envelope('Ghi nhận scan thành công', $this->service()->scanLine($doc, $lineId, $qty, $this->userId(), $idemKey, $hash, $operation))];
         });
 
         return response()->json($body, $code);
@@ -92,8 +93,9 @@ trait InteractsWithStockDocuments
         $idemKey = $this->requireIdempotencyKey($request);
         $hash = IdempotencyStore::requestHash($request);
 
-        [$code, $body] = IdempotencyStore::handle($idemKey, "reverse_stock_document_{$doc->id}", $this->userId(), $hash, function () use ($doc, $request) {
-            return [200, $this->envelope('Đảo ngược chứng từ thành công', $this->service()->reverseDocument($doc, $this->userId(), $request->input('reason')))];
+        $operation = "reverse_stock_document_{$doc->id}";
+        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $this->userId(), $hash, function () use ($doc, $request, $idemKey, $hash, $operation) {
+            return [200, $this->envelope('Đảo ngược chứng từ thành công', $this->service()->reverseDocument($doc, $this->userId(), $request->input('reason'), $idemKey, $hash, $operation))];
         });
 
         return response()->json($body, $code);
