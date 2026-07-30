@@ -49,6 +49,24 @@ class StockLedger
         return $this->mutate($doc->src_warehouse_id, $line->product_id, $qty, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-', $this->scanKey($doc->id, $line->id));
     }
 
+    /** Xuất kho nguồn khi dispatch điều chuyển — trừ tồn khả dụng kho nguồn. */
+    public function transferOut(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
+    {
+        return $this->mutate($doc->src_warehouse_id, $line->product_id, $line->qty_planned, StockMovement::TRANSFER_OUT, $doc, $line, $userId, '-', $this->businessKey(StockMovement::TRANSFER_OUT, $doc->id, $line->id));
+    }
+
+    /** Nhận hàng tại kho đích khi receive điều chuyển — cộng tồn khả dụng kho đích. */
+    public function transferIn(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
+    {
+        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty, StockMovement::TRANSFER_IN, $doc, $line, $userId, '+', $this->businessKey(StockMovement::TRANSFER_IN, $doc->id, $line->id));
+    }
+
+    /** Kho nguồn nhận lại hàng trả về (confirm-return) — cộng lại tồn khả dụng kho nguồn. */
+    public function transferReturn(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
+    {
+        return $this->mutate($doc->src_warehouse_id, $line->product_id, $qty, StockMovement::TRANSFER_RETURN, $doc, $line, $userId, '+', $this->businessKey(StockMovement::TRANSFER_RETURN, $doc->id, $line->id));
+    }
+
     /**
      * Đảo ngược 1 movement gốc (reverse/correction) — cộng/trừ ngược dấu, tham chiếu
      * `original_movement_id`. Không cho đảo ngược 1 movement đã bị đảo ngược trước đó

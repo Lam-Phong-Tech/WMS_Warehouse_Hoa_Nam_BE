@@ -33,6 +33,15 @@ class AuthDatabaseSeeder extends Seeder
         ['inventory.view', 'Xem tồn kho hiện tại và lịch sử biến động (stock-movements)'],
         ['report.view', 'Xem báo cáo tồn kho'],
         ['audit_log.view', 'Xem nhật ký audit'],
+        ['stock_request.view', 'Xem yêu cầu xuất/nhập/điều chuyển kho'],
+        ['stock_request.create', 'Tạo/sửa/xoá/hủy yêu cầu xuất/nhập/điều chuyển kho'],
+        ['stock_request.submit', 'Gửi duyệt yêu cầu kho'],
+        ['stock_request.approve', 'Duyệt/từ chối/chuyển đổi yêu cầu kho'],
+        ['transfer.view', 'Xem phiếu điều chuyển kho'],
+        ['transfer.create', 'Tạo/sửa/huỷ phiếu điều chuyển kho'],
+        ['transfer.submit', 'Gửi duyệt phiếu điều chuyển kho'],
+        ['transfer.approve', 'Duyệt/từ chối phiếu điều chuyển kho'],
+        ['transfer.post', 'Xuất/nhận/trả/ghi nhận mất mát hàng điều chuyển kho'],
     ];
 
     /**
@@ -78,6 +87,8 @@ class AuthDatabaseSeeder extends Seeder
                 'stock_document.view', 'stock_document.create', 'stock_document.submit',
                 'stock_document.approve', 'stock_document.post', 'stock_document.cancel', 'stock_document.reverse',
                 'safe_stock.view', 'safe_stock.manage', 'inventory.view', 'report.view', 'audit_log.view',
+                'stock_request.view', 'stock_request.create', 'stock_request.submit', 'stock_request.approve',
+                'transfer.view', 'transfer.create', 'transfer.submit', 'transfer.approve', 'transfer.post',
             ],
         ],
     ];

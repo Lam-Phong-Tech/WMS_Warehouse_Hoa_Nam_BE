@@ -23,6 +23,12 @@ class StockMovement extends Model
 
     public const ISSUE_REVERSED = 'ISSUE_REVERSED';
 
+    public const TRANSFER_OUT = 'TRANSFER_OUT';
+
+    public const TRANSFER_IN = 'TRANSFER_IN';
+
+    public const TRANSFER_RETURN = 'TRANSFER_RETURN';
+
     protected $table = 'stock_movements';
 
     public $incrementing = false;

@@ -29,6 +29,7 @@ class StockDocumentService
     private const PREFIX = [
         StockDocument::TYPE_RECEIPT => 'PN',
         StockDocument::TYPE_ISSUE => 'PX',
+        StockDocument::TYPE_TRANSFER => 'DC',
     ];
 
     public function __construct(private readonly StockLedger $ledger) {}
@@ -106,11 +107,11 @@ class StockDocumentService
         return DB::transaction(function () use ($doc, $userId) {
             $this->assertStatus($doc, [StockDocument::STATUS_PENDING], 'duyệt');
 
-            if ($doc->doc_type === StockDocument::TYPE_ISSUE) {
+            if (in_array($doc->doc_type, [StockDocument::TYPE_ISSUE, StockDocument::TYPE_TRANSFER], true)) {
                 $this->assertWarehouseActive($doc->src_warehouse_id);
                 $this->precheckStock($doc, $doc->src_warehouse_id);
             }
-            if ($doc->doc_type === StockDocument::TYPE_RECEIPT) {
+            if (in_array($doc->doc_type, [StockDocument::TYPE_RECEIPT, StockDocument::TYPE_TRANSFER], true)) {
                 $this->assertWarehouseActive($doc->dst_warehouse_id);
             }
 
