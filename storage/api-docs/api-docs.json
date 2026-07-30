@@ -7,8 +7,8 @@
     },
     "servers": [
         {
-            "url": "/",
-            "description": "Default server"
+            "url": "http://localhost:8000",
+            "description": "Local dev server"
         }
     ],
     "paths": {
@@ -78,7 +78,8 @@
                                     },
                                     "password": {
                                         "type": "string",
-                                        "format": "password"
+                                        "format": "password",
+                                        "example": "Cntt@1234"
                                     }
                                 },
                                 "type": "object"

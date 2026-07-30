@@ -11,7 +11,7 @@ use OpenApi\Attributes as OA;
         .'{success, message, data, meta, links, error}. Xem docs/BRD_ERD_Upgrade_Guide.md '
         .'để biết phạm vi base vs phần cần nâng cấp theo BRD/ERD.'
 )]
-#[OA\Server(url: '/', description: 'Default server')]
+#[OA\Server(url: 'http://localhost:8000', description: 'Local dev server')]
 #[OA\SecurityScheme(
     securityScheme: 'bearerAuth',
     type: 'http',
