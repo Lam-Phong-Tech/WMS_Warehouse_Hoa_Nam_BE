@@ -23,8 +23,8 @@ class FoundationMasterDataEpicTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $login = $this->postJson('/api/v1/auth/login', [
-            'username' => 'admin',
-            'password' => 'secret123',
+            'email' => 'admin@gmail.com',
+            'password' => 'Cntt@1234',
         ]);
 
         $login->assertOk()

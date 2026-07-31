@@ -1,152 +1,232 @@
-# HN-INT-001 - BE1 API Contract Approval
+# HN-INT-001 - BE1 API Contract Review
 
 ## Traceability
 
 | Field | Value |
 |---|---|
-| Parent Task | WWHN-40 - [G1] Rà soát contract FE/BE/QA và cổng kiểm soát payload mẫu |
+| Parent Task | WWHN-40 - [G1] Review FE/BE/QA contract and sample payload control gate |
 | Parent Temp Key | HN-INT-001 |
 | Epic Temp Key | HN-EPIC-03 |
 | Role | BE1 |
-| Assignee Placeholder | HN-BE-01 |
-| Responsible | BE1 - Quang Nguyễn Thanh |
-| Dependencies | HN-TEC-001; HN-UX-002; HN-QA-002 |
-| Output | API contract approved |
-| Evidence Date | 2026-07-29 |
-
-## Scope Reviewed
-
-Baseline reviewed from `WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`, current Laravel modular code, migrations, API routes, request validators, services, repository layer, audit/idempotency helpers, generated API docs, and automated tests.
-
-The BE1 review covers API/data contract for Auth, RBAC-protected Warehouse master data, stock documents, stock requests, safe stock, reporting, audit visibility, idempotency, validation, transaction guard, movement ledger, and error envelope behavior. No baseline/reference file was replaced or removed.
+| Responsible | BE1 - Quang Nguyen Thanh |
+| Evidence Date | 2026-07-30 |
+| Evidence | `docs/HN-INT-001_BE1_payload_samples.postman_collection.json` |
 
 ## Contract Decision
 
-Status: Approved with one environment note.
+Status: **Not approved - BA/FE re-review required**.
 
-Disposition: no P0/P1 BE1 blocker remains in code or API/data contract. The only residual note is local PHPUnit result-cache write permission on `.phpunit.result.cache`; tests still execute and pass, and this does not affect runtime API behavior.
+BE1 cannot claim "API contract approved" yet because the previous handoff still mixed platform/multi-warehouse behavior with the Hoa Nam baseline and still documented approval-oriented flows as canonical. This document supersedes the previous BE1 approval text and locks the canonical Hoa Nam contract target below.
+
+Current blocker disposition:
+
+| Blocker | Disposition Required Before Approval |
+|---|---|
+| FE-SO-001 | Confirm canonical scan classify contract, payload, validation, errors, permissions, and sample. |
+| FE-SO-002 | Confirm Inbound contract uses partial post flow only; no submit/approve/reject in Hoa Nam canonical flow. |
+| FE-SO-003 | Confirm Outbound contract uses partial post flow only; no submit/approve/reject in Hoa Nam canonical flow. |
+| FE-SO-004 | Confirm Inventory, Stocktake Apply Adjustment, Warranty TEMP_ONLY, and Reversal contracts are available to FE/QA. |
+| FE-SO-005 | Align permission names with BA baseline or provide explicit BE-to-FE mapping. |
+
+## Baseline Lock
+
+Hoa Nam canonical warehouse baseline is **01 kho tong Hoa Nam**.
+
+- Agency is a receiver/customer destination, not a warehouse.
+- Inbound increases stock in the single Hoa Nam warehouse.
+- Outbound decreases stock from the single Hoa Nam warehouse and may carry `agency_id` or receiver fields for delivery context.
+- Transfer and multi-warehouse APIs are **outside Hoa Nam scope**. If retained as platform capability, they must not be used as the canonical flow for WWHN-40.
+- FE must use the endpoints and states in this document for Hoa Nam screens.
+
+Canonical status names for Hoa Nam FE/QA:
+
+| State | Meaning |
+|---|---|
+| `DRAFT` | Document created, no stock impact. |
+| `SCANNING` | Scanning/posting is in progress; stock may be partially impacted by committed scan/post events. |
+| `PARTIALLY_POSTED` | One or more lines posted but document is not fully posted. |
+| `POSTED` | Planned quantity posted completely. |
+| `CLOSED` | Remaining quantity closed as shortage/no further posting. |
+| `CANCELLED` | Document cancelled before posting. |
+
+Implementation note: current code still exposes legacy lowercase/internal states including `pending`, `approved`, `received`, `issued`, and `reversed`. That mismatch is a blocker until BE normalizes API responses to the canonical Hoa Nam states or provides an accepted mapping layer.
 
 ## Standard API Envelope
 
-Success response:
+Success:
 
 ```json
 {
   "success": true,
-  "message": "Created successfully",
+  "message": "OK",
   "data": {},
   "meta": {
-    "request_id": "uuid-or-client-request-id",
-    "timestamp": "2026-07-29T00:00:00+07:00"
+    "request_id": "HN-INT-001-001",
+    "timestamp": "2026-07-30T00:00:00+07:00"
   }
 }
 ```
 
-Paginated response:
-
-```json
-{
-  "success": true,
-  "data": [],
-  "meta": {
-    "current_page": 1,
-    "per_page": 15,
-    "last_page": 1,
-    "total": 0,
-    "from": null,
-    "to": null,
-    "request_id": "uuid-or-client-request-id",
-    "timestamp": "2026-07-29T00:00:00+07:00"
-  },
-  "links": {
-    "first": null,
-    "last": null,
-    "prev": null,
-    "next": null
-  }
-}
-```
-
-Error response:
+Error:
 
 ```json
 {
   "success": false,
-  "message": "Business rule failed",
-  "error_code": "STATE_CONFLICT",
+  "message": "Validation failed",
+  "error_code": "VALIDATION_ERROR",
   "errors": {},
   "error": {
-    "code": "STATE_CONFLICT",
+    "code": "VALIDATION_ERROR",
     "details": {}
   },
   "meta": {
-    "request_id": "uuid-or-client-request-id",
-    "timestamp": "2026-07-29T00:00:00+07:00"
+    "request_id": "HN-INT-001-001",
+    "timestamp": "2026-07-30T00:00:00+07:00"
   }
 }
 ```
 
-## Security And Permission Contract
+Stable error codes:
 
-All `/api/v1/*` business endpoints except login/refresh require JWT Bearer auth. Backend permission middleware enforces RBAC; FE must not treat hidden UI controls as security.
+| HTTP | Code | Use |
+|---|---|---|
+| 400 | `MALFORMED_JSON` | Invalid JSON body. |
+| 401 | `UNAUTHENTICATED` | Missing/invalid token. |
+| 403 | `ACCESS_DENIED` | User lacks permission. |
+| 404 | `RESOURCE_NOT_FOUND` | Entity not found. |
+| 409 | `STATE_CONFLICT` | Invalid lifecycle transition or optimistic lock conflict. |
+| 409 | `IDEMPOTENCY_ERROR` | Same idempotency key reused with different payload. |
+| 422 | `VALIDATION_ERROR` | Payload validation failed. |
+| 422 | `INSUFFICIENT_STOCK` | Outbound or reversal would make stock negative. |
+| 428 | `PRECONDITION_REQUIRED` | Required `Idempotency-Key` is missing. |
 
-| Endpoint Group | Permission |
-|---|---|
-| `GET /api/v1/warehouses`, `GET /api/v1/warehouses/{id}` | `master-data.warehouse.view` |
-| `POST /api/v1/warehouses` | `master-data.warehouse.create` |
-| `GET /api/v1/products`, `GET /api/v1/products/{id}` | `master-data.product.view` |
-| `POST /api/v1/products` | `master-data.product.create` |
-| `GET /api/v1/stock-documents`, `GET /api/v1/stock-documents/{id}` | `warehouse.stock-document.view` |
-| `POST /api/v1/stock-documents` | `warehouse.stock-document.create` |
-| Stock document submit | `warehouse.stock-document.submit` |
-| Stock document approve/reject | `warehouse.stock-document.approve` |
-| Stock document post/dispatch/receive/record-loss/return/confirm-return | `warehouse.stock-document.post` |
-| Stock document cancel | `warehouse.stock-document.cancel` |
-| Stock request view/create/submit/approve/cancel/convert | Matching `warehouse.stock-request.*` |
-| Safe stock config/alert | `warehouse.safe-stock.view` or `warehouse.safe-stock.manage` |
-| Reports | `report.inventory.view` |
-| Audit logs | `audit-log.view` |
+## Permission Mapping
 
-## Idempotency Contract
+All business endpoints require `Authorization: Bearer <token>`.
+
+| FE Capability | Canonical Permission | Current BE Permission |
+|---|---|---|
+| View warehouse | `warehouse.view` | `warehouse.view` |
+| Manage warehouse metadata | `warehouse.manage` | `warehouse.manage` |
+| View product/SKU | `product.view` | `product.view` |
+| Manage product/SKU | `product.manage` | `product.manage` |
+| View inbound/outbound | `stock_document.view` | `stock_document.view` |
+| Create/update draft inbound/outbound | `stock_document.create` | `stock_document.create` |
+| Scan classify / post receipt / post issue / close remainder | `stock_document.post` | `stock_document.post` |
+| Cancel draft document | `stock_document.cancel` | `stock_document.cancel` |
+| Reverse posted document | `stock_document.reverse` | `stock_document.reverse` |
+| View inventory and movements | `inventory.view` | `inventory.view` |
+| Apply stocktake adjustment | `stocktake.adjust` | **Missing in current route/API** |
+| Warranty TEMP_ONLY | `warranty.temp_only` | **Missing in current route/API** |
+| View safe stock | `safe_stock.view` | `safe_stock.view` |
+| Manage safe stock | `safe_stock.manage` | `safe_stock.manage` |
+| View reports | `report.view` | `report.view` |
+| View audit log | `audit_log.view` | `audit_log.view` |
+
+Permissions `stock_document.submit` and `stock_document.approve` exist in the current backend seed but are not part of the Hoa Nam canonical flow. FE must not infer approval screens from those backend permission names.
+
+## Idempotency
 
 Header: `Idempotency-Key`.
 
-Required for stock-changing or duplicate-sensitive document operations:
+Required for all stock-changing actions:
 
 | Operation | Required |
 |---|---|
-| `POST /api/v1/stock-documents` | Yes |
-| `POST /api/v1/stock-documents/{id}/post` | Yes |
-| `POST /api/v1/stock-documents/{id}/dispatch` | Yes |
-| `POST /api/v1/stock-documents/{id}/receive` | Yes |
-| `POST /api/v1/stock-documents/{id}/confirm-return` | Yes |
+| Scan classify/post partial line | Yes |
+| Post Receipt | Yes |
+| Post Issue | Yes |
+| Stocktake Apply Adjustment | Yes |
+| Warranty TEMP_ONLY stock move | Yes |
+| Reversal | Yes |
 
 Rules:
 
-- Same key, same operation, same user, same payload returns the cached 2xx response.
-- Same key, same operation, same user, different payload returns `409 IDEMPOTENCY_ERROR`.
+- Same user, same operation, same key, same payload returns cached 2xx response.
+- Same user, same operation, same key, different payload returns `409 IDEMPOTENCY_ERROR`.
 - Missing required key returns `428 PRECONDITION_REQUIRED`.
-- 4xx responses are not cached, so corrected requests can be retried with the same key.
+- Failed 4xx responses are not cached.
 
-## Stock Document Contract
+## Canonical Endpoints
 
-### Create Stock Document
+### Scan Classify
 
-`POST /api/v1/stock-documents`
+Purpose: classify a scanned QR/barcode/container/item before FE applies it to inbound, outbound, stocktake, or warranty.
 
-Required body:
+`POST /api/v1/scan/classify`
+
+Permission: `stock_document.post`
+
+Status: **Required canonical endpoint; missing from current backend route list.**
+
+Request:
 
 ```json
 {
-  "doc_type": "receipt",
-  "doc_no": "PN-20260729-0001",
-  "doc_date": "2026-07-29",
-  "src_warehouse_id": null,
-  "dst_warehouse_id": "uuid",
-  "note": "optional",
+  "raw_code": "QR-HN-2026-00001",
+  "context": "INBOUND",
+  "warehouse_id": "{{warehouse_id}}"
+}
+```
+
+Validation:
+
+| Field | Rule |
+|---|---|
+| `raw_code` | required string max 120 |
+| `context` | required enum `INBOUND`, `OUTBOUND`, `STOCKTAKE`, `WARRANTY_TEMP_ONLY` |
+| `warehouse_id` | required UUID of the single active Hoa Nam warehouse |
+
+Success sample:
+
+```json
+{
+  "success": true,
+  "message": "Scan classified",
+  "data": {
+    "raw_code": "QR-HN-2026-00001",
+    "classification": "ITEM",
+    "item_id": "{{item_id}}",
+    "sku_id": "{{sku_id}}",
+    "stock_status": "AVAILABLE",
+    "current_location": {
+      "warehouse_id": "{{warehouse_id}}"
+    }
+  }
+}
+```
+
+Errors: `VALIDATION_ERROR`, `RESOURCE_NOT_FOUND`, `STATE_CONFLICT`, `ACCESS_DENIED`.
+
+### Inbound
+
+Canonical route group: `/api/v1/inbound-documents`
+
+Permissions:
+
+| Endpoint | Permission |
+|---|---|
+| `GET /api/v1/inbound-documents` | `stock_document.view` |
+| `POST /api/v1/inbound-documents` | `stock_document.create` |
+| `GET /api/v1/inbound-documents/{id}` | `stock_document.view` |
+| `PATCH /api/v1/inbound-documents/{id}` | `stock_document.create` |
+| `POST /api/v1/inbound-documents/{id}/scan` | `stock_document.post` |
+| `POST /api/v1/inbound-documents/{id}/post-receipt` | `stock_document.post` |
+| `POST /api/v1/inbound-documents/{id}/close-remainder` | `stock_document.post` |
+| `POST /api/v1/inbound-documents/{id}/cancel` | `stock_document.cancel` |
+| `POST /api/v1/inbound-documents/{id}/reverse` | `stock_document.reverse` |
+
+Create request:
+
+```json
+{
+  "doc_no": "PN-20260730-0001",
+  "doc_date": "2026-07-30",
+  "dst_warehouse_id": "{{warehouse_id}}",
+  "note": "Nhap hang nha cung cap",
   "lines": [
     {
-      "product_id": "uuid",
+      "product_id": "{{product_id}}",
       "qty_planned": 10
     }
   ]
@@ -155,41 +235,54 @@ Required body:
 
 Validation:
 
-| Field | Rule |
-|---|---|
-| `doc_type` | required enum: `receipt`, `issue`, `transfer` |
-| `doc_no` | required, unique, max 80 |
-| `doc_date` | required date |
-| `src_warehouse_id` | required for `issue` and `transfer`; must exist |
-| `dst_warehouse_id` | required for `receipt` and `transfer`; must exist |
-| `lines` | required array min 1 |
-| `lines.*.product_id` | required UUID, must exist |
-| `lines.*.qty_planned` | required numeric greater than 0 |
+- `dst_warehouse_id` is required and must be the single active Hoa Nam warehouse.
+- `lines` is required, min 1.
+- `lines.*.product_id` is required UUID and must exist.
+- `lines.*.qty_planned` is required numeric `> 0`.
 
-Business rules:
+Partial post by scan:
 
-- `transfer` cannot use the same source and destination warehouse.
-- Warehouses must be active.
-- Create writes `document_status_history` and `audit_log`.
+`POST /api/v1/inbound-documents/{id}/scan`
 
-### Post Receipt Or Issue
+```json
+{
+  "line_id": "{{inbound_line_id}}",
+  "qty": 4
+}
+```
 
-`POST /api/v1/stock-documents/{id}/post`
+Full post:
 
-Full post body:
+`POST /api/v1/inbound-documents/{id}/post-receipt`
 
 ```json
 {}
 ```
 
-Partial post body:
+Flow: `DRAFT -> SCANNING/PARTIALLY_POSTED -> POSTED`, or `PARTIALLY_POSTED -> CLOSED`, or `DRAFT -> CANCELLED`.
+
+No Hoa Nam canonical submit/approve/reject step exists for inbound. Current `/submit`, `/approve`, and `/reject` routes are legacy/platform surface and must not be consumed by FE for WWHN-40.
+
+### Outbound
+
+Canonical route group: `/api/v1/outbound-documents`
+
+Permissions mirror inbound, using `post-issue` instead of `post-receipt`.
+
+Create request:
 
 ```json
 {
+  "doc_no": "PX-20260730-0001",
+  "doc_date": "2026-07-30",
+  "src_warehouse_id": "{{warehouse_id}}",
+  "agency_id": "{{agency_id}}",
+  "receiver_name": "Dai ly mien Bac 01",
+  "note": "Xuat cho dai ly",
   "lines": [
     {
-      "line_id": "stock-document-line-uuid",
-      "qty_actual": 4
+      "product_id": "{{product_id}}",
+      "qty_planned": 3
     }
   ]
 }
@@ -197,151 +290,185 @@ Partial post body:
 
 Validation:
 
-- If `lines` is omitted, BE posts remaining quantity for all lines.
-- If `lines` is present, it must be a non-empty array.
-- `lines.*.line_id` is required, must be UUID, and must belong to the current stock document.
-- `lines.*.qty_actual` is required, numeric, and greater than or equal to 0.
-- Invalid payload returns `422 VALIDATION_ERROR` before any stock mutation.
+- `src_warehouse_id` is required and must be the single active Hoa Nam warehouse.
+- `agency_id` is optional delivery context; it must not be treated as warehouse.
+- `lines` is required, min 1.
+- `lines.*.qty_planned` is required numeric `> 0`.
+- Posting must reject insufficient available stock with `422 INSUFFICIENT_STOCK`.
 
-Business rules:
+Partial post by scan:
 
-- Only `receipt` and `issue` documents can use this endpoint.
-- Receipt increases `inventory_balances` and writes `stock_movements` type `RECEIPT_IN`.
-- Issue decreases `inventory_balances`, prevents negative stock, and writes `stock_movements` type `ISSUE_OUT`.
-- Reposting the same line/action is guarded by idempotency and movement `business_key`.
-- All stock mutation runs in DB transaction with `lockForUpdate()` on `inventory_balances` and optimistic `version` update.
-
-### Transfer Flow
-
-Transfer documents use:
-
-| Step | Endpoint | State |
-|---|---|---|
-| Submit | `POST /api/v1/stock-documents/{id}/submit` | `draft` to `pending` |
-| Approve | `POST /api/v1/stock-documents/{id}/approve` | `pending` to `approved` |
-| Dispatch | `POST /api/v1/stock-documents/{id}/dispatch` | `approved` to `in_transit` |
-| Receive | `POST /api/v1/stock-documents/{id}/receive` | `in_transit` to `completed` or remains `in_transit` |
-| Record loss | `POST /api/v1/stock-documents/{id}/record-loss` | records in-transit loss |
-| Return | `POST /api/v1/stock-documents/{id}/return` | `in_transit` to `return_in_transit` |
-| Confirm return | `POST /api/v1/stock-documents/{id}/confirm-return` | `return_in_transit` to `returned` |
-
-Receive partial body:
+`POST /api/v1/outbound-documents/{id}/scan`
 
 ```json
 {
-  "lines": [
+  "line_id": "{{outbound_line_id}}",
+  "qty": 1
+}
+```
+
+Full post:
+
+`POST /api/v1/outbound-documents/{id}/post-issue`
+
+```json
+{}
+```
+
+Flow: `DRAFT -> SCANNING/PARTIALLY_POSTED -> POSTED`, or `PARTIALLY_POSTED -> CLOSED`, or `DRAFT -> CANCELLED`.
+
+No Hoa Nam canonical submit/approve/reject step exists for outbound.
+
+### Inventory
+
+`GET /api/v1/inventory/balances`
+
+Permission: `inventory.view`
+
+Query:
+
+| Field | Rule |
+|---|---|
+| `warehouse_id` | optional; if supplied must be Hoa Nam warehouse |
+| `product_id` | optional UUID |
+| `status` | optional enum `normal`, `low_stock`, `overflow` |
+| `page`, `per_page` | optional pagination |
+
+Sample:
+
+```json
+{
+  "success": true,
+  "data": [
     {
-      "line_id": "stock-document-line-uuid",
-      "qty_actual": 8
+      "warehouse_id": "{{warehouse_id}}",
+      "product_id": "{{product_id}}",
+      "product_code": "HN-PV-BASE-001",
+      "on_hand_qty": "42.000",
+      "available_qty": "42.000",
+      "reserved_qty": "0.000",
+      "status": "normal"
     }
   ]
 }
 ```
 
-Record loss body:
+`GET /api/v1/stock-movements` and `GET /api/v1/stock-movements/{id}/trace-source` are canonical read-only evidence endpoints for FE/QA traceability.
+
+### Stocktake Apply Adjustment
+
+`POST /api/v1/stocktake-sessions/{id}/apply-adjustment`
+
+Permission: `stocktake.adjust`
+
+Status: **Required canonical endpoint; missing from current backend route list.**
+
+Request:
 
 ```json
 {
-  "reason": "Damaged during transit",
+  "reason": "Cycle count variance approved",
   "lines": [
     {
-      "line_id": "stock-document-line-uuid",
-      "qty_lost": 1
+      "sku_id": "{{sku_id}}",
+      "stock_status": "AVAILABLE",
+      "expected_qty": 100,
+      "actual_qty": 98,
+      "adjustment_qty": -2
     }
   ]
 }
 ```
 
-Transfer dispatch decreases source warehouse stock and creates `in_transit_ledger`. Receive increases destination stock and updates `in_transit_ledger`. Return confirmation increases source warehouse stock for returned quantity.
+Validation:
 
-## Error Codes Verified
+- Session must be counted/reviewed and not already applied.
+- `adjustment_qty` must equal `actual_qty - expected_qty`.
+- Negative adjustment must not make available stock below zero.
+- Must write inventory movement and audit evidence.
 
-| HTTP | Code | Meaning |
-|---|---|---|
-| 400 | `MALFORMED_JSON` | Invalid JSON request body |
-| 401 | `UNAUTHENTICATED` | Missing/invalid credentials |
-| 403 | `ACCESS_DENIED` | Authenticated user lacks permission or account is not allowed |
-| 404 | `RESOURCE_NOT_FOUND` | Entity not found |
-| 409 | `STATE_CONFLICT` | Invalid lifecycle state or business conflict |
-| 409 | `IDEMPOTENCY_ERROR` | Reused idempotency key with different payload or in-flight duplicate |
-| 422 | `VALIDATION_ERROR` | Payload structure/field validation failed |
-| 422 | `INSUFFICIENT_STOCK` | Issue/transfer quantity exceeds available stock |
-| 428 | `PRECONDITION_REQUIRED` | Required `Idempotency-Key` missing |
+Errors: `VALIDATION_ERROR`, `STATE_CONFLICT`, `INSUFFICIENT_STOCK`, `PRECONDITION_REQUIRED`.
 
-Stack trace and secrets are not exposed by tested API error contracts.
+### Warranty TEMP_ONLY
 
-## Data And Audit Evidence
+`POST /api/v1/warranty-cases/{id}/temp-only`
 
-Verified tables/migrations:
+Permission: `warranty.temp_only`
 
-| Area | Tables |
-|---|---|
-| Auth/RBAC | `app_user`, `role`, `permission`, `user_role`, `role_permission`, `refresh_tokens` |
-| Idempotency | `idempotency_keys` |
-| Warehouse master | `warehouses`, `products` |
-| Documents | `stock_documents`, `stock_document_lines`, `document_status_history`, `in_transit_ledger` |
-| Inventory | `inventory_balances`, `stock_movements`, `inventory_serials` |
-| Safe stock | `safe_stock_configs`, `safe_stock_alerts_history` |
-| Audit | `audit_log` |
+Status: **Required canonical endpoint; missing from current backend route list.**
 
-Evidence:
+Request:
 
-- Create stock document writes status history and audit log.
-- Post receipt writes exactly one movement per idempotent action and updates balance once.
-- Partial receipt can be posted in multiple idempotent chunks without double counting.
-- Issue with insufficient stock is rejected and does not create invalid negative balance.
-- Transfer lifecycle moves stock from source warehouse to destination warehouse through dispatch/receive.
-- Auth login, refresh, logout, RBAC denial, malformed JSON, and audit visibility contracts are tested.
-
-## Automated Test Evidence
-
-Command:
-
-```bash
-php artisan test
+```json
+{
+  "item_id": "{{item_id}}",
+  "defect_id": "{{defect_id}}",
+  "condition_status": "WAITING_CHECK",
+  "note": "Nhan tam thoi de kiem tra bao hanh"
+}
 ```
 
-Result:
+Validation:
 
-```text
-passed: 19 tests, 144 assertions
-duration: 1187 ms
+- Only warranty temporary receiving is in scope.
+- TEMP_ONLY item must not become sellable stock.
+- TEMP_ONLY movement must be traceable and reversible.
+- If item is already in TEMP_ONLY or closed warranty state, return `STATE_CONFLICT`.
+
+### Reversal
+
+Canonical stock document reversal:
+
+`POST /api/v1/inbound-documents/{id}/reverse`
+`POST /api/v1/outbound-documents/{id}/reverse`
+
+Permission: `stock_document.reverse`
+
+Request:
+
+```json
+{
+  "reason": "Sai so luong, lap phieu dao nguoc"
+}
 ```
 
-Environment note:
+Validation:
 
-```text
-PHPUnit warning: file_put_contents(C:\Hoa_Nam_Backend\.phpunit.result.cache) failed with Permission denied.
+- Source document must be `POSTED` or `CLOSED` with posted movements.
+- Each original movement may be reversed once.
+- Reversal must create linked opposite movement with `original_movement_id`.
+- Reversal must reject if it would make stock negative.
+
+Sample response:
+
+```json
+{
+  "success": true,
+  "message": "Document reversed",
+  "data": {
+    "id": "{{document_id}}",
+    "status": "REVERSED",
+    "reverse_reason": "Sai so luong, lap phieu dao nguoc"
+  }
+}
 ```
 
-Disposition: test execution passed; warning is local result-cache write permission only.
+Implementation note: current backend returns internal lowercase `reversed`; FE requires accepted canonical mapping before approval.
 
-## Acceptance Criteria Mapping
+## Evidence Handoff
 
-| Acceptance Criteria | Evidence / Disposition |
-|---|---|
-| Output `API contract approved` reviewed/verified and attached to HN-INT-001 | This file is the BE1 approval artifact for HN-INT-001 |
-| Logic API/data satisfies business rules/dependencies | Route permission, request validation, service transaction, ledger mutation, audit, idempotency reviewed |
-| Permission, validation, transaction, audit, idempotency/concurrency guard applied | Verified in middleware, FormRequest, controller guard, DB transaction, `lockForUpdate`, version update, audit logger, idempotency store |
-| Error cases return clear error code and do not create wrong data | Tests cover auth errors, malformed JSON, missing idempotency key, idempotency conflict, invalid line payload, insufficient stock |
-| No secret/stack trace leak | Tested with auth failure and permission failure contracts |
-| Unit/integration test and API/DB evidence exists | `php artisan test`: 19 tests, 144 assertions; DB table/evidence listed above |
-| OpenAPI/Postman/payload samples updated when contract changed | Payload samples are documented here and Postman collection added at `docs/HN-INT-001_BE1_payload_samples.postman_collection.json` |
-| FE1 and QA receive contract/evidence | This artifact and Postman sample collection are ready for FE1/QA handoff |
-| No P0/P1 blocker without disposition | None. Environment warning has disposition above |
+Postman collection for shared handoff is committed in repo:
 
-## Handoff
+`docs/HN-INT-001_BE1_payload_samples.postman_collection.json`
 
-FE1 handoff:
+Local machine paths such as `C:/...` are not evidence for Jira. Attach this JSON file directly to Jira HN-INT-001 or link the shared repository file/commit.
 
-- Use `Authorization: Bearer <token>` for protected endpoints.
-- Use `X-Request-ID` for trace correlation when available.
-- Send `Idempotency-Key` for all required stock document operations.
-- Treat `error.code`/`error_code` as stable error handling keys.
-- Do not compute stock changes on FE; use API result from BE.
+## Approval Gate
 
-QA/BA handoff:
+Contract can move back to "API contract approved" only after:
 
-- Use the Postman collection and test evidence above for happy-path and negative-path verification.
-- Confirm formal sign-off against HN-INT-001 if dependency baselines HN-TEC-001, HN-UX-002, or HN-QA-002 introduce additional endpoint fields.
-- Current BE1 disposition has no unowned blocker.
+- BE removes or clearly gates Hoa Nam-noncanonical transfer/multi-warehouse flow from WWHN-40 handoff.
+- BE removes submit/approve/reject from canonical Hoa Nam Inbound/Outbound docs or maps them out of FE consumption.
+- Missing canonical endpoints for Scan Classify, Stocktake Apply Adjustment, and Warranty TEMP_ONLY are implemented or formally deferred with BA approval.
+- Permission mapping above is accepted by BA/FE or replaced with BA baseline names.
+- FE-SO-001 through FE-SO-005 are closed with evidence.

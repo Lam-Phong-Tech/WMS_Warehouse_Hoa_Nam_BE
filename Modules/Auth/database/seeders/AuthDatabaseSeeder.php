@@ -86,14 +86,14 @@ class AuthDatabaseSeeder extends Seeder
      * Tài khoản demo cho từng role, dùng chung mật khẩu baseline để tiện test theo permission.
      */
     private const USERS = [
-        ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@wms-hoanam.local', 'role' => 'WAREHOUSE_STAFF'],
-        ['username' => 'approver01', 'display_name' => 'Người duyệt 01', 'email' => 'approver01@wms-hoanam.local', 'role' => 'WAREHOUSE_APPROVER'],
-        ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@wms-hoanam.local', 'role' => 'WAREHOUSE_KEEPER'],
-        ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@wms-hoanam.local', 'role' => 'VIEWER'],
-        ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@wms-hoanam.local', 'role' => 'WAREHOUSE_MANAGER'],
+        ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF'],
+        ['username' => 'approver01', 'display_name' => 'Người duyệt 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER'],
+        ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER'],
+        ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
+        ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER'],
     ];
 
-    private const DEFAULT_PASSWORD = 'secret123';
+    private const DEFAULT_PASSWORD = 'Cntt@1234';
 
     /**
      * Seed tối thiểu để smoke test base: role SUPER_ADMIN (bypass mọi permission) + admin,
@@ -119,7 +119,7 @@ class AuthDatabaseSeeder extends Seeder
             ['username' => 'admin'],
             [
                 'display_name' => 'Administrator',
-                'email' => 'admin@wms-hoanam.local',
+                'email' => 'admin@gmail.com',
                 'password_hash' => Hash::make(self::DEFAULT_PASSWORD),
                 'status' => 'ACTIVE',
                 'version' => 1,

@@ -14,7 +14,7 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'username' => ['required', 'string'],
+            'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ];
     }
@@ -22,7 +22,7 @@ class LoginRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'username' => 'tên đăng nhập',
+            'email' => 'email',
             'password' => 'mật khẩu',
         ];
     }

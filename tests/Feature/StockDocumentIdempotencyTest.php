@@ -29,6 +29,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $user = User::create([
             'username' => 'tester',
             'display_name' => 'Tester',
+            'email' => 'tester@wms-hoanam.test',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
@@ -46,12 +47,13 @@ class StockDocumentIdempotencyTest extends TestCase
         User::create([
             'username' => 'admin',
             'display_name' => 'Admin',
+            'email' => 'admin@wms-hoanam.test',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
 
-        $response = $this->postJson('/api/v1/auth/login', ['username' => 'admin', 'password' => 'secret123']);
+        $response = $this->postJson('/api/v1/auth/login', ['email' => 'admin@wms-hoanam.test', 'password' => 'secret123']);
 
         $response->assertOk()
             ->assertJsonPath('success', true)
@@ -63,12 +65,13 @@ class StockDocumentIdempotencyTest extends TestCase
         User::create([
             'username' => 'admin2',
             'display_name' => 'Admin2',
+            'email' => 'admin2@wms-hoanam.test',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
 
-        $response = $this->postJson('/api/v1/auth/login', ['username' => 'admin2', 'password' => 'wrong']);
+        $response = $this->postJson('/api/v1/auth/login', ['email' => 'admin2@wms-hoanam.test', 'password' => 'wrong']);
 
         $response->assertStatus(401)
             ->assertJsonPath('success', false)

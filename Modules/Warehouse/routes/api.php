@@ -10,6 +10,7 @@ use Modules\Warehouse\Http\Controllers\SafeStockAlertController;
 use Modules\Warehouse\Http\Controllers\SafeStockConfigController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
+use Modules\Warehouse\Http\Controllers\WmsContractController;
 
 Route::prefix('v1')->middleware('auth:api')->group(function () {
     // Kho tổng — chỉ tra cứu + sửa thông tin, không tạo/xoá qua API (1 kho tổng duy nhất).
@@ -20,6 +21,17 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('products', [ProductController::class, 'index'])->middleware('permission:product.view');
     Route::post('products', [ProductController::class, 'store'])->middleware('permission:product.manage');
     Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:product.view');
+    Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:product.manage');
+    Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:product.manage');
+
+    Route::get('product-categories', [WmsContractController::class, 'productCategories'])->middleware('permission:product.view');
+    Route::get('uoms', [WmsContractController::class, 'uoms'])->middleware('permission:product.view');
+    Route::get('suppliers', [WmsContractController::class, 'suppliers'])->middleware('permission:product.view');
+    Route::get('skus', [ProductController::class, 'index'])->middleware('permission:product.view');
+    Route::post('skus', [ProductController::class, 'store'])->middleware('permission:product.manage');
+    Route::get('skus/{id}', [ProductController::class, 'show'])->middleware('permission:product.view');
+    Route::get('items', [WmsContractController::class, 'items'])->middleware('permission:inventory.view');
+    Route::get('physical-codes', [WmsContractController::class, 'physicalCodes'])->middleware('permission:inventory.view');
 
     // Nhập kho (inbound-documents = stock_documents.doc_type=receipt).
     Route::get('inbound-documents', [InboundDocumentController::class, 'index'])->middleware('permission:stock_document.view');
@@ -53,6 +65,18 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('safe-stock-configs', [SafeStockConfigController::class, 'store'])->middleware('permission:safe_stock.manage');
     Route::get('safe-stock-configs/{id}', [SafeStockConfigController::class, 'show'])->middleware('permission:safe_stock.view');
     Route::get('safe-stock-alerts', [SafeStockAlertController::class, 'index'])->middleware('permission:safe_stock.view');
+
+    Route::get('putaway/tasks', [WmsContractController::class, 'putawayTasks'])->middleware('permission:inventory.view');
+    Route::get('putaway/history', [WmsContractController::class, 'putawayHistory'])->middleware('permission:inventory.view');
+    Route::get('document-status-history', [WmsContractController::class, 'documentStatusHistory'])->middleware('permission:stock_document.view');
+    Route::get('inventory-snapshots', [WmsContractController::class, 'inventorySnapshots'])->middleware('permission:inventory.view');
+    Route::get('stocktake/sessions', [WmsContractController::class, 'stocktakeSessions'])->middleware('permission:inventory.view');
+    Route::get('reversal-documents', [WmsContractController::class, 'reversalDocuments'])->middleware('permission:stock_document.reverse');
+    Route::get('warranty/cases', [WmsContractController::class, 'warrantyCases'])->middleware('permission:inventory.view');
+    Route::get('warranty/cases/{caseId}/events', [WmsContractController::class, 'warrantyEvents'])->middleware('permission:inventory.view');
+    Route::get('scan/batches', [WmsContractController::class, 'scanBatches'])->middleware('permission:inventory.view');
+    Route::post('scan/batches', [WmsContractController::class, 'storeScanBatch'])->middleware('permission:inventory.view');
+    Route::get('scan/events', [WmsContractController::class, 'scanEvents'])->middleware('permission:inventory.view');
 
     // Tồn kho hiện tại + lịch sử biến động (inventory_movement).
     Route::get('inventory/balances', [InventoryBalanceController::class, 'index'])->middleware('permission:inventory.view');
