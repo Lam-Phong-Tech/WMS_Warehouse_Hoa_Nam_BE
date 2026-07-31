@@ -14,7 +14,10 @@ use Modules\Warehouse\Http\Controllers\SafeStockAlertController;
 use Modules\Warehouse\Http\Controllers\SafeStockConfigController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\StockRequestController;
+use Modules\Warehouse\Http\Controllers\StocktakeController;
 use Modules\Warehouse\Http\Controllers\TransferController;
+use Modules\Warehouse\Http\Controllers\ScanController;
+use Modules\Warehouse\Http\Controllers\WarrantyController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
 use Modules\Warehouse\Http\Controllers\WmsContractController;
 
@@ -80,9 +83,12 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('document-status-history', [WmsContractController::class, 'documentStatusHistory'])->middleware('permission:stock_document.view');
     Route::get('inventory-snapshots', [WmsContractController::class, 'inventorySnapshots'])->middleware('permission:inventory.view');
     Route::get('stocktake/sessions', [WmsContractController::class, 'stocktakeSessions'])->middleware('permission:inventory.view');
+    Route::post('stocktake-sessions/{id}/apply-adjustment', [StocktakeController::class, 'applyAdjustment'])->middleware('permission:stocktake.adjust');
     Route::get('reversal-documents', [WmsContractController::class, 'reversalDocuments'])->middleware('permission:stock_document.reverse');
     Route::get('warranty/cases', [WmsContractController::class, 'warrantyCases'])->middleware('permission:inventory.view');
     Route::get('warranty/cases/{caseId}/events', [WmsContractController::class, 'warrantyEvents'])->middleware('permission:inventory.view');
+    Route::post('warranty-cases/{id}/temp-only', [WarrantyController::class, 'tempOnly'])->middleware('permission:warranty.temp_only');
+    Route::post('scan/classify', [ScanController::class, 'classify'])->middleware('permission:stock_document.post');
     Route::get('scan/batches', [WmsContractController::class, 'scanBatches'])->middleware('permission:inventory.view');
     Route::post('scan/batches', [WmsContractController::class, 'storeScanBatch'])->middleware('permission:inventory.view');
     Route::get('scan/events', [WmsContractController::class, 'scanEvents'])->middleware('permission:inventory.view');

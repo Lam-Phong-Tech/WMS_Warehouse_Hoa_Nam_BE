@@ -1,8 +1,10 @@
 {
   "info": {
     "name": "HN-INT-001 BE1 Hoa Nam Canonical Payload Samples",
-    "description": "Canonical payload samples for WWHN-40 / HN-INT-001. Contract status: not approved until FE-SO-001..FE-SO-005 are closed.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "description": "Canonical payload samples for WWHN-40 / HN-INT-001. Contract status: APPROVED v1.0.0. All FE-SO-001 through FE-SO-005 blockers resolved.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "hn-int-001-be1-v1",
+    "version": "1.0.0"
   },
   "variable": [
     { "key": "base_url", "value": "http://localhost:8000" },
@@ -14,7 +16,7 @@
     { "key": "item_id", "value": "" },
     { "key": "defect_id", "value": "" },
     { "key": "warranty_case_id", "value": "" },
-    { "key": "inboHN-FND-001 - FE Auth Session 403 Evidenceund_document_id", "value": "" },
+    { "key": "inbound_document_id", "value": "" },
     { "key": "inbound_line_id", "value": "" },
     { "key": "outbound_document_id", "value": "" },
     { "key": "outbound_line_id", "value": "" },
@@ -49,7 +51,7 @@
       }
     },
     {
-      "name": "Scan Classify - Required Canonical Endpoint (Missing In Current BE)",
+      "name": "Scan Classify - Required Canonical Endpoint",
       "request": {
         "method": "POST",
         "header": [
@@ -126,6 +128,27 @@
           "path": ["api", "v1", "inbound-documents", "{{inbound_document_id}}", "post-receipt"]
         },
         "body": { "mode": "raw", "raw": "{}" }
+      }
+    },
+    {
+      "name": "Inbound - Reverse Posted Document",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Request-ID", "value": "HN-INT-001-inbound-reverse-001" },
+          { "key": "Idempotency-Key", "value": "HN-INT-001-inbound-reverse-001" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/inbound-documents/{{inbound_document_id}}/reverse",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "inbound-documents", "{{inbound_document_id}}", "reverse"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Sai so luong, lap phieu dao nguoc\"\n}"
+        }
       }
     },
     {
@@ -207,7 +230,7 @@
       }
     },
     {
-      "name": "Stocktake - Apply Adjustment (Missing In Current BE)",
+      "name": "Stocktake - Apply Adjustment",
       "request": {
         "method": "POST",
         "header": [
@@ -228,7 +251,7 @@
       }
     },
     {
-      "name": "Warranty - TEMP_ONLY (Missing In Current BE)",
+      "name": "Warranty - TEMP_ONLY",
       "request": {
         "method": "POST",
         "header": [
@@ -245,27 +268,6 @@
         "body": {
           "mode": "raw",
           "raw": "{\n  \"item_id\": \"{{item_id}}\",\n  \"defect_id\": \"{{defect_id}}\",\n  \"condition_status\": \"WAITING_CHECK\",\n  \"note\": \"Nhan tam thoi de kiem tra bao hanh\"\n}"
-        }
-      }
-    },
-    {
-      "name": "Inbound - Reverse Posted Document",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Accept", "value": "application/json" },
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "X-Request-ID", "value": "HN-INT-001-inbound-reverse-001" },
-          { "key": "Idempotency-Key", "value": "HN-INT-001-inbound-reverse-001" }
-        ],
-        "url": {
-          "raw": "{{base_url}}/api/v1/inbound-documents/{{inbound_document_id}}/reverse",
-          "host": ["{{base_url}}"],
-          "path": ["api", "v1", "inbound-documents", "{{inbound_document_id}}", "reverse"]
-        },
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"reason\": \"Sai so luong, lap phieu dao nguoc\"\n}"
         }
       }
     },

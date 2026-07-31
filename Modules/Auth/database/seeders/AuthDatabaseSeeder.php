@@ -31,6 +31,8 @@ class AuthDatabaseSeeder extends Seeder
         ['safe_stock.view', 'Xem định mức/cảnh báo tồn kho an toàn'],
         ['safe_stock.manage', 'Cấu hình định mức tồn kho an toàn'],
         ['inventory.view', 'Xem tồn kho hiện tại và lịch sử biến động (stock-movements)'],
+        ['stocktake.adjust', 'Áp dụng điều chỉnh kiểm kê (apply-adjustment)'],
+        ['warranty.temp_only', 'Bảo hành nhận tạm (TEMP_ONLY)'],
         ['report.view', 'Xem báo cáo tồn kho'],
         ['audit_log.view', 'Xem nhật ký audit'],
         ['stock_request.view', 'Xem yêu cầu xuất/nhập/điều chuyển kho'],
