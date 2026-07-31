@@ -27,18 +27,19 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('warehouses/{id}', [WarehouseController::class, 'show'])->middleware('permission:warehouse.view');
     Route::patch('warehouses/{id}', [WarehouseController::class, 'update'])->middleware('permission:warehouse.manage');
 
-    Route::get('products', [ProductController::class, 'index'])->middleware('permission:product.view');
-    Route::post('products', [ProductController::class, 'store'])->middleware('permission:product.manage');
-    Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:product.view');
-    Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:product.manage');
-    Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:product.manage');
+    Route::get('products', [ProductController::class, 'index'])->middleware('permission:sku.manage');
+    Route::post('products', [ProductController::class, 'store'])->middleware('permission:sku.manage');
+    Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:sku.manage');
+    Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:sku.manage');
+    Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:sku.manage');
 
-    Route::get('product-categories', [WmsContractController::class, 'productCategories'])->middleware('permission:product.view');
-    Route::get('uoms', [WmsContractController::class, 'uoms'])->middleware('permission:product.view');
-    Route::get('suppliers', [WmsContractController::class, 'suppliers'])->middleware('permission:product.view');
-    Route::get('skus', [ProductController::class, 'index'])->middleware('permission:product.view');
-    Route::post('skus', [ProductController::class, 'store'])->middleware('permission:product.manage');
-    Route::get('skus/{id}', [ProductController::class, 'show'])->middleware('permission:product.view');
+    Route::get('product-categories', [WmsContractController::class, 'productCategories'])->middleware('permission:master.manage');
+    Route::get('uoms', [WmsContractController::class, 'uoms'])->middleware('permission:master.manage');
+    Route::get('suppliers', [WmsContractController::class, 'suppliers'])->middleware('permission:master.manage');
+    Route::get('skus', [ProductController::class, 'index'])->middleware('permission:sku.manage');
+    Route::post('skus', [ProductController::class, 'store'])->middleware('permission:sku.manage');
+    Route::get('skus/{id}', [ProductController::class, 'show'])->middleware('permission:sku.manage');
+    Route::post('skus/import-excel', [ImportController::class, 'importExcel'])->middleware('permission:sku.manage');
     Route::get('items', [WmsContractController::class, 'items'])->middleware('permission:inventory.view');
     Route::get('physical-codes', [WmsContractController::class, 'physicalCodes'])->middleware('permission:inventory.view');
 

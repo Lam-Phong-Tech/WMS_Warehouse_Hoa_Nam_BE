@@ -21,6 +21,8 @@ class AuthDatabaseSeeder extends Seeder
         ['warehouse.manage', 'Tạo/sửa kho'],
         ['product.view', 'Xem sản phẩm'],
         ['product.manage', 'Tạo/sửa sản phẩm'],
+        ['sku.manage', 'Quản lý SKU'],
+        ['master.manage', 'Quản lý master data'],
         ['stock_document.view', 'Xem phiếu kho'],
         ['stock_document.create', 'Tạo phiếu kho'],
         ['stock_document.submit', 'Gửi duyệt phiếu kho'],
@@ -93,6 +95,23 @@ class AuthDatabaseSeeder extends Seeder
                 'transfer.view', 'transfer.create', 'transfer.submit', 'transfer.approve', 'transfer.post',
             ],
         ],
+        // Test users for authorization testing
+        'SKU_MANAGER' => [
+            'name' => 'Quản lý SKU (test)',
+            'permissions' => [
+                'sku.manage',
+            ],
+        ],
+        'MASTER_MANAGER' => [
+            'name' => 'Quản lý Master Data (test)',
+            'permissions' => [
+                'master.manage',
+            ],
+        ],
+        'NO_PERMISSION' => [
+            'name' => 'Không có quyền (test)',
+            'permissions' => [],
+        ],
     ];
 
     /**
@@ -104,6 +123,11 @@ class AuthDatabaseSeeder extends Seeder
         ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER'],
         ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
         ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER'],
+        // Test users for P0-1 authorization testing
+        ['username' => 'test-sku-manage', 'display_name' => 'Test SKU Manage', 'email' => 'test-sku-manage@hoanam.com', 'role' => 'SKU_MANAGER'],
+        ['username' => 'test-master-manage', 'display_name' => 'Test Master Manage', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
+        ['username' => 'test-no-permission', 'display_name' => 'Test No Permission', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
+        ['username' => 'test-super-admin', 'display_name' => 'Test Super Admin', 'email' => 'test-super-admin@hoanam.com', 'role' => 'SUPER_ADMIN'],
     ];
 
     private const DEFAULT_PASSWORD = 'Cntt@1234';

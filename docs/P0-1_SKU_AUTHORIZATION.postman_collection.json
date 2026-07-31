@@ -1,0 +1,722 @@
+{
+  "info": {
+    "name": "P0-1 SKU Authorization Tests",
+    "description": "Postman collection for testing backend authorization on SKU/Product endpoints. Tests 9 endpoints × 4 users = 36 test cases.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "hoanam-backend",
+    "_exporter_version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token_sku_manager",
+      "value": ""
+    },
+    {
+      "key": "token_master_manager",
+      "value": ""
+    },
+    {
+      "key": "token_no_permission",
+      "value": ""
+    },
+    {
+      "key": "token_super_admin",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "📁 Auth - Login",
+      "item": [
+        {
+          "name": "Login as User A (SKU Manager)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const token = pm.response.json().data.access_token;",
+                  "    pm.collectionVariables.set('token_sku_manager', token);",
+                  "    console.log('Token saved:', token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test-sku-manage@hoanam.com\",\n  \"password\": \"Cntt@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as User B (Master Manager)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const token = pm.response.json().data.access_token;",
+                  "    pm.collectionVariables.set('token_master_manager', token);",
+                  "    console.log('Token saved:', token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test-master-manage@hoanam.com\",\n  \"password\": \"Cntt@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as User C (No Permission)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const token = pm.response.json().data.access_token;",
+                  "    pm.collectionVariables.set('token_no_permission', token);",
+                  "    console.log('Token saved:', token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test-no-permission@hoanam.com\",\n  \"password\": \"Cntt@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as User D (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const token = pm.response.json().data.access_token;",
+                  "    pm.collectionVariables.set('token_super_admin', token);",
+                  "    console.log('Token saved:', token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test-super-admin@hoanam.com\",\n  \"password\": \"Cntt@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📁 Product Endpoints (sku.manage)",
+      "item": [
+        {
+          "name": "GET /api/v1/products - User A (SKU Manager) - Expect 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_sku_manager}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('Has success field', () => pm.expect(pm.response.json().success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/products - User B (Master Manager) - Expect 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_master_manager}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "pm.test('Error code is ACCESS_DENIED', () => pm.expect(pm.response.json().error.code).to.eql('ACCESS_DENIED'));",
+                  "pm.test('Has X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/products - User C (No Permission) - Expect 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_no_permission}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "pm.test('Error code is ACCESS_DENIED', () => pm.expect(pm.response.json().error.code).to.eql('ACCESS_DENIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/products - User D (Super Admin) - Expect 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_super_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('Has success field', () => pm.expect(pm.response.json().success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/products - User A (SKU Manager) - Expect 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_sku_manager}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"TEST-POSTMAN-001\",\n  \"name\": \"Test Product from Postman\",\n  \"unit\": \"cái\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "pm.test('Product created', () => pm.expect(pm.response.json().data.code).to.eql('TEST-POSTMAN-001'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/products - User B (Master Manager) - Expect 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_master_manager}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"TEST-POSTMAN-002\",\n  \"name\": \"Test Product 2\",\n  \"unit\": \"cái\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "pm.test('Error code is ACCESS_DENIED', () => pm.expect(pm.response.json().error.code).to.eql('ACCESS_DENIED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📁 SKU Endpoints (sku.manage)",
+      "item": [
+        {
+          "name": "GET /api/v1/skus - User A (SKU Manager) - Expect 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_sku_manager}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/skus",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "skus"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('Has success field', () => pm.expect(pm.response.json().success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/skus - User B (Master Manager) - Expect 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_master_manager}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/skus",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "skus"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "pm.test('Error code is ACCESS_DENIED', () => pm.expect(pm.response.json().error.code).to.eql('ACCESS_DENIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/skus - User A (SKU Manager) - Expect 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_sku_manager}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"TEST-SKU-PM-001\",\n  \"name\": \"Test SKU from Postman\",\n  \"unit\": \"pcs\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/skus",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "skus"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "pm.test('SKU created', () => pm.expect(pm.response.json().data.code).to.eql('TEST-SKU-PM-001'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/skus - User C (No Permission) - Expect 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_no_permission}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"TEST-SKU-PM-002\",\n  \"name\": \"Test SKU 2\",\n  \"unit\": \"pcs\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/skus",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "skus"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "pm.test('Error code is ACCESS_DENIED', () => pm.expect(pm.response.json().error.code).to.eql('ACCESS_DENIED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📁 Master Data Endpoints (master.manage)",
+      "item": [
+        {
+          "name": "GET /api/v1/product-categories - User B (Master Manager) - Expect 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_master_manager}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/product-categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "product-categories"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('Has success field', () => pm.expect(pm.response.json().success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/product-categories - User A (SKU Manager) - Expect 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_sku_manager}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/product-categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "product-categories"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "pm.test('Error code is ACCESS_DENIED', () => pm.expect(pm.response.json().error.code).to.eql('ACCESS_DENIED'));",
+                  "pm.test('Has X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/product-categories - User C (No Permission) - Expect 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_no_permission}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/product-categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "product-categories"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "pm.test('Error code is ACCESS_DENIED', () => pm.expect(pm.response.json().error.code).to.eql('ACCESS_DENIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/product-categories - User D (Super Admin) - Expect 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_super_admin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/product-categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "product-categories"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('Has success field', () => pm.expect(pm.response.json().success).to.be.true);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📁 403 Response Examples",
+      "item": [
+        {
+          "name": "Example 1: 403 ACCESS_DENIED - No Permission",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_no_permission}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('success is false', () => pm.expect(json.success).to.be.false);",
+                  "pm.test('error_code is ACCESS_DENIED', () => pm.expect(json.error_code).to.eql('ACCESS_DENIED'));",
+                  "pm.test('error.code is ACCESS_DENIED', () => pm.expect(json.error.code).to.eql('ACCESS_DENIED'));",
+                  "pm.test('error.details is empty array', () => pm.expect(json.error.details).to.be.an('array').that.is.empty);",
+                  "pm.test('Has X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.exist);",
+                  "pm.test('No trace in response', () => pm.expect(json).to.not.have.property('trace'));",
+                  "pm.test('No stack in response', () => pm.expect(json).to.not.have.property('stack'));",
+                  "",
+                  "console.log('403 Response:', JSON.stringify(json, null, 2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Example 2: 403 ACCESS_DENIED - Wrong Permission",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_master_manager}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('error_code matches error.code', () => pm.expect(json.error_code).to.eql(json.error.code));",
+                  "pm.test('Has meta with request_id', () => pm.expect(json.meta).to.have.property('request_id'));",
+                  "pm.test('Has meta with timestamp', () => pm.expect(json.meta).to.have.property('timestamp'));",
+                  "",
+                  "console.log('403 Response:', JSON.stringify(json, null, 2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Example 3: 401 UNAUTHENTICATED - No Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401', () => pm.expect(pm.response.code).to.eql(401));",
+                  "pm.test('error_code is UNAUTHENTICATED', () => pm.expect(pm.response.json().error_code).to.eql('UNAUTHENTICATED'));",
+                  "pm.test('Has X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.exist);",
+                  "",
+                  "console.log('401 Response:', JSON.stringify(pm.response.json(), null, 2));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
