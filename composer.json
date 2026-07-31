@@ -10,6 +10,7 @@
         "darkaonline/l5-swagger": "^11.1",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "nwidart/laravel-modules": "^13.0",
         "phpoffice/phpspreadsheet": "^5.9",
         "predis/predis": "^3.5",

@@ -17,6 +17,8 @@ class StockDocument extends Model
 
     public const TYPE_ISSUE = 'issue';
 
+    public const TYPE_TRANSFER = 'transfer';
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_SCANNING = 'scanning';
@@ -40,6 +42,17 @@ class StockDocument extends Model
     public const STATUS_CANCELLED = 'cancelled';
 
     public const STATUS_REJECTED = 'rejected';
+
+    // Trạng thái riêng cho doc_type=transfer.
+    public const STATUS_IN_TRANSIT = 'in_transit';
+
+    public const STATUS_RETURN_IN_TRANSIT = 'return_in_transit';
+
+    public const STATUS_COMPLETED = 'completed';
+
+    public const STATUS_COMPLETED_WITH_LOSS = 'completed_with_loss';
+
+    public const STATUS_RETURNED = 'returned';
 
     protected $table = 'stock_documents';
 
@@ -91,6 +104,11 @@ class StockDocument extends Model
     public function statusHistory(): HasMany
     {
         return $this->hasMany(DocumentStatusHistory::class);
+    }
+
+    public function inTransitLedgers(): HasMany
+    {
+        return $this->hasMany(InTransitLedger::class, 'document_id');
     }
 
     public function createdBy(): BelongsTo
