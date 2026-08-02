@@ -4,12 +4,24 @@ namespace Modules\Warehouse\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Warehouse\Repositories\AgencyRepository;
+use Modules\Warehouse\Repositories\ContainerItemRepository;
+use Modules\Warehouse\Repositories\ContainerRepository;
 use Modules\Warehouse\Repositories\Contracts\AgencyRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\ContainerItemRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\ContainerRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\DefectCatalogRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\ImportBatchRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\ItemInstanceRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\PhysicalCodeRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\ProductMasterRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\SafeStockConfigRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
 use Modules\Warehouse\Repositories\DefectCatalogRepository;
+use Modules\Warehouse\Repositories\ImportBatchRepository;
+use Modules\Warehouse\Repositories\ItemInstanceRepository;
+use Modules\Warehouse\Repositories\PhysicalCodeRepository;
+use Modules\Warehouse\Repositories\ProductMasterRepository;
 use Modules\Warehouse\Repositories\ProductRepository;
 use Modules\Warehouse\Repositories\SafeStockConfigRepository;
 use Modules\Warehouse\Repositories\WarehouseRepository;
@@ -53,6 +65,12 @@ class WarehouseServiceProvider extends ModuleServiceProvider
         $this->app->bind(SafeStockConfigRepositoryInterface::class, SafeStockConfigRepository::class);
         $this->app->bind(AgencyRepositoryInterface::class, AgencyRepository::class);
         $this->app->bind(DefectCatalogRepositoryInterface::class, DefectCatalogRepository::class);
+        $this->app->bind(ProductMasterRepositoryInterface::class, ProductMasterRepository::class);
+        $this->app->bind(PhysicalCodeRepositoryInterface::class, PhysicalCodeRepository::class);
+        $this->app->bind(ImportBatchRepositoryInterface::class, ImportBatchRepository::class);
+        $this->app->bind(ContainerRepositoryInterface::class, ContainerRepository::class);
+        $this->app->bind(ItemInstanceRepositoryInterface::class, ItemInstanceRepository::class);
+        $this->app->bind(ContainerItemRepositoryInterface::class, ContainerItemRepository::class);
     }
 
     /**

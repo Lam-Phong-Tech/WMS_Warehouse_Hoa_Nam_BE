@@ -105,4 +105,20 @@ class RoleManagementTest extends TestCase
         $response->assertOk();
         $this->assertNull(Role::find($role->role_id));
     }
+
+    public function test_role_create_writes_audit_log(): void
+    {
+        $headers = $this->authHeaders();
+
+        $create = $this->postJson('/api/v1/roles', [
+            'role_code' => 'AUDITED_ROLE',
+            'role_name' => 'Role có audit',
+        ], $headers);
+
+        $this->assertDatabaseHas('audit_log', [
+            'object_type' => 'role',
+            'object_id' => $create->json('data.role_id'),
+            'action' => 'CREATE',
+        ]);
+    }
 }

@@ -73,4 +73,20 @@ class DefectCatalogTest extends TestCase
         $response->assertOk();
         $this->assertNull(DefectCatalog::find($defect->defect_id));
     }
+
+    public function test_defect_catalog_create_writes_audit_log(): void
+    {
+        $headers = $this->authHeaders();
+
+        $create = $this->postJson('/api/v1/defect-catalogs', [
+            'defect_code' => 'LOI-AUDIT',
+            'defect_name' => 'Lỗi có audit',
+        ], $headers);
+
+        $this->assertDatabaseHas('audit_log', [
+            'object_type' => 'defect_catalog',
+            'object_id' => $create->json('data.defect_id'),
+            'action' => 'CREATE',
+        ]);
+    }
 }

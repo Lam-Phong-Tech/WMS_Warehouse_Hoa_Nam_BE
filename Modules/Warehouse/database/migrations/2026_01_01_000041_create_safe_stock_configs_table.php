@@ -11,7 +11,7 @@ return new class extends Migration
     {
         Schema::create('safe_stock_configs', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->cascadeOnDelete();
             $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->cascadeOnDelete();
             $table->decimal('min_qty', 18, 3)->nullable();
             $table->decimal('max_qty', 18, 3)->nullable();

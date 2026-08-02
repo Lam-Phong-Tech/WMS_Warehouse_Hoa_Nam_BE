@@ -14,7 +14,7 @@ class UpdateSafeStockConfigRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'product_id' => ['sometimes', 'uuid', 'exists:products,id'],
+            'product_id' => ['sometimes', 'uuid', 'exists:sku,sku_id'],
             'warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
             'min_qty' => ['nullable', 'numeric', 'gte:0'],
             'max_qty' => ['nullable', 'numeric', 'gte:0'],

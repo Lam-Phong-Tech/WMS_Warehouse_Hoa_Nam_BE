@@ -12,7 +12,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('stock_document_id')->constrained('stock_documents')->cascadeOnDelete();
             $table->unsignedInteger('line_no');
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->decimal('qty_planned', 18, 3)->default(0);
             $table->decimal('qty_actual', 18, 3)->default(0);
             $table->decimal('scanned_qty', 18, 3)->default(0); // luỹ kế đã scan qua các lần gọi /scan

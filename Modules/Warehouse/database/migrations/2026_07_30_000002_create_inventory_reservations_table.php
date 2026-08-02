@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('inventory_reservations', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('warehouse_id')->constrained('warehouses')->restrictOnDelete();
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->decimal('quantity', 18, 4);
             $table->string('source_type', 50)->nullable();
             $table->uuid('source_id')->nullable();

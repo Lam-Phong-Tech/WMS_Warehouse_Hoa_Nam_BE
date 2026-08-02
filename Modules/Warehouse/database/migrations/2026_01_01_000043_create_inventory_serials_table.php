@@ -15,7 +15,7 @@ return new class extends Migration
     {
         Schema::create('inventory_serials', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
             $table->string('serial_no', 150)->unique();
             $table->string('status', 20)->default('IN_STOCK'); // IN_STOCK | ISSUED | IN_TRANSIT

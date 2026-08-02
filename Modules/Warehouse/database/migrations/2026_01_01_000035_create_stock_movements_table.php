@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('business_key', 180)->unique();
             $table->string('movement_type', 30); // RECEIPT_IN | ISSUE_OUT | ADJUST_IN | ADJUST_OUT | RECEIPT_REVERSED | ISSUE_REVERSED
             $table->foreignUuid('warehouse_id')->constrained('warehouses')->restrictOnDelete();
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->decimal('qty_before', 18, 3);
             $table->decimal('qty_delta', 18, 3); // dương = tăng, âm = giảm
             $table->decimal('qty_after', 18, 3);

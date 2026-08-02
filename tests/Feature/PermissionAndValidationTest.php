@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
@@ -81,7 +81,7 @@ class PermissionAndValidationTest extends TestCase
     {
         $headers = $this->authHeadersWithPermissions([], 'no_perms');
 
-        $response = $this->postJson('/api/v1/products', ['code' => 'SP-X', 'name' => 'San pham X'], $headers);
+        $response = $this->postJson('/api/v1/products', ['sku_code' => 'SP-X', 'sku_name' => 'San pham X'], $headers);
 
         $response->assertStatus(403)->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
@@ -89,9 +89,9 @@ class PermissionAndValidationTest extends TestCase
     public function test_product_create_with_duplicate_code_returns_422(): void
     {
         $headers = $this->authHeadersWithPermissions(['product.manage'], 'product_manager');
-        Product::create(['code' => 'SP-DUP', 'name' => 'San pham goc', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        Sku::create(['sku_code' => 'SP-DUP', 'sku_name' => 'San pham goc', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $response = $this->postJson('/api/v1/products', ['code' => 'SP-DUP', 'name' => 'San pham trung code'], $headers);
+        $response = $this->postJson('/api/v1/products', ['sku_code' => 'SP-DUP', 'sku_name' => 'San pham trung code'], $headers);
 
         // 422 chung không phân biệt validate-rule vs business-rule — ApiConventionMiddleware
         // luôn suy ra BUSINESS_RULE_ERROR cho status 422 trừ khi message chứa từ khoá tồn kho.
@@ -129,11 +129,11 @@ class PermissionAndValidationTest extends TestCase
     {
         $headers = $this->authHeadersWithPermissions(['stock_document.create'], 'creator2');
         $warehouse = Warehouse::create(['code' => 'KHO-PERM4', 'name' => 'Kho perm 4', 'status' => 'ACTIVE']);
-        $product = Product::create(['code' => 'SP-PERM4', 'name' => 'San pham perm 4', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $product = Sku::create(['sku_code' => 'SP-PERM4', 'sku_name' => 'San pham perm 4', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
         $payload = [
             'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $product->id, 'qty_planned' => 1]],
+            'lines' => [['product_id' => $product->sku_id, 'qty_planned' => 1]],
         ];
 
         $first = $this->postJson('/api/v1/inbound-documents', $payload, $headers + ['Idempotency-Key' => 'perm-create-idem']);

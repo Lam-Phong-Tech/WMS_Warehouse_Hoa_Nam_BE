@@ -889,6 +889,11 @@
                                             "INACTIVE",
                                             "LOCKED"
                                         ]
+                                    },
+                                    "version": {
+                                        "description": "Optimistic locking: gửi kèm version hiện tại để tránh ghi đè thay đổi song song",
+                                        "type": "integer",
+                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -908,6 +913,9 @@
                     },
                     "404": {
                         "description": "Không tìm thấy người dùng"
+                    },
+                    "409": {
+                        "description": "version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác"
                     },
                     "422": {
                         "description": "Dữ liệu không hợp lệ"
@@ -1259,6 +1267,412 @@
                     },
                     "422": {
                         "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/containers": {
+            "get": {
+                "tags": [
+                    "23. Container"
+                ],
+                "summary": "Danh sách container (phân trang, filter theo keyword/container_type/status/zone_code)",
+                "operationId": "container_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "container_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "CARTON",
+                                "BOX",
+                                "TRAY"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách container"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền container.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "23. Container"
+                ],
+                "summary": "Tạo container mới (CARTON/BOX/TRAY)",
+                "operationId": "container_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "container_code",
+                                    "container_type",
+                                    "physical_code_id",
+                                    "status"
+                                ],
+                                "properties": {
+                                    "container_code": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "container_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "CARTON",
+                                            "BOX",
+                                            "TRAY"
+                                        ]
+                                    },
+                                    "physical_code_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "primary_sku_id": {
+                                        "description": "Bắt buộc với CARTON/BOX",
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "parent_container_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "zone_code": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 50
+                                    },
+                                    "location_hint": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 255
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo container thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền container.manage"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (vd: CARTON/BOX thiếu primary_sku_id)"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/containers/{id}": {
+            "get": {
+                "tags": [
+                    "23. Container"
+                ],
+                "summary": "Chi tiết container (kèm danh sách item bên trong)",
+                "operationId": "container_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết container"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy container"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "23. Container"
+                ],
+                "summary": "Sửa container (optimistic locking qua version)",
+                "operationId": "container_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "container_code": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "container_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "CARTON",
+                                            "BOX",
+                                            "TRAY"
+                                        ]
+                                    },
+                                    "physical_code_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "primary_sku_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "parent_container_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "zone_code": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 50
+                                    },
+                                    "location_hint": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 255
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "version": {
+                                        "description": "Optimistic locking",
+                                        "type": "integer",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền container.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy container"
+                    },
+                    "409": {
+                        "description": "version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/containers/{id}/items": {
+            "post": {
+                "tags": [
+                    "23. Container"
+                ],
+                "summary": "Gán item (serial) hoặc sku+quantity vào container",
+                "operationId": "container_add_item",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "item_id": {
+                                        "description": "XOR với sku_id — dùng cho hàng có serial",
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "sku_id": {
+                                        "description": "XOR với item_id — dùng cho hàng theo số lượng",
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "quantity": {
+                                        "description": "Bắt buộc khi dùng sku_id",
+                                        "type": "number",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Gán item vào container thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền container.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy container"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (vi phạm XOR item_id/sku_id+quantity)"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/containers/{id}/items/{containerItemId}": {
+            "delete": {
+                "tags": [
+                    "23. Container"
+                ],
+                "summary": "Gỡ item khỏi container (đánh dấu REMOVED, không xoá bản ghi)",
+                "operationId": "container_remove_item",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "containerItemId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Gỡ item thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền container.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy mapping item trong container"
                     }
                 },
                 "security": [
@@ -1680,6 +2094,247 @@
                     },
                     "404": {
                         "description": "Không tìm thấy transition"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/import-batches": {
+            "get": {
+                "tags": [
+                    "22. Import Batch"
+                ],
+                "summary": "Danh sách lô nhập khẩu (phân trang, filter theo keyword/status)",
+                "operationId": "import_batch_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách lô nhập khẩu"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền import_batch.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "22. Import Batch"
+                ],
+                "summary": "Tạo lô nhập khẩu mới",
+                "operationId": "import_batch_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "import_batch_code"
+                                ],
+                                "properties": {
+                                    "import_batch_code": {
+                                        "type": "string",
+                                        "maxLength": 80
+                                    },
+                                    "shipment_container_code": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "supplier_batch_no": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "import_period": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 30
+                                    },
+                                    "supplier_name": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 200
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo lô nhập khẩu thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền import_batch.manage"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (vd: import_batch_code đã tồn tại)"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/import-batches/{id}": {
+            "get": {
+                "tags": [
+                    "22. Import Batch"
+                ],
+                "summary": "Chi tiết lô nhập khẩu",
+                "operationId": "import_batch_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết lô nhập khẩu"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy lô nhập khẩu"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "22. Import Batch"
+                ],
+                "summary": "Sửa lô nhập khẩu",
+                "operationId": "import_batch_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "import_batch_code": {
+                                        "type": "string",
+                                        "maxLength": 80
+                                    },
+                                    "shipment_container_code": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "supplier_batch_no": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "import_period": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 30
+                                    },
+                                    "supplier_name": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 200
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "ACTIVE",
+                                            "INACTIVE"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền import_batch.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy lô nhập khẩu"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
                     }
                 },
                 "security": [
@@ -2721,6 +3376,321 @@
                 ]
             }
         },
+        "/api/v1/item-instances": {
+            "get": {
+                "tags": [
+                    "24. Item Instance"
+                ],
+                "summary": "Danh sách item instance (phân trang, filter theo sku_id/item_status/item_condition/container_id)",
+                "operationId": "item_instance_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sku_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "item_status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "item_condition",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "container_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách item instance"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền item_instance.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "24. Item Instance"
+                ],
+                "summary": "Tạo item instance mới (máy/linh kiện có serial)",
+                "operationId": "item_instance_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "sku_id"
+                                ],
+                                "properties": {
+                                    "sku_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "physical_code_id": {
+                                        "description": "Bắt buộc nếu SKU là PRODUCT + is_serial_tracked",
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "serial_number": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "container_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "item_status": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "item_condition": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "import_batch_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo item instance thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền item_instance.manage"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (vd: thiếu physical_code_id bắt buộc)"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/item-instances/{id}": {
+            "get": {
+                "tags": [
+                    "24. Item Instance"
+                ],
+                "summary": "Chi tiết item instance",
+                "operationId": "item_instance_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết item instance"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy item instance"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "24. Item Instance"
+                ],
+                "summary": "Sửa item instance (optimistic locking qua version)",
+                "operationId": "item_instance_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "sku_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "physical_code_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "serial_number": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "container_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "item_status": {
+                                        "type": "string"
+                                    },
+                                    "item_condition": {
+                                        "type": "string"
+                                    },
+                                    "import_batch_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "version": {
+                                        "description": "Optimistic locking",
+                                        "type": "integer",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền item_instance.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy item instance"
+                    },
+                    "409": {
+                        "description": "version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/item-instances/{id}/trace": {
+            "get": {
+                "tags": [
+                    "24. Item Instance"
+                ],
+                "summary": "Truy vết item: sku -> physical_code -> container (cha) -> import_batch",
+                "operationId": "item_instance_trace",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chuỗi truy vết của item"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy item instance"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/outbound-documents": {
             "get": {
                 "tags": [
@@ -3461,12 +4431,258 @@
                 ]
             }
         },
+        "/api/v1/physical-codes": {
+            "get": {
+                "tags": [
+                    "21. Physical Code"
+                ],
+                "summary": "Danh sách mã vật lý (phân trang, filter theo keyword/code_type/carrier_type/status)",
+                "operationId": "physical_code_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "code_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách mã vật lý"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền physical_code.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "21. Physical Code"
+                ],
+                "summary": "Đăng ký mã vật lý mới",
+                "operationId": "physical_code_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "code_value",
+                                    "code_type",
+                                    "carrier_type"
+                                ],
+                                "properties": {
+                                    "code_value": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "code_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "ITEM",
+                                            "CARTON",
+                                            "COMPONENT_SERIAL",
+                                            "BOX",
+                                            "TRAY",
+                                            "TEMP_WARRANTY",
+                                            "UNKNOWN"
+                                        ]
+                                    },
+                                    "carrier_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "QR",
+                                            "BARCODE",
+                                            "RFID",
+                                            "NFC",
+                                            "PLAIN_LABEL",
+                                            "MANUAL_CODE",
+                                            "TEMP_CODE"
+                                        ]
+                                    },
+                                    "hardware_uid": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 150
+                                    },
+                                    "encoded_payload_version": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 30
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo mã vật lý thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền physical_code.manage"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (vd: code_type=ITEM nhưng carrier_type không phải chip)"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/physical-codes/{id}": {
+            "get": {
+                "tags": [
+                    "21. Physical Code"
+                ],
+                "summary": "Chi tiết mã vật lý",
+                "operationId": "physical_code_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết mã vật lý"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy mã vật lý"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "21. Physical Code"
+                ],
+                "summary": "Sửa trạng thái mã vật lý (LOST/REPLACED/INACTIVE)",
+                "operationId": "physical_code_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "ACTIVE",
+                                            "LOST",
+                                            "REPLACED",
+                                            "INACTIVE"
+                                        ]
+                                    },
+                                    "replaced_by_code_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền physical_code.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy mã vật lý"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/products": {
             "get": {
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "Danh sách sản phẩm (phân trang, filter theo keyword/status)",
+                "summary": "Danh sách SKU (phân trang, filter theo keyword/status)",
                 "operationId": "product_list",
                 "parameters": [
                     {
@@ -3506,7 +4722,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Danh sách sản phẩm"
+                        "description": "Danh sách SKU"
                     },
                     "401": {
                         "description": "Chưa xác thực"
@@ -3525,7 +4741,7 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "Tạo sản phẩm mới",
+                "summary": "Tạo SKU mới",
                 "operationId": "product_create",
                 "requestBody": {
                     "required": true,
@@ -3533,16 +4749,16 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "code",
-                                    "name"
+                                    "sku_code",
+                                    "sku_name"
                                 ],
                                 "properties": {
-                                    "code": {
+                                    "sku_code": {
                                         "type": "string",
                                         "example": "SP-0001",
                                         "maxLength": 100
                                     },
-                                    "name": {
+                                    "sku_name": {
                                         "type": "string",
                                         "example": "Máy khoan cầm tay",
                                         "maxLength": 255
@@ -3564,6 +4780,43 @@
                                     "is_serial_tracked": {
                                         "type": "boolean",
                                         "nullable": true
+                                    },
+                                    "brand_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "category_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "model_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "package_variant": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "BARE",
+                                            "KIT",
+                                            "SET",
+                                            "BODY_ONLY"
+                                        ]
+                                    },
+                                    "warranty_applicable": {
+                                        "type": "boolean",
+                                        "nullable": true
+                                    },
+                                    "specification": {
+                                        "type": "object",
+                                        "nullable": true
+                                    },
+                                    "published_to_app": {
+                                        "type": "boolean",
+                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -3573,7 +4826,7 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Tạo sản phẩm thành công"
+                        "description": "Tạo SKU thành công"
                     },
                     "401": {
                         "description": "Chưa xác thực"
@@ -3582,7 +4835,7 @@
                         "description": "Không có quyền product.manage"
                     },
                     "422": {
-                        "description": "Dữ liệu không hợp lệ (vd: code đã tồn tại)"
+                        "description": "Dữ liệu không hợp lệ (vd: sku_code đã tồn tại)"
                     }
                 },
                 "security": [
@@ -3597,7 +4850,7 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "Chi tiết sản phẩm",
+                "summary": "Chi tiết SKU",
                 "operationId": "product_detail",
                 "parameters": [
                     {
@@ -3612,13 +4865,384 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Chi tiết sản phẩm"
+                        "description": "Chi tiết SKU"
                     },
                     "401": {
                         "description": "Chưa xác thực"
                     },
                     "404": {
-                        "description": "Không tìm thấy sản phẩm"
+                        "description": "Không tìm thấy SKU"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "Sửa SKU (brand/category/model/package/specification...)",
+                "operationId": "product_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "sku_code": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "sku_name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "brand_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "category_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "model_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "package_variant": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "BARE",
+                                            "KIT",
+                                            "SET",
+                                            "BODY_ONLY"
+                                        ]
+                                    },
+                                    "warranty_applicable": {
+                                        "type": "boolean",
+                                        "nullable": true
+                                    },
+                                    "specification": {
+                                        "type": "object",
+                                        "nullable": true
+                                    },
+                                    "published_to_app": {
+                                        "type": "boolean",
+                                        "nullable": true
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "ACTIVE",
+                                            "INACTIVE"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền product.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy SKU"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/product-masters": {
+            "get": {
+                "tags": [
+                    "20. Product Master"
+                ],
+                "summary": "Danh sách product master (phân trang, filter theo keyword/master_type/status)",
+                "operationId": "product_master_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "master_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "BRAND",
+                                "CATEGORY",
+                                "MODEL",
+                                "PACKAGE",
+                                "POWER"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "ACTIVE",
+                                "INACTIVE"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách product master"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền product_master.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "20. Product Master"
+                ],
+                "summary": "Tạo product master mới",
+                "operationId": "product_master_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "master_type",
+                                    "code",
+                                    "name"
+                                ],
+                                "properties": {
+                                    "master_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "BRAND",
+                                            "CATEGORY",
+                                            "MODEL",
+                                            "PACKAGE",
+                                            "POWER"
+                                        ]
+                                    },
+                                    "code": {
+                                        "type": "string",
+                                        "maxLength": 80
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    },
+                                    "parent_master_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "ACTIVE",
+                                            "INACTIVE"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo product master thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền product_master.manage"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ (vd: code trùng trong cùng master_type)"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/product-masters/{id}": {
+            "get": {
+                "tags": [
+                    "20. Product Master"
+                ],
+                "summary": "Chi tiết product master",
+                "operationId": "product_master_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết product master"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy product master"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "20. Product Master"
+                ],
+                "summary": "Sửa product master",
+                "operationId": "product_master_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "master_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "BRAND",
+                                            "CATEGORY",
+                                            "MODEL",
+                                            "PACKAGE",
+                                            "POWER"
+                                        ]
+                                    },
+                                    "code": {
+                                        "type": "string",
+                                        "maxLength": 80
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    },
+                                    "parent_master_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "ACTIVE",
+                                            "INACTIVE"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền product_master.manage"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy product master"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
                     }
                 },
                 "security": [
@@ -5729,8 +7353,28 @@
             "description": "Danh mục lỗi/bệnh máy dùng cho bảo hành và báo cáo."
         },
         {
+            "name": "23. Container",
+            "description": "23. Container"
+        },
+        {
+            "name": "22. Import Batch",
+            "description": "22. Import Batch"
+        },
+        {
             "name": "07. Inventory / Stock",
             "description": "07. Inventory / Stock"
+        },
+        {
+            "name": "24. Item Instance",
+            "description": "24. Item Instance"
+        },
+        {
+            "name": "21. Physical Code",
+            "description": "21. Physical Code"
+        },
+        {
+            "name": "20. Product Master",
+            "description": "20. Product Master"
         },
         {
             "name": "10. Transfer",

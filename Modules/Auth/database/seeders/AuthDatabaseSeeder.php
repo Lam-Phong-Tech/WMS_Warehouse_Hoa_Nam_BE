@@ -51,6 +51,16 @@ class AuthDatabaseSeeder extends Seeder
         ['agency.manage', 'Tạo/sửa/xoá đại lý'],
         ['defect_catalog.view', 'Xem danh mục lỗi/bệnh máy'],
         ['defect_catalog.manage', 'Tạo/sửa/xoá danh mục lỗi/bệnh máy'],
+        ['product_master.view', 'Xem danh mục brand/category/model/package/power'],
+        ['product_master.manage', 'Tạo/sửa danh mục brand/category/model/package/power'],
+        ['physical_code.view', 'Xem mã vật lý (QR/barcode/RFID/NFC...)'],
+        ['physical_code.manage', 'Đăng ký/sửa mã vật lý'],
+        ['import_batch.view', 'Xem lô nhập khẩu'],
+        ['import_batch.manage', 'Tạo/sửa lô nhập khẩu'],
+        ['container.view', 'Xem container (carton/box/tray) và item bên trong'],
+        ['container.manage', 'Tạo/sửa container, gán/gỡ item khỏi container'],
+        ['item_instance.view', 'Xem item instance (máy/linh kiện có serial) và truy vết'],
+        ['item_instance.manage', 'Tạo/sửa item instance'],
     ];
 
     /**
@@ -64,6 +74,8 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'product.view',
                 'stock_document.view', 'stock_document.create', 'stock_document.submit',
                 'safe_stock.view', 'inventory.view', 'report.view',
+                'product_master.view', 'physical_code.view', 'import_batch.view',
+                'container.view', 'item_instance.view',
             ],
         ],
         'WAREHOUSE_APPROVER' => [
@@ -72,6 +84,8 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'product.view',
                 'stock_document.view', 'stock_document.approve',
                 'safe_stock.view', 'inventory.view', 'report.view',
+                'product_master.view', 'physical_code.view', 'import_batch.view',
+                'container.view', 'item_instance.view',
             ],
         ],
         'WAREHOUSE_KEEPER' => [
@@ -80,6 +94,8 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'product.view',
                 'stock_document.view', 'stock_document.post', 'stock_document.cancel', 'stock_document.reverse',
                 'safe_stock.view', 'safe_stock.manage', 'inventory.view', 'report.view',
+                'product_master.view', 'physical_code.view', 'physical_code.manage', 'import_batch.view',
+                'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
             ],
         ],
         'VIEWER' => [
@@ -87,6 +103,8 @@ class AuthDatabaseSeeder extends Seeder
             'permissions' => [
                 'warehouse.view', 'product.view', 'stock_document.view',
                 'safe_stock.view', 'inventory.view', 'report.view', 'audit_log.view',
+                'product_master.view', 'physical_code.view', 'import_batch.view',
+                'container.view', 'item_instance.view',
             ],
         ],
         'WAREHOUSE_MANAGER' => [
@@ -100,6 +118,9 @@ class AuthDatabaseSeeder extends Seeder
                 'transfer.view', 'transfer.create', 'transfer.submit', 'transfer.approve', 'transfer.post',
                 'user.view', 'user.manage', 'role.view', 'role.manage', 'permission.view',
                 'agency.view', 'agency.manage', 'defect_catalog.view', 'defect_catalog.manage',
+                'product_master.view', 'product_master.manage', 'physical_code.view', 'physical_code.manage',
+                'import_batch.view', 'import_batch.manage', 'container.view', 'container.manage',
+                'item_instance.view', 'item_instance.manage',
             ],
         ],
     ];

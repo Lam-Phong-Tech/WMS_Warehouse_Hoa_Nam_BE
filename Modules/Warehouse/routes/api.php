@@ -2,15 +2,20 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\AgencyController;
+use Modules\Warehouse\Http\Controllers\ContainerController;
 use Modules\Warehouse\Http\Controllers\DefectCatalogController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusHistoryController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusTransitionController;
+use Modules\Warehouse\Http\Controllers\ImportBatchController;
 use Modules\Warehouse\Http\Controllers\InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Http\Controllers\InventoryReservationController;
 use Modules\Warehouse\Http\Controllers\InventorySnapshotController;
+use Modules\Warehouse\Http\Controllers\ItemInstanceController;
 use Modules\Warehouse\Http\Controllers\OutboundDocumentController;
+use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\ProductController;
+use Modules\Warehouse\Http\Controllers\ProductMasterController;
 use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\SafeStockAlertController;
 use Modules\Warehouse\Http\Controllers\SafeStockConfigController;
@@ -28,6 +33,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('products', [ProductController::class, 'index'])->middleware('permission:product.view');
     Route::post('products', [ProductController::class, 'store'])->middleware('permission:product.manage');
     Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:product.view');
+    Route::patch('products/{id}', [ProductController::class, 'update'])->middleware('permission:product.manage');
 
     // Nhập kho (inbound-documents = stock_documents.doc_type=receipt).
     Route::get('inbound-documents', [InboundDocumentController::class, 'index'])->middleware('permission:stock_document.view');
@@ -130,4 +136,33 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('defect-catalogs/{id}', [DefectCatalogController::class, 'show'])->middleware('permission:defect_catalog.view');
     Route::patch('defect-catalogs/{id}', [DefectCatalogController::class, 'update'])->middleware('permission:defect_catalog.manage');
     Route::delete('defect-catalogs/{id}', [DefectCatalogController::class, 'destroy'])->middleware('permission:defect_catalog.manage');
+
+    // WWHN-37: SKU/item/component/mã vật lý/container + import batch (traceability).
+    Route::get('product-masters', [ProductMasterController::class, 'index'])->middleware('permission:product_master.view');
+    Route::post('product-masters', [ProductMasterController::class, 'store'])->middleware('permission:product_master.manage');
+    Route::get('product-masters/{id}', [ProductMasterController::class, 'show'])->middleware('permission:product_master.view');
+    Route::patch('product-masters/{id}', [ProductMasterController::class, 'update'])->middleware('permission:product_master.manage');
+
+    Route::get('physical-codes', [PhysicalCodeController::class, 'index'])->middleware('permission:physical_code.view');
+    Route::post('physical-codes', [PhysicalCodeController::class, 'store'])->middleware('permission:physical_code.manage');
+    Route::get('physical-codes/{id}', [PhysicalCodeController::class, 'show'])->middleware('permission:physical_code.view');
+    Route::patch('physical-codes/{id}', [PhysicalCodeController::class, 'update'])->middleware('permission:physical_code.manage');
+
+    Route::get('import-batches', [ImportBatchController::class, 'index'])->middleware('permission:import_batch.view');
+    Route::post('import-batches', [ImportBatchController::class, 'store'])->middleware('permission:import_batch.manage');
+    Route::get('import-batches/{id}', [ImportBatchController::class, 'show'])->middleware('permission:import_batch.view');
+    Route::patch('import-batches/{id}', [ImportBatchController::class, 'update'])->middleware('permission:import_batch.manage');
+
+    Route::get('containers', [ContainerController::class, 'index'])->middleware('permission:container.view');
+    Route::post('containers', [ContainerController::class, 'store'])->middleware('permission:container.manage');
+    Route::get('containers/{id}', [ContainerController::class, 'show'])->middleware('permission:container.view');
+    Route::patch('containers/{id}', [ContainerController::class, 'update'])->middleware('permission:container.manage');
+    Route::post('containers/{id}/items', [ContainerController::class, 'addItem'])->middleware('permission:container.manage');
+    Route::delete('containers/{id}/items/{containerItemId}', [ContainerController::class, 'removeItem'])->middleware('permission:container.manage');
+
+    Route::get('item-instances', [ItemInstanceController::class, 'index'])->middleware('permission:item_instance.view');
+    Route::post('item-instances', [ItemInstanceController::class, 'store'])->middleware('permission:item_instance.manage');
+    Route::get('item-instances/{id}', [ItemInstanceController::class, 'show'])->middleware('permission:item_instance.view');
+    Route::patch('item-instances/{id}', [ItemInstanceController::class, 'update'])->middleware('permission:item_instance.manage');
+    Route::get('item-instances/{id}/trace', [ItemInstanceController::class, 'trace'])->middleware('permission:item_instance.view');
 });

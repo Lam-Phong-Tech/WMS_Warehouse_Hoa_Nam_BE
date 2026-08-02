@@ -82,4 +82,20 @@ class AgencyTest extends TestCase
         $response->assertOk();
         $this->assertNull(Agency::find($agency->agency_id));
     }
+
+    public function test_agency_create_writes_audit_log(): void
+    {
+        $headers = $this->authHeaders();
+
+        $create = $this->postJson('/api/v1/agencies', [
+            'agency_code' => 'DL-AUDIT',
+            'agency_name' => 'Đại lý có audit',
+        ], $headers);
+
+        $this->assertDatabaseHas('audit_log', [
+            'object_type' => 'agency',
+            'object_id' => $create->json('data.agency_id'),
+            'action' => 'CREATE',
+        ]);
+    }
 }

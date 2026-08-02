@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\UpdateWarehouseRequest;
 use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
 use OpenApi\Attributes as OA;
@@ -88,13 +89,24 @@ class WarehouseController extends Controller
     )]
     public function update(UpdateWarehouseRequest $request, string $id)
     {
-        $warehouse = $this->warehouses->find($id);
+        $before = $this->warehouses->find($id);
 
-        if (! $warehouse) {
+        if (! $before) {
             return $this->respondNotFound('Không tìm thấy kho.');
         }
 
+        $beforeData = $before->toArray();
         $warehouse = $this->warehouses->update($id, $request->validated());
+
+        AuditLogger::record(
+            action: 'UPDATE',
+            objectType: 'warehouse',
+            objectId: $id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            beforeData: $beforeData,
+            afterData: $warehouse->toArray(),
+        );
 
         return $this->respondSuccess($warehouse, 'Cập nhật kho thành công');
     }

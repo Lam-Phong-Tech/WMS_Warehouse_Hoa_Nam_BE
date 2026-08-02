@@ -12,7 +12,7 @@ return new class extends Migration
         Schema::create('inventory_report_snapshots', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('warehouse_id')->constrained('warehouses')->restrictOnDelete();
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->date('snapshot_date');
             $table->string('period_type', 20)->default('daily')->comment('daily | weekly | monthly');
             $table->date('period_start')->nullable();

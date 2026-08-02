@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('inventory_balances', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('warehouse_id')->constrained('warehouses')->restrictOnDelete();
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->decimal('on_hand_qty', 18, 3)->default(0);
             $table->decimal('available_qty', 18, 3)->default(0);
             $table->decimal('reserved_qty', 18, 3)->default(0);

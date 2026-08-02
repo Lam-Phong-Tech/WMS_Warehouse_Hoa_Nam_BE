@@ -19,7 +19,7 @@ class UpdateStockRequestRequest extends FormRequest
             'dst_warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
             'note' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.product_id' => ['required', 'uuid', 'exists:products,id'],
+            'lines.*.product_id' => ['required', 'uuid', 'exists:sku,sku_id'],
             'lines.*.qty_planned' => ['required', 'numeric', 'gt:0'],
             'lines.*.unit_cost' => ['nullable', 'numeric', 'gte:0'],
             'lines.*.note' => ['nullable', 'string', 'max:500'],

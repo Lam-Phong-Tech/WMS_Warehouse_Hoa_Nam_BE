@@ -130,6 +130,7 @@ class UserController extends Controller
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
                 new OA\Property(property: 'password', type: 'string', minLength: 8),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true),
+                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking: gửi kèm version hiện tại để tránh ghi đè thay đổi song song'),
             ])
         ),
         responses: [
@@ -137,6 +138,7 @@ class UserController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền user.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy người dùng'),
+            new OA\Response(response: 409, description: 'version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
         ]
     )]
@@ -151,10 +153,26 @@ class UserController extends Controller
         $beforeData = $before->makeHidden('password_hash')->toArray();
 
         $data = $request->validated();
+
+        if (array_key_exists('version', $data)) {
+            $expectedVersion = $data['version'];
+            unset($data['version']);
+
+            if ((int) $before->version !== (int) $expectedVersion) {
+                return $this->respondConflict(
+                    'Người dùng đã bị thay đổi bởi thao tác khác, vui lòng tải lại dữ liệu.',
+                    [],
+                    'STATE_CONFLICT'
+                );
+            }
+        }
+
         if (array_key_exists('password', $data)) {
             $data['password_hash'] = Hash::make($data['password']);
             unset($data['password']);
         }
+
+        $data['version'] = $before->version + 1;
 
         $user = $this->users->update($id, $data);
 
