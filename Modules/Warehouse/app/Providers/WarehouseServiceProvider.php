@@ -3,9 +3,13 @@
 namespace Modules\Warehouse\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\Warehouse\Repositories\AgencyRepository;
+use Modules\Warehouse\Repositories\Contracts\AgencyRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\DefectCatalogRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\SafeStockConfigRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
+use Modules\Warehouse\Repositories\DefectCatalogRepository;
 use Modules\Warehouse\Repositories\ProductRepository;
 use Modules\Warehouse\Repositories\SafeStockConfigRepository;
 use Modules\Warehouse\Repositories\WarehouseRepository;
@@ -47,6 +51,8 @@ class WarehouseServiceProvider extends ModuleServiceProvider
         $this->app->bind(WarehouseRepositoryInterface::class, WarehouseRepository::class);
         $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
         $this->app->bind(SafeStockConfigRepositoryInterface::class, SafeStockConfigRepository::class);
+        $this->app->bind(AgencyRepositoryInterface::class, AgencyRepository::class);
+        $this->app->bind(DefectCatalogRepositoryInterface::class, DefectCatalogRepository::class);
     }
 
     /**

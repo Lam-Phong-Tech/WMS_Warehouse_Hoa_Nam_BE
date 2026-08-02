@@ -42,6 +42,15 @@ class AuthDatabaseSeeder extends Seeder
         ['transfer.submit', 'Gửi duyệt phiếu điều chuyển kho'],
         ['transfer.approve', 'Duyệt/từ chối phiếu điều chuyển kho'],
         ['transfer.post', 'Xuất/nhận/trả/ghi nhận mất mát hàng điều chuyển kho'],
+        ['user.view', 'Xem người dùng'],
+        ['user.manage', 'Tạo/sửa/xoá người dùng, gán role'],
+        ['role.view', 'Xem role'],
+        ['role.manage', 'Tạo/sửa/xoá role, gán permission'],
+        ['permission.view', 'Xem danh mục permission'],
+        ['agency.view', 'Xem đại lý'],
+        ['agency.manage', 'Tạo/sửa/xoá đại lý'],
+        ['defect_catalog.view', 'Xem danh mục lỗi/bệnh máy'],
+        ['defect_catalog.manage', 'Tạo/sửa/xoá danh mục lỗi/bệnh máy'],
     ];
 
     /**
@@ -89,6 +98,8 @@ class AuthDatabaseSeeder extends Seeder
                 'safe_stock.view', 'safe_stock.manage', 'inventory.view', 'report.view', 'audit_log.view',
                 'stock_request.view', 'stock_request.create', 'stock_request.submit', 'stock_request.approve',
                 'transfer.view', 'transfer.create', 'transfer.submit', 'transfer.approve', 'transfer.post',
+                'user.view', 'user.manage', 'role.view', 'role.manage', 'permission.view',
+                'agency.view', 'agency.manage', 'defect_catalog.view', 'defect_catalog.manage',
             ],
         ],
     ];

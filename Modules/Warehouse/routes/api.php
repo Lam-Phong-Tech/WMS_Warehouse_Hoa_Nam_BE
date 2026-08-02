@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\AgencyController;
+use Modules\Warehouse\Http\Controllers\DefectCatalogController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusHistoryController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusTransitionController;
 use Modules\Warehouse\Http\Controllers\InboundDocumentController;
@@ -114,4 +116,18 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('reports/inventory-xnt', [ReportController::class, 'inventoryXnt'])->middleware('permission:report.view');
     Route::get('reports/inventory-xnt/export-excel', [ReportController::class, 'exportExcel'])->middleware('permission:report.view');
     Route::get('reports/dashboard-quick', [ReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
+
+    // Đại lý — chỉ dùng để tham chiếu/gán, không có inventory_balance riêng (BR-AGY-01).
+    Route::get('agencies', [AgencyController::class, 'index'])->middleware('permission:agency.view');
+    Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
+    Route::get('agencies/{id}', [AgencyController::class, 'show'])->middleware('permission:agency.view');
+    Route::patch('agencies/{id}', [AgencyController::class, 'update'])->middleware('permission:agency.manage');
+    Route::delete('agencies/{id}', [AgencyController::class, 'destroy'])->middleware('permission:agency.manage');
+
+    // Danh mục lỗi/bệnh máy dùng cho bảo hành và báo cáo.
+    Route::get('defect-catalogs', [DefectCatalogController::class, 'index'])->middleware('permission:defect_catalog.view');
+    Route::post('defect-catalogs', [DefectCatalogController::class, 'store'])->middleware('permission:defect_catalog.manage');
+    Route::get('defect-catalogs/{id}', [DefectCatalogController::class, 'show'])->middleware('permission:defect_catalog.view');
+    Route::patch('defect-catalogs/{id}', [DefectCatalogController::class, 'update'])->middleware('permission:defect_catalog.manage');
+    Route::delete('defect-catalogs/{id}', [DefectCatalogController::class, 'destroy'])->middleware('permission:defect_catalog.manage');
 });
