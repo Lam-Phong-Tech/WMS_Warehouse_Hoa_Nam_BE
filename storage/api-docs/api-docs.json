@@ -60,7 +60,7 @@
                 "tags": [
                     "01. Authentication"
                 ],
-                "summary": "Đăng nhập bằng username/password, trả về JWT access token + refresh token",
+                "summary": "Đăng nhập bằng email/password, trả về JWT access token + refresh token",
                 "operationId": "auth_login",
                 "requestBody": {
                     "required": true,
@@ -68,13 +68,14 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "username",
+                                    "email",
                                     "password"
                                 ],
                                 "properties": {
-                                    "username": {
+                                    "email": {
                                         "type": "string",
-                                        "example": "admin"
+                                        "format": "email",
+                                        "example": "admin@gmail.com"
                                     },
                                     "password": {
                                         "type": "string",
@@ -187,6 +188,113 @@
                     },
                     "401": {
                         "description": "Chưa xác thực"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/auth/change-password": {
+            "post": {
+                "tags": [
+                    "01. Authentication"
+                ],
+                "summary": "Change password for current authenticated user",
+                "operationId": "auth_change_password",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "current_password",
+                                    "new_password",
+                                    "new_password_confirmation"
+                                ],
+                                "properties": {
+                                    "current_password": {
+                                        "type": "string",
+                                        "format": "password"
+                                    },
+                                    "new_password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "minLength": 8
+                                    },
+                                    "new_password_confirmation": {
+                                        "type": "string",
+                                        "format": "password"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Password changed successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "422": {
+                        "description": "Invalid current password or validation error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/auth/switch-context": {
+            "post": {
+                "tags": [
+                    "01. Authentication"
+                ],
+                "summary": "Switch active working context and return a fresh access token",
+                "operationId": "auth_switch_context",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "context_type": {
+                                        "type": "string",
+                                        "example": "SYSTEM",
+                                        "nullable": true,
+                                        "maxLength": 50
+                                    },
+                                    "context_id": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "scope_ref": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Context switched successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "422": {
+                        "description": "Validation error"
                     }
                 },
                 "security": [
@@ -336,6 +444,110 @@
                     },
                     "404": {
                         "description": "Không tìm thấy transition"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/skus/import-excel": {
+            "post": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "Import SKUs from Excel file",
+                "description": "Bulk import product/SKU data from Excel file with validation and error reporting",
+                "operationId": "sku_import_excel",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "description": "Excel file (.xlsx, .xls) containing SKU data",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "update_existing": {
+                                        "description": "Update existing SKUs with matching codes",
+                                        "type": "boolean",
+                                        "default": false
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Import completed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "total_rows": {
+                                                    "type": "integer"
+                                                },
+                                                "valid_rows": {
+                                                    "type": "integer"
+                                                },
+                                                "error_rows": {
+                                                    "type": "integer"
+                                                },
+                                                "inserted_rows": {
+                                                    "type": "integer"
+                                                },
+                                                "updated_rows": {
+                                                    "type": "integer"
+                                                },
+                                                "skipped_rows": {
+                                                    "type": "integer"
+                                                },
+                                                "partial_write": {
+                                                    "type": "boolean"
+                                                },
+                                                "row_errors": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "meta": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing sku.manage permission"
+                    },
+                    "422": {
+                        "description": "Validation error"
                     }
                 },
                 "security": [
@@ -2248,6 +2460,137 @@
                 ]
             }
         },
+        "/api/v1/skus": {
+            "get": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "List SKU records (alias of products list)",
+                "operationId": "sku_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "ACTIVE",
+                                "INACTIVE"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated SKU records"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing product.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "Create a SKU record (alias of product create)",
+                "operationId": "sku_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "code",
+                                    "name"
+                                ],
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "example": "SKU-0001",
+                                        "maxLength": 100
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Cordless drill",
+                                        "maxLength": 255
+                                    },
+                                    "unit": {
+                                        "type": "string",
+                                        "example": "pcs",
+                                        "nullable": true,
+                                        "maxLength": 30
+                                    },
+                                    "sku_type": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "PRODUCT",
+                                            "COMPONENT"
+                                        ]
+                                    },
+                                    "is_serial_tracked": {
+                                        "type": "boolean",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "SKU created successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing product.manage permission"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/products/{id}": {
             "get": {
                 "tags": [
@@ -2275,6 +2618,120 @@
                     },
                     "404": {
                         "description": "Không tìm thấy sản phẩm"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/skus/{id}": {
+            "get": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "SKU detail (alias of product detail)",
+                "operationId": "sku_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SKU detail"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "404": {
+                        "description": "SKU not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/products/{id}/enable": {
+            "patch": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "Enable a product",
+                "operationId": "product_enable",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Product enabled successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing product.manage permission"
+                    },
+                    "404": {
+                        "description": "Product not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/products/{id}/disable": {
+            "patch": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "Disable a product",
+                "operationId": "product_disable",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Product disabled successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing product.manage permission"
+                    },
+                    "404": {
+                        "description": "Product not found"
                     }
                 },
                 "security": [
@@ -2799,6 +3256,91 @@
                     },
                     "422": {
                         "description": "Dữ liệu không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/scan/classify": {
+            "post": {
+                "tags": [
+                    "11. Scan"
+                ],
+                "summary": "Phân loại mã scan (QR/Barcode/Container/Item)",
+                "description": "Nhận raw_code và context, trả về classification cùng thông tin đối tượng tương ứng. Dùng để FE xác định loại mã trước khi xử lý nghiệp vụ.",
+                "operationId": "scan_classify",
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "raw_code",
+                                    "context",
+                                    "warehouse_id"
+                                ],
+                                "properties": {
+                                    "raw_code": {
+                                        "description": "Mã QR/Barcode/Container/Item cần phân loại",
+                                        "type": "string",
+                                        "maxLength": 120
+                                    },
+                                    "context": {
+                                        "description": "Ngữ cảnh sử dụng",
+                                        "type": "string",
+                                        "enum": [
+                                            "INBOUND",
+                                            "OUTBOUND",
+                                            "STOCKTAKE",
+                                            "WARRANTY_TEMP_ONLY"
+                                        ]
+                                    },
+                                    "warehouse_id": {
+                                        "description": "ID kho tổng Hoa Nam",
+                                        "type": "string",
+                                        "format": "uuid"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Phân loại thành công"
+                    },
+                    "400": {
+                        "description": "Dữ liệu không hợp lệ"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền stock_document.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy mã"
+                    },
+                    "409": {
+                        "description": "Trạng thái kho/mã không hợp lệ"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
                     }
                 },
                 "security": [
@@ -3445,6 +3987,117 @@
                     },
                     "409": {
                         "description": "Sai trạng thái hiện tại"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake-sessions/{id}/apply-adjustment": {
+            "post": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Áp dụng điều chỉnh kiểm kê (apply adjustment)",
+                "description": "Áp dụng điều chỉnh tồn kho sau khi đã kiểm kê và review. Tạo movement điều chỉnh và cập nhật inventory_balance. Yêu cầu session đã ở trạng thái REVIEWED.",
+                "operationId": "stocktake_apply_adjustment",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason",
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "description": "Lý do điều chỉnh",
+                                        "type": "string",
+                                        "maxLength": 500
+                                    },
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "sku_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "stock_status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "AVAILABLE",
+                                                        "DAMAGED",
+                                                        "RESERVED"
+                                                    ]
+                                                },
+                                                "expected_qty": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "actual_qty": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "adjustment_qty": {
+                                                    "description": "actual_qty - expected_qty",
+                                                    "type": "number",
+                                                    "format": "float"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Áp dụng điều chỉnh thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền stocktake.adjust"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy session"
+                    },
+                    "409": {
+                        "description": "Session chưa sẵn sàng hoặc đã áp dụng"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc điều chỉnh âm vượt tồn"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
                     }
                 },
                 "security": [
@@ -4316,6 +4969,812 @@
                     }
                 ]
             }
+        },
+        "/api/v1/warranty-cases/{id}/temp-only": {
+            "post": {
+                "tags": [
+                    "13. Warranty"
+                ],
+                "summary": "Nhận tạm bảo hành (TEMP_ONLY)",
+                "description": "Nhận tạm sản phẩm vào kho để kiểm tra bảo hành. TEMP_ONLY item không được bán và phải có thể truy vết/đảo ngược. Chỉ áp dụng khi case đang ở trạng thái RECEIVED hoặc WAITING_CHECK.",
+                "operationId": "warranty_temp_only",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "item_id",
+                                    "condition_status"
+                                ],
+                                "properties": {
+                                    "item_id": {
+                                        "description": "ID item/serial number",
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "defect_id": {
+                                        "description": "ID defect catalog",
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "condition_status": {
+                                        "description": "Trạng thái kiểm tra",
+                                        "type": "string",
+                                        "enum": [
+                                            "WAITING_CHECK",
+                                            "INSPECTING"
+                                        ]
+                                    },
+                                    "note": {
+                                        "description": "Ghi chú",
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 1000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Nhận tạm thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền warranty.temp_only"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy case"
+                    },
+                    "409": {
+                        "description": "Case đã ở trạng thái TEMP_ONLY hoặc đã đóng"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
+                    },
+                    "428": {
+                        "description": "Thiếu header Idempotency-Key"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/product-categories": {
+            "get": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "List product category master data",
+                "operationId": "wms_product_categories",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated product categories"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing product.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/uoms": {
+            "get": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "List unit-of-measure options",
+                "operationId": "wms_uoms",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated UOM options"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing product.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/suppliers": {
+            "get": {
+                "tags": [
+                    "05. Product"
+                ],
+                "summary": "List supplier options",
+                "operationId": "wms_suppliers",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated supplier options"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing product.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/physical-codes": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List physical barcode/serial code records",
+                "operationId": "wms_physical_codes",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated physical codes"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/items": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List inventory serial items with product information",
+                "operationId": "wms_items",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated inventory items"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/putaway/tasks": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List putaway tasks",
+                "operationId": "wms_putaway_tasks",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated putaway tasks"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/putaway/history": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List completed putaway tasks",
+                "operationId": "wms_putaway_history",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated putaway history"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake/sessions": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List stocktake sessions",
+                "operationId": "wms_stocktake_sessions",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated stocktake sessions"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reversal-documents": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List reversal documents",
+                "operationId": "wms_reversal_documents",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated reversal documents"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing stock_document.reverse permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/warranty/cases": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List warranty cases",
+                "operationId": "wms_warranty_cases",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated warranty cases"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/warranty/cases/{caseId}/events": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List events for a warranty case",
+                "operationId": "wms_warranty_case_events",
+                "parameters": [
+                    {
+                        "name": "caseId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated warranty events"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/scan/batches": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List scan batches",
+                "operationId": "wms_scan_batches",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated scan batches"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "Create a scan batch and optional scan events",
+                "operationId": "wms_scan_batch_create",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "source_type": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 50
+                                    },
+                                    "source_id": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
+                                    },
+                                    "warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "codes": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "maxLength": 255
+                                        },
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Scan batch created successfully"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/scan/events": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "List scan events",
+                "operationId": "wms_scan_events",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated scan events"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Missing inventory.view permission"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/health": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "Public backend health endpoint for environment, database, migration and seed baseline checks",
+                "operationId": "backend_health",
+                "responses": {
+                    "200": {
+                        "description": "Backend health check passed"
+                    },
+                    "503": {
+                        "description": "Backend health check degraded"
+                    }
+                },
+                "security": []
+            }
         }
     },
     "components": {
@@ -4369,8 +5828,24 @@
             "description": "07. Inventory / Stock"
         },
         {
+            "name": "11. Scan",
+            "description": "11. Scan"
+        },
+        {
+            "name": "12. Stocktake",
+            "description": "12. Stocktake"
+        },
+        {
             "name": "10. Transfer",
             "description": "10. Transfer"
+        },
+        {
+            "name": "13. Warranty",
+            "description": "13. Warranty"
+        },
+        {
+            "name": "00. Platform",
+            "description": "00. Platform"
         }
     ]
 }

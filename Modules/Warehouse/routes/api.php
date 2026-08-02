@@ -28,11 +28,11 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('warehouses/{id}', [WarehouseController::class, 'show'])->middleware('permission:warehouse.view');
     Route::patch('warehouses/{id}', [WarehouseController::class, 'update'])->middleware('permission:warehouse.manage');
 
-    Route::get('products', [ProductController::class, 'index'])->middleware('permission:sku.manage');
-    Route::post('products', [ProductController::class, 'store'])->middleware('permission:sku.manage');
-    Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:sku.manage');
-    Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:sku.manage');
-    Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:sku.manage');
+    Route::get('products', [ProductController::class, 'index'])->middleware('permission:product.view');
+    Route::post('products', [ProductController::class, 'store'])->middleware('permission:product.manage');
+    Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:product.view');
+    Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:product.manage');
+    Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:product.manage');
 
     Route::get('product-categories', [WmsContractController::class, 'productCategories'])->middleware('permission:master.manage');
     Route::get('uoms', [WmsContractController::class, 'uoms'])->middleware('permission:master.manage');
@@ -82,8 +82,6 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     Route::get('putaway/tasks', [WmsContractController::class, 'putawayTasks'])->middleware('permission:inventory.view');
     Route::get('putaway/history', [WmsContractController::class, 'putawayHistory'])->middleware('permission:inventory.view');
-    Route::get('document-status-history', [WmsContractController::class, 'documentStatusHistory'])->middleware('permission:stock_document.view');
-    Route::get('inventory-snapshots', [WmsContractController::class, 'inventorySnapshots'])->middleware('permission:inventory.view');
     Route::get('stocktake/sessions', [WmsContractController::class, 'stocktakeSessions'])->middleware('permission:inventory.view');
     Route::post('stocktake-sessions/{id}/apply-adjustment', [StocktakeController::class, 'applyAdjustment'])->middleware('permission:stocktake.adjust');
     Route::get('reversal-documents', [WmsContractController::class, 'reversalDocuments'])->middleware('permission:stock_document.reverse');
@@ -110,7 +108,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('inventory-snapshots/generate', [InventorySnapshotController::class, 'generate'])->middleware('permission:warehouse.manage');
 
     // Lịch sử chuyển trạng thái chứng từ (read-only).
-    Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:warehouse.view');
+    Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:stock_document.view');
 
     // Danh mục tham khảo state machine (không phải nguồn enforcement thực tế).
     Route::get('document-status-transitions', [DocumentStatusTransitionController::class, 'index'])->middleware('permission:warehouse.view');

@@ -64,7 +64,7 @@ class ImportController extends Controller
                             new OA\Property(property: 'updated_rows', type: 'integer'),
                             new OA\Property(property: 'skipped_rows', type: 'integer'),
                             new OA\Property(property: 'partial_write', type: 'boolean'),
-                            new OA\Property(property: 'row_errors', type: 'array', items: new OA\Schema(type: 'object')),
+                            new OA\Property(property: 'row_errors', type: 'array', items: new OA\Items(type: 'object')),
                         ]),
                         new OA\Property(property: 'meta', type: 'object'),
                     ]

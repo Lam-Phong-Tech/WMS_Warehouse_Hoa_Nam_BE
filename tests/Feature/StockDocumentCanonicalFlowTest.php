@@ -129,6 +129,14 @@ class StockDocumentCanonicalFlowTest extends TestCase
         return $login->json('data.access_token');
     }
 
+    private function submitAndApproveDocument(string $endpoint, string $docId, array $headers): void
+    {
+        $this->postJson("{$endpoint}/{$docId}/submit", [], $headers)->assertOk()
+            ->assertJsonPath('data.status', StockDocument::STATUS_PENDING);
+        $this->postJson("{$endpoint}/{$docId}/approve", [], $headers)->assertOk()
+            ->assertJsonPath('data.status', StockDocument::STATUS_APPROVED);
+    }
+
     // ========================================
     // BE1-P1-05: Happy Path Tests
     // ========================================
@@ -139,7 +147,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
     public function test_complete_inbound_flow(): void
     {
         $this->seedRoleWithPermissions('INBOUND_USER', [
-            'stock_document.view', 'stock_document.create', 'stock_document.post',
+            'stock_document.view', 'stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post',
         ]);
         $user = $this->createUser('inbound_user', 'INBOUND_USER');
         $token = $this->getToken('inbound_user');
@@ -160,10 +168,12 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $createResponse->assertStatus(201)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'DRAFT');
+            ->assertJsonPath('data.status', StockDocument::STATUS_DRAFT);
 
         $docId = $createResponse->json('data.id');
         $lineId = $createResponse->json('data.lines.0.id');
+
+        $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
         // Step 2: Scan partial post
         $scanResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
@@ -176,17 +186,20 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $scanResponse->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'PARTIALLY_POSTED');
+            ->assertJsonPath('data.status', StockDocument::STATUS_PARTIALLY_POSTED);
 
-        // Step 3: Post receipt full
-        $postResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
+        // Step 3: Scan remaining quantity and complete the receipt
+        $postResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
+            'line_id' => $lineId,
+            'qty' => 5,
+        ], [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => 'test-inbound-post-001',
         ]);
 
         $postResponse->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'POSTED');
+            ->assertJsonPath('data.status', StockDocument::STATUS_RECEIVED);
 
         // Verify inventory balance increased
         $balance = InventoryBalance::where('product_id', $product->id)
@@ -206,7 +219,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
     public function test_complete_outbound_flow(): void
     {
         $this->seedRoleWithPermissions('OUTBOUND_USER', [
-            'stock_document.view', 'stock_document.create', 'stock_document.post',
+            'stock_document.view', 'stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post',
         ]);
         $user = $this->createUser('outbound_user', 'OUTBOUND_USER');
         $token = $this->getToken('outbound_user');
@@ -230,10 +243,12 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $createResponse->assertStatus(201)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'DRAFT');
+            ->assertJsonPath('data.status', StockDocument::STATUS_DRAFT);
 
         $docId = $createResponse->json('data.id');
         $lineId = $createResponse->json('data.lines.0.id');
+
+        $this->submitAndApproveDocument('/api/v1/outbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
         // Step 2: Scan partial post
         $scanResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/scan", [
@@ -246,17 +261,20 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $scanResponse->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'PARTIALLY_POSTED');
+            ->assertJsonPath('data.status', StockDocument::STATUS_PARTIALLY_POSTED);
 
-        // Step 3: Post issue full
-        $postResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/post-issue", [], [
+        // Step 3: Scan remaining quantity and complete the issue
+        $postResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/scan", [
+            'line_id' => $lineId,
+            'qty' => 5,
+        ], [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => 'test-outbound-post-001',
         ]);
 
         $postResponse->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'POSTED');
+            ->assertJsonPath('data.status', StockDocument::STATUS_ISSUED);
 
         // Verify inventory balance decreased
         $balance = InventoryBalance::where('product_id', $product->id)
@@ -276,7 +294,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
     public function test_outbound_insufficient_stock(): void
     {
         $this->seedRoleWithPermissions('OUTBOUND_USER', [
-            'stock_document.view', 'stock_document.create', 'stock_document.post',
+            'stock_document.view', 'stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post',
         ]);
         $user = $this->createUser('outbound_user2', 'OUTBOUND_USER');
         $token = $this->getToken('outbound_user2');
@@ -298,10 +316,13 @@ class StockDocumentCanonicalFlowTest extends TestCase
         $createResponse->assertStatus(201);
         $docId = $createResponse->json('data.id');
 
-        // Try to post issue - should fail with INSUFFICIENT_STOCK
-        $postResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/post-issue", [], [
+        $this->postJson("/api/v1/outbound-documents/{$docId}/submit", [], [
             'Authorization' => "Bearer {$token}",
-            'Idempotency-Key' => 'test-outbound-insufficient-001',
+        ])->assertOk();
+
+        // Outbound stock is prechecked at approval before any real stock movement is allowed.
+        $postResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/approve", [], [
+            'Authorization' => "Bearer {$token}",
         ]);
 
         $postResponse->assertStatus(422)
@@ -313,7 +334,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
      */
     public function test_missing_idempotency_key(): void
     {
-        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.post']);
+        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post']);
         $user = $this->createUser('scan_user', 'SCAN_USER');
         $token = $this->getToken('scan_user');
 
@@ -331,6 +352,8 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $docId = $createResponse->json('data.id');
         $lineId = $createResponse->json('data.lines.0.id');
+
+        $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
         // Try to scan without idempotency key
         $scanResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
@@ -351,7 +374,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
      */
     public function test_idempotency_same_key_same_payload(): void
     {
-        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.post']);
+        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post']);
         $user = $this->createUser('scan_user_idem', 'SCAN_USER');
         $token = $this->getToken('scan_user_idem');
 
@@ -369,6 +392,8 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $docId = $createResponse->json('data.id');
         $lineId = $createResponse->json('data.lines.0.id');
+
+        $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
         $payload = ['line_id' => $lineId, 'qty' => 5];
         $idemKey = 'test-idem-same-payload';
@@ -396,7 +421,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
      */
     public function test_idempotency_same_key_different_payload(): void
     {
-        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.post']);
+        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post']);
         $user = $this->createUser('scan_user_idem2', 'SCAN_USER');
         $token = $this->getToken('scan_user_idem2');
 
@@ -414,6 +439,8 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $docId = $createResponse->json('data.id');
         $lineId = $createResponse->json('data.lines.0.id');
+
+        $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
         $idemKey = 'test-idem-diff-payload';
 
@@ -498,7 +525,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
      */
     public function test_post_creates_correct_movements_and_balance(): void
     {
-        $this->seedRoleWithPermissions('KEEPER', ['stock_document.post']);
+        $this->seedRoleWithPermissions('KEEPER', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post']);
         $user = $this->createUser('keeper_reconcile', 'KEEPER');
         $token = $this->getToken('keeper_reconcile');
 
@@ -517,6 +544,8 @@ class StockDocumentCanonicalFlowTest extends TestCase
         ], ['Authorization' => "Bearer {$token}"]);
 
         $docId = $createResponse->json('data.id');
+
+        $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
         $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
             'Authorization' => "Bearer {$token}",
@@ -549,7 +578,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
      */
     public function test_cannot_cancel_posted_document(): void
     {
-        $this->seedRoleWithPermissions('KEEPER_CANCEL', ['stock_document.cancel']);
+        $this->seedRoleWithPermissions('KEEPER_CANCEL', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post', 'stock_document.cancel']);
         $user = $this->createUser('keeper_cancel', 'KEEPER_CANCEL');
         $token = $this->getToken('keeper_cancel');
 
@@ -567,6 +596,8 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $docId = $createResponse->json('data.id');
 
+        $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
+
         // Post receipt
         $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
             'Authorization' => "Bearer {$token}",
@@ -578,7 +609,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'reason' => 'Test cancel',
         ], ['Authorization' => "Bearer {$token}"]);
 
-        $cancelResponse->assertStatus(422)
+        $cancelResponse->assertStatus(409)
             ->assertJsonPath('error_code', 'STATE_CONFLICT');
     }
 
@@ -587,7 +618,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
      */
     public function test_reverse_creates_opposite_movements(): void
     {
-        $this->seedRoleWithPermissions('KEEPER_REVERSE', ['stock_document.reverse']);
+        $this->seedRoleWithPermissions('KEEPER_REVERSE', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post', 'stock_document.reverse']);
         $user = $this->createUser('keeper_reverse', 'KEEPER_REVERSE');
         $token = $this->getToken('keeper_reverse');
 
@@ -606,6 +637,8 @@ class StockDocumentCanonicalFlowTest extends TestCase
         ], ['Authorization' => "Bearer {$token}"]);
 
         $docId = $createResponse->json('data.id');
+
+        $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
         $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
             'Authorization' => "Bearer {$token}",
@@ -627,7 +660,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
         ]);
 
         $reverseResponse->assertStatus(200)
-            ->assertJsonPath('data.status', 'REVERSED');
+            ->assertJsonPath('data.status', StockDocument::STATUS_REVERSED);
 
         // Verify balance after reverse
         $balanceAfterReverse = InventoryBalance::where('product_id', $product->id)

@@ -204,22 +204,6 @@ class WmsContractController extends Controller
         return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
-    #[OA\Get(
-        path: '/api/v1/document-status-history',
-        operationId: 'wms_document_status_history',
-        summary: 'List stock document status history',
-        security: [['bearerAuth' => []]],
-        tags: ['07. Inventory'],
-        parameters: [
-            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
-            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Paginated document status history'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing stock_document.view permission'),
-        ]
-    )]
     public function documentStatusHistory(Request $request)
     {
         $query = DB::table('document_status_history as h')
@@ -230,18 +214,6 @@ class WmsContractController extends Controller
         return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
-    #[OA\Get(
-        path: '/api/v1/inventory-snapshots',
-        operationId: 'wms_inventory_snapshots',
-        summary: 'Inventory data health snapshot',
-        security: [['bearerAuth' => []]],
-        tags: ['07. Inventory'],
-        responses: [
-            new OA\Response(response: 200, description: 'Inventory snapshot summary'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing inventory.view permission'),
-        ]
-    )]
     public function inventorySnapshots(Request $request)
     {
         $openIncidents = DB::table('reconciliation_incident')->where('status', 'OPEN')->count();
