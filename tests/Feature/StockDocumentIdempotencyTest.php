@@ -216,8 +216,8 @@ class StockDocumentIdempotencyTest extends TestCase
         $response->assertStatus(422)->assertJsonPath('error.code', 'INSUFFICIENT_STOCK');
     }
 
-    /** Scan từng phần: 2 lần scan cộng dồn đủ qty_planned -> tự động chuyển received. */
-    public function test_scan_partial_receipt_completes_when_fully_scanned(): void
+    /** Scan chứng từ chỉ validate/classify: stock_effect=NONE, không đổi tồn, không tạo posting_event. */
+    public function test_scan_receipt_validates_without_stock_effect(): void
     {
         $headers = $this->authHeaders();
 
@@ -236,21 +236,26 @@ class StockDocumentIdempotencyTest extends TestCase
 
         $firstScan = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
             'line_id' => $lineId, 'qty' => 4,
-        ], $headers + ['Idempotency-Key' => 'scan-1']);
-        $firstScan->assertOk()->assertJsonPath('data.status', 'partially_posted');
+        ], $headers);
+        $firstScan->assertOk()
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false);
 
         $secondScan = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
             'line_id' => $lineId, 'qty' => 6,
-        ], $headers + ['Idempotency-Key' => 'scan-2']);
-        $secondScan->assertOk()->assertJsonPath('data.status', 'received');
+        ], $headers);
+        $secondScan->assertOk()
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('data.stock_effect', 'NONE');
 
         $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
-        $this->assertEquals(10, (float) $balance->available_qty);
-        $this->assertSame(1, DB::table('posting_event')->where('operation', "scan_stock_document_{$docId}_{$lineId}")->where('idempotency_key', 'scan-1')->count());
-        $this->assertSame(1, DB::table('posting_event')->where('operation', "scan_stock_document_{$docId}_{$lineId}")->where('idempotency_key', 'scan-2')->count());
+        $this->assertNull($balance);
+        $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
+        $this->assertSame(0, DB::table('posting_event')->where('operation', "scan_stock_document_{$docId}_{$lineId}")->count());
     }
 
-    /** Đóng phần còn thiếu: scan 6/10 rồi close-remainder -> closed, dòng đánh dấu shortage. */
+    /** Đóng phần còn thiếu: approved chưa post -> closed, dòng đánh dấu shortage và không đổi tồn. */
     public function test_close_remainder_marks_shortage_on_unfulfilled_qty(): void
     {
         $headers = $this->authHeaders();
@@ -263,13 +268,9 @@ class StockDocumentIdempotencyTest extends TestCase
             'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
         ], $headers + ['Idempotency-Key' => 'create-close']);
         $docId = $createResponse->json('data.id');
-        $lineId = $createResponse->json('data.lines.0.id');
 
         $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk();
         $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk();
-        $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
-            'line_id' => $lineId, 'qty' => 6,
-        ], $headers + ['Idempotency-Key' => 'scan-close-1'])->assertOk();
 
         $closeResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/close-remainder", [
             'reason' => 'Nhà cung cấp thiếu hàng',
@@ -277,6 +278,7 @@ class StockDocumentIdempotencyTest extends TestCase
 
         $closeResponse->assertOk()->assertJsonPath('data.status', 'closed');
         $this->assertSame('shortage', $closeResponse->json('data.lines.0.completion_type'));
+        $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
     }
 
     /** Đảo ngược phiếu đã hạch toán: tồn quay lại đúng như trước khi post. */
@@ -377,19 +379,18 @@ class StockDocumentIdempotencyTest extends TestCase
             'dst_warehouse_id' => $warehouse->id, 'lines' => [['product_id' => $product->id, 'qty_planned' => 10]],
         ], $headers + ['Idempotency-Key' => 'create-dash']);
         $docId = $createResponse->json('data.id');
-        $lineId = $createResponse->json('data.lines.0.id');
 
         $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk();
         $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk();
         $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
-            'line_id' => $lineId, 'qty' => 4,
-        ], $headers + ['Idempotency-Key' => 'scan-dash-1'])->assertOk()->assertJsonPath('data.status', 'partially_posted');
+            'line_id' => $createResponse->json('data.lines.0.id'), 'qty' => 4,
+        ], $headers)->assertOk()->assertJsonPath('data.stock_effect', 'NONE');
 
         $response = $this->getJson('/api/v1/reports/dashboard-quick?from_date=2026-07-01&to_date=2026-07-31', $headers);
 
         $response->assertOk()
-            ->assertJsonPath('data.receipt_qty', 4)
-            ->assertJsonPath('data.documents_partial.inbound', 1)
+            ->assertJsonPath('data.receipt_qty', 0)
+            ->assertJsonPath('data.documents_partial.inbound', 0)
             ->assertJsonPath('data.documents_partial.outbound', 0)
             ->assertJsonStructure(['data' => ['warranty_cases_by_status', 'reconciliation_warnings']]);
     }

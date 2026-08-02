@@ -142,12 +142,12 @@ class StockDocumentCanonicalFlowTest extends TestCase
     // ========================================
 
     /**
-     * Test complete inbound flow: create -> scan -> post-receipt
+     * Test complete inbound flow: create -> scan validate -> post-receipt
      */
     public function test_complete_inbound_flow(): void
     {
         $this->seedRoleWithPermissions('INBOUND_USER', [
-            'stock_document.view', 'stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post',
+            'stock_document.view', 'stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.scan', 'stock_document.post',
         ]);
         $user = $this->createUser('inbound_user', 'INBOUND_USER');
         $token = $this->getToken('inbound_user');
@@ -175,24 +175,22 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
-        // Step 2: Scan partial post
+        // Step 2: Scan validates the line only, without stock effect.
         $scanResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
             'line_id' => $lineId,
             'qty' => 5,
-        ], [
-            'Authorization' => "Bearer {$token}",
-            'Idempotency-Key' => 'test-inbound-scan-001',
-        ]);
+        ], ['Authorization' => "Bearer {$token}"]);
 
         $scanResponse->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', StockDocument::STATUS_PARTIALLY_POSTED);
+            ->assertJsonPath('data.status', StockDocument::STATUS_APPROVED)
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false);
 
-        // Step 3: Scan remaining quantity and complete the receipt
-        $postResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
-            'line_id' => $lineId,
-            'qty' => 5,
-        ], [
+        $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
+
+        // Step 3: Post receipt is the only stock-changing inbound action.
+        $postResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => 'test-inbound-post-001',
         ]);
@@ -210,16 +208,16 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         // Verify movements created
         $movements = StockMovement::where('stock_document_id', $docId)->count();
-        $this->assertEquals(2, $movements); // 1 scan + 1 post
+        $this->assertEquals(1, $movements);
     }
 
     /**
-     * Test complete outbound flow: create -> scan -> post-issue
+     * Test complete outbound flow: create -> scan validate -> post-issue
      */
     public function test_complete_outbound_flow(): void
     {
         $this->seedRoleWithPermissions('OUTBOUND_USER', [
-            'stock_document.view', 'stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post',
+            'stock_document.view', 'stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.scan', 'stock_document.post',
         ]);
         $user = $this->createUser('outbound_user', 'OUTBOUND_USER');
         $token = $this->getToken('outbound_user');
@@ -250,24 +248,22 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $this->submitAndApproveDocument('/api/v1/outbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
-        // Step 2: Scan partial post
+        // Step 2: Scan validates the line only, without stock effect.
         $scanResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/scan", [
             'line_id' => $lineId,
             'qty' => 5,
-        ], [
-            'Authorization' => "Bearer {$token}",
-            'Idempotency-Key' => 'test-outbound-scan-001',
-        ]);
+        ], ['Authorization' => "Bearer {$token}"]);
 
         $scanResponse->assertStatus(200)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', StockDocument::STATUS_PARTIALLY_POSTED);
+            ->assertJsonPath('data.status', StockDocument::STATUS_APPROVED)
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false);
 
-        // Step 3: Scan remaining quantity and complete the issue
-        $postResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/scan", [
-            'line_id' => $lineId,
-            'qty' => 5,
-        ], [
+        $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
+
+        // Step 3: Post issue is the only stock-changing outbound action.
+        $postResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/post-issue", [], [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => 'test-outbound-post-001',
         ]);
@@ -330,11 +326,11 @@ class StockDocumentCanonicalFlowTest extends TestCase
     }
 
     /**
-     * Test missing idempotency key
+     * Test post action requires idempotency key, while scan itself is stock_effect=NONE.
      */
     public function test_missing_idempotency_key(): void
     {
-        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.post']);
+        $this->seedRoleWithPermissions('SCAN_USER', ['stock_document.create', 'stock_document.submit', 'stock_document.approve', 'stock_document.scan', 'stock_document.post']);
         $user = $this->createUser('scan_user', 'SCAN_USER');
         $token = $this->getToken('scan_user');
 
@@ -355,13 +351,24 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
-        // Try to scan without idempotency key
+        $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
+            'line_id' => $lineId,
+            'qty' => 5,
+        ], ['Authorization' => "Bearer {$token}"])
+            ->assertOk()
+            ->assertJsonPath('data.stock_effect', 'NONE');
+
+        // Try to post without idempotency key
         $scanResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
             'line_id' => $lineId,
             'qty' => 5,
         ], ['Authorization' => "Bearer {$token}"]);
 
-        $scanResponse->assertStatus(428)
+        $postResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
+            'Authorization' => "Bearer {$token}",
+        ]);
+
+        $postResponse->assertStatus(428)
             ->assertJsonPath('error_code', 'PRECONDITION_REQUIRED');
     }
 
@@ -395,11 +402,11 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $this->submitAndApproveDocument('/api/v1/inbound-documents', $docId, ['Authorization' => "Bearer {$token}"]);
 
-        $payload = ['line_id' => $lineId, 'qty' => 5];
+        $payload = [];
         $idemKey = 'test-idem-same-payload';
 
         // First request
-        $response1 = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", $payload, [
+        $response1 = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", $payload, [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => $idemKey,
         ]);
@@ -407,7 +414,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
         $response1->assertStatus(200);
 
         // Second request with same key and payload - should return cached response
-        $response2 = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", $payload, [
+        $response2 = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", $payload, [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => $idemKey,
         ]);
@@ -445,18 +452,14 @@ class StockDocumentCanonicalFlowTest extends TestCase
         $idemKey = 'test-idem-diff-payload';
 
         // First request
-        $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
-            'line_id' => $lineId,
-            'qty' => 5,
-        ], [
+        $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => $idemKey,
         ])->assertStatus(200);
 
         // Second request with same key but different payload
-        $response2 = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
-            'line_id' => $lineId,
-            'qty' => 3, // Different qty
+        $response2 = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [
+            'reason' => 'different payload',
         ], [
             'Authorization' => "Bearer {$token}",
             'Idempotency-Key' => $idemKey,

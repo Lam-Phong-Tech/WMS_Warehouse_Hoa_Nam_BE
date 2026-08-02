@@ -27,7 +27,8 @@ class AuthDatabaseSeeder extends Seeder
         ['stock_document.create', 'Tạo phiếu kho'],
         ['stock_document.submit', 'Gửi duyệt phiếu kho'],
         ['stock_document.approve', 'Duyệt/từ chối phiếu kho'],
-        ['stock_document.post', 'Hạch toán phiếu kho (post-receipt/post-issue/scan/close-remainder)'],
+        ['stock_document.post', 'Hạch toán phiếu kho (post-receipt/post-issue/close-remainder)'],
+        ['stock_document.scan', 'Validate scan trên phiếu kho, không đổi tồn'],
         ['stock_document.cancel', 'Huỷ phiếu kho'],
         ['stock_document.reverse', 'Đảo ngược (reverse/correction) phiếu kho đã hạch toán'],
         ['safe_stock.view', 'Xem định mức/cảnh báo tồn kho an toàn'],
@@ -35,6 +36,7 @@ class AuthDatabaseSeeder extends Seeder
         ['inventory.view', 'Xem tồn kho hiện tại và lịch sử biến động (stock-movements)'],
         ['stocktake.adjust', 'Áp dụng điều chỉnh kiểm kê (apply-adjustment)'],
         ['warranty.temp_only', 'Bảo hành nhận tạm (TEMP_ONLY)'],
+        ['scan.classify', 'Phân loại/validate mã scan, không đổi tồn'],
         ['report.view', 'Xem báo cáo tồn kho'],
         ['audit_log.view', 'Xem nhật ký audit'],
         ['stock_request.view', 'Xem yêu cầu xuất/nhập/điều chuyển kho'],
@@ -73,7 +75,7 @@ class AuthDatabaseSeeder extends Seeder
             'name' => 'Thủ kho (hạch toán)',
             'permissions' => [
                 'warehouse.view', 'product.view',
-                'stock_document.view', 'stock_document.post', 'stock_document.cancel', 'stock_document.reverse',
+                'stock_document.view', 'stock_document.post', 'stock_document.scan', 'stock_document.cancel', 'stock_document.reverse',
                 'safe_stock.view', 'safe_stock.manage', 'inventory.view', 'report.view',
             ],
         ],
@@ -89,10 +91,11 @@ class AuthDatabaseSeeder extends Seeder
             'permissions' => [
                 'warehouse.view', 'warehouse.manage', 'product.view', 'product.manage',
                 'stock_document.view', 'stock_document.create', 'stock_document.submit',
-                'stock_document.approve', 'stock_document.post', 'stock_document.cancel', 'stock_document.reverse',
+                'stock_document.approve', 'stock_document.post', 'stock_document.scan', 'stock_document.cancel', 'stock_document.reverse',
                 'safe_stock.view', 'safe_stock.manage', 'inventory.view', 'report.view', 'audit_log.view',
                 'stock_request.view', 'stock_request.create', 'stock_request.submit', 'stock_request.approve',
                 'transfer.view', 'transfer.create', 'transfer.submit', 'transfer.approve', 'transfer.post',
+                'stocktake.adjust', 'warranty.temp_only', 'scan.classify',
             ],
         ],
         // Test users for authorization testing
@@ -151,6 +154,7 @@ class AuthDatabaseSeeder extends Seeder
             ['role_code' => 'SUPER_ADMIN'],
             ['role_name' => 'Quản trị hệ thống', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
         );
+        $roleModels = ['SUPER_ADMIN' => $superAdminRole];
 
         $adminUser = User::updateOrCreate(
             ['username' => 'admin'],
@@ -164,7 +168,6 @@ class AuthDatabaseSeeder extends Seeder
         );
         $this->attachRole($adminUser, $superAdminRole);
 
-        $roleModels = [];
         foreach (self::ROLES as $code => $def) {
             $role = Role::firstOrCreate(
                 ['role_code' => $code],

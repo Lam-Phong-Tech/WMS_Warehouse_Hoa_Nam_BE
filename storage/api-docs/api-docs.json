@@ -623,7 +623,7 @@
                     "09. Stock In (Inbound)"
                 ],
                 "summary": "Tạo phiếu nhập kho (trạng thái draft)",
-                "description": "Phiếu ở trạng thái draft chưa ảnh hưởng tồn kho. Header Idempotency-Key là tuỳ chọn ở action này (chỉ bắt buộc ở post-receipt/scan/reverse vì các action đó đổi tồn thật) — nếu có gửi, gọi lại đúng key sẽ trả về đúng chứng từ đã tạo thay vì tạo bản ghi mới.",
+                "description": "Phiếu ở trạng thái draft chưa ảnh hưởng tồn kho. Header Idempotency-Key là tuỳ chọn ở action này (chỉ bắt buộc ở post-receipt/reverse vì các action đó đổi tồn thật) — nếu có gửi, gọi lại đúng key sẽ trả về đúng chứng từ đã tạo thay vì tạo bản ghi mới.",
                 "operationId": "stock_in_create",
                 "parameters": [
                     {
@@ -1090,8 +1090,8 @@
                 "tags": [
                     "09. Stock In (Inbound)"
                 ],
-                "summary": "Ghi nhận nhập kho từng phần theo dòng (scan từng line qty)",
-                "description": "Cho phép hạch toán từng phần (partially_posted) trước khi đủ toàn bộ số lượng kế hoạch. Đổi tồn thật, bắt buộc header Idempotency-Key.",
+                "summary": "Validate scan dòng phiếu nhập kho (stock_effect=NONE)",
+                "description": "Validate line_id/qty trên phiếu approved để FE xác nhận mã/dòng trước khi post-receipt. Không ghi stock_movements, không đổi inventory_balances, không đổi trạng thái chứng từ.",
                 "operationId": "stock_in_scan",
                 "parameters": [
                     {
@@ -1101,14 +1101,6 @@
                         "schema": {
                             "type": "string",
                             "format": "uuid"
-                        }
-                    },
-                    {
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
                         }
                     }
                 ],
@@ -1139,25 +1131,19 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Ghi nhận scan thành công"
+                        "description": "Validate scan thành công, stock_effect=NONE"
                     },
                     "401": {
                         "description": "Chưa xác thực"
                     },
                     "403": {
-                        "description": "Không có quyền stock_document.post"
+                        "description": "Không có quyền stock_document.scan"
                     },
                     "404": {
                         "description": "Không tìm thấy chứng từ hoặc dòng"
                     },
-                    "409": {
-                        "description": "Idempotency-Key đã dùng với payload khác hoặc xung đột optimistic lock"
-                    },
                     "422": {
                         "description": "Sai trạng thái hiện tại hoặc qty vượt số lượng kế hoạch còn lại"
-                    },
-                    "428": {
-                        "description": "Thiếu header Idempotency-Key"
                     }
                 },
                 "security": [
@@ -1655,7 +1641,7 @@
                     "10. Stock Out (Outbound)"
                 ],
                 "summary": "Tạo phiếu xuất kho (trạng thái draft)",
-                "description": "Phiếu ở trạng thái draft chưa ảnh hưởng tồn kho. Header Idempotency-Key là tuỳ chọn ở action này (chỉ bắt buộc ở post-issue/scan/reverse vì các action đó đổi tồn thật) — nếu có gửi, gọi lại đúng key sẽ trả về đúng chứng từ đã tạo thay vì tạo bản ghi mới.",
+                "description": "Phiếu ở trạng thái draft chưa ảnh hưởng tồn kho. Header Idempotency-Key là tuỳ chọn ở action này (chỉ bắt buộc ở post-issue/reverse vì các action đó đổi tồn thật) — nếu có gửi, gọi lại đúng key sẽ trả về đúng chứng từ đã tạo thay vì tạo bản ghi mới.",
                 "operationId": "stock_out_create",
                 "parameters": [
                     {
@@ -2122,8 +2108,8 @@
                 "tags": [
                     "10. Stock Out (Outbound)"
                 ],
-                "summary": "Ghi nhận xuất kho từng phần theo dòng (scan từng line qty)",
-                "description": "Cho phép hạch toán từng phần (partially_posted) trước khi đủ toàn bộ số lượng kế hoạch. Đổi tồn thật, bắt buộc header Idempotency-Key.",
+                "summary": "Validate scan dòng phiếu xuất kho (stock_effect=NONE)",
+                "description": "Validate line_id/qty trên phiếu approved để FE xác nhận mã/dòng trước khi post-issue. Không ghi stock_movements, không đổi inventory_balances, không đổi trạng thái chứng từ.",
                 "operationId": "stock_out_scan",
                 "parameters": [
                     {
@@ -2133,14 +2119,6 @@
                         "schema": {
                             "type": "string",
                             "format": "uuid"
-                        }
-                    },
-                    {
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
                         }
                     }
                 ],
@@ -2171,25 +2149,19 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Ghi nhận scan thành công"
+                        "description": "Validate scan thành công, stock_effect=NONE"
                     },
                     "401": {
                         "description": "Chưa xác thực"
                     },
                     "403": {
-                        "description": "Không có quyền stock_document.post"
+                        "description": "Không có quyền stock_document.scan"
                     },
                     "404": {
                         "description": "Không tìm thấy chứng từ hoặc dòng"
                     },
-                    "409": {
-                        "description": "Idempotency-Key đã dùng với payload khác hoặc xung đột optimistic lock"
-                    },
                     "422": {
                         "description": "Sai trạng thái hiện tại, qty vượt kế hoạch còn lại, hoặc không đủ tồn để xuất"
-                    },
-                    "428": {
-                        "description": "Thiếu header Idempotency-Key"
                     }
                 },
                 "security": [
@@ -3271,7 +3243,7 @@
                     "11. Scan"
                 ],
                 "summary": "Phân loại mã scan (QR/Barcode/Container/Item)",
-                "description": "Nhận raw_code và context, trả về classification cùng thông tin đối tượng tương ứng. Dùng để FE xác định loại mã trước khi xử lý nghiệp vụ.",
+                "description": "Nhận raw_code và context, trả về classification cùng thông tin đối tượng tương ứng. Contract G1: scan chỉ classify/validate, stock_effect=NONE, không tạo stock movement.",
                 "operationId": "scan_classify",
                 "parameters": [
                     {
@@ -3331,7 +3303,7 @@
                         "description": "Chưa xác thực"
                     },
                     "403": {
-                        "description": "Không có quyền stock_document.post"
+                        "description": "Không có quyền scan.classify"
                     },
                     "404": {
                         "description": "Không tìm thấy mã"

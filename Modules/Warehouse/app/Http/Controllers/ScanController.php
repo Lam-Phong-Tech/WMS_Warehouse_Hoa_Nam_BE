@@ -17,7 +17,7 @@ use OpenApi\Attributes as OA;
     path: '/api/v1/scan/classify',
     operationId: 'scan_classify',
     summary: 'Phân loại mã scan (QR/Barcode/Container/Item)',
-    description: 'Nhận raw_code và context, trả về classification cùng thông tin đối tượng tương ứng. Dùng để FE xác định loại mã trước khi xử lý nghiệp vụ.',
+    description: 'Nhận raw_code và context, trả về classification cùng thông tin đối tượng tương ứng. Contract G1: scan chỉ classify/validate, stock_effect=NONE, không tạo stock movement.',
     security: [['bearerAuth' => []]],
     tags: ['11. Scan'],
     parameters: [
@@ -38,7 +38,7 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 200, description: 'Phân loại thành công'),
         new OA\Response(response: 400, description: 'Dữ liệu không hợp lệ'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.post'),
+        new OA\Response(response: 403, description: 'Không có quyền scan.classify'),
         new OA\Response(response: 404, description: 'Không tìm thấy mã'),
         new OA\Response(response: 409, description: 'Trạng thái kho/mã không hợp lệ'),
         new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key'),
@@ -91,6 +91,8 @@ class ScanController extends Controller
             'item_id' => $classification['item_id'] ?? null,
             'sku_id' => $classification['sku_id'] ?? null,
             'stock_status' => $classification['stock_status'] ?? 'AVAILABLE',
+            'stock_effect' => 'NONE',
+            'movement_created' => false,
             'current_location' => [
                 'warehouse_id' => $warehouse->id,
                 'warehouse_code' => $warehouse->code,

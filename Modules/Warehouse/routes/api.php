@@ -54,7 +54,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('inbound-documents/{id}/reject', [InboundDocumentController::class, 'reject'])->middleware('permission:stock_document.approve');
     Route::post('inbound-documents/{id}/cancel', [InboundDocumentController::class, 'cancel'])->middleware('permission:stock_document.cancel');
     Route::post('inbound-documents/{id}/post-receipt', [InboundDocumentController::class, 'postReceipt'])->middleware('permission:stock_document.post');
-    Route::post('inbound-documents/{id}/scan', [InboundDocumentController::class, 'scan'])->middleware('permission:stock_document.post');
+    Route::post('inbound-documents/{id}/scan', [InboundDocumentController::class, 'scan'])->middleware('permission:stock_document.scan');
     Route::post('inbound-documents/{id}/close-remainder', [InboundDocumentController::class, 'closeRemainder'])->middleware('permission:stock_document.post');
     Route::post('inbound-documents/{id}/reverse', [InboundDocumentController::class, 'reverse'])->middleware('permission:stock_document.reverse');
 
@@ -68,7 +68,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('outbound-documents/{id}/reject', [OutboundDocumentController::class, 'reject'])->middleware('permission:stock_document.approve');
     Route::post('outbound-documents/{id}/cancel', [OutboundDocumentController::class, 'cancel'])->middleware('permission:stock_document.cancel');
     Route::post('outbound-documents/{id}/post-issue', [OutboundDocumentController::class, 'postIssue'])->middleware('permission:stock_document.post');
-    Route::post('outbound-documents/{id}/scan', [OutboundDocumentController::class, 'scan'])->middleware('permission:stock_document.post');
+    Route::post('outbound-documents/{id}/scan', [OutboundDocumentController::class, 'scan'])->middleware('permission:stock_document.scan');
     Route::post('outbound-documents/{id}/close-remainder', [OutboundDocumentController::class, 'closeRemainder'])->middleware('permission:stock_document.post');
     Route::post('outbound-documents/{id}/reverse', [OutboundDocumentController::class, 'reverse'])->middleware('permission:stock_document.reverse');
 
@@ -88,7 +88,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('warranty/cases', [WmsContractController::class, 'warrantyCases'])->middleware('permission:inventory.view');
     Route::get('warranty/cases/{caseId}/events', [WmsContractController::class, 'warrantyEvents'])->middleware('permission:inventory.view');
     Route::post('warranty-cases/{id}/temp-only', [WarrantyController::class, 'tempOnly'])->middleware('permission:warranty.temp_only');
-    Route::post('scan/classify', [ScanController::class, 'classify'])->middleware('permission:stock_document.post');
+    Route::post('scan/classify', [ScanController::class, 'classify'])->middleware('permission:scan.classify');
     Route::get('scan/batches', [WmsContractController::class, 'scanBatches'])->middleware('permission:inventory.view');
     Route::post('scan/batches', [WmsContractController::class, 'storeScanBatch'])->middleware('permission:inventory.view');
     Route::get('scan/events', [WmsContractController::class, 'scanEvents'])->middleware('permission:inventory.view');
