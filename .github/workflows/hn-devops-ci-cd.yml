@@ -126,9 +126,10 @@ jobs:
 
       - name: Run local smoke
         run: |
+          php artisan migrate:fresh --seed --force
           php artisan serve --host="$CI_SERVER_HOST" --port="$CI_SERVER_PORT" > /tmp/laravel.log 2>&1 &
           sleep 5
-          curl --fail "$CI_APP_URL/api/health"
+          curl --fail-with-body "$CI_APP_URL/api/health"
 
       - name: Build immutable Docker artifact
         run: |
