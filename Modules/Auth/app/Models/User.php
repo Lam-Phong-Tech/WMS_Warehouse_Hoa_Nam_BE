@@ -50,10 +50,24 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             ->withPivot(['scope_ref', 'effective_from', 'effective_to']);
     }
 
+    public function activeRoles(): BelongsToMany
+    {
+        return $this->roles()
+            ->where('role.status', 'ACTIVE')
+            ->where(function ($query) {
+                $query->whereNull('user_role.effective_from')
+                    ->orWhere('user_role.effective_from', '<=', now());
+            })
+            ->where(function ($query) {
+                $query->whereNull('user_role.effective_to')
+                    ->orWhere('user_role.effective_to', '>', now());
+            });
+    }
+
     /** SUPER_ADMIN bypass mọi permission check — port từ quy ước isSuperAdmin() của ERP-Backend. */
     public function isSuperAdmin(): bool
     {
-        return $this->roles()->where('role_code', 'SUPER_ADMIN')->exists();
+        return $this->activeRoles()->where('role_code', 'SUPER_ADMIN')->exists();
     }
 
     /**
@@ -64,7 +78,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     public function permissionCodes(): array
     {
         if ($this->isSuperAdmin()) {
-            return Cache::remember("auth:user:{$this->user_id}:super-admin-permissions", 300, function () {
+            return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:super-admin-permissions", 300, function () {
                 return Permission::query()
                     ->where('status', 'ACTIVE')
                     ->orderBy('permission_key')
@@ -74,9 +88,8 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             });
         }
 
-        return Cache::remember("auth:user:{$this->user_id}:permissions", 300, function () {
-            return $this->roles()
-                ->where('role.status', 'ACTIVE')
+        return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:permissions", 300, function () {
+            return $this->activeRoles()
                 ->with(['permissions' => fn ($q) => $q->where('permission.status', 'ACTIVE')])
                 ->get()
                 ->pluck('permissions')

@@ -297,6 +297,54 @@ class SecurityRbacAuditNegativeTest extends TestCase
             ->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
 
+    /**
+     * Test inactive and out-of-window roles do not grant backend permissions.
+     */
+    public function test_backend_denies_permissions_from_inactive_expired_and_future_roles(): void
+    {
+        $this->seedRoleWithPermissions('INACTIVE_WAREHOUSE_VIEWER', ['warehouse.view'])->update(['status' => 'INACTIVE']);
+        $inactiveRoleUser = $this->createUser('inactive_role_user', 'INACTIVE_WAREHOUSE_VIEWER');
+
+        $this->getJson('/api/v1/warehouses', ['Authorization' => 'Bearer '.JWTAuth::fromUser($inactiveRoleUser)])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+
+        $this->seedRoleWithPermissions('EXPIRED_WAREHOUSE_VIEWER', ['warehouse.view']);
+        $expiredRoleUser = $this->createUser('expired_role_user', 'EXPIRED_WAREHOUSE_VIEWER', rolePivot: [
+            'effective_from' => now()->subDays(10),
+            'effective_to' => now()->subDay(),
+        ]);
+
+        $this->getJson('/api/v1/warehouses', ['Authorization' => 'Bearer '.JWTAuth::fromUser($expiredRoleUser)])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+
+        $this->seedRoleWithPermissions('FUTURE_WAREHOUSE_VIEWER', ['warehouse.view']);
+        $futureRoleUser = $this->createUser('future_role_user', 'FUTURE_WAREHOUSE_VIEWER', rolePivot: [
+            'effective_from' => now()->addDay(),
+            'effective_to' => now()->addDays(10),
+        ]);
+
+        $this->getJson('/api/v1/warehouses', ['Authorization' => 'Bearer '.JWTAuth::fromUser($futureRoleUser)])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+    }
+
+    /**
+     * Test role assignments inside the effective window grant backend permissions.
+     */
+    public function test_backend_allows_permissions_from_effective_active_role_assignment(): void
+    {
+        $this->seedRoleWithPermissions('ACTIVE_WINDOW_WAREHOUSE_VIEWER', ['warehouse.view']);
+        $user = $this->createUser('active_window_user', 'ACTIVE_WINDOW_WAREHOUSE_VIEWER', rolePivot: [
+            'effective_from' => now()->subDay(),
+            'effective_to' => now()->addDay(),
+        ]);
+
+        $this->getJson('/api/v1/warehouses', ['Authorization' => 'Bearer '.JWTAuth::fromUser($user)])
+            ->assertOk();
+    }
+
     // ========================================
     // BE1-P1-02: QA2 Role/Navigation/403 Tests
     // ========================================
@@ -500,7 +548,7 @@ class SecurityRbacAuditNegativeTest extends TestCase
         return $role;
     }
 
-    private function createUser(string $username, ?string $roleCode, string $status = 'ACTIVE'): User
+    private function createUser(string $username, ?string $roleCode, string $status = 'ACTIVE', array $rolePivot = []): User
     {
         $user = User::create([
             'username' => $username,
@@ -513,7 +561,10 @@ class SecurityRbacAuditNegativeTest extends TestCase
 
         if ($roleCode !== null) {
             $role = Role::where('role_code', $roleCode)->firstOrFail();
-            $user->roles()->attach($role->role_id, ['user_role_id' => (string) \Illuminate\Support\Str::uuid()]);
+            $user->roles()->attach($role->role_id, array_merge(
+                ['user_role_id' => (string) \Illuminate\Support\Str::uuid()],
+                $rolePivot
+            ));
         }
 
         return $user;
