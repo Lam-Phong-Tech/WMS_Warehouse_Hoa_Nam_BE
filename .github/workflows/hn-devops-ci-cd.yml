@@ -49,11 +49,11 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: ${{ env.CI_DB_DATABASE }}
-          POSTGRES_USER: ${{ env.CI_DB_USERNAME }}
-          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ vars.CI_DB_DATABASE || 'wms_hoanam' }}
+          POSTGRES_USER: ${{ vars.CI_DB_USERNAME || 'postgres' }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
         ports:
-          - ${{ env.CI_DB_PORT }}:5432
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
           --health-interval 10s
@@ -62,25 +62,25 @@ jobs:
       valkey:
         image: valkey/valkey:8-alpine
         ports:
-          - ${{ env.CI_REDIS_PORT }}:6379
+          - 6379:6379
 
     env:
       APP_ENV: testing
       APP_DEBUG: "false"
-      APP_URL: ${{ env.CI_APP_URL }}
+      APP_URL: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
       DB_CONNECTION: pgsql
-      DB_HOST: ${{ env.CI_DB_HOST }}
-      DB_PORT: ${{ env.CI_DB_PORT }}
-      DB_DATABASE: ${{ env.CI_DB_DATABASE }}
-      DB_USERNAME: ${{ env.CI_DB_USERNAME }}
-      DB_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+      DB_HOST: ${{ vars.CI_DB_HOST || '127.0.0.1' }}
+      DB_PORT: ${{ vars.CI_DB_PORT || '5432' }}
+      DB_DATABASE: ${{ vars.CI_DB_DATABASE || 'wms_hoanam' }}
+      DB_USERNAME: ${{ vars.CI_DB_USERNAME || 'postgres' }}
+      DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
       SESSION_DRIVER: redis
       REDIS_CLIENT: predis
-      REDIS_HOST: ${{ env.CI_REDIS_HOST }}
-      REDIS_PORT: ${{ env.CI_REDIS_PORT }}
-      L5_SWAGGER_CONST_HOST: ${{ env.CI_APP_URL }}
+      REDIS_HOST: ${{ vars.CI_REDIS_HOST || '127.0.0.1' }}
+      REDIS_PORT: ${{ vars.CI_REDIS_PORT || '6379' }}
+      L5_SWAGGER_CONST_HOST: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
 
     steps:
       - uses: actions/checkout@v4
