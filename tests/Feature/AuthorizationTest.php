@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Product;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -25,6 +27,7 @@ class AuthorizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(AuthDatabaseSeeder::class);
         Cache::flush();
     }
 
@@ -44,36 +47,49 @@ class AuthorizationTest extends TestCase
         $noPermissionToken = JWTAuth::fromUser($noPermission);
         $superAdminToken = JWTAuth::fromUser($superAdmin);
 
-        // 9 endpoints requiring sku.manage permission
+        $product = Product::create([
+            'code' => 'AUTH-SKU-PRODUCT',
+            'name' => 'Authorization SKU Product',
+            'unit' => 'cai',
+            'sku_type' => 'PRODUCT',
+            'is_serial_tracked' => false,
+            'status' => 'ACTIVE',
+        ]);
+
+        // Endpoints covered by the SKU/product manager role.
         $skuEndpoints = [
-            ['GET', '/api/v1/products'],
-            ['POST', '/api/v1/products'],
-            ['GET', '/api/v1/products/00000000-0000-0000-0000-000000000001'],
-            ['PATCH', '/api/v1/products/00000000-0000-0000-0000-000000000001/enable'],
-            ['PATCH', '/api/v1/products/00000000-0000-0000-0000-000000000001/disable'],
-            ['GET', '/api/v1/skus'],
-            ['POST', '/api/v1/skus'],
-            ['GET', '/api/v1/skus/00000000-0000-0000-0000-000000000001'],
+            ['GET', '/api/v1/products', [], 200],
+            ['POST', '/api/v1/products', ['code' => 'AUTH-PRODUCT-CREATE', 'name' => 'Authorization Product Create'], 201],
+            ['GET', "/api/v1/products/{$product->id}", [], 200],
+            ['PATCH', "/api/v1/products/{$product->id}/enable", [], 200],
+            ['PATCH', "/api/v1/products/{$product->id}/disable", [], 200],
+            ['GET', '/api/v1/skus', [], 200],
+            ['POST', '/api/v1/skus', ['code' => 'AUTH-SKU-CREATE', 'name' => 'Authorization SKU Create'], 201],
+            ['GET', "/api/v1/skus/{$product->id}", [], 200],
         ];
 
-        foreach ($skuEndpoints as [$method, $url]) {
+        foreach ($skuEndpoints as [$method, $url, $payload, $successStatus]) {
             // User with sku.manage should have access
-            $this->makeRequest($method, $url, $skuManagerToken)
-                ->assertStatus(200);
+            $this->makeRequest($method, $url, $skuManagerToken, $payload)
+                ->assertStatus($successStatus);
 
             // User with master.manage should be denied (doesn't have sku.manage)
-            $this->makeRequest($method, $url, $masterManagerToken)
+            $this->makeRequest($method, $url, $masterManagerToken, $payload)
                 ->assertStatus(403)
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
             // User with no permission should be denied
-            $this->makeRequest($method, $url, $noPermissionToken)
+            $this->makeRequest($method, $url, $noPermissionToken, $payload)
                 ->assertStatus(403)
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
             // Super admin should have access (bypass)
-            $this->makeRequest($method, $url, $superAdminToken)
-                ->assertStatus(200);
+            $superAdminPayload = $method === 'POST'
+                ? array_replace($payload, ['code' => $payload['code'].'-SA'])
+                : $payload;
+
+            $this->makeRequest($method, $url, $superAdminToken, $superAdminPayload)
+                ->assertStatus($successStatus);
         }
     }
 
@@ -191,14 +207,14 @@ class AuthorizationTest extends TestCase
     /**
      * Helper method to make HTTP requests
      */
-    private function makeRequest(string $method, string $url, string $token)
+    private function makeRequest(string $method, string $url, string $token, array $payload = [])
     {
         $headers = ['Authorization' => "Bearer {$token}"];
         
         return match ($method) {
             'GET' => $this->getJson($url, $headers),
-            'POST' => $this->postJson($url, [], $headers),
-            'PATCH' => $this->patchJson($url, [], $headers),
+            'POST' => $this->postJson($url, $payload, $headers),
+            'PATCH' => $this->patchJson($url, $payload, $headers),
             default => $this->call($method, $url, [], [], [], $headers),
         };
     }
@@ -213,16 +229,20 @@ class AuthorizationTest extends TestCase
             ['role_name' => $roleCode, 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
         );
 
-        $user = User::create([
-            'username' => $username,
-            'display_name' => ucwords(str_replace('-', ' ', $username)),
-            'email' => "{$username}@hoanam.com",
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('Cntt@1234'),
-            'status' => 'ACTIVE',
-            'version' => 1,
-        ]);
+        $user = User::updateOrCreate(
+            ['username' => $username],
+            [
+                'display_name' => ucwords(str_replace('-', ' ', $username)),
+                'email' => "{$username}@hoanam.com",
+                'password_hash' => \Illuminate\Support\Facades\Hash::make('Cntt@1234'),
+                'status' => 'ACTIVE',
+                'version' => 1,
+            ]
+        );
 
-        $user->roles()->attach($role->role_id, ['user_role_id' => (string) \Illuminate\Support\Str::uuid()]);
+        if (! $user->roles()->where('role.role_id', $role->role_id)->exists()) {
+            $user->roles()->attach($role->role_id, ['user_role_id' => (string) \Illuminate\Support\Str::uuid()]);
+        }
 
         return $user;
     }

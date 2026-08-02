@@ -4,8 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
-use Modules\Auth\Models\Permission;
-use Modules\Auth\Models\Role;
+use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -37,6 +36,7 @@ class SkuAuthorizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(AuthDatabaseSeeder::class);
         Cache::flush();
     }
 

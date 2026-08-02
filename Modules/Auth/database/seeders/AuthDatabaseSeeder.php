@@ -102,7 +102,7 @@ class AuthDatabaseSeeder extends Seeder
         'SKU_MANAGER' => [
             'name' => 'Quản lý SKU (test)',
             'permissions' => [
-                'sku.manage',
+                'sku.manage', 'product.view', 'product.manage',
             ],
         ],
         'MASTER_MANAGER' => [
