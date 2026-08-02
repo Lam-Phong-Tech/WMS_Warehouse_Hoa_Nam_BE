@@ -28,7 +28,39 @@ class BackendMigrationSeedHealthTest extends TestCase
 
         $this->assertDatabaseHas('role', ['role_code' => 'SUPER_ADMIN', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('permission', ['permission_key' => 'stock_document.post', 'status' => 'ACTIVE']);
+        $this->assertDatabaseHas('permission', ['permission_key' => 'stock_document.scan', 'status' => 'ACTIVE']);
+        $this->assertDatabaseHas('permission', ['permission_key' => 'scan.classify', 'status' => 'ACTIVE']);
+        $this->assertDatabaseHas('permission', ['permission_key' => 'report.view', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('permission', ['permission_key' => 'audit_log.view', 'status' => 'ACTIVE']);
+    }
+
+    public function test_seeded_permission_catalog_covers_be1_routes_and_roles(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $expected = [
+            'stock_document.post' => ['WAREHOUSE_KEEPER', 'WAREHOUSE_MANAGER'],
+            'stock_document.scan' => ['WAREHOUSE_KEEPER', 'WAREHOUSE_MANAGER'],
+            'scan.classify' => ['WAREHOUSE_MANAGER'],
+            'report.view' => ['WAREHOUSE_STAFF', 'WAREHOUSE_APPROVER', 'WAREHOUSE_KEEPER', 'VIEWER', 'WAREHOUSE_MANAGER'],
+            'stocktake.adjust' => ['WAREHOUSE_MANAGER'],
+            'warranty.temp_only' => ['WAREHOUSE_MANAGER'],
+        ];
+
+        foreach ($expected as $permissionKey => $roleCodes) {
+            $this->assertDatabaseHas('permission', ['permission_key' => $permissionKey, 'status' => 'ACTIVE']);
+
+            foreach ($roleCodes as $roleCode) {
+                $exists = DB::table('role_permission as rp')
+                    ->join('role as r', 'r.role_id', '=', 'rp.role_id')
+                    ->join('permission as p', 'p.permission_id', '=', 'rp.permission_id')
+                    ->where('r.role_code', $roleCode)
+                    ->where('p.permission_key', $permissionKey)
+                    ->exists();
+
+                $this->assertTrue($exists, "{$roleCode} must include {$permissionKey}");
+            }
+        }
     }
 
     public function test_health_endpoint_reports_app_database_migration_and_seed_status_without_auth(): void

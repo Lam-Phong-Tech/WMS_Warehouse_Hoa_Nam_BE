@@ -236,7 +236,7 @@ class StockDocumentIdempotencyTest extends TestCase
 
         $firstScan = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
             'line_id' => $lineId, 'qty' => 4,
-        ], $headers);
+        ], $headers + ['Idempotency-Key' => 'scan-header-must-be-ignored']);
         $firstScan->assertOk()
             ->assertJsonPath('data.status', 'approved')
             ->assertJsonPath('data.stock_effect', 'NONE')
@@ -264,6 +264,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $this->assertNull($balance);
         $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
         $this->assertSame(0, DB::table('posting_event')->where('operation', "scan_stock_document_{$docId}_{$lineId}")->count());
+        $this->assertSame(0, DB::table('idempotency_keys')->where('idempotency_key', 'scan-header-must-be-ignored')->count());
     }
 
     /** Đóng phần còn thiếu: approved chưa post -> closed, dòng đánh dấu shortage và không đổi tồn. */
