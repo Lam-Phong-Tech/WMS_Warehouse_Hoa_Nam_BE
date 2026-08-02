@@ -200,7 +200,7 @@ class StockDocumentService
     }
 
     /**
-     * Validate scan theo dòng. Contract G1 khóa scan là classify/validate only:
+     * Validate scan theo dòng và ghi nhận scanned state trên line. Contract G1 khóa scan là classify/validate only:
      * stock_effect=NONE, không ghi stock_movements, không đổi inventory_balances, không đổi trạng thái chứng từ.
      */
     public function validateScanLine(StockDocument $doc, string $lineId, string $qty): array
@@ -213,8 +213,12 @@ class StockDocumentService
             if (bccomp($qty, '0', 3) <= 0) {
                 WarehouseException::invalidStatus('Số lượng scan phải lớn hơn 0.');
             }
-            if (bccomp($qty, (string) $line->qty_planned, 3) > 0) {
-                WarehouseException::invalidStatus("Số lượng scan không được vượt quá số lượng kế hoạch (dòng {$line->line_no}).");
+            $scannedBefore = (string) $line->scanned_qty;
+            $scannedAfter = bcadd($scannedBefore, $qty, 3);
+            $remainingBefore = bcsub((string) $line->qty_planned, $scannedBefore, 3);
+
+            if (bccomp($qty, $remainingBefore, 3) > 0) {
+                WarehouseException::invalidStatus("Số lượng scan không được vượt quá phần còn lại của dòng {$line->line_no}.");
             }
 
             if ($doc->doc_type === StockDocument::TYPE_RECEIPT) {
@@ -230,6 +234,8 @@ class StockDocumentService
                 }
             }
 
+            $line->update(['scanned_qty' => $scannedAfter]);
+
             return [
                 'document_id' => $doc->id,
                 'line_id' => $line->id,
@@ -238,6 +244,9 @@ class StockDocumentService
                 'product_id' => $line->product_id,
                 'qty' => (float) $qty,
                 'qty_planned' => (float) $line->qty_planned,
+                'scanned_qty_before' => (float) $scannedBefore,
+                'scanned_qty_after' => (float) $scannedAfter,
+                'remaining_qty' => (float) bcsub((string) $line->qty_planned, $scannedAfter, 3),
                 'stock_effect' => 'NONE',
                 'movement_created' => false,
                 'next_stock_action' => $doc->doc_type === StockDocument::TYPE_RECEIPT ? 'post-receipt' : 'post-issue',

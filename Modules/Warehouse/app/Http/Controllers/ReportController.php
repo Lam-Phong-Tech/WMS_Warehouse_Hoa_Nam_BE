@@ -140,6 +140,40 @@ class ReportController extends Controller
         ]);
     }
 
+    #[OA\Get(
+        path: '/api/v1/reports/inventory-reconciliation',
+        operationId: 'report_inventory_reconciliation',
+        summary: 'Đối soát inventory_balances với stock_movements',
+        description: 'So sánh tồn hiện tại theo inventory_balances với tổng qty_delta từ stock_movements theo warehouse_id/product_id. OPENING/ADJUST/POST/REVERSE đều là nguồn ledger hợp lệ; scan không tạo movement nên không làm đổi expected_qty.',
+        security: [['bearerAuth' => []]],
+        tags: ['12. Dashboard / Report'],
+        parameters: [
+            new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'only_mismatch', in: 'query', schema: new OA\Schema(type: 'boolean', default: false)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Kết quả đối soát tồn kho'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền report.view'),
+        ]
+    )]
+    public function inventoryReconciliation(Request $request)
+    {
+        $rows = $this->buildReconciliationRows($request);
+        $mismatches = $rows->filter(fn ($row) => $row->status === 'MISMATCH')->values();
+
+        return $this->respondSuccess([
+            'summary' => [
+                'rows_checked' => $rows->count(),
+                'mismatch_count' => $mismatches->count(),
+                'status' => $mismatches->isEmpty() ? 'PASS' : 'FAIL',
+            ],
+            'mismatches' => $mismatches,
+            'rows' => $rows,
+        ]);
+    }
+
     private function buildXntReport(Request $request): array
     {
         $request->validate([
@@ -167,5 +201,59 @@ class ReportController extends Controller
             'to_date' => $to,
             'lines' => $lines,
         ];
+    }
+
+    private function buildReconciliationRows(Request $request)
+    {
+        $balanceQuery = DB::table('inventory_balances as b')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'b.warehouse_id')
+            ->leftJoin('products as p', 'p.id', '=', 'b.product_id')
+            ->leftJoin(DB::raw('(
+                SELECT warehouse_id, product_id, SUM(qty_delta) AS ledger_qty, COUNT(*) AS movement_count
+                FROM stock_movements
+                GROUP BY warehouse_id, product_id
+            ) as ledger'), function ($join) {
+                $join->on('ledger.warehouse_id', '=', 'b.warehouse_id')
+                    ->on('ledger.product_id', '=', 'b.product_id');
+            })
+            ->selectRaw('b.warehouse_id, w.code as warehouse_code, b.product_id, p.code as product_code,
+                b.on_hand_qty as current_on_hand_qty, b.available_qty as current_available_qty,
+                COALESCE(ledger.ledger_qty, 0) as expected_qty,
+                COALESCE(ledger.movement_count, 0) as movement_count');
+
+        if ($request->filled('warehouse_id')) {
+            $balanceQuery->where('b.warehouse_id', $request->input('warehouse_id'));
+        }
+        if ($request->filled('product_id')) {
+            $balanceQuery->where('b.product_id', $request->input('product_id'));
+        }
+
+        $rows = $balanceQuery
+            ->orderBy('w.code')
+            ->orderBy('p.code')
+            ->get()
+            ->map(function ($row) {
+                $delta = bcsub((string) $row->current_on_hand_qty, (string) $row->expected_qty, 3);
+                $row->current_on_hand_qty = (float) $row->current_on_hand_qty;
+                $row->current_available_qty = (float) $row->current_available_qty;
+                $row->expected_qty = (float) $row->expected_qty;
+                $row->movement_count = (int) $row->movement_count;
+                $row->delta_qty = (float) $delta;
+                $row->status = bccomp($delta, '0', 3) === 0 ? 'MATCH' : 'MISMATCH';
+                $row->mismatch_reason = $row->status === 'MATCH'
+                    ? null
+                    : 'BALANCE_NOT_EQUAL_LEDGER_SUM';
+                $row->expected_resolution = $row->status === 'MATCH'
+                    ? null
+                    : 'Investigate missing OPENING/backfill/POST/REVERSE/ADJUST movement, then repair by approved adjustment instead of editing stock_movements.';
+
+                return $row;
+            });
+
+        if ($request->boolean('only_mismatch')) {
+            return $rows->filter(fn ($row) => $row->status === 'MISMATCH')->values();
+        }
+
+        return $rows->values();
     }
 }

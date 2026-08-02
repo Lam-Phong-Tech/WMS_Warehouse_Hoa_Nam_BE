@@ -2853,6 +2853,58 @@
                 ]
             }
         },
+        "/api/v1/reports/inventory-reconciliation": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Đối soát inventory_balances với stock_movements",
+                "description": "So sánh tồn hiện tại theo inventory_balances với tổng qty_delta từ stock_movements theo warehouse_id/product_id. OPENING/ADJUST/POST/REVERSE đều là nguồn ledger hợp lệ; scan không tạo movement nên không làm đổi expected_qty.",
+                "operationId": "report_inventory_reconciliation",
+                "parameters": [
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "only_mismatch",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Kết quả đối soát tồn kho"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền report.view"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/safe-stock-alerts": {
             "get": {
                 "tags": [

@@ -144,4 +144,5 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('reports/inventory-xnt', [ReportController::class, 'inventoryXnt'])->middleware('permission:report.view');
     Route::get('reports/inventory-xnt/export-excel', [ReportController::class, 'exportExcel'])->middleware('permission:report.view');
     Route::get('reports/dashboard-quick', [ReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
+    Route::get('reports/inventory-reconciliation', [ReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
 });

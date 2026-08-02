@@ -155,7 +155,7 @@ class PermissionAndValidationTest extends TestCase
     }
 
     /**
-     * Idempotency-Key trên store() là tuỳ chọn (chỉ bắt buộc ở post-receipt/scan/reverse vì
+     * Idempotency-Key trên store() là tuỳ chọn (chỉ bắt buộc ở post-receipt/post-issue/reverse vì
      * những action đó đổi tồn thật) — nhưng nếu client có gửi, gọi lại đúng key phải trả về
      * đúng 1 chứng từ duy nhất thay vì tạo bản ghi thứ hai.
      */

@@ -185,9 +185,12 @@ class StockDocumentCanonicalFlowTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.status', StockDocument::STATUS_APPROVED)
             ->assertJsonPath('data.stock_effect', 'NONE')
-            ->assertJsonPath('data.movement_created', false);
+            ->assertJsonPath('data.movement_created', false)
+            ->assertJsonPath('data.scanned_qty_after', 5)
+            ->assertJsonPath('data.remaining_qty', 5);
 
         $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
+        $this->assertNull(InventoryBalance::where('product_id', $product->id)->where('warehouse_id', $warehouse->id)->first());
 
         // Step 3: Post receipt is the only stock-changing inbound action.
         $postResponse = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], [
@@ -258,9 +261,15 @@ class StockDocumentCanonicalFlowTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.status', StockDocument::STATUS_APPROVED)
             ->assertJsonPath('data.stock_effect', 'NONE')
-            ->assertJsonPath('data.movement_created', false);
+            ->assertJsonPath('data.movement_created', false)
+            ->assertJsonPath('data.scanned_qty_after', 5)
+            ->assertJsonPath('data.remaining_qty', 5);
 
         $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
+        $balanceAfterScan = InventoryBalance::where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->first();
+        $this->assertEquals(100.0, (float) $balanceAfterScan->on_hand_qty);
 
         // Step 3: Post issue is the only stock-changing outbound action.
         $postResponse = $this->postJson("/api/v1/outbound-documents/{$docId}/post-issue", [], [

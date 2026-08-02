@@ -240,14 +240,25 @@ class StockDocumentIdempotencyTest extends TestCase
         $firstScan->assertOk()
             ->assertJsonPath('data.status', 'approved')
             ->assertJsonPath('data.stock_effect', 'NONE')
-            ->assertJsonPath('data.movement_created', false);
+            ->assertJsonPath('data.movement_created', false)
+            ->assertJsonPath('data.scanned_qty_before', 0)
+            ->assertJsonPath('data.scanned_qty_after', 4)
+            ->assertJsonPath('data.remaining_qty', 6);
 
         $secondScan = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
             'line_id' => $lineId, 'qty' => 6,
         ], $headers);
         $secondScan->assertOk()
             ->assertJsonPath('data.status', 'approved')
-            ->assertJsonPath('data.stock_effect', 'NONE');
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.scanned_qty_before', 4)
+            ->assertJsonPath('data.scanned_qty_after', 10)
+            ->assertJsonPath('data.remaining_qty', 0);
+
+        $overScan = $this->postJson("/api/v1/inbound-documents/{$docId}/scan", [
+            'line_id' => $lineId, 'qty' => 1,
+        ], $headers);
+        $overScan->assertStatus(409)->assertJsonPath('error.code', 'STATE_CONFLICT');
 
         $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
         $this->assertNull($balance);
@@ -365,6 +376,13 @@ class StockDocumentIdempotencyTest extends TestCase
 
         $trace = $this->getJson("/api/v1/stock-movements/{$movementId}/trace-source", $headers);
         $trace->assertOk()->assertJsonPath('data.document.id', $receipt);
+
+        $reconciliation = $this->getJson('/api/v1/reports/inventory-reconciliation?product_id='.$product->id, $headers);
+        $reconciliation->assertOk()
+            ->assertJsonPath('data.summary.status', 'PASS')
+            ->assertJsonPath('data.summary.mismatch_count', 0)
+            ->assertJsonPath('data.rows.0.status', 'MATCH')
+            ->assertJsonPath('data.rows.0.expected_qty', 7);
     }
 
     public function test_dashboard_quick_reports_period_totals_and_partial_documents(): void

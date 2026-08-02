@@ -34,21 +34,6 @@ class StockLedger
         return $this->mutate($doc->src_warehouse_id, $line->product_id, $line->qty_actual, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-', $this->businessKey(StockMovement::ISSUE_OUT, $doc->id, $line->id));
     }
 
-    /**
-     * Ghi nhận 1 lần scan (nhận/xuất từng phần) — mỗi lần gọi là 1 sự kiện độc lập nên
-     * business_key luôn khác nhau; chống retry trùng ở tầng HTTP dựa vào IdempotencyStore
-     * của controller, không dựa vào business_key ở đây.
-     */
-    public function scanReceipt(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
-    {
-        return $this->mutate($doc->dst_warehouse_id, $line->product_id, $qty, StockMovement::RECEIPT_IN, $doc, $line, $userId, '+', $this->scanKey($doc->id, $line->id));
-    }
-
-    public function scanIssue(StockDocument $doc, StockDocumentLine $line, string $qty, string $userId): ?StockMovement
-    {
-        return $this->mutate($doc->src_warehouse_id, $line->product_id, $qty, StockMovement::ISSUE_OUT, $doc, $line, $userId, '-', $this->scanKey($doc->id, $line->id));
-    }
-
     /** Xuất kho nguồn khi dispatch điều chuyển — trừ tồn khả dụng kho nguồn. */
     public function transferOut(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
     {
@@ -184,10 +169,5 @@ class StockLedger
     private function businessKey(string $movementType, string $docId, string $lineId): string
     {
         return sha1("{$movementType}|{$docId}|{$lineId}");
-    }
-
-    private function scanKey(string $docId, string $lineId): string
-    {
-        return sha1("scan|{$docId}|{$lineId}|".Str::uuid());
     }
 }
