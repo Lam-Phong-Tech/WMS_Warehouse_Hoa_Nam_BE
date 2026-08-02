@@ -17,7 +17,7 @@ return new class extends Migration
             $table->id();
             $table->string('idem_key', 100)->comment('Idempotency-Key từ client');
             $table->string('user_id', 40)->default('0')->comment('Chủ sở hữu khóa (UUID app_user.user_id), "0" = chưa xác định');
-            $table->string('operation', 80)->comment('Định danh thao tác + đối tượng, vd create_inbound_document');
+            $table->string('operation', 160)->comment('Định danh thao tác + đối tượng, vd create_inbound_document');
             $table->string('business_key', 180)->unique()->comment('sha1(operation|user_id|idem_key)');
             $table->string('request_hash', 128)->nullable()->comment('Hash request body để phát hiện xung đột payload');
             $table->string('status', 20)->default('processing')->comment('processing | done | failed');

@@ -195,7 +195,7 @@ return new class extends Migration
         if (! Schema::hasTable('posting_event')) {
             Schema::create('posting_event', function (Blueprint $table) {
                 $table->uuid('posting_event_id')->primary();
-                $table->string('operation', 80);
+                $table->string('operation', 160);
                 $table->string('idempotency_key', 100);
                 $table->string('request_hash', 128);
                 $table->string('status', 30)->default('COMMITTED')->index();
