@@ -103,7 +103,7 @@ class HealthController extends Controller
             ];
 
             return [
-                'status' => collect($markers)->every() ? 'ok' : 'fail',
+                'status' => collect($markers)->every(fn (bool $exists): bool => $exists) ? 'ok' : 'fail',
                 'markers' => $markers,
             ];
         } catch (Throwable) {

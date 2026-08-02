@@ -28,7 +28,7 @@ class StockRequestAndTransferTest extends TestCase
         $user = User::create([
             'username' => 'tester-'.Str::random(6),
             'display_name' => 'Tester',
-            'password_hash' => Hash::make('secret123'),
+            'password_hash' => Hash::make('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

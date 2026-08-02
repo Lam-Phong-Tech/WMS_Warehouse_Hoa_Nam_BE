@@ -24,7 +24,7 @@ class FoundationMasterDataEpicTest extends TestCase
 
         $login = $this->postJson('/api/v1/auth/login', [
             'username' => 'admin',
-            'password' => 'secret123',
+            'password' => 'Cntt@1234',
         ]);
 
         $login->assertOk()
@@ -173,7 +173,7 @@ class FoundationMasterDataEpicTest extends TestCase
             'username' => $username,
             'display_name' => Str::headline($username),
             'email' => "{$username}@wms-hoanam.test",
-            'password_hash' => Hash::make('secret123'),
+            'password_hash' => Hash::make('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

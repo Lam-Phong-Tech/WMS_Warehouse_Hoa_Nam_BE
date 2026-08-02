@@ -104,7 +104,7 @@ class AuthDatabaseSeeder extends Seeder
         ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@wms-hoanam.local', 'role' => 'WAREHOUSE_MANAGER'],
     ];
 
-    private const DEFAULT_PASSWORD = 'secret123';
+    private const DEFAULT_PASSWORD = 'Cntt@1234';
 
     /**
      * Seed tối thiểu để smoke test base: role SUPER_ADMIN (bypass mọi permission) + admin,

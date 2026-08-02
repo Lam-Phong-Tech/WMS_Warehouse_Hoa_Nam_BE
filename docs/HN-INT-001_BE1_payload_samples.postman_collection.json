@@ -84,7 +84,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"secret123\"\n}"
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Cntt@1234\"\n}"
         }
       }
     },

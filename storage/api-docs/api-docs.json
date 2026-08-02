@@ -8,7 +8,7 @@
     "servers": [
         {
             "url": "http://localhost:8080",
-            "description": "Local dev server (Docker)"
+            "description": "Configured API server"
         }
     ],
     "paths": {
@@ -4389,6 +4389,10 @@
         {
             "name": "10. Transfer",
             "description": "10. Transfer"
+        },
+        {
+            "name": "00. Platform",
+            "description": "00. Platform"
         }
     ]
 }
