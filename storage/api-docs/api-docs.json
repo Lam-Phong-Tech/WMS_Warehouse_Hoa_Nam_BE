@@ -3660,7 +3660,7 @@
                 "tags": [
                     "24. Item Instance"
                 ],
-                "summary": "Truy vết item: sku -> physical_code -> container (cha) -> import_batch",
+                "summary": "Truy vết item: sku -> physical_code -> container (cha) -> import_batch -> stock_movements",
                 "operationId": "item_instance_trace",
                 "parameters": [
                     {
@@ -3675,7 +3675,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Chuỗi truy vết của item"
+                        "description": "Chuỗi truy vết của item, kèm lịch sử stock_movements của sku tương ứng"
                     },
                     "401": {
                         "description": "Chưa xác thực"

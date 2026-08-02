@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
 use Tests\TestCase;
 
 class WarehouseManagementTest extends TestCase
@@ -77,5 +79,46 @@ class WarehouseManagementTest extends TestCase
         $warehouse = Warehouse::create(['code' => 'WH-NODELETE', 'name' => 'Kho không xoá được', 'status' => 'ACTIVE']);
         $this->deleteJson("/api/v1/warehouses/{$warehouse->id}", [], $headers)
             ->assertStatus(405);
+    }
+
+    public function test_repository_blocks_creating_a_second_active_warehouse(): void
+    {
+        Warehouse::create(['code' => 'WH-ONE', 'name' => 'Kho 1', 'status' => 'ACTIVE']);
+
+        $repository = app(WarehouseRepositoryInterface::class);
+
+        $this->expectException(HttpResponseException::class);
+
+        try {
+            $repository->create(['code' => 'WH-TWO', 'name' => 'Kho 2', 'status' => 'ACTIVE']);
+        } finally {
+            $this->assertDatabaseMissing('warehouses', ['code' => 'WH-TWO']);
+        }
+    }
+
+    public function test_repository_blocks_updating_another_warehouse_to_active(): void
+    {
+        Warehouse::create(['code' => 'WH-ACTIVE', 'name' => 'Kho active', 'status' => 'ACTIVE']);
+        $inactive = Warehouse::create(['code' => 'WH-INACTIVE', 'name' => 'Kho inactive', 'status' => 'INACTIVE']);
+
+        $repository = app(WarehouseRepositoryInterface::class);
+
+        $this->expectException(HttpResponseException::class);
+
+        try {
+            $repository->update($inactive->id, ['status' => 'ACTIVE']);
+        } finally {
+            $this->assertDatabaseHas('warehouses', ['code' => 'WH-INACTIVE', 'status' => 'INACTIVE']);
+        }
+    }
+
+    public function test_repository_allows_updating_the_same_active_warehouse(): void
+    {
+        $warehouse = Warehouse::create(['code' => 'WH-SELF', 'name' => 'Kho self', 'status' => 'ACTIVE']);
+
+        $repository = app(WarehouseRepositoryInterface::class);
+        $updated = $repository->update($warehouse->id, ['status' => 'ACTIVE', 'name' => 'Kho self đã sửa']);
+
+        $this->assertSame('Kho self đã sửa', $updated->name);
     }
 }

@@ -12,6 +12,8 @@ use Modules\Warehouse\Models\ImportBatch;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\StockMovement;
+use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
 class ItemInstanceTest extends TestCase
@@ -155,6 +157,37 @@ class ItemInstanceTest extends TestCase
             ->assertJsonPath('data.container.container_code', 'BOX-01')
             ->assertJsonPath('data.parent_container.container_code', 'TRAY-01')
             ->assertJsonPath('data.import_batch.import_batch_code', 'IB-TRACE');
+    }
+
+    public function test_trace_endpoint_includes_stock_movements_for_the_same_sku(): void
+    {
+        $headers = $this->authHeaders();
+        $sku = $this->nonSerialSku();
+        $item = ItemInstance::create(['sku_id' => $sku->sku_id, 'item_status' => 'IN_STOCK', 'item_condition' => 'NORMAL', 'version' => 1]);
+
+        $warehouse = Warehouse::create(['code' => 'WH-TRACE', 'name' => 'Kho trace', 'status' => 'ACTIVE']);
+        $creator = User::first();
+
+        $movement = StockMovement::create([
+            'movement_no' => 'SM-TRACE-0001',
+            'business_key' => 'SM-TRACE-KEY-0001',
+            'movement_type' => StockMovement::RECEIPT_IN,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $sku->sku_id,
+            'qty_before' => 0,
+            'qty_delta' => 10,
+            'qty_after' => 10,
+            'created_by' => $creator->user_id,
+            'occurred_at' => now(),
+            'created_at' => now(),
+        ]);
+
+        $response = $this->getJson("/api/v1/item-instances/{$item->item_id}/trace", $headers);
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data.stock_movements')
+            ->assertJsonPath('data.stock_movements.0.id', $movement->id)
+            ->assertJsonPath('data.stock_movements.0.movement_type', StockMovement::RECEIPT_IN);
     }
 
     public function test_item_instance_create_writes_audit_log(): void

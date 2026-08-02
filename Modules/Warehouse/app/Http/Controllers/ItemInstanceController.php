@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreItemInstanceRequest;
 use Modules\Warehouse\Http\Requests\UpdateItemInstanceRequest;
+use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Repositories\Contracts\ItemInstanceRepositoryInterface;
 use OpenApi\Attributes as OA;
 
@@ -191,12 +192,12 @@ class ItemInstanceController extends Controller
     #[OA\Get(
         path: '/api/v1/item-instances/{id}/trace',
         operationId: 'item_instance_trace',
-        summary: 'Truy vết item: sku -> physical_code -> container (cha) -> import_batch',
+        summary: 'Truy vết item: sku -> physical_code -> container (cha) -> import_batch -> stock_movements',
         security: [['bearerAuth' => []]],
         tags: ['24. Item Instance'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         responses: [
-            new OA\Response(response: 200, description: 'Chuỗi truy vết của item'),
+            new OA\Response(response: 200, description: 'Chuỗi truy vết của item, kèm lịch sử stock_movements của sku tương ứng'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 404, description: 'Không tìm thấy item instance'),
         ]
@@ -211,6 +212,14 @@ class ItemInstanceController extends Controller
 
         $item->load(['sku', 'physicalCode', 'container.parent', 'importBatch']);
 
+        // stock_movements ghi nhận ở granularity sku (ERD không có cột item_instance_id/
+        // physical_code_id trên bảng này), nên trace tới movement/document đi qua sku_id.
+        $movements = StockMovement::query()
+            ->where('product_id', $item->sku_id)
+            ->orderByDesc('occurred_at')
+            ->limit(50)
+            ->get(['id', 'movement_no', 'movement_type', 'warehouse_id', 'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'occurred_at']);
+
         return $this->respondSuccess([
             'item' => $item,
             'sku' => $item->sku,
@@ -218,6 +227,7 @@ class ItemInstanceController extends Controller
             'container' => $item->container,
             'parent_container' => $item->container?->parent,
             'import_batch' => $item->importBatch,
+            'stock_movements' => $movements,
         ]);
     }
 }
