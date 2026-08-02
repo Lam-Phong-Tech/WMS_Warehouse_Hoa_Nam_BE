@@ -166,6 +166,7 @@ jobs:
           host: ${{ secrets.UAT_SSH_HOST }}
           username: ${{ secrets.UAT_SSH_USER }}
           key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
           source: "artifact/*"
           target: "${{ vars.UAT_ARTIFACT_ROOT || '/tmp' }}/hn-${{ github.sha }}"
           strip_components: 1
@@ -186,6 +187,7 @@ jobs:
           host: ${{ secrets.UAT_SSH_HOST }}
           username: ${{ secrets.UAT_SSH_USER }}
           key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
           envs: RUN_UAT_SEED,RELEASE_SHA,IMAGE_NAME,IMAGE_TAR,UAT_APP_PATH,UAT_ARTIFACT_ROOT,UAT_BACKUP_DIR,UAT_DB_USERNAME,UAT_DB_DATABASE
           script: |
             set -euo pipefail
