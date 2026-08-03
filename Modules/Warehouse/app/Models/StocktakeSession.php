@@ -8,14 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class StocktakeSession extends Model
 {
     public const STATUS_DRAFT = 'DRAFT';
+
     public const STATUS_IN_PROGRESS = 'IN_PROGRESS';
+
     public const STATUS_COUNTED = 'COUNTED';
+
     public const STATUS_REVIEWED = 'REVIEWED';
+
     public const STATUS_APPLIED = 'APPLIED';
+
     public const STATUS_CLOSED = 'CLOSED';
+
     public const STATUS_CANCELLED = 'CANCELLED';
 
     protected $table = 'stocktake_session';
+
     protected $primaryKey = 'session_id';
 
     public $incrementing = false;
