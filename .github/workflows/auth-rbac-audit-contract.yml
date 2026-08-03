@@ -1,4 +1,4 @@
-name: Auth RBAC Audit Stocktake Contract Gate
+name: WWHN-150 API RBAC Stocktake Scan Evidence Gate
 
 on:
   pull_request:
@@ -10,16 +10,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: auth-rbac-stocktake-${{ github.ref }}
+  group: wwhn-150-evidence-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
 
     steps:
-      - name: Checkout current SHA
+      - name: Checkout exact commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -49,7 +49,7 @@ jobs:
           php artisan key:generate
           rm -f /tmp/wms-ci.sqlite
           touch /tmp/wms-ci.sqlite
-          echo "JWT_SECRET=ci-jwt-secret-auth-rbac-stocktake" >> .env
+          echo "JWT_SECRET=ci-jwt-secret-wwhn150" >> .env
           echo "DB_CONNECTION=sqlite" >> .env
           echo "DB_DATABASE=/tmp/wms-ci.sqlite" >> .env
           echo "CACHE_STORE=array" >> .env
@@ -57,7 +57,7 @@ jobs:
           echo "QUEUE_CONNECTION=sync" >> .env
           echo "AUDIT_WRITE_POLICY=outbox_required" >> .env
 
-      - name: PHP syntax and full formatting gate
+      - name: PHP syntax and formatting gate
         shell: bash
         run: |
           set -euo pipefail
@@ -65,18 +65,67 @@ jobs:
           git diff --check
           ./vendor/bin/pint --test app Modules tests config database routes
 
-      - name: Collect immutable API data and stocktake evidence
+      - name: Collect immutable WWHN-150 evidence
         run: bash scripts/collect-api-data-evidence.sh
 
-      - name: Lint OpenAPI contract
-        run: npx redocly lint build/evidence/api-data/openapi.json
+      - name: Lint generated and WWHN-150 OpenAPI
+        run: |
+          npx redocly lint build/evidence/api-data/openapi.json
+          npx redocly lint build/evidence/api-data/wwhn150-openapi.yaml
 
       - name: Validate evidence manifest and structured results
+        shell: bash
         run: |
+          set -euo pipefail
           test -s build/evidence/api-data/SHA256SUMS
           (cd build/evidence/api-data && sha256sum --check SHA256SUMS)
-          node -e "const fs=require('fs');for(const p of ['postman.collection.json','postman.environment.json','newman.result.json','contract-verification.json','stocktake.postman.collection.json','stocktake.postman.environment.json','stocktake-newman.result.json','stocktake-contract-verification.json','stocktake-test-cases.json','stocktake-source-register.json','db-before.json','db-after.json','build-metadata.json']){JSON.parse(fs.readFileSync('build/evidence/api-data/'+p,'utf8'));}"
-          node -e "const r=require('./build/evidence/api-data/stocktake-contract-verification.json');if(r.summary.failed!==0||r.summary.status!=='PASS')process.exit(1)"
+          node - <<'NODE'
+          const fs = require('fs');
+          const jsonFiles = [
+            'postman.collection.json',
+            'postman.environment.json',
+            'newman.result.json',
+            'contract-verification.json',
+            'stocktake.postman.collection.json',
+            'stocktake.postman.environment.json',
+            'stocktake-newman.result.json',
+            'stocktake-contract-verification.json',
+            'stocktake-test-cases.json',
+            'stocktake-source-register.json',
+            'wwhn150.postman.collection.json',
+            'wwhn150.postman.environment.json',
+            'wwhn150-newman.result.json',
+            'wwhn150-contract-verification.json',
+            'wwhn150-test-cases.json',
+            'wwhn150-source-register.json',
+            'permission-catalog.json',
+            'scan-db-before.json',
+            'scan-db-after.json',
+            'scan-readonly-comparison.json',
+            'db-before.json',
+            'db-after.json',
+            'reconciliation-report.json',
+            'build-metadata.json'
+          ];
+          for (const file of jsonFiles) {
+            JSON.parse(fs.readFileSync(`build/evidence/api-data/${file}`, 'utf8'));
+          }
+          const passFiles = [
+            'contract-verification.json',
+            'stocktake-contract-verification.json',
+            'wwhn150-contract-verification.json',
+            'scan-readonly-comparison.json',
+            'reconciliation-report.json'
+          ];
+          for (const file of passFiles) {
+            const result = JSON.parse(fs.readFileSync(`build/evidence/api-data/${file}`, 'utf8'));
+            if (result.summary?.failed !== 0 || result.summary?.status === 'FAIL') {
+              throw new Error(`${file} is not PASS`);
+            }
+          }
+          const catalog = JSON.parse(fs.readFileSync('build/evidence/api-data/permission-catalog.json', 'utf8'));
+          if (catalog.integrity?.status !== 'PASS') throw new Error('permission-catalog integrity is not PASS');
+          NODE
 
       - name: Frontend asset and baseline build
         run: |
@@ -84,11 +133,11 @@ jobs:
           npm test
           npm run build
 
-      - name: Upload immutable API data and stocktake evidence
+      - name: Upload immutable WWHN-150 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: stocktake-evidence-${{ github.sha }}
+          name: wwhn-150-evidence-${{ github.sha }}
           path: build/evidence/api-data
           if-no-files-found: error
           retention-days: 30
