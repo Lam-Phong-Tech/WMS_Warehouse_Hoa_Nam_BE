@@ -1,6 +1,19 @@
 import fs from 'node:fs';
 
-const [collectionPath, environmentPath, idempotencySourcePath, focusedOpenApiPath, outputPath] = process.argv.slice(2);
+const args = process.argv.slice(2);
+let collectionPath;
+let environmentPath;
+let idempotencySourcePath;
+let focusedOpenApiPath;
+let outputPath;
+
+if (args.length === 4) {
+  [collectionPath, environmentPath, idempotencySourcePath, outputPath] = args;
+  focusedOpenApiPath = 'docs/api-contract/WWHN-180-posting-openapi.yaml';
+} else {
+  [collectionPath, environmentPath, idempotencySourcePath, focusedOpenApiPath, outputPath] = args;
+}
+
 if (!collectionPath || !environmentPath || !idempotencySourcePath || !focusedOpenApiPath || !outputPath) {
   throw new Error('Thiếu tham số verify-wwhn180-evidence');
 }
@@ -124,6 +137,7 @@ const output = {
     request_count: requests.length,
     environment_secret_keys: environmentSecrets.map((item) => item.key),
     collection_secret_matches: collectionSecrets,
+    focused_openapi_path: focusedOpenApiPath,
     focused_openapi_paths: [
       '/api/v1/scan/classify',
       '/api/v1/inbound-documents/{id}/scan',
