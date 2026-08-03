@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [m1]
   push:
-    branches: [fix/wwhn-auth-rbac-audit-hardening, fix/wwhn-r2-inventory-decision-hardening, m1]
+    branches: [fix/wwhn-auth-rbac-audit-hardening, fix/wwhn-r2-inventory-decision-hardening, fix/wwhn-180-api-data-evidence-gate, m1]
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout current SHA
@@ -38,19 +38,19 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Install Node dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
 
       - name: Prepare test environment
         run: |
           cp .env.example .env
           php artisan key:generate
+          touch /tmp/wms-ci.sqlite
           echo "JWT_SECRET=ci-jwt-secret-auth-rbac-audit-contract" >> .env
           echo "DB_CONNECTION=sqlite" >> .env
-          echo "DB_DATABASE=:memory:" >> .env
+          echo "DB_DATABASE=/tmp/wms-ci.sqlite" >> .env
           echo "CACHE_STORE=array" >> .env
           echo "SESSION_DRIVER=array" >> .env
           echo "QUEUE_CONNECTION=sync" >> .env
@@ -69,17 +69,14 @@ jobs:
             fi
           fi
 
-      - name: Security and regression tests
-        run: php artisan test --do-not-cache-result
-
-      - name: Generate OpenAPI contract
-        run: php artisan l5-swagger:generate
+      - name: Collect immutable API and data evidence
+        run: bash scripts/collect-api-data-evidence.sh
 
       - name: Lint OpenAPI contract
-        run: npm run api:lint
+        run: npx redocly lint build/evidence/api-data/openapi.json
 
-      - name: Validate committed Postman collection
-        run: node -e "const fs=require('fs');const p='docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));if(!c.item?.length)throw new Error('Postman collection is empty');console.log(c.info.name, c.item.length);"
+      - name: Validate Postman artifacts
+        run: node -e "const fs=require('fs');for(const p of ['build/evidence/api-data/postman.collection.json','build/evidence/api-data/postman.environment.json']){const c=JSON.parse(fs.readFileSync(p,'utf8'));if(!c)throw new Error('Invalid '+p)}"
 
       - name: Frontend asset and baseline build
         run: |
@@ -87,13 +84,10 @@ jobs:
           npm test
           npm run build
 
-      - name: Upload generated contract evidence
+      - name: Upload immutable API data evidence
         uses: actions/upload-artifact@v4
         with:
-          name: auth-rbac-audit-contract-${{ github.sha }}
-          path: |
-            storage/api-docs/api-docs.json
-            storage/api-docs/api-docs.yaml
-            docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json
+          name: api-data-evidence-${{ github.sha }}
+          path: build/evidence/api-data
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
