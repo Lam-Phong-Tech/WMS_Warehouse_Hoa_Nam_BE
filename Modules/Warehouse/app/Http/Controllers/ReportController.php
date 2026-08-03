@@ -60,16 +60,22 @@ class ReportController extends Controller
             ->selectRaw('doc_type, count(*) as total')
             ->groupBy('doc_type')
             ->pluck('total', 'doc_type');
+        $reconciliationWarnings = $this->buildReconciliationRows(new Request(['only_mismatch' => true]));
 
         return $this->respondSuccess([
             'period' => ['from_date' => $from, 'to_date' => $to],
             'available_qty' => (float) InventoryBalance::where('stock_status', 'AVAILABLE')->sum('available_qty'),
             'receipt_qty' => (float) ($movementSums->receipt_qty ?? 0),
             'issue_qty' => (float) ($movementSums->issue_qty ?? 0),
+            'adjustment_in' => 0,
+            'adjustment_out' => 0,
+            'stocktake_variance' => 0,
             'documents_partial' => [
                 'inbound' => (int) ($partialCounts[StockDocument::TYPE_RECEIPT] ?? 0),
                 'outbound' => (int) ($partialCounts[StockDocument::TYPE_ISSUE] ?? 0),
             ],
+            'warranty_cases_by_status' => [],
+            'reconciliation_warnings' => $reconciliationWarnings,
         ]);
     }
 
