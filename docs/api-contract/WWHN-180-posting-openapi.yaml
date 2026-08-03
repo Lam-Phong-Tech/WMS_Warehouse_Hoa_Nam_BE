@@ -1,0 +1,87 @@
+openapi: 3.0.3
+info:
+  title: WWHN-180 Scan and Stock Posting Contract
+  version: 1.0.0
+  description: PROPOSED contract locked to an immutable commit and CI artifact. Formal Jira approval remains external.
+servers:
+  - url: http://127.0.0.1:8000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 100
+  schemas:
+    Error:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, enum: [false] }
+        error:
+          type: object
+          required: [code]
+          properties:
+            code: { type: string }
+            details: { type: array, items: {} }
+paths:
+  /api/v1/scan/classify:
+    post:
+      operationId: wwhn180ScanClassify
+      summary: Resolve a physical code without stock effect
+      security: [{ bearerAuth: [] }]
+      x-permission: scan.classify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [raw_code, context, warehouse_id]
+              properties:
+                raw_code: { type: string }
+                context: { type: string, enum: [STOCKTAKE, INBOUND, OUTBOUND, WARRANTY] }
+                warehouse_id: { type: string, format: uuid }
+      responses:
+        '200': { description: stock_effect=NONE; no balance, movement, posting_event or idempotency write }
+        '403': { description: Permission or warehouse-scope denied, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: Business context conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: Validation error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/inbound-documents/{id}/post-receipt:
+    post:
+      operationId: wwhn180PostReceipt
+      summary: Atomically post an approved receipt
+      security: [{ bearerAuth: [] }]
+      x-permission: stock_document.post
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '200': { description: Receipt committed exactly once; retries replay the same response snapshot }
+        '403': { description: Permission denied, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: State, race, or same-key/different-payload conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: Validation or business rule error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '428': { description: Missing Idempotency-Key, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/outbound-documents/{id}/post-issue:
+    post:
+      operationId: wwhn180PostIssue
+      summary: Atomically post an approved issue
+      security: [{ bearerAuth: [] }]
+      x-permission: stock_document.post
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '200': { description: Issue committed exactly once; retries replay the same response snapshot }
+        '403': { description: Permission denied, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: State, race, or same-key/different-payload conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: Insufficient stock or validation error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '428': { description: Missing Idempotency-Key, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
