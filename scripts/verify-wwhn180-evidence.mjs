@@ -75,7 +75,7 @@ const environmentSecrets = (environment.values ?? [])
   .filter((item) => /password|token|secret/i.test(String(item.key ?? '')))
   .filter((item) => String(item.value ?? '').trim() !== '');
 const collectionSecrets = JSON.stringify(collection).match(/Cntt@1234|Bearer\s+[A-Za-z0-9._-]{20,}|"password"\s*:\s*"(?!\{\{)[^"]+"/gi) ?? [];
-const workflowLiteralPasswords = workflowSource.match(/Cntt@1234|WWHN180_(?:NO_PERMISSION_)?PASSWORD:\s*(?!\$\{\{\s*secrets\.)[^\s#]+/gi) ?? [];
+const workflowLiteralPasswords = workflowSource.match(/^\s*WWHN180_(?:NO_PERMISSION_)?PASSWORD:\s*(?!\$\{\{\s*secrets\.)[^\s#]+/gim) ?? [];
 
 const permissionEntries = Array.isArray(staticPermissionCatalog.entries)
   ? staticPermissionCatalog.entries
