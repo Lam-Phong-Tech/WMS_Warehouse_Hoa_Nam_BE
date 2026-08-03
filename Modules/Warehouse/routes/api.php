@@ -13,13 +13,13 @@ use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\SafeStockAlertController;
 use Modules\Warehouse\Http\Controllers\SafeStockConfigController;
+use Modules\Warehouse\Http\Controllers\ScanController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\StockRequestController;
 use Modules\Warehouse\Http\Controllers\StocktakeController;
 use Modules\Warehouse\Http\Controllers\TransferController;
-use Modules\Warehouse\Http\Controllers\ScanController;
-use Modules\Warehouse\Http\Controllers\WarrantyController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
+use Modules\Warehouse\Http\Controllers\WarrantyController;
 use Modules\Warehouse\Http\Controllers\WmsContractController;
 
 Route::prefix('v1')->middleware('auth:api')->group(function () {
@@ -82,8 +82,19 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
 
     Route::get('putaway/tasks', [WmsContractController::class, 'putawayTasks'])->middleware('permission:inventory.view');
     Route::get('putaway/history', [WmsContractController::class, 'putawayHistory'])->middleware('permission:inventory.view');
-    Route::get('stocktake/sessions', [WmsContractController::class, 'stocktakeSessions'])->middleware('permission:inventory.view');
+
+    // Kiểm kê ba lớp. Giữ alias /stocktake/sessions cho FE cũ nhưng dùng cùng data-scope guard.
+    Route::get('stocktake/sessions', [StocktakeController::class, 'index'])->middleware('permission:inventory.view');
+    Route::get('stocktake-sessions', [StocktakeController::class, 'index'])->middleware('permission:inventory.view');
+    Route::post('stocktake-sessions', [StocktakeController::class, 'store'])->middleware('permission:stocktake.adjust');
+    Route::get('stocktake-sessions/{id}', [StocktakeController::class, 'show'])->middleware('permission:inventory.view');
+    Route::post('stocktake-sessions/{id}/start', [StocktakeController::class, 'start'])->middleware('permission:stocktake.adjust');
+    Route::post('stocktake-sessions/{id}/counts', [StocktakeController::class, 'recordCounts'])->middleware('permission:stocktake.adjust');
+    Route::post('stocktake-sessions/{id}/review', [StocktakeController::class, 'review'])->middleware('permission:stocktake.adjust');
+    Route::post('stocktake-sessions/{id}/acknowledge-movements', [StocktakeController::class, 'acknowledgeMovements'])->middleware('permission:stocktake.adjust');
+    Route::get('stocktake-sessions/{id}/variances', [StocktakeController::class, 'variances'])->middleware('permission:inventory.view');
     Route::post('stocktake-sessions/{id}/apply-adjustment', [StocktakeController::class, 'applyAdjustment'])->middleware('permission:stocktake.adjust');
+
     Route::get('reversal-documents', [WmsContractController::class, 'reversalDocuments'])->middleware('permission:stock_document.reverse');
     Route::get('warranty/cases', [WmsContractController::class, 'warrantyCases'])->middleware('permission:inventory.view');
     Route::get('warranty/cases/{caseId}/events', [WmsContractController::class, 'warrantyEvents'])->middleware('permission:inventory.view');
