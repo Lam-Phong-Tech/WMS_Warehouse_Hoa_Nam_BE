@@ -1,0 +1,101 @@
+name: WWHN-180 Scan Receipt Issue Evidence Gate
+
+on:
+  push:
+    branches: [m1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-180-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+
+      - name: Prepare deterministic environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          rm -f /tmp/wms-wwhn180.sqlite
+          touch /tmp/wms-wwhn180.sqlite
+          {
+            echo 'JWT_SECRET=ci-jwt-secret-wwhn180'
+            echo 'DB_CONNECTION=sqlite'
+            echo 'DB_DATABASE=/tmp/wms-wwhn180.sqlite'
+            echo 'CACHE_STORE=array'
+            echo 'SESSION_DRIVER=array'
+            echo 'QUEUE_CONNECTION=sync'
+            echo 'AUDIT_WRITE_POLICY=outbox_required'
+            echo 'WWHN180_EMAIL=manager01@gmail.com'
+            echo 'WWHN180_PASSWORD=Cntt@1234'
+          } >> .env
+
+      - name: Syntax and formatting gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/Support/IdempotencyStore.php
+          php -l tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+          git diff --check
+          ./vendor/bin/pint --test app/Support/IdempotencyStore.php tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+
+      - name: Collect executable evidence
+        env:
+          WWHN180_EMAIL: manager01@gmail.com
+          WWHN180_PASSWORD: Cntt@1234
+        run: bash scripts/collect-wwhn180-evidence.sh
+
+      - name: Validate OpenAPI and evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx redocly lint build/evidence/wwhn180/wwhn180-openapi.yaml
+          node -e "JSON.parse(require('fs').readFileSync('build/evidence/wwhn180/wwhn180.postman.collection.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('build/evidence/wwhn180/wwhn180.postman.environment.json','utf8'))"
+          node -e "const r=JSON.parse(require('fs').readFileSync('build/evidence/wwhn180/reconciliation-report.json','utf8')); if(r.summary?.status!=='PASS'||r.summary?.failed>0) process.exit(1)"
+          test -s build/evidence/wwhn180/route-list.raw.json
+          test -s build/evidence/wwhn180/permission-catalog.json
+          test -s build/evidence/wwhn180/newman.raw.log
+          test -s build/evidence/wwhn180/newman.result.json
+          test -s build/evidence/wwhn180/db-before.json
+          test -s build/evidence/wwhn180/db-after.json
+          test -s build/evidence/wwhn180/build-metadata.json
+          (cd build/evidence/wwhn180 && sha256sum --check SHA256SUMS)
+
+      - name: Upload immutable WWHN-180 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-180-evidence-${{ github.sha }}
+          path: build/evidence/wwhn180
+          if-no-files-found: error
+          retention-days: 30
