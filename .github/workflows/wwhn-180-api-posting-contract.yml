@@ -55,8 +55,6 @@ jobs:
             echo 'SESSION_DRIVER=array'
             echo 'QUEUE_CONNECTION=sync'
             echo 'AUDIT_WRITE_POLICY=outbox_required'
-            echo 'WWHN180_EMAIL=manager01@gmail.com'
-            echo 'WWHN180_PASSWORD=Cntt@1234'
           } >> .env
 
       - name: Syntax and formatting gate
@@ -70,32 +68,70 @@ jobs:
 
       - name: Collect executable evidence
         env:
+          EVIDENCE_DIR: build/evidence/api-data
           WWHN180_EMAIL: manager01@gmail.com
           WWHN180_PASSWORD: Cntt@1234
+          WWHN180_NO_PERMISSION_EMAIL: test-no-permission@hoanam.com
+          WWHN180_NO_PERMISSION_PASSWORD: Cntt@1234
         run: bash scripts/collect-wwhn180-evidence.sh
 
-      - name: Validate OpenAPI and evidence manifest
+      - name: Validate OpenAPI and structured evidence
         shell: bash
         run: |
           set -euo pipefail
-          npx redocly lint build/evidence/wwhn180/wwhn180-openapi.yaml
-          node -e "JSON.parse(require('fs').readFileSync('build/evidence/wwhn180/wwhn180.postman.collection.json','utf8'))"
-          node -e "JSON.parse(require('fs').readFileSync('build/evidence/wwhn180/wwhn180.postman.environment.json','utf8'))"
-          node -e "const r=JSON.parse(require('fs').readFileSync('build/evidence/wwhn180/reconciliation-report.json','utf8')); if(r.summary?.status!=='PASS'||r.summary?.failed>0) process.exit(1)"
-          test -s build/evidence/wwhn180/route-list.raw.json
-          test -s build/evidence/wwhn180/permission-catalog.json
-          test -s build/evidence/wwhn180/newman.raw.log
-          test -s build/evidence/wwhn180/newman.result.json
-          test -s build/evidence/wwhn180/db-before.json
-          test -s build/evidence/wwhn180/db-after.json
-          test -s build/evidence/wwhn180/build-metadata.json
-          (cd build/evidence/wwhn180 && sha256sum --check SHA256SUMS)
+          DIR=build/evidence/api-data
+          npx redocly lint "$DIR/wwhn180-openapi.yaml"
+          node - <<'NODE'
+          const fs = require('fs');
+          const dir = 'build/evidence/api-data';
+          const requiredJson = [
+            'build-metadata.json',
+            'g1-closure-matrix.json',
+            'newman.result.json',
+            'openapi.json',
+            'permission-catalog.json',
+            'reconciliation-report.json',
+            'route-list.raw.json',
+            'wwhn180-contract-verification.json',
+            'wwhn180-db-delta.json',
+            'wwhn180-source-register.json',
+            'wwhn180-test-cases.json',
+            'wwhn180.postman.collection.json',
+            'wwhn180.postman.environment.json'
+          ];
+          for (const file of requiredJson) {
+            const path = `${dir}/${file}`;
+            if (!fs.existsSync(path) || fs.statSync(path).size === 0) throw new Error(`Missing evidence: ${file}`);
+            JSON.parse(fs.readFileSync(path, 'utf8'));
+          }
+          for (const file of ['wwhn180-contract-verification.json', 'wwhn180-db-delta.json', 'reconciliation-report.json']) {
+            const result = JSON.parse(fs.readFileSync(`${dir}/${file}`, 'utf8'));
+            if (result.summary?.status !== 'PASS' || Number(result.summary?.failed ?? 0) !== 0) {
+              throw new Error(`${file} is not PASS`);
+            }
+          }
+          const newman = JSON.parse(fs.readFileSync(`${dir}/newman.result.json`, 'utf8'));
+          if ((newman.run?.failures ?? []).length !== 0) throw new Error('Newman has failures');
+          const metadata = JSON.parse(fs.readFileSync(`${dir}/build-metadata.json`, 'utf8'));
+          if (metadata.commit_sha !== process.env.GITHUB_SHA) throw new Error('build-metadata commit_sha mismatch');
+          NODE
+          test -s "$DIR/phpunit.raw.log"
+          test -s "$DIR/wwhn180-atomicity-phpunit.raw.log"
+          test -s "$DIR/stock-document-canonical-phpunit.raw.log"
+          test -s "$DIR/stock-document-concurrency-phpunit.raw.log"
+          test -s "$DIR/reconciliation-integrity-phpunit.raw.log"
+          test -s "$DIR/newman.raw.log"
+          test -s "$DIR/db-before.json"
+          test -s "$DIR/db-after.json"
+          test -s "$DIR/SHA256SUMS"
+          test -s "$DIR/SHA256SUMS.sha256"
+          (cd "$DIR" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
 
       - name: Upload immutable WWHN-180 evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wwhn-180-evidence-${{ github.sha }}
-          path: build/evidence/wwhn180
+          name: api-data-evidence-${{ github.sha }}
+          path: build/evidence/api-data
           if-no-files-found: error
           retention-days: 30
