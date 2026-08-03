@@ -80,8 +80,7 @@ class StockLedger
         string $businessKey,
         ?string $originalMovementId = null,
         string $stockStatus = self::DEFAULT_STOCK_STATUS
-    ): ?StockMovement
-    {
+    ): ?StockMovement {
         if ($warehouseId === null) {
             return null;
         }
