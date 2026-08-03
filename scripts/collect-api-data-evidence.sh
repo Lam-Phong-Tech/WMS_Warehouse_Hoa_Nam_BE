@@ -15,7 +15,7 @@ cp storage/api-docs/api-docs.json "$EVIDENCE_DIR/openapi.json"
 if [[ -f storage/api-docs/api-docs.yaml ]]; then
   cp storage/api-docs/api-docs.yaml "$EVIDENCE_DIR/openapi.yaml"
 else
-  node scripts/json-to-yaml.mjs "$EVIDENCE_DIR/openapi.json" "$EVIDENCE_DIR/openapi.yaml"
+  php -r 'require "vendor/autoload.php"; $j=json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); file_put_contents($argv[2], Symfony\Component\Yaml\Yaml::dump($j, 20, 2, Symfony\Component\Yaml\Yaml::DUMP_OBJECT_AS_MAP));' "$EVIDENCE_DIR/openapi.json" "$EVIDENCE_DIR/openapi.yaml"
 fi
 
 cp "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json" "$EVIDENCE_DIR/postman.collection.json"
