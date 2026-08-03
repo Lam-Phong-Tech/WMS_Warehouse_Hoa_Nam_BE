@@ -11,15 +11,23 @@ class WarrantyCase extends Model
     use SoftDeletes;
 
     public const STATUS_RECEIVED = 'RECEIVED';
+
     public const STATUS_INSPECTING = 'INSPECTING';
+
     public const STATUS_WAITING_CHECK = 'WAITING_CHECK';
+
     public const STATUS_TEMP_ONLY = 'TEMP_ONLY';
+
     public const STATUS_REPAIRED = 'REPAIRED';
+
     public const STATUS_RETURNED = 'RETURNED';
+
     public const STATUS_CLOSED = 'CLOSED';
+
     public const STATUS_CANCELLED = 'CANCELLED';
 
     protected $table = 'warranty_case';
+
     protected $primaryKey = 'warranty_case_id';
 
     public $incrementing = false;
