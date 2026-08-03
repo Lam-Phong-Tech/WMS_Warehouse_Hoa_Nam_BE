@@ -16,7 +16,9 @@ class StockLedger
 
     private const DEFAULT_STOCK_STATUS = 'AVAILABLE';
 
-    public function __construct(private readonly SafeStockAlertService $safeStockAlerts) {}
+    public function __construct(private readonly SafeStockAlertService $safeStockAlerts)
+    {
+    }
 
     public function inbound(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
     {
@@ -96,7 +98,7 @@ class StockLedger
             ->lockForUpdate()
             ->first();
 
-        if (!$balance) {
+        if (! $balance) {
             $balance = InventoryBalance::create([
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
