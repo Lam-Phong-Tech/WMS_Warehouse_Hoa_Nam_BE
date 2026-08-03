@@ -40,6 +40,7 @@ class AuditLogger
 
         try {
             AuditLog::create($payload);
+
             return;
         } catch (Throwable $primaryError) {
             Log::error('AUDIT_WRITE_FAILED', [
@@ -106,7 +107,7 @@ class AuditLogger
         );
         $replacement = (string) config('audit.redacted_value', '[REDACTED]');
 
-        $walk = static function (mixed $value, ?string $key = null) use (&$walk, $sensitiveKeys, $replacement): mixed {
+        $walk = static function (mixed $value, ?string $key = null) use (& $walk, $sensitiveKeys, $replacement): mixed {
             if ($key !== null && in_array(strtolower($key), $sensitiveKeys, true)) {
                 return $replacement;
             }
