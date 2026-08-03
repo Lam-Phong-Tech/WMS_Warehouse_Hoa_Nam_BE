@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0.0",
+  "jira_key": "WWHN-180",
+  "document_status": "PROPOSED",
+  "branch": "m1",
+  "verification_type": "SOURCE_STATIC_REVIEW",
+  "authoritative_sources": [
+    "Modules/Warehouse/routes/api.php",
+    "Modules/Auth/database/seeders/AuthDatabaseSeeder.php",
+    "docs/api-contract/WWHN-180-posting-openapi.yaml"
+  ],
+  "entries": [
+    {
+      "method": "POST",
+      "path": "/api/v1/scan/classify",
+      "controller_action": "ScanController@classify",
+      "backend_permission": "scan.classify",
+      "route_middleware": "permission:scan.classify",
+      "fe_route_permission_expected": "scan.classify",
+      "stock_effect": "NONE",
+      "denied_http": 403,
+      "denied_code": "ACCESS_DENIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inbound-documents/{id}/scan",
+      "controller_action": "InboundDocumentController@scan",
+      "backend_permission": "stock_document.scan",
+      "route_middleware": "permission:stock_document.scan",
+      "fe_route_permission_expected": "stock_document.scan",
+      "stock_effect": "NONE",
+      "denied_http": 403,
+      "denied_code": "ACCESS_DENIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/outbound-documents/{id}/scan",
+      "controller_action": "OutboundDocumentController@scan",
+      "backend_permission": "stock_document.scan",
+      "route_middleware": "permission:stock_document.scan",
+      "fe_route_permission_expected": "stock_document.scan",
+      "stock_effect": "NONE",
+      "denied_http": 403,
+      "denied_code": "ACCESS_DENIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inbound-documents/{id}/post-receipt",
+      "controller_action": "InboundDocumentController@postReceipt",
+      "backend_permission": "stock_document.post",
+      "route_middleware": "permission:stock_document.post",
+      "fe_route_permission_expected": "stock_document.post",
+      "stock_effect": "RECEIPT_IN_EXACTLY_ONCE",
+      "idempotency_key": "required; trim; 8-100 characters",
+      "denied_http": 403,
+      "denied_code": "ACCESS_DENIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/outbound-documents/{id}/post-issue",
+      "controller_action": "OutboundDocumentController@postIssue",
+      "backend_permission": "stock_document.post",
+      "route_middleware": "permission:stock_document.post",
+      "fe_route_permission_expected": "stock_document.post",
+      "stock_effect": "ISSUE_OUT_EXACTLY_ONCE",
+      "idempotency_key": "required; trim; 8-100 characters",
+      "denied_http": 403,
+      "denied_code": "ACCESS_DENIED"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/inventory-reconciliation",
+      "controller_action": "ReportController@inventoryReconciliation",
+      "backend_permission": "report.view",
+      "route_middleware": "permission:report.view",
+      "fe_route_permission_expected": "report.view",
+      "stock_effect": "NONE",
+      "denied_http": 403,
+      "denied_code": "ACCESS_DENIED"
+    }
+  ],
+  "integrity": {
+    "required_entry_count": 6,
+    "actual_entry_count": 6,
+    "duplicate_method_path_count": 0,
+    "missing_backend_permission_count": 0,
+    "status": "PASS",
+    "runtime_verification_output": "build/evidence/api-data/permission-catalog.json"
+  },
+  "fe1_independent_review": {
+    "result": "PENDING",
+    "reviewer": null,
+    "reviewed_at": null,
+    "fe_repository": null,
+    "fe_exact_commit_sha": null,
+    "route_permissions_source": null,
+    "evidence_url": null,
+    "rule": "FE1 must compare its real ROUTE_PERMISSIONS/action guards against every entry on the same exact BE evidence SHA."
+  },
+  "ba_review": {
+    "result": "PENDING",
+    "reviewer": null,
+    "reviewed_at": null,
+    "evidence_url": null
+  }
+}
