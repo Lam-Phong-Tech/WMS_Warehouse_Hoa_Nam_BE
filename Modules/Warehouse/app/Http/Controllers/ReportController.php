@@ -13,106 +13,49 @@ use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-/** Báo cáo Xuất-Nhập-Tồn (XNT) + dashboard nhanh cho kho tổng Hoà Nam. */
+/** Báo cáo XNT, dashboard và đối soát authoritative ledger. */
 class ReportController extends Controller
 {
     use ApiResponse;
 
-    #[OA\Get(
-        path: '/api/v1/reports/inventory-xnt',
-        operationId: 'report_inventory_xnt',
-        summary: 'Báo cáo Xuất-Nhập-Tồn (XNT) theo khoảng thời gian',
-        security: [['bearerAuth' => []]],
-        tags: ['12. Dashboard / Report'],
-        parameters: [
-            new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')),
-            new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Tổng nhập (total_in)/xuất (total_out) theo sản phẩm trong khoảng thời gian'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền report.view'),
-            new OA\Response(response: 422, description: 'Thiếu from_date/to_date hoặc to_date < from_date'),
-        ]
-    )]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt', summary: 'Báo cáo Xuất-Nhập-Tồn', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'Báo cáo XNT'), new OA\Response(response: 422, description: 'Khoảng ngày không hợp lệ')])]
     public function inventoryXnt(Request $request)
     {
         return $this->respondSuccess($this->buildXntReport($request));
     }
 
-    #[OA\Get(
-        path: '/api/v1/reports/inventory-xnt/export-excel',
-        operationId: 'report_inventory_xnt_export_excel',
-        summary: 'Xuất báo cáo XNT ra file Excel (.xlsx)',
-        security: [['bearerAuth' => []]],
-        tags: ['12. Dashboard / Report'],
-        parameters: [
-            new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')),
-            new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'File .xlsx tải về'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền report.view'),
-            new OA\Response(response: 422, description: 'Thiếu from_date/to_date hoặc to_date < from_date'),
-        ]
-    )]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt/export-excel', operationId: 'report_inventory_xnt_export_excel', summary: 'Xuất báo cáo XNT Excel', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'File XLSX')])]
     public function exportExcel(Request $request)
     {
         $report = $this->buildXntReport($request);
-
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('XNT');
-        $sheet->fromArray(['Mã SKU', 'Tên SKU', 'Tổng nhập', 'Tổng xuất'], null, 'A1');
-
+        $sheet->fromArray(['Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Tổng nhập', 'Tổng xuất'], null, 'A1');
         $rowIndex = 2;
         foreach ($report['lines'] as $line) {
-            $sheet->fromArray([
-                $line->product_code, $line->product_name, $line->total_in, $line->total_out,
-            ], null, "A{$rowIndex}");
+            $sheet->fromArray([$line->product_code, $line->product_name, $line->stock_status, $line->total_in, $line->total_out], null, "A{$rowIndex}");
             $rowIndex++;
         }
 
-        $fileName = "bao-cao-xnt-{$report['from_date']}-den-{$report['to_date']}.xlsx";
         $writer = new Xlsx($spreadsheet);
+        $fileName = "bao-cao-xnt-{$report['from_date']}-den-{$report['to_date']}.xlsx";
 
-        return response()->streamDownload(function () use ($writer) {
-            $writer->save('php://output');
-        }, $fileName, [
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
-    #[OA\Get(
-        path: '/api/v1/reports/dashboard-quick',
-        operationId: 'report_dashboard_quick',
-        summary: 'Dashboard nhanh cho kho tổng: tồn hiện tại, nhập/xuất trong kỳ, phiếu đang dở dang, cảnh báo đối soát',
-        description: 'Mặc định kỳ = tháng hiện tại nếu không truyền from_date/to_date. Các trường liên quan module chưa xây (stocktake, warranty, reconciliation) trả về 0/rỗng.',
-        security: [['bearerAuth' => []]],
-        tags: ['12. Dashboard / Report'],
-        parameters: [
-            new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')),
-            new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Số liệu dashboard nhanh'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền report.view'),
-        ]
-    )]
+    #[OA\Get(path: '/api/v1/reports/dashboard-quick', operationId: 'report_dashboard_quick', summary: 'Dashboard nhanh kho tổng', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'Số liệu dashboard')])]
     public function dashboardQuick(Request $request)
     {
         $from = $request->input('from_date', now()->startOfMonth()->toDateString());
         $to = $request->input('to_date', now()->toDateString());
-
-        $movementSums = DB::table('stock_movements as m')
-            ->join('stock_documents as d', 'd.id', '=', 'm.stock_document_id')
-            ->selectRaw('SUM(CASE WHEN movement_type = ? THEN qty_delta ELSE 0 END) as receipt_qty', [StockMovement::RECEIPT_IN])
-            ->selectRaw('SUM(CASE WHEN movement_type = ? THEN -qty_delta ELSE 0 END) as issue_qty', [StockMovement::ISSUE_OUT])
-            ->whereBetween('d.doc_date', [$from, $to])
+        $movementSums = DB::table('stock_movements')
+            ->selectRaw('COALESCE(SUM(CASE WHEN qty_delta > 0 THEN qty_delta ELSE 0 END), 0) AS receipt_qty')
+            ->selectRaw('COALESCE(SUM(CASE WHEN qty_delta < 0 THEN -qty_delta ELSE 0 END), 0) AS issue_qty')
+            ->whereBetween('occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->first();
-
         $partialCounts = StockDocument::query()
             ->where('status', StockDocument::STATUS_PARTIALLY_POSTED)
             ->selectRaw('doc_type, count(*) as total')
@@ -121,49 +64,46 @@ class ReportController extends Controller
 
         return $this->respondSuccess([
             'period' => ['from_date' => $from, 'to_date' => $to],
-            'available_qty' => (float) InventoryBalance::sum('available_qty'),
+            'available_qty' => (float) InventoryBalance::where('stock_status', 'AVAILABLE')->sum('available_qty'),
             'receipt_qty' => (float) ($movementSums->receipt_qty ?? 0),
             'issue_qty' => (float) ($movementSums->issue_qty ?? 0),
-            // Chưa có module điều chỉnh tồn (adjustment) độc lập trong base — luôn 0.
-            'adjustment_in' => 0,
-            'adjustment_out' => 0,
-            // Chưa có module stocktake trong base.
-            'stocktake_variance' => 0,
             'documents_partial' => [
                 'inbound' => (int) ($partialCounts[StockDocument::TYPE_RECEIPT] ?? 0),
                 'outbound' => (int) ($partialCounts[StockDocument::TYPE_ISSUE] ?? 0),
             ],
-            // Chưa có module bảo hành (warranty_case) trong base.
-            'warranty_cases_by_status' => [],
-            // Chưa có module đối soát (reconciliation) trong base.
-            'reconciliation_warnings' => [],
         ]);
     }
 
     #[OA\Get(
         path: '/api/v1/reports/inventory-reconciliation',
         operationId: 'report_inventory_reconciliation',
-        summary: 'Đối soát inventory_balances với stock_movements',
-        description: 'So sánh tồn hiện tại theo inventory_balances với tổng qty_delta từ stock_movements theo warehouse_id/product_id. OPENING/ADJUST/POST/REVERSE đều là nguồn ledger hợp lệ; scan không tạo movement nên không làm đổi expected_qty.',
+        summary: 'Đối soát balance với signed SUM(qty_delta) theo stock_status',
+        description: 'So sánh on_hand_qty với tổng qty_delta có dấu, theo đúng dimension warehouse_id/product_id/stock_status. Không đảo dấu theo movement_type lần hai.',
         security: [['bearerAuth' => []]],
         tags: ['12. Dashboard / Report'],
         parameters: [
             new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'only_mismatch', in: 'query', schema: new OA\Schema(type: 'boolean', default: false)),
         ],
-        responses: [
-            new OA\Response(response: 200, description: 'Kết quả đối soát tồn kho'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền report.view'),
-        ]
+        responses: [new OA\Response(response: 200, description: 'Kết quả đối soát')]
     )]
     public function inventoryReconciliation(Request $request)
     {
+        $request->validate([
+            'warehouse_id' => ['nullable', 'uuid'],
+            'product_id' => ['nullable', 'uuid'],
+            'stock_status' => ['nullable', 'string', 'max:30'],
+            'only_mismatch' => ['nullable', 'boolean'],
+        ]);
+
         $rows = $this->buildReconciliationRows($request);
-        $mismatches = $rows->filter(fn ($row) => $row->status === 'MISMATCH')->values();
+        $mismatches = $rows->where('status', 'MISMATCH')->values();
 
         return $this->respondSuccess([
+            'formula' => 'variance = balance.on_hand_qty - SUM(stock_movements.qty_delta)',
+            'dimension' => ['warehouse_id', 'product_id', 'stock_status'],
             'summary' => [
                 'rows_checked' => $rows->count(),
                 'mismatch_count' => $mismatches->count(),
@@ -176,62 +116,52 @@ class ReportController extends Controller
 
     private function buildXntReport(Request $request): array
     {
-        $request->validate([
+        $validated = $request->validate([
             'from_date' => ['required', 'date'],
             'to_date' => ['required', 'date', 'after_or_equal:from_date'],
         ]);
-
-        $from = $request->input('from_date');
-        $to = $request->input('to_date');
-
         $lines = DB::table('stock_movements as m')
-            ->join('stock_documents as d', 'd.id', '=', 'm.stock_document_id')
             ->join('products as p', 'p.id', '=', 'm.product_id')
-            ->selectRaw('p.code as product_code, p.name as product_name,'
-                .'SUM(CASE WHEN m.movement_type = ? THEN m.qty_delta ELSE 0 END) as total_in,'
-                .'SUM(CASE WHEN m.movement_type = ? THEN -m.qty_delta ELSE 0 END) as total_out',
-                [StockMovement::RECEIPT_IN, StockMovement::ISSUE_OUT])
-            ->whereBetween('d.doc_date', [$from, $to])
-            ->groupBy('p.code', 'p.name')
+            ->selectRaw('p.code as product_code, p.name as product_name, m.stock_status')
+            ->selectRaw('SUM(CASE WHEN m.qty_delta > 0 THEN m.qty_delta ELSE 0 END) as total_in')
+            ->selectRaw('SUM(CASE WHEN m.qty_delta < 0 THEN -m.qty_delta ELSE 0 END) as total_out')
+            ->whereBetween('m.occurred_at', ["{$validated['from_date']} 00:00:00", "{$validated['to_date']} 23:59:59"])
+            ->groupBy('p.code', 'p.name', 'm.stock_status')
             ->orderBy('p.code')
+            ->orderBy('m.stock_status')
             ->get();
 
-        return [
-            'from_date' => $from,
-            'to_date' => $to,
-            'lines' => $lines,
-        ];
+        return ['from_date' => $validated['from_date'], 'to_date' => $validated['to_date'], 'lines' => $lines];
     }
 
     private function buildReconciliationRows(Request $request)
     {
-        $balanceQuery = DB::table('inventory_balances as b')
+        $query = DB::table('inventory_balances as b')
             ->leftJoin('warehouses as w', 'w.id', '=', 'b.warehouse_id')
             ->leftJoin('products as p', 'p.id', '=', 'b.product_id')
             ->leftJoin(DB::raw('(
-                SELECT warehouse_id, product_id, SUM(qty_delta) AS ledger_qty, COUNT(*) AS movement_count
+                SELECT warehouse_id, product_id, stock_status,
+                       SUM(qty_delta) AS ledger_qty, COUNT(*) AS movement_count
                 FROM stock_movements
-                GROUP BY warehouse_id, product_id
-            ) as ledger'), function ($join) {
+                GROUP BY warehouse_id, product_id, stock_status
+            ) AS ledger'), function ($join) {
                 $join->on('ledger.warehouse_id', '=', 'b.warehouse_id')
-                    ->on('ledger.product_id', '=', 'b.product_id');
+                    ->on('ledger.product_id', '=', 'b.product_id')
+                    ->on('ledger.stock_status', '=', 'b.stock_status');
             })
-            ->selectRaw('b.warehouse_id, w.code as warehouse_code, b.product_id, p.code as product_code,
-                b.on_hand_qty as current_on_hand_qty, b.available_qty as current_available_qty,
-                COALESCE(ledger.ledger_qty, 0) as expected_qty,
-                COALESCE(ledger.movement_count, 0) as movement_count');
+            ->selectRaw('b.warehouse_id, w.code AS warehouse_code, b.product_id, p.code AS product_code,
+                b.stock_status, b.on_hand_qty AS current_on_hand_qty,
+                b.available_qty AS current_available_qty,
+                COALESCE(ledger.ledger_qty, 0) AS expected_qty,
+                COALESCE(ledger.movement_count, 0) AS movement_count');
 
-        if ($request->filled('warehouse_id')) {
-            $balanceQuery->where('b.warehouse_id', $request->input('warehouse_id'));
-        }
-        if ($request->filled('product_id')) {
-            $balanceQuery->where('b.product_id', $request->input('product_id'));
+        foreach (['warehouse_id', 'product_id', 'stock_status'] as $filter) {
+            if ($request->filled($filter)) {
+                $query->where("b.{$filter}", $request->input($filter));
+            }
         }
 
-        $rows = $balanceQuery
-            ->orderBy('w.code')
-            ->orderBy('p.code')
-            ->get()
+        $rows = $query->orderBy('w.code')->orderBy('p.code')->orderBy('b.stock_status')->get()
             ->map(function ($row) {
                 $delta = bcsub((string) $row->current_on_hand_qty, (string) $row->expected_qty, 3);
                 $row->current_on_hand_qty = (float) $row->current_on_hand_qty;
@@ -240,20 +170,13 @@ class ReportController extends Controller
                 $row->movement_count = (int) $row->movement_count;
                 $row->delta_qty = (float) $delta;
                 $row->status = bccomp($delta, '0', 3) === 0 ? 'MATCH' : 'MISMATCH';
-                $row->mismatch_reason = $row->status === 'MATCH'
-                    ? null
-                    : 'BALANCE_NOT_EQUAL_LEDGER_SUM';
-                $row->expected_resolution = $row->status === 'MATCH'
-                    ? null
-                    : 'Investigate missing OPENING/backfill/POST/REVERSE/ADJUST movement, then repair by approved adjustment instead of editing stock_movements.';
+                $row->mismatch_reason = $row->status === 'MATCH' ? null : 'BALANCE_NOT_EQUAL_SIGNED_LEDGER_SUM';
 
                 return $row;
             });
 
-        if ($request->boolean('only_mismatch')) {
-            return $rows->filter(fn ($row) => $row->status === 'MISMATCH')->values();
-        }
-
-        return $rows->values();
+        return $request->boolean('only_mismatch')
+            ? $rows->where('status', 'MISMATCH')->values()
+            : $rows->values();
     }
 }
