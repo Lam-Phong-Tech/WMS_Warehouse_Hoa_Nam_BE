@@ -1,6 +1,4 @@
 *.log
-*.md
-!docs/HN-INT-001_BE1_API_CONTRACT_APPROVAL.md
 .DS_Store
 .env
 .env.backup
@@ -28,14 +26,4 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
-/docs/
-!/docs/
-!docs/HN-INT-001_BE1_API_CONTRACT_APPROVAL.md
 !docs/HN-INT-001_BE1_payload_samples.postman_collection.json
-!docs/HN-DEVOPS-001_FE1_ENV_BUILD_HEALTH_EVIDENCE.md
-!docs/HN-BE-001_BACKEND_STANDARD.md
-!docs/HN-P1-001_BE_IMPLEMENTATION_EVIDENCE.md
-!docs/HN-P1-001_FINAL_SUMMARY.md
-HN_BA_Master_WMS_PV_v1_0_MD/
-CLAUDE.md
-WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md
