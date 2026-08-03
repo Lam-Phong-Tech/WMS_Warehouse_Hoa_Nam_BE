@@ -1,0 +1,125 @@
+openapi: 3.0.3
+info:
+  title: WWHN-150 Scan ReadOnly Contract
+  version: 1.0.0
+  description: >-
+    Contract source for independent QA/FE review. Runtime source remains the generated
+    OpenAPI artifact from the exact commit SHA.
+paths:
+  /api/v1/scan/classify:
+    post:
+      operationId: scan_classify
+      summary: Phân loại và validate mã scan, không thay đổi tồn kho
+      description: >-
+        Read-only operation. stock_effect is always NONE. The endpoint does not create
+        inventory balances, stock movements, posting_event, scan_event or idempotency cache.
+        Idempotency-Key is not required and is ignored when supplied.
+      security:
+        - bearerAuth: []
+      tags:
+        - 11. Scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - raw_code
+                - context
+                - warehouse_id
+              properties:
+                raw_code:
+                  type: string
+                  maxLength: 150
+                context:
+                  type: string
+                  enum: [INBOUND, OUTBOUND, STOCKTAKE, WARRANTY_TEMP_ONLY]
+                warehouse_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Resolved without stock effect
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  data:
+                    type: object
+                    required:
+                      - raw_code
+                      - classification
+                      - stock_effect
+                      - movement_created
+                      - posting_event_created
+                      - idempotency_cache_written
+                      - current_location
+                    properties:
+                      raw_code:
+                        type: string
+                      context:
+                        type: string
+                      classification:
+                        type: string
+                        enum: [ITEM, CONTAINER, SKU]
+                      item_id:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      sku_id:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      product_id:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      stock_status:
+                        type: string
+                      stock_effect:
+                        type: string
+                        enum: [NONE]
+                      movement_created:
+                        type: boolean
+                        enum: [false]
+                      posting_event_created:
+                        type: boolean
+                        enum: [false]
+                      idempotency_cache_written:
+                        type: boolean
+                        enum: [false]
+                      current_location:
+                        type: object
+                        required: [warehouse_id, warehouse_code, warehouse_name]
+                        properties:
+                          warehouse_id:
+                            type: string
+                            format: uuid
+                          warehouse_code:
+                            type: string
+                          warehouse_name:
+                            type: string
+                  meta:
+                    type: object
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Missing scan.classify permission or warehouse outside data scope
+        '404':
+          description: Scan code not found
+        '409':
+          description: Inactive warehouse/code, warehouse mismatch or context conflict
+        '422':
+          description: Validation failed
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
