@@ -22,8 +22,7 @@ class StocktakeAdjustmentService
 
     public function requestHash(string $sessionId, int $sessionVersion, array $varianceIds, string $reason): string
     {
-        $varianceIds = array_values(array_unique(array_map('strval', $varianceIds)));
-        sort($varianceIds, SORT_STRING);
+        $varianceIds = $this->normalizeVarianceIds($varianceIds);
 
         return hash('sha256', json_encode([
             'session_id' => $sessionId,
@@ -58,6 +57,7 @@ class StocktakeAdjustmentService
             ): array {
                 // Scope is checked before replay so a leaked key cannot expose another warehouse response.
                 $session = $this->guard->lockScoped($sessionId, $user);
+                $requestedIds = $this->normalizeVarianceIds($varianceIds);
                 $event = DB::table('posting_event')
                     ->where('operation', $operation)
                     ->where('idempotency_key', $idempotencyKey)
@@ -71,8 +71,6 @@ class StocktakeAdjustmentService
                 $this->guard->assertVersion($session, $expectedVersion);
                 $this->guard->assertStatus($session, [StocktakeSession::STATUS_REVIEWED], 'apply variance');
 
-                $requestedIds = array_values(array_unique(array_map('strval', $varianceIds)));
-                sort($requestedIds, SORT_STRING);
                 $allVariances = StocktakeVariance::query()
                     ->where('session_id', $session->session_id)
                     ->where('status', StocktakeVariance::STATUS_APPROVED)
@@ -388,6 +386,27 @@ class StocktakeAdjustmentService
             'replay' => true,
             'data' => json_decode((string) $event->response_snapshot, true, 512, JSON_THROW_ON_ERROR),
         ];
+    }
+
+    /** @return list<string> */
+    private function normalizeVarianceIds(array $varianceIds): array
+    {
+        $normalized = array_values(array_map('strval', $varianceIds));
+        $counts = array_count_values($normalized);
+        $duplicateIds = array_keys(array_filter($counts, static fn (int $count): bool => $count > 1));
+        sort($duplicateIds, SORT_STRING);
+
+        if ($duplicateIds !== []) {
+            ApiError::abort(422, 'INVALID_VARIANCE_SELECTION', 'variance_ids không được chứa phần tử trùng.', [
+                'requested_count' => count($normalized),
+                'distinct_count' => count($counts),
+                'duplicate_ids' => $duplicateIds,
+            ]);
+        }
+
+        sort($normalized, SORT_STRING);
+
+        return $normalized;
     }
 
     private function sortedIds(array $ids): array
