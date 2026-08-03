@@ -1,0 +1,25 @@
+{
+  "document_id": "WWHN-131-STOCKTAKE-TC",
+  "version": "1.1.0",
+  "status": "PROPOSED",
+  "signed_qty_delta_convention": {
+    "positive": ["OPENING", "RECEIPT_POSTED", "ADJUST_IN", "TRANSFER_IN", "TRANSFER_RETURN", "ISSUE_REVERSED"],
+    "negative": ["ISSUE_POSTED", "ADJUST_OUT", "TRANSFER_OUT", "RECEIPT_REVERSED"],
+    "net_formula": "SUM(stock_movements.qty_delta)",
+    "zero_effect_rule": "Không tạo stock movement và không tăng inventory balance version khi inventory_effect_qty = 0",
+    "pre_apply_reconciliation": "SUM(stock_movements.qty_delta) phải bằng inventory_balances.on_hand_qty theo warehouse/product/stock_status"
+  },
+  "cases": [
+    {"id": "STK-TC-001", "severity": "P1", "title": "Create returns DRAFT and start creates snapshot once", "automation": "StocktakeThreeLayerContractTest::test_create_is_draft_and_start_creates_snapshot_once_with_cas"},
+    {"id": "STK-TC-002", "severity": "P1", "title": "Count grain unique and must exist in snapshot", "automation": "StocktakeThreeLayerContractTest::test_count_grain_is_unique_and_must_exist_in_session_snapshot"},
+    {"id": "STK-TC-003", "severity": "P0", "title": "100 minus 10, actual 90, variance and inventory effect are zero", "automation": "StocktakeThreeLayerContractTest::test_signed_movement_convention_100_minus_10_actual_90_has_zero_variance_and_reconciles"},
+    {"id": "STK-TC-004", "severity": "P1", "title": "Movement acknowledgement exact-set guard", "automation": "StocktakeThreeLayerContractTest::test_apply_requires_exact_detected_movement_acknowledgement"},
+    {"id": "STK-TC-005", "severity": "P0", "title": "Foreign or missing variance IDs rejected", "automation": "StocktakeThreeLayerContractTest::test_apply_rejects_foreign_or_missing_variance_ids"},
+    {"id": "STK-TC-006", "severity": "P0", "title": "Commit replay and same-key different-payload conflict", "automation": "StocktakeThreeLayerContractTest::test_apply_is_idempotent_replays_after_commit_and_rejects_different_payload"},
+    {"id": "STK-TC-007", "severity": "P0", "title": "Three-layer transaction rollback", "automation": "StocktakeThreeLayerContractTest::test_apply_rolls_back_balance_movement_and_item_when_container_layer_fails"},
+    {"id": "STK-TC-008", "severity": "P0", "title": "Warehouse data scope on create/read/apply/legacy list", "automation": "StocktakeThreeLayerContractTest::test_warehouse_data_scope_blocks_create_read_and_apply"},
+    {"id": "STK-TC-009", "severity": "P0", "title": "Newman create/start/count/review/apply/replay/conflict", "automation": "WWHN-131 Stocktake Contract.postman_collection.json"},
+    {"id": "STK-TC-010", "severity": "P0", "title": "Zero-effect apply creates no empty movement and preserves balance version", "automation": "StocktakeApplyLedgerIntegrityTest::test_zero_effect_apply_does_not_create_empty_movement_or_increment_balance_version"},
+    {"id": "STK-TC-011", "severity": "P0", "title": "Ledger-balance mismatch blocks apply and rolls back operation", "automation": "StocktakeApplyLedgerIntegrityTest::test_apply_rejects_ledger_balance_mismatch_and_rolls_back_operation"}
+  ]
+}

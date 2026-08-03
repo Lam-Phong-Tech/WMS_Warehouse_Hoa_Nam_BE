@@ -15,21 +15,22 @@ class StocktakeSnapshot extends Model
 
     protected $table = 'stocktake_snapshot';
 
+    protected $primaryKey = 'snapshot_id';
+
     public $incrementing = false;
 
     protected $keyType = 'string';
 
+    public $timestamps = false;
+
     protected $fillable = [
-        'snapshot_id',
-        'session_id',
-        'product_id',
-        'stock_status',
-        'snapshot_qty',
-        'stocktake_started_at',
-        'created_at',
+        'snapshot_id', 'session_id', 'grain_type', 'grain_id', 'grain_key', 'product_id',
+        'stock_status', 'inventory_serial_id', 'container_id', 'container_item_id',
+        'snapshot_qty', 'stocktake_started_at', 'created_at',
     ];
 
     protected $casts = [
+        'snapshot_qty' => 'decimal:3',
         'stocktake_started_at' => 'datetime',
         'created_at' => 'datetime',
     ];
