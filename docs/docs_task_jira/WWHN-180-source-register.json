@@ -1,6 +1,6 @@
 {
   "jira_key": "WWHN-180",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "status": "PROPOSED",
   "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
   "branch": "m1",
@@ -13,6 +13,7 @@
     "posting_idempotency_key": "trimmed; 8-100 characters; missing or blank=428; out of range=422",
     "request_hash": "canonical JSON/query SHA-256 v2; v2 comparison ignores legacy MD5 suffix differences",
     "atomicity": "business stock write and persisted response snapshot commit or rollback together",
+    "authoritative_posting_boundary": "receipt/issue re-lock current stock document and line with lockForUpdate at the stock-effect boundary; stale approved models cannot mutate balance or movement",
     "double_post": "one document transition and one movement business key effect",
     "formal_status": "PROPOSED until BA, FE1 and QA2 independently sign the same exact SHA and artifact digest"
   },
@@ -22,7 +23,9 @@
     "focused_openapi": "docs/api-contract/WWHN-180-posting-openapi.yaml",
     "postman_collection": "docs/postman/WWHN-180 Posting Contract.postman_collection.json",
     "postman_environment": "docs/postman/WWHN-180 Posting CI.postman_environment.json",
-    "test_cases": "docs/testing/WWHN-180-posting-test-cases.json"
+    "test_cases": "docs/testing/WWHN-180-posting-test-cases.json",
+    "static_permission_catalog": "docs/evidence/WWHN-180/permission-catalog.json",
+    "runtime_permission_catalog": "build/evidence/api-data/permission-catalog.json"
   },
   "review_templates": {
     "fe1_mapping": "docs/evidence/WWHN-180/FE1_MAPPING_SIGNOFF.md",
@@ -59,6 +62,12 @@
   "ci": {
     "workflow": ".github/workflows/wwhn-180-api-posting-contract.yml",
     "collector": "scripts/collect-wwhn180-evidence.sh",
+    "runtime_secret_setup": "docs/evidence/WWHN-180/CI_RUNTIME_SECRET_SETUP.md",
+    "required_repository_secrets": [
+      "WWHN180_PASSWORD",
+      "WWHN180_NO_PERMISSION_PASSWORD"
+    ],
+    "credential_policy": "passwords are runtime-only GitHub Actions secrets; no password is committed in the workflow, Postman collection or environment",
     "success_artifact_pattern": "api-data-evidence-<commit_sha>",
     "failure_diagnostics_pattern": "api-data-diagnostics-<commit_sha>",
     "required_outputs": [
@@ -98,6 +107,23 @@
     "QA2": "independent exact-SHA API, DB, race, timeout-after-commit and reconciliation retest on WWHN-182",
     "BE1": "implementation and artifact owner; BE1 self-review is not independent sign-off"
   },
+  "known_external_blockers": [
+    {
+      "id": "JIRA_CONNECTOR_ACCESS",
+      "status": "BLOCKED",
+      "detail": "Atlassian Rovo returned HTTP 403: app is not installed on the Jira instance; closure comment and G1 minutes cannot be posted by this execution."
+    },
+    {
+      "id": "CI_RUN_NOT_OBSERVED",
+      "status": "BLOCKED",
+      "detail": "No GitHub Actions status/run was observed for the latest direct m1 commit. A manual workflow_dispatch or a push actor that triggers Actions is required before using an evidence artifact."
+    },
+    {
+      "id": "INDEPENDENT_SIGN_OFF",
+      "status": "PENDING",
+      "detail": "BA, FE1 and QA2 must independently review the same exact commit SHA and verified artifact digest."
+    }
+  ],
   "approval": {
     "status": "PENDING_INDEPENDENT_SIGN_OFF",
     "rule": "Do not mark APPROVED, Done or 100% until BA, FE1 and QA2 comments reference the same exact commit SHA and a verified SHA256SUMS digest from a successful workflow artifact."
