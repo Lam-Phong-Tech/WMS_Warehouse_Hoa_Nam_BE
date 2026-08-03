@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class ExportStockSnapshot extends Command
@@ -12,7 +13,7 @@ class ExportStockSnapshot extends Command
         {--output=build/evidence/api-data/db-snapshot.json : Đường dẫn JSON output}
         {--label=snapshot : Nhãn before/after}';
 
-    protected $description = 'Xuất snapshot balance, signed ledger, posting event và stocktake ba lớp làm evidence';
+    protected $description = 'Xuất snapshot balance, signed ledger, posting/idempotency/scan event và stocktake làm evidence';
 
     public function handle(): int
     {
@@ -50,12 +51,26 @@ class ExportStockSnapshot extends Command
 
         $postingEvents = DB::table('posting_event')
             ->select('posting_event_id', 'operation', 'idempotency_key', 'request_hash', 'status', 'document_id', 'movement_id', 'response_snapshot', 'created_at')
-            ->where(function ($query) {
-                $query->where('idempotency_key', 'like', '%-post-%')
-                    ->orWhere('operation', 'like', 'stocktake_apply_adjustment_%');
-            })
-            ->orderBy('created_at')
+            ->orderBy('operation')
+            ->orderBy('idempotency_key')
             ->get();
+
+        $idempotencyKeys = $this->tableRows(
+            'idempotency_keys',
+            [
+                'business_key', 'idem_key', 'user_id', 'operation', 'request_hash', 'status',
+                'response_code', 'response_body', 'locked_until', 'completed_at', 'created_at', 'updated_at',
+            ],
+            ['operation', 'user_id', 'idem_key']
+        );
+        $scanEvents = $this->tableRows(
+            'scan_event',
+            [
+                'scan_event_id', 'scan_batch_id', 'raw_code', 'physical_code_id', 'resolved_object_type',
+                'resolved_object_id', 'result_status', 'message', 'created_at',
+            ],
+            ['scan_event_id']
+        );
 
         $stocktakeSessions = DB::table('stocktake_session')
             ->select('session_id', 'session_no', 'warehouse_id', 'status', 'stocktake_started_at', 'count_cutoff_at', 'reviewed_at', 'movement_warning_flag', 'applied_at', 'session_version')
@@ -82,7 +97,7 @@ class ExportStockSnapshot extends Command
             ->get();
 
         $payload = [
-            'schema_version' => '2.0.0',
+            'schema_version' => '2.1.0',
             'label' => (string) $this->option('label'),
             'generated_at_utc' => now()->utc()->toIso8601String(),
             'signed_convention' => [
@@ -94,6 +109,8 @@ class ExportStockSnapshot extends Command
                 'inventory_balances' => DB::table('inventory_balances')->count(),
                 'stock_movements' => DB::table('stock_movements')->count(),
                 'posting_events' => DB::table('posting_event')->count(),
+                'idempotency_keys' => $idempotencyKeys->count(),
+                'scan_events' => $scanEvents->count(),
                 'ci_documents' => $ciDocuments->count(),
                 'stocktake_sessions' => $stocktakeSessions->count(),
                 'stocktake_variances' => $stocktakeVariances->count(),
@@ -103,6 +120,8 @@ class ExportStockSnapshot extends Command
             'signed_ledger_by_dimension' => $ledger,
             'ci_documents' => $ciDocuments,
             'posting_events' => $postingEvents,
+            'idempotency_keys' => $idempotencyKeys,
+            'scan_events' => $scanEvents,
             'stocktake_sessions' => $stocktakeSessions,
             'stocktake_variances' => $stocktakeVariances,
             'stocktake_movements' => $stocktakeMovements,
@@ -118,5 +137,28 @@ class ExportStockSnapshot extends Command
         $this->info("Đã xuất stock snapshot: {$output}");
 
         return self::SUCCESS;
+    }
+
+    private function tableRows(string $table, array $columns, array $orderBy)
+    {
+        if (! Schema::hasTable($table)) {
+            return collect();
+        }
+
+        $availableColumns = array_values(array_filter(
+            $columns,
+            fn (string $column) => Schema::hasColumn($table, $column)
+        ));
+        $query = DB::table($table);
+        if ($availableColumns !== []) {
+            $query->select($availableColumns);
+        }
+        foreach ($orderBy as $column) {
+            if (Schema::hasColumn($table, $column)) {
+                $query->orderBy($column);
+            }
+        }
+
+        return $query->get();
     }
 }
