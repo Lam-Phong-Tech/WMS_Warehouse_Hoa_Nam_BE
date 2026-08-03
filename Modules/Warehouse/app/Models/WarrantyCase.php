@@ -28,14 +28,21 @@ class WarrantyCase extends Model
 
     protected $table = 'warranty_case';
 
+    protected $primaryKey = 'warranty_case_id';
+
     public $incrementing = false;
 
     protected $keyType = 'string';
 
     protected $fillable = [
+        'warranty_case_id',
         'warranty_case_code',
         'inventory_serial_id',
-        'item_id',
+        'product_id',
+        'temporary_item_code',
+        'identification_status',
+        'missing_code_reason',
+        'manual_product_description',
         'defect_id',
         'customer_name',
         'customer_phone',
@@ -44,9 +51,15 @@ class WarrantyCase extends Model
         'description',
         'created_by',
         'version',
+        'closed_at',
+        'retention_until',
+        'legal_hold_flag',
     ];
 
     protected $casts = [
+        'closed_at' => 'datetime',
+        'retention_until' => 'datetime',
+        'legal_hold_flag' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [m1]
   push:
-    branches: [fix/wwhn-auth-rbac-audit-hardening, m1]
+    branches: [fix/wwhn-auth-rbac-audit-hardening, fix/wwhn-r2-inventory-decision-hardening, m1]
 
 permissions:
   contents: read
@@ -62,7 +62,11 @@ jobs:
           git fetch origin m1 --depth=1
           mapfile -t changed_php < <(git diff --name-only origin/m1...HEAD -- '*.php')
           if [ ${#changed_php[@]} -gt 0 ]; then
-            ./vendor/bin/pint --test "${changed_php[@]}"
+            ./vendor/bin/pint "${changed_php[@]}"
+            if ! git diff --exit-code -- "${changed_php[@]}"; then
+              echo "Pint đã phát hiện thay đổi định dạng bắt buộc; áp dụng diff trên vào source."
+              exit 1
+            fi
           fi
 
       - name: Security and regression tests
