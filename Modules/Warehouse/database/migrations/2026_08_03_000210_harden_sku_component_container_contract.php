@@ -71,7 +71,9 @@ return new class extends Migration
 
                     $key = $row->inventory_serial_id
                         ? 'SERIAL:'.strtolower((string) $row->inventory_serial_id)
-                        : 'PRODUCT:'.strtolower((string) $row->product_id);
+                        : ($row->product_id
+                            ? 'PRODUCT:'.strtolower((string) $row->product_id)
+                            : 'LEGACY:'.strtolower((string) $row->container_item_id));
 
                     DB::table('container_item')
                         ->where('container_item_id', $row->container_item_id)
@@ -79,6 +81,21 @@ return new class extends Migration
                 });
 
             if (! $this->indexExists('container_item', 'uk_container_item_key')) {
+                $duplicate = DB::table('container_item')
+                    ->select('container_id', 'item_key', DB::raw('COUNT(*) as aggregate'))
+                    ->whereNotNull('item_key')
+                    ->groupBy('container_id', 'item_key')
+                    ->havingRaw('COUNT(*) > 1')
+                    ->first();
+
+                if ($duplicate !== null) {
+                    throw new RuntimeException(sprintf(
+                        'WWHN-172 migration blocked: duplicate container item key %s in container %s. Reconcile legacy rows before retrying.',
+                        (string) $duplicate->item_key,
+                        (string) $duplicate->container_id,
+                    ));
+                }
+
                 Schema::table('container_item', function (Blueprint $table) {
                     $table->unique(['container_id', 'item_key'], 'uk_container_item_key');
                 });
