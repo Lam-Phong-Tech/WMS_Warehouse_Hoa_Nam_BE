@@ -1,7 +1,8 @@
 {
   "register_id": "WWHN-131-SOURCE-REGISTER",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "status": "PROPOSED",
+  "implementation_commit_sha": "04c373e37582961c8295c4f0fdecba3c16e3ae42",
   "generated_hash_source": "CI artifact stocktake-evidence-<exact_commit_sha>/SHA256SUMS",
   "repository_sources": [
     {"type": "API_CONTRACT", "path": "storage/api-docs/api-docs.json", "version_source": "OpenAPI info.version", "sha256_source": "SHA256SUMS"},

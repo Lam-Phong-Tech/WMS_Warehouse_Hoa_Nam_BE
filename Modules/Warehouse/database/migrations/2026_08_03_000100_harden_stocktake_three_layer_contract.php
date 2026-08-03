@@ -25,45 +25,23 @@ return new class extends Migration
             });
         }
 
-        if (Schema::hasTable('stocktake_variance')) {
-            Schema::table('stocktake_variance', function (Blueprint $table): void {
-                foreach ([
-                    'grain_type', 'grain_id', 'grain_key', 'stock_status', 'inventory_serial_id',
-                    'container_id', 'container_item_id', 'inventory_effect_qty',
-                    'balance_qty_at_review', 'balance_version_at_review', 'detected_movement_ids',
-                    'acknowledged_by', 'acknowledged_at',
-                ] as $column) {
-                    if (Schema::hasColumn('stocktake_variance', $column)) {
-                        $table->dropColumn($column);
-                    }
-                }
-            });
-        }
-
-        if (Schema::hasTable('stocktake_count')) {
-            Schema::table('stocktake_count', function (Blueprint $table): void {
-                foreach (['grain_type', 'grain_id', 'grain_key', 'stock_status', 'container_item_id'] as $column) {
-                    if (Schema::hasColumn('stocktake_count', $column)) {
-                        $table->dropColumn($column);
-                    }
-                }
-            });
-        }
-
-        if (Schema::hasTable('stocktake_snapshot')) {
-            Schema::table('stocktake_snapshot', function (Blueprint $table): void {
-                foreach (['grain_type', 'grain_id', 'grain_key', 'inventory_serial_id', 'container_id', 'container_item_id'] as $column) {
-                    if (Schema::hasColumn('stocktake_snapshot', $column)) {
-                        $table->dropColumn($column);
-                    }
-                }
-            });
-        }
-
-        if (Schema::hasTable('stocktake_session')) {
-            Schema::table('stocktake_session', function (Blueprint $table): void {
-                foreach (['reviewed_at', 'reviewed_by'] as $column) {
-                    if (Schema::hasColumn('stocktake_session', $column)) {
+        foreach ([
+            'stocktake_variance' => [
+                'grain_type', 'grain_id', 'grain_key', 'stock_status', 'inventory_serial_id',
+                'container_id', 'container_item_id', 'inventory_effect_qty',
+                'balance_qty_at_review', 'balance_version_at_review', 'detected_movement_ids',
+                'acknowledged_by', 'acknowledged_at',
+            ],
+            'stocktake_count' => ['grain_type', 'grain_id', 'grain_key', 'stock_status', 'container_item_id'],
+            'stocktake_snapshot' => ['grain_type', 'grain_id', 'grain_key', 'inventory_serial_id', 'container_id', 'container_item_id'],
+            'stocktake_session' => ['reviewed_at', 'reviewed_by'],
+        ] as $tableName => $columns) {
+            if (! Schema::hasTable($tableName)) {
+                continue;
+            }
+            Schema::table($tableName, function (Blueprint $table) use ($tableName, $columns): void {
+                foreach ($columns as $column) {
+                    if (Schema::hasColumn($tableName, $column)) {
                         $table->dropColumn($column);
                     }
                 }
@@ -75,7 +53,7 @@ return new class extends Migration
     {
         Schema::table('stocktake_session', function (Blueprint $table): void {
             if (! Schema::hasColumn('stocktake_session', 'warehouse_id')) {
-                $table->foreignUuid('warehouse_id')->after('session_no')->constrained('warehouses')->restrictOnDelete();
+                $table->foreignUuid('warehouse_id')->nullable()->after('session_no')->constrained('warehouses')->restrictOnDelete();
             }
             if (! Schema::hasColumn('stocktake_session', 'reviewed_at')) {
                 $table->timestamp('reviewed_at')->nullable()->after('count_cutoff_at');
@@ -87,7 +65,9 @@ return new class extends Migration
 
         Schema::table('stocktake_session', function (Blueprint $table): void {
             $table->timestamp('stocktake_started_at')->nullable()->change();
-            $table->index(['warehouse_id', 'status'], 'idx_stocktake_session_warehouse_status');
+            if (! $this->hasIndex('stocktake_session', 'idx_stocktake_session_warehouse_status')) {
+                $table->index(['warehouse_id', 'status'], 'idx_stocktake_session_warehouse_status');
+            }
         });
     }
 
@@ -114,26 +94,18 @@ return new class extends Migration
             }
         });
 
-        DB::table('stocktake_snapshot')->whereNull('grain_key')->orderBy('snapshot_id')->get()->each(function (object $row): void {
-            $status = strtoupper((string) ($row->stock_status ?? 'AVAILABLE'));
-            DB::table('stocktake_snapshot')->where('snapshot_id', $row->snapshot_id)->update([
-                'grain_type' => 'SKU',
-                'grain_id' => $row->product_id,
-                'grain_key' => 'SKU|'.$row->product_id.'|'.$status,
-                'stock_status' => $status,
-            ]);
-        });
-
-        $this->assertNoDuplicateGrain('stocktake_snapshot', 'snapshot_id');
+        $this->backfillSkuGrain('stocktake_snapshot', 'snapshot_id');
+        $this->assertNoDuplicateGrain('stocktake_snapshot');
         if ($this->hasIndex('stocktake_snapshot', 'uk_stocktake_snapshot_session_product_status')) {
             Schema::table('stocktake_snapshot', fn (Blueprint $table) => $table->dropUnique('uk_stocktake_snapshot_session_product_status'));
         }
         Schema::table('stocktake_snapshot', function (Blueprint $table): void {
-            $table->string('grain_type', 20)->nullable(false)->change();
-            $table->uuid('grain_id')->nullable(false)->change();
-            $table->string('grain_key', 180)->nullable(false)->change();
-            $table->unique(['session_id', 'grain_key'], 'uk_stocktake_snapshot_session_grain');
-            $table->index(['session_id', 'product_id', 'stock_status'], 'idx_stocktake_snapshot_dimension');
+            if (! $this->hasIndex('stocktake_snapshot', 'uk_stocktake_snapshot_session_grain')) {
+                $table->unique(['session_id', 'grain_key'], 'uk_stocktake_snapshot_session_grain');
+            }
+            if (! $this->hasIndex('stocktake_snapshot', 'idx_stocktake_snapshot_dimension')) {
+                $table->index(['session_id', 'product_id', 'stock_status'], 'idx_stocktake_snapshot_dimension');
+            }
         });
     }
 
@@ -157,25 +129,15 @@ return new class extends Migration
             }
         });
 
-        DB::table('stocktake_count')->whereNull('grain_key')->orderBy('count_id')->get()->each(function (object $row): void {
-            $status = strtoupper((string) ($row->stock_status ?? 'AVAILABLE'));
-            $grainType = $row->inventory_serial_id ? 'ITEM' : ($row->container_id ? 'CONTAINER' : 'SKU');
-            $grainId = $row->inventory_serial_id ?: ($row->container_id ?: $row->product_id);
-            DB::table('stocktake_count')->where('count_id', $row->count_id)->update([
-                'grain_type' => $grainType,
-                'grain_id' => $grainId,
-                'grain_key' => $grainType.'|'.$grainId.'|'.$status,
-                'stock_status' => $status,
-            ]);
-        });
-
-        $this->assertNoDuplicateGrain('stocktake_count', 'count_id');
+        $this->backfillCountGrain();
+        $this->assertNoDuplicateGrain('stocktake_count');
         Schema::table('stocktake_count', function (Blueprint $table): void {
-            $table->string('grain_type', 20)->nullable(false)->change();
-            $table->uuid('grain_id')->nullable(false)->change();
-            $table->string('grain_key', 180)->nullable(false)->change();
-            $table->unique(['session_id', 'grain_key'], 'uk_stocktake_count_session_grain');
-            $table->index(['session_id', 'product_id', 'stock_status'], 'idx_stocktake_count_dimension');
+            if (! $this->hasIndex('stocktake_count', 'uk_stocktake_count_session_grain')) {
+                $table->unique(['session_id', 'grain_key'], 'uk_stocktake_count_session_grain');
+            }
+            if (! $this->hasIndex('stocktake_count', 'idx_stocktake_count_dimension')) {
+                $table->index(['session_id', 'product_id', 'stock_status'], 'idx_stocktake_count_dimension');
+            }
         });
     }
 
@@ -223,24 +185,15 @@ return new class extends Migration
             }
         });
 
-        DB::table('stocktake_variance')->whereNull('grain_key')->orderBy('variance_id')->get()->each(function (object $row): void {
-            $status = strtoupper((string) ($row->stock_status ?? 'AVAILABLE'));
-            DB::table('stocktake_variance')->where('variance_id', $row->variance_id)->update([
-                'grain_type' => 'SKU',
-                'grain_id' => $row->product_id,
-                'grain_key' => 'SKU|'.$row->product_id.'|'.$status,
-                'stock_status' => $status,
-                'inventory_effect_qty' => $row->variance_qty,
-            ]);
-        });
-
-        $this->assertNoDuplicateGrain('stocktake_variance', 'variance_id');
+        $this->backfillSkuGrain('stocktake_variance', 'variance_id', true);
+        $this->assertNoDuplicateGrain('stocktake_variance');
         Schema::table('stocktake_variance', function (Blueprint $table): void {
-            $table->string('grain_type', 20)->nullable(false)->change();
-            $table->uuid('grain_id')->nullable(false)->change();
-            $table->string('grain_key', 180)->nullable(false)->change();
-            $table->unique(['session_id', 'grain_key'], 'uk_stocktake_variance_session_grain');
-            $table->index(['session_id', 'status'], 'idx_stocktake_variance_session_status');
+            if (! $this->hasIndex('stocktake_variance', 'uk_stocktake_variance_session_grain')) {
+                $table->unique(['session_id', 'grain_key'], 'uk_stocktake_variance_session_grain');
+            }
+            if (! $this->hasIndex('stocktake_variance', 'idx_stocktake_variance_session_status')) {
+                $table->index(['session_id', 'status'], 'idx_stocktake_variance_session_status');
+            }
         });
     }
 
@@ -275,7 +228,39 @@ return new class extends Migration
         }
     }
 
-    private function assertNoDuplicateGrain(string $table, string $primaryKey): void
+    private function backfillSkuGrain(string $table, string $primaryKey, bool $copyVariance = false): void
+    {
+        DB::table($table)->whereNull('grain_key')->orderBy($primaryKey)->get()->each(function (object $row) use ($table, $primaryKey, $copyVariance): void {
+            $status = strtoupper((string) ($row->stock_status ?? 'AVAILABLE'));
+            $updates = [
+                'grain_type' => 'SKU',
+                'grain_id' => $row->product_id,
+                'grain_key' => 'SKU|'.$row->product_id.'|'.$status,
+                'stock_status' => $status,
+            ];
+            if ($copyVariance) {
+                $updates['inventory_effect_qty'] = $row->variance_qty;
+            }
+            DB::table($table)->where($primaryKey, $row->{$primaryKey})->update($updates);
+        });
+    }
+
+    private function backfillCountGrain(): void
+    {
+        DB::table('stocktake_count')->whereNull('grain_key')->orderBy('count_id')->get()->each(function (object $row): void {
+            $status = strtoupper((string) ($row->stock_status ?? 'AVAILABLE'));
+            $grainType = $row->inventory_serial_id ? 'ITEM' : ($row->container_id ? 'CONTAINER' : 'SKU');
+            $grainId = $row->inventory_serial_id ?: ($row->container_item_id ?: ($row->container_id ?: $row->product_id));
+            DB::table('stocktake_count')->where('count_id', $row->count_id)->update([
+                'grain_type' => $grainType,
+                'grain_id' => $grainId,
+                'grain_key' => $grainType.'|'.$grainId.'|'.$status,
+                'stock_status' => $status,
+            ]);
+        });
+    }
+
+    private function assertNoDuplicateGrain(string $table): void
     {
         $duplicate = DB::table($table)
             ->select('session_id', 'grain_key')
@@ -284,7 +269,7 @@ return new class extends Migration
             ->havingRaw('COUNT(*) > 1')
             ->first();
         if ($duplicate) {
-            throw new RuntimeException("{$table} có duplicate grain; phải reconcile dữ liệu trước khi áp constraint ({$primaryKey}).");
+            throw new RuntimeException("{$table} có duplicate session/grain_key; phải reconcile dữ liệu trước khi đặt unique constraint.");
         }
     }
 
