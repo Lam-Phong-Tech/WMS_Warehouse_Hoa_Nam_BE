@@ -33,10 +33,15 @@ cp "$STOCKTAKE_SOURCE_REGISTER" "$EVIDENCE_DIR/stocktake-source-register.json"
 cp "$STOCKTAKE_COLLECTION" "$EVIDENCE_DIR/source/"
 cp "$STOCKTAKE_TEST_CASES" "$EVIDENCE_DIR/source/"
 cp "$STOCKTAKE_SOURCE_REGISTER" "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/routes/api.php "$EVIDENCE_DIR/source/warehouse-api-routes.php"
+cp Modules/Warehouse/app/Http/Controllers/StocktakeController.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/app/Services/StocktakeAdjustmentService.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/app/Services/StocktakeService.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Services/StocktakeSessionGuard.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Services/StocktakeGrainService.php "$EVIDENCE_DIR/source/"
 cp tests/Feature/StocktakeThreeLayerContractTest.php "$EVIDENCE_DIR/source/"
+cp tests/Feature/StocktakeApplyLedgerIntegrityTest.php "$EVIDENCE_DIR/source/"
 
 php artisan migrate:fresh --force 2>&1 | tee "$EVIDENCE_DIR/migrate-fresh.raw.log"
 php artisan db:seed --force 2>&1 | tee "$EVIDENCE_DIR/database-seed.raw.log"
@@ -119,7 +124,8 @@ cat > "$EVIDENCE_DIR/build-metadata.json" <<JSON
   "database_connection": "${DB_CONNECTION:-unknown}",
   "postman_collection_version": "2.0.0",
   "stocktake_postman_collection_version": "1.0.0",
-  "stocktake_test_case_version": "1.0.0",
+  "stocktake_test_case_version": "1.1.0",
+  "stocktake_contract_verifier_version": "1.1.0",
   "document_status": "PROPOSED",
   "approval_status": "PENDING_FORMAL_JIRA_APPROVAL",
   "deployment_sha": null
