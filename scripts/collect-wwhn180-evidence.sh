@@ -7,6 +7,8 @@ ENVIRONMENT="docs/postman/WWHN-180 Posting CI.postman_environment.json"
 CONTRACT="docs/api-contract/WWHN-180-posting-openapi.yaml"
 COMMIT_SHA="$(git rev-parse HEAD)"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+WWHN180_EMAIL="${WWHN180_EMAIL:?WWHN180_EMAIL is required}"
+WWHN180_PASSWORD="${WWHN180_PASSWORD:?WWHN180_PASSWORD is required}"
 
 rm -rf "$EVIDENCE_DIR"
 mkdir -p "$EVIDENCE_DIR/source"
@@ -58,6 +60,8 @@ curl --fail --silent http://127.0.0.1:8000/api/health > /dev/null
 
 npx newman run "$EVIDENCE_DIR/wwhn180.postman.collection.json" \
   -e "$EVIDENCE_DIR/wwhn180.postman.environment.json" \
+  --env-var "email=$WWHN180_EMAIL" \
+  --env-var "password=$WWHN180_PASSWORD" \
   --reporters cli,json \
   --reporter-json-export "$EVIDENCE_DIR/newman.result.json" \
   2>&1 | tee "$EVIDENCE_DIR/newman.raw.log"
