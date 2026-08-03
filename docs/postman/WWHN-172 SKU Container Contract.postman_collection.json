@@ -1,0 +1,194 @@
+{
+  "info": {
+    "name": "WWHN-172 SKU Container Contract",
+    "description": "Positive, retry, conflict, optimistic concurrency and seal scenarios for WWHN-172.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8000"},
+    {"key": "token", "value": ""},
+    {"key": "component_id", "value": ""},
+    {"key": "sku_id", "value": ""},
+    {"key": "physical_code_id", "value": ""},
+    {"key": "product_id", "value": ""},
+    {"key": "container_id", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "SKU aggregate",
+      "item": [
+        {
+          "name": "Create SKU aggregate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-sku-create-001"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/skus",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WWHN172-KIT-001\",\n  \"name\": \"WWHN-172 Kit\",\n  \"sku_type\": \"PRODUCT\",\n  \"components\": [{\"component_id\": \"{{component_id}}\", \"quantity\": 2}],\n  \"physical_codes\": [{\"code_value\": \"WWHN172-BC-001\", \"code_type\": \"BARCODE\", \"carrier_type\": \"UNIT\"}]\n}"
+            }
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "const j=pm.response.json(); pm.expect(j.success).to.eql(true);",
+            "pm.collectionVariables.set('sku_id', j.data.id);",
+            "pm.collectionVariables.set('physical_code_id', j.data.physical_codes[0].physical_code_id);",
+            "pm.test('request_id and no stack', () => { pm.expect(j.meta.request_id).to.be.ok; pm.expect(JSON.stringify(j)).not.to.include('vendor/'); });"
+          ]}}]
+        },
+        {
+          "name": "Replay SKU create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-sku-create-001"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/skus",
+            "body": {"mode": "raw", "raw": "{\n  \"code\": \"WWHN172-KIT-001\",\n  \"name\": \"WWHN-172 Kit\",\n  \"sku_type\": \"PRODUCT\",\n  \"components\": [{\"component_id\": \"{{component_id}}\", \"quantity\": 2}],\n  \"physical_codes\": [{\"code_value\": \"WWHN172-BC-001\", \"code_type\": \"BARCODE\", \"carrier_type\": \"UNIT\"}]\n}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('exact replay', () => { pm.response.to.have.status(201); pm.expect(pm.response.headers.get('Idempotent-Replay')).to.eql('true'); });"
+          ]}}]
+        },
+        {
+          "name": "Legacy SKU create without Idempotency-Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/skus",
+            "body": {"mode": "raw", "raw": "{\"code\":\"LEGACY-{{$timestamp}}\",\"name\":\"Backward-compatible create\"}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('201 compatibility', () => pm.response.to.have.status(201));"]}}]
+        },
+        {
+          "name": "Update SKU optimistic",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-sku-update-001"},
+              {"key": "If-Match", "value": "\"1\""},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/skus/{{sku_id}}",
+            "body": {"mode": "raw", "raw": "{\"name\":\"WWHN-172 Kit v2\"}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('200 and version 2', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.version).to.eql(2); });"]}}]
+        },
+        {
+          "name": "Stale SKU version",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-sku-update-stale"},
+              {"key": "If-Match", "value": "\"1\""},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/skus/{{sku_id}}",
+            "body": {"mode": "raw", "raw": "{\"name\":\"Must not overwrite\"}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('409 version conflict', () => { pm.response.to.have.status(409); pm.expect(pm.response.json().error.code).to.eql('SKU_VERSION_CONFLICT'); });"]}}]
+        },
+        {
+          "name": "Same key different payload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-sku-create-001"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/skus",
+            "body": {"mode": "raw", "raw": "{\"code\":\"DIFFERENT-PAYLOAD\",\"name\":\"Conflict\"}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('409 idempotency conflict', () => { pm.response.to.have.status(409); pm.expect(pm.response.json().error.code).to.eql('IDEMPOTENCY_ERROR'); });"]}}]
+        }
+      ]
+    },
+    {
+      "name": "Container aggregate",
+      "item": [
+        {
+          "name": "Create container",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-container-create-001"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/containers",
+            "body": {"mode": "raw", "raw": "{\n  \"container_code\": \"WWHN172-CTN-001\",\n  \"container_type\": \"BOX\",\n  \"primary_product_id\": \"{{product_id}}\",\n  \"items\": [{\"product_id\": \"{{product_id}}\", \"quantity\": 10}]\n}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('container_id', pm.response.json().data.container_id);"
+          ]}}]
+        },
+        {
+          "name": "Replay container create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-container-create-001"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/containers",
+            "body": {"mode": "raw", "raw": "{\n  \"container_code\": \"WWHN172-CTN-001\",\n  \"container_type\": \"BOX\",\n  \"primary_product_id\": \"{{product_id}}\",\n  \"items\": [{\"product_id\": \"{{product_id}}\", \"quantity\": 10}]\n}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('replay', () => pm.expect(pm.response.headers.get('Idempotent-Replay')).to.eql('true')); "]}}]
+        },
+        {
+          "name": "Seal container",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-container-seal-001"},
+              {"key": "If-Match", "value": "\"1\""},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/containers/{{container_id}}/seal",
+            "body": {"mode": "raw", "raw": "{}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('sealed', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().data.status).to.eql('SEALED'); });"]}}]
+        },
+        {
+          "name": "Reject update after seal",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"},
+              {"key": "Idempotency-Key", "value": "wwhn172-container-update-sealed"},
+              {"key": "If-Match", "value": "\"2\""},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{base_url}}/api/v1/containers/{{container_id}}",
+            "body": {"mode": "raw", "raw": "{\"location_hint\":\"Must not change\"}"}
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('409 immutable', () => { pm.response.to.have.status(409); pm.expect(pm.response.json().error.code).to.eql('CONTAINER_IMMUTABLE'); });"]}}]
+        },
+        {
+          "name": "Get container aggregate",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/containers/{{container_id}}"
+          },
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('200 detail', () => pm.response.to.have.status(200));"]}}]
+        }
+      ]
+    }
+  ]
+}
