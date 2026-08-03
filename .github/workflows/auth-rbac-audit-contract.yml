@@ -57,24 +57,13 @@ jobs:
           echo "QUEUE_CONNECTION=sync" >> .env
           echo "AUDIT_WRITE_POLICY=outbox_required" >> .env
 
-      - name: PHP syntax and scoped formatting gate
+      - name: PHP syntax and full formatting gate
         shell: bash
         run: |
           set -euo pipefail
           find app Modules tests config database routes -name '*.php' -print0 | xargs -0 -n1 php -l
           git diff --check
-
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git fetch origin "${{ github.base_ref }}" --depth=1
-            BASE_REF="origin/${{ github.base_ref }}"
-          else
-            BASE_REF="HEAD^"
-          fi
-
-          mapfile -t changed_php < <(git diff --name-only "$BASE_REF" HEAD -- '*.php')
-          if [[ ${#changed_php[@]} -gt 0 ]]; then
-            ./vendor/bin/pint --test "${changed_php[@]}"
-          fi
+          ./vendor/bin/pint --test app Modules tests config database routes
 
       - name: Collect immutable API and data evidence
         run: bash scripts/collect-api-data-evidence.sh
