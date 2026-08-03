@@ -1,0 +1,153 @@
+name: WWHN-128 Inventory Decision Exact-SHA Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-128-inventory-decision-contract.yml'
+      - 'Modules/Warehouse/app/Http/Controllers/WarrantyController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/ReportController.php'
+      - 'Modules/Warehouse/app/Models/InventorySerial.php'
+      - 'Modules/Warehouse/app/Models/WarrantyCase.php'
+      - 'Modules/Warehouse/app/Models/WarrantyEvent.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'docs/docs_task_jira/WWHN-128*'
+      - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
+      - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
+      - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
+      - 'tests/Feature/Wwhn180IdempotencyAtomicityTest.php'
+      - 'composer.json'
+      - 'composer.lock'
+  pull_request:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-128-inventory-decision-contract.yml'
+      - 'Modules/Warehouse/app/Http/Controllers/WarrantyController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/ReportController.php'
+      - 'Modules/Warehouse/app/Models/InventorySerial.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'docs/docs_task_jira/WWHN-128*'
+      - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
+      - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
+      - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
+      - 'tests/Feature/Wwhn180IdempotencyAtomicityTest.php'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-128-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  exact-sha-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare isolated test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          rm -f /tmp/wms-wwhn128.sqlite
+          touch /tmp/wms-wwhn128.sqlite
+          cat >> .env <<'ENV'
+          JWT_SECRET=ci-jwt-secret-wwhn128
+          DB_CONNECTION=sqlite
+          DB_DATABASE=/tmp/wms-wwhn128.sqlite
+          CACHE_STORE=array
+          SESSION_DRIVER=array
+          QUEUE_CONNECTION=sync
+          AUDIT_WRITE_POLICY=outbox_required
+          ENV
+
+      - name: Static integrity gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l Modules/Warehouse/app/Models/InventorySerial.php
+          php -l Modules/Warehouse/app/Http/Controllers/WarrantyController.php
+          php -l Modules/Warehouse/app/Http/Controllers/ReportController.php
+          php -l app/Support/IdempotencyStore.php
+          php -l tests/Feature/WarrantyStatusOnlyContractTest.php
+          php -l tests/Feature/InventoryReconciliationSignedStatusTest.php
+          php -l tests/Feature/InventoryReconciliationIntegrityTest.php
+          php -l tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+          git diff --check
+          ./vendor/bin/pint --test \
+            Modules/Warehouse/app/Models/InventorySerial.php \
+            Modules/Warehouse/app/Http/Controllers/WarrantyController.php \
+            Modules/Warehouse/app/Http/Controllers/ReportController.php \
+            app/Support/IdempotencyStore.php \
+            tests/Feature/WarrantyStatusOnlyContractTest.php \
+            tests/Feature/InventoryReconciliationSignedStatusTest.php \
+            tests/Feature/InventoryReconciliationIntegrityTest.php \
+            tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+
+      - name: Run WWHN-128 regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence/wwhn-128
+          ./vendor/bin/phpunit \
+            --filter '/(WarrantyStatusOnlyContractTest|InventoryReconciliationSignedStatusTest|InventoryReconciliationIntegrityTest|Wwhn180IdempotencyAtomicityTest)/' \
+            --log-junit build/evidence/wwhn-128/junit.xml \
+            2>&1 | tee build/evidence/wwhn-128/phpunit.log
+
+      - name: Collect exact-SHA contract evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence/wwhn-128
+          php artisan route:list --json > build/evidence/wwhn-128/route-list.json || true
+          git show --stat --oneline --decorate --no-renames "$GITHUB_SHA" > build/evidence/wwhn-128/commit-stat.txt
+          git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" > build/evidence/wwhn-128/changed-files.txt
+          cat > build/evidence/wwhn-128/build-metadata.json <<JSON
+          {
+            "ticket": "WWHN-128",
+            "commit_sha": "${GITHUB_SHA}",
+            "branch_or_ref": "${GITHUB_REF}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "repository": "${GITHUB_REPOSITORY}",
+            "artifact_name": "wwhn-128-evidence-${GITHUB_SHA}",
+            "database_engine": "sqlite",
+            "status_policy": "Workflow conclusion and QA1 review are required before PASS is claimed"
+          }
+          JSON
+          cp docs/docs_task_jira/WWHN-128.md build/evidence/wwhn-128/WWHN-128.md
+          if [ -f docs/docs_task_jira/WWHN-128-source-register.json ]; then
+            cp docs/docs_task_jira/WWHN-128-source-register.json build/evidence/wwhn-128/source-register.json
+          fi
+          cd build/evidence/wwhn-128
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          sha256sum --check SHA256SUMS
+
+      - name: Upload immutable exact-SHA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-128-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-128
+          if-no-files-found: error
+          retention-days: 90
