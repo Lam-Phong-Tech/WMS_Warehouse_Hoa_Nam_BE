@@ -56,6 +56,11 @@ const applyRequired = new Set(applySchema?.required ?? []);
 for (const field of ['session_version', 'variance_ids', 'reason']) {
   check(applyRequired.has(field), `openapi:apply-required-${field}`, `Apply requires ${field}`);
 }
+const varianceIdsSchema = applySchema?.properties?.variance_ids;
+check(varianceIdsSchema?.type === 'array', 'openapi:variance-ids-array', 'variance_ids is an array');
+check(varianceIdsSchema?.minItems === 1, 'openapi:variance-ids-min', 'variance_ids minItems is 1');
+check(varianceIdsSchema?.maxItems === 500, 'openapi:variance-ids-max', 'variance_ids maxItems is 500');
+check(varianceIdsSchema?.uniqueItems === true, 'openapi:variance-ids-unique', 'variance_ids declares uniqueItems=true');
 check(!('expected_qty' in (applySchema?.properties ?? {})), 'openapi:no-client-expected', 'Apply does not accept client expected_qty');
 check(!('inventory_effect_qty' in (applySchema?.properties ?? {})), 'openapi:no-client-effect', 'Apply does not accept client inventory_effect_qty');
 
@@ -109,7 +114,7 @@ for (const fragment of [
 }
 check(postman.info?.version === '1.0.0', 'postman:version', 'Postman collection version is 1.0.0');
 
-const requiredCaseIds = Array.from({ length: 14 }, (_, index) => `STK-TC-${String(index + 1).padStart(3, '0')}`);
+const requiredCaseIds = Array.from({ length: 15 }, (_, index) => `STK-TC-${String(index + 1).padStart(3, '0')}`);
 const actualCaseIds = new Set((testCases.cases ?? []).map((testCase) => testCase.id));
 for (const id of requiredCaseIds) {
   check(actualCaseIds.has(id), `test-case:${id}`, `${id} is registered`);
@@ -158,11 +163,15 @@ for (const requiredPath of requiredRegisterPaths) {
 }
 
 const sourceChecks = [
+  ['Modules/Warehouse/app/Http/Controllers/StocktakeController.php', 'uniqueItems: true'],
+  ['Modules/Warehouse/app/Http/Controllers/StocktakeController.php', "'variance_ids.*' => ['required', 'uuid', 'distinct']"],
   ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'stocktake_apply_adjustment_'],
   ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'MOVEMENT_ACKNOWLEDGEMENT_REQUIRED'],
   ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'LEDGER_BALANCE_MISMATCH'],
   ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'zero_effect_dimensions'],
   ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', "where('session_id', $session->session_id)"],
+  ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'normalizeVarianceIds'],
+  ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'duplicate_ids'],
   ['Modules/Warehouse/app/Services/StocktakeService.php', 'SUM(qty_delta)'],
   ['Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php', 'uk_stocktake_count_session_grain'],
   ['Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php', 'uk_posting_event_operation_idem'],
@@ -171,6 +180,7 @@ const sourceChecks = [
   ['tests/Feature/StocktakeThreeLayerContractTest.php', 'test_warehouse_data_scope_blocks_create_read_and_apply'],
   ['tests/Feature/StocktakeApplyLedgerIntegrityTest.php', 'test_zero_effect_apply_does_not_create_empty_movement_or_increment_balance_version'],
   ['tests/Feature/StocktakeApplyLedgerIntegrityTest.php', 'test_apply_rejects_ledger_balance_mismatch_and_rolls_back_operation'],
+  ['tests/Feature/StocktakeReviewGateTest.php', 'test_duplicate_variance_ids_are_rejected_by_http_and_service_without_writes'],
   ['tests/Feature/StocktakeReviewGateTest.php', 'test_committed_replay_checks_warehouse_scope_before_returning_snapshot'],
   ['tests/Feature/StocktakeReviewGateTest.php', 'test_different_key_cannot_apply_same_reviewed_session_twice'],
   ['tests/Feature/StocktakeReviewGateTest.php', 'test_all_write_lifecycle_endpoints_reject_cross_warehouse_actor_without_state_change'],
@@ -186,12 +196,19 @@ for (const [file, fragment] of sourceChecks) {
 
 const adjustmentSource = readText('Modules/Warehouse/app/Services/StocktakeAdjustmentService.php');
 const scopeLockPosition = adjustmentSource.indexOf('$session = $this->guard->lockScoped($sessionId, $user);');
+const duplicateGuardPosition = adjustmentSource.indexOf('$requestedIds = $this->normalizeVarianceIds($varianceIds);');
 const eventLookupPosition = adjustmentSource.indexOf("$event = DB::table('posting_event')");
 check(
   scopeLockPosition >= 0 && eventLookupPosition >= 0 && scopeLockPosition < eventLookupPosition,
   'source:scope-before-replay',
   'Warehouse scope is enforced before committed response replay lookup',
   { scopeLockPosition, eventLookupPosition },
+);
+check(
+  scopeLockPosition >= 0 && duplicateGuardPosition > scopeLockPosition && duplicateGuardPosition < eventLookupPosition,
+  'source:duplicate-guard-before-replay',
+  'Duplicate variance IDs are rejected after scope validation and before replay lookup',
+  { scopeLockPosition, duplicateGuardPosition, eventLookupPosition },
 );
 check(
   adjustmentSource.includes('$requestedIds !== $allIds'),
