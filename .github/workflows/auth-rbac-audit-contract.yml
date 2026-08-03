@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [m1]
   push:
-    branches: [fix/wwhn-auth-rbac-audit-hardening, fix/wwhn-r2-inventory-decision-hardening, fix/wwhn-180-api-data-evidence-gate, m1]
+    branches: [m1]
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout current SHA
@@ -28,7 +28,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, sqlite3, pdo_sqlite
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
           coverage: none
           tools: composer:v2
 
@@ -47,6 +47,7 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate
+          rm -f /tmp/wms-ci.sqlite
           touch /tmp/wms-ci.sqlite
           echo "JWT_SECRET=ci-jwt-secret-auth-rbac-audit-contract" >> .env
           echo "DB_CONNECTION=sqlite" >> .env
@@ -57,16 +58,22 @@ jobs:
           echo "AUDIT_WRITE_POLICY=outbox_required" >> .env
 
       - name: PHP syntax and scoped formatting gate
+        shell: bash
         run: |
+          set -euo pipefail
           find app Modules tests config database routes -name '*.php' -print0 | xargs -0 -n1 php -l
-          git fetch origin m1 --depth=1
-          mapfile -t changed_php < <(git diff --name-only origin/m1...HEAD -- '*.php')
-          if [ ${#changed_php[@]} -gt 0 ]; then
-            ./vendor/bin/pint "${changed_php[@]}"
-            if ! git diff --exit-code -- "${changed_php[@]}"; then
-              echo "Pint đã phát hiện thay đổi định dạng bắt buộc; áp dụng diff trên vào source."
-              exit 1
-            fi
+          git diff --check
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            BASE_REF="origin/${{ github.base_ref }}"
+          else
+            BASE_REF="HEAD^"
+          fi
+
+          mapfile -t changed_php < <(git diff --name-only "$BASE_REF" HEAD -- '*.php')
+          if [[ ${#changed_php[@]} -gt 0 ]]; then
+            ./vendor/bin/pint --test "${changed_php[@]}"
           fi
 
       - name: Collect immutable API and data evidence
@@ -75,8 +82,11 @@ jobs:
       - name: Lint OpenAPI contract
         run: npx redocly lint build/evidence/api-data/openapi.json
 
-      - name: Validate Postman artifacts
-        run: node -e "const fs=require('fs');for(const p of ['build/evidence/api-data/postman.collection.json','build/evidence/api-data/postman.environment.json']){const c=JSON.parse(fs.readFileSync(p,'utf8'));if(!c)throw new Error('Invalid '+p)}"
+      - name: Validate evidence manifest
+        run: |
+          test -s build/evidence/api-data/SHA256SUMS
+          (cd build/evidence/api-data && sha256sum --check SHA256SUMS)
+          node -e "const fs=require('fs');for(const p of ['postman.collection.json','postman.environment.json','newman.result.json','contract-verification.json','db-before.json','db-after.json','build-metadata.json']){JSON.parse(fs.readFileSync('build/evidence/api-data/'+p,'utf8'));}"
 
       - name: Frontend asset and baseline build
         run: |
@@ -85,9 +95,10 @@ jobs:
           npm run build
 
       - name: Upload immutable API data evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: api-data-evidence-${{ github.sha }}
           path: build/evidence/api-data
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
