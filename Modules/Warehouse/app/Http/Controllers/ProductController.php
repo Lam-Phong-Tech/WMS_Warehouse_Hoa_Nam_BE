@@ -3,56 +3,46 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
+use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreProductRequest;
+use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Services\SkuAggregateService;
 use OpenApi\Attributes as OA;
 
 class ProductController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly ProductRepositoryInterface $products) {}
+    public function __construct(
+        private readonly ProductRepositoryInterface $products,
+        private readonly SkuAggregateService $skuAggregate
+    ) {}
 
     #[OA\Get(
         path: '/api/v1/products',
         operationId: 'product_list',
-        summary: 'Danh sách sản phẩm (phân trang, filter theo keyword/status)',
+        summary: 'Danh sách sản phẩm',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
-        parameters: [
-            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
-            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Danh sách sản phẩm'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền product.view'),
-        ]
+        responses: [new OA\Response(response: 200, description: 'Danh sách sản phẩm')]
     )]
     #[OA\Get(
         path: '/api/v1/skus',
         operationId: 'sku_list',
-        summary: 'List SKU records (alias of products list)',
+        summary: 'Danh sách SKU',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
-        parameters: [
-            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
-            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Paginated SKU records'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.view permission'),
-        ]
+        responses: [new OA\Response(response: 200, description: 'Danh sách SKU')]
     )]
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         return $this->respondPaginated(
             $this->products->paginate($request->all(), (int) $request->input('per_page', 15))
@@ -60,111 +50,80 @@ class ProductController extends Controller
     }
 
     #[OA\Post(
-        path: '/api/v1/products',
-        operationId: 'product_create',
-        summary: 'Tạo sản phẩm mới',
-        security: [['bearerAuth' => []]],
-        tags: ['05. Product'],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['code', 'name'],
-                properties: [
-                    new OA\Property(property: 'code', type: 'string', maxLength: 100, example: 'SP-0001'),
-                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'Máy khoan cầm tay'),
-                    new OA\Property(property: 'unit', type: 'string', maxLength: 30, nullable: true, example: 'cái'),
-                    new OA\Property(property: 'sku_type', type: 'string', enum: ['PRODUCT', 'COMPONENT'], nullable: true),
-                    new OA\Property(property: 'is_serial_tracked', type: 'boolean', nullable: true),
-                ]
-            )
-        ),
-        responses: [
-            new OA\Response(response: 201, description: 'Tạo sản phẩm thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền product.manage'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: code đã tồn tại)'),
-        ]
-    )]
-    #[OA\Post(
         path: '/api/v1/skus',
         operationId: 'sku_create',
-        summary: 'Create a SKU record (alias of product create)',
+        summary: 'Tạo SKU aggregate cùng component và physical code',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['code', 'name'],
-                properties: [
-                    new OA\Property(property: 'code', type: 'string', maxLength: 100, example: 'SKU-0001'),
-                    new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'Cordless drill'),
-                    new OA\Property(property: 'unit', type: 'string', maxLength: 30, nullable: true, example: 'pcs'),
-                    new OA\Property(property: 'sku_type', type: 'string', enum: ['PRODUCT', 'COMPONENT'], nullable: true),
-                    new OA\Property(property: 'is_serial_tracked', type: 'boolean', nullable: true),
-                ]
-            )
-        ),
+        parameters: [
+            new OA\Parameter(
+                name: 'Idempotency-Key',
+                in: 'header',
+                required: false,
+                schema: new OA\Schema(type: 'string', maxLength: 128)
+            ),
+        ],
         responses: [
-            new OA\Response(response: 201, description: 'SKU created successfully'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
-            new OA\Response(response: 422, description: 'Validation error'),
+            new OA\Response(response: 201, description: 'SKU được tạo atomically'),
+            new OA\Response(response: 409, description: 'Idempotency/code conflict'),
+            new OA\Response(response: 422, description: 'Business rule violation'),
         ]
     )]
-    public function store(StoreProductRequest $request)
+    public function store(StoreProductRequest $request): JsonResponse
     {
-        $product = $this->products->create($request->validated() + ['status' => 'ACTIVE']);
+        if ($this->isSkuRoute($request)) {
+            return $this->storeSku($request);
+        }
 
-        AuditLogger::record(
-            'CREATE',
-            'product',
-            $product->getKey(),
-            auth('api')->id(),
-            $request->attributes->get('request_id'),
-            afterData: $product->only([
-                'id', 'code', 'sku_code', 'name', 'unit', 'sku_type',
-                'brand_code', 'category_code', 'model_code', 'published_to_app',
-                'is_serial_tracked', 'status',
-            ])
-        );
+        $product = DB::transaction(function () use ($request): Product {
+            $attributes = Arr::except($request->validated(), ['components', 'physical_codes']);
+            $attributes['status'] = $attributes['status'] ?? 'ACTIVE';
+            $attributes['version'] = 1;
+
+            /** @var Product $product */
+            $product = $this->products->create($attributes);
+            AuditLogger::record(
+                'CREATE',
+                'product',
+                (string) $product->getKey(),
+                $this->actorId(),
+                $this->requestId($request),
+                afterData: $product->toArray(),
+                reason: 'Product create transaction boundary'
+            );
+
+            return $product;
+        }, 3);
 
         return $this->respondCreated($product, 'Tạo sản phẩm thành công');
     }
 
     #[OA\Get(
-        path: '/api/v1/products/{id}',
-        operationId: 'product_detail',
-        summary: 'Chi tiết sản phẩm',
-        security: [['bearerAuth' => []]],
-        tags: ['05. Product'],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Chi tiết sản phẩm'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 404, description: 'Không tìm thấy sản phẩm'),
-        ]
-    )]
-    #[OA\Get(
         path: '/api/v1/skus/{id}',
         operationId: 'sku_detail',
-        summary: 'SKU detail (alias of product detail)',
+        summary: 'Chi tiết SKU aggregate',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'SKU detail'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 404, description: 'SKU not found'),
+            new OA\Response(response: 200, description: 'SKU, components và physical codes'),
+            new OA\Response(response: 404, description: 'Không tìm thấy SKU'),
         ]
     )]
-    public function show(string $id)
+    public function show(Request $request, string $id): JsonResponse
     {
-        $product = $this->products->find($id);
+        if ($this->isSkuRoute($request)) {
+            $aggregate = $this->skuAggregate->snapshot($id);
+            if ($aggregate === []) {
+                return $this->respondNotFound('Không tìm thấy SKU.');
+            }
 
+            return $this->respondSuccess($aggregate);
+        }
+
+        $product = $this->products->find($id);
         if (! $product) {
             return $this->respondNotFound('Không tìm thấy sản phẩm.');
         }
@@ -172,69 +131,102 @@ class ProductController extends Controller
         return $this->respondSuccess($product);
     }
 
-    #[OA\Patch(
-        path: '/api/v1/products/{id}/enable',
-        operationId: 'product_enable',
-        summary: 'Enable a product',
-        security: [['bearerAuth' => []]],
-        tags: ['05. Product'],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Product enabled successfully'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
-            new OA\Response(response: 404, description: 'Product not found'),
-        ]
-    )]
-    public function enable(string $id)
+    public function enable(string $id): JsonResponse
     {
         return $this->setStatus($id, 'ACTIVE', 'Bật sản phẩm thành công');
     }
 
-    #[OA\Patch(
-        path: '/api/v1/products/{id}/disable',
-        operationId: 'product_disable',
-        summary: 'Disable a product',
-        security: [['bearerAuth' => []]],
-        tags: ['05. Product'],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Product disabled successfully'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
-            new OA\Response(response: 404, description: 'Product not found'),
-        ]
-    )]
-    public function disable(string $id)
+    public function disable(string $id): JsonResponse
     {
         return $this->setStatus($id, 'INACTIVE', 'Tắt sản phẩm thành công');
     }
 
-    private function setStatus(string $id, string $status, string $message)
+    private function storeSku(StoreProductRequest $request): JsonResponse
     {
-        $product = $this->products->find($id);
-
-        if (! $product) {
-            return $this->respondNotFound('Không tìm thấy sản phẩm.');
+        $key = trim((string) $request->header('Idempotency-Key'));
+        if ($key !== '' && mb_strlen($key) > 128) {
+            ApiError::abort(422, 'INVALID_IDEMPOTENCY_KEY', 'Idempotency-Key tối đa 128 ký tự.');
         }
 
-        $product->status = $status;
-        $product->version = ((int) $product->version) + 1;
-        $product->save();
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $key === '' ? null : $key,
+            'sku_create',
+            $this->actorId(),
+            IdempotencyStore::requestHash($request),
+            function () use ($request): array {
+                $data = $this->skuAggregate->create(
+                    $request->validated(),
+                    $this->actorId(),
+                    $this->requestId($request)
+                );
 
-        AuditLogger::record(
-            $status === 'ACTIVE' ? 'ENABLE' : 'DISABLE',
-            'product',
-            $product->getKey(),
-            auth('api')->id(),
-            request()->attributes->get('request_id'),
-            afterData: $product->only(['id', 'code', 'sku_code', 'name', 'status', 'version'])
+                return [201, $this->envelope('Tạo SKU thành công.', $data)];
+            }
         );
 
+        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    private function setStatus(string $id, string $status, string $message): JsonResponse
+    {
+        $product = DB::transaction(function () use ($id, $status): Product {
+            /** @var Product|null $product */
+            $product = Product::query()->lockForUpdate()->find($id);
+            if ($product === null) {
+                ApiError::abort(404, 'PRODUCT_NOT_FOUND', 'Không tìm thấy sản phẩm.');
+            }
+
+            $before = $product->toArray();
+            $product->status = $status;
+            $product->version = ((int) $product->version) + 1;
+            $product->save();
+
+            AuditLogger::record(
+                $status === 'ACTIVE' ? 'ENABLE' : 'DISABLE',
+                'product',
+                (string) $product->getKey(),
+                $this->actorId(),
+                $this->requestId(request()),
+                beforeData: $before,
+                afterData: $product->fresh()->toArray(),
+                reason: 'Product status transaction boundary'
+            );
+
+            return $product;
+        }, 3);
+
         return $this->respondSuccess($product, $message);
+    }
+
+    private function isSkuRoute(Request $request): bool
+    {
+        return str_starts_with('/'.ltrim($request->path(), '/'), '/api/v1/skus');
+    }
+
+    private function actorId(): ?string
+    {
+        $id = auth('api')->id();
+
+        return $id === null ? null : (string) $id;
+    }
+
+    private function requestId(Request $request): ?string
+    {
+        $id = $request->attributes->get('request_id');
+
+        return is_string($id) ? $id : null;
+    }
+
+    private function envelope(string $message, array $data): array
+    {
+        return [
+            'success' => true,
+            'message' => $message,
+            'data' => $data,
+            'meta' => [
+                'request_id' => request()->attributes->get('request_id'),
+                'timestamp' => now()->toIso8601String(),
+            ],
+        ];
     }
 }
