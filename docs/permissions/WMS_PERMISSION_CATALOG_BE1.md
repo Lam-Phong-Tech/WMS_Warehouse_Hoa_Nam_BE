@@ -1,56 +1,52 @@
-# WMS Permission Catalog - BE1
+# WMS Permission Catalog — BE1
 
-Version: 1.0.1-be1-scan-none-reconcile
-Generated at: 2026-08-02 19:05 Asia/Saigon
-Seed source: Modules/Auth/database/seeders/AuthDatabaseSeeder.php
-Route source: Modules/Warehouse/routes/api.php, Modules/AuditLog/routes/api.php, Modules/Auth/routes/api.php
+Version: `1.1.0-be1-wwhn150`  
+Status: `PROPOSED`  
+Runtime evidence: `build/evidence/api-data/permission-catalog.json`
 
-## Endpoint Permission Map
+## Enforcement sources
 
-| Endpoint group | Permission | Default roles seeded |
-| --- | --- | --- |
-| Auth login/refresh/logout/me/change-password/switch-context | authenticated | all active users |
-| GET /api/v1/warehouses, GET /api/v1/warehouses/{id} | warehouse.view | WAREHOUSE_STAFF, WAREHOUSE_APPROVER, WAREHOUSE_KEEPER, VIEWER, WAREHOUSE_MANAGER |
-| PATCH /api/v1/warehouses/{id}, POST /api/v1/inventory-snapshots/generate, PATCH /api/v1/document-status-transitions/{id}/toggle | warehouse.manage | WAREHOUSE_MANAGER |
-| GET /api/v1/products, GET /api/v1/products/{id} | product.view | WAREHOUSE_STAFF, WAREHOUSE_APPROVER, WAREHOUSE_KEEPER, VIEWER, WAREHOUSE_MANAGER |
-| POST /api/v1/products, PATCH /api/v1/products/{id}/enable, PATCH /api/v1/products/{id}/disable | product.manage | WAREHOUSE_MANAGER |
-| GET/POST /api/v1/skus, GET /api/v1/skus/{id}, POST /api/v1/skus/import-excel | sku.manage | SKU_MANAGER |
-| GET product-categories/uoms/suppliers | master.manage | MASTER_MANAGER |
-| GET inbound/outbound documents, document-status-history | stock_document.view | WAREHOUSE_STAFF, WAREHOUSE_APPROVER, WAREHOUSE_KEEPER, VIEWER, WAREHOUSE_MANAGER |
-| POST/PATCH inbound/outbound documents | stock_document.create | WAREHOUSE_STAFF, WAREHOUSE_MANAGER |
-| POST inbound/outbound submit | stock_document.submit | WAREHOUSE_STAFF, WAREHOUSE_MANAGER |
-| POST inbound/outbound approve/reject | stock_document.approve | WAREHOUSE_APPROVER, WAREHOUSE_MANAGER |
-| POST inbound/outbound post-receipt/post-issue/close-remainder | stock_document.post | WAREHOUSE_KEEPER, WAREHOUSE_MANAGER |
-| POST inbound/outbound scan | stock_document.scan | WAREHOUSE_KEEPER, WAREHOUSE_MANAGER |
-| POST inbound/outbound cancel | stock_document.cancel | WAREHOUSE_KEEPER, WAREHOUSE_MANAGER |
-| POST inbound/outbound reverse, GET reversal-documents | stock_document.reverse | WAREHOUSE_KEEPER, WAREHOUSE_MANAGER |
-| GET inventory balances, stock movements, reservations, items, physical-codes, scan batches/events, stocktake sessions, warranty cases/events | inventory.view | WAREHOUSE_STAFF, WAREHOUSE_APPROVER, WAREHOUSE_KEEPER, VIEWER, WAREHOUSE_MANAGER |
-| GET safe-stock configs/alerts/history | safe_stock.view | WAREHOUSE_STAFF, WAREHOUSE_APPROVER, WAREHOUSE_KEEPER, VIEWER, WAREHOUSE_MANAGER |
-| POST/PATCH/DELETE safe-stock configs | safe_stock.manage | WAREHOUSE_KEEPER, WAREHOUSE_MANAGER |
-| GET reports/dashboard-quick, inventory-xnt, inventory-xnt/export-excel, inventory-reconciliation | report.view | WAREHOUSE_STAFF, WAREHOUSE_APPROVER, WAREHOUSE_KEEPER, VIEWER, WAREHOUSE_MANAGER |
-| GET audit-logs | audit_log.view | VIEWER, WAREHOUSE_MANAGER |
-| Stock request read/create/submit/approve endpoints | stock_request.* | WAREHOUSE_MANAGER |
-| Transfer read/create/submit/approve/post endpoints | transfer.* | WAREHOUSE_MANAGER |
-| POST /api/v1/stocktake-sessions/{id}/apply-adjustment | stocktake.adjust | WAREHOUSE_MANAGER |
-| POST /api/v1/warranty-cases/{id}/temp-only | warranty.temp_only | WAREHOUSE_MANAGER |
-| POST /api/v1/scan/classify | scan.classify | WAREHOUSE_MANAGER |
+| Source | Purpose | Hash evidence |
+|---|---|---|
+| `Modules/Auth/database/seeders/AuthDatabaseSeeder.php` | Permission and role seed | `permission-catalog.json.source_hashes.permission_seed.sha256` |
+| `Modules/Warehouse/routes/api.php` | Endpoint → permission middleware | `permission-catalog.json.source_hashes.warehouse_routes.sha256` |
+| `Modules/Auth/app/Http/Middleware/CheckPermission.php` | Backend authorization enforcement | `permission-catalog.json.source_hashes.permission_middleware.sha256` |
+| Generated route list | Runtime route/middleware truth | `route-list.raw.json` + `SHA256SUMS` |
 
-## FE ROUTE_PERMISSIONS Notes
+The CI command `php artisan evidence:permission-catalog` fails when a runtime route references a permission key that is not active in the seeded catalog.
 
-- FE routes for inbound/outbound scan must use stock_document.scan and must not assume stock mutation.
-- FE routes for reconciliation should use report.view.
-- FE routes for audit log should use audit_log.view.
-- SUPER_ADMIN bypasses permission middleware by role_code; seeded permission rows still exist for non-admin roles.
+## WWHN-150 endpoint matrix
 
-## Backend Enforcement Baseline
+| Endpoint | Method | Permission | Seeded roles | FE behavior | Backend rule |
+|---|---|---|---|---|---|
+| `/api/v1/scan/classify` | POST | `scan.classify` | `WAREHOUSE_MANAGER`; `SUPER_ADMIN` bypass | Hide/disable classify action when permission is absent; still handle `403` | Permission middleware and warehouse data-scope check are mandatory |
 
-- Runtime enforcement is backend-owned in `Modules/Auth/app/Http/Middleware/CheckPermission.php`; FE hidden/disabled buttons are not trusted as authorization.
-- Permission resolution uses only active role assignments from `Modules/Auth/app/Models/User.php::activeRoles()`.
-- A role grants permissions only when:
-  - `role.status = ACTIVE`.
-  - `user_role.effective_from` is null or already reached.
-  - `user_role.effective_to` is null or still in the future.
-- `SUPER_ADMIN` bypass also requires an active/effective `SUPER_ADMIN` role assignment.
-- Regression evidence: `tests/Feature/SecurityRbacAuditNegativeTest.php::test_backend_denies_permissions_from_inactive_expired_and_future_roles`.
-- Positive control: `tests/Feature/SecurityRbacAuditNegativeTest.php::test_backend_allows_permissions_from_effective_active_role_assignment`.
-- Latest local evidence log: `docs/evidence/fe1/php-artisan-test-SecurityRbacAuditNegativeTest.log`.
+`scan.classify` authorizes read-only classification only. It does not grant any posting permission and must never be used as a substitute for `stock_document.post`, `stocktake.adjust`, or transfer posting permissions.
+
+## Critical endpoint groups
+
+| Endpoint group | Permission |
+|---|---|
+| Warehouse read/manage | `warehouse.view`, `warehouse.manage` |
+| Product/SKU/master | `product.view`, `product.manage`, `sku.manage`, `master.manage` |
+| Stock document lifecycle | `stock_document.view/create/submit/approve/post/scan/cancel/reverse` |
+| Inventory and reports | `inventory.view`, `report.view` |
+| Stocktake adjustment | `stocktake.adjust` |
+| Warranty temporary receipt | `warranty.temp_only` |
+| Scan classify | `scan.classify` |
+| Stock requests | `stock_request.*` |
+| Transfers | `transfer.*` |
+| Audit log | `audit_log.view` |
+
+## Review rule
+
+The generated catalog contains:
+
+- active permission rows;
+- role → permission assignments;
+- runtime route → permission mappings;
+- endpoint → permission → role matrix;
+- SHA-256 of seed, route and middleware sources;
+- integrity status and any missing route permission.
+
+FE/BA sign-off must use the generated catalog from the exact reviewed commit artifact, not this branch-relative Markdown alone.
