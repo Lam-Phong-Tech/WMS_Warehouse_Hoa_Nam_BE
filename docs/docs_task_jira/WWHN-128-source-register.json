@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "ticket": "WWHN-128",
   "decision_id": "DEC-INV-001",
   "document_revision": "1.3-R3",
@@ -7,9 +7,13 @@
   "repository": {
     "full_name": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
     "branch": "m1",
-    "implementation_baseline_commit": "d8643c66cb2dd7cf24d16833ebfcdb411c645385",
     "direct_branch_update": true,
-    "pull_request": null
+    "pull_request": null,
+    "code_and_ci_baseline_commit": "d8643c66cb2dd7cf24d16833ebfcdb411c645385",
+    "source_register_introduced_commit": "ce4023dfc4c251907121c3c782a80489f53e4bba",
+    "decision_document_commit": "2f73f455bd76da8fd180bad683f06ddb979bb328",
+    "decision_document_blob_sha": "150a2ce682d41a59e0619a6cced5a9959e3e7d85",
+    "branch_head_observed_before_this_register_update": "2f73f455bd76da8fd180bad683f06ddb979bb328"
   },
   "jira_access": {
     "status": "UNAVAILABLE",
