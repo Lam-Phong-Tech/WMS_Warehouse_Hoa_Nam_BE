@@ -83,7 +83,7 @@ class ReportController extends Controller
         path: '/api/v1/reports/inventory-reconciliation',
         operationId: 'report_inventory_reconciliation',
         summary: 'Đối soát balance với signed SUM(qty_delta) theo stock_status',
-        description: 'So sánh on_hand_qty với tổng qty_delta có dấu, theo đúng dimension warehouse_id/product_id/stock_status. Không đảo dấu theo movement_type lần hai.',
+        description: 'So sánh on_hand_qty với tổng qty_delta có dấu trên hợp dimension của cả balance và ledger. Phát hiện cả movement không có balance và balance không có movement; không đảo dấu theo movement_type lần hai.',
         security: [['bearerAuth' => []]],
         tags: ['12. Dashboard / Report'],
         parameters: [
@@ -92,7 +92,12 @@ class ReportController extends Controller
             new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'only_mismatch', in: 'query', schema: new OA\Schema(type: 'boolean', default: false)),
         ],
-        responses: [new OA\Response(response: 200, description: 'Kết quả đối soát')]
+        responses: [
+            new OA\Response(response: 200, description: 'Kết quả đối soát'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền report.view'),
+            new OA\Response(response: 422, description: 'Filter không hợp lệ'),
+        ]
     )]
     public function inventoryReconciliation(Request $request)
     {
@@ -107,7 +112,7 @@ class ReportController extends Controller
         $mismatches = $rows->where('status', 'MISMATCH')->values();
 
         return $this->respondSuccess([
-            'formula' => 'variance = balance.on_hand_qty - SUM(stock_movements.qty_delta)',
+            'formula' => 'variance = COALESCE(balance.on_hand_qty, 0) - SUM(stock_movements.qty_delta)',
             'dimension' => ['warehouse_id', 'product_id', 'stock_status'],
             'summary' => [
                 'rows_checked' => $rows->count(),
@@ -141,41 +146,60 @@ class ReportController extends Controller
 
     private function buildReconciliationRows(Request $request)
     {
-        $query = DB::table('inventory_balances as b')
-            ->leftJoin('warehouses as w', 'w.id', '=', 'b.warehouse_id')
-            ->leftJoin('products as p', 'p.id', '=', 'b.product_id')
-            ->leftJoin(DB::raw('(
-                SELECT warehouse_id, product_id, stock_status,
-                       SUM(qty_delta) AS ledger_qty, COUNT(*) AS movement_count
-                FROM stock_movements
-                GROUP BY warehouse_id, product_id, stock_status
-            ) AS ledger'), function ($join) {
-                $join->on('ledger.warehouse_id', '=', 'b.warehouse_id')
-                    ->on('ledger.product_id', '=', 'b.product_id')
-                    ->on('ledger.stock_status', '=', 'b.stock_status');
+        $dimensions = DB::table('inventory_balances')
+            ->select('warehouse_id', 'product_id', 'stock_status')
+            ->union(DB::table('stock_movements')->select('warehouse_id', 'product_id', 'stock_status'));
+
+        $ledger = DB::table('stock_movements')
+            ->select('warehouse_id', 'product_id', 'stock_status')
+            ->selectRaw('SUM(qty_delta) AS ledger_qty, COUNT(*) AS movement_count')
+            ->groupBy('warehouse_id', 'product_id', 'stock_status');
+
+        $query = DB::query()
+            ->fromSub($dimensions, 'd')
+            ->leftJoin('inventory_balances as b', function ($join) {
+                $join->on('b.warehouse_id', '=', 'd.warehouse_id')
+                    ->on('b.product_id', '=', 'd.product_id')
+                    ->on('b.stock_status', '=', 'd.stock_status');
             })
-            ->selectRaw('b.warehouse_id, w.code AS warehouse_code, b.product_id, p.code AS product_code,
-                b.stock_status, b.on_hand_qty AS current_on_hand_qty,
-                b.available_qty AS current_available_qty,
+            ->leftJoinSub($ledger, 'ledger', function ($join) {
+                $join->on('ledger.warehouse_id', '=', 'd.warehouse_id')
+                    ->on('ledger.product_id', '=', 'd.product_id')
+                    ->on('ledger.stock_status', '=', 'd.stock_status');
+            })
+            ->leftJoin('warehouses as w', 'w.id', '=', 'd.warehouse_id')
+            ->leftJoin('products as p', 'p.id', '=', 'd.product_id')
+            ->selectRaw('d.warehouse_id, w.code AS warehouse_code, d.product_id, p.code AS product_code,
+                d.stock_status, b.id AS balance_id,
+                COALESCE(b.on_hand_qty, 0) AS current_on_hand_qty,
+                COALESCE(b.available_qty, 0) AS current_available_qty,
                 COALESCE(ledger.ledger_qty, 0) AS expected_qty,
                 COALESCE(ledger.movement_count, 0) AS movement_count');
 
         foreach (['warehouse_id', 'product_id', 'stock_status'] as $filter) {
             if ($request->filled($filter)) {
-                $query->where("b.{$filter}", $request->input($filter));
+                $query->where("d.{$filter}", $request->input($filter));
             }
         }
 
-        $rows = $query->orderBy('w.code')->orderBy('p.code')->orderBy('b.stock_status')->get()
+        $rows = $query->orderBy('w.code')->orderBy('p.code')->orderBy('d.stock_status')->get()
             ->map(function ($row) {
                 $delta = bcsub((string) $row->current_on_hand_qty, (string) $row->expected_qty, 3);
+                $balanceExists = $row->balance_id !== null;
+                $row->balance_exists = $balanceExists;
+                unset($row->balance_id);
                 $row->current_on_hand_qty = (float) $row->current_on_hand_qty;
                 $row->current_available_qty = (float) $row->current_available_qty;
                 $row->expected_qty = (float) $row->expected_qty;
                 $row->movement_count = (int) $row->movement_count;
                 $row->delta_qty = (float) $delta;
                 $row->status = bccomp($delta, '0', 3) === 0 ? 'MATCH' : 'MISMATCH';
-                $row->mismatch_reason = $row->status === 'MATCH' ? null : 'BALANCE_NOT_EQUAL_SIGNED_LEDGER_SUM';
+                $row->mismatch_reason = match (true) {
+                    $row->status === 'MATCH' => null,
+                    ! $balanceExists && $row->movement_count > 0 => 'BALANCE_MISSING_FOR_LEDGER',
+                    $balanceExists && $row->movement_count === 0 => 'LEDGER_MISSING_FOR_BALANCE',
+                    default => 'BALANCE_NOT_EQUAL_SIGNED_LEDGER_SUM',
+                };
 
                 return $row;
             });
