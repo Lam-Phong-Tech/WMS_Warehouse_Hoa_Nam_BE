@@ -2,9 +2,19 @@ openapi: 3.0.3
 info:
   title: WWHN-180 Scan and Stock Posting Contract
   version: 1.0.0
-  description: PROPOSED contract locked to an immutable commit and CI artifact. Formal Jira approval remains external.
+  description: >-
+    PROPOSED focused contract for scan, receipt posting, issue posting and inventory
+    reconciliation. The contract is locked to an immutable commit and CI artifact;
+    formal Jira approval remains external.
 servers:
   - url: http://127.0.0.1:8000
+    description: Deterministic CI server
+security:
+  - bearerAuth: []
+tags:
+  - name: Scan
+  - name: Stock Posting
+  - name: Reconciliation
 components:
   securitySchemes:
     bearerAuth:
@@ -12,10 +22,18 @@ components:
       scheme: bearer
       bearerFormat: JWT
   parameters:
+    DocumentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     IdempotencyKey:
       name: Idempotency-Key
       in: header
       required: true
+      description: Stable key for one logical posting action. Reuse only when retrying the same payload.
       schema:
         type: string
         minLength: 8
@@ -25,19 +43,74 @@ components:
       type: object
       required: [success, error]
       properties:
-        success: { type: boolean, enum: [false] }
+        success:
+          type: boolean
+          enum: [false]
+        message:
+          type: string
         error:
           type: object
           required: [code]
           properties:
-            code: { type: string }
-            details: { type: array, items: {} }
+            code:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+    DocumentLineScanRequest:
+      type: object
+      required: [line_id, qty]
+      properties:
+        line_id:
+          type: string
+          format: uuid
+        qty:
+          type: number
+          format: double
+          exclusiveMinimum: true
+          minimum: 0
+    DocumentLineScanResult:
+      type: object
+      required:
+        - document_id
+        - line_id
+        - status
+        - stock_effect
+        - movement_created
+        - scanned_qty_before
+        - scanned_qty_after
+        - remaining_qty
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        line_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [approved]
+        stock_effect:
+          type: string
+          enum: [NONE]
+        movement_created:
+          type: boolean
+          enum: [false]
+        scanned_qty_before:
+          type: number
+        scanned_qty_after:
+          type: number
+        remaining_qty:
+          type: number
 paths:
   /api/v1/scan/classify:
     post:
       operationId: wwhn180ScanClassify
+      tags: [Scan]
       summary: Resolve a physical code without stock effect
-      security: [{ bearerAuth: [] }]
+      description: Classifies and validates a code. It must not change balance, movement, posting event or document posting status.
       x-permission: scan.classify
       requestBody:
         required: true
@@ -47,41 +120,289 @@ paths:
               type: object
               required: [raw_code, context, warehouse_id]
               properties:
-                raw_code: { type: string }
-                context: { type: string, enum: [STOCKTAKE, INBOUND, OUTBOUND, WARRANTY] }
-                warehouse_id: { type: string, format: uuid }
+                raw_code:
+                  type: string
+                context:
+                  type: string
+                  enum: [STOCKTAKE, INBOUND, OUTBOUND, WARRANTY]
+                warehouse_id:
+                  type: string
+                  format: uuid
       responses:
-        '200': { description: stock_effect=NONE; no balance, movement, posting_event or idempotency write }
-        '403': { description: Permission or warehouse-scope denied, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: Business context conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '422': { description: Validation error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '200':
+          description: Classification completed with stock_effect=NONE
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission or warehouse-scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Business context conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/inbound-documents/{id}/scan:
+    post:
+      operationId: wwhn180InboundDocumentScan
+      tags: [Scan]
+      summary: Validate and accumulate scanned quantity on an approved inbound line
+      description: >-
+        This operation updates only scanned line state. It returns stock_effect=NONE,
+        creates no stock movement or posting event, changes no inventory balance and
+        leaves the document in approved status.
+      x-permission: stock_document.scan
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentLineScanRequest'
+      responses:
+        '200':
+          description: Scan validated without stock effect
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/DocumentLineScanResult'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission or warehouse-scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Document state or over-scan conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid line, quantity or payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/outbound-documents/{id}/scan:
+    post:
+      operationId: wwhn180OutboundDocumentScan
+      tags: [Scan]
+      summary: Validate and accumulate scanned quantity on an approved outbound line
+      description: >-
+        This operation updates only scanned line state. It returns stock_effect=NONE,
+        creates no stock movement or posting event, changes no inventory balance and
+        leaves the document in approved status. Available stock is validated but not deducted.
+      x-permission: stock_document.scan
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentLineScanRequest'
+      responses:
+        '200':
+          description: Scan validated without stock effect
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/DocumentLineScanResult'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission or warehouse-scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Document state or over-scan conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid line, quantity, payload or insufficient available stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/v1/inbound-documents/{id}/post-receipt:
     post:
       operationId: wwhn180PostReceipt
+      tags: [Stock Posting]
       summary: Atomically post an approved receipt
-      security: [{ bearerAuth: [] }]
+      description: >-
+        Commits the signed receipt movement, balance update, document status/history,
+        posting event and exact idempotency response snapshot once. A same-key/same-payload
+        retry replays the snapshot; a changed payload or a second logical post is rejected.
       x-permission: stock_document.post
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-        - { $ref: '#/components/parameters/IdempotencyKey' }
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
-        '200': { description: Receipt committed exactly once; retries replay the same response snapshot }
-        '403': { description: Permission denied, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: State, race, or same-key/different-payload conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '422': { description: Validation or business rule error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '428': { description: Missing Idempotency-Key, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '200':
+          description: Receipt committed exactly once or exact snapshot replayed
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission or warehouse-scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: State, race, processing lease or same-key/different-payload conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation or business-rule error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '428':
+          description: Missing Idempotency-Key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/v1/outbound-documents/{id}/post-issue:
     post:
       operationId: wwhn180PostIssue
+      tags: [Stock Posting]
       summary: Atomically post an approved issue
-      security: [{ bearerAuth: [] }]
+      description: >-
+        Commits the signed issue movement, balance update, document status/history,
+        posting event and exact idempotency response snapshot once. A same-key/same-payload
+        retry replays the snapshot; a changed payload or a second logical post is rejected.
       x-permission: stock_document.post
       parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-        - { $ref: '#/components/parameters/IdempotencyKey' }
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
-        '200': { description: Issue committed exactly once; retries replay the same response snapshot }
-        '403': { description: Permission denied, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '409': { description: State, race, or same-key/different-payload conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '422': { description: Insufficient stock or validation error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '428': { description: Missing Idempotency-Key, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '200':
+          description: Issue committed exactly once or exact snapshot replayed
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permission or warehouse-scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: State, race, processing lease or same-key/different-payload conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Insufficient stock, validation or business-rule error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '428':
+          description: Missing Idempotency-Key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/reports/inventory-reconciliation:
+    get:
+      operationId: wwhn180InventoryReconciliation
+      tags: [Reconciliation]
+      summary: Compare inventory balances with the signed append-only ledger
+      description: Read-only union-dimension reconciliation. PASS requires mismatch_count=0 and balance quantity equal to signed ledger sum.
+      x-permission: report.view
+      parameters:
+        - name: warehouse_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: product_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: stock_status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reconciliation result with summary status and mismatch count
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Missing report.view or data-scope permission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
