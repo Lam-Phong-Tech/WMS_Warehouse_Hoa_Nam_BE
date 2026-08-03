@@ -1,4 +1,4 @@
-name: Auth RBAC Audit Contract Gate
+name: Auth RBAC Audit Stocktake Contract Gate
 
 on:
   pull_request:
@@ -10,13 +10,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: auth-rbac-audit-${{ github.ref }}
+  group: auth-rbac-stocktake-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
 
     steps:
       - name: Checkout current SHA
@@ -49,7 +49,7 @@ jobs:
           php artisan key:generate
           rm -f /tmp/wms-ci.sqlite
           touch /tmp/wms-ci.sqlite
-          echo "JWT_SECRET=ci-jwt-secret-auth-rbac-audit-contract" >> .env
+          echo "JWT_SECRET=ci-jwt-secret-auth-rbac-stocktake" >> .env
           echo "DB_CONNECTION=sqlite" >> .env
           echo "DB_DATABASE=/tmp/wms-ci.sqlite" >> .env
           echo "CACHE_STORE=array" >> .env
@@ -65,17 +65,18 @@ jobs:
           git diff --check
           ./vendor/bin/pint --test app Modules tests config database routes
 
-      - name: Collect immutable API and data evidence
+      - name: Collect immutable API data and stocktake evidence
         run: bash scripts/collect-api-data-evidence.sh
 
       - name: Lint OpenAPI contract
         run: npx redocly lint build/evidence/api-data/openapi.json
 
-      - name: Validate evidence manifest
+      - name: Validate evidence manifest and structured results
         run: |
           test -s build/evidence/api-data/SHA256SUMS
           (cd build/evidence/api-data && sha256sum --check SHA256SUMS)
-          node -e "const fs=require('fs');for(const p of ['postman.collection.json','postman.environment.json','newman.result.json','contract-verification.json','db-before.json','db-after.json','build-metadata.json']){JSON.parse(fs.readFileSync('build/evidence/api-data/'+p,'utf8'));}"
+          node -e "const fs=require('fs');for(const p of ['postman.collection.json','postman.environment.json','newman.result.json','contract-verification.json','stocktake.postman.collection.json','stocktake.postman.environment.json','stocktake-newman.result.json','stocktake-contract-verification.json','stocktake-test-cases.json','stocktake-source-register.json','db-before.json','db-after.json','build-metadata.json']){JSON.parse(fs.readFileSync('build/evidence/api-data/'+p,'utf8'));}"
+          node -e "const r=require('./build/evidence/api-data/stocktake-contract-verification.json');if(r.summary.failed!==0||r.summary.status!=='PASS')process.exit(1)"
 
       - name: Frontend asset and baseline build
         run: |
@@ -83,11 +84,11 @@ jobs:
           npm test
           npm run build
 
-      - name: Upload immutable API data evidence
+      - name: Upload immutable API data and stocktake evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: api-data-evidence-${{ github.sha }}
+          name: stocktake-evidence-${{ github.sha }}
           path: build/evidence/api-data
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30

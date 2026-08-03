@@ -1,0 +1,32 @@
+{
+  "register_id": "WWHN-131-SOURCE-REGISTER",
+  "version": "1.0.0",
+  "status": "PROPOSED",
+  "generated_hash_source": "CI artifact stocktake-evidence-<exact_commit_sha>/SHA256SUMS",
+  "repository_sources": [
+    {"type": "API_CONTRACT", "path": "storage/api-docs/api-docs.json", "version_source": "OpenAPI info.version", "sha256_source": "SHA256SUMS"},
+    {"type": "POSTMAN", "path": "docs/postman/WWHN-131 Stocktake Contract.postman_collection.json", "version": "1.0.0", "sha256_source": "SHA256SUMS"},
+    {"type": "POSTMAN_ENV", "path": "docs/postman/WWHN-131 Stocktake CI.postman_environment.json", "version": "1.0.0", "sha256_source": "SHA256SUMS"},
+    {"type": "TEST_CASE", "path": "docs/testing/WWHN-131-stocktake-test-cases.json", "version": "1.0.0", "sha256_source": "SHA256SUMS"},
+    {"type": "DDL", "path": "Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php", "sha256_source": "SHA256SUMS"},
+    {"type": "IMPLEMENTATION", "path": "Modules/Warehouse/app/Services/StocktakeAdjustmentService.php", "sha256_source": "SHA256SUMS"},
+    {"type": "AUTOMATED_TEST", "path": "tests/Feature/StocktakeThreeLayerContractTest.php", "sha256_source": "SHA256SUMS"}
+  ],
+  "external_sources": [
+    {"jira": "WWHN-25", "expected_type": "DECISION", "attachment_id": null, "sha256": null, "status": "BLOCKED_ATLASSIAN_APP_NOT_INSTALLED"},
+    {"jira": "WWHN-31", "expected_type": "OPENAPI_REVIEW", "attachment_id": null, "sha256": null, "status": "BLOCKED_ATLASSIAN_APP_NOT_INSTALLED"},
+    {"jira": "WWHN-33", "expected_type": "QA_TEST_REPORT", "attachment_id": null, "sha256": null, "status": "BLOCKED_ATLASSIAN_APP_NOT_INSTALLED"},
+    {"jira": "WWHN-40", "expected_type": "GATE_MINUTES", "attachment_id": null, "sha256": null, "status": "BLOCKED_ATLASSIAN_APP_NOT_INSTALLED"},
+    {"key": "BRD", "attachment_id": null, "sha256": null, "status": "PENDING_BA_SOURCE_ID"},
+    {"key": "SRS", "attachment_id": null, "sha256": null, "status": "PENDING_BA_SOURCE_ID"},
+    {"key": "BPD", "attachment_id": null, "sha256": null, "status": "PENDING_BA_SOURCE_ID"},
+    {"key": "DEC-INV", "attachment_id": null, "sha256": null, "status": "PENDING_BA_SOURCE_ID"}
+  ],
+  "approval": {
+    "decision": "PROPOSED",
+    "reviewers": [],
+    "approved_at": null,
+    "jira_comment_id": null,
+    "rule": "No checkbox or APPROVED status is valid until Jira records exact commit SHA, source-tree SHA-256, artifact SHA256SUMS, reviewer and date."
+  }
+}
