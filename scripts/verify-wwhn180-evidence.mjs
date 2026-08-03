@@ -18,10 +18,17 @@ if (!collectionPath || !environmentPath || !idempotencySourcePath || !focusedOpe
   throw new Error('Thiếu tham số verify-wwhn180-evidence');
 }
 
+const workflowPath = '.github/workflows/wwhn-180-api-posting-contract.yml';
+const ledgerSourcePath = 'Modules/Warehouse/app/Services/StockLedger.php';
+const staticPermissionCatalogPath = 'docs/evidence/WWHN-180/permission-catalog.json';
+
 const collection = JSON.parse(fs.readFileSync(collectionPath, 'utf8'));
 const environment = JSON.parse(fs.readFileSync(environmentPath, 'utf8'));
 const idempotencySource = fs.readFileSync(idempotencySourcePath, 'utf8');
 const focusedOpenApi = fs.readFileSync(focusedOpenApiPath, 'utf8');
+const workflowSource = fs.readFileSync(workflowPath, 'utf8');
+const ledgerSource = fs.readFileSync(ledgerSourcePath, 'utf8');
+const staticPermissionCatalog = JSON.parse(fs.readFileSync(staticPermissionCatalogPath, 'utf8'));
 
 const flatten = (items, output = []) => {
   for (const item of items ?? []) {
@@ -68,6 +75,20 @@ const environmentSecrets = (environment.values ?? [])
   .filter((item) => /password|token|secret/i.test(String(item.key ?? '')))
   .filter((item) => String(item.value ?? '').trim() !== '');
 const collectionSecrets = JSON.stringify(collection).match(/Cntt@1234|Bearer\s+[A-Za-z0-9._-]{20,}|"password"\s*:\s*"(?!\{\{)[^"]+"/gi) ?? [];
+const workflowLiteralPasswords = workflowSource.match(/Cntt@1234|WWHN180_(?:NO_PERMISSION_)?PASSWORD:\s*(?!\$\{\{\s*secrets\.)[^\s#]+/gi) ?? [];
+
+const permissionEntries = Array.isArray(staticPermissionCatalog.entries)
+  ? staticPermissionCatalog.entries
+  : [];
+const permissionKeys = permissionEntries.map((entry) => `${entry.method} ${entry.path}`);
+const expectedPermissionKeys = [
+  'POST /api/v1/scan/classify',
+  'POST /api/v1/inbound-documents/{id}/scan',
+  'POST /api/v1/outbound-documents/{id}/scan',
+  'POST /api/v1/inbound-documents/{id}/post-receipt',
+  'POST /api/v1/outbound-documents/{id}/post-issue',
+  'GET /api/v1/reports/inventory-reconciliation',
+];
 
 const checks = {
   collection_version_1_1_or_newer:
@@ -77,6 +98,14 @@ const checks = {
   request_count_at_least_23: requests.length >= 23,
   environment_has_no_committed_secret: environmentSecrets.length === 0,
   collection_has_no_literal_secret: collectionSecrets.length === 0,
+  workflow_has_no_literal_password: workflowLiteralPasswords.length === 0,
+  workflow_uses_runtime_secrets:
+    workflowSource.includes('secrets.WWHN180_PASSWORD')
+    && workflowSource.includes('secrets.WWHN180_NO_PERMISSION_PASSWORD'),
+  workflow_has_secret_preflight:
+    workflowSource.includes('Validate runtime-only Newman credentials')
+    && workflowSource.includes('Missing repository secret WWHN180_PASSWORD')
+    && workflowSource.includes('Missing repository secret WWHN180_NO_PERMISSION_PASSWORD'),
 
   focused_openapi_idempotency_key_bounds:
     /IdempotencyKey:[\s\S]*minLength:\s*8[\s\S]*maxLength:\s*100/.test(focusedOpenApi),
@@ -100,6 +129,17 @@ const checks = {
     ]),
   focused_openapi_reconciliation:
     openApiHasPathContract('/api/v1/reports/inventory-reconciliation', 'report.view', ["'200':", "'403':"]),
+
+  static_permission_catalog_integrity_pass:
+    staticPermissionCatalog.integrity?.status === 'PASS'
+    && staticPermissionCatalog.integrity?.required_entry_count === 6
+    && staticPermissionCatalog.integrity?.actual_entry_count === 6,
+  static_permission_catalog_has_all_critical_routes:
+    expectedPermissionKeys.every((key) => permissionKeys.includes(key))
+    && new Set(permissionKeys).size === permissionKeys.length,
+  static_permission_catalog_keeps_independent_review_pending:
+    staticPermissionCatalog.fe1_independent_review?.result === 'PENDING'
+    && staticPermissionCatalog.ba_review?.result === 'PENDING',
 
   scan_none_assertion: hasScenario(/scan inbound has no stock effect/i, /stock_effect NONE[\s\S]*movement not created/i),
   receipt_missing_key_428: hasScenario(/post receipt missing key/i, /428/),
@@ -125,6 +165,17 @@ const checks = {
     && /requestV2/.test(idempotencySource)
     && /hash_equals\(\$storedV2,\s*\$requestV2\)/.test(idempotencySource),
   idempotency_lease_cas: /locked_until/.test(idempotencySource) && /processing/.test(idempotencySource),
+
+  ledger_has_authoritative_posting_boundary:
+    /lockAuthoritativePostingBoundary/.test(ledgerSource)
+    && /StockDocument::query\(\)[\s\S]*lockForUpdate\(\)/.test(ledgerSource)
+    && /STATUS_APPROVED/.test(ledgerSource),
+  ledger_locks_current_document_line:
+    /StockDocumentLine::query\(\)[\s\S]*where\('stock_document_id',[\s\S]*lockForUpdate\(\)/.test(ledgerSource),
+  ledger_recomputes_posting_inputs_from_locked_rows:
+    /\$productId\s*=\s*\$line->product_id/.test(ledgerSource)
+    && /\$qty\s*=\s*\$line->qty_actual/.test(ledgerSource)
+    && /\$businessKey\s*=\s*\$this->businessKey/.test(ledgerSource),
 };
 
 const failedChecks = Object.entries(checks)
@@ -132,7 +183,7 @@ const failedChecks = Object.entries(checks)
   .map(([name]) => name);
 
 const output = {
-  schema_version: '1.2.0',
+  schema_version: '1.3.0',
   generated_at_utc: new Date().toISOString(),
   document_status: 'PROPOSED',
   approval_status: 'PENDING_INDEPENDENT_SIGN_OFF',
@@ -148,7 +199,12 @@ const output = {
     request_count: requests.length,
     environment_secret_keys: environmentSecrets.map((item) => item.key),
     collection_secret_matches: collectionSecrets,
+    workflow_literal_password_matches: workflowLiteralPasswords,
     focused_openapi_path: focusedOpenApiPath,
+    workflow_path: workflowPath,
+    ledger_source_path: ledgerSourcePath,
+    static_permission_catalog_path: staticPermissionCatalogPath,
+    static_permission_catalog_entry_count: permissionEntries.length,
     focused_openapi_paths: [
       '/api/v1/scan/classify',
       '/api/v1/inbound-documents/{id}/scan',
