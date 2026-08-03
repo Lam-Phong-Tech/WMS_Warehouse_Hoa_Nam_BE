@@ -85,9 +85,8 @@ class StockLedger
             return null;
         }
 
-        $existing = StockMovement::where('business_key', $businessKey)->first();
-        if ($existing) {
-            return $existing;
+        if (StockMovement::where('business_key', $businessKey)->exists()) {
+            WarehouseException::invalidStatus('Nghiệp vụ tồn kho này đã được hạch toán trước đó.');
         }
 
         $balanceQuery = fn () => InventoryBalance::where('warehouse_id', $warehouseId)
@@ -113,11 +112,11 @@ class StockLedger
             $balance = $balanceQuery()->lockForUpdate()->firstOrFail();
         }
 
-        // Recheck sau khi đã giữ row lock. Request cạnh tranh có thể đã commit movement
-        // trong lúc request hiện tại chờ lock; trả movement cũ thay vì đổi balance lần hai.
-        $existing = StockMovement::where('business_key', $businessKey)->first();
-        if ($existing) {
-            return $existing;
+        // Request cạnh tranh có thể đã commit movement trong lúc request hiện tại chờ row lock.
+        // Cùng key đã được IdempotencyStore replay trước khi vào đây; movement tồn tại tại đây
+        // là double-post khác key và phải trả xung đột, không được ghi status/history lần hai.
+        if (StockMovement::where('business_key', $businessKey)->exists()) {
+            WarehouseException::invalidStatus('Nghiệp vụ tồn kho này đã được hạch toán trước đó.');
         }
 
         $qty = (string) $qty;
