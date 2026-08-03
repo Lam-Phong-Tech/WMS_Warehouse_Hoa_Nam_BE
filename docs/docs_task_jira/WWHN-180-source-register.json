@@ -1,24 +1,32 @@
 {
   "jira_key": "WWHN-180",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "PROPOSED",
+  "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
   "branch": "m1",
-  "exact_commit_source": "build/evidence/wwhn180/build-metadata.json.commit_sha",
-  "artifact_name_pattern": "wwhn-180-evidence-<commit_sha>",
+  "exact_commit_source": "build/evidence/api-data/build-metadata.json.commit_sha",
+  "artifact_name_pattern": "api-data-evidence-<commit_sha>",
   "hash_manifest": "SHA256SUMS",
+  "hash_manifest_digest": "SHA256SUMS.sha256",
   "contracts": {
-    "openapi": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+    "generated_openapi_json": "build/evidence/api-data/openapi.json",
+    "generated_openapi_yaml": "build/evidence/api-data/openapi.yaml",
+    "focused_openapi": "docs/api-contract/WWHN-180-posting-openapi.yaml",
     "postman_collection": "docs/postman/WWHN-180 Posting Contract.postman_collection.json",
-    "postman_environment": "docs/postman/WWHN-180 Posting CI.postman_environment.json"
+    "postman_environment": "docs/postman/WWHN-180 Posting CI.postman_environment.json",
+    "test_cases": "docs/testing/WWHN-180-posting-test-cases.json"
   },
   "implementation": [
     "app/Support/IdempotencyStore.php",
-    "Modules/Warehouse/app/Http/Controllers/ScanController.php",
+    "Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php",
     "Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php",
     "Modules/Warehouse/app/Http/Controllers/OutboundDocumentController.php",
+    "Modules/Warehouse/app/Models/StockDocument.php",
     "Modules/Warehouse/app/Services/StockDocumentService.php",
     "Modules/Warehouse/app/Services/StockLedger.php",
-    "Modules/Warehouse/routes/api.php"
+    "Modules/Warehouse/routes/api.php",
+    "Modules/Warehouse/database/migrations/2026_01_01_000035_create_stock_movements_table.php",
+    "Modules/Warehouse/database/migrations/2026_01_01_000044_create_hoanam_erd_extension_tables.php"
   ],
   "tests": [
     "tests/Feature/Wwhn180IdempotencyAtomicityTest.php",
@@ -28,37 +36,55 @@
     "tests/Feature/ScanClassifyReadOnlyContractTest.php",
     "tests/Feature/InventoryReconciliationIntegrityTest.php"
   ],
+  "verifiers": [
+    "scripts/verify-wwhn180-evidence.mjs",
+    "scripts/verify-wwhn180-db-delta.mjs",
+    "scripts/verify-inventory-reconciliation.mjs"
+  ],
   "ci": {
     "workflow": ".github/workflows/wwhn-180-api-posting-contract.yml",
     "collector": "scripts/collect-wwhn180-evidence.sh",
+    "success_artifact_pattern": "api-data-evidence-<commit_sha>",
+    "failure_diagnostics_pattern": "api-data-diagnostics-<commit_sha>",
     "required_outputs": [
       "build-metadata.json",
       "source-tree.sha256",
       "SHA256SUMS",
+      "SHA256SUMS.sha256",
       "route-list.raw.json",
       "permission-catalog.json",
-      "openapi.generated.json",
+      "openapi.json",
+      "openapi.yaml",
       "wwhn180-openapi.yaml",
       "wwhn180.postman.collection.json",
       "wwhn180.postman.environment.json",
+      "wwhn180-source-register.json",
+      "wwhn180-test-cases.json",
+      "phpunit.raw.log",
       "wwhn180-atomicity-phpunit.raw.log",
-      "stock-document-idempotency-phpunit.raw.log",
+      "stock-document-canonical-phpunit.raw.log",
       "stock-document-concurrency-phpunit.raw.log",
+      "reconciliation-integrity-phpunit.raw.log",
+      "wwhn180-contract-verification.json",
       "newman.raw.log",
       "newman.result.json",
       "db-before.json",
       "db-after.json",
-      "reconciliation-report.json"
+      "wwhn180-db-delta.json",
+      "reconciliation-report.json",
+      "g1-closure-matrix.json",
+      "jira-closure-comment.txt",
+      "ci-summary.md"
     ]
   },
   "reviewers": {
-    "BA": "G1 decision and minutes",
-    "FE1": "endpoint, payload, error and permission mapping",
-    "QA2": "exact-SHA API, DB and reconciliation retest",
-    "BE1": "implementation and artifact owner"
+    "BA": "G1 decision and minutes on WWHN-40/WWHN-181/WWHN-183",
+    "FE1": "endpoint, payload, error and permission mapping on the same exact SHA and artifact digest",
+    "QA2": "independent exact-SHA API, DB, race and reconciliation retest on WWHN-182",
+    "BE1": "implementation and artifact owner; BE1 self-review is not independent sign-off"
   },
   "approval": {
     "status": "PENDING_INDEPENDENT_SIGN_OFF",
-    "rule": "Do not mark APPROVED or Done until BA, FE1 and QA2 comments reference the same exact commit SHA and verified SHA256SUMS."
+    "rule": "Do not mark APPROVED, Done or 100% until BA, FE1 and QA2 comments reference the same exact commit SHA and a verified SHA256SUMS digest from a successful workflow artifact."
   }
 }
