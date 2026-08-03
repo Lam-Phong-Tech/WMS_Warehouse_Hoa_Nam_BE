@@ -1,6 +1,6 @@
 {
   "jira_key": "WWHN-180",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "status": "PROPOSED",
   "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
   "branch": "m1",
@@ -15,6 +15,11 @@
     "postman_collection": "docs/postman/WWHN-180 Posting Contract.postman_collection.json",
     "postman_environment": "docs/postman/WWHN-180 Posting CI.postman_environment.json",
     "test_cases": "docs/testing/WWHN-180-posting-test-cases.json"
+  },
+  "review_templates": {
+    "fe1_mapping": "docs/evidence/WWHN-180/FE1_MAPPING_SIGNOFF.md",
+    "qa2_retest": "docs/evidence/WWHN-180/QA2_RETEST_PROTOCOL.md",
+    "g1_minutes": "docs/evidence/WWHN-180/G1_MINUTES_TEMPLATE.md"
   },
   "implementation": [
     "app/Support/IdempotencyStore.php",
@@ -34,12 +39,14 @@
     "tests/Feature/StockDocumentConcurrencyGuardTest.php",
     "tests/Feature/StockDocumentCanonicalFlowTest.php",
     "tests/Feature/ScanClassifyReadOnlyContractTest.php",
-    "tests/Feature/InventoryReconciliationIntegrityTest.php"
+    "tests/Feature/InventoryReconciliationIntegrityTest.php",
+    "scripts/verify-inventory-reconciliation-selftest.mjs"
   ],
   "verifiers": [
     "scripts/verify-wwhn180-evidence.mjs",
     "scripts/verify-wwhn180-db-delta.mjs",
-    "scripts/verify-inventory-reconciliation.mjs"
+    "scripts/verify-inventory-reconciliation.mjs",
+    "scripts/verify-inventory-reconciliation-selftest.mjs"
   ],
   "ci": {
     "workflow": ".github/workflows/wwhn-180-api-posting-contract.yml",
