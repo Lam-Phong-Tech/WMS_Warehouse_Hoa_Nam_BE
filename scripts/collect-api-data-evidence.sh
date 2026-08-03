@@ -21,6 +21,7 @@ fi
 cp "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json" "$EVIDENCE_DIR/postman.collection.json"
 cp "docs/postman/WMS_HoaNam - CI.postman_environment.json" "$EVIDENCE_DIR/postman.environment.json"
 
+php artisan migrate:fresh --force 2>&1 | tee "$EVIDENCE_DIR/migrate-fresh.raw.log"
 php artisan db:seed --class='Modules\\Auth\\Database\\Seeders\\AuthDatabaseSeeder' --force 2>&1 | tee "$EVIDENCE_DIR/auth-seed.raw.log"
 php artisan evidence:permission-catalog --output="$EVIDENCE_DIR/permission-catalog.json"
 
