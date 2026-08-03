@@ -1,13 +1,20 @@
 {
   "document_id": "WWHN-131-STOCKTAKE-TC",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "status": "PROPOSED",
+  "exact_sha_rule": "Automation result chỉ là CI evidence khi build-metadata.commit_sha, artifact name, source-tree SHA-256 và SHA256SUMS cùng khớp exact review SHA.",
   "signed_qty_delta_convention": {
     "positive": ["OPENING", "RECEIPT_POSTED", "ADJUST_IN", "TRANSFER_IN", "TRANSFER_RETURN", "ISSUE_REVERSED"],
     "negative": ["ISSUE_POSTED", "ADJUST_OUT", "TRANSFER_OUT", "RECEIPT_REVERSED"],
     "net_formula": "SUM(stock_movements.qty_delta)",
     "zero_effect_rule": "Không tạo stock movement và không tăng inventory balance version khi inventory_effect_qty = 0",
     "pre_apply_reconciliation": "SUM(stock_movements.qty_delta) phải bằng inventory_balances.on_hand_qty theo warehouse/product/stock_status"
+  },
+  "independent_review_required": {
+    "qa1_tech_lead": ["race", "retry", "timeout-after-commit", "rollback", "ledger reconcile"],
+    "dba": ["legacy-data rehearsal", "NOT NULL", "unique indexes", "foreign keys", "rollback plan"],
+    "security": ["cross-session", "cross-warehouse", "replay response leak", "permission negative"],
+    "protocol": "docs/evidence/WWHN-131/INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md"
   },
   "cases": [
     {"id": "STK-TC-001", "severity": "P1", "title": "Create returns DRAFT and start creates snapshot once", "automation": "StocktakeThreeLayerContractTest::test_create_is_draft_and_start_creates_snapshot_once_with_cas"},
@@ -20,6 +27,9 @@
     {"id": "STK-TC-008", "severity": "P0", "title": "Warehouse data scope on create/read/apply/legacy list", "automation": "StocktakeThreeLayerContractTest::test_warehouse_data_scope_blocks_create_read_and_apply"},
     {"id": "STK-TC-009", "severity": "P0", "title": "Newman create/start/count/review/apply/replay/conflict", "automation": "WWHN-131 Stocktake Contract.postman_collection.json"},
     {"id": "STK-TC-010", "severity": "P0", "title": "Zero-effect apply creates no empty movement and preserves balance version", "automation": "StocktakeApplyLedgerIntegrityTest::test_zero_effect_apply_does_not_create_empty_movement_or_increment_balance_version"},
-    {"id": "STK-TC-011", "severity": "P0", "title": "Ledger-balance mismatch blocks apply and rolls back operation", "automation": "StocktakeApplyLedgerIntegrityTest::test_apply_rejects_ledger_balance_mismatch_and_rolls_back_operation"}
+    {"id": "STK-TC-011", "severity": "P0", "title": "Ledger-balance mismatch blocks apply and rolls back operation", "automation": "StocktakeApplyLedgerIntegrityTest::test_apply_rejects_ledger_balance_mismatch_and_rolls_back_operation"},
+    {"id": "STK-TC-012", "severity": "P1", "title": "Committed replay is denied before snapshot disclosure outside warehouse scope", "automation": "StocktakeReviewGateTest::test_committed_replay_checks_warehouse_scope_before_returning_snapshot"},
+    {"id": "STK-TC-013", "severity": "P1", "title": "Different idempotency key cannot apply the same reviewed session twice", "automation": "StocktakeReviewGateTest::test_different_key_cannot_apply_same_reviewed_session_twice"},
+    {"id": "STK-TC-014", "severity": "P1", "title": "Count review acknowledge variance and apply endpoints deny cross-warehouse actor without writes", "automation": "StocktakeReviewGateTest::test_all_write_lifecycle_endpoints_reject_cross_warehouse_actor_without_state_change"}
   ]
 }
