@@ -30,6 +30,7 @@
     {"id": "STK-TC-011", "severity": "P0", "title": "Ledger-balance mismatch blocks apply and rolls back operation", "automation": "StocktakeApplyLedgerIntegrityTest::test_apply_rejects_ledger_balance_mismatch_and_rolls_back_operation"},
     {"id": "STK-TC-012", "severity": "P1", "title": "Committed replay is denied before snapshot disclosure outside warehouse scope", "automation": "StocktakeReviewGateTest::test_committed_replay_checks_warehouse_scope_before_returning_snapshot"},
     {"id": "STK-TC-013", "severity": "P1", "title": "Different idempotency key cannot apply the same reviewed session twice", "automation": "StocktakeReviewGateTest::test_different_key_cannot_apply_same_reviewed_session_twice"},
-    {"id": "STK-TC-014", "severity": "P1", "title": "Count review acknowledge variance and apply endpoints deny cross-warehouse actor without writes", "automation": "StocktakeReviewGateTest::test_all_write_lifecycle_endpoints_reject_cross_warehouse_actor_without_state_change"}
+    {"id": "STK-TC-014", "severity": "P1", "title": "Count review acknowledge variance and apply endpoints deny cross-warehouse actor without writes", "automation": "StocktakeReviewGateTest::test_all_write_lifecycle_endpoints_reject_cross_warehouse_actor_without_state_change"},
+    {"id": "STK-TC-015", "severity": "P0", "title": "Duplicate variance IDs are rejected by HTTP validation and service defense without writes", "automation": "StocktakeReviewGateTest::test_duplicate_variance_ids_are_rejected_by_http_and_service_without_writes"}
   ]
 }
