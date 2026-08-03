@@ -24,7 +24,7 @@ class ExportStockSnapshot extends Command
 
         $ledger = DB::table('stock_movements')
             ->select('warehouse_id', 'product_id', 'stock_status')
-            ->selectRaw('CAST(SUM(qty_delta) AS TEXT) AS signed_ledger_qty')
+            ->selectRaw('SUM(qty_delta) AS signed_ledger_qty')
             ->selectRaw('COUNT(*) AS movement_count')
             ->groupBy('warehouse_id', 'product_id', 'stock_status')
             ->orderBy('warehouse_id')
