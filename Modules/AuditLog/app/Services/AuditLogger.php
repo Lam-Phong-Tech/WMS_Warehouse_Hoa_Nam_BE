@@ -112,7 +112,7 @@ class AuditLogger
                 return $replacement;
             }
 
-            if (!is_array($value)) {
+            if (! is_array($value)) {
                 return $value;
             }
 
