@@ -81,6 +81,16 @@ class StockLedger
         ?string $originalMovementId = null,
         string $stockStatus = self::DEFAULT_STOCK_STATUS
     ): ?StockMovement {
+        if (in_array($movementType, [StockMovement::RECEIPT_IN, StockMovement::ISSUE_OUT], true)) {
+            [$doc, $line] = $this->lockAuthoritativePostingBoundary($doc, $line, $movementType);
+            $warehouseId = $movementType === StockMovement::RECEIPT_IN
+                ? $doc->dst_warehouse_id
+                : $doc->src_warehouse_id;
+            $productId = $line->product_id;
+            $qty = $line->qty_actual;
+            $businessKey = $this->businessKey($movementType, $doc->id, $line->id);
+        }
+
         if ($warehouseId === null) {
             return null;
         }
@@ -162,6 +172,51 @@ class StockLedger
         }
 
         return $movement;
+    }
+
+    /**
+     * Receipt/issue phải đọc lại và khóa chứng từ + dòng ngay tại ranh giới stock effect.
+     * Không tin model đã load ở controller vì request khác có thể đã post/cancel sau thời điểm đó.
+     * Lock này được giữ đến outer transaction của IdempotencyStore commit/rollback.
+     *
+     * @return array{0:StockDocument,1:StockDocumentLine}
+     */
+    private function lockAuthoritativePostingBoundary(
+        StockDocument $document,
+        ?StockDocumentLine $line,
+        string $movementType
+    ): array {
+        $currentDocument = StockDocument::query()
+            ->whereKey($document->getKey())
+            ->lockForUpdate()
+            ->first();
+
+        if ($currentDocument === null || $line === null) {
+            WarehouseException::versionConflict();
+        }
+
+        $expectedType = $movementType === StockMovement::RECEIPT_IN
+            ? StockDocument::TYPE_RECEIPT
+            : StockDocument::TYPE_ISSUE;
+
+        if ($currentDocument->doc_type !== $expectedType
+            || $currentDocument->status !== StockDocument::STATUS_APPROVED) {
+            WarehouseException::invalidStatus(
+                "Chứng từ {$currentDocument->id} không còn ở trạng thái approved hợp lệ để hạch toán."
+            );
+        }
+
+        $currentLine = StockDocumentLine::query()
+            ->whereKey($line->getKey())
+            ->where('stock_document_id', $currentDocument->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($currentLine === null) {
+            WarehouseException::versionConflict();
+        }
+
+        return [$currentDocument, $currentLine];
     }
 
     private function businessKey(string $movementType, string $docId, string $lineId): string
