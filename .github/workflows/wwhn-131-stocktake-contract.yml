@@ -1,0 +1,196 @@
+name: WWHN-131 Stocktake Exact-SHA Evidence Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-131-stocktake-contract.yml'
+      - 'Modules/Warehouse/app/Http/Controllers/StocktakeController.php'
+      - 'Modules/Warehouse/app/Services/Stocktake*.php'
+      - 'Modules/Warehouse/database/migrations/*stocktake*'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'docs/docs_task_jira/WWHN-131*'
+      - 'docs/evidence/WWHN-131/**'
+      - 'docs/postman/WWHN-131*'
+      - 'docs/testing/WWHN-131*'
+      - 'scripts/collect-wwhn131-evidence.sh'
+      - 'scripts/verify-stocktake-contract.mjs'
+      - 'scripts/verify-wwhn131-schema.php'
+      - 'scripts/verify-inventory-reconciliation.mjs'
+      - 'tests/Feature/Stocktake*Test.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-131-stocktake-contract.yml'
+      - 'Modules/Warehouse/app/Http/Controllers/StocktakeController.php'
+      - 'Modules/Warehouse/app/Services/Stocktake*.php'
+      - 'Modules/Warehouse/database/migrations/*stocktake*'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'docs/docs_task_jira/WWHN-131*'
+      - 'docs/evidence/WWHN-131/**'
+      - 'docs/postman/WWHN-131*'
+      - 'docs/testing/WWHN-131*'
+      - 'scripts/collect-wwhn131-evidence.sh'
+      - 'scripts/verify-stocktake-contract.mjs'
+      - 'scripts/verify-wwhn131-schema.php'
+      - 'tests/Feature/Stocktake*Test.php'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-131-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  exact-sha-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+
+      - name: Prepare isolated test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          rm -f /tmp/wms-wwhn131.sqlite
+          touch /tmp/wms-wwhn131.sqlite
+          cat >> .env <<'ENV'
+          JWT_SECRET=ci-jwt-secret-wwhn131
+          DB_CONNECTION=sqlite
+          DB_DATABASE=/tmp/wms-wwhn131.sqlite
+          CACHE_STORE=array
+          SESSION_DRIVER=array
+          QUEUE_CONNECTION=sync
+          AUDIT_WRITE_POLICY=outbox_required
+          ENV
+
+      - name: Static integrity gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l Modules/Warehouse/app/Http/Controllers/StocktakeController.php
+          php -l Modules/Warehouse/app/Services/StocktakeAdjustmentService.php
+          php -l Modules/Warehouse/app/Services/StocktakeService.php
+          php -l Modules/Warehouse/app/Services/StocktakeSessionGuard.php
+          php -l Modules/Warehouse/app/Services/StocktakeGrainService.php
+          php -l Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php
+          php -l scripts/verify-wwhn131-schema.php
+          php -l tests/Feature/StocktakeThreeLayerContractTest.php
+          php -l tests/Feature/StocktakeApplyLedgerIntegrityTest.php
+          php -l tests/Feature/StocktakeReviewGateTest.php
+          node --check scripts/verify-stocktake-contract.mjs
+          bash -n scripts/collect-wwhn131-evidence.sh
+          git diff --check
+          ./vendor/bin/pint --test \
+            Modules/Warehouse/app/Http/Controllers/StocktakeController.php \
+            Modules/Warehouse/app/Services/StocktakeAdjustmentService.php \
+            Modules/Warehouse/app/Services/StocktakeService.php \
+            Modules/Warehouse/app/Services/StocktakeSessionGuard.php \
+            Modules/Warehouse/app/Services/StocktakeGrainService.php \
+            Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php \
+            scripts/verify-wwhn131-schema.php \
+            tests/Feature/StocktakeThreeLayerContractTest.php \
+            tests/Feature/StocktakeApplyLedgerIntegrityTest.php \
+            tests/Feature/StocktakeReviewGateTest.php
+
+      - name: Collect immutable WWHN-131 evidence
+        env:
+          EVIDENCE_DIR: build/evidence/wwhn-131
+        run: bash scripts/collect-wwhn131-evidence.sh
+
+      - name: Lint generated OpenAPI
+        run: npx redocly lint build/evidence/wwhn-131/openapi.json
+
+      - name: Validate exact SHA, manifests and structured PASS results
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build/evidence/wwhn-131
+          sha256sum --check SHA256SUMS
+          sha256sum --check SHA256SUMS.sha256
+          node - <<'NODE'
+          const fs = require('fs');
+          const requiredJson = [
+            'build-metadata.json',
+            'openapi.json',
+            'route-list.raw.json',
+            'stocktake.postman.collection.json',
+            'stocktake.postman.environment.json',
+            'stocktake-test-cases.json',
+            'stocktake-source-register.json',
+            'stocktake-contract-verification.json',
+            'schema-verification.json',
+            'stocktake-newman.result.json',
+            'db-before.json',
+            'db-after.json',
+            'reconciliation-report.json',
+          ];
+          const parsed = {};
+          for (const file of requiredJson) {
+            parsed[file] = JSON.parse(fs.readFileSync(file, 'utf8'));
+          }
+          const metadata = parsed['build-metadata.json'];
+          if (metadata.commit_sha !== process.env.GITHUB_SHA) {
+            throw new Error(`Exact SHA mismatch: ${metadata.commit_sha} != ${process.env.GITHUB_SHA}`);
+          }
+          if (metadata.artifact_name !== `stocktake-evidence-${process.env.GITHUB_SHA}`) {
+            throw new Error('Artifact name is not exact-SHA bound');
+          }
+          for (const file of [
+            'stocktake-contract-verification.json',
+            'schema-verification.json',
+            'reconciliation-report.json',
+          ]) {
+            const result = parsed[file];
+            if (result.summary?.failed !== 0 || result.summary?.status !== 'PASS') {
+              throw new Error(`${file} is not PASS`);
+            }
+          }
+          const newman = parsed['stocktake-newman.result.json'];
+          if ((newman.run?.failures ?? []).length !== 0) {
+            throw new Error('Stocktake Newman contains failures');
+          }
+          if (parsed['stocktake-source-register.json'].status !== 'PROPOSED') {
+            throw new Error('Source register must remain PROPOSED before independent sign-off');
+          }
+          NODE
+
+      - name: Upload immutable exact-SHA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stocktake-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-131
+          if-no-files-found: error
+          retention-days: 90
