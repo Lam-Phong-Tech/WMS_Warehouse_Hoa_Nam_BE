@@ -4,18 +4,18 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
-use Modules\AuditLog\Models\AuditLog;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\StockDocument;
-use Modules\Warehouse\Models\StockDocumentLine;
-use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\StockMovement;
+use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * QA2 BE1-P1-05: Comprehensive Test Suite for Canonical Hoa Nam Flows
@@ -85,10 +85,10 @@ class StockDocumentCanonicalFlowTest extends TestCase
                 ['permission_name' => $permissionKey, 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
             );
 
-            \Illuminate\Support\Facades\DB::table('role_permission')->updateOrInsert(
+            DB::table('role_permission')->updateOrInsert(
                 ['role_id' => $role->role_id, 'permission_id' => $permission->permission_id],
                 [
-                    'role_permission_id' => (string) \Illuminate\Support\Str::uuid(),
+                    'role_permission_id' => (string) Str::uuid(),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]
@@ -102,16 +102,16 @@ class StockDocumentCanonicalFlowTest extends TestCase
     {
         $user = User::create([
             'username' => $username,
-            'display_name' => \Illuminate\Support\Str::headline($username),
+            'display_name' => Str::headline($username),
             'email' => "{$username}@wms-hoanam.test",
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('secret123'),
+            'password_hash' => Hash::make('secret123'),
             'status' => $status,
             'version' => 1,
         ]);
 
         if ($roleCode !== null) {
             $role = Role::where('role_code', $roleCode)->firstOrFail();
-            $user->roles()->attach($role->role_id, ['user_role_id' => (string) \Illuminate\Support\Str::uuid()]);
+            $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
         }
 
         return $user;

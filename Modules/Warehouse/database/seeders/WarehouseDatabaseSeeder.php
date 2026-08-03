@@ -95,7 +95,7 @@ class WarehouseDatabaseSeeder extends Seeder
             );
 
             SafeStockAlertHistory::firstOrCreate(
-                ['product_id' => $product->id, 'warehouse_id' => $warehouses['KHO-TONG-HN']->id, 'created_at' => Carbon::parse("2026-01-0".($i + 1).' 08:00:00')],
+                ['product_id' => $product->id, 'warehouse_id' => $warehouses['KHO-TONG-HN']->id, 'created_at' => Carbon::parse('2026-01-0'.($i + 1).' 08:00:00')],
                 ['current_qty' => $mins[$i] + (5 * $i), 'min_qty' => $mins[$i], 'max_qty' => $mins[$i] * 6, 'old_status' => null, 'new_status' => $i === 1 ? 'low_stock' : 'normal']
             );
         }

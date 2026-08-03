@@ -1,7 +1,8 @@
 # WMS Permission Catalog — BE1
 
-Version: `1.1.0-be1-wwhn150`  
-Status: `PROPOSED`  
+Version: `1.1.0-be1-wwhn150`
+Status: `PROPOSED`
+Repository JSON: `docs/permissions/WMS_PERMISSION_CATALOG_BE1.json`
 Runtime evidence: `build/evidence/api-data/permission-catalog.json`
 
 ## Enforcement sources
@@ -11,9 +12,11 @@ Runtime evidence: `build/evidence/api-data/permission-catalog.json`
 | `Modules/Auth/database/seeders/AuthDatabaseSeeder.php` | Permission and role seed | `permission-catalog.json.source_hashes.permission_seed.sha256` |
 | `Modules/Warehouse/routes/api.php` | Endpoint → permission middleware | `permission-catalog.json.source_hashes.warehouse_routes.sha256` |
 | `Modules/Auth/app/Http/Middleware/CheckPermission.php` | Backend authorization enforcement | `permission-catalog.json.source_hashes.permission_middleware.sha256` |
+| `app/Console/Commands/ExportPermissionCatalog.php` | Catalog/seed-diff generator | `permission-catalog.json.source_hashes.permission_exporter.sha256` |
+| `Modules/Auth/app/Models/User.php` | Role permission + SUPER_ADMIN/data-scope enforcement | `permission-catalog.json.source_hashes.user_permission_model.sha256` |
 | Generated route list | Runtime route/middleware truth | `route-list.raw.json` + `SHA256SUMS` |
 
-The CI command `php artisan evidence:permission-catalog` fails when a runtime route references a permission key that is not active in the seeded catalog.
+The CI command `php artisan evidence:permission-catalog` fails when a runtime route references a permission key that is not active, or when `scan.classify` status/role/middleware differs from the expected boundary. It also emits `permission-seed-diff.json` with missing and unexpected roles.
 
 ## WWHN-150 endpoint matrix
 
@@ -46,7 +49,7 @@ The generated catalog contains:
 - role → permission assignments;
 - runtime route → permission mappings;
 - endpoint → permission → role matrix;
-- SHA-256 of seed, route and middleware sources;
-- integrity status and any missing route permission.
+- SHA-256 of seed, routes, middleware, exporter and user permission model sources;
+- integrity status, missing route permissions and the focused `scan.classify` seed/role diff.
 
 FE/BA sign-off must use the generated catalog from the exact reviewed commit artifact, not this branch-relative Markdown alone.

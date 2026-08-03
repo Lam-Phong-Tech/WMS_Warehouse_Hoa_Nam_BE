@@ -60,7 +60,7 @@
                 "tags": [
                     "01. Authentication"
                 ],
-                "summary": "Đăng nhập bằng email/password, trả về JWT access token + refresh token",
+                "summary": "Đăng nhập bằng email/password, trả về JWT access token và refresh token",
                 "operationId": "auth_login",
                 "requestBody": {
                     "required": true,
@@ -75,12 +75,12 @@
                                     "email": {
                                         "type": "string",
                                         "format": "email",
-                                        "example": "admin@gmail.com"
+                                        "example": "user@example.com"
                                     },
                                     "password": {
                                         "type": "string",
                                         "format": "password",
-                                        "example": "Cntt@1234"
+                                        "example": "your-password"
                                     }
                                 },
                                 "type": "object"
@@ -93,10 +93,13 @@
                         "description": "Đăng nhập thành công"
                     },
                     "401": {
-                        "description": "Sai tên đăng nhập hoặc mật khẩu"
+                        "description": "Sai email hoặc mật khẩu"
                     },
                     "403": {
                         "description": "Tài khoản bị khoá/ngừng hoạt động"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ"
                     }
                 },
                 "security": []
@@ -107,7 +110,7 @@
                 "tags": [
                     "01. Authentication"
                 ],
-                "summary": "Làm mới access token bằng refresh token (xoay vòng — refresh token cũ bị thu hồi)",
+                "summary": "Xoay vòng refresh token; token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên",
                 "operationId": "auth_refresh",
                 "requestBody": {
                     "required": true,
@@ -132,7 +135,10 @@
                         "description": "Làm mới token thành công"
                     },
                     "401": {
-                        "description": "Refresh token không hợp lệ hoặc đã hết hạn"
+                        "description": "Refresh token không hợp lệ, hết hạn hoặc bị replay"
+                    },
+                    "422": {
+                        "description": "Thiếu refresh_token"
                     }
                 },
                 "security": []
@@ -143,7 +149,7 @@
                 "tags": [
                     "01. Authentication"
                 ],
-                "summary": "Đăng xuất — thu hồi refresh token (nếu có) và huỷ access token hiện tại",
+                "summary": "Đăng xuất, thu hồi refresh token và huỷ access token hiện tại",
                 "operationId": "auth_logout",
                 "requestBody": {
                     "content": {
@@ -166,6 +172,9 @@
                     },
                     "401": {
                         "description": "Chưa xác thực"
+                    },
+                    "422": {
+                        "description": "refresh_token sai kiểu dữ liệu"
                     }
                 },
                 "security": [
@@ -180,7 +189,7 @@
                 "tags": [
                     "01. Authentication"
                 ],
-                "summary": "Thông tin tài khoản đang đăng nhập + danh sách permission_key",
+                "summary": "Thông tin tài khoản, role, scope và permission hiện hành",
                 "operationId": "auth_me",
                 "responses": {
                     "200": {
@@ -188,113 +197,6 @@
                     },
                     "401": {
                         "description": "Chưa xác thực"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
-            }
-        },
-        "/api/v1/auth/change-password": {
-            "post": {
-                "tags": [
-                    "01. Authentication"
-                ],
-                "summary": "Change password for current authenticated user",
-                "operationId": "auth_change_password",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "required": [
-                                    "current_password",
-                                    "new_password",
-                                    "new_password_confirmation"
-                                ],
-                                "properties": {
-                                    "current_password": {
-                                        "type": "string",
-                                        "format": "password"
-                                    },
-                                    "new_password": {
-                                        "type": "string",
-                                        "format": "password",
-                                        "minLength": 8
-                                    },
-                                    "new_password_confirmation": {
-                                        "type": "string",
-                                        "format": "password"
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Password changed successfully"
-                    },
-                    "401": {
-                        "description": "Unauthenticated"
-                    },
-                    "422": {
-                        "description": "Invalid current password or validation error"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
-            }
-        },
-        "/api/v1/auth/switch-context": {
-            "post": {
-                "tags": [
-                    "01. Authentication"
-                ],
-                "summary": "Switch active working context and return a fresh access token",
-                "operationId": "auth_switch_context",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "properties": {
-                                    "context_type": {
-                                        "type": "string",
-                                        "example": "SYSTEM",
-                                        "nullable": true,
-                                        "maxLength": 50
-                                    },
-                                    "context_id": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 100
-                                    },
-                                    "scope_ref": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 100
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Context switched successfully"
-                    },
-                    "401": {
-                        "description": "Unauthenticated"
-                    },
-                    "422": {
-                        "description": "Validation error"
                     }
                 },
                 "security": [
@@ -2306,123 +2208,11 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "Danh sách sản phẩm (phân trang, filter theo keyword/status)",
+                "summary": "Danh sách sản phẩm",
                 "operationId": "product_list",
-                "parameters": [
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 15
-                        }
-                    },
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "schema": {
-                            "type": "string",
-                            "enum": [
-                                "ACTIVE",
-                                "INACTIVE"
-                            ]
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "Danh sách sản phẩm"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền product.view"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
-            },
-            "post": {
-                "tags": [
-                    "05. Product"
-                ],
-                "summary": "Tạo sản phẩm mới",
-                "operationId": "product_create",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "required": [
-                                    "code",
-                                    "name"
-                                ],
-                                "properties": {
-                                    "code": {
-                                        "type": "string",
-                                        "example": "SP-0001",
-                                        "maxLength": 100
-                                    },
-                                    "name": {
-                                        "type": "string",
-                                        "example": "Máy khoan cầm tay",
-                                        "maxLength": 255
-                                    },
-                                    "unit": {
-                                        "type": "string",
-                                        "example": "cái",
-                                        "nullable": true,
-                                        "maxLength": 30
-                                    },
-                                    "sku_type": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "enum": [
-                                            "PRODUCT",
-                                            "COMPONENT"
-                                        ]
-                                    },
-                                    "is_serial_tracked": {
-                                        "type": "boolean",
-                                        "nullable": true
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "Tạo sản phẩm thành công"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền product.manage"
-                    },
-                    "422": {
-                        "description": "Dữ liệu không hợp lệ (vd: code đã tồn tại)"
                     }
                 },
                 "security": [
@@ -2437,53 +2227,11 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "List SKU records (alias of products list)",
+                "summary": "Danh sách SKU",
                 "operationId": "sku_list",
-                "parameters": [
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 15
-                        }
-                    },
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "schema": {
-                            "type": "string",
-                            "enum": [
-                                "ACTIVE",
-                                "INACTIVE"
-                            ]
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
-                        "description": "Paginated SKU records"
-                    },
-                    "401": {
-                        "description": "Unauthenticated"
-                    },
-                    "403": {
-                        "description": "Missing product.view permission"
+                        "description": "Danh sách SKU"
                     }
                 },
                 "security": [
@@ -2496,100 +2244,28 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "Create a SKU record (alias of product create)",
+                "summary": "Tạo SKU aggregate cùng component và physical code",
                 "operationId": "sku_create",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "required": [
-                                    "code",
-                                    "name"
-                                ],
-                                "properties": {
-                                    "code": {
-                                        "type": "string",
-                                        "example": "SKU-0001",
-                                        "maxLength": 100
-                                    },
-                                    "name": {
-                                        "type": "string",
-                                        "example": "Cordless drill",
-                                        "maxLength": 255
-                                    },
-                                    "unit": {
-                                        "type": "string",
-                                        "example": "pcs",
-                                        "nullable": true,
-                                        "maxLength": 30
-                                    },
-                                    "sku_type": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "enum": [
-                                            "PRODUCT",
-                                            "COMPONENT"
-                                        ]
-                                    },
-                                    "is_serial_tracked": {
-                                        "type": "boolean",
-                                        "nullable": true
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "SKU created successfully"
-                    },
-                    "401": {
-                        "description": "Unauthenticated"
-                    },
-                    "403": {
-                        "description": "Missing product.manage permission"
-                    },
-                    "422": {
-                        "description": "Validation error"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
-            }
-        },
-        "/api/v1/products/{id}": {
-            "get": {
-                "tags": [
-                    "05. Product"
-                ],
-                "summary": "Chi tiết sản phẩm",
-                "operationId": "product_detail",
                 "parameters": [
                     {
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": false,
                         "schema": {
                             "type": "string",
-                            "format": "uuid"
+                            "maxLength": 128
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "Chi tiết sản phẩm"
+                    "201": {
+                        "description": "SKU được tạo atomically"
                     },
-                    "401": {
-                        "description": "Chưa xác thực"
+                    "409": {
+                        "description": "Idempotency/code conflict"
                     },
-                    "404": {
-                        "description": "Không tìm thấy sản phẩm"
+                    "422": {
+                        "description": "Business rule violation"
                     }
                 },
                 "security": [
@@ -2604,7 +2280,7 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "SKU detail (alias of product detail)",
+                "summary": "Chi tiết SKU aggregate",
                 "operationId": "sku_detail",
                 "parameters": [
                     {
@@ -2619,91 +2295,10 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "SKU detail"
-                    },
-                    "401": {
-                        "description": "Unauthenticated"
+                        "description": "SKU, components và physical codes"
                     },
                     "404": {
-                        "description": "SKU not found"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
-            }
-        },
-        "/api/v1/products/{id}/enable": {
-            "patch": {
-                "tags": [
-                    "05. Product"
-                ],
-                "summary": "Enable a product",
-                "operationId": "product_enable",
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Product enabled successfully"
-                    },
-                    "401": {
-                        "description": "Unauthenticated"
-                    },
-                    "403": {
-                        "description": "Missing product.manage permission"
-                    },
-                    "404": {
-                        "description": "Product not found"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
-            }
-        },
-        "/api/v1/products/{id}/disable": {
-            "patch": {
-                "tags": [
-                    "05. Product"
-                ],
-                "summary": "Disable a product",
-                "operationId": "product_disable",
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Product disabled successfully"
-                    },
-                    "401": {
-                        "description": "Unauthenticated"
-                    },
-                    "403": {
-                        "description": "Missing product.manage permission"
-                    },
-                    "404": {
-                        "description": "Product not found"
+                        "description": "Không tìm thấy SKU"
                     }
                 },
                 "security": [
@@ -2718,7 +2313,7 @@
                 "tags": [
                     "12. Dashboard / Report"
                 ],
-                "summary": "Báo cáo Xuất-Nhập-Tồn (XNT) theo khoảng thời gian",
+                "summary": "Báo cáo Xuất-Nhập-Tồn",
                 "operationId": "report_inventory_xnt",
                 "parameters": [
                     {
@@ -2742,16 +2337,10 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Tổng nhập (total_in)/xuất (total_out) theo sản phẩm trong khoảng thời gian"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền report.view"
+                        "description": "Báo cáo XNT"
                     },
                     "422": {
-                        "description": "Thiếu from_date/to_date hoặc to_date < from_date"
+                        "description": "Khoảng ngày không hợp lệ"
                     }
                 },
                 "security": [
@@ -2766,7 +2355,7 @@
                 "tags": [
                     "12. Dashboard / Report"
                 ],
-                "summary": "Xuất báo cáo XNT ra file Excel (.xlsx)",
+                "summary": "Xuất báo cáo XNT Excel",
                 "operationId": "report_inventory_xnt_export_excel",
                 "parameters": [
                     {
@@ -2790,16 +2379,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "File .xlsx tải về"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền report.view"
-                    },
-                    "422": {
-                        "description": "Thiếu from_date/to_date hoặc to_date < from_date"
+                        "description": "File XLSX"
                     }
                 },
                 "security": [
@@ -2814,8 +2394,7 @@
                 "tags": [
                     "12. Dashboard / Report"
                 ],
-                "summary": "Dashboard nhanh cho kho tổng: tồn hiện tại, nhập/xuất trong kỳ, phiếu đang dở dang, cảnh báo đối soát",
-                "description": "Mặc định kỳ = tháng hiện tại nếu không truyền from_date/to_date. Các trường liên quan module chưa xây (stocktake, warranty, reconciliation) trả về 0/rỗng.",
+                "summary": "Dashboard nhanh kho tổng",
                 "operationId": "report_dashboard_quick",
                 "parameters": [
                     {
@@ -2837,13 +2416,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Số liệu dashboard nhanh"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền report.view"
+                        "description": "Số liệu dashboard"
                     }
                 },
                 "security": [
@@ -2858,8 +2431,8 @@
                 "tags": [
                     "12. Dashboard / Report"
                 ],
-                "summary": "Đối soát inventory_balances với stock_movements",
-                "description": "So sánh tồn hiện tại theo inventory_balances với tổng qty_delta từ stock_movements theo warehouse_id/product_id. OPENING/ADJUST/POST/REVERSE đều là nguồn ledger hợp lệ; scan không tạo movement nên không làm đổi expected_qty.",
+                "summary": "Đối soát balance với signed SUM(qty_delta) theo stock_status",
+                "description": "So sánh on_hand_qty với tổng qty_delta có dấu trên hợp dimension của cả balance và ledger. Phát hiện cả movement không có balance và balance không có movement; không đảo dấu theo movement_type lần hai.",
                 "operationId": "report_inventory_reconciliation",
                 "parameters": [
                     {
@@ -2879,6 +2452,13 @@
                         }
                     },
                     {
+                        "name": "stock_status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "name": "only_mismatch",
                         "in": "query",
                         "schema": {
@@ -2889,13 +2469,16 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Kết quả đối soát tồn kho"
+                        "description": "Kết quả đối soát"
                     },
                     "401": {
                         "description": "Chưa xác thực"
                     },
                     "403": {
                         "description": "Không có quyền report.view"
+                    },
+                    "422": {
+                        "description": "Filter không hợp lệ"
                     }
                 },
                 "security": [
@@ -3294,19 +2877,9 @@
                 "tags": [
                     "11. Scan"
                 ],
-                "summary": "Phân loại mã scan (QR/Barcode/Container/Item)",
-                "description": "Nhận raw_code và context, trả về classification cùng thông tin đối tượng tương ứng. Contract G1: scan chỉ classify/validate, stock_effect=NONE, không tạo stock movement.",
+                "summary": "Phân loại và validate mã scan, không thay đổi tồn kho",
+                "description": "Contract WWHN-150: endpoint chỉ đọc dữ liệu để resolve ITEM/CONTAINER/SKU theo warehouse data scope. stock_effect luôn bằng NONE; không tạo inventory balance, stock movement, posting_event, scan_event hoặc idempotency cache. Header Idempotency-Key nếu client gửi lên được bỏ qua vì đây không phải posting operation.",
                 "operationId": "scan_classify",
-                "parameters": [
-                    {
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -3319,12 +2892,11 @@
                                 ],
                                 "properties": {
                                     "raw_code": {
-                                        "description": "Mã QR/Barcode/Container/Item cần phân loại",
+                                        "description": "QR, barcode, serial, container code hoặc SKU code",
                                         "type": "string",
-                                        "maxLength": 120
+                                        "maxLength": 150
                                     },
                                     "context": {
-                                        "description": "Ngữ cảnh sử dụng",
                                         "type": "string",
                                         "enum": [
                                             "INBOUND",
@@ -3334,7 +2906,7 @@
                                         ]
                                     },
                                     "warehouse_id": {
-                                        "description": "ID kho tổng Hoa Nam",
+                                        "description": "Kho nằm trong data scope của người dùng",
                                         "type": "string",
                                         "format": "uuid"
                                     }
@@ -3346,32 +2918,223 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Phân loại thành công"
-                    },
-                    "400": {
-                        "description": "Dữ liệu không hợp lệ"
+                        "description": "Resolve thành công; stock_effect=NONE và toàn bộ write flags=false",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ],
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "enum": [
+                                                true
+                                            ]
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "required": [
+                                                "raw_code",
+                                                "context",
+                                                "classification",
+                                                "stock_status",
+                                                "resolved_source",
+                                                "contract_version",
+                                                "stock_effect",
+                                                "movement_created",
+                                                "posting_event_created",
+                                                "idempotency_cache_written",
+                                                "current_location"
+                                            ],
+                                            "properties": {
+                                                "raw_code": {
+                                                    "type": "string"
+                                                },
+                                                "context": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "INBOUND",
+                                                        "OUTBOUND",
+                                                        "STOCKTAKE",
+                                                        "WARRANTY_TEMP_ONLY"
+                                                    ]
+                                                },
+                                                "classification": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "ITEM",
+                                                        "CONTAINER",
+                                                        "SKU"
+                                                    ]
+                                                },
+                                                "item_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
+                                                "sku_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
+                                                "product_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
+                                                "stock_status": {
+                                                    "type": "string"
+                                                },
+                                                "object_status": {
+                                                    "type": "string"
+                                                },
+                                                "resolved_source": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "physical_code",
+                                                        "inventory_serials.serial_no",
+                                                        "container.container_code",
+                                                        "products.code"
+                                                    ]
+                                                },
+                                                "contract_version": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "WWHN-150.1.1.0"
+                                                    ]
+                                                },
+                                                "stock_effect": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "NONE"
+                                                    ]
+                                                },
+                                                "movement_created": {
+                                                    "type": "boolean",
+                                                    "enum": [
+                                                        false
+                                                    ]
+                                                },
+                                                "posting_event_created": {
+                                                    "type": "boolean",
+                                                    "enum": [
+                                                        false
+                                                    ]
+                                                },
+                                                "idempotency_cache_written": {
+                                                    "type": "boolean",
+                                                    "enum": [
+                                                        false
+                                                    ]
+                                                },
+                                                "current_location": {
+                                                    "required": [
+                                                        "warehouse_id",
+                                                        "warehouse_code",
+                                                        "warehouse_name"
+                                                    ],
+                                                    "properties": {
+                                                        "warehouse_id": {
+                                                            "type": "string",
+                                                            "format": "uuid"
+                                                        },
+                                                        "warehouse_code": {
+                                                            "type": "string"
+                                                        },
+                                                        "warehouse_name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "meta": {
+                                            "required": [
+                                                "request_id",
+                                                "timestamp"
+                                            ],
+                                            "properties": {
+                                                "request_id": {
+                                                    "type": "string"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Chưa xác thực"
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Wwhn150ApiError"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Không có quyền scan.classify"
+                        "description": "Thiếu scan.classify hoặc kho ngoài data scope",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Wwhn150ApiError"
+                                }
+                            }
+                        }
                     },
                     "404": {
-                        "description": "Không tìm thấy mã"
+                        "description": "Không tìm thấy mã scan hoặc kho",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Wwhn150ApiError"
+                                }
+                            }
+                        }
                     },
                     "409": {
-                        "description": "Trạng thái kho/mã không hợp lệ"
+                        "description": "Kho/mã/object/context không hợp lệ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Wwhn150ApiError"
+                                }
+                            }
+                        }
                     },
-                    "428": {
-                        "description": "Thiếu header Idempotency-Key"
+                    "422": {
+                        "description": "Payload validation thất bại",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Wwhn150ApiError"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
                     {
                         "bearerAuth": []
                     }
-                ]
+                ],
+                "x-permission": "scan.classify"
             }
         },
         "/api/v1/stock-movements": {
@@ -4020,13 +3783,457 @@
                 ]
             }
         },
+        "/api/v1/stocktake-sessions": {
+            "get": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Danh sách stocktake session theo warehouse data scope",
+                "operationId": "stocktake_session_list",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách session trong data scope"
+                    },
+                    "403": {
+                        "description": "Warehouse ngoài data scope"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Tạo session ở trạng thái DRAFT",
+                "description": "Contract duy nhất: create luôn trả DRAFT; snapshot chỉ sinh khi gọi /start.",
+                "operationId": "stocktake_session_create",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "warehouse_id"
+                                ],
+                                "properties": {
+                                    "warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "session_no": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 80
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Session DRAFT, session_version=1"
+                    },
+                    "403": {
+                        "description": "Warehouse ngoài data scope"
+                    },
+                    "422": {
+                        "description": "Kho hoặc payload không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake-sessions/{id}": {
+            "get": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Chi tiết session, count và variance trong data scope",
+                "operationId": "stocktake_session_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết session"
+                    },
+                    "403": {
+                        "description": "Warehouse ngoài data scope"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy session"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake-sessions/{id}/start": {
+            "post": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Start DRAFT → IN_PROGRESS và chụp snapshot ba grain",
+                "operationId": "stocktake_session_start",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "session_version"
+                                ],
+                                "properties": {
+                                    "session_version": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "IN_PROGRESS và số snapshot SKU/ITEM/CONTAINER"
+                    },
+                    "409": {
+                        "description": "Sai state hoặc session_version stale"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake-sessions/{id}/counts": {
+            "post": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Ghi count theo grain_type/grain_id, chống duplicate ở DB",
+                "operationId": "stocktake_count_record",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "grain_type",
+                                                "grain_id",
+                                                "product_id",
+                                                "stock_status",
+                                                "actual_qty"
+                                            ],
+                                            "properties": {
+                                                "grain_type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "SKU",
+                                                        "ITEM",
+                                                        "CONTAINER"
+                                                    ]
+                                                },
+                                                "grain_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "product_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "stock_status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "AVAILABLE",
+                                                        "DAMAGED",
+                                                        "RESERVED"
+                                                    ]
+                                                },
+                                                "actual_qty": {
+                                                    "type": "number",
+                                                    "minimum": 0
+                                                },
+                                                "counted_at": {
+                                                    "type": "string",
+                                                    "format": "date-time",
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Count được ghi"
+                    },
+                    "409": {
+                        "description": "Duplicate grain hoặc sai state"
+                    },
+                    "422": {
+                        "description": "Grain không hợp lệ"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake-sessions/{id}/review": {
+            "post": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Tính expected_at_count bằng snapshot + signed SUM(qty_delta)",
+                "description": "ADJUST_OUT/ISSUE_OUT là qty_delta âm. Không đảo dấu theo movement_type lần hai.",
+                "operationId": "stocktake_session_review",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "session_version"
+                                ],
+                                "properties": {
+                                    "session_version": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Session REVIEWED và variance canonical"
+                    },
+                    "409": {
+                        "description": "Thiếu count, sai state hoặc stale version"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake-sessions/{id}/acknowledge-movements": {
+            "post": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Xác nhận chính xác movement backend phát hiện cho từng variance",
+                "operationId": "stocktake_acknowledge_movements",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "session_version",
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "session_version": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "variance_id",
+                                                "movement_ids"
+                                            ],
+                                            "properties": {
+                                                "variance_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "movement_ids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "format": "uuid"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Lưu acknowledged_by/at và exact movement IDs"
+                    },
+                    "409": {
+                        "description": "Acknowledged IDs không khớp detected IDs"
+                    },
+                    "422": {
+                        "description": "Variance thiếu hoặc thuộc session khác"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/stocktake-sessions/{id}/variances": {
+            "get": {
+                "tags": [
+                    "12. Stocktake"
+                ],
+                "summary": "Danh sách variance của đúng session và data scope",
+                "operationId": "stocktake_variance_list",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Variance của session"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/stocktake-sessions/{id}/apply-adjustment": {
             "post": {
                 "tags": [
                     "12. Stocktake"
                 ],
-                "summary": "Áp dụng điều chỉnh kiểm kê (apply adjustment)",
-                "description": "Áp dụng điều chỉnh tồn kho sau khi đã kiểm kê và review. Tạo movement điều chỉnh và cập nhật inventory_balance. Yêu cầu session đã ở trạng thái REVIEWED.",
+                "summary": "Apply variance đã review theo posting_event idempotency và CAS",
+                "description": "Payload chỉ nhận variance_ids. Backend tự lấy expected/actual/variance đã review, khóa session và cập nhật balance + signed movement + physical item/container trong cùng transaction.",
                 "operationId": "stocktake_apply_adjustment",
                 "parameters": [
                     {
@@ -4043,7 +4250,8 @@
                         "in": "header",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 100
                         }
                     }
                 ],
@@ -4053,47 +4261,28 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "reason",
-                                    "lines"
+                                    "session_version",
+                                    "variance_ids",
+                                    "reason"
                                 ],
                                 "properties": {
-                                    "reason": {
-                                        "description": "Lý do điều chỉnh",
-                                        "type": "string",
-                                        "maxLength": 500
+                                    "session_version": {
+                                        "type": "integer",
+                                        "minimum": 1
                                     },
-                                    "lines": {
+                                    "variance_ids": {
                                         "type": "array",
                                         "items": {
-                                            "properties": {
-                                                "sku_id": {
-                                                    "type": "string",
-                                                    "format": "uuid"
-                                                },
-                                                "stock_status": {
-                                                    "type": "string",
-                                                    "enum": [
-                                                        "AVAILABLE",
-                                                        "DAMAGED",
-                                                        "RESERVED"
-                                                    ]
-                                                },
-                                                "expected_qty": {
-                                                    "type": "number",
-                                                    "format": "float"
-                                                },
-                                                "actual_qty": {
-                                                    "type": "number",
-                                                    "format": "float"
-                                                },
-                                                "adjustment_qty": {
-                                                    "description": "actual_qty - expected_qty",
-                                                    "type": "number",
-                                                    "format": "float"
-                                                }
-                                            },
-                                            "type": "object"
-                                        }
+                                            "type": "string",
+                                            "format": "uuid"
+                                        },
+                                        "maxItems": 500,
+                                        "minItems": 1,
+                                        "uniqueItems": true
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "maxLength": 500
                                     }
                                 },
                                 "type": "object"
@@ -4103,25 +4292,19 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Áp dụng điều chỉnh thành công"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
+                        "description": "Commit hoặc replay response_snapshot đã commit"
                     },
                     "403": {
-                        "description": "Không có quyền stocktake.adjust"
-                    },
-                    "404": {
-                        "description": "Không tìm thấy session"
+                        "description": "Warehouse ngoài data scope"
                     },
                     "409": {
-                        "description": "Session chưa sẵn sàng hoặc đã áp dụng"
+                        "description": "CAS, state, stale baseline, race hoặc same-key/different-payload"
                     },
                     "422": {
-                        "description": "Dữ liệu không hợp lệ hoặc điều chỉnh âm vượt tồn"
+                        "description": "Variance thiếu/foreign/trùng hoặc physical grain không hợp lệ"
                     },
                     "428": {
-                        "description": "Thiếu header Idempotency-Key"
+                        "description": "Thiếu Idempotency-Key hoặc chưa acknowledge movement"
                     }
                 },
                 "security": [
@@ -4868,11 +5051,11 @@
                 "tags": [
                     "06. Warehouse"
                 ],
-                "summary": "Danh sách kho (chỉ 1 kho tổng — không phân trang)",
+                "summary": "Danh sách kho theo data scope của user",
                 "operationId": "warehouse_list",
                 "responses": {
                     "200": {
-                        "description": "Danh sách kho (tối đa 1 bản ghi — kho tổng)"
+                        "description": "Danh sách kho trong phạm vi được gán"
                     },
                     "401": {
                         "description": "Chưa xác thực"
@@ -4893,7 +5076,7 @@
                 "tags": [
                     "06. Warehouse"
                 ],
-                "summary": "Chi tiết kho tổng",
+                "summary": "Chi tiết kho trong data scope",
                 "operationId": "warehouse_detail",
                 "parameters": [
                     {
@@ -4910,8 +5093,8 @@
                     "200": {
                         "description": "Chi tiết kho"
                     },
-                    "401": {
-                        "description": "Chưa xác thực"
+                    "403": {
+                        "description": "Kho ngoài data scope"
                     },
                     "404": {
                         "description": "Không tìm thấy kho"
@@ -4927,7 +5110,7 @@
                 "tags": [
                     "06. Warehouse"
                 ],
-                "summary": "Sửa tên/địa chỉ/thông tin liên hệ kho tổng",
+                "summary": "Cập nhật kho trong data scope",
                 "operationId": "warehouse_update",
                 "parameters": [
                     {
@@ -4974,11 +5157,8 @@
                     "200": {
                         "description": "Cập nhật thành công"
                     },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
                     "403": {
-                        "description": "Không có quyền warehouse.manage"
+                        "description": "Thiếu quyền hoặc kho ngoài data scope"
                     },
                     "404": {
                         "description": "Không tìm thấy kho"
@@ -4999,8 +5179,8 @@
                 "tags": [
                     "13. Warranty"
                 ],
-                "summary": "Nhận tạm bảo hành (TEMP_ONLY)",
-                "description": "Nhận tạm sản phẩm vào kho để kiểm tra bảo hành. TEMP_ONLY item không được bán và phải có thể truy vết/đảo ngược. Chỉ áp dụng khi case đang ở trạng thái RECEIVED hoặc WAITING_CHECK.",
+                "summary": "Tiếp nhận bảo hành chưa định danh, không tác động tồn kho",
+                "description": "TEMP_ONLY chỉ cập nhật trạng thái phiếu và tạo warranty_event. Không liên kết inventory_serial, không tạo stock_movement và không cập nhật inventory_balance.",
                 "operationId": "warranty_temp_only",
                 "parameters": [
                     {
@@ -5017,7 +5197,8 @@
                         "in": "header",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 128
                         }
                     }
                 ],
@@ -5027,23 +5208,29 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "item_id",
+                                    "temporary_item_code",
+                                    "missing_code_reason",
                                     "condition_status"
                                 ],
                                 "properties": {
-                                    "item_id": {
-                                        "description": "ID item/serial number",
+                                    "temporary_item_code": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "maxLength": 150
+                                    },
+                                    "missing_code_reason": {
+                                        "type": "string",
+                                        "maxLength": 500
+                                    },
+                                    "manual_product_description": {
+                                        "type": "string",
+                                        "nullable": true
                                     },
                                     "defect_id": {
-                                        "description": "ID defect catalog",
                                         "type": "string",
                                         "format": "uuid",
                                         "nullable": true
                                     },
                                     "condition_status": {
-                                        "description": "Trạng thái kiểm tra",
                                         "type": "string",
                                         "enum": [
                                             "WAITING_CHECK",
@@ -5051,7 +5238,6 @@
                                         ]
                                     },
                                     "note": {
-                                        "description": "Ghi chú",
                                         "type": "string",
                                         "nullable": true,
                                         "maxLength": 1000
@@ -5064,25 +5250,16 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Nhận tạm thành công"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền warranty.temp_only"
-                    },
-                    "404": {
-                        "description": "Không tìm thấy case"
+                        "description": "Tiếp nhận TEMP_ONLY thành công, stock_effect=NONE"
                     },
                     "409": {
-                        "description": "Case đã ở trạng thái TEMP_ONLY hoặc đã đóng"
+                        "description": "Sai trạng thái, active warranty trùng hoặc khóa idempotency xung đột payload"
                     },
                     "422": {
-                        "description": "Dữ liệu không hợp lệ"
+                        "description": "Dữ liệu không hợp lệ hoặc serial chưa Post Issue"
                     },
                     "428": {
-                        "description": "Thiếu header Idempotency-Key"
+                        "description": "Thiếu Idempotency-Key"
                     }
                 },
                 "security": [
@@ -5802,6 +5979,99 @@
         }
     },
     "components": {
+        "schemas": {
+            "Wwhn150ApiError": {
+                "required": [
+                    "success",
+                    "message",
+                    "error_code",
+                    "errors",
+                    "error",
+                    "meta"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "enum": [
+                            false
+                        ]
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "UNAUTHENTICATED",
+                            "ACCESS_DENIED",
+                            "WAREHOUSE_SCOPE_DENIED",
+                            "WAREHOUSE_NOT_FOUND",
+                            "SCAN_CODE_NOT_FOUND",
+                            "WAREHOUSE_INACTIVE",
+                            "SCAN_CODE_INACTIVE",
+                            "SCAN_CONTAINER_INACTIVE",
+                            "SCAN_SKU_INACTIVE",
+                            "SCAN_LOCATION_UNKNOWN",
+                            "SCAN_WAREHOUSE_MISMATCH",
+                            "SCAN_CONTEXT_CONFLICT",
+                            "BUSINESS_RULE_ERROR",
+                            "VALIDATION_ERROR"
+                        ]
+                    },
+                    "errors": {
+                        "oneOf": [
+                            {
+                                "type": "object"
+                            },
+                            {
+                                "type": "array",
+                                "items": {}
+                            }
+                        ]
+                    },
+                    "error": {
+                        "required": [
+                            "code",
+                            "details"
+                        ],
+                        "properties": {
+                            "code": {
+                                "type": "string"
+                            },
+                            "details": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "type": "array",
+                                        "items": {}
+                                    }
+                                ]
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "meta": {
+                        "required": [
+                            "request_id",
+                            "timestamp"
+                        ],
+                        "properties": {
+                            "request_id": {
+                                "type": "string"
+                            },
+                            "timestamp": {
+                                "type": "string",
+                                "format": "date-time"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            }
+        },
         "securitySchemes": {
             "bearerAuth": {
                 "type": "http",
@@ -5848,16 +6118,16 @@
             "description": "Nhật ký audit các thao tác quan trọng (tạo/duyệt/hạch toán/huỷ...), chỉ đọc qua API."
         },
         {
+            "name": "12. Stocktake",
+            "description": "Kiểm kê ba lớp SKU / Item / Container"
+        },
+        {
             "name": "07. Inventory / Stock",
             "description": "07. Inventory / Stock"
         },
         {
             "name": "11. Scan",
             "description": "11. Scan"
-        },
-        {
-            "name": "12. Stocktake",
-            "description": "12. Stocktake"
         },
         {
             "name": "10. Transfer",

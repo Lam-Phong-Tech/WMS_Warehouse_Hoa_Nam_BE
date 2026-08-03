@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
@@ -14,7 +17,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * QA1 Security/RBAC/Audit Negative Test Suite
- * 
+ *
  * Covers:
  * - BE1-P1-01: Security/RBAC/audit test độc lập (401/403/token expired/permission/audit/API negative)
  * - BE1-P1-06: Object-level/data-scope test (user không có quyền/kho/phạm vi dữ liệu bị deny 403)
@@ -220,7 +223,7 @@ class SecurityRbacAuditNegativeTest extends TestCase
             'email' => 'lockeduser@wms-hoanam.test',
             'password' => 'secret123',
         ])->assertStatus(403)
-          ->assertJsonPath('error.code', 'ACCESS_DENIED');
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
         $this->assertDatabaseHas('audit_log', [
             'action' => 'LOGIN_DENIED',
@@ -520,7 +523,7 @@ class SecurityRbacAuditNegativeTest extends TestCase
     // ========================================
 
     /**
-     * @param array<int, string> $permissionKeys
+     * @param  array<int, string>  $permissionKeys
      */
     private function seedRoleWithPermissions(string $roleCode, array $permissionKeys): Role
     {
@@ -535,10 +538,10 @@ class SecurityRbacAuditNegativeTest extends TestCase
                 ['permission_name' => $permissionKey, 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
             );
 
-            \Illuminate\Support\Facades\DB::table('role_permission')->updateOrInsert(
+            DB::table('role_permission')->updateOrInsert(
                 ['role_id' => $role->role_id, 'permission_id' => $permission->permission_id],
                 [
-                    'role_permission_id' => (string) \Illuminate\Support\Str::uuid(),
+                    'role_permission_id' => (string) Str::uuid(),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]
@@ -552,9 +555,9 @@ class SecurityRbacAuditNegativeTest extends TestCase
     {
         $user = User::create([
             'username' => $username,
-            'display_name' => \Illuminate\Support\Str::headline($username),
+            'display_name' => Str::headline($username),
             'email' => "{$username}@wms-hoanam.test",
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('secret123'),
+            'password_hash' => Hash::make('secret123'),
             'status' => $status,
             'version' => 1,
         ]);
@@ -562,7 +565,7 @@ class SecurityRbacAuditNegativeTest extends TestCase
         if ($roleCode !== null) {
             $role = Role::where('role_code', $roleCode)->firstOrFail();
             $user->roles()->attach($role->role_id, array_merge(
-                ['user_role_id' => (string) \Illuminate\Support\Str::uuid()],
+                ['user_role_id' => (string) Str::uuid()],
                 $rolePivot
             ));
         }

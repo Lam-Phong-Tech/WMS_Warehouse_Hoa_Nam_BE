@@ -2,18 +2,16 @@
 
 namespace Modules\Warehouse\Services;
 
-use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\Product;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Reader\Csv;
-use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
-use PhpOffice\PhpSpreadsheet\Reader\Xls;
 
 class ImportService
 {
     private const MAX_FILE_SIZE = 10240; // 10MB
+
     private const MAX_ROWS = 1000;
+
     private const ALLOWED_EXTENSIONS = ['xlsx', 'xls'];
 
     public function import(string $filePath, bool $updateExisting = false): array
@@ -35,7 +33,7 @@ class ImportService
         }
 
         if ($totalRows > self::MAX_ROWS) {
-            throw new \InvalidArgumentException("File contains more than " . self::MAX_ROWS . " rows");
+            throw new \InvalidArgumentException('File contains more than '.self::MAX_ROWS.' rows');
         }
 
         // Validate headers
@@ -49,18 +47,18 @@ class ImportService
 
     private function validateFile(string $filePath): void
     {
-        if (!file_exists($filePath)) {
-            throw new \InvalidArgumentException("File not found");
+        if (! file_exists($filePath)) {
+            throw new \InvalidArgumentException('File not found');
         }
 
         $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-        if (!in_array($extension, self::ALLOWED_EXTENSIONS)) {
-            throw new \InvalidArgumentException("Invalid file type. Allowed: " . implode(', ', self::ALLOWED_EXTENSIONS));
+        if (! in_array($extension, self::ALLOWED_EXTENSIONS)) {
+            throw new \InvalidArgumentException('Invalid file type. Allowed: '.implode(', ', self::ALLOWED_EXTENSIONS));
         }
 
         $fileSize = filesize($filePath);
         if ($fileSize > self::MAX_FILE_SIZE * 1024) {
-            throw new \InvalidArgumentException("File size exceeds " . self::MAX_FILE_SIZE . "KB limit");
+            throw new \InvalidArgumentException('File size exceeds '.self::MAX_FILE_SIZE.'KB limit');
         }
     }
 
@@ -72,7 +70,7 @@ class ImportService
         }, $headers);
 
         foreach ($requiredHeaders as $required) {
-            if (!in_array($required, $normalizedHeaders)) {
+            if (! in_array($required, $normalizedHeaders)) {
                 throw new \InvalidArgumentException("Missing required column: {$required}");
             }
         }
@@ -102,6 +100,7 @@ class ImportService
             if ($validationError) {
                 $rowErrors[] = $validationError;
                 $errorRows++;
+
                 continue;
             }
 
@@ -172,6 +171,7 @@ class ImportService
         if (empty($value)) {
             return null;
         }
+
         return strtoupper(trim($value));
     }
 
@@ -180,6 +180,7 @@ class ImportService
         if (empty($value)) {
             return null;
         }
+
         return trim($value);
     }
 
@@ -189,6 +190,7 @@ class ImportService
             return 'PRODUCT';
         }
         $value = strtoupper(trim($value));
+
         return in_array($value, ['PRODUCT', 'COMPONENT']) ? $value : 'PRODUCT';
     }
 
@@ -198,6 +200,7 @@ class ImportService
             return 'ACTIVE';
         }
         $value = strtoupper(trim($value));
+
         return in_array($value, ['ACTIVE', 'INACTIVE', 'DRAFT']) ? $value : 'ACTIVE';
     }
 
@@ -207,6 +210,7 @@ class ImportService
             return null;
         }
         $value = strtoupper(trim($value));
+
         return in_array($value, ['STANDARD', 'TRAY', 'BOX', 'CARTON', 'PALLET', 'KIT']) ? $value : null;
     }
 
@@ -216,6 +220,7 @@ class ImportService
             return false;
         }
         $value = strtolower(trim($value));
+
         return in_array($value, ['true', '1', 'yes', 'y']);
     }
 
@@ -253,7 +258,7 @@ class ImportService
         }
 
         // Check code format
-        if (!preg_match('/^[A-Z0-9][A-Z0-9\-]*[A-Z0-9]$/', $rowData['code'])) {
+        if (! preg_match('/^[A-Z0-9][A-Z0-9\-]*[A-Z0-9]$/', $rowData['code'])) {
             return [
                 'row' => $rowNumber,
                 'code' => 'INVALID_CODE_FORMAT',
@@ -268,7 +273,7 @@ class ImportService
                 'row' => $rowNumber,
                 'code' => 'CODE_TOO_LONG',
                 'field' => 'code',
-                'message' => "Code exceeds 100 characters",
+                'message' => 'Code exceeds 100 characters',
                 'value' => $rowData['code'],
             ];
         }
@@ -279,7 +284,7 @@ class ImportService
                 'row' => $rowNumber,
                 'code' => 'NAME_TOO_LONG',
                 'field' => 'name',
-                'message' => "Name exceeds 255 characters",
+                'message' => 'Name exceeds 255 characters',
                 'value' => $rowData['name'],
             ];
         }

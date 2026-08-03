@@ -6,18 +6,19 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Product;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * P0-1: Backend Authorization Test Suite for SKU/Product Endpoints
- * 
+ *
  * Covers 9 endpoints × 4 users = 36 test cases:
  * - User A: test-sku-manage@hoanam.com (sku.manage permission)
  * - User B: test-master-manage@hoanam.com (master.manage permission)
  * - User C: test-no-permission@hoanam.com (no permissions)
  * - User D: test-super-admin@hoanam.com (SUPER_ADMIN - bypass all)
- * 
+ *
  * Endpoints tested:
  * 1. GET /api/v1/products (list)
  * 2. POST /api/v1/products (create)
@@ -174,7 +175,7 @@ class SkuAuthorizationTest extends TestCase
     public function test_get_products_show_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
+        $product = Product::create([
             'code' => 'TEST-SHOW-001',
             'name' => 'Test Show Product',
             'status' => 'ACTIVE',
@@ -220,7 +221,7 @@ class SkuAuthorizationTest extends TestCase
     public function test_patch_products_enable_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
+        $product = Product::create([
             'code' => 'TEST-ENABLE-001',
             'name' => 'Test Enable Product',
             'status' => 'INACTIVE',
@@ -266,7 +267,7 @@ class SkuAuthorizationTest extends TestCase
     public function test_patch_products_disable_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
+        $product = Product::create([
             'code' => 'TEST-DISABLE-001',
             'name' => 'Test Disable Product',
             'status' => 'ACTIVE',
@@ -398,7 +399,7 @@ class SkuAuthorizationTest extends TestCase
     public function test_get_skus_show_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
+        $product = Product::create([
             'code' => 'TEST-SKU-SHOW-001',
             'name' => 'Test SKU Show',
             'status' => 'ACTIVE',

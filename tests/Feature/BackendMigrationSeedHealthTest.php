@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Http\Controllers\HealthController;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Product;
@@ -60,6 +62,47 @@ class BackendMigrationSeedHealthTest extends TestCase
 
                 $this->assertTrue($exists, "{$roleCode} must include {$permissionKey}");
             }
+        }
+    }
+
+    public function test_permission_evidence_export_matches_scan_route_seed_and_role_boundary(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $catalogPath = storage_path('framework/testing/wwhn150-permission-catalog.json');
+        $seedDiffPath = storage_path('framework/testing/wwhn150-permission-seed-diff.json');
+        File::delete([$catalogPath, $seedDiffPath]);
+
+        try {
+            $exitCode = Artisan::call('evidence:permission-catalog', [
+                '--output' => $catalogPath,
+                '--seed-diff-output' => $seedDiffPath,
+            ]);
+
+            $this->assertSame(0, $exitCode, Artisan::output());
+            $this->assertFileExists($catalogPath);
+            $this->assertFileExists($seedDiffPath);
+
+            $catalog = json_decode(File::get($catalogPath), true, 512, JSON_THROW_ON_ERROR);
+            $seedDiff = json_decode(File::get($seedDiffPath), true, 512, JSON_THROW_ON_ERROR);
+            $scanMatrix = collect($catalog['endpoint_permission_role_matrix'])->first(
+                fn (array $row): bool => $row['uri'] === 'api/v1/scan/classify'
+                    && in_array('POST', $row['methods'], true)
+            );
+
+            $this->assertSame('PASS', $catalog['integrity']['status']);
+            $this->assertSame([], $catalog['integrity']['missing_route_permissions']);
+            $this->assertSame('scan.classify', $scanMatrix['permission']);
+            $this->assertTrue($scanMatrix['backend_enforced']);
+            $this->assertEqualsCanonicalizing(
+                ['SUPER_ADMIN', 'WAREHOUSE_MANAGER'],
+                $scanMatrix['roles']
+            );
+            $this->assertSame('PASS', $seedDiff['status']);
+            $this->assertSame('ACTIVE', $seedDiff['actual']['permission_status']);
+            $this->assertSame([], $seedDiff['missing_roles']);
+            $this->assertSame([], $seedDiff['unexpected_roles']);
+        } finally {
+            File::delete([$catalogPath, $seedDiffPath]);
         }
     }
 

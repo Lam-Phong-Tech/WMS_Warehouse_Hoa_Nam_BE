@@ -288,11 +288,8 @@ Artifact that:
 - Postman collection regenerated from OpenAPI: `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json`
 - Swagger local URL: `http://localhost:8080/api/documentation` khi chay app voi Docker/local server.
 
-Hashes:
-
-- `storage/api-docs/api-docs.json` SHA256 `0CEF303547C84FF966B7A507901102C10CF35E31CAFCE21620B8B3765B2A7816`
-- `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json` SHA256 `99AC1D2BA81D646E56B78B2DF998F4277BF30B85704C048486AFB9D90D0A52DD`
-- `docs/api-contract/WMS_HoaNam_OpenAPI_Changelog_BE1.txt` SHA256 `90EF8276DDDB22EEFB00E2E935667C702A8BE5338D2441E061EA7FE0B94A18F3`
+Hashes không được hard-code trong tài liệu branch-relative. Nguồn authoritative là
+`SHA256SUMS` và `SHA256SUMS.sha256` trong artifact `wwhn-150-evidence-<exact SHA>`.
 
 ### BE1-P1-01 - Test/build evidence
 
@@ -347,8 +344,7 @@ Boundary da xac nhan trong code:
 
 FE chi sign-off sau khi dung contract artifact:
 
-- OpenAPI SHA256 `0CEF303547C84FF966B7A507901102C10CF35E31CAFCE21620B8B3765B2A7816`
-- Postman SHA256 `99AC1D2BA81D646E56B78B2DF998F4277BF30B85704C048486AFB9D90D0A52DD`
+- OpenAPI/Postman SHA256: lấy từ `SHA256SUMS` của exact-SHA artifact, không dùng hash ghi tay.
 - FE scan UI phai doc `stock_effect=NONE`, `movement_created=false`, `remaining_qty`; khong duoc cap nhat ton local sau scan.
 - FE route permission cho reconciliation dung `report.view`.
 
@@ -356,8 +352,8 @@ FE chi sign-off sau khi dung contract artifact:
 
 Permission catalog artifact:
 
-- Path: `docs/permissions/WMS_PERMISSION_CATALOG_BE1.txt`
-- SHA256 `FDE61B25D2019731522FAA4753DC071D5B41526A5BD2C24B79C8570D7A635C7E`
+- Paths: `docs/permissions/WMS_PERMISSION_CATALOG_BE1.md` và `.json`
+- SHA256: lấy từ `SHA256SUMS` của exact-SHA artifact.
 - Seed source: `Modules/Auth/database/seeders/AuthDatabaseSeeder.php`
 - Route source: `Modules/Warehouse/routes/api.php`, `Modules/AuditLog/routes/api.php`, `Modules/Auth/routes/api.php`
 
@@ -400,16 +396,16 @@ Immutable source commit before local remediation:
 API artifacts:
 
 - OpenAPI JSON: `storage/api-docs/api-docs.json`
-- OpenAPI SHA256: `0CEF303547C84FF966B7A507901102C10CF35E31CAFCE21620B8B3765B2A7816`
+- OpenAPI SHA256: exact-SHA artifact `SHA256SUMS`
 - Postman collection: `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json`
-- Postman SHA256: `99AC1D2BA81D646E56B78B2DF998F4277BF30B85704C048486AFB9D90D0A52DD`
+- Postman SHA256: exact-SHA artifact `SHA256SUMS`
 - Contract changelog: `docs/api-contract/WMS_HoaNam_OpenAPI_Changelog_BE1.txt`
-- Changelog SHA256: `90EF8276DDDB22EEFB00E2E935667C702A8BE5338D2441E061EA7FE0B94A18F3`
+- Changelog SHA256: exact-SHA artifact `SHA256SUMS`
 
 Permission/RBAC artifacts:
 
-- Permission catalog: `docs/permissions/WMS_PERMISSION_CATALOG_BE1.txt`
-- Permission catalog SHA256: `FDE61B25D2019731522FAA4753DC071D5B41526A5BD2C24B79C8570D7A635C7E`
+- Permission catalog: `docs/permissions/WMS_PERMISSION_CATALOG_BE1.md` và `.json`
+- Permission catalog SHA256: exact-SHA artifact `SHA256SUMS`
 - Seed source: `Modules/Auth/database/seeders/AuthDatabaseSeeder.php`
 - Route source: `Modules/Warehouse/routes/api.php`, `Modules/AuditLog/routes/api.php`, `Modules/Auth/routes/api.php`
 - Test guard: `BackendMigrationSeedHealthTest::test_seeded_permission_catalog_covers_be1_routes_and_roles`

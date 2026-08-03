@@ -1,0 +1,3585 @@
+{
+    "schema_version": "1.1.0",
+    "generated_at_utc": "2026-08-03T15:01:35+00:00",
+    "approval_status": "PENDING_FE_BA_REVIEW",
+    "source_hashes": {
+        "permission_seed": {
+            "path": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php",
+            "sha256": "8d7d2de1fa25edd41d11e3eb616656a2782fe16633159df5948250bc3abc5f08"
+        },
+        "warehouse_routes": {
+            "path": "Modules/Warehouse/routes/api.php",
+            "sha256": "aba5552f9fcf9c92b670d592c9d2f7a2fadd4df58b2077531d5208ef0d4e367b"
+        },
+        "auth_routes": {
+            "path": "Modules/Auth/routes/api.php",
+            "sha256": "4345323082cb479474f6d235e908c072272134c3796b5778809dd5c9a6801c65"
+        },
+        "audit_routes": {
+            "path": "Modules/AuditLog/routes/api.php",
+            "sha256": "88ae42503a052458afce2c501693fa66cbc31dab5bb46bfd4c7d158e2b59f78c"
+        },
+        "permission_middleware": {
+            "path": "Modules/Auth/app/Http/Middleware/CheckPermission.php",
+            "sha256": "bb3e39479e521236d50a88c055a4302c62c792bcac3f6a7e959f3b5295ccb611"
+        },
+        "permission_exporter": {
+            "path": "app/Console/Commands/ExportPermissionCatalog.php",
+            "sha256": "0c2e039b634185572659d4e1ed8de5d1dda788025b9ae3bb622fe6b77a458638"
+        },
+        "user_permission_model": {
+            "path": "Modules/Auth/app/Models/User.php",
+            "sha256": "2d279e783b37df6da40ed6ec41ab8c241265643002ef17844da44b3711a88a1f"
+        }
+    },
+    "integrity": {
+        "active_permission_count": 31,
+        "route_permission_count": 31,
+        "missing_route_permissions": [],
+        "status": "PASS"
+    },
+    "permissions": [
+        {
+            "permission_key": "audit_log.view",
+            "permission_name": "Xem nhật ký audit",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "inventory.view",
+            "permission_name": "Xem tồn kho hiện tại và lịch sử biến động (stock-movements)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "master.manage",
+            "permission_name": "Quản lý master data",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "product.manage",
+            "permission_name": "Tạo/sửa sản phẩm",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "product.view",
+            "permission_name": "Xem sản phẩm",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "report.view",
+            "permission_name": "Xem báo cáo tồn kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "safe_stock.manage",
+            "permission_name": "Cấu hình định mức tồn kho an toàn",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "safe_stock.view",
+            "permission_name": "Xem định mức/cảnh báo tồn kho an toàn",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "scan.classify",
+            "permission_name": "Phân loại/validate mã scan, không đổi tồn",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "sku.manage",
+            "permission_name": "Quản lý SKU",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.approve",
+            "permission_name": "Duyệt/từ chối phiếu kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.cancel",
+            "permission_name": "Huỷ phiếu kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.create",
+            "permission_name": "Tạo phiếu kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.post",
+            "permission_name": "Hạch toán phiếu kho (post-receipt/post-issue/close-remainder)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.reverse",
+            "permission_name": "Đảo ngược (reverse/correction) phiếu kho đã hạch toán",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.scan",
+            "permission_name": "Validate scan trên phiếu kho, không đổi tồn",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.submit",
+            "permission_name": "Gửi duyệt phiếu kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_document.view",
+            "permission_name": "Xem phiếu kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_request.approve",
+            "permission_name": "Duyệt/từ chối/chuyển đổi yêu cầu kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_request.create",
+            "permission_name": "Tạo/sửa/xoá/hủy yêu cầu xuất/nhập/điều chuyển kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_request.submit",
+            "permission_name": "Gửi duyệt yêu cầu kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stock_request.view",
+            "permission_name": "Xem yêu cầu xuất/nhập/điều chuyển kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "stocktake.adjust",
+            "permission_name": "Áp dụng điều chỉnh kiểm kê (apply-adjustment)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "transfer.approve",
+            "permission_name": "Duyệt/từ chối phiếu điều chuyển kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "transfer.create",
+            "permission_name": "Tạo/sửa/huỷ phiếu điều chuyển kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "transfer.post",
+            "permission_name": "Xuất/nhận/trả/ghi nhận mất mát hàng điều chuyển kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "transfer.submit",
+            "permission_name": "Gửi duyệt phiếu điều chuyển kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "transfer.view",
+            "permission_name": "Xem phiếu điều chuyển kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "warehouse.manage",
+            "permission_name": "Tạo/sửa kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "warehouse.view",
+            "permission_name": "Xem kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "warranty.temp_only",
+            "permission_name": "Bảo hành nhận tạm (TEMP_ONLY)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        }
+    ],
+    "roles": [
+        {
+            "role_code": "MASTER_MANAGER",
+            "role_name": "Quản lý Master Data (test)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": [
+                "master.manage"
+            ]
+        },
+        {
+            "role_code": "NO_PERMISSION",
+            "role_name": "Không có quyền (test)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": []
+        },
+        {
+            "role_code": "SKU_MANAGER",
+            "role_name": "Quản lý SKU (test)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": [
+                "product.manage",
+                "product.view",
+                "sku.manage"
+            ]
+        },
+        {
+            "role_code": "SUPER_ADMIN",
+            "role_name": "Quản trị hệ thống",
+            "scope_type": "SYSTEM",
+            "status": "ACTIVE",
+            "permissions": []
+        },
+        {
+            "role_code": "VIEWER",
+            "role_name": "Chỉ xem/báo cáo",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": [
+                "audit_log.view",
+                "inventory.view",
+                "product.view",
+                "report.view",
+                "safe_stock.view",
+                "stock_document.view",
+                "warehouse.view"
+            ]
+        },
+        {
+            "role_code": "WAREHOUSE_APPROVER",
+            "role_name": "Người duyệt phiếu",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": [
+                "inventory.view",
+                "product.view",
+                "report.view",
+                "safe_stock.view",
+                "stock_document.approve",
+                "stock_document.view",
+                "warehouse.view"
+            ]
+        },
+        {
+            "role_code": "WAREHOUSE_KEEPER",
+            "role_name": "Thủ kho (hạch toán)",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": [
+                "inventory.view",
+                "product.view",
+                "report.view",
+                "safe_stock.manage",
+                "safe_stock.view",
+                "stock_document.cancel",
+                "stock_document.post",
+                "stock_document.reverse",
+                "stock_document.scan",
+                "stock_document.view",
+                "warehouse.view"
+            ]
+        },
+        {
+            "role_code": "WAREHOUSE_MANAGER",
+            "role_name": "Quản lý kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": [
+                "audit_log.view",
+                "inventory.view",
+                "product.manage",
+                "product.view",
+                "report.view",
+                "safe_stock.manage",
+                "safe_stock.view",
+                "scan.classify",
+                "stock_document.approve",
+                "stock_document.cancel",
+                "stock_document.create",
+                "stock_document.post",
+                "stock_document.reverse",
+                "stock_document.scan",
+                "stock_document.submit",
+                "stock_document.view",
+                "stock_request.approve",
+                "stock_request.create",
+                "stock_request.submit",
+                "stock_request.view",
+                "stocktake.adjust",
+                "transfer.approve",
+                "transfer.create",
+                "transfer.post",
+                "transfer.submit",
+                "transfer.view",
+                "warehouse.manage",
+                "warehouse.view",
+                "warranty.temp_only"
+            ]
+        },
+        {
+            "role_code": "WAREHOUSE_STAFF",
+            "role_name": "Nhân viên kho",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE",
+            "permissions": [
+                "inventory.view",
+                "product.view",
+                "report.view",
+                "safe_stock.view",
+                "stock_document.create",
+                "stock_document.submit",
+                "stock_document.view",
+                "warehouse.view"
+            ]
+        }
+    ],
+    "route_permissions": [
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/audit-logs",
+            "action": "Modules\\AuditLog\\Http\\Controllers\\AuditLogController@index",
+            "permission": "audit_log.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:audit_log.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/change-password",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@changePassword",
+            "permission": null,
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/login",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@login",
+            "permission": null,
+            "middleware": [
+                "api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/logout",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@logout",
+            "permission": null,
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/me",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@me",
+            "permission": null,
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/refresh",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@refresh",
+            "permission": null,
+            "middleware": [
+                "api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/switch-context",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@switchContext",
+            "permission": null,
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/containers/{id}/seal",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ContainerController@seal",
+            "permission": "warehouse.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/containers/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ContainerController@show",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/containers/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ContainerController@update",
+            "permission": "warehouse.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/containers",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ContainerController@index",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/containers",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ContainerController@store",
+            "permission": "warehouse.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/document-status-history",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\DocumentStatusHistoryController@index",
+            "permission": "stock_document.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/document-status-transitions/{id}/toggle",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\DocumentStatusTransitionController@toggle",
+            "permission": "warehouse.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/document-status-transitions",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\DocumentStatusTransitionController@index",
+            "permission": "warehouse.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/approve",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@approve",
+            "permission": "stock_document.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@cancel",
+            "permission": "stock_document.cancel",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.cancel"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/close-remainder",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@closeRemainder",
+            "permission": "stock_document.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/post-receipt",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@postReceipt",
+            "permission": "stock_document.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/reject",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@reject",
+            "permission": "stock_document.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/reverse",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@reverse",
+            "permission": "stock_document.reverse",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.reverse"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/scan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@scan",
+            "permission": "stock_document.scan",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.scan"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/submit",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@submit",
+            "permission": "stock_document.submit",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.submit"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inbound-documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@show",
+            "permission": "stock_document.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/inbound-documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@update",
+            "permission": "stock_document.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@index",
+            "permission": "stock_document.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundDocumentController@store",
+            "permission": "stock_document.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory-reservations/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InventoryReservationController@show",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory-reservations",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InventoryReservationController@index",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inventory-snapshots/generate",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InventorySnapshotController@generate",
+            "permission": "warehouse.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory-snapshots",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InventorySnapshotController@index",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory/balances",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InventoryBalanceController@index",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/items",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@items",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/approve",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@approve",
+            "permission": "stock_document.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@cancel",
+            "permission": "stock_document.cancel",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.cancel"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/close-remainder",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@closeRemainder",
+            "permission": "stock_document.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/post-issue",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@postIssue",
+            "permission": "stock_document.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/reject",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@reject",
+            "permission": "stock_document.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/reverse",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@reverse",
+            "permission": "stock_document.reverse",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.reverse"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/scan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@scan",
+            "permission": "stock_document.scan",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.scan"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/submit",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@submit",
+            "permission": "stock_document.submit",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.submit"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@show",
+            "permission": "stock_document.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/outbound-documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@update",
+            "permission": "stock_document.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@index",
+            "permission": "stock_document.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@store",
+            "permission": "stock_document.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/physical-codes",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@physicalCodes",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/product-categories",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@productCategories",
+            "permission": "master.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:master.manage"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/products/{id}/disable",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@disable",
+            "permission": "product.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:product.manage"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/products/{id}/enable",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@enable",
+            "permission": "product.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:product.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/products/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@show",
+            "permission": "product.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:product.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/products",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@index",
+            "permission": "product.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:product.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/products",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@store",
+            "permission": "product.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:product.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/putaway/history",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@putawayHistory",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/putaway/tasks",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@putawayTasks",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/dashboard-quick",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ReportController@dashboardQuick",
+            "permission": "report.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:report.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/inventory-reconciliation",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ReportController@inventoryReconciliation",
+            "permission": "report.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:report.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/inventory-xnt/export-excel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ReportController@exportExcel",
+            "permission": "report.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:report.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/inventory-xnt",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ReportController@inventoryXnt",
+            "permission": "report.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:report.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reversal-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@reversalDocuments",
+            "permission": "stock_document.reverse",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_document.reverse"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-alerts/history",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SafeStockAlertController@history",
+            "permission": "safe_stock.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:safe_stock.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-alerts",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SafeStockAlertController@index",
+            "permission": "safe_stock.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:safe_stock.view"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/safe-stock-configs/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SafeStockConfigController@destroy",
+            "permission": "safe_stock.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:safe_stock.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-configs/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SafeStockConfigController@show",
+            "permission": "safe_stock.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:safe_stock.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/safe-stock-configs/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SafeStockConfigController@update",
+            "permission": "safe_stock.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:safe_stock.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-configs",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SafeStockConfigController@index",
+            "permission": "safe_stock.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:safe_stock.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/safe-stock-configs",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SafeStockConfigController@store",
+            "permission": "safe_stock.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:safe_stock.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/scan/batches",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@scanBatches",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/scan/batches",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@storeScanBatch",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/scan/classify",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ScanController@classify",
+            "permission": "scan.classify",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:scan.classify"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/scan/events",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@scanEvents",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus/import-excel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ImportController@importExcel",
+            "permission": "sku.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/skus/{id}/physical-codes/{physicalCodeId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SkuGovernanceController@revokePhysicalCode",
+            "permission": "sku.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus/{id}/physical-codes",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SkuGovernanceController@addPhysicalCode",
+            "permission": "sku.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/skus/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@show",
+            "permission": "sku.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/skus/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\SkuGovernanceController@update",
+            "permission": "sku.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/skus",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@index",
+            "permission": "sku.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@store",
+            "permission": "sku.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-movements/{id}/trace-source",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockMovementController@traceSource",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-movements/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockMovementController@show",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-movements",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockMovementController@index",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/approve",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@approve",
+            "permission": "stock_request.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@cancel",
+            "permission": "stock_request.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.create"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/convert",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@convert",
+            "permission": "stock_request.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/reject",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@reject",
+            "permission": "stock_request.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/submit",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@submit",
+            "permission": "stock_request.submit",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.submit"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/stock-requests/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@destroy",
+            "permission": "stock_request.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-requests/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@show",
+            "permission": "stock_request.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/stock-requests/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@update",
+            "permission": "stock_request.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-requests",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@index",
+            "permission": "stock_request.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockRequestController@store",
+            "permission": "stock_request.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stock_request.create"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/acknowledge-movements",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@acknowledgeMovements",
+            "permission": "stocktake.adjust",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stocktake.adjust"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/apply-adjustment",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@applyAdjustment",
+            "permission": "stocktake.adjust",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stocktake.adjust"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/counts",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@recordCounts",
+            "permission": "stocktake.adjust",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stocktake.adjust"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/review",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@review",
+            "permission": "stocktake.adjust",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stocktake.adjust"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/start",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@start",
+            "permission": "stocktake.adjust",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stocktake.adjust"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/variances",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@variances",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@show",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake-sessions",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@index",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@store",
+            "permission": "stocktake.adjust",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:stocktake.adjust"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake/sessions",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StocktakeController@index",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/suppliers",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@suppliers",
+            "permission": "master.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:master.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/approve",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@approve",
+            "permission": "transfer.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@cancel",
+            "permission": "transfer.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.create"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/confirm-return",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@confirmReturn",
+            "permission": "transfer.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/dispatch",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@dispatch",
+            "permission": "transfer.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/receive",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@receive",
+            "permission": "transfer.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/record-loss",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@recordLoss",
+            "permission": "transfer.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/reject",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@reject",
+            "permission": "transfer.approve",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.approve"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/return",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@returnTransfer",
+            "permission": "transfer.post",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.post"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/submit",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@submit",
+            "permission": "transfer.submit",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.submit"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/transfer-orders/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@show",
+            "permission": "transfer.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/transfer-orders/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@update",
+            "permission": "transfer.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/transfer-orders",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@index",
+            "permission": "transfer.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\TransferController@store",
+            "permission": "transfer.create",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:transfer.create"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/uoms",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@uoms",
+            "permission": "master.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:master.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warehouses/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WarehouseController@show",
+            "permission": "warehouse.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/warehouses/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WarehouseController@update",
+            "permission": "warehouse.manage",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warehouses",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WarehouseController@index",
+            "permission": "warehouse.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warehouse.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-cases/{id}/temp-only",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WarrantyController@tempOnly",
+            "permission": "warranty.temp_only",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.temp_only"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warranty/cases/{caseId}/events",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@warrantyEvents",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warranty/cases",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\WmsContractController@warrantyCases",
+            "permission": "inventory.view",
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inventory.view"
+            ]
+        }
+    ],
+    "endpoint_permission_role_matrix": [
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/audit-logs",
+            "permission": "audit_log.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/change-password",
+            "permission": null,
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/login",
+            "permission": null,
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/logout",
+            "permission": null,
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/me",
+            "permission": null,
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/refresh",
+            "permission": null,
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/switch-context",
+            "permission": null,
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/containers/{id}/seal",
+            "permission": "warehouse.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/containers/{id}",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/containers/{id}",
+            "permission": "warehouse.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/containers",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/containers",
+            "permission": "warehouse.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/document-status-history",
+            "permission": "stock_document.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/document-status-transitions/{id}/toggle",
+            "permission": "warehouse.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/document-status-transitions",
+            "permission": "warehouse.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/approve",
+            "permission": "stock_document.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/cancel",
+            "permission": "stock_document.cancel",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/close-remainder",
+            "permission": "stock_document.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/post-receipt",
+            "permission": "stock_document.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/reject",
+            "permission": "stock_document.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/reverse",
+            "permission": "stock_document.reverse",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/scan",
+            "permission": "stock_document.scan",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/submit",
+            "permission": "stock_document.submit",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inbound-documents/{id}",
+            "permission": "stock_document.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/inbound-documents/{id}",
+            "permission": "stock_document.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inbound-documents",
+            "permission": "stock_document.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents",
+            "permission": "stock_document.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory-reservations/{id}",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory-reservations",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inventory-snapshots/generate",
+            "permission": "warehouse.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory-snapshots",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inventory/balances",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/items",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/approve",
+            "permission": "stock_document.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/cancel",
+            "permission": "stock_document.cancel",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/close-remainder",
+            "permission": "stock_document.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/post-issue",
+            "permission": "stock_document.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/reject",
+            "permission": "stock_document.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/reverse",
+            "permission": "stock_document.reverse",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/scan",
+            "permission": "stock_document.scan",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/submit",
+            "permission": "stock_document.submit",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents/{id}",
+            "permission": "stock_document.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/outbound-documents/{id}",
+            "permission": "stock_document.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents",
+            "permission": "stock_document.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents",
+            "permission": "stock_document.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/physical-codes",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/product-categories",
+            "permission": "master.manage",
+            "roles": [
+                "MASTER_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/products/{id}/disable",
+            "permission": "product.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/products/{id}/enable",
+            "permission": "product.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/products/{id}",
+            "permission": "product.view",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/products",
+            "permission": "product.view",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/products",
+            "permission": "product.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/putaway/history",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/putaway/tasks",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/dashboard-quick",
+            "permission": "report.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/inventory-reconciliation",
+            "permission": "report.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/inventory-xnt/export-excel",
+            "permission": "report.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/inventory-xnt",
+            "permission": "report.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reversal-documents",
+            "permission": "stock_document.reverse",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-alerts/history",
+            "permission": "safe_stock.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-alerts",
+            "permission": "safe_stock.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/safe-stock-configs/{id}",
+            "permission": "safe_stock.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-configs/{id}",
+            "permission": "safe_stock.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/safe-stock-configs/{id}",
+            "permission": "safe_stock.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/safe-stock-configs",
+            "permission": "safe_stock.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/safe-stock-configs",
+            "permission": "safe_stock.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/scan/batches",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/scan/batches",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/scan/classify",
+            "permission": "scan.classify",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/scan/events",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus/import-excel",
+            "permission": "sku.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/skus/{id}/physical-codes/{physicalCodeId}",
+            "permission": "sku.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus/{id}/physical-codes",
+            "permission": "sku.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/skus/{id}",
+            "permission": "sku.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/skus/{id}",
+            "permission": "sku.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/skus",
+            "permission": "sku.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus",
+            "permission": "sku.manage",
+            "roles": [
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-movements/{id}/trace-source",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-movements/{id}",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-movements",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/approve",
+            "permission": "stock_request.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/cancel",
+            "permission": "stock_request.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/convert",
+            "permission": "stock_request.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/reject",
+            "permission": "stock_request.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests/{id}/submit",
+            "permission": "stock_request.submit",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/stock-requests/{id}",
+            "permission": "stock_request.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-requests/{id}",
+            "permission": "stock_request.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/stock-requests/{id}",
+            "permission": "stock_request.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stock-requests",
+            "permission": "stock_request.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stock-requests",
+            "permission": "stock_request.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/acknowledge-movements",
+            "permission": "stocktake.adjust",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/apply-adjustment",
+            "permission": "stocktake.adjust",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/counts",
+            "permission": "stocktake.adjust",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/review",
+            "permission": "stocktake.adjust",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/start",
+            "permission": "stocktake.adjust",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}/variances",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake-sessions/{id}",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake-sessions",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/stocktake-sessions",
+            "permission": "stocktake.adjust",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/stocktake/sessions",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/suppliers",
+            "permission": "master.manage",
+            "roles": [
+                "MASTER_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/approve",
+            "permission": "transfer.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/cancel",
+            "permission": "transfer.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/confirm-return",
+            "permission": "transfer.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/dispatch",
+            "permission": "transfer.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/receive",
+            "permission": "transfer.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/record-loss",
+            "permission": "transfer.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/reject",
+            "permission": "transfer.approve",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/return",
+            "permission": "transfer.post",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders/{id}/submit",
+            "permission": "transfer.submit",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/transfer-orders/{id}",
+            "permission": "transfer.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/transfer-orders/{id}",
+            "permission": "transfer.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/transfer-orders",
+            "permission": "transfer.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/transfer-orders",
+            "permission": "transfer.create",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/uoms",
+            "permission": "master.manage",
+            "roles": [
+                "MASTER_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warehouses/{id}",
+            "permission": "warehouse.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/warehouses/{id}",
+            "permission": "warehouse.manage",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warehouses",
+            "permission": "warehouse.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-cases/{id}/temp-only",
+            "permission": "warranty.temp_only",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warranty/cases/{caseId}/events",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/warranty/cases",
+            "permission": "inventory.view",
+            "roles": [
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        }
+    ],
+    "permission_seed_diff": {
+        "schema_version": "1.0.0",
+        "contract": "WWHN-150 scan.classify permission seed diff",
+        "expected": {
+            "permission_key": "scan.classify",
+            "permission_status": "ACTIVE",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "super_admin_rule": "backend bypass through User::isSuperAdmin"
+        },
+        "actual": {
+            "permission_status": "ACTIVE",
+            "roles": [
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "route_permission": "scan.classify",
+            "backend_enforced": true
+        },
+        "missing_roles": [],
+        "unexpected_roles": [],
+        "status": "PASS"
+    }
+}

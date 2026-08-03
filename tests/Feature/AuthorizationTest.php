@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -13,7 +15,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * P0-1: Backend Authorization Test Suite
- * 
+ *
  * 36 test cases (9 endpoints × 4 users):
  * - User A: test-sku-manage@hoanam.com - có sku.manage
  * - User B: test-master-manage@hoanam.com - có master.manage
@@ -210,7 +212,7 @@ class AuthorizationTest extends TestCase
     private function makeRequest(string $method, string $url, string $token, array $payload = [])
     {
         $headers = ['Authorization' => "Bearer {$token}"];
-        
+
         return match ($method) {
             'GET' => $this->getJson($url, $headers),
             'POST' => $this->postJson($url, $payload, $headers),
@@ -234,14 +236,14 @@ class AuthorizationTest extends TestCase
             [
                 'display_name' => ucwords(str_replace('-', ' ', $username)),
                 'email' => "{$username}@hoanam.com",
-                'password_hash' => \Illuminate\Support\Facades\Hash::make('Cntt@1234'),
+                'password_hash' => Hash::make('Cntt@1234'),
                 'status' => 'ACTIVE',
                 'version' => 1,
             ]
         );
 
         if (! $user->roles()->where('role.role_id', $role->role_id)->exists()) {
-            $user->roles()->attach($role->role_id, ['user_role_id' => (string) \Illuminate\Support\Str::uuid()]);
+            $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
         }
 
         return $user;

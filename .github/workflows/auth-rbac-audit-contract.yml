@@ -17,6 +17,14 @@ jobs:
   quality-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/wms-ci.sqlite
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
 
     steps:
       - name: Checkout exact commit
@@ -50,12 +58,11 @@ jobs:
           rm -f /tmp/wms-ci.sqlite
           touch /tmp/wms-ci.sqlite
           echo "JWT_SECRET=ci-jwt-secret-wwhn150" >> .env
-          echo "DB_CONNECTION=sqlite" >> .env
-          echo "DB_DATABASE=/tmp/wms-ci.sqlite" >> .env
-          echo "CACHE_STORE=array" >> .env
-          echo "SESSION_DRIVER=array" >> .env
-          echo "QUEUE_CONNECTION=sync" >> .env
-          echo "AUDIT_WRITE_POLICY=outbox_required" >> .env
+          ci_password="$(openssl rand -hex 24)"
+          echo "::add-mask::$ci_password"
+          echo "CI_DEMO_PASSWORD=$ci_password" >> "$GITHUB_ENV"
+          echo "WWHN150_PASSWORD=$ci_password" >> "$GITHUB_ENV"
+          echo "WWHN150_NO_PERMISSION_PASSWORD=$ci_password" >> "$GITHUB_ENV"
 
       - name: PHP syntax and formatting gate
         shell: bash
@@ -79,6 +86,7 @@ jobs:
           set -euo pipefail
           test -s build/evidence/api-data/SHA256SUMS
           (cd build/evidence/api-data && sha256sum --check SHA256SUMS)
+          (cd build/evidence/api-data && sha256sum --check SHA256SUMS.sha256)
           node - <<'NODE'
           const fs = require('fs');
           const jsonFiles = [
@@ -95,10 +103,14 @@ jobs:
             'wwhn150.postman.collection.json',
             'wwhn150.postman.environment.json',
             'wwhn150-newman.result.json',
+            'wwhn150-concurrent-scan.json',
             'wwhn150-contract-verification.json',
             'wwhn150-test-cases.json',
             'wwhn150-source-register.json',
             'permission-catalog.json',
+            'permission-catalog.repository.json',
+            'permission-seed-diff.json',
+            'stock-writer-boundary.json',
             'scan-db-before.json',
             'scan-db-after.json',
             'scan-readonly-comparison.json',
@@ -110,12 +122,17 @@ jobs:
           for (const file of jsonFiles) {
             JSON.parse(fs.readFileSync(`build/evidence/api-data/${file}`, 'utf8'));
           }
+          const metadata = JSON.parse(fs.readFileSync('build/evidence/api-data/build-metadata.json', 'utf8'));
+          if (metadata.commit_sha !== process.env.GITHUB_SHA) throw new Error('build metadata is not exact-SHA bound');
+          if (metadata.artifact_name !== `wwhn-150-evidence-${process.env.GITHUB_SHA}`) throw new Error('artifact name is not exact-SHA bound');
           const passFiles = [
             'contract-verification.json',
             'stocktake-contract-verification.json',
             'wwhn150-contract-verification.json',
             'scan-readonly-comparison.json',
-            'reconciliation-report.json'
+            'reconciliation-report.json',
+            'wwhn150-concurrent-scan.json',
+            'stock-writer-boundary.json'
           ];
           for (const file of passFiles) {
             const result = JSON.parse(fs.readFileSync(`build/evidence/api-data/${file}`, 'utf8'));
@@ -125,6 +142,8 @@ jobs:
           }
           const catalog = JSON.parse(fs.readFileSync('build/evidence/api-data/permission-catalog.json', 'utf8'));
           if (catalog.integrity?.status !== 'PASS') throw new Error('permission-catalog integrity is not PASS');
+          const seedDiff = JSON.parse(fs.readFileSync('build/evidence/api-data/permission-seed-diff.json', 'utf8'));
+          if (seedDiff.status !== 'PASS') throw new Error('permission seed diff is not PASS');
           NODE
 
       - name: Frontend asset and baseline build
@@ -134,7 +153,7 @@ jobs:
           npm run build
 
       - name: Upload immutable WWHN-150 evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: wwhn-150-evidence-${{ github.sha }}

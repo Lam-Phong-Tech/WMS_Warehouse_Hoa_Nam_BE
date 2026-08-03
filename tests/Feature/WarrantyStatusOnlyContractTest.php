@@ -11,9 +11,9 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\InventorySerial;
 use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\StockMovement;
+use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
-use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 

@@ -2,6 +2,40 @@
 set -euo pipefail
 
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/api-data}"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+EVIDENCE_ROOT="$(realpath -m "$REPO_ROOT/build/evidence")"
+EVIDENCE_DIR="$(realpath -m "$EVIDENCE_DIR")"
+
+# The directory is recursively replaced below. Keep the target strictly under
+# this repository's dedicated build/evidence root even when an override is set.
+if [[ "$EVIDENCE_DIR" != "$EVIDENCE_ROOT/"* ]]; then
+  echo "REFUSED: EVIDENCE_DIR must be a child of $EVIDENCE_ROOT." >&2
+  exit 77
+fi
+
+# The collector resets the database. Refuse every environment except the
+# dedicated CI SQLite file to prevent accidental dev/staging data loss.
+php -r '
+require "vendor/autoload.php";
+$app = require "bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$driver = (string) config("database.default");
+$database = (string) config("database.connections.$driver.database");
+if ($app->environment() !== "testing" || $driver !== "sqlite" || $database !== "/tmp/wms-ci.sqlite") {
+    fwrite(STDERR, "REFUSED: WWHN-150 collector requires APP_ENV=testing and SQLite /tmp/wms-ci.sqlite.\n");
+    exit(78);
+}
+'
+
+# Every manifest entry and source-tree digest must refer to the exact reviewed
+# commit. Refuse dirty/untracked source trees instead of producing a plausible
+# but incorrectly bound artifact from HEAD plus local changes.
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "REFUSED: WWHN-150 evidence requires a clean exact-commit worktree." >&2
+  exit 79
+fi
+
+rm -rf "$EVIDENCE_DIR"
 mkdir -p "$EVIDENCE_DIR/source"
 
 COMMIT_SHA="$(git rev-parse HEAD)"
@@ -17,6 +51,10 @@ WWHN150_ENVIRONMENT="docs/postman/WWHN-150 Scan ReadOnly CI.postman_environment.
 WWHN150_TEST_CASES="docs/testing/WWHN-150-scan-readonly-test-cases.json"
 WWHN150_SOURCE_REGISTER="docs/docs_task_jira/WWHN-150-source-register.json"
 WWHN150_OPENAPI="docs/api-contract/WWHN-150-scan-openapi.yaml"
+WWHN150_CHANGELOG="docs/api-contract/WWHN-150_OpenAPI_Changelog_BE1.md"
+WWHN150_PERMISSION_CATALOG="docs/permissions/WMS_PERMISSION_CATALOG_BE1.json"
+: "${WWHN150_PASSWORD:?WWHN150_PASSWORD secret is required}"
+: "${WWHN150_NO_PERMISSION_PASSWORD:?WWHN150_NO_PERMISSION_PASSWORD secret is required}"
 
 php artisan route:list --path=api/v1 -vv --json > "$EVIDENCE_DIR/route-list.raw.json"
 php artisan test --do-not-cache-result --filter=ScanClassifyReadOnlyContractTest 2>&1 | tee "$EVIDENCE_DIR/scan-readonly-phpunit.raw.log"
@@ -41,6 +79,8 @@ cp "$WWHN150_ENVIRONMENT" "$EVIDENCE_DIR/wwhn150.postman.environment.json"
 cp "$WWHN150_TEST_CASES" "$EVIDENCE_DIR/wwhn150-test-cases.json"
 cp "$WWHN150_SOURCE_REGISTER" "$EVIDENCE_DIR/wwhn150-source-register.json"
 cp "$WWHN150_OPENAPI" "$EVIDENCE_DIR/wwhn150-openapi.yaml"
+cp "$WWHN150_CHANGELOG" "$EVIDENCE_DIR/wwhn150-openapi-changelog.md"
+cp "$WWHN150_PERMISSION_CATALOG" "$EVIDENCE_DIR/permission-catalog.repository.json"
 
 cp "$STOCKTAKE_COLLECTION" "$EVIDENCE_DIR/source/"
 cp "$STOCKTAKE_TEST_CASES" "$EVIDENCE_DIR/source/"
@@ -50,12 +90,20 @@ cp "$WWHN150_ENVIRONMENT" "$EVIDENCE_DIR/source/"
 cp "$WWHN150_TEST_CASES" "$EVIDENCE_DIR/source/"
 cp "$WWHN150_SOURCE_REGISTER" "$EVIDENCE_DIR/source/"
 cp "$WWHN150_OPENAPI" "$EVIDENCE_DIR/source/"
+cp "$WWHN150_CHANGELOG" "$EVIDENCE_DIR/source/"
+cp "$WWHN150_PERMISSION_CATALOG" "$EVIDENCE_DIR/source/"
+cp docs/permissions/WMS_PERMISSION_CATALOG_BE1.md "$EVIDENCE_DIR/source/"
+cp docs/docs_task_jira/WWHN-150.md "$EVIDENCE_DIR/source/"
+cp .github/workflows/auth-rbac-audit-contract.yml "$EVIDENCE_DIR/source/"
+cp app/Console/Commands/ExportPermissionCatalog.php "$EVIDENCE_DIR/source/"
+cp Modules/Auth/app/Models/User.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/routes/api.php "$EVIDENCE_DIR/source/warehouse-api-routes.php"
 cp Modules/Auth/database/seeders/AuthDatabaseSeeder.php "$EVIDENCE_DIR/source/"
 cp Modules/Auth/app/Http/Middleware/CheckPermission.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/app/Http/Controllers/ScanController.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/app/Services/ScanClassificationService.php "$EVIDENCE_DIR/source/"
 cp tests/Feature/ScanClassifyReadOnlyContractTest.php "$EVIDENCE_DIR/source/"
+cp tests/Feature/BackendMigrationSeedHealthTest.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/app/Http/Controllers/StocktakeController.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php "$EVIDENCE_DIR/source/"
 cp Modules/Warehouse/app/Services/StocktakeAdjustmentService.php "$EVIDENCE_DIR/source/"
@@ -64,10 +112,29 @@ cp Modules/Warehouse/app/Services/StocktakeSessionGuard.php "$EVIDENCE_DIR/sourc
 cp Modules/Warehouse/app/Services/StocktakeGrainService.php "$EVIDENCE_DIR/source/"
 cp tests/Feature/StocktakeThreeLayerContractTest.php "$EVIDENCE_DIR/source/"
 cp tests/Feature/StocktakeApplyLedgerIntegrityTest.php "$EVIDENCE_DIR/source/"
+cp scripts/verify-wwhn150-contract.mjs "$EVIDENCE_DIR/source/"
+cp scripts/compare-scan-readonly-evidence.mjs "$EVIDENCE_DIR/source/"
+cp scripts/verify-wwhn150-boundary.mjs "$EVIDENCE_DIR/source/"
+cp scripts/run-wwhn150-concurrent-scan.mjs "$EVIDENCE_DIR/source/"
+cp scripts/collect-api-data-evidence.sh "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Http/Controllers/ReportController.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Http/Controllers/InventorySnapshotController.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Services/InventorySnapshotService.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Models/InventoryReportSnapshot.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Http/Controllers/WarrantyController.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Models/WarrantyCase.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/app/Models/WarrantyEvent.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/database/migrations/2026_01_01_000044_create_hoanam_erd_extension_tables.php "$EVIDENCE_DIR/source/"
+cp Modules/Warehouse/database/seeders/WarehouseDatabaseSeeder.php "$EVIDENCE_DIR/source/"
 
 php artisan migrate:fresh --force 2>&1 | tee "$EVIDENCE_DIR/migrate-fresh.raw.log"
 php artisan db:seed --force 2>&1 | tee "$EVIDENCE_DIR/database-seed.raw.log"
-php artisan evidence:permission-catalog --output="$EVIDENCE_DIR/permission-catalog.json"
+php artisan evidence:permission-catalog \
+  --output="$EVIDENCE_DIR/permission-catalog.json" \
+  --seed-diff-output="$EVIDENCE_DIR/permission-seed-diff.json" \
+  2>&1 | tee "$EVIDENCE_DIR/permission-catalog.raw.log"
+git show --format= --binary "$COMMIT_SHA" -- Modules/Auth/database/seeders/AuthDatabaseSeeder.php \
+  > "$EVIDENCE_DIR/permission-seed.git.diff"
 
 node scripts/verify-api-data-contract.mjs \
   "$EVIDENCE_DIR/openapi.json" \
@@ -81,6 +148,7 @@ node scripts/verify-stocktake-contract.mjs \
   "$EVIDENCE_DIR/route-list.raw.json" \
   "$EVIDENCE_DIR/stocktake.postman.collection.json" \
   "$EVIDENCE_DIR/stocktake-test-cases.json" \
+  "$EVIDENCE_DIR/stocktake-source-register.json" \
   "$EVIDENCE_DIR/stocktake-contract-verification.json"
 
 node scripts/verify-wwhn150-contract.mjs \
@@ -95,11 +163,14 @@ node scripts/verify-wwhn150-contract.mjs \
   "$EVIDENCE_DIR/wwhn150-openapi.yaml" \
   "$EVIDENCE_DIR/wwhn150-contract-verification.json"
 
+node scripts/verify-wwhn150-boundary.mjs \
+  "$EVIDENCE_DIR/stock-writer-boundary.json"
+
 php artisan evidence:stock-snapshot \
   --label=before-newman \
   --output="$EVIDENCE_DIR/db-before.json"
 
-php artisan serve --host=127.0.0.1 --port=8000 > "$EVIDENCE_DIR/server.raw.log" 2>&1 &
+PHP_CLI_SERVER_WORKERS=8 php artisan serve --host=127.0.0.1 --port=8000 > "$EVIDENCE_DIR/server.raw.log" 2>&1 &
 SERVER_PID=$!
 cleanup_server() {
   kill "$SERVER_PID" 2>/dev/null || true
@@ -123,9 +194,9 @@ fi
 npx newman run "$EVIDENCE_DIR/postman.collection.json" \
   -e "$EVIDENCE_DIR/postman.environment.json" \
   --env-var 'email=manager01@gmail.com' \
-  --env-var 'password=Cntt@1234' \
+  --env-var "password=$WWHN150_PASSWORD" \
   --env-var 'noPermissionEmail=test-no-permission@hoanam.com' \
-  --env-var 'noPermissionPassword=Cntt@1234' \
+  --env-var "noPermissionPassword=$WWHN150_NO_PERMISSION_PASSWORD" \
   --reporters cli,json \
   --reporter-json-export "$EVIDENCE_DIR/newman.result.json" \
   2>&1 | tee "$EVIDENCE_DIR/newman.raw.log"
@@ -133,7 +204,7 @@ npx newman run "$EVIDENCE_DIR/postman.collection.json" \
 npx newman run "$EVIDENCE_DIR/stocktake.postman.collection.json" \
   -e "$EVIDENCE_DIR/stocktake.postman.environment.json" \
   --env-var 'email=manager01@gmail.com' \
-  --env-var 'password=Cntt@1234' \
+  --env-var "password=$WWHN150_PASSWORD" \
   --reporters cli,json \
   --reporter-json-export "$EVIDENCE_DIR/stocktake-newman.result.json" \
   2>&1 | tee "$EVIDENCE_DIR/stocktake-newman.raw.log"
@@ -142,8 +213,15 @@ php artisan evidence:stock-snapshot \
   --label=before-wwhn150-scan-newman \
   --output="$EVIDENCE_DIR/scan-db-before.json"
 
+node scripts/run-wwhn150-concurrent-scan.mjs \
+  "$EVIDENCE_DIR/wwhn150-concurrent-scan.json" \
+  20 \
+  2>&1 | tee "$EVIDENCE_DIR/wwhn150-concurrent-scan.raw.log"
+
 npx newman run "$EVIDENCE_DIR/wwhn150.postman.collection.json" \
   -e "$EVIDENCE_DIR/wwhn150.postman.environment.json" \
+  --env-var "password=$WWHN150_PASSWORD" \
+  --env-var "noPermissionPassword=$WWHN150_NO_PERMISSION_PASSWORD" \
   --reporters cli,json \
   --reporter-json-export "$EVIDENCE_DIR/wwhn150-newman.result.json" \
   2>&1 | tee "$EVIDENCE_DIR/wwhn150-newman.raw.log"
@@ -183,6 +261,7 @@ cat > "$EVIDENCE_DIR/build-metadata.json" <<JSON
   "commit_sha": "$COMMIT_SHA",
   "source_tree_sha256": "$SOURCE_TREE_SHA256",
   "build_time_utc": "$BUILD_TIME",
+  "ci_run_url": "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE}/actions/runs/${GITHUB_RUN_ID:-local}",
   "artifact_name": "wwhn-150-evidence-$COMMIT_SHA",
   "php_version": "$(php -r 'echo PHP_VERSION;')",
   "node_version": "$(node --version)",
@@ -195,11 +274,13 @@ cat > "$EVIDENCE_DIR/build-metadata.json" <<JSON
   "package_lock_sha256": "$PACKAGE_LOCK_SHA256",
   "postman_collection_version": "2.0.0",
   "stocktake_postman_collection_version": "1.0.0",
-  "wwhn150_postman_collection_version": "1.0.0",
-  "stocktake_test_case_version": "1.1.0",
-  "wwhn150_test_case_version": "1.0.0",
-  "stocktake_contract_verifier_version": "1.1.0",
-  "wwhn150_contract_verifier_version": "1.0.0",
+  "wwhn150_postman_collection_version": "1.1.0",
+  "stocktake_test_case_version": "1.2.0",
+  "wwhn150_test_case_version": "1.1.0",
+  "stocktake_contract_verifier_version": "1.2.0",
+  "wwhn150_contract_verifier_version": "1.1.0",
+  "wwhn150_boundary_verifier_version": "1.0.0",
+  "wwhn150_concurrent_probe_version": "1.0.0",
   "document_status": "PROPOSED",
   "approval_status": "PENDING_FORMAL_JIRA_APPROVAL",
   "deployment_sha": null
@@ -208,9 +289,12 @@ JSON
 
 (
   cd "$EVIDENCE_DIR"
-  find . -type f ! -name 'SHA256SUMS' -printf '%P\n' | LC_ALL=C sort | while IFS= read -r file; do
+  find . -type f ! -name 'SHA256SUMS' ! -name 'SHA256SUMS.sha256' -printf '%P\n' | LC_ALL=C sort | while IFS= read -r file; do
     sha256sum "$file"
   done > SHA256SUMS
+  sha256sum SHA256SUMS > SHA256SUMS.sha256
+  sha256sum --check SHA256SUMS
+  sha256sum --check SHA256SUMS.sha256
 )
 
 cat "$EVIDENCE_DIR/SHA256SUMS"

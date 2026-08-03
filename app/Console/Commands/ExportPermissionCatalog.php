@@ -9,7 +9,9 @@ use RuntimeException;
 
 class ExportPermissionCatalog extends Command
 {
-    protected $signature = 'evidence:permission-catalog {--output=build/evidence/api-data/permission-catalog.json}';
+    protected $signature = 'evidence:permission-catalog
+        {--output=build/evidence/api-data/permission-catalog.json}
+        {--seed-diff-output=build/evidence/api-data/permission-seed-diff.json}';
 
     protected $description = 'Xuất permission catalog, role mapping, route-permission matrix và source hash làm evidence';
 
@@ -109,6 +111,8 @@ class ExportPermissionCatalog extends Command
             'auth_routes' => 'Modules/Auth/routes/api.php',
             'audit_routes' => 'Modules/AuditLog/routes/api.php',
             'permission_middleware' => 'Modules/Auth/app/Http/Middleware/CheckPermission.php',
+            'permission_exporter' => 'app/Console/Commands/ExportPermissionCatalog.php',
+            'user_permission_model' => 'Modules/Auth/app/Models/User.php',
         ];
         $sourceHashes = collect($sourcePaths)->mapWithKeys(function (string $relativePath, string $key) {
             $absolutePath = base_path($relativePath);
@@ -118,6 +122,40 @@ class ExportPermissionCatalog extends Command
                 'sha256' => is_file($absolutePath) ? hash_file('sha256', $absolutePath) : null,
             ]];
         })->all();
+
+        $scanMatrix = $endpointPermissionRoleMatrix->first(
+            fn (array $row): bool => $row['uri'] === 'api/v1/scan/classify'
+                && in_array('POST', $row['methods'], true)
+        );
+        $expectedScanRoles = ['SUPER_ADMIN', 'WAREHOUSE_MANAGER'];
+        $actualScanRoles = collect($scanMatrix['roles'] ?? [])->sort()->values();
+        $missingScanRoles = collect($expectedScanRoles)->diff($actualScanRoles)->values();
+        $unexpectedScanRoles = $actualScanRoles->diff($expectedScanRoles)->values();
+        $permissionSeedDiff = [
+            'schema_version' => '1.0.0',
+            'contract' => 'WWHN-150 scan.classify permission seed diff',
+            'expected' => [
+                'permission_key' => 'scan.classify',
+                'permission_status' => 'ACTIVE',
+                'roles' => $expectedScanRoles,
+                'super_admin_rule' => 'backend bypass through User::isSuperAdmin',
+            ],
+            'actual' => [
+                'permission_status' => $permissions->firstWhere('permission_key', 'scan.classify')['status'] ?? null,
+                'roles' => $actualScanRoles->all(),
+                'route_permission' => $scanMatrix['permission'] ?? null,
+                'backend_enforced' => $scanMatrix['backend_enforced'] ?? false,
+            ],
+            'missing_roles' => $missingScanRoles->all(),
+            'unexpected_roles' => $unexpectedScanRoles->all(),
+            'status' => $missingScanRoles->isEmpty()
+                && $unexpectedScanRoles->isEmpty()
+                && ($permissions->firstWhere('permission_key', 'scan.classify')['status'] ?? null) === 'ACTIVE'
+                && ($scanMatrix['permission'] ?? null) === 'scan.classify'
+                && ($scanMatrix['backend_enforced'] ?? false)
+                ? 'PASS'
+                : 'FAIL',
+        ];
 
         $payload = [
             'schema_version' => '1.1.0',
@@ -134,6 +172,7 @@ class ExportPermissionCatalog extends Command
             'roles' => $roles,
             'route_permissions' => $routes,
             'endpoint_permission_role_matrix' => $endpointPermissionRoleMatrix,
+            'permission_seed_diff' => $permissionSeedDiff,
         ];
 
         file_put_contents(
@@ -141,8 +180,18 @@ class ExportPermissionCatalog extends Command
             json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).PHP_EOL
         );
 
-        if ($missingRoutePermissions->isNotEmpty()) {
-            $this->error('Permission catalog FAIL: route đang tham chiếu permission chưa được seed: '.$missingRoutePermissions->implode(', '));
+        $seedDiffOutput = (string) $this->option('seed-diff-output');
+        $seedDiffDirectory = dirname($seedDiffOutput);
+        if (! is_dir($seedDiffDirectory) && ! mkdir($seedDiffDirectory, 0777, true) && ! is_dir($seedDiffDirectory)) {
+            throw new RuntimeException("Không thể tạo thư mục seed diff evidence: {$seedDiffDirectory}");
+        }
+        file_put_contents(
+            $seedDiffOutput,
+            json_encode($permissionSeedDiff, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR).PHP_EOL
+        );
+
+        if ($missingRoutePermissions->isNotEmpty() || $permissionSeedDiff['status'] !== 'PASS') {
+            $this->error('Permission catalog FAIL: route/seed/role matrix không khớp contract WWHN-150.');
 
             return self::FAILURE;
         }

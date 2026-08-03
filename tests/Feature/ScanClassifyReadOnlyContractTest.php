@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -96,21 +97,133 @@ class ScanClassifyReadOnlyContractTest extends TestCase
         $serial = $this->serial($warehouseB, $product, 'SERIAL-SCAN-SCOPE');
 
         $scopedUser = $this->userWithPermissions('scan-scope-user', ['scan.classify'], $warehouseA->id);
+        $scopedToken = $this->authToken($scopedUser);
+        $beforeScopeDenied = $this->readOnlyFingerprint();
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
             'context' => 'STOCKTAKE',
             'warehouse_id' => $warehouseB->id,
-        ], $this->headers($this->authToken($scopedUser)))
+        ], $this->headers($scopedToken))
             ->assertStatus(403)
             ->assertJsonPath('error_code', 'WAREHOUSE_SCOPE_DENIED');
+        $this->assertSame($beforeScopeDenied, $this->readOnlyFingerprint());
+
+        $this->postJson('/api/v1/scan/classify', [
+            'raw_code' => $serial->serial_no,
+            'context' => 'STOCKTAKE',
+            'warehouse_id' => (string) Str::uuid(),
+        ], $this->headers($scopedToken))
+            ->assertStatus(403)
+            ->assertJsonPath('error_code', 'WAREHOUSE_SCOPE_DENIED');
+        $this->assertSame($beforeScopeDenied, $this->readOnlyFingerprint());
+
+        // A scoped actor may request an allowed warehouse, but the raw code can
+        // still belong to another warehouse. Return the same generic not-found
+        // envelope as an unknown code so the resolver cannot become an object
+        // existence oracle across warehouse boundaries.
+        $this->postJson('/api/v1/scan/classify', [
+            'raw_code' => $serial->serial_no,
+            'context' => 'STOCKTAKE',
+            'warehouse_id' => $warehouseA->id,
+        ], $this->headers($scopedToken))
+            ->assertStatus(404)
+            ->assertJsonPath('error_code', 'SCAN_CODE_NOT_FOUND')
+            ->assertJsonMissingPath('errors.object_warehouse_id');
+        $this->assertSame($beforeScopeDenied, $this->readOnlyFingerprint());
 
         $noPermissionUser = $this->userWithPermissions('scan-no-permission', []);
+        $noPermissionToken = $this->authToken($noPermissionUser);
+        $beforePermissionDenied = $this->readOnlyFingerprint();
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
             'context' => 'STOCKTAKE',
             'warehouse_id' => $warehouseB->id,
-        ], $this->headers($this->authToken($noPermissionUser)))
+        ], $this->headers($noPermissionToken))
             ->assertStatus(403);
+        $this->assertSame($beforePermissionDenied, $this->readOnlyFingerprint());
+    }
+
+    public function test_sku_and_container_resolution_are_read_only(): void
+    {
+        [$token, $warehouse, $product] = $this->fixture();
+        $containerId = (string) Str::uuid();
+        DB::table('container')->insert([
+            'container_id' => $containerId,
+            'container_code' => 'CTN-WWHN-150-READONLY',
+            'container_type' => 'BOX',
+            'warehouse_id' => $warehouse->id,
+            'primary_product_id' => $product->id,
+            'status' => 'ACTIVE',
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $before = $this->readOnlyFingerprint();
+
+        $this->postJson('/api/v1/scan/classify', [
+            'raw_code' => $product->code,
+            'context' => 'STOCKTAKE',
+            'warehouse_id' => $warehouse->id,
+        ], $this->headers($token, 'WWHN-150-SKU-READONLY'))
+            ->assertOk()
+            ->assertJsonPath('data.classification', 'SKU')
+            ->assertJsonPath('data.stock_effect', 'NONE');
+        $this->assertSame($before, $this->readOnlyFingerprint());
+
+        $this->postJson('/api/v1/scan/classify', [
+            'raw_code' => 'CTN-WWHN-150-READONLY',
+            'context' => 'STOCKTAKE',
+            'warehouse_id' => $warehouse->id,
+        ], $this->headers($token, 'WWHN-150-CONTAINER-READONLY'))
+            ->assertOk()
+            ->assertJsonPath('data.classification', 'CONTAINER')
+            ->assertJsonPath('data.container_id', $containerId)
+            ->assertJsonPath('data.stock_effect', 'NONE');
+        $this->assertSame($before, $this->readOnlyFingerprint());
+    }
+
+    public function test_scan_executes_no_transient_dml_against_protected_tables(): void
+    {
+        [$token, $warehouse, , $serial] = $this->fixture();
+        $protectedWrites = [];
+        DB::listen(function (QueryExecuted $query) use (&$protectedWrites): void {
+            $sql = strtolower(ltrim($query->sql));
+            if (! preg_match('/^(insert|update|delete|replace)\b/', $sql)) {
+                return;
+            }
+            foreach (['inventory_balances', 'stock_movements', 'posting_event', 'idempotency_keys', 'scan_event'] as $table) {
+                if (str_contains($sql, $table)) {
+                    $protectedWrites[] = $query->sql;
+                }
+            }
+        });
+
+        $this->postJson('/api/v1/scan/classify', [
+            'raw_code' => $serial->serial_no,
+            'context' => 'STOCKTAKE',
+            'warehouse_id' => $warehouse->id,
+        ], $this->headers($token))->assertOk();
+
+        $this->postJson('/api/v1/scan/classify', [
+            'context' => 'STOCKTAKE',
+            'warehouse_id' => $warehouse->id,
+        ], $this->headers($token))->assertStatus(422);
+
+        $this->assertSame([], $protectedWrites, 'Scan/classify đã phát sinh transient DML trên bảng được bảo vệ.');
+    }
+
+    public function test_scan_requires_authentication_without_database_side_effect(): void
+    {
+        $warehouse = $this->warehouse('KHO-SCAN-UNAUTH');
+        $before = $this->readOnlyFingerprint();
+
+        $this->postJson('/api/v1/scan/classify', [
+            'raw_code' => 'ANY-CODE',
+            'context' => 'STOCKTAKE',
+            'warehouse_id' => $warehouse->id,
+        ])->assertStatus(401);
+
+        $this->assertSame($before, $this->readOnlyFingerprint());
     }
 
     public function test_scan_returns_explicit_404_409_and_422_without_side_effects(): void

@@ -6,7 +6,7 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "version": {
       "major": 1,
-      "minor": 0,
+      "minor": 1,
       "patch": 0
     }
   },
@@ -30,7 +30,7 @@
         "url": {"raw": "{{baseUrl}}/api/v1/warehouses", "host": ["{{baseUrl}}"], "path": ["api", "v1", "warehouses"]}
       },
       "response": [],
-      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('warehouse list 200', () => pm.response.to.have.status(200));", "const json = pm.response.json();", "const warehouse = json.data.find((row) => row.code === 'KHO-TONG-HN');", "pm.test('seed warehouse exists', () => pm.expect(warehouse).to.be.an('object'));", "pm.environment.set('warehouseId', warehouse.id);"]}}]
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('warehouse list 200', () => pm.response.to.have.status(200));", "const json = pm.response.json();", "const warehouse = json.data.find((row) => row.code === 'KHO-TONG-HN');", "const mismatchWarehouse = json.data.find((row) => row.id !== warehouse?.id);", "pm.test('seed warehouse exists', () => pm.expect(warehouse).to.be.an('object'));", "pm.test('mismatch warehouse exists', () => pm.expect(mismatchWarehouse).to.be.an('object'));", "pm.environment.set('warehouseId', warehouse.id);", "pm.environment.set('mismatchWarehouseId', mismatchWarehouse.id);"]}}]
     },
     {
       "name": "03 Scan success read-only",
@@ -50,6 +50,8 @@
         "const json = pm.response.json();",
         "pm.test('success envelope', () => pm.expect(json.success).to.eql(true));",
         "pm.test('classification ITEM', () => pm.expect(json.data.classification).to.eql('ITEM'));",
+        "pm.test('contract version locked', () => pm.expect(json.data.contract_version).to.eql('WWHN-150.1.1.0'));",
+        "pm.test('resolved source present', () => pm.expect(json.data.resolved_source).to.be.a('string').and.not.empty);",
         "pm.test('stock_effect NONE', () => pm.expect(json.data.stock_effect).to.eql('NONE'));",
         "pm.test('movement_created false', () => pm.expect(json.data.movement_created).to.eql(false));",
         "pm.test('posting_event_created false', () => pm.expect(json.data.posting_event_created).to.eql(false));",
@@ -75,6 +77,8 @@
         "const json = pm.response.json();",
         "pm.test('success envelope', () => pm.expect(json.success).to.eql(true));",
         "pm.test('classification ITEM', () => pm.expect(json.data.classification).to.eql('ITEM'));",
+        "pm.test('contract version locked', () => pm.expect(json.data.contract_version).to.eql('WWHN-150.1.1.0'));",
+        "pm.test('resolved source present', () => pm.expect(json.data.resolved_source).to.be.a('string').and.not.empty);",
         "pm.test('stock_effect NONE', () => pm.expect(json.data.stock_effect).to.eql('NONE'));",
         "pm.test('movement_created false', () => pm.expect(json.data.movement_created).to.eql(false));",
         "pm.test('posting_event_created false', () => pm.expect(json.data.posting_event_created).to.eql(false));",
@@ -84,7 +88,21 @@
       ]}}]
     },
     {
-      "name": "05 Scan unknown code 404",
+      "name": "05 Scan warehouse mismatch 409",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text"},
+          {"key": "Content-Type", "value": "application/json", "type": "text"}
+        ],
+        "url": {"raw": "{{baseUrl}}/api/v1/scan/classify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "scan", "classify"]},
+        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"STOCKTAKE\",\n  \"warehouse_id\": \"{{mismatchWarehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
+      },
+      "response": [],
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('status 409', () => pm.response.to.have.status(409));", "pm.test('explicit code', () => pm.expect(pm.response.json().error_code).to.eql('SCAN_WAREHOUSE_MISMATCH'));", "pm.test('no stock effect payload', () => pm.expect(pm.response.json().data).to.eql(undefined));"]}}]
+    },
+    {
+      "name": "06 Scan unknown code 404",
       "request": {
         "method": "POST",
         "header": [
@@ -98,7 +116,7 @@
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('status 404', () => pm.response.to.have.status(404));", "pm.test('explicit code', () => pm.expect(pm.response.json().error_code).to.eql('SCAN_CODE_NOT_FOUND'));"]}}]
     },
     {
-      "name": "06 Scan validation 422",
+      "name": "07 Scan validation 422",
       "request": {
         "method": "POST",
         "header": [
@@ -112,7 +130,7 @@
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('status 422', () => pm.response.to.have.status(422));"]}}]
     },
     {
-      "name": "07 Login no permission",
+      "name": "08 Login no permission",
       "request": {
         "method": "POST",
         "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
@@ -123,7 +141,7 @@
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('login no-permission user 200', () => pm.response.to.have.status(200));", "pm.environment.set('noPermissionToken', pm.response.json().data.access_token);"]}}]
     },
     {
-      "name": "08 Scan permission denied",
+      "name": "09 Scan permission denied",
       "request": {
         "method": "POST",
         "header": [

@@ -3,8 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\DocumentStatusHistoryController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusTransitionController;
-use Modules\Warehouse\Http\Controllers\InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\ImportController;
+use Modules\Warehouse\Http\Controllers\InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Http\Controllers\InventoryReservationController;
 use Modules\Warehouse\Http\Controllers\InventorySnapshotController;

@@ -16,15 +16,19 @@ use Modules\Warehouse\Models\Warehouse;
  */
 class ScanClassificationService
 {
-    public const CONTRACT_VERSION = 'WWHN-150.1.0.0';
+    public const CONTRACT_VERSION = 'WWHN-150.1.1.0';
 
     public const STOCK_EFFECT_NONE = 'NONE';
 
     /**
      * @return array<string, mixed>
      */
-    public function classify(string $rawCode, string $context, Warehouse $warehouse): array
-    {
+    public function classify(
+        string $rawCode,
+        string $context,
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence = false
+    ): array {
         $code = trim($rawCode);
 
         $physicalCode = Schema::hasTable('physical_code')
@@ -38,18 +42,18 @@ class ScanClassificationService
                 'Mã vật lý đang không hoạt động.'
             );
 
-            $resolved = $this->resolvePhysicalCode($physicalCode, $context, $warehouse);
+            $resolved = $this->resolvePhysicalCode($physicalCode, $context, $warehouse, $hideCrossWarehouseExistence);
             if ($resolved !== null) {
                 return $this->withContractMetadata($resolved, 'physical_code');
             }
         }
 
-        $item = $this->resolveInventorySerialByCode($code, $context, $warehouse);
+        $item = $this->resolveInventorySerialByCode($code, $context, $warehouse, $hideCrossWarehouseExistence);
         if ($item !== null) {
             return $this->withContractMetadata($item, 'inventory_serials.serial_no');
         }
 
-        $container = $this->resolveContainerByCode($code, $context, $warehouse);
+        $container = $this->resolveContainerByCode($code, $context, $warehouse, $hideCrossWarehouseExistence);
         if ($container !== null) {
             return $this->withContractMetadata($container, 'container.container_code');
         }
@@ -65,41 +69,49 @@ class ScanClassificationService
     /**
      * @return array<string, mixed>|null
      */
-    private function resolvePhysicalCode(object $physicalCode, string $context, Warehouse $warehouse): ?array
-    {
+    private function resolvePhysicalCode(
+        object $physicalCode,
+        string $context,
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
+    ): ?array {
         $assignedType = strtoupper(trim((string) ($physicalCode->assigned_object_type ?? '')));
         $assignedId = $physicalCode->assigned_object_id ?? null;
         $physicalCodeId = (string) $physicalCode->physical_code_id;
 
         if (in_array($assignedType, ['ITEM', 'INVENTORY_SERIAL', 'ITEM_INSTANCE'], true)) {
-            return $this->resolveItemByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse);
+            return $this->resolveItemByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse, $hideCrossWarehouseExistence);
         }
 
         if ($assignedType === 'CONTAINER') {
-            return $this->resolveContainerByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse);
+            return $this->resolveContainerByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse, $hideCrossWarehouseExistence);
         }
 
         if (in_array($assignedType, ['SKU', 'PRODUCT'], true)) {
             return $this->resolveSkuById($assignedId, $warehouse);
         }
 
-        return $this->resolveItemByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse)
-            ?? $this->resolveContainerByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse)
+        return $this->resolveItemByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse, $hideCrossWarehouseExistence)
+            ?? $this->resolveContainerByIdOrPhysicalCode($assignedId, $physicalCodeId, $context, $warehouse, $hideCrossWarehouseExistence)
             ?? $this->resolveSkuById($assignedId, $warehouse);
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    private function resolveInventorySerialByCode(string $code, string $context, Warehouse $warehouse): ?array
-    {
+    private function resolveInventorySerialByCode(
+        string $code,
+        string $context,
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
+    ): ?array {
         if (! Schema::hasTable('inventory_serials')) {
             return null;
         }
 
         $item = DB::table('inventory_serials')->where('serial_no', $code)->first();
 
-        return $item === null ? null : $this->inventorySerialPayload($item, $context, $warehouse);
+        return $item === null ? null : $this->inventorySerialPayload($item, $context, $warehouse, $hideCrossWarehouseExistence);
     }
 
     /**
@@ -109,7 +121,8 @@ class ScanClassificationService
         mixed $assignedId,
         string $physicalCodeId,
         string $context,
-        Warehouse $warehouse
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
     ): ?array {
         if (Schema::hasTable('inventory_serials')) {
             $query = DB::table('inventory_serials');
@@ -123,7 +136,7 @@ class ScanClassificationService
 
             $item = $query->first();
             if ($item !== null) {
-                return $this->inventorySerialPayload($item, $context, $warehouse);
+                return $this->inventorySerialPayload($item, $context, $warehouse, $hideCrossWarehouseExistence);
             }
         }
 
@@ -139,7 +152,7 @@ class ScanClassificationService
 
             $item = $query->first();
             if ($item !== null) {
-                $this->assertWarehouseMatch($item->warehouse_id ?? null, $warehouse);
+                $this->assertWarehouseMatch($item->warehouse_id ?? null, $warehouse, $hideCrossWarehouseExistence);
                 $this->assertContextCompatible(
                     'ITEM',
                     (string) ($item->item_status ?? 'IN_STOCK'),
@@ -166,9 +179,13 @@ class ScanClassificationService
     /**
      * @return array<string, mixed>
      */
-    private function inventorySerialPayload(object $item, string $context, Warehouse $warehouse): array
-    {
-        $this->assertWarehouseMatch($item->warehouse_id ?? null, $warehouse);
+    private function inventorySerialPayload(
+        object $item,
+        string $context,
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
+    ): array {
+        $this->assertWarehouseMatch($item->warehouse_id ?? null, $warehouse, $hideCrossWarehouseExistence);
         $status = (string) ($item->status ?? 'IN_STOCK');
         $stockStatus = (string) ($item->stock_condition ?? 'AVAILABLE');
         $this->assertContextCompatible('ITEM', $status, $stockStatus, $context);
@@ -189,15 +206,19 @@ class ScanClassificationService
     /**
      * @return array<string, mixed>|null
      */
-    private function resolveContainerByCode(string $code, string $context, Warehouse $warehouse): ?array
-    {
+    private function resolveContainerByCode(
+        string $code,
+        string $context,
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
+    ): ?array {
         if (! Schema::hasTable('container')) {
             return null;
         }
 
         $container = DB::table('container')->where('container_code', $code)->first();
 
-        return $container === null ? null : $this->containerPayload($container, $context, $warehouse);
+        return $container === null ? null : $this->containerPayload($container, $context, $warehouse, $hideCrossWarehouseExistence);
     }
 
     /**
@@ -207,7 +228,8 @@ class ScanClassificationService
         mixed $assignedId,
         string $physicalCodeId,
         string $context,
-        Warehouse $warehouse
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
     ): ?array {
         if (! Schema::hasTable('container')) {
             return null;
@@ -224,15 +246,19 @@ class ScanClassificationService
 
         $container = $query->first();
 
-        return $container === null ? null : $this->containerPayload($container, $context, $warehouse);
+        return $container === null ? null : $this->containerPayload($container, $context, $warehouse, $hideCrossWarehouseExistence);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function containerPayload(object $container, string $context, Warehouse $warehouse): array
-    {
-        $this->assertWarehouseMatch($container->warehouse_id ?? null, $warehouse);
+    private function containerPayload(
+        object $container,
+        string $context,
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
+    ): array {
+        $this->assertWarehouseMatch($container->warehouse_id ?? null, $warehouse, $hideCrossWarehouseExistence);
         $status = (string) ($container->status ?? 'ACTIVE');
         $this->assertActiveStatus($status, 'SCAN_CONTAINER_INACTIVE', 'Container đang không hoạt động.');
         $this->assertContextCompatible('CONTAINER', $status, 'AVAILABLE', $context);
@@ -319,8 +345,11 @@ class ScanClassificationService
         ];
     }
 
-    private function assertWarehouseMatch(mixed $objectWarehouseId, Warehouse $warehouse): void
-    {
+    private function assertWarehouseMatch(
+        mixed $objectWarehouseId,
+        Warehouse $warehouse,
+        bool $hideCrossWarehouseExistence
+    ): void {
         if (! is_string($objectWarehouseId) || $objectWarehouseId === '') {
             ApiError::abort(
                 409,
@@ -342,10 +371,11 @@ class ScanClassificationService
         }
 
         if (! in_array($objectWarehouseId, array_values(array_unique($acceptableIds)), true)) {
-            ApiError::abort(409, 'SCAN_WAREHOUSE_MISMATCH', 'Mã scan không thuộc kho được yêu cầu.', [
-                'requested_warehouse_id' => (string) $warehouse->id,
-                'object_warehouse_id' => $objectWarehouseId,
-            ]);
+            if ($hideCrossWarehouseExistence) {
+                ApiError::abort(404, 'SCAN_CODE_NOT_FOUND', 'Không tìm thấy mã scan trong phạm vi được phép.');
+            }
+            // Do not disclose the object's actual warehouse across data scopes.
+            ApiError::abort(409, 'SCAN_WAREHOUSE_MISMATCH', 'Mã scan không thuộc kho được yêu cầu.');
         }
     }
 

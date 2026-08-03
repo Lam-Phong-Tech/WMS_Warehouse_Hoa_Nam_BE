@@ -161,7 +161,7 @@ class AuthDatabaseSeeder extends Seeder
             [
                 'display_name' => 'Administrator',
                 'email' => 'admin@gmail.com',
-                'password_hash' => Hash::make(self::DEFAULT_PASSWORD),
+                'password_hash' => Hash::make($this->defaultPassword()),
                 'status' => 'ACTIVE',
                 'version' => 1,
             ]
@@ -189,7 +189,7 @@ class AuthDatabaseSeeder extends Seeder
                 [
                     'display_name' => $u['display_name'],
                     'email' => $u['email'],
-                    'password_hash' => Hash::make(self::DEFAULT_PASSWORD),
+                    'password_hash' => Hash::make($this->defaultPassword()),
                     'status' => 'ACTIVE',
                     'version' => 1,
                 ]
@@ -203,5 +203,12 @@ class AuthDatabaseSeeder extends Seeder
         if (! $user->roles()->where('role.role_id', $role->role_id)->exists()) {
             $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
         }
+    }
+
+    private function defaultPassword(): string
+    {
+        $ciPassword = env('CI_DEMO_PASSWORD');
+
+        return is_string($ciPassword) && $ciPassword !== '' ? $ciPassword : self::DEFAULT_PASSWORD;
     }
 }
