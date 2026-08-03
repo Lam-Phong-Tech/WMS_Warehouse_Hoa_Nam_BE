@@ -65,17 +65,7 @@ class StocktakeAdjustmentService
                     ->first();
 
                 if ($event) {
-                    if (! hash_equals((string) $event->request_hash, $requestHash)) {
-                        ApiError::abort(409, 'IDEMPOTENCY_ERROR', 'Idempotency-Key đã được dùng với payload khác.');
-                    }
-                    if ($event->status !== self::EVENT_STATUS_COMMITTED || $event->response_snapshot === null) {
-                        ApiError::abort(409, 'IDEMPOTENCY_IN_PROGRESS', 'Operation đang được xử lý hoặc chưa có commit snapshot.');
-                    }
-
-                    return [
-                        'replay' => true,
-                        'data' => json_decode((string) $event->response_snapshot, true, 512, JSON_THROW_ON_ERROR),
-                    ];
+                    return $this->replayCommittedEvent($event, $requestHash);
                 }
 
                 $this->guard->assertVersion($session, $expectedVersion);
@@ -128,6 +118,7 @@ class StocktakeAdjustmentService
                     fn (StocktakeVariance $variance): string => $variance->product_id.'|'.$variance->stock_status
                 );
                 $movementIds = [];
+                $zeroEffectDimensions = [];
                 $physicalUpdates = [];
 
                 foreach ($grouped as $dimension => $variances) {
@@ -158,6 +149,20 @@ class StocktakeAdjustmentService
                         ]);
                     }
 
+                    $ledgerQty = $this->ledgerQuantity(
+                        (string) $session->warehouse_id,
+                        (string) $representative->product_id,
+                        (string) $representative->stock_status
+                    );
+                    if (bccomp($ledgerQty, (string) $balance->on_hand_qty, self::SCALE) !== 0) {
+                        ApiError::abort(409, 'LEDGER_BALANCE_MISMATCH', 'Signed ledger không khớp balance trước khi apply; phải reconcile trước.', [
+                            'dimension' => $dimension,
+                            'ledger_qty' => $ledgerQty,
+                            'balance_qty' => (string) $balance->on_hand_qty,
+                            'formula' => 'SUM(stock_movements.qty_delta)',
+                        ]);
+                    }
+
                     $effectQty = $variances->reduce(
                         fn (string $carry, StocktakeVariance $variance): string => bcadd(
                             $carry,
@@ -175,54 +180,60 @@ class StocktakeAdjustmentService
                         ]);
                     }
 
-                    $businessKey = hash('sha256', "stocktake-adjust|{$session->session_id}|{$dimension}");
-                    if (StockMovement::query()->where('business_key', $businessKey)->exists()) {
-                        ApiError::abort(409, 'MOVEMENT_EFFECT_ALREADY_EXISTS', 'Movement effect của dimension đã tồn tại.');
-                    }
+                    $movementId = null;
+                    if (bccomp($effectQty, '0', self::SCALE) !== 0) {
+                        $businessKey = hash('sha256', "stocktake-adjust|{$session->session_id}|{$dimension}");
+                        if (StockMovement::query()->where('business_key', $businessKey)->exists()) {
+                            ApiError::abort(409, 'MOVEMENT_EFFECT_ALREADY_EXISTS', 'Movement effect của dimension đã tồn tại.');
+                        }
 
-                    $movement = StockMovement::query()->create([
-                        'movement_no' => 'STK-ADJ-'.now()->format('Ymd-His').'-'.strtoupper(Str::random(6)),
-                        'business_key' => $businessKey,
-                        'movement_type' => bccomp($effectQty, '0', self::SCALE) >= 0
-                            ? StockMovement::ADJUST_IN
-                            : StockMovement::ADJUST_OUT,
-                        'warehouse_id' => $session->warehouse_id,
-                        'product_id' => $representative->product_id,
-                        'stock_status' => $representative->stock_status,
-                        'qty_before' => $qtyBefore,
-                        'qty_delta' => $effectQty,
-                        'qty_after' => $qtyAfter,
-                        'stocktake_variance_id' => $representative->variance_id,
-                        'created_by' => $user->user_id,
-                        'request_id' => request()?->attributes->get('request_id'),
-                        'occurred_at' => now(),
-                        'created_at' => now(),
-                    ]);
-
-                    $affected = InventoryBalance::query()
-                        ->where('id', $balance->id)
-                        ->where('version', $balance->version)
-                        ->update([
-                            'on_hand_qty' => $qtyAfter,
-                            'available_qty' => $representative->stock_status === 'AVAILABLE'
-                                ? $qtyAfter
-                                : $balance->available_qty,
-                            'version' => ((int) $balance->version) + 1,
-                            'updated_at' => now(),
+                        $movement = StockMovement::query()->create([
+                            'movement_no' => 'STK-ADJ-'.now()->format('Ymd-His').'-'.strtoupper(Str::random(6)),
+                            'business_key' => $businessKey,
+                            'movement_type' => bccomp($effectQty, '0', self::SCALE) > 0
+                                ? StockMovement::ADJUST_IN
+                                : StockMovement::ADJUST_OUT,
+                            'warehouse_id' => $session->warehouse_id,
+                            'product_id' => $representative->product_id,
+                            'stock_status' => $representative->stock_status,
+                            'qty_before' => $qtyBefore,
+                            'qty_delta' => $effectQty,
+                            'qty_after' => $qtyAfter,
+                            'stocktake_variance_id' => $representative->variance_id,
+                            'created_by' => $user->user_id,
+                            'request_id' => request()?->attributes->get('request_id'),
+                            'occurred_at' => now(),
+                            'created_at' => now(),
                         ]);
-                    if ($affected !== 1) {
-                        ApiError::abort(409, 'BALANCE_VERSION_CONFLICT', 'Balance bị thay đổi bởi request cạnh tranh.');
+                        $movementId = (string) $movement->id;
+
+                        $affected = InventoryBalance::query()
+                            ->where('id', $balance->id)
+                            ->where('version', $balance->version)
+                            ->update([
+                                'on_hand_qty' => $qtyAfter,
+                                'available_qty' => $representative->stock_status === 'AVAILABLE'
+                                    ? $qtyAfter
+                                    : $balance->available_qty,
+                                'version' => ((int) $balance->version) + 1,
+                                'updated_at' => now(),
+                            ]);
+                        if ($affected !== 1) {
+                            ApiError::abort(409, 'BALANCE_VERSION_CONFLICT', 'Balance bị thay đổi bởi request cạnh tranh.');
+                        }
+                        $movementIds[] = $movementId;
+                    } else {
+                        $zeroEffectDimensions[] = $dimension;
                     }
 
                     foreach ($variances as $variance) {
                         $physicalUpdates[] = $this->applyPhysicalLayer($session, $variance);
                         $variance->update([
                             'status' => StocktakeVariance::STATUS_APPLIED,
-                            'applied_movement_id' => $movement->id,
+                            'applied_movement_id' => $movementId,
                             'applied_at' => now(),
                         ]);
                     }
-                    $movementIds[] = $movement->id;
                 }
 
                 $updated = StocktakeSession::query()
@@ -247,6 +258,7 @@ class StocktakeAdjustmentService
                     'reason' => trim($reason),
                     'variance_count' => $allVariances->count(),
                     'movement_ids' => $movementIds,
+                    'zero_effect_dimensions' => $zeroEffectDimensions,
                     'physical_updates' => $physicalUpdates,
                     'request_hash' => $requestHash,
                 ];
@@ -330,6 +342,18 @@ class StocktakeAdjustmentService
         ApiError::abort(422, 'UNSUPPORTED_STOCKTAKE_GRAIN', 'grain_type không được hỗ trợ.');
     }
 
+    private function ledgerQuantity(string $warehouseId, string $productId, string $stockStatus): string
+    {
+        $quantity = DB::table('stock_movements')
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->where('stock_status', $stockStatus)
+            ->selectRaw('COALESCE(SUM(qty_delta), 0) AS ledger_qty')
+            ->value('ledger_qty');
+
+        return bcadd((string) ($quantity ?? '0'), '0', self::SCALE);
+    }
+
     /** @return array{replay: bool, data: array<string, mixed>} */
     private function replayAfterUniqueRace(
         string $operation,
@@ -338,7 +362,7 @@ class StocktakeAdjustmentService
         string $sessionId,
         User $user
     ): array {
-        $this->guard->assertWarehouseScope($user, (string) StocktakeSession::query()->where('session_id', $sessionId)->value('warehouse_id'));
+        $this->guard->findScoped($sessionId, $user);
         $event = DB::table('posting_event')
             ->where('operation', $operation)
             ->where('idempotency_key', $idempotencyKey)
@@ -346,8 +370,18 @@ class StocktakeAdjustmentService
         if (! $event) {
             ApiError::abort(409, 'CONCURRENT_STOCKTAKE_APPLY', 'Request cạnh tranh đã thay đổi session; tải lại trạng thái.');
         }
+
+        return $this->replayCommittedEvent($event, $requestHash);
+    }
+
+    /** @return array{replay: bool, data: array<string, mixed>} */
+    private function replayCommittedEvent(object $event, string $requestHash): array
+    {
         if (! hash_equals((string) $event->request_hash, $requestHash)) {
             ApiError::abort(409, 'IDEMPOTENCY_ERROR', 'Idempotency-Key đã được dùng với payload khác.');
+        }
+        if ($event->status !== self::EVENT_STATUS_COMMITTED || $event->response_snapshot === null) {
+            ApiError::abort(409, 'IDEMPOTENCY_IN_PROGRESS', 'Operation đang được xử lý hoặc chưa có commit snapshot.');
         }
 
         return [
