@@ -4,41 +4,34 @@ namespace Modules\Warehouse\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class StocktakeSession extends Model
 {
-    use SoftDeletes;
-
     public const STATUS_DRAFT = 'DRAFT';
-
     public const STATUS_IN_PROGRESS = 'IN_PROGRESS';
-
     public const STATUS_COUNTED = 'COUNTED';
-
     public const STATUS_REVIEWED = 'REVIEWED';
-
     public const STATUS_APPLIED = 'APPLIED';
-
     public const STATUS_CLOSED = 'CLOSED';
-
     public const STATUS_CANCELLED = 'CANCELLED';
 
     protected $table = 'stocktake_session';
+    protected $primaryKey = 'session_id';
 
     public $incrementing = false;
 
     protected $keyType = 'string';
 
     protected $fillable = [
+        'session_id',
         'session_no',
         'warehouse_id',
         'status',
         'stocktake_started_at',
         'count_cutoff_at',
-        'reviewed_at',
+        'movement_warning_flag',
         'applied_at',
-        'closed_at',
+        'applied_by',
         'created_by',
         'session_version',
     ];
@@ -46,9 +39,8 @@ class StocktakeSession extends Model
     protected $casts = [
         'stocktake_started_at' => 'datetime',
         'count_cutoff_at' => 'datetime',
-        'reviewed_at' => 'datetime',
+        'movement_warning_flag' => 'boolean',
         'applied_at' => 'datetime',
-        'closed_at' => 'datetime',
     ];
 
     public function snapshots(): HasMany
