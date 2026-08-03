@@ -16,9 +16,7 @@ class StockLedger
 
     private const DEFAULT_STOCK_STATUS = 'AVAILABLE';
 
-    public function __construct(private readonly SafeStockAlertService $safeStockAlerts)
-    {
-    }
+    public function __construct(private readonly SafeStockAlertService $safeStockAlerts) {}
 
     public function inbound(StockDocument $doc, StockDocumentLine $line, string $userId): ?StockMovement
     {
@@ -82,7 +80,8 @@ class StockLedger
         string $businessKey,
         ?string $originalMovementId = null,
         string $stockStatus = self::DEFAULT_STOCK_STATUS
-    ): ?StockMovement {
+    ): ?StockMovement
+    {
         if ($warehouseId === null) {
             return null;
         }
