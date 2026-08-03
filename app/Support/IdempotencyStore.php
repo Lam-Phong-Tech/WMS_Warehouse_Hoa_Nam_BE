@@ -53,7 +53,7 @@ class IdempotencyStore
                 return $terminal;
             }
 
-            $leaseUntil = now()->addMinutes(self::LOCK_MINUTES);
+            $leaseUntil = self::leaseDeadline();
             $affected = self::query($key, $operation, $userId)
                 ->where(function ($query) {
                     $query->where('status', 'failed')
@@ -61,7 +61,7 @@ class IdempotencyStore
                             $stale->where('status', 'processing')
                                 ->where(function ($expired) {
                                     $expired->whereNull('locked_until')
-                                        ->orWhere('locked_until', '<=', now());
+                                        ->orWhere('locked_until', '<=', now()->startOfSecond());
                                 });
                         });
                 })
@@ -79,7 +79,7 @@ class IdempotencyStore
             return self::run($key, $operation, $userId, $requestHash, $leaseUntil, $fn);
         }
 
-        $leaseUntil = now()->addMinutes(self::LOCK_MINUTES);
+        $leaseUntil = self::leaseDeadline();
 
         try {
             DB::table(self::TABLE)->insert([
@@ -93,7 +93,12 @@ class IdempotencyStore
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            // Chỉ quy về race khi thực sự đã có row cạnh tranh. Lỗi schema/kết nối phải nổi lên.
+            if (self::query($key, $operation, $userId)->first() === null) {
+                throw $exception;
+            }
+
             return self::resolveAfterLostRace($key, $operation, $userId, $requestHash);
         }
 
@@ -101,7 +106,8 @@ class IdempotencyStore
     }
 
     /**
-     * Băm request theo JSON canonical và SHA-256 để thứ tự key không làm thay đổi payload hash.
+     * Hash v2 dùng JSON canonical + SHA-256. Phần md5 legacy cho phép replay các row đã
+     * tạo trước khi nâng cấp mà không biến một retry hợp lệ thành 409 sau deployment.
      */
     public static function requestHash(Request $request): string
     {
@@ -113,8 +119,9 @@ class IdempotencyStore
             'query' => $query,
             'body' => $body,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+        $legacy = md5($request->fullUrl().'|'.$request->getMethod().'|'.json_encode($request->all()));
 
-        return hash('sha256', $canonical);
+        return 'v2:'.hash('sha256', $canonical).'|md5:'.$legacy;
     }
 
     /** @return array{0:int,1:array,2:bool}|null */
@@ -236,9 +243,22 @@ class IdempotencyStore
 
     private static function payloadDiffers(object $row, ?string $requestHash): bool
     {
-        return $requestHash !== null
-            && $row->request_hash !== null
-            && ! hash_equals((string) $row->request_hash, $requestHash);
+        if ($requestHash === null || $row->request_hash === null) {
+            return false;
+        }
+
+        $stored = (string) $row->request_hash;
+        if (hash_equals($stored, $requestHash)) {
+            return false;
+        }
+
+        // Tương thích row md5 cũ với request hash v2 có đính kèm md5 legacy.
+        if (preg_match('/^[a-f0-9]{32}$/', $stored) === 1
+            && preg_match('/\|md5:([a-f0-9]{32})$/', $requestHash, $matches) === 1) {
+            return ! hash_equals($stored, $matches[1]);
+        }
+
+        return true;
     }
 
     private static function leaseExpired(mixed $lockedUntil): bool
@@ -247,7 +267,7 @@ class IdempotencyStore
             return true;
         }
 
-        return now()->greaterThanOrEqualTo(Carbon::parse($lockedUntil));
+        return now()->startOfSecond()->greaterThanOrEqualTo(Carbon::parse($lockedUntil)->startOfSecond());
     }
 
     private static function sameLease(mixed $stored, Carbon $expected): bool
@@ -256,7 +276,12 @@ class IdempotencyStore
             return false;
         }
 
-        return Carbon::parse($stored)->equalTo($expected);
+        return Carbon::parse($stored)->startOfSecond()->equalTo($expected->copy()->startOfSecond());
+    }
+
+    private static function leaseDeadline(): Carbon
+    {
+        return now()->addMinutes(self::LOCK_MINUTES)->startOfSecond();
     }
 
     private static function canonicalize(mixed $value): mixed
@@ -266,7 +291,7 @@ class IdempotencyStore
         }
 
         if (array_is_list($value)) {
-            return array_map(self::canonicalize(...), $value);
+            return array_map(fn (mixed $item) => self::canonicalize($item), $value);
         }
 
         ksort($value, SORT_STRING);
