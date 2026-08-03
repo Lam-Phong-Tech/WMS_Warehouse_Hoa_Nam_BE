@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +16,7 @@ use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\StocktakeSession;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Services\StocktakeAdjustmentService;
 use Tests\TestCase;
 
 class StocktakeReviewGateTest extends TestCase
@@ -25,6 +27,56 @@ class StocktakeReviewGateTest extends TestCase
     {
         parent::setUp();
         Cache::flush();
+    }
+
+    public function test_duplicate_variance_ids_are_rejected_by_http_and_service_without_writes(): void
+    {
+        $warehouse = $this->warehouse('KHO-DUPLICATE-VARIANCE');
+        $product = $this->product('SP-DUPLICATE-VARIANCE');
+        $user = $this->user('duplicate-variance-admin', null);
+        $token = $this->token($user);
+        $this->openingBalance($user, $warehouse, $product, 100);
+        $reviewed = $this->reviewedSku($token, $warehouse, $product, 'STK-DUPLICATE-VARIANCE', 98);
+        $payload = [
+            'session_version' => 3,
+            'variance_ids' => [$reviewed['variance_id'], $reviewed['variance_id']],
+            'reason' => 'Không chấp nhận variance trùng',
+        ];
+
+        $this->postJson(
+            "/api/v1/stocktake-sessions/{$reviewed['session_id']}/apply-adjustment",
+            $payload,
+            $this->headers($token, 'stk-duplicate-variance')
+        )->assertStatus(422);
+
+        $this->assertDatabaseHas('stocktake_session', [
+            'session_id' => $reviewed['session_id'],
+            'status' => StocktakeSession::STATUS_REVIEWED,
+            'session_version' => 3,
+        ]);
+        $this->assertSame(0, DB::table('posting_event')
+            ->where('operation', "stocktake_apply_adjustment_{$reviewed['session_id']}")
+            ->count());
+        $this->assertSame(0, StockMovement::query()
+            ->where('stocktake_variance_id', $reviewed['variance_id'])
+            ->count());
+
+        try {
+            app(StocktakeAdjustmentService::class)->requestHash(
+                $reviewed['session_id'],
+                3,
+                [$reviewed['variance_id'], $reviewed['variance_id']],
+                'Service defense in depth'
+            );
+            $this->fail('Service phải từ chối variance_ids trùng.');
+        } catch (HttpResponseException $exception) {
+            $this->assertSame(422, $exception->getResponse()->getStatusCode());
+            $this->assertSame('INVALID_VARIANCE_SELECTION', $exception->getResponse()->getData(true)['error_code']);
+            $this->assertSame(
+                [$reviewed['variance_id']],
+                $exception->getResponse()->getData(true)['error']['details']['duplicate_ids']
+            );
+        }
     }
 
     public function test_committed_replay_checks_warehouse_scope_before_returning_snapshot(): void
