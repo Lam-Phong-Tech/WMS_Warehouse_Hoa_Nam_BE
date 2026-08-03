@@ -1,0 +1,145 @@
+{
+  "schema_version": "1.0",
+  "ticket": "WWHN-128",
+  "decision_id": "DEC-INV-001",
+  "document_revision": "1.3-R3",
+  "status": "PROPOSED",
+  "repository": {
+    "full_name": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "implementation_baseline_commit": "d8643c66cb2dd7cf24d16833ebfcdb411c645385",
+    "direct_branch_update": true,
+    "pull_request": null
+  },
+  "jira_access": {
+    "status": "UNAVAILABLE",
+    "observed_error": "HTTP 403 - Atlassian app is not installed on this instance",
+    "effect": "Attachment bytes, full SHA-256, comments, workflow status and independent approvals cannot be verified or written from this execution context"
+  },
+  "decision_attachment": {
+    "jira_issue": "WWHN-24",
+    "attachment_id": 11552,
+    "attachment_id_source": "BE1 R2 re-review finding supplied by reviewer",
+    "supersedes_attachment_id": 11420,
+    "filename": null,
+    "sha256": null,
+    "uploaded_at": null,
+    "status": "PENDING_EXACT_METADATA_VERIFICATION",
+    "approval_rule": "Approval comment must reference attachment 11552 and the SHA-256 calculated from the exact downloaded attachment bytes. Attachment 11420 is superseded and must not be approved."
+  },
+  "repository_sources": [
+    {
+      "source_id": "HN-BA-MASTER-001",
+      "path": "HN_BA_Master_WMS_PV_v1_0_MD/HN_BA_Master_WMS_PV_v1_0.md",
+      "git_blob_sha": "1f0ca8de0982b7e5676c6cf3b72b4dd3c1b58a5a",
+      "declared_document_version": "1.0",
+      "embedded_versions": {
+        "BRD": "3.11",
+        "SRS_FRD": "1.3",
+        "BPD": "1.2"
+      },
+      "status": "WORKING_REFERENCE",
+      "approval_effect": "NONE"
+    }
+  ],
+  "jira_business_sources": [
+    {
+      "source_type": "BRD",
+      "current_version_claimed_in_WWHN_129": "3.12",
+      "attachment_id": null,
+      "filename": null,
+      "sha256": null,
+      "status": "PENDING_WWHN_129_METADATA_RETRIEVAL"
+    },
+    {
+      "source_type": "SRS_FRD",
+      "current_version_claimed_in_WWHN_129": "1.5",
+      "attachment_id": null,
+      "filename": null,
+      "sha256": null,
+      "status": "PENDING_WWHN_129_METADATA_RETRIEVAL"
+    },
+    {
+      "source_type": "BPD",
+      "current_version_claimed_in_WWHN_129": "1.4",
+      "attachment_id": null,
+      "filename": null,
+      "sha256": null,
+      "status": "PENDING_WWHN_129_METADATA_RETRIEVAL"
+    }
+  ],
+  "implementation_artifacts": [
+    {
+      "path": "Modules/Warehouse/app/Models/InventorySerial.php",
+      "git_blob_sha": "fced829234390ca6faa3a7d862159d1c4ec33c0d",
+      "purpose": "Canonical serial status constants including RETURNED_TO_CUSTOMER"
+    },
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/WarrantyController.php",
+      "git_blob_sha": "c112ae240e95d169b429e3e6dac9bcbe53e50ad1",
+      "purpose": "Status-only TEMP_ONLY operation, IN_STOCK rejection, active warranty guard and operation-level idempotency"
+    },
+    {
+      "path": "app/Support/IdempotencyStore.php",
+      "git_blob_sha": "78e45f98f799da90d6170dfb6259ce23263383b3",
+      "purpose": "Atomic operation-level idempotency and exact response replay"
+    },
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/ReportController.php",
+      "git_blob_sha": "91612835ee00192fdd36590c403c1d1363fd8edc",
+      "purpose": "Signed SUM(qty_delta) reconciliation by warehouse/product/stock_status"
+    }
+  ],
+  "test_artifacts": [
+    {
+      "path": "tests/Feature/WarrantyStatusOnlyContractTest.php",
+      "git_blob_sha": "f2e101eec4a0836fab4d2e0f5661282e703e01d0",
+      "covers": ["WAR-AC-01", "WAR-AC-02", "WAR-AC-03", "WAR-AC-04", "WAR-AC-05", "single-active-warranty"]
+    },
+    {
+      "path": "tests/Feature/InventoryReconciliationSignedStatusTest.php",
+      "git_blob_sha": "3d941e075585bfb2c68f2b1b4eb78b57da5588be",
+      "covers": ["RECON-SIGNED-SUM", "RECON-STOCK-STATUS-DIMENSION"]
+    },
+    {
+      "path": "tests/Feature/Wwhn180IdempotencyAtomicityTest.php",
+      "git_blob_sha": "37e5f6806c021d009bca904e922e30d5da85e971",
+      "covers": ["same-key-same-payload-replay", "same-key-different-payload-409", "atomic-rollback"]
+    },
+    {
+      "path": "tests/Feature/InventoryReconciliationIntegrityTest.php",
+      "git_blob_sha": "2374dbff3c679a0cfebb022b1a4ff8ece6fa6588",
+      "covers": ["ledger-without-balance", "balance-without-ledger"]
+    }
+  ],
+  "ci_gate": {
+    "workflow_path": ".github/workflows/wwhn-128-inventory-decision-contract.yml",
+    "workflow_introduced_commit": "d8643c66cb2dd7cf24d16833ebfcdb411c645385",
+    "required_artifact_name": "wwhn-128-evidence-<exact-github-sha>",
+    "required_outputs": [
+      "build-metadata.json",
+      "junit.xml",
+      "phpunit.log",
+      "route-list.json",
+      "commit-stat.txt",
+      "changed-files.txt",
+      "SHA256SUMS"
+    ],
+    "latest_verified_run_id": null,
+    "latest_verified_conclusion": null,
+    "status": "PENDING_WORKFLOW_COMPLETION_AND_QA1_REVIEW"
+  },
+  "independent_review": {
+    "BA_BAS": "PENDING",
+    "TECH_LEAD": "PENDING",
+    "QA1": "PENDING",
+    "PM_APPROVER": "PENDING"
+  },
+  "prohibited_claims": [
+    "APPROVED",
+    "BASELINED",
+    "EFFECTIVE",
+    "TEST_PASS",
+    "DONE"
+  ]
+}
