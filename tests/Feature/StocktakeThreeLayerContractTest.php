@@ -308,25 +308,43 @@ class StocktakeThreeLayerContractTest extends TestCase
         ]);
     }
 
-    public function test_warehouse_data_scope_blocks_create_read_and_legacy_list(): void
+    public function test_warehouse_data_scope_blocks_create_read_and_apply(): void
     {
         $warehouseA = $this->warehouse('KHO-SCOPE-A');
         $warehouseB = $this->warehouse('KHO-SCOPE-B');
         $product = $this->product('SP-SCOPE');
-        $this->openingBalance($warehouseB, $product, 10);
-        $adminToken = $this->authToken($this->userWithPermissions('admin-scope', ['inventory.view', 'stocktake.adjust']));
-        $restrictedToken = $this->authToken($this->userWithPermissions(
+        $admin = $this->userWithPermissions('admin-scope', ['inventory.view', 'stocktake.adjust']);
+        $restricted = $this->userWithPermissions(
             'restricted-scope',
             ['inventory.view', 'stocktake.adjust'],
             $warehouseA->id
-        ));
+        );
+        $adminToken = $this->authToken($admin);
+        $restrictedToken = $this->authToken($restricted);
+        $this->openingBalance($warehouseB, $product, 10);
 
         $this->postJson('/api/v1/stocktake-sessions', [
             'warehouse_id' => $warehouseB->id,
         ], $this->headers($restrictedToken))
             ->assertStatus(403)
             ->assertJsonPath('error_code', 'WAREHOUSE_SCOPE_DENIED');
+
         $sessionId = $this->createAndStart($adminToken, $warehouseB->id, 'STK-SCOPE-001');
+        $this->postJson("/api/v1/stocktake-sessions/{$sessionId}/counts", [
+            'lines' => [$this->skuCountLine($product->id, 10)],
+        ], $this->headers($adminToken))->assertOk();
+        $review = $this->postJson("/api/v1/stocktake-sessions/{$sessionId}/review", [
+            'session_version' => 2,
+        ], $this->headers($adminToken))->assertOk();
+        $varianceId = $review->json('data.variances.0.variance_id');
+
+        $this->postJson("/api/v1/stocktake-sessions/{$sessionId}/apply-adjustment", [
+            'session_version' => 3,
+            'variance_ids' => [$varianceId],
+            'reason' => 'Cross-warehouse apply phải bị chặn',
+        ], $this->headers($restrictedToken, 'stk-scope-denied'))
+            ->assertStatus(403)
+            ->assertJsonPath('error_code', 'WAREHOUSE_SCOPE_DENIED');
         $this->getJson("/api/v1/stocktake-sessions/{$sessionId}", $this->headers($restrictedToken))
             ->assertStatus(403)
             ->assertJsonPath('error_code', 'WAREHOUSE_SCOPE_DENIED');
@@ -391,6 +409,9 @@ class StocktakeThreeLayerContractTest extends TestCase
         $occurredAt,
         string $type = StockMovement::ISSUE_OUT
     ): StockMovement {
+        $createdBy = User::query()->value('user_id');
+        $this->assertNotNull($createdBy, 'Fixture phải có actor audit hợp lệ trước khi ghi ledger.');
+
         return StockMovement::query()->create([
             'movement_no' => 'TEST-'.strtoupper(Str::random(10)),
             'business_key' => hash('sha256', Str::uuid()->toString()),
@@ -401,7 +422,7 @@ class StocktakeThreeLayerContractTest extends TestCase
             'qty_before' => $before,
             'qty_delta' => $delta,
             'qty_after' => $after,
-            'created_by' => (string) User::query()->value('user_id'),
+            'created_by' => (string) $createdBy,
             'occurred_at' => $occurredAt,
             'created_at' => $occurredAt,
         ]);
