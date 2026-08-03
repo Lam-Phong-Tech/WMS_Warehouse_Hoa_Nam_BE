@@ -78,6 +78,8 @@ const checks = {
   environment_has_no_committed_secret: environmentSecrets.length === 0,
   collection_has_no_literal_secret: collectionSecrets.length === 0,
 
+  focused_openapi_idempotency_key_bounds:
+    /IdempotencyKey:[\s\S]*minLength:\s*8[\s\S]*maxLength:\s*100/.test(focusedOpenApi),
   focused_openapi_scan_classify:
     openApiHasPathContract('/api/v1/scan/classify', 'scan.classify', ['stock_effect=NONE']),
   focused_openapi_inbound_scan:
@@ -117,6 +119,11 @@ const checks = {
   idempotency_row_lock: /lockForUpdate\s*\(/.test(idempotencySource),
   idempotency_response_snapshot: /response_body/.test(idempotencySource),
   idempotency_canonical_sha256: /canonicalize/.test(idempotencySource) && /hash\(['"]sha256['"]/.test(idempotencySource),
+  idempotency_v2_digest_comparator:
+    /v2Digest/.test(idempotencySource)
+    && /storedV2/.test(idempotencySource)
+    && /requestV2/.test(idempotencySource)
+    && /hash_equals\(\$storedV2,\s*\$requestV2\)/.test(idempotencySource),
   idempotency_lease_cas: /locked_until/.test(idempotencySource) && /processing/.test(idempotencySource),
 };
 
@@ -125,7 +132,7 @@ const failedChecks = Object.entries(checks)
   .map(([name]) => name);
 
 const output = {
-  schema_version: '1.1.0',
+  schema_version: '1.2.0',
   generated_at_utc: new Date().toISOString(),
   document_status: 'PROPOSED',
   approval_status: 'PENDING_INDEPENDENT_SIGN_OFF',
