@@ -26,7 +26,7 @@ class ReconcileAuditOutbox extends Command
             ->orderBy('created_at')
             ->limit($limit)
             ->get()
-            ->each(function (AuditOutbox $entry) use (& $processed, & $failed): void {
+            ->each(function (AuditOutbox $entry) use (&$processed, &$failed): void {
                 try {
                     AuditLog::create($entry->payload);
                     $entry->update([
