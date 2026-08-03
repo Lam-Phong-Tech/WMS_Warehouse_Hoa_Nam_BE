@@ -105,6 +105,7 @@ class WarehouseController extends Controller
     {
         /** @var User $user */
         $user = auth('api')->user();
+
         return $user;
     }
 
