@@ -1,0 +1,138 @@
+{
+  "info": {
+    "name": "WWHN-180 Posting Contract",
+    "description": "Executable happy, replay, different-payload and reconciliation contract for post-receipt/post-issue. Version 1.0.0 PROPOSED.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": {"major": 1, "minor": 0, "patch": 0}
+  },
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}", "type": "string"}]},
+  "variable": [
+    {"key": "base_url", "value": "http://127.0.0.1:8000"},
+    {"key": "access_token", "value": ""},
+    {"key": "warehouse_id", "value": ""},
+    {"key": "product_id", "value": ""},
+    {"key": "inbound_id", "value": ""},
+    {"key": "outbound_id", "value": ""},
+    {"key": "receipt_movement_id", "value": ""},
+    {"key": "issue_movement_id", "value": ""},
+    {"key": "run_id", "value": ""}
+  ],
+  "event": [{
+    "listen": "prerequest",
+    "script": {"type": "text/javascript", "exec": [
+      "if (!pm.collectionVariables.get('run_id')) pm.collectionVariables.set('run_id', Date.now().toString());"
+    ]}
+  }],
+  "item": [
+    {
+      "name": "01 Login",
+      "auth": {"type": "noauth"},
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"{{email}}\",\"password\":\"{{password}}\"}"},
+        "url": "{{base_url}}/api/v1/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('login 200', () => pm.response.to.have.status(200));",
+        "pm.collectionVariables.set('access_token', pm.response.json().data.access_token);"
+      ]}}]
+    },
+    {
+      "name": "02 Resolve warehouse",
+      "request": {"method": "GET", "url": "{{base_url}}/api/v1/warehouses"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('warehouse list 200', () => pm.response.to.have.status(200));",
+        "pm.collectionVariables.set('warehouse_id', pm.response.json().data[0].id);"
+      ]}}]
+    },
+    {
+      "name": "03 Resolve product",
+      "request": {"method": "GET", "url": "{{base_url}}/api/v1/products?per_page=1"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('product list 200', () => pm.response.to.have.status(200));",
+        "pm.collectionVariables.set('product_id', pm.response.json().data[0].id);"
+      ]}}]
+    },
+    {
+      "name": "04 Create inbound",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "wwhn180-create-in-{{run_id}}"}],
+        "body": {"mode": "raw", "raw": "{\"doc_no\":\"PN-WWHN180-{{run_id}}\",\"dst_warehouse_id\":\"{{warehouse_id}}\",\"lines\":[{\"product_id\":\"{{product_id}}\",\"qty_planned\":10}]}"},
+        "url": "{{base_url}}/api/v1/inbound-documents"
+      },
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('create inbound 201', () => pm.response.to.have.status(201));",
+        "pm.collectionVariables.set('inbound_id', pm.response.json().data.id);"
+      ]}}]
+    },
+    {"name": "05 Submit inbound", "request": {"method": "POST", "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/submit"}, "event": [{"listen": "test", "script": {"exec": ["pm.test('submit inbound 200', () => pm.response.to.have.status(200));"]}}]},
+    {"name": "06 Approve inbound", "request": {"method": "POST", "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/approve"}, "event": [{"listen": "test", "script": {"exec": ["pm.test('approve inbound 200', () => pm.response.to.have.status(200));"]}}]},
+    {
+      "name": "07 Post receipt",
+      "request": {"method": "POST", "header": [{"key": "Idempotency-Key", "value": "wwhn180-post-in-{{run_id}}"}], "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('post receipt 200', () => pm.response.to.have.status(200));",
+        "pm.test('received', () => pm.expect(pm.response.json().data.status).to.eql('received'));",
+        "pm.collectionVariables.set('receipt_movement_id', pm.response.json().data.movements[0].id);"
+      ]}}]
+    },
+    {
+      "name": "08 Replay receipt exact snapshot",
+      "request": {"method": "POST", "header": [{"key": "Idempotency-Key", "value": "wwhn180-post-in-{{run_id}}"}], "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('receipt replay 200', () => pm.response.to.have.status(200));",
+        "pm.test('same movement', () => pm.expect(pm.response.json().data.movements[0].id).to.eql(pm.collectionVariables.get('receipt_movement_id')));"
+      ]}}]
+    },
+    {
+      "name": "09 Same receipt key different payload",
+      "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "wwhn180-post-in-{{run_id}}"}], "body": {"mode": "raw", "raw": "{\"probe\":\"different-payload\"}"}, "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('different payload 409', () => pm.response.to.have.status(409));",
+        "pm.test('idempotency code', () => pm.expect(pm.response.json().error.code).to.eql('IDEMPOTENCY_ERROR'));"
+      ]}}]
+    },
+    {
+      "name": "10 Create outbound",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "wwhn180-create-out-{{run_id}}"}],
+        "body": {"mode": "raw", "raw": "{\"doc_no\":\"PX-WWHN180-{{run_id}}\",\"src_warehouse_id\":\"{{warehouse_id}}\",\"lines\":[{\"product_id\":\"{{product_id}}\",\"qty_planned\":3}]}"},
+        "url": "{{base_url}}/api/v1/outbound-documents"
+      },
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('create outbound 201', () => pm.response.to.have.status(201));",
+        "pm.collectionVariables.set('outbound_id', pm.response.json().data.id);"
+      ]}}]
+    },
+    {"name": "11 Submit outbound", "request": {"method": "POST", "url": "{{base_url}}/api/v1/outbound-documents/{{outbound_id}}/submit"}, "event": [{"listen": "test", "script": {"exec": ["pm.test('submit outbound 200', () => pm.response.to.have.status(200));"]}}]},
+    {"name": "12 Approve outbound", "request": {"method": "POST", "url": "{{base_url}}/api/v1/outbound-documents/{{outbound_id}}/approve"}, "event": [{"listen": "test", "script": {"exec": ["pm.test('approve outbound 200', () => pm.response.to.have.status(200));"]}}]},
+    {
+      "name": "13 Post issue",
+      "request": {"method": "POST", "header": [{"key": "Idempotency-Key", "value": "wwhn180-post-out-{{run_id}}"}], "url": "{{base_url}}/api/v1/outbound-documents/{{outbound_id}}/post-issue"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('post issue 200', () => pm.response.to.have.status(200));",
+        "pm.test('issued', () => pm.expect(pm.response.json().data.status).to.eql('issued'));",
+        "pm.collectionVariables.set('issue_movement_id', pm.response.json().data.movements[0].id);"
+      ]}}]
+    },
+    {
+      "name": "14 Replay issue exact snapshot",
+      "request": {"method": "POST", "header": [{"key": "Idempotency-Key", "value": "wwhn180-post-out-{{run_id}}"}], "url": "{{base_url}}/api/v1/outbound-documents/{{outbound_id}}/post-issue"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('issue replay 200', () => pm.response.to.have.status(200));",
+        "pm.test('same movement', () => pm.expect(pm.response.json().data.movements[0].id).to.eql(pm.collectionVariables.get('issue_movement_id')));"
+      ]}}]
+    },
+    {
+      "name": "15 Reconciliation",
+      "request": {"method": "GET", "url": "{{base_url}}/api/v1/reports/inventory-reconciliation?warehouse_id={{warehouse_id}}&product_id={{product_id}}"},
+      "event": [{"listen": "test", "script": {"exec": [
+        "pm.test('reconcile 200', () => pm.response.to.have.status(200));",
+        "pm.test('reconcile PASS', () => pm.expect(pm.response.json().data.summary.status).to.eql('PASS'));"
+      ]}}]
+    }
+  ]
+}
