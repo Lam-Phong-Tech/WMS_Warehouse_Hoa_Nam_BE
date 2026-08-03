@@ -1,668 +1,170 @@
 # [BE1] Triển khai auth/RBAC/audit và contract xử lý lỗi
 
-Task: WWHN-35 - [FOUNDATION] Xác thực, RBAC, audit và cấu trúc lỗi chuẩn  
-Role: BE1  
-Assignee placeholder: HN-BE-01  
-Output: Backend Nền tảng  
-Date: 2026-07-29  
-Last Updated: 2026-07-31
+- Jira: WWHN-35, WWHN-166, WWHN-167
+- Repository: `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE`
+- Base branch: `m1`
+- Scoped branch: `fix/wwhn-auth-rbac-audit-hardening`
+- Owner thực thi code: BE1
+- Review bắt buộc: Tech Lead, QA1, Security; QA2/FE1 cho browser evidence
+- Cập nhật: 2026-08-03
 
-## Phạm vi Hoàn thành
+> Tài liệu này không chứa username, password, access token, refresh token, API key hoặc credential dùng được. Trạng thái `APPROVED` chỉ được ghi bởi reviewer có thẩm quyền trên PR/Jira.
 
-- JWT auth endpoints giữ nguyên API envelope chuẩn với `success`, `data`, `error_code`, `error`, và `meta.request_id`.
-- RBAC được thực thi bởi backend middleware `permission:<permission_key>` cho các endpoint được bảo vệ của Warehouse và AuditLog.
-- AuditLog endpoint hiện yêu cầu `audit-log.view`.
-- Auth lifecycle ghi audit records cho `LOGIN`, `LOGIN_FAILED`, `LOGIN_DENIED`, `TOKEN_REFRESH`, `TOKEN_REFRESH_FAILED`, và `LOGOUT`.
-- Audit payloads không lưu password, access token, raw refresh token, stack trace, hoặc secret material.
-- Seed data bao gồm permissions và roles cơ bản: `SUPER_ADMIN`, `WAREHOUSE_OPERATOR`, `WAREHOUSE_MANAGER`, và `AUDITOR`.
-- OpenAPI artifact được tạo lại tại `storage/api-docs/api-docs.json`.
+## 1. Kết quả xử lý theo Exact Fix Action Register
 
-## Hợp đồng API
+| ID | Sev | Trạng thái BE | Thay đổi đã thực hiện | Evidence/Gate còn cần |
+|---|---|---|---|---|
+| FIX-01 | P1 | Implemented, chờ CI/QA1 sign-off | Bổ sung test 401 token hết hạn, refresh replay, RBAC, audit redaction/failure, malformed JSON, 422 và data scope. Replay token cũ thu hồi toàn bộ refresh-token family và ghi `TOKEN_REFRESH_FAILED`. | QA1 chạy lại trên current PR SHA, lưu command log, DB evidence và ký Done/Redflag. |
+| FIX-02 | P1 | Parent Ready | Backend contract đã khóa cho login, session `/auth/me`, logout, 403 và permission/menu payload; `warehouse_scope_ids` và `scope_ref` có trong response. | QA2 phải chạy browser thật cho login/session expiry/logout/direct URL/403/menu role và viewport; BE không tự ghi pass browser. |
+| FIX-03 | P1 | Implemented, chờ artifact CI | Source annotation login dùng `email`; loại credential mẫu; server được cấu hình qua `APP_URL`/`L5_SWAGGER_CONST_HOST`; CI regenerate JSON/YAML và upload artifact theo SHA. | Tech Lead/FE/QA review generated artifact và diff trước Contract gate. |
+| FIX-04 | P1 | Implemented | Postman collection không còn rỗng; có login/refresh/logout/me, token rotation, replay 401, invalid credential 401, missing refresh token 422. Collection không tự ghi `APPROVED`. | CI parse collection; QA1 import/run Newman trên môi trường được cấp credential qua secret/environment riêng. |
+| FIX-05 | P1 | Implemented, chờ CI | Tạo scoped branch/PR flow; workflow ghi nhận exact SHA, chạy syntax, Pint, full PHPUnit, Swagger generation, Redocly lint, Postman validation, npm lint/test/build và upload contract artifact. | PR review + CI run xanh; ghi PR number, run ID, artifact ID vào phần Evidence sau khi có. |
+| FIX-06 | P1 | Implemented | `User::warehouseScopeIds()` lấy scope từ active role assignment; Warehouse list filter scope; detail/update ngoài scope trả 403. Test thật Kho A/Kho B bao phủ list/detail/mutation. | QA1/Security review policy và DB evidence trên current SHA. |
+| FIX-07 | P1 | Implemented | Chính sách mặc định `outbox_required`; audit lỗi không còn bị nuốt. Primary write lỗi sẽ redaction + ghi `audit_outbox` + error alert. Nếu cả audit và outbox lỗi, request fail-closed. Có `audit:reconcile`, retry và exponential backoff. | Tech Lead/Security duyệt policy; vận hành cấu hình alert/monitoring production. |
+| FIX-08 | P1 | Repository sanitized; rotation external pending | Xóa credential plaintext khỏi hồ sơ này và không dùng credential trong Postman variables. Audit redaction chặn password/token/secret ở mọi cấp nested. | DevOps/Security xác nhận rotate/revoke các tài khoản từng chia sẻ bên ngoài repository, nếu có; đính kèm rotation record trên Jira, không commit secret. |
+| FIX-09 | P2 | Implemented | Permission evidence đồng bộ đúng key runtime: `audit_log.view`, `warehouse.view`, `warehouse.manage`, `stock_document.*`, `inventory.view`, `report.view`. | BA/QA1 xác nhận traceability version hiện hành. |
+| FIX-10 | P2 | Implemented | Xóa toàn bộ tracked `.npm-cache` bằng Git tree commit; `/.npm-cache` đã có trong `.gitignore`; CI dùng cache của runner thay vì commit cache. | Tech Lead xác nhận clean PR diff. |
 
-### Auth
+## 2. Thiết kế Auth và token lifecycle
 
-| Method | Endpoint | Auth | Notes |
+### Endpoints canonical
+
+| Method | Endpoint | Auth | Contract chính |
 |---|---|---|---|
-| POST | `/api/v1/auth/login` | public | Đăng nhập username/password, trả về JWT access token, refresh token, user roles và permissions. |
-| POST | `/api/v1/auth/refresh` | public refresh token | Xoay vòng refresh token, trả về access token mới, refresh token, user roles và permissions. |
-| POST | `/api/v1/auth/logout` | Bearer JWT | Thu hồi refresh token nếu có và đăng xuất access token hiện tại. |
-| GET | `/api/v1/auth/me` | Bearer JWT | Trả về thông tin profile, active roles, role scopes, và permissions. |
+| POST | `/api/v1/auth/login` | Public | Request bắt buộc `email`, `password`; trả access token, refresh token, user, active roles, permissions và warehouse scopes. |
+| POST | `/api/v1/auth/refresh` | Refresh token | Rotate một lần; token cũ bị revoke. Replay token cũ revoke toàn bộ active refresh token của user. |
+| POST | `/api/v1/auth/logout` | Bearer JWT | Nếu gửi refresh token thì revoke token đó; nếu không gửi thì revoke toàn bộ refresh token của user; access token hiện tại bị invalidate. |
+| GET | `/api/v1/auth/me` | Bearer JWT | Trả profile, active roles theo effective window, permissions và `warehouse_scope_ids`. |
 
-### AuditLog
+### Negative/error baseline
 
-| Method | Endpoint | Required permission |
+| HTTP | `error.code` | Tình huống |
 |---|---|---|
-| GET | `/api/v1/audit-logs` | `audit-log.view` |
+| 400 | `MALFORMED_JSON` | JSON request hỏng. |
+| 401 | `UNAUTHENTICATED` | Thiếu/sai/hết hạn access token; refresh token invalid/expired/replayed. |
+| 403 | `ACCESS_DENIED` | Thiếu permission, account locked, hoặc warehouse ngoài scope. |
+| 404 | `RESOURCE_NOT_FOUND` | Resource/path không tồn tại. |
+| 405 | `METHOD_NOT_ALLOWED` | Sai HTTP method. |
+| 409 | `STATE_CONFLICT` / `IDEMPOTENCY_ERROR` | State transition hoặc idempotency conflict. |
+| 422 | `BUSINESS_RULE_ERROR` / `VALIDATION_ERROR` | Validation/business rule fail. |
+| 500 | `INTERNAL_SERVER_ERROR` | Lỗi hệ thống không dự kiến; production không trả trace. |
 
-## Hợp đồng Lỗi
+Mọi response API có `X-Request-ID` và `meta.request_id`; audit dùng cùng request ID để trace.
 
-Tất cả API errors theo format:
+## 3. Data-scope policy
 
-```json
-{
-  "success": false,
-  "message": "Error message",
-  "error_code": "ACCESS_DENIED",
-  "errors": {},
-  "error": {
-    "code": "ACCESS_DENIED",
-    "details": {}
-  },
-  "meta": {
-    "request_id": "uuid",
-    "timestamp": "2026-07-29T16:00:00+07:00"
-  }
-}
-```
+- `SUPER_ADMIN`: unrestricted.
+- User có active role assignment với `scope_ref=<warehouse UUID>`: chỉ truy cập các warehouse ID đã gán.
+- Warehouse list: chỉ trả records trong scope.
+- Warehouse detail: ngoài scope trả `403 ACCESS_DENIED`, không trả dữ liệu Kho B cho user Kho A.
+- Warehouse mutation: ngoài scope trả `403 ACCESS_DENIED` trước khi update.
+- Active role phải thỏa `role.status=ACTIVE`, `effective_from <= now`, `effective_to > now` hoặc các mốc null.
+- `/auth/me` trả `scope_ref` trên từng role và `warehouse_scope_ids` để FE dựng menu/context, nhưng backend vẫn là enforcement source of truth.
 
-Baseline error codes:
+## 4. Audit reliability policy
 
-| HTTP | error_code |
+### Policy mặc định: `outbox_required`
+
+1. Payload được sanitize đệ quy trước khi ghi.
+2. Ghi `audit_log` thành công: hoàn tất.
+3. Ghi `audit_log` lỗi: phát log `AUDIT_WRITE_FAILED`, ghi payload đã sanitize vào `audit_outbox`.
+4. Ghi cả `audit_log` và `audit_outbox` lỗi: phát `AUDIT_OUTBOX_WRITE_FAILED` mức critical và fail request.
+5. `php artisan audit:reconcile` replay outbox theo batch; lỗi dùng exponential backoff và tăng `attempts`.
+6. Có thể cấu hình `AUDIT_WRITE_POLICY=fail_closed` cho mutation cực nhạy cảm.
+
+Sensitive keys được redaction gồm password, password hash, current/new password, access/refresh token, Authorization, cookie, session, secret, API/private key. Giá trị thay bằng `[REDACTED]`.
+
+## 5. Permission matrix hiện hành
+
+| Permission | Runtime use |
 |---|---|
-| 400 | `MALFORMED_JSON` |
-| 401 | `UNAUTHENTICATED` |
-| 403 | `ACCESS_DENIED` |
-| 404 | `RESOURCE_NOT_FOUND` |
-| 405 | `METHOD_NOT_ALLOWED` |
-| 409 | `STATE_CONFLICT` / `IDEMPOTENCY_ERROR` |
-| 422 | `BUSINESS_RULE_ERROR` / `INSUFFICIENT_STOCK` |
-| 428 | `PRECONDITION_REQUIRED` |
-| 500 | `INTERNAL_SERVER_ERROR` |
+| `warehouse.view` | GET warehouse list/detail; document-status transition reference. |
+| `warehouse.manage` | PATCH warehouse; snapshot generation; transition configuration. |
+| `audit_log.view` | GET `/api/v1/audit-logs`. |
+| `product.view`, `product.manage` | Product read/mutation. |
+| `sku.manage`, `master.manage` | SKU/import và master data. |
+| `stock_document.view/create/submit/approve/post/scan/cancel/reverse` | Full stock-document lifecycle. |
+| `inventory.view` | Balance, movements, reservation/snapshot/reference inventory APIs. |
+| `report.view` | Inventory reports/reconciliation. |
+| `stock_request.*`, `transfer.*` | Stock request và transfer lifecycle. |
 
-## Ma trận Quyền
+Không dùng các key cũ/sai như `audit-log.view`, `master-data.warehouse.view` hoặc `warehouse.stock-document.view` trong evidence runtime.
 
-| Permission | Used by |
+## 6. Test và quality gate
+
+### Focused security suite
+
+```bash
+php artisan test tests/Feature/AuthRbacAuditHardeningTest.php --do-not-cache-result
+php artisan test tests/Feature/SecurityRbacAuditNegativeTest.php --do-not-cache-result
+```
+
+Coverage mới:
+
+- Expired access token -> 401 chuẩn.
+- Refresh rotate thành công; replay token cũ -> 401; token family mới cũng bị revoke.
+- `TOKEN_REFRESH_FAILED` có audit nhưng không chứa raw token.
+- Kho A list/detail/update thành công; Kho B bị deny detail và mutation.
+- Nested secrets bị `[REDACTED]`.
+- Primary audit storage fail -> payload tồn tại ở outbox, không mất âm thầm.
+- Malformed JSON -> 400; refresh thiếu token -> 422.
+
+### CI gate
+
+Workflow: `.github/workflows/auth-rbac-audit-contract.yml`
+
+```text
+PHP 8.3 syntax
+Pint --test
+Full php artisan test
+l5-swagger:generate
+Redocly OpenAPI lint
+Postman JSON/non-empty validation
+npm lint
+npm test
+npm build
+Upload generated JSON/YAML/Postman artifact keyed by github.sha
+```
+
+## 7. OpenAPI/Postman contract
+
+- OpenAPI source annotations là source of truth.
+- Login field canonical: `email`.
+- Mẫu tài liệu chỉ dùng placeholder không dùng được: `user@example.com`, `your-password`.
+- Server URL lấy từ environment, không hard-code staging/production credential.
+- CI regenerate JSON/YAML từ current attributes.
+- Postman variables `email`, `password`, token để trống; credential được QA inject qua environment/secret.
+- Reviewer approval nằm trên PR/Jira; collection không tự tuyên bố approved.
+
+## 8. Evidence register
+
+| Evidence | Location/status |
 |---|---|
-| `master-data.warehouse.view` | GET warehouses |
-| `master-data.warehouse.create` | POST warehouses |
-| `master-data.product.view` | GET products |
-| `master-data.product.create` | POST products |
-| `warehouse.stock-document.view` | GET stock documents |
-| `warehouse.stock-document.create` | POST stock documents |
-| `warehouse.stock-document.submit` | Submit stock document |
-| `warehouse.stock-document.approve` | Approve/reject stock document |
-| `warehouse.stock-document.post` | Post/dispatch/receive/return transfer stock document |
-| `warehouse.stock-document.cancel` | Cancel stock document |
-| `warehouse.stock-request.view` | GET stock requests |
-| `warehouse.stock-request.create` | POST stock requests |
-| `warehouse.stock-request.submit` | Submit stock request |
-| `warehouse.stock-request.approve` | Approve/reject stock request |
-| `warehouse.stock-request.cancel` | Cancel stock request |
-| `warehouse.stock-request.convert` | Convert stock request |
-| `warehouse.safe-stock.view` | GET safe-stock config/alerts |
-| `warehouse.safe-stock.manage` | POST safe-stock config |
-| `report.inventory.view` | Inventory reports |
-| `audit-log.view` | GET audit logs |
-
-## Bằng chứng Test
-
-### Foundation Tests
-
-Command:
-
-```bash
-php artisan test --do-not-cache-result
-```
-
-Result:
-
-```text
-39 tests passed, 306 assertions
-```
-
-Focused foundation command:
-
-```bash
-php artisan test --filter=FoundationAuthRbacAuditTest --do-not-cache-result
-```
-
-Result:
-
-```text
-5 tests passed, 76 assertions
-```
-
-### QA1 Security/RBAC/Audit Negative Tests (BE1-P1-01, BE1-P1-06)
-
-Command:
-
-```bash
-php artisan test --filter=SecurityRbacAuditNegativeTest --do-not-cache-result
-```
-
-Result:
-
-```text
-14 tests passed, 115 assertions
-```
-
-Test coverage bao gồm:
-
-**BE1-P1-01: Security/RBAC/Audit Tests**
-- `test_protected_endpoints_return_401_without_token` - Xác minh tất cả protected endpoints trả về 401 UNAUTHENTICATED khi không có token
-- `test_user_without_permission_gets_403_on_protected_endpoints` - Xác minh users không có permission nhận 403 ACCESS_DENIED
-- `test_expired_and_invalid_tokens_return_401` - Xác minh invalid/malformed/empty tokens trả về 401
-- `test_auth_lifecycle_creates_audit_logs` - Xác minh LOGIN, LOGIN_FAILED, TOKEN_REFRESH, LOGOUT audit records
-- `test_audit_logs_do_not_contain_sensitive_data` - Xác minh không có passwords/tokens trong audit logs
-- `test_locked_account_returns_403_and_audits` - Xác minh LOGIN_DENIED audit cho locked accounts
-
-**BE1-P1-06: Object-Level/Data-Scope Tests**
-- `test_user_without_warehouse_scope_gets_403` - Xác minh data scope enforcement
-- `test_super_admin_bypasses_all_permission_checks` - Xác minh SUPER_ADMIN bypass
-- `test_permission_check_is_exact_match` - Xác minh exact permission matching
-
-**BE1-P1-02: QA2 Role/Navigation/403 Tests**
-- `test_login_returns_correct_roles_and_permissions` - Xác minh role-based permission sets
-- `test_session_persistence_and_auth_me` - Xác minh session và /auth/me endpoint
-- `test_role_based_navigation_capabilities` - Xác minh UI navigation dựa trên permissions
-- `test_403_response_structure_for_ui_navigation` - Xác minh 403 structure cho UI consumption
-- `test_multiple_roles_with_different_permissions` - Xác minh concurrent role checks
-
-## Audit Evidence
-
-### AuditLog Model Schema
-
-Bảng `audit_log` hỗ trợ comprehensive audit trail với các fields:
-
-| Field | Type | Purpose |
-|---|---|---|
-| `audit_log_id` | UUID (PK) | Unique identifier |
-| `actor_id` | UUID (nullable) | User thực hiện action |
-| `action` | string | Action type (LOGIN, LOGIN_FAILED, UPDATE, DELETE, etc.) |
-| `object_type` | string | Entity type (app_user, warehouse, product, etc.) |
-| `object_id` | UUID (nullable) | ID của entity bị ảnh hưởng |
-| `reason` | string (nullable) | Lý do cho action |
-| `request_id` | UUID | Links đến API request để traceability |
-| `before_data` | JSON (nullable) | State trước khi mutation |
-| `after_data` | JSON (nullable) | State sau khi mutation |
-| `created_at` | timestamp | Thời điểm tạo audit record |
-
-### Audit Field Matrix theo Action
-
-| Action | actor_id | object_type | object_id | before_data | after_data | reason | request_id |
-|---|---|---|---|---|---|---|---|
-| LOGIN | user_id | app_user | user_id | - | user_roles+perms | - | ✓ |
-| LOGIN_FAILED | user_id | app_user | user_id | - | email only | Invalid credentials | ✓ |
-| LOGIN_DENIED | user_id | app_user | user_id | - | status | Inactive/locked | ✓ |
-| TOKEN_REFRESH | user_id | app_user | user_id | - | - | - | ✓ |
-| TOKEN_REFRESH_FAILED | user_id | app_user | user_id | - | - | Invalid token | ✓ |
-| LOGOUT | user_id | app_user | user_id | - | - | - | ✓ |
-| CREATE | user_id | entity | entity_id | - | full entity | - | ✓ |
-| UPDATE | user_id | entity | entity_id | changed fields | full entity | - | ✓ |
-| DELETE | user_id | entity | entity_id | full entity | - | reason | ✓ |
-
-### Sample Audit DB Rows
-
-**LOGIN Success:**
-```json
-{
-  "actor_id": "550e8400-e29b-41d4-a716-446655440000",
-  "action": "LOGIN",
-  "object_type": "app_user",
-  "object_id": "550e8400-e29b-41d4-a716-446655440000",
-  "reason": null,
-  "request_id": "660e8400-e29b-41d4-a716-446655440001",
-  "before_data": null,
-  "after_data": null,
-  "created_at": "2026-07-31T15:00:00+07:00"
-}
-```
-
-**LOGIN_FAILED (không có sensitive data):**
-```json
-{
-  "actor_id": "550e8400-e29b-41d4-a716-446655440000",
-  "action": "LOGIN_FAILED",
-  "object_type": "app_user",
-  "object_id": "550e8400-e29b-41d4-a716-446655440000",
-  "reason": "Invalid email or password",
-  "request_id": "660e8400-e29b-41d4-a716-446655440002",
-  "before_data": {},
-  "after_data": {
-    "email": "user@wms-hoanam.test"
-  },
-  "created_at": "2026-07-31T15:01:00+07:00"
-}
-```
-
-**Warehouse UPDATE (before/after):**
-```json
-{
-  "actor_id": "550e8400-e29b-41d4-a716-446655440000",
-  "action": "UPDATE",
-  "object_type": "warehouse",
-  "object_id": "770e8400-e29b-41d4-a716-446655440003",
-  "reason": null,
-  "request_id": "660e8400-e29b-41d4-a716-446655440004",
-  "before_data": {
-    "id": "770e8400-e29b-41d4-a716-446655440003",
-    "code": "KHO-001",
-    "name": "Kho Tong Hoa Nam",
-    "address": "123 Street",
-    "contact_person": "John Doe",
-    "phone": "0909123456",
-    "status": "ACTIVE"
-  },
-  "after_data": {
-    "id": "770e8400-e29b-41d4-a716-446655440003",
-    "code": "KHO-001",
-    "name": "Kho Tong Hoa Nam Updated",
-    "address": "123 Street",
-    "contact_person": "Jane Doe",
-    "phone": "0909123456",
-    "status": "ACTIVE"
-  },
-  "created_at": "2026-07-31T15:02:00+07:00"
-}
-```
-
-### Audit Security Guarantees
-
-Hệ thống audit explicitly loại trừ các sensitive data:
-- Passwords (password, password_hash)
-- Access tokens
-- Refresh tokens
-- Stack traces
-- Secret keys
-- API keys
-
-Đã xác minh bởi test: `test_audit_logs_do_not_contain_sensitive_data`
-
-## Build & Deployment Evidence
-
-### Git Commit Information
-
-**Latest Commit:**
-- SHA: `aab84d2689018bac915e5e7d0782e0fc8ecd90f0`
-- Message: Merge branch 'main' into m1 - resolved conflicts
-- Date: 2026-07-31
-
-**Recent Commits:**
-- `4d71817fe448eee058f25f9063a24fe84b79f5b9` - hoàn thiện code base
-- `80c74aa03f4a9c31864479b8c7cb25d98bf7635c` - fix base
-- `4da92ddf9ce8d68a6b542b2919db80f38abc97da` - fix base
-- `cb36dc513544410e25f3f7d5648b7e5dd2f8c230` - thêm file docker
-
-### Environment Configuration
-
-**Environment Variables (từ .env.example):**
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `VITE_APP_NAME` | Tên application | `${APP_NAME}` |
-| `VITE_APP_ENV` | Môi trường | `${APP_ENV}` |
-| `VITE_API_BASE_URL` | API base URL cho FE | `${APP_URL}/api/v1` |
-| `VITE_HEALTH_ENDPOINT` | Health check endpoint | `${APP_URL}/api/health` |
-| `VITE_BUILD_VERSION` | Version label | `local-dev` |
-| `VITE_BUILD_SHA` | Commit SHA để traceability | `local` |
-
-### Database Migrations & Seeds
-
-**Migration/Seed Chain:**
-- `DatabaseSeeder` gọi:
-  1. `AuthDatabaseSeeder` - Seed permissions, roles, users
-  2. `WarehouseDatabaseSeeder` - Seed warehouse data
-  3. `AuditLogDatabaseSeeder` - Seed audit configuration
-
-**Baseline Roles Seeded:**
-- `SUPER_ADMIN` - Bypasses tất cả permission checks
-- `WAREHOUSE_STAFF` - Basic warehouse operations
-- `WAREHOUSE_APPROVER` - Approval workflows
-- `WAREHOUSE_KEEPER` - Stock operations
-- `VIEWER` - Read-only access
-- `WAREHOUSE_MANAGER` - Full warehouse management
-
-**Baseline Permissions Seeded:**
-24 permissions bao gồm warehouse.view, warehouse.manage, product.view, stock_document.*, audit_log.view, etc.
-
-**Test Users Seeded:**
-- `admin` / `Cntt@1234` (SUPER_ADMIN)
-- `staff01` / `Cntt@1234` (WAREHOUSE_STAFF)
-- `approver01` / `Cntt@1234` (WAREHOUSE_APPROVER)
-- `keeper01` / `Cntt@1234` (WAREHOUSE_KEEPER)
-- `viewer01` / `Cntt@1234` (VIEWER)
-- `manager01` / `Cntt@1234` (WAREHOUSE_MANAGER)
-
-### OpenAPI Specification
-
-**File:** `storage/api-docs/api-docs.json`
-
-**Version:** 1.0.0
-
-**Info:**
-- Title: WMS_HoaNam API
-- Description: Base API cho hệ thống quản lý kho Hoa Nam Tools
-- OpenAPI Version: 3.0.0
-
-**Server:**
-- Local: `http://localhost:8080` (Docker)
-
-**Documented Endpoints:**
-- Authentication: `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/me`
-- Warehouse: `/api/v1/warehouses`, `/api/v1/warehouses/{id}`
-- Audit: `/api/v1/audit-logs`
-- Stock Documents: Inbound/Outbound với full lifecycle
-- Inventory: `/api/v1/inventory/balances`, `/api/v1/stock-movements`
-- Và 30+ endpoints khác
-
-### Postman Collection
-
-**File:** `docs/HN-INT-001_BE1_payload_samples.postman_collection.json`
-
-**Version:** 1.0.0
-
-**Collection Name:** HN-INT-001 BE1 Hoa Nam Canonical Payload Samples
-
-**Contents:**
-- Auth flows (login, refresh, logout)
-- Inbound document lifecycle (create, scan, post-receipt, reverse)
-- Outbound document lifecycle (create, scan, post-issue, reverse)
-- Inventory queries
-- Negative tests (missing idempotency key)
-- 15+ request examples với canonical payloads
-
-## API Contract Resolution
-
-### Refresh Endpoint Naming (BE1-P1-05)
-
-**Canonical Endpoint:** `/api/v1/auth/refresh`
-
-**Status:** Đây là tên endpoint chính xác trong codebase.
-
-**Evidence:**
-- Route definition: `POST /api/v1/auth/refresh`
-- OpenAPI spec: `path: '/api/v1/auth/refresh'`
-- AuthController method: `public function refresh(Request $request)`
-- Postman collection: Sử dụng `/api/v1/auth/refresh`
-- Tất cả tests pass với endpoint này
-
-**Note:** Đề xuất Swagger standard `/api/v1/auth/refresh-token` KHÔNG được implement. Codebase consistently sử dụng `/api/v1/auth/refresh` trên tất cả artifacts (routes, OpenAPI, Postman, tests). Không cần backward compatibility layer vì đây là implementation gốc và duy nhất.
-
-## Permission Middleware Implementation
-
-**Middleware:** `Modules\Auth\Http\Middleware\CheckPermission`
-
-**Usage:** `permission:<permission_key>`
-
-**Behavior:**
-1. Extract JWT token từ Authorization header
-2. Authenticate user qua JWTAuth
-3. Check user permission qua `$user->hasPermission($permission)`
-4. SUPER_ADMIN bypass tất cả checks
-5. Return 401 nếu chưa authenticated
-6. Return 403 nếu authenticated nhưng thiếu permission
-
-**Security Features:**
-- Backend-enforced only (không trust client-side)
-- Không có sensitive data trong error responses
-- Standard error envelope được maintain
-- Request ID được track để audit correlation
-
-## Phân tích Chi tiết các Phản hồi
-
-### BE1-P1-01: QA1 Security/RBAC/Audit Test Evidence ✅
-
-**Trạng thái:** HOÀN THÀNH
-
-**Vấn đề Ban đầu:** QA1 vẫn To Do, chưa có security/RBAC/audit test độc lập
-
-**Giải pháp:**
-- Tạo comprehensive test suite: `tests/Feature/SecurityRbacAuditNegativeTest.php`
-- 14 tests với 115 assertions specifically cho QA1 requirements
-- Tests cover:
-  - 401 UNAUTHENTICATED cho tất cả protected endpoints không có token
-  - 403 ACCESS_DENIED cho users không có required permissions
-  - Invalid/expired token handling
-  - Complete auth lifecycle audit (LOGIN, LOGIN_FAILED, TOKEN_REFRESH, LOGOUT)
-  - Audit log security (không có sensitive data leakage)
-  - Locked account handling (LOGIN_DENIED)
-
-**Lệnh Test:**
-```bash
-php artisan test --filter=SecurityRbacAuditNegativeTest --do-not-cache-result
-```
-
-**Kết quả:** 14 tests passed, 115 assertions
-
-### BE1-P1-02: QA2 Role/Navigation/403 Test Evidence ✅
-
-**Trạng thái:** HOÀN THÀNH
-
-**Vấn đề Ban đầu:** QA2 vẫn To Do, chưa xác nhận UI role/navigation/403
-
-**Giải pháp:**
-- Thêm 5 comprehensive tests cho QA2 requirements trong `SecurityRbacAuditNegativeTest.php`:
-  - `test_login_returns_correct_roles_and_permissions` - Xác minh mỗi role nhận đúng permission set
-  - `test_session_persistence_and_auth_me` - Xác minh session và /auth/me endpoint
-  - `test_role_based_navigation_capabilities` - Xác minh UI có thể determine capabilities từ permissions
-  - `test_403_response_structure_for_ui_navigation` - Xác minh 403 structure cho UI consumption
-  - `test_multiple_roles_with_different_permissions` - Xác minh concurrent role checks
-
-**Các Phát Hiện Quan Trọng:**
-- Viewer role: có thể đọc warehouses, không thể đọc audit logs
-- Editor role: có thể đọc cả warehouses và audit logs
-- 403 response structure là consistent và UI-consumable
-- UI có thể sử dụng `error.code === 'ACCESS_DENIED'` để hide/disable navigation items
-
-**Lệnh Test:**
-```bash
-php artisan test --filter=SecurityRbacAuditNegativeTest::test_role_based_navigation_capabilities
-```
-
-**Kết quả:** PASS
-
-### BE1-P1-03: OpenAPI/Postman Artifact Evidence ✅
-
-**Trạng thái:** HOÀN THÀNH
-
-**Vấn đề Ban đầu:** Evidence chỉ ghi path storage/api-docs/api-docs.json, chưa thấy OpenAPI/Postman artifact/version attach
-
-**Giải pháp:**
-Updated evidence document với comprehensive artifact information:
-
-### OpenAPI Specification
-- **File:** `storage/api-docs/api-docs.json`
-- **Version:** 1.0.0
-- **OpenAPI Version:** 3.0.0
-- **Title:** WMS_HoaNam API
-- **Server:** http://localhost:8080 (Docker)
-- **Endpoints Documented:** 30+ endpoints bao gồm auth, warehouse, audit, stock documents, inventory
-
-### Postman Collection
-- **File:** `docs/HN-INT-001_BE1_payload_samples.postman_collection.json`
-- **Version:** 1.0.0
-- **Collection Name:** HN-INT-001 BE1 Hoa Nam Canonical Payload Samples
-- **Contents:** 15+ request examples bao gồm auth, inbound, outbound, inventory, và negative tests
-
-**Vị trí Evidence:** Cả hai files đều trong repository và được reference trong `docs/HN-FND-001_BE1_Evidence.md`
-
-### BE1-P1-04: PR/Build/Env/Migration Evidence ✅
-
-**Trạng thái:** HOÀN THÀNH
-
-**Vấn đề Ban đầu:** Chưa có PR link, commit SHA, build ID, env, migration/seed version
-
-**Giải pháp:**
-Thêm comprehensive build và deployment evidence vào `docs/HN-FND-001_BE1_Evidence.md`:
-
-### Git Commit Information
-- **Latest Commit SHA:** `aab84d2689018bac915e5e7d0782e0fc8ecd90f0`
-- **Message:** Merge branch 'main' into m1 - resolved conflicts
-- **Date:** 2026-07-31
-- **Recent History:** 5+ commits với full SHAs documented
-
-### Environment Configuration
-Documented tất cả Vite environment variables từ `.env.example`:
-- `VITE_APP_NAME` - Tên application
-- `VITE_APP_ENV` - Môi trường
-- `VITE_API_BASE_URL` - API base URL
-- `VITE_HEALTH_ENDPOINT` - Health check
-- `VITE_BUILD_VERSION` - Version label (default: local-dev)
-- `VITE_BUILD_SHA` - Commit SHA (default: local)
-
-### Database Migrations & Seeds
-- **Migration Chain:** DatabaseSeeder → AuthDatabaseSeeder → WarehouseDatabaseSeeder → AuditLogDatabaseSeeder
-- **Baseline Roles:** 6 roles (SUPER_ADMIN, WAREHOUSE_STAFF, WAREHOUSE_APPROVER, WAREHOUSE_KEEPER, VIEWER, WAREHOUSE_MANAGER)
-- **Baseline Permissions:** 24 permissions
-- **Test Users:** 6 users với documented credentials
-
-### Test Commands cho QA Retest
-```bash
-# Full test suite
-php artisan test --do-not-cache-result
-
-# Foundation tests
-php artisan test --filter=FoundationAuthRbacAuditTest --do-not-cache-result
-
-# Security/RBAC tests
-php artisan test --filter=SecurityRbacAuditNegativeTest --do-not-cache-result
-```
-
-### BE1-P1-05: API Contract Auth Refresh Endpoint ✅
-
-**Trạng thái:** HOÀN THÀNH
-
-**Vấn đề Ban đầu:** Evidence dùng /api/v1/auth/refresh, Swagger standard nêu /api/v1/auth/refresh-token
-
-**Giải pháp:**
-Xác nhận canonical endpoint và document resolution:
-
-### Canonical Endpoint: `/api/v1/auth/refresh`
-
-**Evidence:**
-1. Route definition: `POST /api/v1/auth/refresh`
-2. OpenAPI spec: `path: '/api/v1/auth/refresh'`
-3. AuthController method: `public function refresh(Request $request)`
-4. Postman collection: Sử dụng `/api/v1/auth/refresh`
-5. Tất cả tests pass với endpoint này
-
-**Resolution:**
-- Endpoint `/api/v1/auth/refresh` là tên chính xác
-- Đề xuất `/api/v1/auth/refresh-token` KHÔNG được implement
-- Không cần backward compatibility layer vì đây là implementation gốc và duy nhất
-- Tất cả artifacts (routes, OpenAPI, Postman, tests) đều consistent
-
-**Documentation:** Đã thêm section "API Contract Resolution" vào evidence document
-
-### BE1-P1-06: Auth/RBAC Data Scope Test Evidence ✅
-
-**Trạng thái:** HOÀN THÀNH
-
-**Vấn đề Ban đầu:** Evidence chứng minh permission middleware nhưng chưa thấy object-level/data-scope test độc lập
-
-**Giải pháp:**
-Thêm 3 comprehensive object-level/data-scope tests:
-
-### Test 1: `test_user_without_warehouse_scope_gets_403`
-- Tạo user với chỉ `warehouse.view` permission
-- Xác minh user có thể access warehouses
-- Xác minh user KHÔNG thể access audit logs (different permission)
-- Demonstrate data scope enforcement tại permission level
-
-### Test 2: `test_super_admin_bypasses_all_permission_checks`
-- Tạo SUPER_ADMIN user với không có explicit permissions
-- Xác minh SUPER_ADMIN có thể access warehouses, audit logs, VÀ products
-- Demonstrate SUPER_ADMIN bypass logic trong `User::isSuperAdmin()`
-
-### Test 3: `test_permission_check_is_exact_match`
-- Tạo user với chỉ `warehouse.view` permission
-- Xác minh exact permission matching (không có wildcards)
-- Xác minh user không thể access endpoints yêu cầu permissions khác
-
-**Implementation Details:**
-- SUPER_ADMIN bypass được implement trong `User::isSuperAdmin()` method
-- Permission check được implement trong `User::hasPermission()` method
-- Middleware: `Modules\Auth\Http\Middleware\CheckPermission`
-- Caching: 5-minute cache trên permission codes per user
-
-**Lệnh Test:**
-```bash
-php artisan test --filter=SecurityRbacAuditNegativeTest::test_permission_check_is_exact_match
-```
-
-**Kết quả:** PASS
-
-### BE1-P2-01: Audit Evidence Enhancement ✅
-
-**Trạng thái:** HOÀN THÀNH
-
-**Vấn đề Ban đầu:** Có action audit nhưng chưa thấy before/after/reference/reason matrix đầy đủ
-
-**Giải pháp:**
-Thêm comprehensive audit evidence section vào `docs/HN-FND-001_BE1_Evidence.md`:
-
-### AuditLog Model Schema
-Documented tất cả fields:
-- `audit_log_id` - UUID primary key
-- `actor_id` - User thực hiện action
-- `action` - Action type (LOGIN, UPDATE, DELETE, etc.)
-- `object_type` - Entity type
-- `object_id` - Affected entity ID
-- `reason` - Lý do cho action
-- `request_id` - Links đến API request
-- `before_data` - State trước mutation (JSON)
-- `after_data` - State sau mutation (JSON)
-- `created_at` - Timestamp
-
-### Audit Field Matrix theo Action
-Complete matrix showing which fields được populate cho mỗi action type:
-- LOGIN, LOGIN_FAILED, LOGIN_DENIED
-- TOKEN_REFRESH, TOKEN_REFRESH_FAILED, LOGOUT
-- CREATE, UPDATE, DELETE
-
-### Sample Audit DB Rows
-Cung cấp 3 detailed examples:
-1. **LOGIN Success** - Shows minimal data cho successful auth
-2. **LOGIN_FAILED** - Shows không có sensitive data (chỉ email trong after_data)
-3. **Warehouse UPDATE** - Shows complete before/after data với changed fields
-
-### Audit Security Guarantees
-Explicitly documented những gì KHÔNG được store:
-- Passwords (password, password_hash)
-- Access tokens
-- Refresh tokens
-- Stack traces
-- Secret keys
-- API keys
-
-**Verification:** Test `test_audit_logs_do_not_contain_sensitive_data` xác minh không có sensitive data leakage
-
-## Tóm tắt Thay đổi
-
-### Files Đã Tạo
-1. `tests/Feature/SecurityRbacAuditNegativeTest.php` - 14 comprehensive tests (115 assertions)
-
-### Files Đã Sửa
-1. `docs/HN-FND-001_BE1_Evidence.md` - Hoàn toàn rewrite với comprehensive evidence
-
-### Kết quả Test
-- **Total Tests:** 53 passed (421 assertions)
-- **Foundation Tests:** 39 passed (306 assertions)
-- **New Security/RBAC Tests:** 14 passed (115 assertions)
-- **Test Execution Time:** ~4 seconds
-
-### Độ Đầy Đủ Của Evidence
-✅ BE1-P1-01: QA1 security/RBAC/audit tests - 14 tests covering all scenarios
-✅ BE1-P1-02: QA2 role/navigation/403 tests - 5 tests với UI consumption verification
-✅ BE1-P1-03: OpenAPI/Postman artifacts - Versioned và documented
-✅ BE1-P1-04: Build/deployment evidence - Git SHA, env vars, migration chain
-✅ BE1-P1-05: Refresh endpoint naming - Canonical endpoint confirmed
-✅ BE1-P1-06: Object-level/data-scope tests - 3 comprehensive tests
-✅ BE1-P2-01: Audit field matrix - Complete matrix với sample DB rows
-
-### Các Bước Tiếp Theo Cho QA
-1. Chạy `php artisan test --do-not-cache-result` để verify tất cả tests pass
-2. Review `docs/HN-FND-001_BE1_Evidence.md` cho complete evidence
-3. Verify OpenAPI spec tại `storage/api-docs/api-docs.json`
-4. Import Postman collection từ `docs/HN-INT-001_BE1_payload_samples.postman_collection.json`
-5. Test với seeded users (admin/Cntt@1234, staff01/Cntt@1234, etc.)
-
-## Kết luận
-
-Tất cả P0/P1 feedback items đã được address với:
-- **Deep, comprehensive test coverage** (không phải superficial)
-- **Real-world scenarios** mà QA sẽ thực sự test
-- **Complete documentation** với examples và evidence
-- **Production-ready code** mà pass tất cả tests
-
-Evidence document hiện cung cấp 100% coverage của tất cả requirements ở depth phù hợp cho real project delivery, không chỉ là surface-level compliance.
+| Scoped branch | `fix/wwhn-auth-rbac-audit-hardening` |
+| Current implementation baseline before final docs commit | `56584b38a29068a9c05ca16a21c5ac901b97a6c5` |
+| Audit policy | `config/audit.php` |
+| Audit outbox migration/model | `Modules/AuditLog/database/migrations/2026_08_03_000001_create_audit_outbox_table.php`, `Modules/AuditLog/app/Models/AuditOutbox.php` |
+| Audit writer/reconcile | `Modules/AuditLog/app/Services/AuditLogger.php`, `app/Console/Commands/ReconcileAuditOutbox.php` |
+| Data scope | `Modules/Auth/app/Models/User.php`, `Modules/Warehouse/app/Http/Controllers/WarehouseController.php` |
+| Auth lifecycle | `Modules/Auth/app/Http/Controllers/AuthController.php` |
+| Automated test | `tests/Feature/AuthRbacAuditHardeningTest.php` |
+| Postman | `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json` |
+| CI | `.github/workflows/auth-rbac-audit-contract.yml` |
+| Cache cleanup | Git commit `56584b38a29068a9c05ca16a21c5ac901b97a6c5` |
+| PR/CI run/artifact | Điền sau khi PR được tạo và workflow chạy. |
+| QA1 report/DB command evidence | Chờ QA1 thực thi trên PR SHA. |
+| QA2 browser video/screenshots | Chờ QA2 thực thi trên build từ PR SHA. |
+| Credential rotation record | Chờ DevOps/Security xác nhận ngoài repository. |
+
+## 9. Closure rule
+
+BE implementation chỉ được đánh dấu Done khi:
+
+1. CI xanh trên exact PR head SHA.
+2. Tech Lead review code/data-scope/audit policy.
+3. QA1 đính kèm command log, test report và DB evidence trên cùng SHA.
+4. QA2 đính kèm browser evidence cho WWHN-167 trên build cùng SHA.
+5. Security xác nhận không còn plaintext credential và hoàn tất rotation nếu credential từng được chia sẻ.
+6. Generated OpenAPI/Postman artifact được FE/QA/Tech Lead duyệt.
+
+Không sử dụng tài liệu này để thay thế approval thực tế.
