@@ -8,7 +8,7 @@
 | Related Jira | `WWHN-181` BA decision; `WWHN-182` QA2 verification; `WWHN-183` FE1/BA closure |
 | Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` |
 | Branch triển khai | **Chỉ `m1`**; không tạo branch/PR riêng |
-| Document version | `1.1.0` |
+| Document version | `1.2.0` |
 | Document status | **PROPOSED** |
 | BE implementation | **IMPLEMENTED ON M1 — SUBJECT TO EXACT-SHA CI** |
 | Formal approval | **PENDING INDEPENDENT SIGN-OFF** |
@@ -24,13 +24,13 @@
 | ID | Sev | Finding / required fix | Thay đổi đã triển khai trên `m1` | Evidence | Owner/reviewer | Trạng thái |
 |---|---|---|---|---|---|---|
 | `BE1-P0-01` | P0 | File còn `PENDING INDEPENDENT SIGN-OFF`; WWHN-182/183 chưa Done. BA phải ghi G1 decision, FE1 ký mapping, QA2 attach exact SHA/hash; chỉ sau đó Approved/Done | Khóa trạng thái `PROPOSED/PENDING_INDEPENDENT_SIGN_OFF` trong task doc, source register, build metadata và closure matrix; cung cấp template BA/FE1/QA2 ở mục 10–12 | `WWHN-180-source-register.json`; `build-metadata.json`; `g1-closure-matrix.json`; `SHA256SUMS*` | BA + FE1 + QA2 + BE1 | **READY FOR INDEPENDENT SIGN-OFF**; chưa được tự chuyển Approved |
-| `BE1-P0-02` | P0 | Scan/Post Receipt/Post Issue mới mô tả rule, thiếu xác minh độc lập trên artifact thật | Hardening idempotency atomic transaction, lease CAS, exact replay, rollback; executable OpenAPI/Postman; full PHPUnit; Newman; DB before/after; DB delta verifier; reconciliation; immutable manifest | Passing artifact `api-data-evidence-<SHA>` | BE1 build; QA2 retest; BA/FE1 review | **REPOSITORY IMPLEMENTED**; closure phụ thuộc passing workflow + independent review |
+| `BE1-P0-02` | P0 | Scan/Post Receipt/Post Issue mới mô tả rule, thiếu xác minh độc lập trên artifact thật | Hardening idempotency atomic transaction, lease CAS, exact replay, canonical v2 SHA-256 comparator, legacy-row compatibility, header boundary 8–100, rollback; executable OpenAPI/Postman; full PHPUnit; Newman; DB before/after; DB delta verifier; reconciliation; immutable manifest | Passing artifact `api-data-evidence-<SHA>` | BE1 build; QA2 retest; BA/FE1 review | **REPOSITORY IMPLEMENTED**; closure phụ thuộc passing workflow + independent review |
 | `BE1-P1-01` | P1 | Jira chỉ có Markdown, thiếu JSON/YAML/collection/environment | Commit trực tiếp focused OpenAPI YAML, Postman collection/environment; CI generate full OpenAPI JSON/YAML; hash từng artifact | `docs/api-contract/WWHN-180-posting-openapi.yaml`; `docs/postman/WWHN-180*`; generated `openapi.json/openapi.yaml`; `SHA256SUMS` | BE1 | **IMPLEMENTED** |
 | `BE1-P1-02` | P1 | Thiếu CI URL, build metadata, raw route/PHPUnit/Newman và hash pass | Workflow exact-SHA sinh URL/run metadata, route list, permission catalog, full/focused PHPUnit, Newman raw/JSON, DB snapshots, source-tree digest, manifest + manifest digest | `.github/workflows/wwhn-180-api-posting-contract.yml`; `scripts/collect-wwhn180-evidence.sh` | BE1 | **IMPLEMENTED**; chỉ passing artifact mới là closure evidence |
 | `BE1-P1-03` | P1 | Permission matrix pending FE1/BA | Runtime permission catalog + route mapping + focused OpenAPI `x-permission`; FE mapping table và sign-off template ở mục 8–10 | `permission-catalog.json`; `route-list.raw.json`; focused/generated OpenAPI | BE1 + FE1 + BA | **READY FOR FE1/BA REVIEW** |
-| `BE1-P1-04` | P1 | WWHN-182 chưa có API/DB evidence | Automation gồm happy, negative, RBAC, missing key, exact replay, payload conflict, different-key double-post, atomic rollback, stale status, DB delta, reconcile | `phpunit*.raw.log`; `newman.*`; `db-before.json`; `db-after.json`; `wwhn180-db-delta.json`; `reconciliation-report.json` | QA2 + BE1 | **READY FOR QA2 INDEPENDENT RETEST** |
+| `BE1-P1-04` | P1 | WWHN-182 chưa có API/DB evidence | Automation gồm happy, negative, RBAC, missing/invalid key, exact replay, semantic JSON key-order replay, payload conflict, different-key double-post, atomic rollback, stale status, DB delta, reconcile | `phpunit*.raw.log`; `newman.*`; `db-before.json`; `db-after.json`; `wwhn180-db-delta.json`; `reconciliation-report.json` | QA2 + BE1 | **READY FOR QA2 INDEPENDENT RETEST** |
 | `BE1-P1-05` | P1 | Parent WWHN-40 chưa có G1 minutes | Chuẩn hóa decision register: blocker → endpoint/schema → test/evidence → reviewer → result → final Go/Conditional Go/No-Go | Mục 11 và `g1-closure-matrix.json` | BA + BE1 + FE1 | **PENDING BA G1 MINUTES** |
-| `BE1-P2-01` | P2 | Jira handoff đang là blob, thiếu closure matrix đọc nhanh | Collector tự sinh `jira-closure-comment.txt`; mục 12 có payload ngắn exact SHA/digest/status/reviewer | `jira-closure-comment.txt`; mục 12 | BE1 | **READY TO POST**; Atlassian connector hiện 403/app not installed |
+| `BE1-P2-01` | P2 | Jira handoff đang là blob, thiếu closure matrix đọc nhanh | Collector tự sinh `jira-closure-comment.txt`; mục 13 có payload ngắn exact SHA/digest/status/reviewer | `jira-closure-comment.txt`; mục 13 | BE1 | **READY TO POST**; Atlassian connector hiện 403/app not installed |
 
 ## 3. G1 contract đã khóa
 
@@ -39,8 +39,8 @@
 | Scan inbound | `POST /api/v1/inbound-documents/{id}/scan` | `stock_document.scan` | `NONE`; không movement/balance/document posting status | Không bắt buộc |
 | Scan outbound | `POST /api/v1/outbound-documents/{id}/scan` | `stock_document.scan` | `NONE`; không movement/balance/document posting status | Không bắt buộc |
 | Classify scan | `POST /api/v1/scan/classify` | `scan.classify` | Read-only classify/resolve | Không bắt buộc |
-| Post receipt | `POST /api/v1/inbound-documents/{id}/post-receipt` | `stock_document.post` | Signed movement dương + balance; đúng một lần | Bắt buộc `Idempotency-Key` |
-| Post issue | `POST /api/v1/outbound-documents/{id}/post-issue` | `stock_document.post` | Signed movement âm + balance; đúng một lần | Bắt buộc `Idempotency-Key` |
+| Post receipt | `POST /api/v1/inbound-documents/{id}/post-receipt` | `stock_document.post` | Signed movement dương + balance; đúng một lần | Bắt buộc `Idempotency-Key`, trim, 8–100 ký tự |
+| Post issue | `POST /api/v1/outbound-documents/{id}/post-issue` | `stock_document.post` | Signed movement âm + balance; đúng một lần | Bắt buộc `Idempotency-Key`, trim, 8–100 ký tự |
 | Reconcile | `GET /api/v1/reports/inventory-reconciliation` | `report.view` | Read-only, so khớp balance với signed ledger | Không áp dụng |
 
 State transition chính:
@@ -55,19 +55,21 @@ scan:    approved -> approved; stock_effect=NONE
 
 ### 4.1 Invariant bắt buộc
 
-`app/Support/IdempotencyStore.php` đã được harden theo các invariant:
+`app/Support/IdempotencyStore.php` và controller concern đã được harden theo các invariant:
 
 1. Logical key: `(idem_key, operation, user_id)`.
-2. Same key + same payload: trả lại đúng persisted response snapshot; callback không chạy lần hai.
-3. Same key + different payload: `409 IDEMPOTENCY_ERROR`; không stock effect mới.
-4. Request hash v2: canonical JSON + SHA-256; thứ tự object key không làm đổi hash.
-5. Tương thích row cũ: v2 hash mang legacy MD5 để retry hợp lệ sau deployment không bị false `409`.
-6. Lease takeover dùng compare-and-set trên `status` và `locked_until`; không blind reclaim.
-7. Lease timestamp chuẩn hóa đến giây để nhất quán SQLite/PostgreSQL.
-8. Callback nghiệp vụ và việc lưu `status=done`, HTTP code, response snapshot cùng nằm trong **một outer DB transaction**.
-9. Lỗi sau business write nhưng trước response completion: rollback business write và dọn đúng lease của request hiện tại.
-10. Client timeout sau DB commit: retry đọc row `done` và replay, không post lần hai.
-11. Lỗi schema/kết nối không bị che thành `409 race` giả.
+2. `Idempotency-Key` được trim; blank/missing trả `428 PRECONDITION_REQUIRED`; ngắn hơn 8 hoặc dài hơn 100 ký tự trả `422 VALIDATION_ERROR` trước khi ghi DB.
+3. Same key + same payload: trả lại đúng persisted response snapshot; callback không chạy lần hai.
+4. Same key + different payload: `409 IDEMPOTENCY_ERROR`; không stock effect mới.
+5. Request hash v2: canonical JSON + SHA-256; thứ tự object key không làm đổi canonical digest.
+6. Comparator v2 chỉ so canonical SHA-256 digest. Legacy MD5 suffix có thể khác theo thứ tự key cũ nhưng không được gây false `409` giữa hai hash v2.
+7. Tương thích row cũ: v2 hash vẫn mang legacy MD5 để đối chiếu row chỉ lưu MD5 từ deployment cũ.
+8. Lease takeover dùng compare-and-set trên `status` và `locked_until`; không blind reclaim.
+9. Lease timestamp chuẩn hóa đến giây để nhất quán SQLite/PostgreSQL.
+10. Callback nghiệp vụ và việc lưu `status=done`, HTTP code, response snapshot cùng nằm trong **một outer DB transaction**.
+11. Lỗi sau business write nhưng trước response completion: rollback business write và dọn đúng lease của request hiện tại.
+12. Client timeout sau DB commit: retry đọc row `done` và replay, không post lần hai.
+13. Lỗi schema/kết nối không bị che thành `409 race` giả.
 
 Atomic boundary:
 
@@ -101,6 +103,7 @@ Expected race outcomes:
 | Tình huống | Kết quả hợp lệ | DB invariant |
 |---|---|---|
 | Same key, same payload, overlap | `200 + 409 processing` hoặc `200 + replay 200` | Một stock effect |
+| Same semantic payload, khác object-key order | `200 + replay 200` | Callback chạy một lần; comparator dùng v2 digest |
 | Same key, different payload | `200 + 409 IDEMPOTENCY_ERROR` | Một stock effect |
 | Different keys, cùng document | `200 + 409 STATE_CONFLICT` | Một stock effect |
 | Failure giữa business write và response completion | Exception/5xx | Không business write dở dang, không lease treo do request hiện tại |
@@ -134,10 +137,10 @@ Mismatch reasons:
 
 | File | Version/status |
 |---|---|
-| `docs/api-contract/WWHN-180-posting-openapi.yaml` | `1.0.0 / PROPOSED` |
+| `docs/api-contract/WWHN-180-posting-openapi.yaml` | `1.0.0 / PROPOSED`; đủ classify, inbound/outbound scan, receipt, issue, reconcile |
 | `docs/postman/WWHN-180 Posting Contract.postman_collection.json` | `1.1.0`, 23 requests |
 | `docs/postman/WWHN-180 Posting CI.postman_environment.json` | Không lưu credential/token |
-| `docs/testing/WWHN-180-posting-test-cases.json` | P0/P1 test matrix |
+| `docs/testing/WWHN-180-posting-test-cases.json` | `1.2.0`; P0/P1 test matrix |
 | `docs/docs_task_jira/WWHN-180-source-register.json` | `1.1.0 / PROPOSED` |
 
 ### 6.2 Newman coverage — 23 requests
@@ -156,7 +159,7 @@ Mismatch reasons:
 - Reconciliation manager `PASS`, `mismatch_count=0`.
 - Reconciliation no-permission `403 ACCESS_DENIED`.
 
-Credential được inject bằng Newman runtime `--env-var`; collection/environment source không lưu password hoặc token.
+Focused PHPUnit bổ sung semantic object-key-order replay, key trim, boundary 8/100, blank `428` và out-of-range `422`. Credential được inject bằng Newman runtime `--env-var`; collection/environment source không lưu password hoặc token.
 
 ## 7. Immutable exact-SHA evidence
 
@@ -224,7 +227,7 @@ source/*
 5. Full PHPUnit + focused atomicity/canonical/concurrency/reconcile tests.
 6. Full OpenAPI generation; Redocly lint JSON/YAML/focused YAML.
 7. Permission catalog integrity `PASS`.
-8. Static executable-contract verifier `PASS`.
+8. Static executable-contract verifier `PASS`, gồm 6 focused path, header 8–100, canonical v2 digest comparator, secret hygiene và atomicity primitives.
 9. Newman 23 requests, failures = 0.
 10. DB before/after snapshot.
 11. DB delta verifier `PASS`.
@@ -264,13 +267,15 @@ Headers cho posting:
 ```http
 Authorization: Bearer <JWT>
 Content-Type: application/json
-Idempotency-Key: <client-generated logical-action key>
+Idempotency-Key: <client-generated logical-action key, 8-100 characters>
 ```
 
 FE retry policy:
 
+- Trim key trước khi gửi; key sau trim phải dài 8–100 ký tự.
 - Timeout/network failure của cùng logical action: giữ nguyên Idempotency-Key.
 - Payload hoặc logical action thay đổi: sinh key mới.
+- Thứ tự object key trong JSON không thay đổi semantic payload; backend so canonical v2 digest.
 - `409 IDEMPOTENCY_ERROR`: không auto-retry bằng payload đã đổi.
 - `409 STATE_CONFLICT`: reload document/status; không tự giả định post thành công.
 - `422`: map field/business error; không retry tự động.
@@ -284,7 +289,7 @@ Error mapping:
 | 403 | `ACCESS_DENIED` / scope code | Disable/hide action và hiển thị lý do quyền/phạm vi |
 | 409 | `IDEMPOTENCY_ERROR` | Chặn auto-retry; user xác nhận trước logical action mới |
 | 409 | `STATE_CONFLICT` | Reload state và movement/history |
-| 422 | `INSUFFICIENT_STOCK` / validation | Hiển thị business/field errors |
+| 422 | `VALIDATION_ERROR` / `INSUFFICIENT_STOCK` | Sửa key/payload hoặc hiển thị business/field errors |
 | 428 | `PRECONDITION_REQUIRED` | Bổ sung Idempotency-Key |
 
 ## 10. FE1 sign-off template — WWHN-183
@@ -319,10 +324,12 @@ QA2 phải test exact commit artifact, không test branch name động.
 | Scan RBAC/scope/invalid | 403/409/422 đúng contract; DB không đổi |
 | Receipt happy | `received`; +1 movement/line; balance tăng đúng; one posting event |
 | Receipt replay | Same movement/response; không stock effect lần hai |
+| Semantic order replay | Hai JSON cùng nghĩa nhưng khác thứ tự object key phải replay; không false 409 |
 | Receipt payload conflict | `409 IDEMPOTENCY_ERROR`; DB không đổi |
 | Receipt different-key double-post | `409 STATE_CONFLICT`; DB không đổi |
 | Issue happy/replay/conflicts | Đối xứng receipt; signed delta âm đúng một lần |
-| Missing key | `428 PRECONDITION_REQUIRED`; DB không đổi |
+| Missing/blank key | `428 PRECONDITION_REQUIRED`; DB không đổi |
+| Key ngoài 8–100 | `422 VALIDATION_ERROR`; DB không đổi |
 | Race | Exactly one stock effect |
 | Atomic rollback | Business probe và owned processing lease rollback |
 | DB delta | `wwhn180-db-delta.summary.status=PASS` |
@@ -455,11 +462,13 @@ Chỉ đóng WWHN-180 khi toàn bộ điều kiện sau cùng đúng:
 
 | Hạng mục | Nội dung |
 |---|---|
-| Idempotency | Atomic outer transaction, lease CAS, exact response replay, canonical SHA-256, legacy MD5 compatibility, owned-lease cleanup |
-| Tests | `Wwhn180IdempotencyAtomicityTest`; canonical flow; concurrency; reconciliation integrity |
-| API contract | Focused OpenAPI WWHN-180 + generated full OpenAPI JSON/YAML |
+| Idempotency | Atomic outer transaction, lease CAS, exact response replay, canonical v2 SHA-256 comparator, legacy MD5 row compatibility, owned-lease cleanup |
+| Header validation | `Idempotency-Key` trim; blank/missing 428; ngoài 8–100 ký tự 422 trước DB |
+| Tests | `Wwhn180IdempotencyAtomicityTest` gồm semantic-order replay và header boundary; canonical flow; concurrency; reconciliation integrity |
+| API contract | Focused OpenAPI đủ classify, inbound/outbound scan, receipt, issue, reconcile + generated full OpenAPI JSON/YAML |
 | Postman | Executable collection v1.1.0, 23 requests; environment không lưu credential |
 | Evidence | Full/focused PHPUnit, Newman, route/permission catalog, DB before-after, DB delta, reconciliation |
+| Static verifier | Khóa focused path/permission, key bounds, canonical v2 comparator, secret hygiene và atomicity primitives |
 | Integrity | Source-tree SHA-256, per-file `SHA256SUMS`, manifest digest `SHA256SUMS.sha256` |
 | Governance | Source register, G1 closure matrix, Jira comment, CI summary; approval giữ Pending trước independent sign-off |
 
