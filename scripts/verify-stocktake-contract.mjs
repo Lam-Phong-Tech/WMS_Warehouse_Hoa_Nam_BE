@@ -84,21 +84,38 @@ for (const fragment of [
 }
 check(postman.info?.version === '1.0.0', 'postman:version', 'Postman collection version is 1.0.0');
 
-const requiredCaseIds = Array.from({ length: 9 }, (_, index) => `STK-TC-${String(index + 1).padStart(3, '0')}`);
+const requiredCaseIds = Array.from({ length: 11 }, (_, index) => `STK-TC-${String(index + 1).padStart(3, '0')}`);
 const actualCaseIds = new Set((testCases.cases ?? []).map((testCase) => testCase.id));
 for (const id of requiredCaseIds) {
   check(actualCaseIds.has(id), `test-case:${id}`, `${id} is registered`);
 }
+check(testCases.version === '1.1.0', 'test-case:version', 'Test-case register version is 1.1.0');
 check(testCases.status === 'PROPOSED', 'test-case:status', 'Test-case register remains PROPOSED pending independent approval');
 check(testCases.signed_qty_delta_convention?.net_formula === 'SUM(stock_movements.qty_delta)', 'ledger:formula', 'Signed ledger formula is canonical SUM(qty_delta)');
+check(
+  String(testCases.signed_qty_delta_convention?.zero_effect_rule ?? '').includes('Không tạo stock movement'),
+  'ledger:zero-effect',
+  'Zero-effect rule forbids empty stock movements',
+);
+check(
+  String(testCases.signed_qty_delta_convention?.pre_apply_reconciliation ?? '').includes('SUM(stock_movements.qty_delta)'),
+  'ledger:pre-apply-reconciliation',
+  'Pre-apply reconciliation requires signed ledger to equal balance',
+);
 
 const sourceChecks = [
   ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'stocktake_apply_adjustment_'],
   ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'MOVEMENT_ACKNOWLEDGEMENT_REQUIRED'],
+  ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'LEDGER_BALANCE_MISMATCH'],
+  ['Modules/Warehouse/app/Services/StocktakeAdjustmentService.php', 'zero_effect_dimensions'],
   ['Modules/Warehouse/app/Services/StocktakeService.php', 'SUM(qty_delta)'],
   ['Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php', 'uk_stocktake_count_session_grain'],
   ['Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php', 'uk_posting_event_operation_idem'],
+  ['Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php', 'assertRequiredGrain'],
   ['tests/Feature/StocktakeThreeLayerContractTest.php', 'test_apply_rolls_back_balance_movement_and_item_when_container_layer_fails'],
+  ['tests/Feature/StocktakeThreeLayerContractTest.php', 'test_warehouse_data_scope_blocks_create_read_and_apply'],
+  ['tests/Feature/StocktakeApplyLedgerIntegrityTest.php', 'test_zero_effect_apply_does_not_create_empty_movement_or_increment_balance_version'],
+  ['tests/Feature/StocktakeApplyLedgerIntegrityTest.php', 'test_apply_rejects_ledger_balance_mismatch_and_rolls_back_operation'],
 ];
 for (const [file, fragment] of sourceChecks) {
   const content = fs.readFileSync(path.resolve(file), 'utf8');
@@ -106,7 +123,7 @@ for (const [file, fragment] of sourceChecks) {
 }
 
 const result = {
-  schema_version: '1.0.0',
+  schema_version: '1.1.0',
   document_status: 'PROPOSED',
   generated_at_utc: new Date().toISOString(),
   summary: {
