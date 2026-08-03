@@ -1,0 +1,64 @@
+{
+  "jira_key": "WWHN-180",
+  "version": "1.0.0",
+  "status": "PROPOSED",
+  "branch": "m1",
+  "exact_commit_source": "build/evidence/wwhn180/build-metadata.json.commit_sha",
+  "artifact_name_pattern": "wwhn-180-evidence-<commit_sha>",
+  "hash_manifest": "SHA256SUMS",
+  "contracts": {
+    "openapi": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+    "postman_collection": "docs/postman/WWHN-180 Posting Contract.postman_collection.json",
+    "postman_environment": "docs/postman/WWHN-180 Posting CI.postman_environment.json"
+  },
+  "implementation": [
+    "app/Support/IdempotencyStore.php",
+    "Modules/Warehouse/app/Http/Controllers/ScanController.php",
+    "Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php",
+    "Modules/Warehouse/app/Http/Controllers/OutboundDocumentController.php",
+    "Modules/Warehouse/app/Services/StockDocumentService.php",
+    "Modules/Warehouse/app/Services/StockLedger.php",
+    "Modules/Warehouse/routes/api.php"
+  ],
+  "tests": [
+    "tests/Feature/Wwhn180IdempotencyAtomicityTest.php",
+    "tests/Feature/StockDocumentIdempotencyTest.php",
+    "tests/Feature/StockDocumentConcurrencyGuardTest.php",
+    "tests/Feature/StockDocumentCanonicalFlowTest.php",
+    "tests/Feature/ScanClassifyReadOnlyContractTest.php",
+    "tests/Feature/InventoryReconciliationIntegrityTest.php"
+  ],
+  "ci": {
+    "workflow": ".github/workflows/wwhn-180-api-posting-contract.yml",
+    "collector": "scripts/collect-wwhn180-evidence.sh",
+    "required_outputs": [
+      "build-metadata.json",
+      "source-tree.sha256",
+      "SHA256SUMS",
+      "route-list.raw.json",
+      "permission-catalog.json",
+      "openapi.generated.json",
+      "wwhn180-openapi.yaml",
+      "wwhn180.postman.collection.json",
+      "wwhn180.postman.environment.json",
+      "wwhn180-atomicity-phpunit.raw.log",
+      "stock-document-idempotency-phpunit.raw.log",
+      "stock-document-concurrency-phpunit.raw.log",
+      "newman.raw.log",
+      "newman.result.json",
+      "db-before.json",
+      "db-after.json",
+      "reconciliation-report.json"
+    ]
+  },
+  "reviewers": {
+    "BA": "G1 decision and minutes",
+    "FE1": "endpoint, payload, error and permission mapping",
+    "QA2": "exact-SHA API, DB and reconciliation retest",
+    "BE1": "implementation and artifact owner"
+  },
+  "approval": {
+    "status": "PENDING_INDEPENDENT_SIGN_OFF",
+    "rule": "Do not mark APPROVED or Done until BA, FE1 and QA2 comments reference the same exact commit SHA and verified SHA256SUMS."
+  }
+}
