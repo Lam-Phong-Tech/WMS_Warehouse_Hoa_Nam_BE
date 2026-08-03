@@ -1,6 +1,6 @@
 {
   "jira_key": "WWHN-180",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "status": "PROPOSED",
   "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
   "branch": "m1",
@@ -8,6 +8,14 @@
   "artifact_name_pattern": "api-data-evidence-<commit_sha>",
   "hash_manifest": "SHA256SUMS",
   "hash_manifest_digest": "SHA256SUMS.sha256",
+  "contract_invariants": {
+    "scan_stock_effect": "NONE",
+    "posting_idempotency_key": "trimmed; 8-100 characters; missing or blank=428; out of range=422",
+    "request_hash": "canonical JSON/query SHA-256 v2; v2 comparison ignores legacy MD5 suffix differences",
+    "atomicity": "business stock write and persisted response snapshot commit or rollback together",
+    "double_post": "one document transition and one movement business key effect",
+    "formal_status": "PROPOSED until BA, FE1 and QA2 independently sign the same exact SHA and artifact digest"
+  },
   "contracts": {
     "generated_openapi_json": "build/evidence/api-data/openapi.json",
     "generated_openapi_yaml": "build/evidence/api-data/openapi.yaml",
@@ -87,7 +95,7 @@
   "reviewers": {
     "BA": "G1 decision and minutes on WWHN-40/WWHN-181/WWHN-183",
     "FE1": "endpoint, payload, error and permission mapping on the same exact SHA and artifact digest",
-    "QA2": "independent exact-SHA API, DB, race and reconciliation retest on WWHN-182",
+    "QA2": "independent exact-SHA API, DB, race, timeout-after-commit and reconciliation retest on WWHN-182",
     "BE1": "implementation and artifact owner; BE1 self-review is not independent sign-off"
   },
   "approval": {
