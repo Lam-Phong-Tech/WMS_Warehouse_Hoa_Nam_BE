@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Exceptions\WarehouseException;
 
 class StockDocument extends Model
 {
@@ -80,6 +82,24 @@ class StockDocument extends Model
         'rejected_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (StockDocument $document) {
+            if (! $document->isDirty('status')) {
+                return;
+            }
+
+            $currentStatus = DB::table($document->getTable())
+                ->where($document->getKeyName(), $document->getKey())
+                ->lockForUpdate()
+                ->value('status');
+
+            if ($currentStatus !== null && $currentStatus !== $document->getOriginal('status')) {
+                WarehouseException::versionConflict();
+            }
+        });
+    }
 
     public function srcWarehouse(): BelongsTo
     {
