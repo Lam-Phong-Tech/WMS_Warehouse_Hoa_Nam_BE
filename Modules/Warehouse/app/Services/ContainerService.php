@@ -450,10 +450,16 @@ class ContainerService
             ]);
         }
 
-        $assignedId = $code->assigned_object_id ?? $code->product_id;
-        if ($assignedId !== null && (string) $assignedId !== $containerId) {
+        $productConflict = $code->product_id !== null;
+        $genericConflict = $code->assigned_object_id !== null
+            && (string) $code->assigned_object_id !== $containerId;
+        $typeConflict = $code->assigned_object_id !== null
+            && strtoupper((string) $code->assigned_object_type) !== 'CONTAINER';
+
+        if ($productConflict || $genericConflict || $typeConflict) {
             ApiError::abort(409, 'PHYSICAL_CODE_ALREADY_ASSIGNED', 'Physical code đã được gán cho object khác.', [
                 'physical_code_id' => $physicalCodeId,
+                'product_id' => $code->product_id,
                 'assigned_object_type' => $code->assigned_object_type,
                 'assigned_object_id' => $code->assigned_object_id,
             ]);
