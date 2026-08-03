@@ -90,14 +90,15 @@ class StockLedger
             return $existing;
         }
 
-        $balance = InventoryBalance::where('warehouse_id', $warehouseId)
+        $balanceQuery = fn () => InventoryBalance::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
-            ->where('stock_status', $stockStatus)
-            ->lockForUpdate()
-            ->first();
+            ->where('stock_status', $stockStatus);
+
+        $balance = $balanceQuery()->lockForUpdate()->first();
 
         if (! $balance) {
-            $balance = InventoryBalance::create([
+            InventoryBalance::query()->insertOrIgnore([
+                'id' => (string) Str::uuid(),
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
                 'stock_status' => $stockStatus,
@@ -105,7 +106,18 @@ class StockLedger
                 'available_qty' => 0,
                 'reserved_qty' => 0,
                 'version' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
+
+            $balance = $balanceQuery()->lockForUpdate()->firstOrFail();
+        }
+
+        // Recheck sau khi đã giữ row lock. Request cạnh tranh có thể đã commit movement
+        // trong lúc request hiện tại chờ lock; trả movement cũ thay vì đổi balance lần hai.
+        $existing = StockMovement::where('business_key', $businessKey)->first();
+        if ($existing) {
+            return $existing;
         }
 
         $qty = (string) $qty;
