@@ -81,7 +81,7 @@ class StocktakeController extends Controller
                 $data = DB::transaction(function () use ($id, $validated, $userId): array {
                     /** @var StocktakeSession $session */
                     $session = StocktakeSession::query()->lockForUpdate()->findOrFail($id);
-                    if (!in_array($session->status, [StocktakeSession::STATUS_REVIEWED, StocktakeSession::STATUS_COUNTED], true)) {
+                    if (! in_array($session->status, [StocktakeSession::STATUS_REVIEWED, StocktakeSession::STATUS_COUNTED], true)) {
                         ApiError::abort(409, 'STATE_CONFLICT', 'Session phải ở trạng thái REVIEWED hoặc COUNTED.');
                     }
 
@@ -108,7 +108,7 @@ class StocktakeController extends Controller
                             ApiError::abort(422, 'INSUFFICIENT_STOCK', 'Điều chỉnh không được tạo tồn âm.');
                         }
 
-                        if (!$balance) {
+                        if (! $balance) {
                             $balance = InventoryBalance::create([
                                 'warehouse_id' => $session->warehouse_id,
                                 'product_id' => $line['product_id'],
