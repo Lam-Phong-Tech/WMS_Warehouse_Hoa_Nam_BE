@@ -147,9 +147,19 @@ trait InteractsWithStockDocuments
 
     protected function requireIdempotencyKey(Request $request): string
     {
-        $idemKey = $request->header('Idempotency-Key');
-        if (! $idemKey) {
+        $idemKey = trim((string) $request->header('Idempotency-Key', ''));
+        if ($idemKey === '') {
             ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Header Idempotency-Key là bắt buộc cho thao tác này.');
+        }
+
+        $length = mb_strlen($idemKey, 'UTF-8');
+        if ($length < 8 || $length > 100) {
+            ApiError::abort(
+                422,
+                'VALIDATION_ERROR',
+                'Header Idempotency-Key phải có độ dài từ 8 đến 100 ký tự.',
+                ['Idempotency-Key' => ['Độ dài hợp lệ là 8–100 ký tự.']]
+            );
         }
 
         return $idemKey;
