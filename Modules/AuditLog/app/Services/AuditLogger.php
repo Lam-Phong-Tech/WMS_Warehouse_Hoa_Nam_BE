@@ -107,12 +107,12 @@ class AuditLogger
         );
         $replacement = (string) config('audit.redacted_value', '[REDACTED]');
 
-        $walk = static function (mixed $value, ?string $key = null) use (& $walk, $sensitiveKeys, $replacement): mixed {
+        $walk = static function (mixed $value, ?string $key = null) use (&$walk, $sensitiveKeys, $replacement): mixed {
             if ($key !== null && in_array(strtolower($key), $sensitiveKeys, true)) {
                 return $replacement;
             }
 
-            if (! is_array($value)) {
+            if (!is_array($value)) {
                 return $value;
             }
 
