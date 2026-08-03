@@ -35,7 +35,6 @@ class Wwhn180IdempotencyAtomicityTest extends TestCase
         $runs = 0;
         $callback = function () use (&$runs): array {
             $runs++;
-            DB::table('idempotency_keys')->whereRaw('1 = 0')->update([]);
 
             return [200, ['success' => true, 'data' => ['status' => 'received', 'movement_ids' => ['mv-1']]]];
         };
