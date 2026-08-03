@@ -8,7 +8,7 @@
 | Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` |
 | Branch | `m1` — sửa trực tiếp, không tạo branch riêng |
 | Document version | `1.2.0` |
-| Document revision | `2026-08-03.2` |
+| Document revision | `2026-08-03.3` |
 | Document status | **PROPOSED** |
 | Repository remediation | **COMPLETE — PENDING EXACT-SHA CI + INDEPENDENT REVIEW + FORMAL DECISION** |
 | Code/test baseline trước commit tài liệu | `cd4bb7d0d90dcb5c96f927bdf640c3179887861e` |
@@ -33,7 +33,7 @@ Không được ghi `APPROVED`, `Done`, `100% formally closed` hoặc đánh d�
 5. BAS cập nhật BRD/SRS/BPD/DEC-INV attachment ID và SHA-256 hiện hành.
 6. BA/PM phát hành `DEC-STK-001` trên Jira.
 
-## 2. Closure register cho đánh giá 72/100
+## 2. Closure register cho đánh giá 76/100
 
 | ID | Sev | Required fix | Fix trong repository `m1` | Evidence | Trạng thái chính xác | External closure gate |
 |---|---|---|---|---|---|---|
@@ -42,7 +42,7 @@ Không được ghi `APPROVED`, `Done`, `100% formally closed` hoặc đánh d�
 | `STK-P1-03` | P1 | DBA rehearsal; Security cross-session/cross-warehouse negative | Schema verifier SQLite/MySQL/PostgreSQL; migration rehearsal; FK/index/NOT NULL/unique checks; replay scope leak, cross-session, cross-warehouse no-write tests. | `verify-wwhn131-schema.php`, `StocktakeReviewGateTest.php` | **AUTOMATION + PROTOCOL COMPLETE** | DBA chạy target engine/data copy; Security chạy QA/staging độc lập. |
 | `STK-P1-04` | P1 | Artifact thật và hash thật | Workflow tạo artifact exact-SHA, metadata, source-tree hash, `SHA256SUMS`, manifest digest, OpenAPI/Postman/test/migration/verifier hashes và raw logs. | Workflow + `collect-wwhn131-evidence.sh` | **IMPLEMENTED — WAITING FINAL SHA WORKFLOW RESULT** | Workflow commit cuối PASS và link artifact thật được đăng Jira. |
 | `STK-P1-05` | P1 | BA phát hành final decision | Payload hỗ trợ `GO`, `CONDITIONAL GO`, `NO-GO`; bắt buộc conditions/owner/deadline khi conditional. | Mục 10 | **READY FOR BA FINAL** | BA phát hành trên `WWHN-132`; PM xác nhận. |
-| `STK-P1-06` | P1 | BAS cập nhật attachment ID/hash và impacted tickets | Source Register liệt kê code/test/workflow/protocol; handoff liệt kê `WWHN-25/131/132/133`. | Source Register + mục 9 | **REPOSITORY TRACEABILITY COMPLETE** | BAS điền attachment IDs/SHA-256 thật trên `WWHN-133`. |
+| `STK-P1-06` | P1 | BAS cập nhật attachment ID/hash và impacted tickets | Source Register liệt kê code/test/workflow/protocol; handoff liệt kê `WWHN-25/131/132/133`. | Source Register + mục 9 | **REPOSITORY TRACEABILITY TEMPLATE PREPARED** | BAS điền attachment IDs/SHA-256 thật trên `WWHN-133`. |
 | `STK-P2-01` | P2 | Jira handoff có cấu trúc | Có payload file/version/status/scope/SHA/artifact/hash/results/reviewer/ticket/blocker. | Mục 9 | **READY TO POST** | Atlassian app/permission phải khả dụng. |
 
 Các đầu việc còn mở là review, approval, target-DB rehearsal hoặc attachment từ hệ thống/người độc lập. BE1 không được tạo giả bằng chứng này.
@@ -269,7 +269,7 @@ CI phải fail nếu metadata SHA khác `GITHUB_SHA`, artifact không bind SHA, 
 ```text
 [WWHN-131 BE1 STRUCTURED HANDOFF]
 Document: docs/docs_task_jira/WWHN-131.md
-Document version/revision/status: 1.2.0 / 2026-08-03.2 / PROPOSED
+Document version/revision/status: 1.2.0 / 2026-08-03.3 / PROPOSED
 Source Register: docs/docs_task_jira/WWHN-131-source-register.json
 Source Register version/status: 1.2.0 / PROPOSED
 Branch: m1
@@ -333,7 +333,7 @@ Jira: WWHN-25
 BA final: WWHN-132
 Traceability: WWHN-133
 
-Document: WWHN-131.md v1.2.0 rev 2026-08-03.2 / PROPOSED
+Document: WWHN-131.md v1.2.0 rev 2026-08-03.3 / PROPOSED
 Source Register: v1.2.0 / PROPOSED
 Exact SHA: <sha>
 CI run: <url>
@@ -384,7 +384,45 @@ Tất cả commit được ghi trực tiếp vào `m1`; không tạo branch ph�
 
 Chưa được phép ghi full test PASS tại thời điểm cập nhật tài liệu vì kết quả đó phải đến từ workflow exact final SHA và artifact thật. Không thay thế bằng suy đoán hoặc log của SHA cũ.
 
-## 13. Current truthful status
+## 13. Remediation thực thi cho đánh giá 76/100
+
+### 13.1 Thay đổi code và security gate
+
+- Mọi write endpoint theo session (`start`, `counts`, `review`, `acknowledge-movements`, `apply-adjustment`) gọi `findScopedSession()` trước validation. Actor ngoài warehouse scope luôn bị chặn `403 WAREHOUSE_SCOPE_DENIED` trước khi server diễn giải payload, không lộ validation oracle và không ghi DB.
+- Regression ledger so sánh decimal theo giá trị số, không phụ thuộc PDO serialize `99`, `99.0` hay `99.000`.
+- Migration stocktake rollback gỡ named index và foreign key theo đúng thứ tự trước khi drop cột; gate `DatabaseMigrations` chứng minh rollback/re-apply không làm hỏng schema SQLite.
+- Evidence collector từ chối chạy nếu Laravel không resolve đúng `APP_ENV=testing`, driver `sqlite`, database `/tmp/wms-wwhn131.sqlite`. Workflow export các biến này ở job scope, nên `.env.example` PostgreSQL không thể khiến `migrate:fresh` chạm nhầm DB.
+- Lease `idempotency_keys.locked_until` được chuyển nullable bằng migration riêng vì terminal response phải giải phóng lease bằng `NULL`.
+- SKU replay đã nhận diện key đã tồn tại trước unique validation; cùng key được chuyển đến idempotency hash gate để replay hoặc trả conflict, thay vì bị `422` sai contract.
+- `WarrantyEvent` tắt Eloquent timestamps vì schema chỉ có `created_at/event_at`, loại bỏ write tới cột `updated_at` không tồn tại.
+
+### 13.2 Kết quả local verification trên worktree trước final commit
+
+| Gate | Lệnh | Kết quả |
+|---|---|---|
+| Stocktake focused | `php artisan test --do-not-cache-result --filter='Stocktake(ThreeLayerContract\|ApplyLedgerIntegrity\|ReviewGate)Test'` | **PASS — 14 tests, 199 assertions** |
+| Migration/seed rollback | `php artisan test --do-not-cache-result --filter=BackendMigrationSeedHealthTest` | **PASS — 6 tests, 76 assertions** |
+| Schema verifier SQLite file DB | `php scripts/verify-wwhn131-schema.php storage/framework/testing/wwhn131-schema-verification.json` sau `migrate:fresh` cô lập | **PASS — 28 checks, 0 failed** |
+| Regression liên quan | `php artisan test --do-not-cache-result --filter='(StockDocumentIdempotencyTest\|WarrantyStatusOnlyContractTest\|Wwhn172SkuContainerTransactionTest)'` | **PASS — 24 tests, 180 assertions** |
+| Full PHPUnit | `php artisan test --do-not-cache-result` | **PASS — 133 tests, 1,246 assertions** |
+
+Các kết quả trên là pre-commit local verification, không được thay thế exact-SHA CI artifact hoặc independent sign-off.
+
+### 13.3 Evidence ledger bắt buộc để đóng từng finding
+
+| Finding | Evidence repository đã chuẩn bị | Evidence thực tế còn bắt buộc | Trạng thái sau remediation |
+|---|---|---|---|
+| `STK-P1-01` | DEC-STK-001 payload khóa exact SHA/digest/result | Jira comment ID/link, reviewer BA + Tech Lead + PM, date, result trên `WWHN-25` | **PENDING EXTERNAL DECISION** |
+| `STK-P1-02` | Focused/full test, no-write assertions, raw-log collector | QA1 + Tech Lead chạy độc lập trên exact final SHA; race/timeout target-DB log và sign-off | **LOCAL AUTOMATION PASS; PENDING INDEPENDENT REVIEW** |
+| `STK-P1-03` | Schema verifier, reversible migration fixes, security negative tests | DBA rehearsal trên target PostgreSQL/clone dữ liệu; Security raw HTTP + DB before/after và sign-off | **SQLITE GATE PASS; PENDING TARGET-DB/SECURITY** |
+| `STK-P1-04` | Workflow, collector safety guard, manifest/digest pipeline | CI run PASS sau final commit; artifact URL/ID `stocktake-evidence-<final_sha>` và verified digest | **PENDING EXACT-SHA CI** |
+| `STK-P1-05` | GO/CONDITIONAL GO/NO-GO payload | BA decision thật trên `WWHN-132`, condition/owner/deadline nếu conditional | **PENDING BA FINAL** |
+| `STK-P1-06` | Source Register và impacted-ticket matrix | BAS điền current attachment ID + SHA-256 cho BRD/SRS/BPD/DEC-INV trên `WWHN-133` | **TEMPLATE PREPARED; PENDING BAS** |
+| `STK-P2-01` | Structured handoff đầy đủ ở mục 9 | Jira comment ID/link sau khi post payload đã điền exact artifact/hash/result | **READY TO POST AFTER CI** |
+
+Không có tên reviewer, attachment ID, Jira comment ID, target-DB result hay approval nào được tự tạo giả trong repository. Vì các trường này thuộc Jira/con người/hạ tầng độc lập, repository chỉ được ghi **technical implementation complete**, không được ghi `100% formally closed` trước khi ledger trên có bằng chứng thật.
+
+## 14. Current truthful status
 
 ### Repository
 

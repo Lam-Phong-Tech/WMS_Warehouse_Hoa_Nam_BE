@@ -129,6 +129,9 @@ class StocktakeController extends Controller
     )]
     public function start(Request $request, string $id)
     {
+        // Authorize the resource before parsing its command payload. This keeps
+        // cross-warehouse callers from using validation responses as an oracle.
+        $this->stocktakes->findScopedSession($id, $this->user());
         $validated = $request->validate(['session_version' => ['required', 'integer', 'min:1']]);
         $result = $this->stocktakes->startSession($id, (int) $validated['session_version'], $this->user());
 
@@ -164,6 +167,7 @@ class StocktakeController extends Controller
     )]
     public function recordCounts(Request $request, string $id)
     {
+        $this->stocktakes->findScopedSession($id, $this->user());
         $validated = $request->validate([
             'lines' => ['required', 'array', 'min:1', 'max:500'],
             'lines.*.grain_type' => ['required', 'string', 'in:SKU,ITEM,CONTAINER'],
@@ -197,6 +201,7 @@ class StocktakeController extends Controller
     )]
     public function review(Request $request, string $id)
     {
+        $this->stocktakes->findScopedSession($id, $this->user());
         $validated = $request->validate(['session_version' => ['required', 'integer', 'min:1']]);
         $result = $this->stocktakes->reviewSession($id, (int) $validated['session_version'], $this->user());
 
@@ -231,6 +236,7 @@ class StocktakeController extends Controller
     )]
     public function acknowledgeMovements(Request $request, string $id)
     {
+        $this->stocktakes->findScopedSession($id, $this->user());
         $validated = $request->validate([
             'session_version' => ['required', 'integer', 'min:1'],
             'lines' => ['required', 'array', 'min:1', 'max:500'],
@@ -295,6 +301,7 @@ class StocktakeController extends Controller
     )]
     public function applyAdjustment(Request $request, string $id)
     {
+        $this->stocktakes->findScopedSession($id, $this->user());
         $idempotencyKey = trim((string) $request->header('Idempotency-Key'));
         if ($idempotencyKey === '') {
             ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Header Idempotency-Key là bắt buộc.');

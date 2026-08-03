@@ -82,16 +82,18 @@ class StocktakeApplyLedgerIntegrityTest extends TestCase
         $review = $this->review($token, $sessionId, 2);
         $varianceId = (string) $review->json('data.variances.0.variance_id');
 
-        $this->postJson("/api/v1/stocktake-sessions/{$sessionId}/apply-adjustment", [
+        $response = $this->postJson("/api/v1/stocktake-sessions/{$sessionId}/apply-adjustment", [
             'session_version' => 3,
             'variance_ids' => [$varianceId],
             'reason' => 'Không apply khi ledger lệch balance',
         ], $this->headers($token, 'stk-ledger-mismatch'))
             ->assertStatus(409)
             ->assertJsonPath('error_code', 'LEDGER_BALANCE_MISMATCH')
-            ->assertJsonPath('error.details.ledger_qty', '100.000')
-            ->assertJsonPath('error.details.balance_qty', '99.000')
             ->assertJsonPath('error.details.formula', 'SUM(stock_movements.qty_delta)');
+
+        // Decimal serialization differs by PDO driver; the contract is numeric.
+        $this->assertEquals(100.0, (float) $response->json('error.details.ledger_qty'));
+        $this->assertEquals(99.0, (float) $response->json('error.details.balance_qty'));
 
         $this->assertDatabaseHas('stocktake_session', [
             'session_id' => $sessionId,

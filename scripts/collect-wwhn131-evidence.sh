@@ -3,6 +3,21 @@ set -euo pipefail
 
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/wwhn-131}"
 SOURCE_DIR="$EVIDENCE_DIR/source"
+
+# This collector intentionally performs migrate:fresh twice. Refuse to run
+# unless Laravel resolves to the dedicated CI SQLite database.
+php -r '
+require "vendor/autoload.php";
+$app = require "bootstrap/app.php";
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$driver = (string) config("database.default");
+$database = (string) config("database.connections.$driver.database");
+if ($app->environment() !== "testing" || $driver !== "sqlite" || $database !== "/tmp/wms-wwhn131.sqlite") {
+    fwrite(STDERR, "REFUSED: WWHN-131 collector requires APP_ENV=testing and dedicated SQLite /tmp/wms-wwhn131.sqlite.\n");
+    exit(78);
+}
+'
+
 rm -rf "$EVIDENCE_DIR"
 mkdir -p "$SOURCE_DIR"
 
@@ -16,6 +31,7 @@ SOURCE_REGISTER="docs/docs_task_jira/WWHN-131-source-register.json"
 DOCUMENT="docs/docs_task_jira/WWHN-131.md"
 REVIEW_PROTOCOL="docs/evidence/WWHN-131/INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md"
 MIGRATION="Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php"
+IDEMPOTENCY_MIGRATION="database/migrations/2026_08_03_000200_allow_completed_idempotency_lease_release.php"
 
 run_and_capture() {
   local output="$1"
@@ -59,6 +75,7 @@ cp "$SOURCE_REGISTER" "$SOURCE_DIR/"
 cp "$DOCUMENT" "$SOURCE_DIR/"
 cp "$REVIEW_PROTOCOL" "$SOURCE_DIR/"
 cp "$MIGRATION" "$SOURCE_DIR/"
+cp "$IDEMPOTENCY_MIGRATION" "$SOURCE_DIR/"
 cp Modules/Warehouse/routes/api.php "$SOURCE_DIR/warehouse-api-routes.php"
 cp Modules/Warehouse/app/Http/Controllers/StocktakeController.php "$SOURCE_DIR/"
 cp Modules/Warehouse/app/Services/StocktakeAdjustmentService.php "$SOURCE_DIR/"
@@ -68,6 +85,8 @@ cp Modules/Warehouse/app/Services/StocktakeGrainService.php "$SOURCE_DIR/"
 cp tests/Feature/StocktakeThreeLayerContractTest.php "$SOURCE_DIR/"
 cp tests/Feature/StocktakeApplyLedgerIntegrityTest.php "$SOURCE_DIR/"
 cp tests/Feature/StocktakeReviewGateTest.php "$SOURCE_DIR/"
+cp Modules/Warehouse/app/Http/Requests/StoreProductRequest.php "$SOURCE_DIR/"
+cp Modules/Warehouse/app/Models/WarrantyEvent.php "$SOURCE_DIR/"
 cp scripts/verify-stocktake-contract.mjs "$SOURCE_DIR/"
 cp scripts/verify-wwhn131-schema.php "$SOURCE_DIR/"
 cp scripts/collect-wwhn131-evidence.sh "$SOURCE_DIR/"
@@ -159,6 +178,7 @@ cat > "$EVIDENCE_DIR/build-metadata.json" <<JSON
   "test_case_sha256": "$(hash_file "$EVIDENCE_DIR/stocktake-test-cases.json")",
   "source_register_sha256": "$(hash_file "$EVIDENCE_DIR/stocktake-source-register.json")",
   "migration_sha256": "$(hash_file "$MIGRATION")",
+  "idempotency_migration_sha256": "$(hash_file "$IDEMPOTENCY_MIGRATION")",
   "contract_verifier_sha256": "$(hash_file scripts/verify-stocktake-contract.mjs)",
   "schema_verifier_sha256": "$(hash_file scripts/verify-wwhn131-schema.php)",
   "approval_status": "PENDING_INDEPENDENT_REVIEW_AND_FORMAL_DECISION",

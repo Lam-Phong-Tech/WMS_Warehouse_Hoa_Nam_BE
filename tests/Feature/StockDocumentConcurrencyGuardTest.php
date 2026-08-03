@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
+use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\StockDocument;
@@ -20,11 +21,13 @@ class StockDocumentConcurrencyGuardTest extends TestCase
 
     public function test_stale_document_cannot_overwrite_newer_status(): void
     {
+        $actor = $this->actor('concurrency-status');
         $document = StockDocument::create([
             'doc_type' => StockDocument::TYPE_RECEIPT,
             'doc_no' => 'PN-CONCURRENCY-001',
             'doc_date' => now()->toDateString(),
             'status' => StockDocument::STATUS_APPROVED,
+            'created_by' => $actor->user_id,
         ]);
 
         $winner = StockDocument::findOrFail($document->id);
@@ -52,6 +55,7 @@ class StockDocumentConcurrencyGuardTest extends TestCase
 
     public function test_stale_approved_receipt_cannot_create_any_stock_effect_after_another_request_posts_it(): void
     {
+        $actor = $this->actor('concurrency-stock');
         $warehouse = Warehouse::create([
             'code' => 'KHO-CONCURRENCY-001',
             'name' => 'Kho kiểm tra race',
@@ -68,6 +72,7 @@ class StockDocumentConcurrencyGuardTest extends TestCase
             'doc_date' => now()->toDateString(),
             'status' => StockDocument::STATUS_APPROVED,
             'dst_warehouse_id' => $warehouse->id,
+            'created_by' => $actor->user_id,
         ]);
         $line = StockDocumentLine::create([
             'stock_document_id' => $document->id,
@@ -118,6 +123,18 @@ class StockDocumentConcurrencyGuardTest extends TestCase
         $this->assertDatabaseMissing('posting_event', [
             'operation' => "post_receipt_{$document->id}",
             'idempotency_key' => 'wwhn180-stale-race-key',
+        ]);
+    }
+
+    private function actor(string $username): User
+    {
+        return User::create([
+            'username' => $username,
+            'display_name' => $username,
+            'email' => "{$username}@example.test",
+            'password_hash' => password_hash('secret123', PASSWORD_BCRYPT),
+            'status' => 'ACTIVE',
+            'version' => 1,
         ]);
     }
 }

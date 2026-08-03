@@ -26,7 +26,7 @@
     {"type": "WORKFLOW", "path": ".github/workflows/wwhn-131-stocktake-contract.yml", "sha256_source": "SHA256SUMS"},
     {"type": "EVIDENCE_PIPELINE", "path": "scripts/collect-wwhn131-evidence.sh", "sha256_source": "SHA256SUMS"},
     {"type": "API_CONTRACT", "path": "storage/api-docs/api-docs.json", "version_source": "OpenAPI info.version", "artifact_path": "openapi.json", "sha256_source": "build-metadata.json.openapi_sha256"},
-    {"type": "API_CONTRACT_YAML", "path": "storage/api-docs/api-docs.yaml", "artifact_path": "openapi.yaml", "sha256_source": "SHA256SUMS"},
+    {"type": "GENERATED_API_CONTRACT_YAML", "source": "storage/api-docs/api-docs.json", "generator": "scripts/collect-wwhn131-evidence.sh", "artifact_path": "openapi.yaml", "sha256_source": "SHA256SUMS"},
     {"type": "RUNTIME_ROUTE", "path": "Modules/Warehouse/routes/api.php", "artifact_path": "route-list.raw.json", "sha256_source": "SHA256SUMS"},
     {"type": "CONTROLLER", "path": "Modules/Warehouse/app/Http/Controllers/StocktakeController.php", "sha256_source": "SHA256SUMS"},
     {"type": "IMPLEMENTATION", "path": "Modules/Warehouse/app/Services/StocktakeAdjustmentService.php", "sha256_source": "SHA256SUMS"},
@@ -34,6 +34,7 @@
     {"type": "SECURITY_SCOPE_GUARD", "path": "Modules/Warehouse/app/Services/StocktakeSessionGuard.php", "sha256_source": "SHA256SUMS"},
     {"type": "GRAIN_RESOLVER", "path": "Modules/Warehouse/app/Services/StocktakeGrainService.php", "sha256_source": "SHA256SUMS"},
     {"type": "DDL", "path": "Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php", "sha256_source": "build-metadata.json.migration_sha256"},
+    {"type": "IDEMPOTENCY_DDL", "path": "database/migrations/2026_08_03_000200_allow_completed_idempotency_lease_release.php", "sha256_source": "build-metadata.json.idempotency_migration_sha256"},
     {"type": "POSTMAN", "path": "docs/postman/WWHN-131 Stocktake Contract.postman_collection.json", "version": "1.0.0", "sha256_source": "build-metadata.json.postman_sha256"},
     {"type": "POSTMAN_ENV", "path": "docs/postman/WWHN-131 Stocktake CI.postman_environment.json", "version": "1.0.0", "sha256_source": "SHA256SUMS"},
     {"type": "TEST_CASE", "path": "docs/testing/WWHN-131-stocktake-test-cases.json", "version": "1.2.0", "sha256_source": "build-metadata.json.test_case_sha256"},
@@ -99,11 +100,11 @@
     },
     "STK-P1-06": {
       "repository_fix": "Source Register 1.2.0 liệt kê đầy đủ source/artifact/impacted external sources và WWHN-133 update matrix.",
-      "repository_status": "REPOSITORY_TRACEABILITY_COMPLETE",
+      "repository_status": "REPOSITORY_TRACEABILITY_TEMPLATE_PREPARED",
       "external_gate": "BAS điền current Jira attachment IDs/SHA-256 của BRD/SRS/BPD/DEC-INV."
     },
     "STK-P2-01": {
-      "repository_fix": "Structured BE1 Jira handoff đầy đủ file/version/status/scope/hash/reviewer/blockers đã phát hành.",
+      "repository_fix": "Structured BE1 Jira handoff đầy đủ file/version/status/scope/hash/reviewer/blockers đã chuẩn bị trong WWHN-131.md.",
       "repository_status": "READY_TO_POST",
       "external_gate": "Atlassian app/permission phải khả dụng để post comment thật."
     }

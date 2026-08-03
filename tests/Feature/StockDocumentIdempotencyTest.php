@@ -127,10 +127,10 @@ class StockDocumentIdempotencyTest extends TestCase
         $this->postJson("/api/v1/inbound-documents/{$docId}/submit", [], $headers)->assertOk()->assertJsonPath('data.status', 'pending');
         $this->postJson("/api/v1/inbound-documents/{$docId}/approve", [], $headers)->assertOk()->assertJsonPath('data.status', 'approved');
 
-        $first = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-1']);
+        $first = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-key-1']);
         $first->assertOk()->assertJsonPath('data.status', 'received');
 
-        $second = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-1']);
+        $second = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-key-1']);
         $second->assertOk();
 
         $this->assertSame(
@@ -139,7 +139,7 @@ class StockDocumentIdempotencyTest extends TestCase
             'Post lặp lại cùng Idempotency-Key phải trả về đúng 1 movement, không tạo movement mới.'
         );
         $this->assertSame(1, StockMovement::where('stock_document_id', $docId)->count());
-        $this->assertSame(1, DB::table('posting_event')->where('operation', "post_receipt_{$docId}")->where('idempotency_key', 'post-1')->count());
+        $this->assertSame(1, DB::table('posting_event')->where('operation', "post_receipt_{$docId}")->where('idempotency_key', 'post-key-1')->count());
 
         $balance = InventoryBalance::where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->first();
         $this->assertEquals(10, (float) $balance->available_qty);
@@ -164,7 +164,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $docId = $createResponse->json('data.id');
 
         // Vẫn ở trạng thái draft — chưa submit/approve — post phải bị từ chối (409 STATE_CONFLICT).
-        $response = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-2']);
+        $response = $this->postJson("/api/v1/inbound-documents/{$docId}/post-receipt", [], $headers + ['Idempotency-Key' => 'post-key-2']);
 
         $response->assertStatus(409)->assertJsonPath('error.code', 'STATE_CONFLICT');
     }

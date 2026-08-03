@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -53,9 +54,17 @@ class StoreProductRequest extends FormRequest
 
     public function rules(): array
     {
+        $idempotencyKey = trim((string) $this->header('Idempotency-Key'));
+        $actorId = (string) ($this->user()?->getAuthIdentifier() ?? '0');
+        $isReplayCandidate = $idempotencyKey !== '' && DB::table('idempotency_keys')
+            ->where('idem_key', $idempotencyKey)
+            ->where('operation', 'sku_create')
+            ->where('user_id', $actorId)
+            ->exists();
+
         return [
-            'code' => ['required', 'string', 'max:100', 'unique:products,code'],
-            'sku_code' => ['required', 'string', 'max:100', 'unique:products,sku_code'],
+            'code' => array_filter(['required', 'string', 'max:100', $isReplayCandidate ? null : 'unique:products,code']),
+            'sku_code' => array_filter(['required', 'string', 'max:100', $isReplayCandidate ? null : 'unique:products,sku_code']),
             'name' => ['required', 'string', 'max:255'],
             'unit' => ['nullable', 'string', 'max:30'],
             'sku_type' => ['nullable', Rule::in(['PRODUCT', 'COMPONENT'])],

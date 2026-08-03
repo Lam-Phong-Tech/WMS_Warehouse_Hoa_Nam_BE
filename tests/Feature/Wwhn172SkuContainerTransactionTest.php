@@ -15,6 +15,7 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private string $token;
 
     protected function setUp(): void
@@ -37,7 +38,7 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
         ]);
 
         $payload = [
-            'code' => 'sku-kit-001',
+            'code' => 'wwhn172-kit-001',
             'name' => 'SKU kit 001',
             'sku_type' => 'PRODUCT',
             'components' => [[
@@ -54,7 +55,7 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
         $first = $this->postJson('/api/v1/skus', $payload, $this->headers('sku-create-001'));
         $first->assertCreated()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.code', 'SKU-KIT-001')
+            ->assertJsonPath('data.code', 'WWHN172-KIT-001')
             ->assertJsonPath('data.version', 1)
             ->assertJsonCount(1, 'data.components')
             ->assertJsonCount(1, 'data.physical_codes')

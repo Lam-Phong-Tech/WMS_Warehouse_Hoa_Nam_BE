@@ -9,6 +9,7 @@ on:
       - 'Modules/Warehouse/app/Http/Controllers/StocktakeController.php'
       - 'Modules/Warehouse/app/Services/Stocktake*.php'
       - 'Modules/Warehouse/database/migrations/*stocktake*'
+      - 'database/migrations/*idempotency*'
       - 'Modules/Warehouse/routes/api.php'
       - 'docs/docs_task_jira/WWHN-131*'
       - 'docs/evidence/WWHN-131/**'
@@ -30,6 +31,7 @@ on:
       - 'Modules/Warehouse/app/Http/Controllers/StocktakeController.php'
       - 'Modules/Warehouse/app/Services/Stocktake*.php'
       - 'Modules/Warehouse/database/migrations/*stocktake*'
+      - 'database/migrations/*idempotency*'
       - 'Modules/Warehouse/routes/api.php'
       - 'docs/docs_task_jira/WWHN-131*'
       - 'docs/evidence/WWHN-131/**'
@@ -51,6 +53,14 @@ jobs:
   exact-sha-evidence:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/wms-wwhn131.sqlite
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
 
     steps:
       - name: Checkout exact commit
@@ -85,15 +95,7 @@ jobs:
           php artisan key:generate
           rm -f /tmp/wms-wwhn131.sqlite
           touch /tmp/wms-wwhn131.sqlite
-          cat >> .env <<'ENV'
-          JWT_SECRET=ci-jwt-secret-wwhn131
-          DB_CONNECTION=sqlite
-          DB_DATABASE=/tmp/wms-wwhn131.sqlite
-          CACHE_STORE=array
-          SESSION_DRIVER=array
-          QUEUE_CONNECTION=sync
-          AUDIT_WRITE_POLICY=outbox_required
-          ENV
+          echo 'JWT_SECRET=ci-jwt-secret-wwhn131' >> .env
 
       - name: Static integrity gate
         shell: bash
@@ -187,7 +189,7 @@ jobs:
           NODE
 
       - name: Upload immutable exact-SHA artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: stocktake-evidence-${{ github.sha }}

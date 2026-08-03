@@ -19,6 +19,24 @@ return new class extends Migration
 
     public function down(): void
     {
+        $this->dropIndexIfExists('stocktake_session', 'idx_stocktake_session_warehouse_status');
+        $this->dropIndexIfExists('stocktake_snapshot', 'uk_stocktake_snapshot_session_grain', true);
+        $this->dropIndexIfExists('stocktake_snapshot', 'idx_stocktake_snapshot_dimension');
+        $this->dropIndexIfExists('stocktake_count', 'uk_stocktake_count_session_grain', true);
+        $this->dropIndexIfExists('stocktake_count', 'idx_stocktake_count_dimension');
+        $this->dropIndexIfExists('stocktake_variance', 'uk_stocktake_variance_session_grain', true);
+        $this->dropIndexIfExists('stocktake_variance', 'idx_stocktake_variance_session_status');
+        $this->dropIndexIfExists('stock_movements', 'idx_movement_stocktake_variance');
+
+        $this->dropForeignIfColumnExists('stocktake_session', 'reviewed_by');
+        foreach (['inventory_serial_id', 'container_id', 'container_item_id'] as $column) {
+            $this->dropForeignIfColumnExists('stocktake_snapshot', $column);
+        }
+        $this->dropForeignIfColumnExists('stocktake_count', 'container_item_id');
+        foreach (['inventory_serial_id', 'container_id', 'container_item_id', 'acknowledged_by'] as $column) {
+            $this->dropForeignIfColumnExists('stocktake_variance', $column);
+        }
+
         if (Schema::hasColumn('stock_movements', 'stocktake_variance_id')) {
             Schema::table('stock_movements', function (Blueprint $table): void {
                 $table->dropConstrainedForeignId('stocktake_variance_id');
@@ -45,6 +63,16 @@ return new class extends Migration
                         $table->dropColumn($column);
                     }
                 }
+            });
+        }
+
+        if (Schema::hasTable('stocktake_snapshot')
+            && ! $this->hasIndex('stocktake_snapshot', 'uk_stocktake_snapshot_session_product_status')) {
+            Schema::table('stocktake_snapshot', function (Blueprint $table): void {
+                $table->unique(
+                    ['session_id', 'product_id', 'stock_status'],
+                    'uk_stocktake_snapshot_session_product_status'
+                );
             });
         }
     }
@@ -319,5 +347,33 @@ return new class extends Migration
         return collect(Schema::getIndexes($table))->contains(
             fn (array $index): bool => ($index['name'] ?? null) === $indexName
         );
+    }
+
+    private function dropIndexIfExists(string $table, string $indexName, bool $unique = false): void
+    {
+        if (! Schema::hasTable($table) || ! $this->hasIndex($table, $indexName)) {
+            return;
+        }
+
+        Schema::table($table, function (Blueprint $blueprint) use ($indexName, $unique): void {
+            if ($unique) {
+                $blueprint->dropUnique($indexName);
+
+                return;
+            }
+
+            $blueprint->dropIndex($indexName);
+        });
+    }
+
+    private function dropForeignIfColumnExists(string $table, string $column): void
+    {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+            return;
+        }
+
+        Schema::table($table, function (Blueprint $blueprint) use ($column): void {
+            $blueprint->dropForeign([$column]);
+        });
     }
 };

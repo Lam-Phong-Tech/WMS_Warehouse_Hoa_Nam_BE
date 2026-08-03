@@ -3,18 +3,28 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 require __DIR__.'/../vendor/autoload.php';
 
-/** @var Illuminate\Foundation\Application $app */
+/** @var Application $app */
 $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 $outputPath = $argv[1] ?? 'build/evidence/wwhn-131/schema-verification.json';
 $driver = DB::connection()->getDriverName();
 $database = (string) DB::connection()->getDatabaseName();
+$schema = $driver === 'pgsql'
+    ? (string) (DB::selectOne('SELECT current_schema() AS name')->name ?? '')
+    : ($driver === 'mysql' ? $database : 'main');
+$serverVersion = match ($driver) {
+    'sqlite' => (string) (DB::selectOne('SELECT sqlite_version() AS version')->version ?? ''),
+    'mysql' => (string) (DB::selectOne('SELECT VERSION() AS version')->version ?? ''),
+    'pgsql' => (string) (DB::selectOne('SHOW server_version')->server_version ?? ''),
+    default => 'unknown',
+};
 $checks = [];
 
 $record = static function (string $id, bool $passed, string $message, array $details = []) use (&$checks): void {
@@ -208,11 +218,18 @@ foreach ($requiredTables as $table) {
     );
 }
 
+$record(
+    'migration:wwhn131-hardening-applied',
+    DB::table('migrations')->where('migration', '2026_08_03_000100_harden_stocktake_three_layer_contract')->exists(),
+    'Migration WWHN-131 hardening phải được ghi nhận đã apply'
+);
+
 $notNullColumns = [
     'stocktake_session' => ['warehouse_id'],
     'stocktake_snapshot' => ['grain_type', 'grain_id', 'grain_key'],
     'stocktake_count' => ['grain_type', 'grain_id', 'grain_key'],
     'stocktake_variance' => ['grain_type', 'grain_id', 'grain_key'],
+    'posting_event' => ['operation', 'idempotency_key', 'request_hash'],
 ];
 foreach ($notNullColumns as $table => $columns) {
     foreach ($columns as $column) {
@@ -309,6 +326,8 @@ $result = [
     'generated_at_utc' => gmdate('c'),
     'driver' => $driver,
     'database' => $database,
+    'schema' => $schema,
+    'server_version' => $serverVersion,
     'summary' => [
         'passed' => count($checks) - $failed,
         'failed' => $failed,
