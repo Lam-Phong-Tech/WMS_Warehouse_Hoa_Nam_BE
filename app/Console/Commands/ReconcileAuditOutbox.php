@@ -11,6 +11,7 @@ use Throwable;
 class ReconcileAuditOutbox extends Command
 {
     protected $signature = 'audit:reconcile {--limit= : Số bản ghi tối đa mỗi lần chạy}';
+
     protected $description = 'Ghi lại các audit event bị lỗi từ audit_outbox vào audit_log';
 
     public function handle(): int
@@ -25,7 +26,7 @@ class ReconcileAuditOutbox extends Command
             ->orderBy('created_at')
             ->limit($limit)
             ->get()
-            ->each(function (AuditOutbox $entry) use (&$processed, &$failed): void {
+            ->each(function (AuditOutbox $entry) use (& $processed, & $failed): void {
                 try {
                     AuditLog::create($entry->payload);
                     $entry->update([
