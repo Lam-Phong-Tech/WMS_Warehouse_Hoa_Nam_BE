@@ -108,6 +108,7 @@ class IdempotencyStore
     /**
      * Hash v2 dùng JSON canonical + SHA-256. Phần md5 legacy cho phép replay các row đã
      * tạo trước khi nâng cấp mà không biến một retry hợp lệ thành 409 sau deployment.
+     * Comparator luôn ưu tiên digest v2; suffix md5 chỉ dùng khi đối chiếu row legacy.
      */
     public static function requestHash(Request $request): string
     {
@@ -252,6 +253,14 @@ class IdempotencyStore
             return false;
         }
 
+        // Hai hash v2 phải được so bằng canonical SHA-256. Suffix MD5 có thể khác khi
+        // object key order khác nhau và tuyệt đối không được gây false 409.
+        $storedV2 = self::v2Digest($stored);
+        $requestV2 = self::v2Digest($requestHash);
+        if ($storedV2 !== null && $requestV2 !== null) {
+            return ! hash_equals($storedV2, $requestV2);
+        }
+
         // Tương thích row md5 cũ với request hash v2 có đính kèm md5 legacy.
         if (preg_match('/^[a-f0-9]{32}$/', $stored) === 1
             && preg_match('/\|md5:([a-f0-9]{32})$/', $requestHash, $matches) === 1) {
@@ -259,6 +268,15 @@ class IdempotencyStore
         }
 
         return true;
+    }
+
+    private static function v2Digest(string $hash): ?string
+    {
+        if (preg_match('/^v2:([a-f0-9]{64})(?:\|md5:[a-f0-9]{32})?$/', $hash, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
     }
 
     private static function leaseExpired(mixed $lockedUntil): bool
