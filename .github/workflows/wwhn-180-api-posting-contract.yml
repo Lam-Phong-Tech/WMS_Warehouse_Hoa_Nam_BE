@@ -1,7 +1,9 @@
-name: WWHN-180 Scan Receipt Issue Evidence Gate
+name: WWHN-180 API Data Contract Evidence Gate
 
 on:
   push:
+    branches: [m1]
+  pull_request:
     branches: [m1]
   workflow_dispatch:
 
@@ -9,13 +11,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: wwhn-180-${{ github.ref }}
+  group: wwhn-180-api-data-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   evidence-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
+
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
@@ -42,7 +45,9 @@ jobs:
           npm ci --ignore-scripts
 
       - name: Prepare deterministic environment
+        shell: bash
         run: |
+          set -euo pipefail
           cp .env.example .env
           php artisan key:generate
           rm -f /tmp/wms-wwhn180.sqlite
@@ -57,81 +62,135 @@ jobs:
             echo 'AUDIT_WRITE_POLICY=outbox_required'
           } >> .env
 
-      - name: Syntax and formatting gate
+      - name: PHP syntax and formatting gate
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/Support/IdempotencyStore.php
-          php -l tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+          find app Modules tests config database routes -name '*.php' -print0 | xargs -0 -n1 php -l
           git diff --check
-          ./vendor/bin/pint --test app/Support/IdempotencyStore.php tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+          ./vendor/bin/pint --test app Modules tests config database routes
 
-      - name: Collect executable evidence
+      - name: Frontend asset and baseline build
+        run: |
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Collect executable exact-SHA evidence
         env:
           EVIDENCE_DIR: build/evidence/api-data
           WWHN180_EMAIL: manager01@gmail.com
           WWHN180_PASSWORD: Cntt@1234
           WWHN180_NO_PERMISSION_EMAIL: test-no-permission@hoanam.com
           WWHN180_NO_PERMISSION_PASSWORD: Cntt@1234
+          DB_CONNECTION: sqlite
         run: bash scripts/collect-wwhn180-evidence.sh
 
-      - name: Validate OpenAPI and structured evidence
+      - name: Validate OpenAPI contracts
+        run: |
+          npx redocly lint build/evidence/api-data/openapi.json
+          npx redocly lint build/evidence/api-data/openapi.yaml
+          npx redocly lint build/evidence/api-data/wwhn180-openapi.yaml
+
+      - name: Validate structured evidence and exact SHA binding
         shell: bash
         run: |
           set -euo pipefail
-          DIR=build/evidence/api-data
-          npx redocly lint "$DIR/wwhn180-openapi.yaml"
           node - <<'NODE'
           const fs = require('fs');
-          const dir = 'build/evidence/api-data';
-          const requiredJson = [
-            'build-metadata.json',
-            'g1-closure-matrix.json',
-            'newman.result.json',
-            'openapi.json',
-            'permission-catalog.json',
-            'reconciliation-report.json',
+          const root = 'build/evidence/api-data';
+          const jsonFiles = [
             'route-list.raw.json',
-            'wwhn180-contract-verification.json',
-            'wwhn180-db-delta.json',
+            'permission-catalog.json',
+            'openapi.json',
+            'wwhn180.postman.collection.json',
+            'wwhn180.postman.environment.json',
             'wwhn180-source-register.json',
             'wwhn180-test-cases.json',
-            'wwhn180.postman.collection.json',
-            'wwhn180.postman.environment.json'
+            'wwhn180-contract-verification.json',
+            'newman.result.json',
+            'db-before.json',
+            'db-after.json',
+            'wwhn180-db-delta.json',
+            'reconciliation-report.json',
+            'build-metadata.json',
+            'g1-closure-matrix.json'
           ];
-          for (const file of requiredJson) {
-            const path = `${dir}/${file}`;
-            if (!fs.existsSync(path) || fs.statSync(path).size === 0) throw new Error(`Missing evidence: ${file}`);
-            JSON.parse(fs.readFileSync(path, 'utf8'));
+          for (const file of jsonFiles) {
+            JSON.parse(fs.readFileSync(`${root}/${file}`, 'utf8'));
           }
-          for (const file of ['wwhn180-contract-verification.json', 'wwhn180-db-delta.json', 'reconciliation-report.json']) {
-            const result = JSON.parse(fs.readFileSync(`${dir}/${file}`, 'utf8'));
-            if (result.summary?.status !== 'PASS' || Number(result.summary?.failed ?? 0) !== 0) {
-              throw new Error(`${file} is not PASS`);
-            }
-          }
-          const newman = JSON.parse(fs.readFileSync(`${dir}/newman.result.json`, 'utf8'));
-          if ((newman.run?.failures ?? []).length !== 0) throw new Error('Newman has failures');
-          const metadata = JSON.parse(fs.readFileSync(`${dir}/build-metadata.json`, 'utf8'));
-          if (metadata.commit_sha !== process.env.GITHUB_SHA) throw new Error('build-metadata commit_sha mismatch');
-          NODE
-          test -s "$DIR/phpunit.raw.log"
-          test -s "$DIR/wwhn180-atomicity-phpunit.raw.log"
-          test -s "$DIR/stock-document-canonical-phpunit.raw.log"
-          test -s "$DIR/stock-document-concurrency-phpunit.raw.log"
-          test -s "$DIR/reconciliation-integrity-phpunit.raw.log"
-          test -s "$DIR/newman.raw.log"
-          test -s "$DIR/db-before.json"
-          test -s "$DIR/db-after.json"
-          test -s "$DIR/SHA256SUMS"
-          test -s "$DIR/SHA256SUMS.sha256"
-          (cd "$DIR" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
 
-      - name: Upload immutable WWHN-180 evidence
-        if: always()
+          const metadata = JSON.parse(fs.readFileSync(`${root}/build-metadata.json`, 'utf8'));
+          if (metadata.commit_sha !== process.env.GITHUB_SHA) {
+            throw new Error(`Artifact SHA ${metadata.commit_sha} differs from workflow SHA ${process.env.GITHUB_SHA}`);
+          }
+          if (metadata.artifact_name !== `api-data-evidence-${process.env.GITHUB_SHA}`) {
+            throw new Error(`Unexpected artifact name ${metadata.artifact_name}`);
+          }
+          if (metadata.document_status !== 'PROPOSED' || metadata.approval_status !== 'PENDING_INDEPENDENT_SIGN_OFF') {
+            throw new Error('Evidence metadata contains an invalid approval claim');
+          }
+
+          const contract = JSON.parse(fs.readFileSync(`${root}/wwhn180-contract-verification.json`, 'utf8'));
+          if (contract.summary?.status !== 'PASS' || contract.summary?.failed !== 0) {
+            throw new Error('WWHN-180 contract verification is not PASS');
+          }
+          const delta = JSON.parse(fs.readFileSync(`${root}/wwhn180-db-delta.json`, 'utf8'));
+          if (delta.summary?.status !== 'PASS' || delta.summary?.failed !== 0) {
+            throw new Error('WWHN-180 DB delta verification is not PASS');
+          }
+          const reconciliation = JSON.parse(fs.readFileSync(`${root}/reconciliation-report.json`, 'utf8'));
+          if (reconciliation.summary?.status !== 'PASS' || reconciliation.summary?.failed !== 0) {
+            throw new Error('Inventory reconciliation is not PASS');
+          }
+          const newman = JSON.parse(fs.readFileSync(`${root}/newman.result.json`, 'utf8'));
+          if ((newman.run?.failures ?? []).length !== 0) {
+            throw new Error(`Newman has ${newman.run.failures.length} failure(s)`);
+          }
+          const catalog = JSON.parse(fs.readFileSync(`${root}/permission-catalog.json`, 'utf8'));
+          if (catalog.integrity?.status !== 'PASS') {
+            throw new Error('Permission catalog integrity is not PASS');
+          }
+          const closure = JSON.parse(fs.readFileSync(`${root}/g1-closure-matrix.json`, 'utf8'));
+          if (closure.final_decision !== 'BLOCKED_PENDING_INDEPENDENT_SIGN_OFF') {
+            throw new Error('Closure matrix must remain blocked before BA/FE1/QA2 sign-off');
+          }
+          NODE
+
+          required_files=(
+            openapi.json openapi.yaml wwhn180-openapi.yaml
+            route-list.raw.json permission-catalog.json
+            phpunit.raw.log wwhn180-atomicity-phpunit.raw.log
+            stock-document-canonical-phpunit.raw.log stock-document-concurrency-phpunit.raw.log
+            reconciliation-integrity-phpunit.raw.log
+            newman.raw.log newman.result.json
+            db-before.json db-after.json wwhn180-db-delta.json reconciliation-report.json
+            build-metadata.json g1-closure-matrix.json jira-closure-comment.txt ci-summary.md
+            SHA256SUMS SHA256SUMS.sha256
+          )
+          for file in "${required_files[@]}"; do
+            test -s "build/evidence/api-data/$file"
+          done
+          (cd build/evidence/api-data && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
+
+      - name: Publish evidence summary
+        if: success()
+        run: cat build/evidence/api-data/ci-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload immutable passing evidence
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: api-data-evidence-${{ github.sha }}
           path: build/evidence/api-data
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload failed-run diagnostics only
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-data-diagnostics-${{ github.sha }}
+          path: build/evidence/api-data
+          if-no-files-found: warn
+          retention-days: 14
