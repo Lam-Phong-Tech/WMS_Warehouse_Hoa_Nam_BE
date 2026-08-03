@@ -168,19 +168,22 @@ class WarrantyController extends Controller
             );
         }
 
-        $otherActiveCaseExists = WarrantyCase::query()
+        $otherActiveCase = WarrantyCase::query()
             ->where('inventory_serial_id', $serial->id)
             ->where('warranty_case_id', '!=', $case->warranty_case_id)
             ->whereNotIn('status', self::TERMINAL_CASE_STATUSES)
             ->lockForUpdate()
-            ->exists();
+            ->first(['warranty_case_id']);
 
-        if ($otherActiveCaseExists) {
+        if ($otherActiveCase !== null) {
             ApiError::abort(
                 409,
                 'ACTIVE_WARRANTY_EXISTS',
                 'Serial đã có một phiếu bảo hành đang hoạt động.',
-                ['inventory_serial_id' => (string) $serial->id]
+                [
+                    'inventory_serial_id' => (string) $serial->id,
+                    'active_warranty_case_id' => (string) $otherActiveCase->warranty_case_id,
+                ]
             );
         }
     }
