@@ -10,8 +10,11 @@ class AuditOutbox extends Model
     use HasUuids;
 
     protected $table = 'audit_outbox';
+
     protected $primaryKey = 'audit_outbox_id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
