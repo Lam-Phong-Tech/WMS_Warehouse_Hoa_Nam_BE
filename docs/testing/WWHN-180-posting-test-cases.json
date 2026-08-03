@@ -1,28 +1,50 @@
 {
   "jira_key": "WWHN-180",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "PROPOSED",
-  "execution_rule": "Every result must reference the exact build-metadata commit_sha and a passing SHA256SUMS verification.",
+  "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
+  "execution_rule": "Every result must reference build/evidence/api-data/build-metadata.json.commit_sha from a successful workflow and a passing SHA256SUMS plus SHA256SUMS.sha256 verification.",
   "cases": [
-    {"id": "W180-SCAN-001", "priority": "P0", "area": "scan", "scenario": "classify valid code", "expected_http": 200, "expected": ["stock_effect=NONE", "movement count unchanged", "balance unchanged", "posting_event unchanged"]},
-    {"id": "W180-SCAN-002", "priority": "P1", "area": "scan", "scenario": "missing permission", "expected_http": 403, "expected": ["no DB write"]},
-    {"id": "W180-SCAN-003", "priority": "P1", "area": "scan", "scenario": "foreign warehouse scope", "expected_http": 403, "expected": ["WAREHOUSE_SCOPE_DENIED", "no DB write"]},
-    {"id": "W180-SCAN-004", "priority": "P1", "area": "scan", "scenario": "invalid context or object conflict", "expected_http": 409, "expected": ["no DB write"]},
-    {"id": "W180-SCAN-005", "priority": "P1", "area": "scan", "scenario": "invalid payload", "expected_http": 422, "expected": ["field validation envelope", "no DB write"]},
-    {"id": "W180-IN-001", "priority": "P0", "area": "post-receipt", "scenario": "approved receipt happy path", "expected_http": 200, "expected": ["status=received", "one movement per line", "balance increased once", "one posting_event"]},
-    {"id": "W180-IN-002", "priority": "P0", "area": "post-receipt", "scenario": "same key same payload retry", "expected_http": 200, "expected": ["exact response snapshot replay", "same movement ids", "no second balance effect"]},
-    {"id": "W180-IN-003", "priority": "P0", "area": "post-receipt", "scenario": "same key different payload", "expected_http": 409, "expected": ["IDEMPOTENCY_ERROR", "no second balance effect"]},
-    {"id": "W180-IN-004", "priority": "P1", "area": "post-receipt", "scenario": "missing Idempotency-Key", "expected_http": 428, "expected": ["PRECONDITION_REQUIRED", "no stock effect"]},
-    {"id": "W180-IN-005", "priority": "P1", "area": "post-receipt", "scenario": "not approved", "expected_http": 409, "expected": ["STATE_CONFLICT", "no stock effect"]},
-    {"id": "W180-OUT-001", "priority": "P0", "area": "post-issue", "scenario": "approved issue happy path", "expected_http": 200, "expected": ["status=issued", "one movement per line", "balance decreased once", "one posting_event"]},
-    {"id": "W180-OUT-002", "priority": "P0", "area": "post-issue", "scenario": "same key same payload retry", "expected_http": 200, "expected": ["exact response snapshot replay", "same movement ids", "no second balance effect"]},
-    {"id": "W180-OUT-003", "priority": "P0", "area": "post-issue", "scenario": "same key different payload", "expected_http": 409, "expected": ["IDEMPOTENCY_ERROR", "no second balance effect"]},
-    {"id": "W180-OUT-004", "priority": "P1", "area": "post-issue", "scenario": "insufficient stock", "expected_http": 422, "expected": ["INSUFFICIENT_STOCK", "transaction rollback"]},
-    {"id": "W180-RACE-001", "priority": "P0", "area": "concurrency", "scenario": "two requests same key overlap", "expected_http": "200+409 or 200+replay", "expected": ["callback executes once", "one stock effect"]},
-    {"id": "W180-RACE-002", "priority": "P0", "area": "concurrency", "scenario": "two different keys post same document", "expected_http": "200+409", "expected": ["business movement key unique", "one stock effect"]},
-    {"id": "W180-TIMEOUT-001", "priority": "P0", "area": "atomicity", "scenario": "failure after business write before response completion", "expected_http": 500, "expected": ["business write rolled back", "owned processing lease removed"]},
-    {"id": "W180-TIMEOUT-002", "priority": "P0", "area": "atomicity", "scenario": "client timeout after DB commit", "expected_http": 200, "expected": ["retry returns persisted done snapshot", "no duplicate stock effect"]},
-    {"id": "W180-RBAC-001", "priority": "P1", "area": "permission", "scenario": "stock_document.post denied", "expected_http": 403, "expected": ["route middleware and permission catalog agree", "no DB write"]},
-    {"id": "W180-REC-001", "priority": "P0", "area": "reconciliation", "scenario": "after receipt and issue sequence", "expected_http": 200, "expected": ["summary.status=PASS", "failed=0", "balance equals ledger sum"]}
-  ]
+    {"id":"W180-SCAN-001","priority":"P0","area":"scan","scenario":"validate inbound line without stock effect","expected_http":200,"expected":["stock_effect=NONE","movement_created=false","document remains approved","stock movement delta=0"]},
+    {"id":"W180-SCAN-002","priority":"P1","area":"scan","scenario":"missing permission","expected_http":403,"expected":["ACCESS_DENIED","no DB write"]},
+    {"id":"W180-SCAN-003","priority":"P1","area":"scan","scenario":"foreign warehouse scope","expected_http":403,"expected":["WAREHOUSE_SCOPE_DENIED","no DB write"]},
+    {"id":"W180-IN-001","priority":"P0","area":"post-receipt","scenario":"approved receipt happy path","expected_http":200,"expected":["status=received","one movement per line","balance increased once","one committed posting_event"]},
+    {"id":"W180-IN-002","priority":"P0","area":"post-receipt","scenario":"same key same payload retry","expected_http":200,"expected":["exact persisted response replay","same movement ids","callback not rerun","no second balance effect"]},
+    {"id":"W180-IN-003","priority":"P0","area":"post-receipt","scenario":"same key different payload","expected_http":409,"expected":["IDEMPOTENCY_ERROR","no second balance effect"]},
+    {"id":"W180-IN-004","priority":"P0","area":"post-receipt","scenario":"different key after document already posted","expected_http":409,"expected":["STATE_CONFLICT","no second movement balance status history"]},
+    {"id":"W180-IN-005","priority":"P1","area":"post-receipt","scenario":"missing Idempotency-Key","expected_http":428,"expected":["PRECONDITION_REQUIRED","no stock effect"]},
+    {"id":"W180-IN-006","priority":"P1","area":"post-receipt","scenario":"document not approved","expected_http":409,"expected":["STATE_CONFLICT","no stock effect"]},
+    {"id":"W180-OUT-001","priority":"P0","area":"post-issue","scenario":"approved issue happy path","expected_http":200,"expected":["status=issued","one movement per line","balance decreased once","one committed posting_event"]},
+    {"id":"W180-OUT-002","priority":"P0","area":"post-issue","scenario":"same key same payload retry","expected_http":200,"expected":["exact persisted response replay","same movement ids","callback not rerun","no second balance effect"]},
+    {"id":"W180-OUT-003","priority":"P0","area":"post-issue","scenario":"same key different payload","expected_http":409,"expected":["IDEMPOTENCY_ERROR","no second balance effect"]},
+    {"id":"W180-OUT-004","priority":"P0","area":"post-issue","scenario":"different key after document already posted","expected_http":409,"expected":["STATE_CONFLICT","no second movement balance status history"]},
+    {"id":"W180-OUT-005","priority":"P1","area":"post-issue","scenario":"missing Idempotency-Key","expected_http":428,"expected":["PRECONDITION_REQUIRED","no stock effect"]},
+    {"id":"W180-OUT-006","priority":"P1","area":"post-issue","scenario":"insufficient stock","expected_http":422,"expected":["INSUFFICIENT_STOCK","transaction rollback"]},
+    {"id":"W180-RACE-001","priority":"P0","area":"concurrency","scenario":"two requests same key overlap","expected_http":"200+409 or 200+replay","expected":["callback executes once","one stock effect","lease row locked"]},
+    {"id":"W180-RACE-002","priority":"P0","area":"concurrency","scenario":"two different keys post same document","expected_http":"200+409","expected":["business movement key unique","one stock effect"]},
+    {"id":"W180-TIMEOUT-001","priority":"P0","area":"atomicity","scenario":"failure after business write before callback completion","expected_http":500,"expected":["business write rolled back","owned processing lease removed"]},
+    {"id":"W180-TIMEOUT-002","priority":"P0","area":"atomicity","scenario":"client loses response after DB commit","expected_http":200,"expected":["retry returns persisted done snapshot","no duplicate stock effect"]},
+    {"id":"W180-HASH-001","priority":"P1","area":"request-hash","scenario":"semantic JSON payload has different object-key order","expected_http":"N/A","expected":["canonical SHA-256 hashes are equal"]},
+    {"id":"W180-RBAC-001","priority":"P1","area":"permission","scenario":"stock_document.post denied","expected_http":403,"expected":["route middleware and permission catalog agree","no DB write"]},
+    {"id":"W180-RBAC-002","priority":"P1","area":"permission","scenario":"report.view denied for reconciliation","expected_http":403,"expected":["ACCESS_DENIED"]},
+    {"id":"W180-REC-001","priority":"P0","area":"reconciliation","scenario":"after canonical receipt and issue sequence","expected_http":200,"expected":["summary.status=PASS","mismatch_count=0","balance equals signed ledger sum"]},
+    {"id":"W180-DB-001","priority":"P1","area":"DB before-after","scenario":"compare WWHN-180 Newman snapshots","expected_http":"N/A","expected":["stock_movements delta=2","posting_events delta=2","completed idempotency row delta=4"]},
+    {"id":"W180-ART-001","priority":"P1","area":"artifact integrity","scenario":"verify immutable artifact","expected_http":"N/A","expected":["build commit equals workflow SHA","SHA256SUMS PASS","SHA256SUMS.sha256 PASS"]},
+    {"id":"W180-SEC-001","priority":"P1","area":"secret hygiene","scenario":"inspect committed Postman files","expected_http":"N/A","expected":["no literal password token or secret","credentials injected only at runtime"]}
+  ],
+  "automation": {
+    "phpunit": [
+      "tests/Feature/Wwhn180IdempotencyAtomicityTest.php",
+      "tests/Feature/StockDocumentIdempotencyTest.php",
+      "tests/Feature/StockDocumentCanonicalFlowTest.php",
+      "tests/Feature/StockDocumentConcurrencyGuardTest.php",
+      "tests/Feature/InventoryReconciliationIntegrityTest.php"
+    ],
+    "postman": "docs/postman/WWHN-180 Posting Contract.postman_collection.json",
+    "verifiers": [
+      "scripts/verify-wwhn180-evidence.mjs",
+      "scripts/verify-wwhn180-db-delta.mjs",
+      "scripts/verify-inventory-reconciliation.mjs"
+    ]
+  }
 }
