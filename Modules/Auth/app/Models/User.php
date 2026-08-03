@@ -16,8 +16,11 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     use Authenticatable, HasUuids, SoftDeletes;
 
     protected $table = 'app_user';
+
     protected $primaryKey = 'user_id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -61,16 +64,25 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     {
         if ($this->isSuperAdmin()) {
             return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:super-admin-permissions", 300, function () {
-                return Permission::query()->where('status', 'ACTIVE')->orderBy('permission_key')
-                    ->pluck('permission_key')->values()->all();
+                return Permission::query()
+                    ->where('status', 'ACTIVE')
+                    ->orderBy('permission_key')
+                    ->pluck('permission_key')
+                    ->values()
+                    ->all();
             });
         }
 
         return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:permissions", 300, function () {
             return $this->activeRoles()
                 ->with(['permissions' => fn ($q) => $q->where('permission.status', 'ACTIVE')])
-                ->get()->pluck('permissions')->flatten()->pluck('permission_key')
-                ->unique()->values()->all();
+                ->get()
+                ->pluck('permissions')
+                ->flatten()
+                ->pluck('permission_key')
+                ->unique()
+                ->values()
+                ->all();
         });
     }
 
@@ -100,13 +112,16 @@ class User extends Model implements AuthenticatableContract, JWTSubject
 
             return $roles->pluck('pivot.scope_ref')
                 ->filter(fn ($scope) => is_string($scope) && $scope !== '')
-                ->unique()->values()->all();
+                ->unique()
+                ->values()
+                ->all();
         });
     }
 
     public function canAccessWarehouse(string $warehouseId): bool
     {
         $scopes = $this->warehouseScopeIds();
+
         return $scopes === null || in_array($warehouseId, $scopes, true);
     }
 
