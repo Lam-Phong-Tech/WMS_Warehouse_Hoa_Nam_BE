@@ -13,6 +13,7 @@ use Modules\Warehouse\Models\StockMovement;
 class StockLedger
 {
     private const SCALE = 3;
+
     private const DEFAULT_STOCK_STATUS = 'AVAILABLE';
 
     public function __construct(private readonly SafeStockAlertService $safeStockAlerts) {}
@@ -95,7 +96,7 @@ class StockLedger
             ->lockForUpdate()
             ->first();
 
-        if (! $balance) {
+        if (!$balance) {
             $balance = InventoryBalance::create([
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
