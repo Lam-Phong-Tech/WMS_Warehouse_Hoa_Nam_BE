@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -28,17 +29,19 @@ class AuthRbacAuditHardeningTest extends TestCase
         $originalTtl = $factory->getTTL();
 
         try {
-            $factory->setTTL(-1);
+            $factory->setTTL(1);
             $expiredToken = JWTAuth::fromUser($user);
+            Carbon::setTestNow(now()->addMinutes(2));
+
+            $this->getJson('/api/v1/auth/me', ['Authorization' => "Bearer {$expiredToken}"])
+                ->assertStatus(401)
+                ->assertJsonPath('success', false)
+                ->assertJsonPath('error.code', 'UNAUTHENTICATED')
+                ->assertJsonStructure(['meta' => ['request_id', 'timestamp']]);
         } finally {
+            Carbon::setTestNow();
             $factory->setTTL($originalTtl);
         }
-
-        $this->getJson('/api/v1/auth/me', ['Authorization' => "Bearer {$expiredToken}"])
-            ->assertStatus(401)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('error.code', 'UNAUTHENTICATED')
-            ->assertJsonStructure(['meta' => ['request_id', 'timestamp']]);
     }
 
     public function test_refresh_replay_revokes_token_family_and_creates_failure_audit(): void
