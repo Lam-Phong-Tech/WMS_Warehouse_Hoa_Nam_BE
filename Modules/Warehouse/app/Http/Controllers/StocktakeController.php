@@ -281,7 +281,7 @@ class StocktakeController extends Controller
             required: ['session_version', 'variance_ids', 'reason'],
             properties: [
                 new OA\Property(property: 'session_version', type: 'integer', minimum: 1),
-                new OA\Property(property: 'variance_ids', type: 'array', minItems: 1, items: new OA\Items(type: 'string', format: 'uuid')),
+                new OA\Property(property: 'variance_ids', type: 'array', minItems: 1, maxItems: 500, uniqueItems: true, items: new OA\Items(type: 'string', format: 'uuid')),
                 new OA\Property(property: 'reason', type: 'string', maxLength: 500),
             ]
         )),
@@ -289,7 +289,7 @@ class StocktakeController extends Controller
             new OA\Response(response: 200, description: 'Commit hoặc replay response_snapshot đã commit'),
             new OA\Response(response: 403, description: 'Warehouse ngoài data scope'),
             new OA\Response(response: 409, description: 'CAS, state, stale baseline, race hoặc same-key/different-payload'),
-            new OA\Response(response: 422, description: 'Variance thiếu/foreign hoặc physical grain không hợp lệ'),
+            new OA\Response(response: 422, description: 'Variance thiếu/foreign/trùng hoặc physical grain không hợp lệ'),
             new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc chưa acknowledge movement'),
         ]
     )]
