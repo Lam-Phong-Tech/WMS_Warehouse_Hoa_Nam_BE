@@ -1,0 +1,88 @@
+{
+  "register_id": "WWHN-150-SOURCE-REGISTER",
+  "version": "1.0.0",
+  "status": "PROPOSED",
+  "branch": "m1",
+  "exact_review_commit_sha_source": "CI artifact wwhn-150-evidence-<exact_commit_sha>/build-metadata.json",
+  "generated_hash_source": "CI artifact wwhn-150-evidence-<exact_commit_sha>/SHA256SUMS",
+  "source_tree_hash_source": "CI artifact wwhn-150-evidence-<exact_commit_sha>/source-tree.sha256",
+  "repository_sources": [
+    {
+      "type": "CONTROLLER",
+      "path": "Modules/Warehouse/app/Http/Controllers/ScanController.php",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "SERVICE",
+      "path": "Modules/Warehouse/app/Services/ScanClassificationService.php",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "FEATURE_TEST",
+      "path": "tests/Feature/ScanClassifyReadOnlyContractTest.php",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "OPENAPI_SOURCE",
+      "path": "docs/api-contract/WWHN-150-scan-openapi.yaml",
+      "version": "1.0.0",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "OPENAPI_GENERATED",
+      "path": "build/evidence/api-data/openapi.json",
+      "version_source": "OpenAPI info.version",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "POSTMAN_COLLECTION",
+      "path": "docs/postman/WWHN-150 Scan ReadOnly Contract.postman_collection.json",
+      "version": "1.0.0",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "POSTMAN_ENVIRONMENT",
+      "path": "docs/postman/WWHN-150 Scan ReadOnly CI.postman_environment.json",
+      "version": "1.0.0",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "TEST_CASE_MATRIX",
+      "path": "docs/testing/WWHN-150-scan-readonly-test-cases.json",
+      "version": "1.0.0",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "PERMISSION_CATALOG",
+      "path": "build/evidence/api-data/permission-catalog.json",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "RAW_TEST_LOG",
+      "path": "build/evidence/api-data/phpunit.raw.log",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "RAW_ROUTE_LIST",
+      "path": "build/evidence/api-data/route-list.raw.json",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "DB_READONLY_COMPARISON",
+      "path": "build/evidence/api-data/scan-readonly-comparison.json",
+      "sha256_source": "SHA256SUMS"
+    },
+    {
+      "type": "RECONCILIATION_REPORT",
+      "path": "build/evidence/api-data/reconciliation-report.json",
+      "sha256_source": "SHA256SUMS"
+    }
+  ],
+  "approval": {
+    "decision": "PROPOSED",
+    "reviewers": [],
+    "approved_at": null,
+    "jira_comment_id": null,
+    "rule": "Không được chuyển APPROVED/Done nếu Jira chưa có exact commit SHA, artifact URL, SHA256SUMS PASS, QA1/BE2/FE/BA reviewer và ngày review."
+  }
+}
