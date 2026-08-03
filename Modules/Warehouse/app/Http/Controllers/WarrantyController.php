@@ -9,6 +9,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Models\InventorySerial;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
 use OpenApi\Attributes as OA;
@@ -40,14 +41,26 @@ use OpenApi\Attributes as OA;
     ),
     responses: [
         new OA\Response(response: 200, description: 'Tiếp nhận TEMP_ONLY thành công, stock_effect=NONE'),
-        new OA\Response(response: 409, description: 'Sai trạng thái hoặc khóa idempotency xung đột payload'),
-        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        new OA\Response(response: 409, description: 'Sai trạng thái, active warranty trùng hoặc khóa idempotency xung đột payload'),
+        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc serial chưa Post Issue'),
         new OA\Response(response: 428, description: 'Thiếu Idempotency-Key'),
     ]
 )]
 class WarrantyController extends Controller
 {
     use ApiResponse;
+
+    /** @var array<int, string> */
+    private const ELIGIBLE_SERIAL_STATUSES = [
+        InventorySerial::STATUS_ISSUED,
+        InventorySerial::STATUS_RETURNED_TO_CUSTOMER,
+    ];
+
+    /** @var array<int, string> */
+    private const TERMINAL_CASE_STATUSES = [
+        WarrantyCase::STATUS_CLOSED,
+        WarrantyCase::STATUS_CANCELLED,
+    ];
 
     public function tempOnly(Request $request, string $id)
     {
@@ -82,6 +95,8 @@ class WarrantyController extends Controller
                     if (! in_array($case->status, [WarrantyCase::STATUS_RECEIVED, WarrantyCase::STATUS_WAITING_CHECK], true)) {
                         ApiError::abort(409, 'STATE_CONFLICT', 'Phiếu phải ở trạng thái RECEIVED hoặc WAITING_CHECK để chuyển TEMP_ONLY.');
                     }
+
+                    $this->assertLinkedSerialEligible($case);
 
                     $fromStatus = $case->status;
                     $case->update([
@@ -124,6 +139,50 @@ class WarrantyController extends Controller
         );
 
         return response()->json($body, $code);
+    }
+
+    private function assertLinkedSerialEligible(WarrantyCase $case): void
+    {
+        if ($case->inventory_serial_id === null) {
+            return;
+        }
+
+        /** @var InventorySerial|null $serial */
+        $serial = InventorySerial::query()->lockForUpdate()->find($case->inventory_serial_id);
+        if ($serial === null) {
+            ApiError::abort(422, 'WARRANTY_ITEM_NOT_ELIGIBLE', 'Serial liên kết không tồn tại; không được tiếp nhận bảo hành.');
+        }
+
+        $serialStatus = strtoupper((string) $serial->status);
+        if (! in_array($serialStatus, self::ELIGIBLE_SERIAL_STATUSES, true)) {
+            ApiError::abort(
+                422,
+                'WARRANTY_ITEM_NOT_ELIGIBLE',
+                'Serial phải hoàn tất Post Issue trước khi tiếp nhận bảo hành.',
+                [
+                    'inventory_serial_id' => (string) $serial->id,
+                    'serial_status' => $serialStatus,
+                    'eligible_statuses' => self::ELIGIBLE_SERIAL_STATUSES,
+                    'required_action' => 'POST_ISSUE',
+                ]
+            );
+        }
+
+        $otherActiveCaseExists = WarrantyCase::query()
+            ->where('inventory_serial_id', $serial->id)
+            ->where('warranty_case_id', '!=', $case->warranty_case_id)
+            ->whereNotIn('status', self::TERMINAL_CASE_STATUSES)
+            ->lockForUpdate()
+            ->exists();
+
+        if ($otherActiveCaseExists) {
+            ApiError::abort(
+                409,
+                'ACTIVE_WARRANTY_EXISTS',
+                'Serial đã có một phiếu bảo hành đang hoạt động.',
+                ['inventory_serial_id' => (string) $serial->id]
+            );
+        }
     }
 
     private function envelope(string $message, array $data): array
