@@ -1,0 +1,30 @@
+{
+  "task": "WWHN-172",
+  "parent": "WWHN-37",
+  "dependency": "HN-MC-001-ST01",
+  "generated_at": "2026-08-03T19:00:00+07:00",
+  "execution_status": "NOT_EXECUTED_IN_CONNECTOR_SESSION",
+  "execution_note": "Run against the exact m1 commit and attach raw PHPUnit/Postman/DB logs before QA sign-off.",
+  "test_cases": [
+    {"id":"WWHN172-TC-001","severity":"P0","area":"SKU transaction","scenario":"Create SKU with valid component and physical code","expected":"201; products, component, code, audit and idempotency snapshot commit together"},
+    {"id":"WWHN172-TC-002","severity":"P0","area":"Idempotency","scenario":"Retry exact SKU create with same key and canonical payload","expected":"Exact response replay; no duplicate rows or audit; Idempotent-Replay=true"},
+    {"id":"WWHN172-TC-003","severity":"P0","area":"Idempotency","scenario":"Reuse same key with changed SKU payload","expected":"409 IDEMPOTENCY_ERROR; no business side effect"},
+    {"id":"WWHN172-TC-004","severity":"P0","area":"Component graph","scenario":"Create direct self reference","expected":"422 SKU_COMPONENT_SELF_REFERENCE; full rollback"},
+    {"id":"WWHN172-TC-005","severity":"P0","area":"Component graph","scenario":"Create transitive cycle A->B->C->A","expected":"422 SKU_COMPONENT_CYCLE; edge, version and audit unchanged"},
+    {"id":"WWHN172-TC-006","severity":"P1","area":"Component constraint","scenario":"Duplicate component or quantity <= 0","expected":"422; no duplicate or invalid row"},
+    {"id":"WWHN172-TC-007","severity":"P0","area":"Physical code ownership","scenario":"Two concurrent SKUs assign one physical code","expected":"One commits; loser 409 PHYSICAL_CODE_ALREADY_ASSIGNED"},
+    {"id":"WWHN172-TC-008","severity":"P1","area":"SKU concurrency","scenario":"Two updates use the same SKU version","expected":"One commits and increments once; loser 409 SKU_VERSION_CONFLICT"},
+    {"id":"WWHN172-TC-009","severity":"P0","area":"Audit atomicity","scenario":"Force both audit and audit-outbox write failure","expected":"Business transaction fails; aggregate rows roll back"},
+    {"id":"WWHN172-TC-010","severity":"P0","area":"Container transaction","scenario":"Create container with valid bulk item","expected":"Root, items, audit and snapshot commit together"},
+    {"id":"WWHN172-TC-011","severity":"P0","area":"Container rollback","scenario":"Duplicate item_key in create payload","expected":"422 DUPLICATE_CONTAINER_ITEM; root, item and audit absent"},
+    {"id":"WWHN172-TC-012","severity":"P0","area":"Serial ownership","scenario":"Two containers claim one active serial concurrently","expected":"One commits; loser 409 SERIAL_ALREADY_CONTAINERIZED"},
+    {"id":"WWHN172-TC-013","severity":"P1","area":"Serial state","scenario":"Containerize ISSUED or RETURNED_TO_CUSTOMER serial","expected":"409 SERIAL_NOT_CONTAINERIZABLE"},
+    {"id":"WWHN172-TC-014","severity":"P1","area":"Warehouse boundary","scenario":"Container and serial or parent use different warehouses","expected":"422 warehouse mismatch; no mutation"},
+    {"id":"WWHN172-TC-015","severity":"P0","area":"Container hierarchy","scenario":"Create self-parent or transitive parent cycle","expected":"422; hierarchy unchanged"},
+    {"id":"WWHN172-TC-016","severity":"P0","area":"Seal transition","scenario":"Seal empty container","expected":"422 EMPTY_CONTAINER_CANNOT_SEAL"},
+    {"id":"WWHN172-TC-017","severity":"P0","area":"Seal immutability","scenario":"Update items, location or parent after SEALED","expected":"409 CONTAINER_IMMUTABLE; no row changes"},
+    {"id":"WWHN172-TC-018","severity":"P1","area":"Container concurrency","scenario":"Two updates use the same container version","expected":"One commits; loser 409 CONTAINER_VERSION_CONFLICT"},
+    {"id":"WWHN172-TC-019","severity":"P1","area":"RBAC","scenario":"Missing permission or unauthenticated","expected":"403 or 401; no data or audit side effect"},
+    {"id":"WWHN172-TC-020","severity":"P1","area":"Error contract","scenario":"Trigger validation and business conflicts","expected":"Canonical envelope with request_id; no secret, SQL, file path or stack trace"}
+  ]
+}
