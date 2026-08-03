@@ -81,9 +81,13 @@ const checks = {
   focused_openapi_scan_classify:
     openApiHasPathContract('/api/v1/scan/classify', 'scan.classify', ['stock_effect=NONE']),
   focused_openapi_inbound_scan:
-    openApiHasPathContract('/api/v1/inbound-documents/{id}/scan', 'stock_document.scan', ['stock_effect=NONE', 'movement_created']),
+    openApiHasPathContract('/api/v1/inbound-documents/{id}/scan', 'stock_document.scan', [
+      'stock_effect=NONE', "$ref: '#/components/schemas/DocumentLineScanResult'",
+    ]),
   focused_openapi_outbound_scan:
-    openApiHasPathContract('/api/v1/outbound-documents/{id}/scan', 'stock_document.scan', ['stock_effect=NONE', 'movement_created']),
+    openApiHasPathContract('/api/v1/outbound-documents/{id}/scan', 'stock_document.scan', [
+      'stock_effect=NONE', "$ref: '#/components/schemas/DocumentLineScanResult'",
+    ]),
   focused_openapi_post_receipt:
     openApiHasPathContract('/api/v1/inbound-documents/{id}/post-receipt', 'stock_document.post', [
       "$ref: '#/components/parameters/IdempotencyKey'", "'409':", "'428':",
