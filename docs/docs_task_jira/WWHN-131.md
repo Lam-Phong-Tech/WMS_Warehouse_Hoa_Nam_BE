@@ -7,240 +7,200 @@
 | Jira key | `WWHN-131` |
 | Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` |
 | Branch | `m1` — sửa trực tiếp, không tạo branch riêng |
-| Document version | `1.1.0` |
+| Document version | `1.2.0` |
 | Document status | **PROPOSED** |
-| Technical implementation baseline | `f9a2280c35da797fb0c32b4e6d66d7d7e039b328` |
-| Source Register commit | `41aeacd73f0fd9bfdae32bb806622ab84dd3224f` |
-| Approval status | **PENDING FORMAL JIRA APPROVAL** |
-| CI artifact | `stocktake-evidence-<exact_review_commit_sha>` |
-| Hash sources | `build/evidence/api-data/SHA256SUMS` và `source-tree.sha256` |
+| Repository remediation | **COMPLETE — PENDING EXACT-SHA CI + INDEPENDENT REVIEW + FORMAL DECISION** |
+| Exact commit source | `build/evidence/wwhn-131/build-metadata.json.commit_sha` |
+| Workflow | `.github/workflows/wwhn-131-stocktake-contract.yml` |
+| Artifact | `stocktake-evidence-<exact_commit_sha>` |
+| Source tree hash | `source-tree.sha256` |
+| Hash manifest | `SHA256SUMS` |
+| Manifest digest | `SHA256SUMS.sha256` |
+| Source Register | `docs/docs_task_jira/WWHN-131-source-register.json` — `1.2.0 / PROPOSED` |
+| Independent review protocol | `docs/evidence/WWHN-131/INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md` |
+| Approval status | **PENDING QA1 / TECH LEAD / DBA / SECURITY / BA / PM** |
 
-`Technical implementation baseline` là commit cuối chứa code, migration, route, test, verifier và evidence pipeline trước khi cập nhật Source Register/tài liệu. Commit dùng để review chính thức phải là exact commit sinh ra artifact, lấy từ `build-metadata.json`; không review theo branch động.
+Không hard-code một commit cũ làm review baseline. Exact review SHA phải lấy từ `build-metadata.json` của artifact do workflow checkout đúng commit sinh ra. Không review theo branch động.
 
-Không có checkbox approval nào được đánh dấu trong tài liệu này. Không được đổi trạng thái thành `APPROVED`, `Done` hoặc tuyên bố `100%` nếu chưa có đủ GitHub Actions artifact trên exact SHA, independent review và Jira comment ghi version/hash/reviewer/date.
+Không được ghi `APPROVED`, `Done`, `100% formally closed` hoặc đánh dấu approval checkbox nếu chưa có:
 
-## 2. Kết quả xử lý exact fix action register
+1. Workflow exact SHA PASS.
+2. `SHA256SUMS` và `SHA256SUMS.sha256` verify PASS.
+3. Contract/schema/reconcile PASS.
+4. QA1, Tech Lead, DBA, Security review độc lập trên cùng SHA/digest.
+5. BA/PM phát hành `DEC-STK-001` trên Jira.
+6. BAS cập nhật BRD/SRS/BPD/DEC-INV attachment ID/hash hiện hành.
 
-| ID | Sev | Exact fix đã triển khai trên `m1` | Repository evidence | Trạng thái trung thực | Gate còn lại |
-|---|---|---|---|---|---|
-| `STK-P0-01` | P0 | Giữ tài liệu và Source Register ở `PROPOSED`; không tạo approval checkbox; không điền attachment/hash giả; CI tạo exact commit SHA, source-tree SHA-256 và manifest SHA-256. | `WWHN-131.md`, `WWHN-131-source-register.json`, `collect-api-data-evidence.sh` | REPOSITORY IMPLEMENTED | BA/Tech Lead/PM formal approval trên Jira bằng exact artifact/version/hash/date. |
-| `STK-P0-02` | P0 | Apply dùng unique `(operation,idempotency_key)`, canonical request SHA-256, committed response snapshot, replay sau commit, same-key/different-payload `409`, session row lock/CAS, balance optimistic lock và unique movement effect. | `StocktakeAdjustmentService.php`, migration, `STK-TC-006` | REPOSITORY IMPLEMENTED | Tech Lead + QA1 xác nhận race/retry/timeout-after-commit trên exact SHA. |
-| `STK-P0-03` | P0 | Apply chỉ nhận `variance_ids`; truy vấn bắt buộc đúng `session_id`, warehouse data scope và exact full set/count; foreign/missing ID bị từ chối. Restricted user gọi apply vào kho ngoài scope nhận `403`. | service/guard, `STK-TC-005`, `STK-TC-008` | REPOSITORY IMPLEMENTED | QA1/Security independent negative retest. |
-| `STK-P0-04` | P0 | Chốt signed convention: inbound/adjust-in dương, outbound/adjust-out âm, net=`SUM(qty_delta)`; trước apply bắt buộc ledger bằng balance. Case `100 - 10`, actual `90` cho variance/effect `0`, không tạo movement rỗng và không tăng balance version. | `StocktakeService.php`, `StocktakeAdjustmentService.php`, `STK-TC-003`, `STK-TC-010`, `STK-TC-011` | REPOSITORY IMPLEMENTED | BE2/Tech Lead/QA1 xác nhận ledger/balance/reconcile artifact. |
-| `STK-P0-05` | P0 | Balance, movement, Item và Container được cập nhật trong cùng transaction. Lỗi physical layer rollback session, variance, balance, movement và các physical update đã chạy trước đó. | `StocktakeAdjustmentService.php`, `STK-TC-007`, DB before/after | REPOSITORY IMPLEMENTED | QA1 chạy API/DB rollback độc lập. |
-| `STK-P1-01` | P1 | `stocktake_session.warehouse_id` có FK/index/data scope; migration không đoán kho cho legacy row. Nếu còn NULL, migration dừng để DBA backfill đúng; sau đó mới đặt `NOT NULL`. | migration `2026_08_03_000100...`, model/guard | REPOSITORY IMPLEMENTED | DBA rehearsal/approve trên target DB. |
-| `STK-P1-02` | P1 | Canonical `grain_type/grain_id/grain_key`; backfill khi bất kỳ grain field nào NULL; dừng khi còn NULL/duplicate; sau đó đặt `NOT NULL` và unique `(session_id,grain_key)` cho snapshot/count/variance. Container ưu tiên `container_item_id`. | migration, `StocktakeGrainService.php`, `STK-TC-002` | REPOSITORY IMPLEMENTED | DBA/QA1 constraint retest trên target DB và legacy dataset. |
-| `STK-P1-03` | P1 | Một contract duy nhất: create luôn `DRAFT`, `/start` thực hiện CAS `DRAFT → IN_PROGRESS` và tạo snapshot đúng một lần. Toàn bộ lifecycle routes được đăng ký runtime trong `routes/api.php`. | controller/OpenAPI/routes, `STK-TC-001` | REPOSITORY IMPLEMENTED | BA/QA1/FE xác nhận cùng exact OpenAPI hash. |
-| `STK-P1-04` | P1 | Tách `detected_movement_ids` và `acknowledged_movement_ids`; lưu `acknowledged_by/at`; exact-set mismatch `409`; apply chưa ack `428`. | model/migration/services, `STK-TC-004` | REPOSITORY IMPLEMENTED | BA/QA1 negative API sign-off. |
-| `STK-P1-05` | P1 | OpenAPI/Postman/test register/verifier/source copies/logs/DB snapshots được đóng trong một artifact; metadata ghi exact commit và version; tất cả file được băm trong `SHA256SUMS`. Test register/verifier là `1.1.0`, Postman là `1.0.0`. | workflow, evidence script, verifier, test register | AUTOMATION IMPLEMENTED | Workflow trên exact final SHA phải PASS; WWHN-31/33/40 reviewer xác nhận cùng artifact/hash. |
-| `STK-P1-06` | P1 | Source Register `1.1.0` liệt kê route, contract, services, migration, hai test suites, verifier và evidence pipeline; external BRD/SRS/BPD/DEC-INV/Jira attachment vẫn NULL có chủ đích. | `WWHN-131-source-register.json` | PROPOSED / EXTERNAL BLOCKED | BA/BAS cung cấp current attachment IDs + SHA-256; PM/QA xác nhận rebase. |
-| `STK-P2-01` | P2 | Structured Jira handoff ở mục 11 gồm file/version/status/scope/key decisions/exact artifact/reviewer/impacted tickets/blockers. | mục 11 | READY, NOT POSTED | Atlassian connector trả `403 app is not installed`; phải đăng khi site/app khả dụng. |
+## 2. Closure register cho đánh giá 72/100
 
-## 3. Các commit đã thực hiện trên nhánh `m1`
+| ID | Sev | Vấn đề đánh giá | Required fix | Fix đã triển khai trực tiếp trên `m1` | Repository evidence | Trạng thái trung thực | External closure gate |
+|---|---|---|---|---|---|---|---|
+| `STK-P1-01` | P1 | Formal Decision chưa có | BA/Tech Lead/PM comment exact version/hash/date/result | Phát hành protocol `DEC-STK-001`, exact decision payload, role separation, required SHA/artifact/hash/reviewer/date/result; chặn tự nâng `APPROVED`. | `INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md`, Source Register `1.2.0`, mục 11 | **READY FOR FORMAL DECISION** | BA + Tech Lead + PM phải comment thật trên `WWHN-25`. |
+| `STK-P1-02` | P1 | QA/Tech review độc lập chưa có | Race/retry/timeout/idempotency/rollback/ledger reconcile trên exact SHA | Dedicated exact-SHA workflow; focused + full PHPUnit logs; replay/different payload/different key/rollback/ledger/zero-effect tests; mandatory independent race/timeout matrix. | workflow, `collect-wwhn131-evidence.sh`, 3 test suites, review protocol | **AUTOMATION + PROTOCOL COMPLETE** | QA1 + Tech Lead chạy độc lập và attach raw evidence trên cùng SHA/digest. |
+| `STK-P1-03` | P1 | DBA/Security chưa xác nhận | DBA rehearsal; Security cross-session/cross-warehouse negative | Thêm schema verifier SQLite/MySQL/PostgreSQL; migration rehearsal log; FK/index/NOT NULL/unique checks; test replay scope leak, lifecycle cross-warehouse no-write, cross-session variance; Security matrix đầy đủ. | `verify-wwhn131-schema.php`, `StocktakeReviewGateTest.php`, protocol mục 4–5 | **AUTOMATION + PROTOCOL COMPLETE** | DBA chạy target DB/data copy; Security chạy độc lập QA/staging. |
+| `STK-P1-04` | P1 | Artifact/hash còn placeholder | Attach artifact thật, SHA256SUMS, source-tree SHA, OpenAPI/Postman/test hash | Tách workflow/artifact riêng cho WWHN-131; artifact exact-SHA; metadata chứa hash OpenAPI/Postman/test/source register/migration/verifier; manifest và manifest digest verify trong CI. | `.github/workflows/wwhn-131-stocktake-contract.yml`, `collect-wwhn131-evidence.sh` | **IMPLEMENTED — WAITING FINAL SHA WORKFLOW RESULT** | Workflow commit cuối phải PASS; link artifact/CI thật phải được đăng Jira. |
+| `STK-P1-05` | P1 | BA final chưa phát hành | BA phát hành `DEC-STK-001` hoặc Conditional/No-Go | Chuẩn hóa payload `GO | CONDITIONAL GO | NO-GO`, reviewers, evidence links, conditions/owner/deadline; không cho final nếu thiếu independent evidence. | protocol mục 6; mục 11 tài liệu này | **READY FOR BA FINAL** | BA phát hành trên `WWHN-132`; PM xác nhận decision. |
+| `STK-P1-06` | P1 | Traceability chưa cập nhật | BAS cập nhật attachment ID/hash và impacted tickets | Source Register `1.2.0` liệt kê source code/artifact/test/protocol; cung cấp matrix BRD/SRS/BPD/DEC-INV/DEC-STK-001 và impacted tickets. | Source Register; protocol mục 7 | **REPOSITORY TRACEABILITY COMPLETE** | BAS điền attachment IDs/SHA-256 thật trên `WWHN-133`. |
+| `STK-P2-01` | P2 | Jira handoff chưa structured | Post file/version/status/scope/hash/reviewer/blockers | Structured handoff đã có đầy đủ exact SHA, CI URL, artifact, manifest digest, scope, reviewers, impacted tickets, blockers. | mục 10; protocol mục 8 | **READY TO POST** | Atlassian app/permission phải khả dụng để đăng comment thật. |
 
-| Commit | Nội dung |
-|---|---|
-| `9739345e47a7e5bcbb97f58888cb7d654c7a1221` | Đăng ký đầy đủ lifecycle route stocktake và legacy scoped list. |
-| `1b26a5f674b47821b3779ba71536b155eadec685` | Bổ sung apply data-scope negative test và actor audit hợp lệ. |
-| `f3c572e705fb220f3b1505f76fb55d48365cef8e` | Siết warehouse/grain `NOT NULL` sau backfill/validation an toàn. |
-| `3e61a92b8553f6bf596eea04dff1a1ead17f093d` | Chặn apply khi ledger lệch balance; không tạo zero-effect movement. |
-| `dc42e33d36a89d439fa989bcd01571bf55ea0fe1` | Thêm feature tests cho zero-effect và ledger mismatch rollback. |
-| `762e6c3f41c52c654d3b3da99ce46ff24279012a` | Nâng test-case register lên `1.1.0`, đủ `STK-TC-001..011`. |
-| `15990b80044f53f7bb3ac6e1d148dcc79be1b4b5` | Siết contract verifier cho route/source/ledger/zero-effect/11 test case. |
-| `f9a2280c35da797fb0c32b4e6d66d7d7e039b328` | Đóng gói đầy đủ route/controller/services/migration/tests vào evidence SHA-256. |
-| `41aeacd73f0fd9bfdae32bb806622ab84dd3224f` | Cập nhật Source Register đúng baseline và giữ approval external ở `PROPOSED`. |
+Kết luận đối với register này: toàn bộ phần có thể xử lý trong repository đã được triển khai. Các dòng còn mở là review/approval/attachment từ người hoặc hệ thống bên ngoài; BE1 không được tạo giả.
 
-Tất cả commit trên được ghi trực tiếp vào `m1`; không tạo branch phụ.
+## 3. P0 core correctness được bảo toàn
 
-## 4. Contract nghiệp vụ đã khóa trong code
+Các P0 trước đó không bị bỏ qua khi xử lý P1/P2:
+
+| Control | Enforcement trong code | Automation |
+|---|---|---|
+| Idempotency | Unique `(operation,idempotency_key)`, canonical request SHA-256, committed response snapshot, same-key/different-payload `409` | `STK-TC-006`, `STK-TC-012`, `STK-TC-013` |
+| Race/CAS | Session row lock, `session_version` CAS, balance version CAS, unique movement business key | focused tests + independent race protocol |
+| Exact variance set | Query `APPROVED` theo exact `session_id`; requested IDs phải bằng full approved set | `STK-TC-005` |
+| Data scope | Warehouse scope trước event replay; scope trên create/detail/count/review/ack/variance/apply/list | `STK-TC-008`, `STK-TC-012`, `STK-TC-014` |
+| Signed ledger | Canonical `SUM(stock_movements.qty_delta)`; không remap sign lần hai | `STK-TC-003`, `STK-TC-011` |
+| Ledger reconcile | Pre-apply ledger bằng balance; mismatch trả `409` và không commit operation | `STK-TC-011` |
+| Zero effect | Không tạo movement `0`; không tăng balance version | `STK-TC-010` |
+| Three-layer atomicity | Balance, movement, variance, session, posting event, ITEM/CONTAINER cùng transaction | `STK-TC-007` |
+| Movement acknowledgement | Detected IDs phải bằng acknowledged IDs; lưu actor/time | `STK-TC-004` |
+| Schema integrity | warehouse/grain NOT NULL, unique session grain, posting-event unique, FK/index | schema verifier + DBA protocol |
+
+## 4. Technical contract khóa trong code
 
 ### 4.1 State machine
 
 ```text
-DRAFT --start(CAS)--> IN_PROGRESS --count/review--> REVIEWED --apply(CAS)--> APPLIED
+DRAFT --start(CAS)--> IN_PROGRESS --review(CAS)--> REVIEWED --apply(CAS)--> APPLIED
 ```
 
-- `POST /api/v1/stocktake-sessions` tạo `DRAFT`, `session_version = 1`, chưa có snapshot.
-- `/start` bắt buộc `session_version`, khóa row, kiểm tra CAS rồi tạo snapshot SKU/ITEM/CONTAINER đúng một lần.
-- Count chỉ nhận grain tồn tại trong snapshot của chính session.
-- Review tạo variance backend-authoritative; client không gửi expected/effect vào apply.
-- Apply yêu cầu toàn bộ variance `APPROVED` của session, không cho partial set âm thầm.
-- Mọi endpoint detail/variance/apply đều đi qua warehouse data-scope guard.
+- `POST /api/v1/stocktake-sessions` luôn tạo `DRAFT`, `session_version=1`, chưa snapshot.
+- `/start` khóa session, kiểm tra state/version, cập nhật `IN_PROGRESS`, tạo snapshot đúng một lần.
+- Count chỉ nhận grain tồn tại trong snapshot của đúng session.
+- Review backend tự tính expected/variance/effect.
+- Apply chỉ nhận `session_version`, `variance_ids`, `reason`; không nhận client expected/effect.
+- Replay không được trả response snapshot trước khi warehouse scope pass.
 
-### 4.2 Grain integrity
+### 4.2 Exact variance selection
 
-| Grain | Canonical `grain_id` | Physical source | Actual rule | Apply effect |
-|---|---|---|---|---|
-| `SKU` | `product_id` | `inventory_balances` | không âm | signed movement + balance khi effect khác `0` |
-| `ITEM` | `inventory_serials.id` | `inventory_serials` | chỉ `0` hoặc `1` | `IN_STOCK`/`MISSING`, stock condition |
-| `CONTAINER` | `container_item.container_item_id` | `container_item` + container warehouse | không âm | cập nhật đúng `container_item.quantity` |
-
-DB source of truth:
+Apply lấy toàn bộ variance:
 
 ```text
-grain_key = grain_type | grain_id | stock_status
-NOT NULL(grain_type, grain_id, grain_key)
-UNIQUE(session_id, grain_key)
+session_id = requested session
+status = APPROVED
+lock for update
 ```
 
-Migration dừng có chủ đích khi legacy session chưa có `warehouse_id`, grain còn NULL hoặc duplicate; không xóa/chọn dữ liệu để ép migration pass.
-
-### 4.3 Signed ledger và reconcile
+Sau đó:
 
 ```text
-positive qty_delta: OPENING, RECEIPT_POSTED, ADJUST_IN, TRANSFER_IN,
-                    TRANSFER_RETURN, ISSUE_REVERSED
-negative qty_delta: ISSUE_POSTED, ADJUST_OUT, TRANSFER_OUT, RECEIPT_REVERSED
-ledger quantity:    SUM(stock_movements.qty_delta)
+sort(unique(requested variance IDs)) == sort(all approved variance IDs)
 ```
 
-Không đảo dấu lần hai dựa vào `movement_type`.
+Foreign, missing, partial hoặc duplicate set không được apply; trả `422 INVALID_VARIANCE_SELECTION` và không có DB write.
 
-Trước apply cho từng `(warehouse_id, product_id, stock_status)`:
-
-```text
-SUM(stock_movements.qty_delta) == inventory_balances.on_hand_qty
-```
-
-Nếu lệch, trả `409 LEDGER_BALANCE_MISMATCH`; transaction không tạo movement/posting event và session vẫn `REVIEWED`.
-
-Case chuẩn:
+### 4.3 Idempotency
 
 ```text
-snapshot = 100
-signed movement after start = -10
-expected_at_count = 90
-actual = 90
-variance = 0
-inventory_effect = 0
-```
-
-Với effect `0`:
-
-- Không tạo `ADJUST_IN 0` hoặc `ADJUST_OUT 0`.
-- Không tăng `inventory_balances.version`.
-- Variance/session vẫn được chốt atomically.
-- Posting event vẫn lưu response snapshot để retry có thể replay.
-- Response ghi dimension vào `zero_effect_dimensions`.
-
-### 4.4 Idempotency và concurrency
-
-```text
-operation       = stocktake_apply_adjustment_{session_id}
-idempotency key = Idempotency-Key header
-unique key      = UNIQUE(operation, idempotency_key)
+operation       = stocktake_apply_adjustment_<session_id>
+idempotency key = trimmed Idempotency-Key
 request hash    = SHA-256(session/version/sorted variance IDs/trimmed reason)
-movement key    = SHA-256(stocktake-adjust|session|product|stock_status)
+unique          = (operation, idempotency_key)
 ```
 
-- Same key + same payload sau commit: replay `response_snapshot`, không apply lần hai.
-- Same key + different payload: `409 IDEMPOTENCY_ERROR`.
+Rules:
+
 - Missing key: `428 PRECONDITION_REQUIRED`.
-- Event tồn tại nhưng chưa committed/snapshot thiếu: `409 IDEMPOTENCY_IN_PROGRESS`.
-- Session row lock + status/version CAS + balance version CAS + unique movement key chặn race/retry.
-- Posting event nằm trong cùng transaction với session/variance/balance/movement/physical updates.
+- Same key + same payload + committed snapshot: replay `200`.
+- Same key + different payload: `409 IDEMPOTENCY_ERROR`.
+- Event incomplete/pending: `409 IDEMPOTENCY_IN_PROGRESS`.
+- Different key sau session đã apply: stale version/state conflict; không tạo effect lần hai.
+- Scope được kiểm tra trước posting-event replay để không lộ response kho khác.
 
-### 4.5 Movement acknowledgement
-
-Review lưu độc lập:
-
-- `detected_movement_ids`
-- `acknowledged_movement_ids`
-- `acknowledged_by`
-- `acknowledged_at`
-
-Apply chỉ chạy khi detected set rỗng hoặc:
+### 4.4 Signed ledger và balance
 
 ```text
-sort(unique(detected IDs)) == sort(unique(acknowledged IDs))
-acknowledged_by IS NOT NULL
-acknowledged_at IS NOT NULL
+ledger quantity = SUM(stock_movements.qty_delta)
 ```
 
-Thiếu acknowledgement trả `428`; exact-set mismatch trả `409`.
-
-### 4.6 Three-layer transaction
-
-Trong cùng transaction:
-
-1. Lock scoped session và approved variances.
-2. Xác minh exact variance set và movement acknowledgement.
-3. Lock balance; kiểm tra review baseline/version và signed ledger reconcile.
-4. Với effect khác `0`: tạo append-only movement và CAS balance.
-5. Update Item/Container đúng grain.
-6. Mark variances/session applied.
-7. Insert committed posting event + response snapshot.
-
-Bất kỳ lỗi nào ở Item/Container rollback toàn bộ các bước trước đó.
-
-## 5. Runtime API routes
-
-Các route canonical đã được đăng ký trong `Modules/Warehouse/routes/api.php`:
+Inbound/adjust-in là dương; outbound/adjust-out là âm. Trước apply:
 
 ```text
-GET  /api/v1/stocktake-sessions
-POST /api/v1/stocktake-sessions
-GET  /api/v1/stocktake-sessions/{id}
-POST /api/v1/stocktake-sessions/{id}/start
-POST /api/v1/stocktake-sessions/{id}/counts
-POST /api/v1/stocktake-sessions/{id}/review
-POST /api/v1/stocktake-sessions/{id}/acknowledge-movements
-GET  /api/v1/stocktake-sessions/{id}/variances
-POST /api/v1/stocktake-sessions/{id}/apply-adjustment
-GET  /api/v1/stocktake/sessions   # legacy scoped alias
+SUM(qty_delta) == inventory_balances.on_hand_qty
 ```
 
-Read routes dùng `inventory.view`; write/apply routes dùng `stocktake.adjust`; toàn bộ nằm dưới `auth:api`.
+Mismatch trả `409 LEDGER_BALANCE_MISMATCH`; session giữ `REVIEWED`, variance giữ `APPROVED`, không movement/posting event mới.
 
-## 6. Automated verification
+### 4.5 Three-layer transaction
 
-Test-case register: `docs/testing/WWHN-131-stocktake-test-cases.json`, version `1.1.0`, status `PROPOSED`.
+Cùng transaction:
 
-| TC | Nội dung |
+1. Lock scoped session.
+2. Check replay/idempotency.
+3. Check version/state.
+4. Lock exact approved variance set.
+5. Check movement acknowledgement.
+6. Lock balance và review baseline/version.
+7. Reconcile signed ledger.
+8. Tạo signed adjustment movement nếu effect khác `0`.
+9. CAS balance.
+10. Update ITEM/CONTAINER physical layer.
+11. Mark variance/session applied.
+12. Insert committed posting event + response snapshot.
+
+Bất kỳ lỗi nào rollback toàn bộ.
+
+## 5. Runtime API/RBAC
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/api/v1/stocktake-sessions` | `inventory.view` |
+| POST | `/api/v1/stocktake-sessions` | `stocktake.adjust` |
+| GET | `/api/v1/stocktake-sessions/{id}` | `inventory.view` |
+| POST | `/api/v1/stocktake-sessions/{id}/start` | `stocktake.adjust` |
+| POST | `/api/v1/stocktake-sessions/{id}/counts` | `stocktake.adjust` |
+| POST | `/api/v1/stocktake-sessions/{id}/review` | `stocktake.adjust` |
+| POST | `/api/v1/stocktake-sessions/{id}/acknowledge-movements` | `stocktake.adjust` |
+| GET | `/api/v1/stocktake-sessions/{id}/variances` | `inventory.view` |
+| POST | `/api/v1/stocktake-sessions/{id}/apply-adjustment` | `stocktake.adjust` |
+| GET | `/api/v1/stocktake/sessions` | `inventory.view` — scoped legacy alias |
+
+Tất cả nằm dưới `auth:api`.
+
+## 6. Automated test register `1.2.0`
+
+| TC | Coverage |
 |---|---|
-| `STK-TC-001` | Create DRAFT, start snapshot một lần, stale CAS bị chặn. |
-| `STK-TC-002` | Duplicate count và grain ngoài snapshot bị chặn. |
-| `STK-TC-003` | `100 - 10`, actual `90`, variance/effect `0`, signed reconcile pass. |
-| `STK-TC-004` | Thiếu/sai movement acknowledgement trả `428/409`. |
-| `STK-TC-005` | Foreign/missing variance ID bị từ chối. |
-| `STK-TC-006` | Commit, timeout-after-commit replay, payload conflict, unique event. |
-| `STK-TC-007` | Physical failure rollback balance/movement/item/session. |
-| `STK-TC-008` | Warehouse scope trên create/read/apply/legacy list. |
-| `STK-TC-009` | Newman canonical flow và idempotency negative cases. |
-| `STK-TC-010` | Zero-effect không tạo movement rỗng, không tăng balance version. |
-| `STK-TC-011` | Ledger-balance mismatch trả `409` và rollback operation. |
+| `STK-TC-001` | Create DRAFT/start snapshot once/CAS |
+| `STK-TC-002` | Unique grain/snapshot membership |
+| `STK-TC-003` | Signed movement `100-10`, actual `90`, effect `0` |
+| `STK-TC-004` | Exact movement acknowledgement |
+| `STK-TC-005` | Foreign/missing variance IDs |
+| `STK-TC-006` | Commit replay/payload conflict/unique event |
+| `STK-TC-007` | Three-layer rollback |
+| `STK-TC-008` | Warehouse scope create/read/apply/legacy list |
+| `STK-TC-009` | Newman canonical flow |
+| `STK-TC-010` | Zero-effect no movement/no version increment |
+| `STK-TC-011` | Ledger mismatch blocks/rolls back |
+| `STK-TC-012` | Scope before committed replay snapshot disclosure |
+| `STK-TC-013` | Different key cannot double apply |
+| `STK-TC-014` | Cross-warehouse count/review/ack/variance/apply no-write |
 
-Automated test files:
+Test files:
 
 - `tests/Feature/StocktakeThreeLayerContractTest.php`
 - `tests/Feature/StocktakeApplyLedgerIntegrityTest.php`
+- `tests/Feature/StocktakeReviewGateTest.php`
 
-Contract verifier `scripts/verify-stocktake-contract.mjs`, schema version `1.1.0`, kiểm tra:
+## 7. Dedicated exact-SHA evidence gate
 
-- Exact OpenAPI path/operation ID/bearer security.
-- Runtime route + `auth:api` + exact permission.
-- Postman endpoint/header/error assertions.
-- Đủ `STK-TC-001..011` và test register `1.1.0`.
-- Source guard cho idempotency, acknowledgement, ledger mismatch, zero-effect, NOT NULL grain, rollback và data scope.
-- Test/source register vẫn `PROPOSED`.
-
-## 7. Postman/Newman
-
-- Collection: `docs/postman/WWHN-131 Stocktake Contract.postman_collection.json`
-- Environment: `docs/postman/WWHN-131 Stocktake CI.postman_environment.json`
-- Version: `1.0.0`
-- Credential/token không commit; CI truyền bằng `--env-var`.
-
-Canonical flow:
+Workflow:
 
 ```text
-login → select authoritative balance → create DRAFT → start → count SKU
-→ review signed ledger → missing key 428 → apply → replay → payload conflict 409
+.github/workflows/wwhn-131-stocktake-contract.yml
 ```
 
-## 8. Immutable evidence pack
+Collector:
 
-Workflow `.github/workflows/auth-rbac-audit-contract.yml` chạy trên cả `push` và `pull_request` vào `m1`.
+```text
+scripts/collect-wwhn131-evidence.sh
+```
 
 Artifact:
 
@@ -248,151 +208,192 @@ Artifact:
 stocktake-evidence-<exact_commit_sha>
 ```
 
-Evidence pipeline đóng gói:
+Artifact outputs tối thiểu:
 
-- `build-metadata.json`: exact commit SHA, source-tree SHA-256, runtime versions, Postman/test/verifier versions và status.
-- `source-tree.sha256`: SHA-256 của `git archive HEAD`.
-- `SHA256SUMS`: hash của mọi evidence file/source copy.
-- OpenAPI JSON/YAML + generation log.
-- Runtime route list + permission catalog.
-- Main API và stocktake Newman raw/JSON.
-- Full PHPUnit raw log.
-- Migration/seed logs.
-- DB before/after snapshot.
-- Source Register + test-case register.
-- Source copies: route, controller, services, guard, grain service, migration và cả hai feature tests.
-- `stocktake-contract-verification.json` phải có `summary.failed = 0` và `status = PASS`.
+- `build-metadata.json`
+- `source-tree.sha256`
+- `SHA256SUMS`
+- `SHA256SUMS.sha256`
+- OpenAPI JSON/YAML + generation log
+- Runtime route list
+- Postman collection/environment
+- Newman raw/JSON
+- Test-case register and Source Register
+- Contract verifier result
+- Schema verifier result
+- Migration rehearsal log
+- Focused three-layer/ledger/security test logs
+- Full PHPUnit log
+- DB before/after
+- Reconciliation report
+- Source copies used for review
 
-Verification command:
+Verification:
 
 ```bash
-bash scripts/collect-api-data-evidence.sh
-(cd build/evidence/api-data && sha256sum --check SHA256SUMS)
+bash scripts/collect-wwhn131-evidence.sh
+cd build/evidence/wwhn-131
+sha256sum --check SHA256SUMS
+sha256sum --check SHA256SUMS.sha256
 ```
 
-## 9. Source Register và traceability
+CI additionally fails nếu:
 
-Source of truth:
+- Metadata commit khác `GITHUB_SHA`.
+- Artifact name không bind exact SHA.
+- Contract/schema/reconcile không `PASS`.
+- Newman có failure.
+- Source Register bị nâng khỏi `PROPOSED` khi chưa sign-off.
 
-```text
-docs/docs_task_jira/WWHN-131-source-register.json
-version 1.1.0 / PROPOSED
-```
+## 8. Schema/DBA evidence
 
-Repository sources có path/version và nhận SHA-256 thật từ exact CI artifact.
+`php scripts/verify-wwhn131-schema.php <output.json>` hỗ trợ SQLite/MySQL/PostgreSQL và kiểm tra:
 
-External sources chưa được giả lập vì Atlassian connector trả `403 — app is not installed on this instance`:
+- `stocktake_session.warehouse_id NOT NULL`.
+- `grain_type/grain_id/grain_key NOT NULL` trên snapshot/count/variance.
+- Unique `(session_id,grain_key)` trên snapshot/count/variance.
+- Unique `(operation,idempotency_key)` trên `posting_event`.
+- Index warehouse/status và variance session/status.
+- FK session warehouse.
+- FK movement variance.
 
-- WWHN-25 Decision attachment.
-- WWHN-31 OpenAPI review attachment.
-- WWHN-33 QA report attachment.
-- WWHN-40 gate minutes attachment.
-- Current BRD/SRS/BPD/DEC-INV attachment IDs và SHA-256.
+CI rehearsal không thay thế DBA target-DB rehearsal. DBA phải chạy trên bản sao dữ liệu gần production, ghi engine/version/dataset snapshot/backup/lock duration/rollback plan.
 
-BA/BAS phải cập nhật attachment ID/hash thật; PM/QA mới được xác nhận Decision rebase.
+## 9. Independent review ownership
 
-## 10. Approval gates
-
-| Gate | Owner/Reviewer | Required evidence | Status |
+| Gate | Owner/Reviewer | Evidence bắt buộc | Current status |
 |---|---|---|---|
-| Decision | BA / Tech Lead / PM | Jira decision exact version/hash/date | PENDING |
-| Core correctness | BE1 / Tech Lead / QA1 | race/retry/timeout-after-commit on exact SHA | PENDING INDEPENDENT REVIEW |
-| Data/RBAC | BE1 / QA1 / Security | cross-session + cross-warehouse negatives | PENDING INDEPENDENT REVIEW |
-| Inventory | BE1+BE2 / Tech Lead / QA1 | signed ledger/balance/reconcile including zero-effect | PENDING INDEPENDENT REVIEW |
-| Three-layer integrity | BE1+BE2 / QA1 | API/DB rollback before-after | PENDING INDEPENDENT REVIEW |
-| Schema | BE1 / DBA / Tech Lead | migration rehearsal on target engine/data | PENDING DBA |
-| Contract | BA+BE1 / QA1 / FE | exact OpenAPI/Postman/TC hashes | PENDING |
-| Traceability | BA/BAS/BE1 / PM/QA | current BRD/SRS/BPD/DEC-INV IDs/hashes | BLOCKED SOURCE IDS |
-| Process | BE1 / BA | structured Jira handoff | BLOCKED ATLASSIAN APP |
+| Repository implementation | BE1 | Code/tests/workflow/protocol committed `m1` | **COMPLETE** |
+| Exact-SHA CI | BE1 automation | Workflow PASS + artifact + checksums | PENDING FINAL SHA RUN |
+| Core correctness | QA1 + Tech Lead | race/retry/timeout-after-commit/idempotency/rollback | PENDING INDEPENDENT REVIEW |
+| Data/RBAC | QA1 + Security | cross-session/cross-warehouse/replay leak/no-write | PENDING INDEPENDENT REVIEW |
+| Schema | DBA + Tech Lead | target DB migration rehearsal/schema verifier | PENDING DBA |
+| Business contract | BA | exact OpenAPI/Postman/state/decision | PENDING BA |
+| Traceability | BAS | current BRD/SRS/BPD/DEC-INV IDs/hashes | PENDING BAS |
+| Final decision | BA + PM + Tech Lead | `DEC-STK-001` exact version/hash/date/result | PENDING FORMAL DECISION |
+| Jira handoff | BE1 | structured comment | BLOCKED ATLASSIAN APP/PERMISSION |
 
-## 11. Structured Jira handoff payload
+## 10. Structured BE1 Jira handoff
 
 ```text
-[WWHN-131 STOCKTAKE HANDOFF]
+[WWHN-131 BE1 STRUCTURED HANDOFF]
 Document: docs/docs_task_jira/WWHN-131.md
-Document version/status: 1.1.0 / PROPOSED
+Document version/status: 1.2.0 / PROPOSED
+Source Register: docs/docs_task_jira/WWHN-131-source-register.json
+Source Register version/status: 1.2.0 / PROPOSED
 Branch: m1
-Technical implementation baseline: f9a2280c35da797fb0c32b4e6d66d7d7e039b328
-Source Register version/status: 1.1.0 / PROPOSED
-Source Register commit: 41aeacd73f0fd9bfdae32bb806622ab84dd3224f
-Exact review commit: <build-metadata.json.commit_sha>
+Exact review SHA: <build-metadata.json.commit_sha>
+CI run: <build-metadata.json.ci_run_url>
+Artifact: stocktake-evidence-<exact SHA>
 Source-tree SHA-256: <source-tree.sha256>
-Artifact: stocktake-evidence-<exact review commit>
-SHA256SUMS validation: PASS|FAIL — <artifact/link>
+Manifest: SHA256SUMS
+Manifest digest: <SHA256SUMS.sha256 digest>
+Manifest validation: PASS|FAIL
 
-Scope completed in repository:
-- DRAFT create / explicit start / CAS state machine
-- SKU, ITEM, CONTAINER canonical grain and DB constraints
-- signed qty_delta and SUM(qty_delta)
-- pre-apply ledger-balance reconcile
-- zero-effect: no empty movement/no balance version increment
-- movement acknowledgement exact-set guard
-- idempotency/replay/same-key conflict
-- exact variance set/session scope
+Scope completed:
+- DRAFT/start/count/review/ack/apply lifecycle
+- exact variance selection and session scope
+- idempotency/replay/payload conflict/different-key double-apply guard
+- scope before replay response disclosure
+- signed ledger and pre-apply reconcile
+- zero-effect no movement/no balance version increment
 - three-layer atomic rollback
-- warehouse data scope including apply
-- runtime lifecycle routes
+- schema constraints and verifier
+- exact-SHA immutable evidence workflow
+- independent QA/Tech/DBA/Security/Decision protocol
 
-Key decisions:
-- ADJUST_OUT is negative qty_delta
-- apply accepts variance_ids only
-- requested set equals all APPROVED variances of session
-- same key/different payload returns 409
-- missing movement acknowledgement returns 428
-- ledger/balance mismatch returns 409 and no operation commit
-- zero inventory effect creates no stock movement
+Hashes:
+OpenAPI: <build-metadata.openapi_sha256>
+Postman: <build-metadata.postman_sha256>
+Test register: <build-metadata.test_case_sha256>
+Source Register: <build-metadata.source_register_sha256>
+Migration: <build-metadata.migration_sha256>
+Contract verifier: <build-metadata.contract_verifier_sha256>
+Schema verifier: <build-metadata.schema_verifier_sha256>
 
-OpenAPI hash: <sha256>
-Postman v1.0.0 hash: <sha256>
-Test cases v1.1.0 hash: <sha256>
-Verifier v1.1.0 result/hash: PASS|FAIL / <sha256>
-Migration hash: <sha256>
-PHPUnit: PASS|FAIL — <raw log>
-Stocktake Newman: PASS|FAIL — <raw/json>
-DB before/after + reconcile: PASS|FAIL — <artifact>
+Results:
+Contract verifier: PASS|FAIL
+Schema verifier: PASS|FAIL
+Focused PHPUnit: PASS|FAIL
+Full PHPUnit: PASS|FAIL
+Newman: PASS|FAIL
+Reconciliation: PASS|FAIL
 
-Reviewers:
-- BA: <name/date/result>
-- Tech Lead: <name/date/result>
-- QA1: <name/date/result>
-- DBA: <name/date/result>
-- Security: <name/date/result>
-- PM: <name/date/decision>
+Required reviewers:
+QA1, Tech Lead, DBA, Security, BA, PM
 
 Impacted tickets:
-WWHN-25, WWHN-31, WWHN-33, WWHN-40, WWHN-131
-External register:
-BRD <attachment/hash>; SRS <attachment/hash>; BPD <attachment/hash>; DEC-INV <attachment/hash>
+WWHN-25, WWHN-131, WWHN-132, WWHN-133
 
-Final status: PROPOSED|CONDITIONAL GO|APPROVED|NO-GO
-Open blockers: <exact list>
+External blockers:
+- QA1/Tech Lead independent review: <status/link>
+- DBA rehearsal: <status/link>
+- Security retest: <status/link>
+- BRD/SRS/BPD/DEC-INV IDs/hashes: <status/link>
+- DEC-STK-001: <status/link>
 ```
 
-## 12. Acceptance checklist trước khi đổi `APPROVED`
+## 11. DEC-STK-001 formal decision payload
 
-- [ ] Chọn exact commit SHA từ artifact; không review theo branch động.
-- [ ] GitHub workflow trên SHA đó `success`.
-- [ ] Download `stocktake-evidence-<SHA>`.
-- [ ] `sha256sum --check SHA256SUMS` PASS.
-- [ ] `source-tree.sha256` khớp source được review.
-- [ ] Full PHPUnit + cả hai Newman run PASS.
-- [ ] `stocktake-contract-verification.summary.failed = 0`.
-- [ ] QA1 attach race/retry/timeout, scope và rollback evidence.
-- [ ] Tech Lead/QA1 xác nhận signed ledger, zero-effect và mismatch guard.
-- [ ] DBA approve migration trên target DB/data copy.
-- [ ] BA/FE xác nhận OpenAPI/Postman/state contract cùng hash.
-- [ ] BA/BAS cập nhật current BRD/SRS/BPD/DEC-INV attachment ID/hash.
-- [ ] Tech Lead/PM ghi formal Jira decision với reviewer/date.
+```text
+[DEC-STK-001 — STOCKTAKE APPLY DECISION]
+Jira: WWHN-25
+BA final: WWHN-132
+Traceability: WWHN-133
 
-Các checkbox trên là điều kiện cần hoàn thành, không phải approval evidence hiện tại.
+Document: WWHN-131.md v1.2.0 / PROPOSED
+Source Register: v1.2.0 / PROPOSED
+Exact SHA: <sha>
+CI run: <url>
+Artifact: stocktake-evidence-<sha>
+Source tree SHA-256: <hash>
+SHA256SUMS digest: <hash>
+Deployment SHA/environment: <value>
+
+QA1: <name/date/result/evidence>
+Tech Lead: <name/date/result/evidence>
+DBA: <name/date/result/evidence>
+Security: <name/date/result/evidence>
+BA: <name/date/contract result>
+PM: <name/date/decision>
+
+OpenAPI/Postman/Test/Migration/Verifier hashes: <exact values>
+Open defects/conditions: <IDs or NONE>
+Decision result: GO | CONDITIONAL GO | NO-GO
+Conditions/owner/deadline: <exact list or NONE>
+```
+
+## 12. Commits xử lý đợt đánh giá này
+
+| Commit | Nội dung |
+|---|---|
+| `7688b04d6d823e82bdbfa1022b008bc28c8900c5` | Bổ sung protocol rà soát độc lập và quyết định WWHN-131. |
+| `b9956c355a638412cc6caae3b1b8c8b958858ce6` | Thêm bộ xác minh schema kiểm kê WWHN-131. |
+| `45d90525d240b7778d8d4beabb581fc282111a1d` | Bổ sung test bảo mật replay và chặn apply lặp WWHN-131. |
+| `8656aa7c931fff2681e88243c16d8de9172cda39` | Thêm pipeline evidence riêng cho WWHN-131. |
+| `531de33699db89e30b2ee2c5ed7dea498f3b0b87` | Thêm workflow exact-SHA riêng cho WWHN-131. |
+| `6face18071c2edc9225b33feb0dd51f0195f0e08` | Mở rộng test register WWHN-131 lên phiên bản 1.2. |
+| `8b124b70dd11a0b6a98cf0a94b9a314c4125f5c8` | Siết verifier contract theo exact SHA và Source Register. |
+| `9db6d6fe3f73d398b56c8595a8580ac7586acac1` | Đồng bộ Source Register WWHN-131 lên phiên bản 1.2. |
+
+Tất cả commit được ghi trực tiếp vào `m1`; không tạo branch phụ.
 
 ## 13. Current truthful status
 
-Các action P0/P1/P2 có thể xử lý trong repository đã được triển khai trực tiếp trên `m1`, gồm runtime wiring, core transaction, idempotency, data scope, signed ledger, zero-effect, three-layer rollback, schema hardening, test register, verifier, evidence pipeline, Source Register và Jira handoff template.
+### Repository
 
-Chưa tuyên bố `100% / APPROVED` vì bốn phần không thể được tạo giả từ code:
+**Đã hoàn tất toàn bộ phần sửa P0/P1/P2 có thể thực hiện bằng code, test, workflow và tài liệu trong repository.**
 
-1. GitHub Actions trên exact final SHA phải hoàn tất và artifact phải kiểm tra được.
-2. QA1/Tech Lead/DBA/Security phải independent review trên cùng artifact/hash.
-3. BA/BAS phải cung cấp current BRD/SRS/BPD/DEC-INV attachment IDs/hashes.
-4. Formal Jira approval/comment chưa thể đăng khi Atlassian app chưa được cài trên instance.
+### Formal closure
+
+Chưa được phép tuyên bố `100% / APPROVED / Done` cho Jira vì các bằng chứng sau phải do reviewer độc lập hoặc hệ thống ngoài repository tạo:
+
+1. Workflow exact final SHA phải PASS và artifact thật phải tồn tại.
+2. QA1 + Tech Lead phải chạy race/retry/timeout/rollback/reconcile độc lập.
+3. DBA phải rehearsal migration trên target engine/data copy.
+4. Security phải retest cross-session/cross-warehouse/replay leak.
+5. BAS phải điền attachment IDs/hashes hiện hành.
+6. BA/PM phải phát hành `DEC-STK-001` trên Jira.
+7. Atlassian connector hiện trả `403 — app is not installed on this instance`, nên BE1 chưa thể post Jira comment thật từ phiên làm việc này.
+
+Trạng thái chính xác tại repository: **REPOSITORY REMEDIATION COMPLETE; PENDING EXACT-SHA CI AND EXTERNAL SIGN-OFF**.
