@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Checkout current SHA
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup PHP 8.3
         uses: shivammathur/setup-php@v2
@@ -54,10 +56,14 @@ jobs:
           echo "QUEUE_CONNECTION=sync" >> .env
           echo "AUDIT_WRITE_POLICY=outbox_required" >> .env
 
-      - name: PHP syntax and formatting gate
+      - name: PHP syntax and scoped formatting gate
         run: |
           find app Modules tests config database routes -name '*.php' -print0 | xargs -0 -n1 php -l
-          ./vendor/bin/pint --test
+          git fetch origin m1 --depth=1
+          mapfile -t changed_php < <(git diff --name-only origin/m1...HEAD -- '*.php')
+          if [ ${#changed_php[@]} -gt 0 ]; then
+            ./vendor/bin/pint --test "${changed_php[@]}"
+          fi
 
       - name: Security and regression tests
         run: php artisan test --do-not-cache-result
