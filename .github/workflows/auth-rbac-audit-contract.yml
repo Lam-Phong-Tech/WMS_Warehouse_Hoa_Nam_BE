@@ -1,0 +1,95 @@
+name: Auth RBAC Audit Contract Gate
+
+on:
+  pull_request:
+    branches: [m1]
+  push:
+    branches: [fix/wwhn-auth-rbac-audit-hardening, m1]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-rbac-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout current SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install Node dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prepare test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          echo "JWT_SECRET=ci-jwt-secret-auth-rbac-audit-contract" >> .env
+          echo "DB_CONNECTION=sqlite" >> .env
+          echo "DB_DATABASE=:memory:" >> .env
+          echo "CACHE_STORE=array" >> .env
+          echo "SESSION_DRIVER=array" >> .env
+          echo "QUEUE_CONNECTION=sync" >> .env
+          echo "AUDIT_WRITE_POLICY=outbox_required" >> .env
+
+      - name: PHP syntax and scoped formatting gate
+        run: |
+          find app Modules tests config database routes -name '*.php' -print0 | xargs -0 -n1 php -l
+          git fetch origin m1 --depth=1
+          mapfile -t changed_php < <(git diff --name-only origin/m1...HEAD -- '*.php')
+          if [ ${#changed_php[@]} -gt 0 ]; then
+            ./vendor/bin/pint --test "${changed_php[@]}"
+          fi
+
+      - name: Security and regression tests
+        run: php artisan test --do-not-cache-result
+
+      - name: Generate OpenAPI contract
+        run: php artisan l5-swagger:generate
+
+      - name: Lint OpenAPI contract
+        run: npm run api:lint
+
+      - name: Validate committed Postman collection
+        run: node -e "const fs=require('fs');const p='docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));if(!c.item?.length)throw new Error('Postman collection is empty');console.log(c.info.name, c.item.length);"
+
+      - name: Frontend asset and baseline build
+        run: |
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Upload generated contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-rbac-audit-contract-${{ github.sha }}
+          path: |
+            storage/api-docs/api-docs.json
+            storage/api-docs/api-docs.yaml
+            docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json
+          if-no-files-found: error
+          retention-days: 14
