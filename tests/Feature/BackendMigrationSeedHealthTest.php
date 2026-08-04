@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\HealthController;
 use Database\Seeders\DatabaseSeeder;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -16,7 +16,7 @@ use Tests\TestCase;
 
 class BackendMigrationSeedHealthTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     public function test_migrations_and_seed_are_idempotent_for_backend_baseline(): void
     {
