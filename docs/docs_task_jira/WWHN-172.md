@@ -5,248 +5,261 @@
 | Field | Value |
 |---|---|
 | Task | WWHN-172 |
-| Parent task | WWHN-37 — `[SKU] Mô hình/API cho SKU, item, component, mã vật lý và container` |
+| Parent | WWHN-37 — `[SKU] Mô hình/API cho SKU, item, component, mã vật lý và container` |
 | Parent Temp Key | HN-MC-001 |
 | Epic Temp Key | HN-EPIC-04 |
 | Dependency | HN-MC-001-ST01 |
-| Role | BE1 |
-| Assignee Placeholder | HN-BE-01 |
-| Responsible person | Quang Nguyễn Thanh |
-| Output | Kết quả rà soát kỹ thuật |
-| Implementation branch | `m1` |
-| Status | Code/contract/test source complete; independent QA/BA runtime sign-off pending |
-| Scope | Harden đúng aggregate SKU/component/physical code/container; không đổi parent/epic/dependency/reference |
+| Branch | `m1` |
+| Owner | BE1 — Quang Nguyễn Thanh |
+| Scope | SKU/component/physical-code/container/import, transaction, audit, idempotency, migration safety và evidence handoff |
+| Trạng thái BE1 | Code, contract, test source và protocol evidence đã hoàn thiện; runtime/independent sign-off vẫn là gate bắt buộc |
 
-## 2. Kết quả rà soát
+## 2. Baseline kỹ thuật áp dụng
 
-Trước WWHN-172, `/api/v1/skus` mới là alias CRUD của `products`; `physical_code`, `container`, `container_item` chủ yếu mới có schema/read contract. Luồng tạo product ghi business row và audit không nằm trong một transaction bao trùm. Chưa có component graph, optimistic concurrency API, ownership guard cho physical code, null-safe identity cho container item, serial cross-container guard hoặc sealed-container immutability.
+Triển khai tuân thủ `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`:
 
-WWHN-172 đưa write path vào hai aggregate transaction:
+- Laravel Modular Monolith, PostgreSQL là DB chuẩn.
+- Controller mỏng; validation/request → service/use case → model/repository.
+- Mutation phải có transaction, lock, idempotency và rollback toàn bộ khi lỗi.
+- Audit/movement là append-only; không lộ secret, token hoặc stack trace.
+- Backend enforce permission và data scope; không tin dữ liệu frontend.
+- Contract được quản lý bằng OpenAPI, Postman, test-case JSON và CI.
 
-1. `SkuAggregateService`: `products` + `sku_component` + `physical_code` + `audit_log`.
-2. `ContainerService`: `container` + `container_item` + physical-code binding + `audit_log`.
-3. `IdempotencyStore` hiện hữu là outer transaction cho mutation có idempotency key; business data, audit và response snapshot commit/rollback cùng nhau.
-4. `version`/`If-Match` là optimistic concurrency precondition cho update/revoke/seal.
-5. `AuditLogger` hiện hữu tiếp tục là policy duy nhất cho redaction, append-only audit và fail-closed/outbox fallback.
+## 3. Phạm vi runtime đã harden
 
-## 3. Findings và disposition
+### 3.1 SKU aggregate
 
-| ID | Sev | Finding trước sửa | Disposition |
-|---|---:|---|---|
-| WWHN172-P0-01 | P0 | SKU/product có thể commit trước khi audit lỗi | Fixed: business write và audit cùng `DB::transaction` |
-| WWHN172-P0-02 | P0 | Không có component self/cycle/positive-quantity guard | Fixed: request + locked service traversal + DB FK/unique/check nơi hỗ trợ |
-| WWHN172-P0-03 | P0 | Physical code có thể bị chuyển chủ | Fixed: lock code row; kiểm tra đồng thời `product_id`, generic owner type/id; conflict `409` |
-| WWHN172-P0-04 | P0 | Container root/items/audit không có aggregate transaction | Fixed: một transaction, retry deadlock tối đa 3 lần |
-| WWHN172-P0-05 | P0 | Một serial có thể bị claim bởi hai container | Fixed: lock serial + active cross-container lookup |
-| WWHN172-P1-01 | P1 | Không có optimistic lock cho mutation | Fixed: `If-Match` hoặc body `version`; stale trả `409` |
-| WWHN172-P1-02 | P1 | SEALED container vẫn có thể bị sửa | Fixed: SEALED/CLOSED immutable; seal chỉ từ ACTIVE và phải có item |
-| WWHN172-P1-03 | P1 | Unique với nullable product/serial không xác định grain | Fixed: deterministic `item_key`; unique `(container_id,item_key)` |
-| WWHN172-P1-04 | P1 | Retry same command có thể tạo duplicate | Fixed: canonical request hash + exact replay + same-key/different-payload `409` |
-| WWHN172-P1-05 | P1 | Parent container có thể self/cycle/cross-warehouse | Fixed: locked parent-chain traversal và warehouse guard |
-| WWHN172-P2-01 | P2 | GET SKU detail không trả nested members | Fixed: aggregate snapshot gồm components và physical codes |
+`SkuAggregateService` quản lý nguyên tử:
 
-## 4. Changed files
+```text
+products
++ sku_component
++ physical_code
++ audit_log / audit_outbox
++ idempotency response snapshot
+```
+
+Các guard:
+
+- code chuẩn hóa uppercase và unique;
+- component khác chính nó;
+- quantity > 0;
+- graph không có cycle;
+- component phải tồn tại, ACTIVE và đúng type;
+- physical code không được chuyển ownership trái phép;
+- optimistic concurrency qua `If-Match`/`version`;
+- exact replay không tạo thêm business/audit row;
+- same key + different payload trả `409` và không side effect.
+
+### 3.2 Container aggregate
+
+`ContainerService` quản lý nguyên tử:
+
+```text
+container
++ container_item
++ serial/product lock
++ physical-code binding
++ audit_log / audit_outbox
++ idempotency response snapshot
+```
+
+Các guard:
+
+- parent không self/cycle;
+- parent/child không lệch warehouse;
+- serial chỉ thuộc một active container;
+- item grain dùng `item_key` xác định, không phụ thuộc NULL semantics;
+- bulk item quantity > 0 và product ACTIVE;
+- SEALED/CLOSED immutable;
+- seal chỉ từ ACTIVE và container phải có item;
+- stale version trả `409`;
+- deadlock transaction retry có giới hạn.
+
+### 3.3 Import/data validation
+
+Import SKU/container được thực hiện theo batch transaction và chống side effect:
+
+- validate toàn bộ row trước hoặc fail batch theo contract;
+- duplicate code/SKU/serial/container được phát hiện rõ;
+- invalid format, unknown reference và inactive reference trả error code ổn định;
+- không tạo partial business row khi batch thất bại;
+- audit và idempotency nằm trong cùng commit boundary;
+- file/row metadata được sanitize trước khi ghi audit.
+
+## 4. P0/P1/P2 remediation matrix
+
+| ID | Required fix | Thực hiện trong `m1` | Evidence/gate |
+|---|---|---|---|
+| BE1-P1-01 | Full PHPUnit + DB matrix trên exact SHA | Workflow `.github/workflows/wwhn-172-sku-container-contract.yml` chạy static/contract/PHPUnit/integration trên PostgreSQL và MySQL; evidence collector ghi SHA, PHP/Laravel, DB engine/version, migration state | Chỉ đóng khi có workflow run và raw logs gắn exact final SHA |
+| BE1-P1-02 | OpenAPI/Postman/test-case có hash/version | `docs/api-contract/WWHN-172-sku-container-openapi.yaml`; `docs/postman/WWHN-172 SKU Container Contract.postman_collection.json`; CI environment; `docs/testing/WWHN-172-test-cases.json`; source register | Hash phải lấy từ artifact ở exact SHA, không lấy từ file local khác nguồn |
+| BE1-P1-03 | QA1 race/idempotency/cycle/audit/no-stack-trace | Feature tests, concurrency runner, audit fail-closed test và `QA1_CONSTRAINT_API_TRACE_CHECKLIST.md` | WWHN-173 cần QA1 chạy độc lập, ghi request/response + DB trace |
+| BE1-P1-04 | QA2 import/data validation | `ImportService`, import controller/route, `Wwhn174SkuImportValidationTest.php`, Postman/test-case và `QA2_IMPORT_VALIDATION_CHECKLIST.md` | WWHN-174 cần QA2 xác nhận duplicate/invalid/inactive/no-side-effect |
+| BE1-P1-05 | BE2 transaction/schema boundary | `BE1_BE2_BOUNDARY_MATRIX.md` mô tả owner, table, lock order, transaction boundary, trace grain, impacted contract và branch alignment | WWHN-171/Tech Lead phải sign-off phần shared boundary |
+| BE1-P1-06 | DB before-after + audit + fail-closed proof | `AUDIT_DB_PROOF_PROTOCOL.md`, `collect-wwhn172-db-snapshot.php`, `Wwhn172AuditFailClosedTest.php`, audit outbox/reconcile path | Cần raw DB snapshot từ môi trường test; không dùng matrix Markdown thay bằng chứng runtime |
+| BE1-P1-07 | Migration dry-run/precheck/rollback | `wwhn172:migration-preflight`, migration uniqueness hardening, `Wwhn172MigrationSafetyTest.php`, `MIGRATION_ROLLBACK_RUNBOOK.md`, `DBA_DEVOPS_SIGNOFF.md` | DBA/DevOps xác nhận precheck, dry-run và rollback note trên DB mục tiêu |
+| BE1-P2-01 | Jira handoff text matrix | Section 9 của tài liệu này và Jira comment sau commit | Comment phải ghi final SHA, artifact/hash, reviewer và blocker |
+
+Không có P0 code finding còn mở trong phạm vi BE1. Các gate phụ thuộc QA1/QA2/BE2/DevOps/DBA không được tự đánh dấu PASS bởi BE1.
+
+## 5. Files chính
 
 ### Runtime
 
 - `Modules/Warehouse/app/Services/SkuAggregateService.php`
 - `Modules/Warehouse/app/Services/ContainerService.php`
-- `Modules/Warehouse/app/Http/Controllers/ProductController.php`
+- `Modules/Warehouse/app/Services/ImportService.php`
 - `Modules/Warehouse/app/Http/Controllers/SkuGovernanceController.php`
 - `Modules/Warehouse/app/Http/Controllers/ContainerController.php`
-- `Modules/Warehouse/app/Http/Requests/StoreProductRequest.php`
+- `Modules/Warehouse/app/Http/Controllers/ImportController.php`
+- `app/Support/IdempotencyStore.php`
+- `app/Support/IdempotencyKeyGuard.php`
+- `app/Http/Middleware/Wwhn172AggregateLock.php`
+- `Modules/AuditLog/app/Services/AuditLogger.php`
 - `Modules/Warehouse/database/migrations/2026_08_03_000210_harden_sku_component_container_contract.php`
-- `routes/api.php`
+- `Modules/Warehouse/database/migrations/2026_08_04_000220_harden_wwhn172_serial_and_code_uniqueness.php`
 
-### Contract/evidence source
+### Tests/tooling
 
 - `tests/Feature/Wwhn172SkuContainerTransactionTest.php`
+- `tests/Feature/Wwhn172AuditFailClosedTest.php`
+- `tests/Feature/Wwhn172MigrationSafetyTest.php`
+- `tests/Feature/Wwhn174SkuImportValidationTest.php`
+- `scripts/run-wwhn172-concurrency.mjs`
+- `scripts/verify-wwhn172-contract.mjs`
+- `scripts/collect-wwhn172-evidence.sh`
+- `scripts/collect-wwhn172-db-snapshot.php`
+- `app/Console/Commands/Wwhn172MigrationPreflight.php`
+
+### Contract/evidence
+
 - `docs/api-contract/WWHN-172-sku-container-openapi.yaml`
 - `docs/postman/WWHN-172 SKU Container Contract.postman_collection.json`
+- `docs/postman/WWHN-172 SKU Container CI.postman_environment.json`
 - `docs/testing/WWHN-172-test-cases.json`
-- `docs/docs_task_jira/WWHN-172.md`
+- `docs/docs_task_jira/WWHN-172-source-register.json`
+- `docs/evidence/WWHN-172/AUDIT_DB_PROOF_PROTOCOL.md`
+- `docs/evidence/WWHN-172/BE1_BE2_BOUNDARY_MATRIX.md`
+- `docs/evidence/WWHN-172/MIGRATION_ROLLBACK_RUNBOOK.md`
+- `docs/evidence/WWHN-172/QA1_CONSTRAINT_API_TRACE_CHECKLIST.md`
+- `docs/evidence/WWHN-172/QA2_IMPORT_VALIDATION_CHECKLIST.md`
+- `docs/evidence/WWHN-172/DBA_DEVOPS_SIGNOFF.md`
 
-## 5. Transaction boundaries
+## 6. Transaction and lock contract
 
-### 5.1 Create SKU
-
-```text
-IdempotencyStore outer transaction (khi client gửi key)
-  reserve/lock (operation, key, actor)
-  SkuAggregateService transaction
-    validate/normalize code
-    insert products(version=1)
-    replace sku_component edges
-    assign physical_code under row lock
-    insert append-only audit
-  persist exact 2xx response snapshot
-COMMIT
-```
-
-Validation, cycle, ownership, database hoặc audit failure sẽ rollback product, edges, physical codes, audit và idempotency lease. Failed response không được cache làm replay thành công.
-
-### 5.2 Update SKU / physical code
+Lock order bắt buộc để giảm deadlock:
 
 ```text
-lock products row
-compare expected_version == current version
-capture before aggregate snapshot
-validate graph/code ownership
-write requested members
-increment products.version exactly once
-write before/after audit
-commit response snapshot
+idempotency lease
+→ aggregate root (product/container)
+→ parent/root references
+→ component/product references theo ID tăng dần
+→ physical codes theo normalized code tăng dần
+→ serials theo ID tăng dần
+→ business write
+→ audit/audit_outbox
+→ response snapshot
+→ commit
 ```
 
-Concurrent opposite component edges có thể deadlock do deterministic row ownership; transaction retry sẽ chạy lại trên graph mới và loser bị cycle guard từ chối.
+Bất kỳ validation, constraint, audit hoặc persistence error nào đều rollback toàn bộ. Audit primary failure chỉ được fallback sang outbox trong cùng transaction; nếu cả audit và outbox thất bại thì fail-closed.
 
-### 5.3 Create/update/seal container
+## 7. Error/no-side-effect contract
+
+Các error code trọng yếu:
+
+- `PRECONDITION_REQUIRED` (`428`)
+- `IDEMPOTENCY_ERROR` (`409`)
+- `SKU_VERSION_CONFLICT` (`409`)
+- `CONTAINER_VERSION_CONFLICT` (`409`)
+- `SKU_COMPONENT_SELF_REFERENCE` (`422`)
+- `SKU_COMPONENT_CYCLE` (`422`)
+- `DUPLICATE_COMPONENT` (`422`)
+- `PHYSICAL_CODE_ALREADY_ASSIGNED` (`409`)
+- `SERIAL_ALREADY_CONTAINERIZED` (`409`)
+- `CONTAINER_PARENT_CYCLE` (`422`)
+- `CONTAINER_WAREHOUSE_MISMATCH` (`422`)
+- `CONTAINER_IMMUTABLE` (`409`)
+- `EMPTY_CONTAINER_CANNOT_SEAL` (`422`)
+- import duplicate/invalid/inactive errors theo OpenAPI/test-case register.
+
+Error response không chứa exception class, SQL, file path, stack trace, authorization header hoặc secret.
+
+## 8. Runtime evidence commands
+
+Chạy trên exact commit SHA:
+
+```bash
+git rev-parse HEAD
+php artisan about
+php artisan wwhn172:migration-preflight --connection=<connection>
+php artisan migrate --pretend --database=<connection>
+php artisan test --testsuite=Feature
+bash scripts/collect-wwhn172-evidence.sh
+```
+
+Concurrency/API contract:
+
+```bash
+node scripts/verify-wwhn172-contract.mjs
+node scripts/run-wwhn172-concurrency.mjs
+```
+
+Evidence package tối thiểu phải có:
+
+- exact commit SHA/build URL;
+- OS/PHP/Laravel/DB engine và version;
+- migration preflight + dry-run output;
+- PHPUnit/integration raw log;
+- Newman/Postman raw log;
+- concurrency result;
+- DB before/after business row;
+- audit row/outbox row;
+- fail-closed rollback proof;
+- artifact SHA-256 manifest;
+- reviewer/sign-off.
+
+## 9. Jira handoff template
 
 ```text
-lock container + parent + code + serial/product rows
-validate version/state/hierarchy/warehouse/ownership
-write root
-replace active item set with deterministic item_key
-bind physical-code owner
-write append-only audit
-commit response snapshot
+[WWHN-172] BE1 HANDOFF
+Branch: m1
+Final commit SHA: <exact SHA>
+Scope: SKU/component/physical-code/container/import transaction + audit + idempotency + migration safety
+OpenAPI: docs/api-contract/WWHN-172-sku-container-openapi.yaml — SHA256: <hash>
+Postman: docs/postman/WWHN-172 SKU Container Contract.postman_collection.json — SHA256: <hash>
+Test cases: docs/testing/WWHN-172-test-cases.json — SHA256: <hash>
+Source register: docs/docs_task_jira/WWHN-172-source-register.json — SHA256: <hash>
+CI/build: <workflow URL/run ID>
+DB matrix: PostgreSQL <version>; MySQL <version>
+QA1: WWHN-173 — <status/reviewer/evidence>
+QA2: WWHN-174 — <status/reviewer/evidence>
+BE2 boundary: WWHN-171 — <status/reviewer/evidence>
+DBA/DevOps: <reviewer/evidence>
+Open blockers: <none or explicit owner + ETA + impact>
 ```
 
-Seal yêu cầu `ACTIVE`, có ít nhất một active item, set `SEALED`, `sealed_at`, tăng version một lần và chặn mọi update tiếp theo.
+## 10. Definition of Done interpretation
 
-## 6. Constraint matrix
+### BE1 code-complete
 
-| Area | Constraint | Enforcement |
-|---|---|---|
-| SKU code | `code`/`sku_code` uppercase, unique | request, locked service check, DB unique |
-| Component pair | một parent/component pair | `uk_sku_component_pair` |
-| Component self | parent khác component | request/service + DB check khi engine hỗ trợ |
-| Component quantity | `quantity > 0` | request/service + DB check |
-| Component graph | directed acyclic graph | transaction traversal trước insert |
-| Component status | component tồn tại và ACTIVE | FK + locked product check |
-| Component type | SKU type COMPONENT không có child | request + service |
-| Physical code | normalized `code_value` unique | DB unique + row lock |
-| Physical owner | không được chiếm code có product/generic owner khác | kiểm tra đầy đủ owner id/type, `409` |
-| Container code | globally unique | service lock + DB unique |
-| Parent container | no self/no cycle | locked chain traversal |
-| Warehouse boundary | child-parent và serial-container cùng warehouse khi cả hai được set | service |
-| Item identity | serial grain hoặc product grain duy nhất trong container | deterministic `item_key` + DB unique |
-| Serial state | chỉ `IN_STOCK`/`IN_TRANSIT`; quantity = 1 | locked service check |
-| Serial ownership | một active serial không thuộc hai container | locked cross-container lookup |
-| Bulk item | active product, quantity > 0 | locked product check + DB check |
-| Primary product | toàn bộ item phải khớp `primary_product_id` | service |
-| Seal | ACTIVE và non-empty | state guard + locked count |
-| Optimistic concurrency | expected version bằng current version | `If-Match`/body `version`, `409` |
-| Idempotency | operation + actor + canonical request hash | `IdempotencyStore` |
+- transaction/lock/idempotency/audit guards implemented;
+- import/data validation implemented;
+- migration precheck/rollback tooling implemented;
+- OpenAPI/Postman/test cases/source register present;
+- CI/evidence scripts present;
+- handoff documentation updated.
 
-## 7. Audit matrix
+### Formal Done/100%
 
-| Action | Object | Before | After | Same transaction |
-|---|---|---:|---:|---:|
-| `SKU_CREATE` | `sku` | No | Aggregate | Yes |
-| `SKU_UPDATE` | `sku` | Aggregate | Aggregate | Yes |
-| `SKU_PHYSICAL_CODE_ASSIGN` | `sku` | Aggregate | Aggregate | Yes |
-| `SKU_PHYSICAL_CODE_REVOKE` | `sku` | Aggregate | Aggregate | Yes |
-| `CONTAINER_CREATE` | `container` | No | Aggregate | Yes |
-| `CONTAINER_UPDATE` | `container` | Aggregate | Aggregate | Yes |
-| `CONTAINER_SEAL` | `container` | Aggregate | Aggregate | Yes |
-| `CREATE/ENABLE/DISABLE` | `product` | As applicable | Product | Yes |
+Chỉ đạt khi tất cả điều kiện sau có bằng chứng runtime trên cùng exact final SHA:
 
-Audit payload đi qua `AuditLogger::sanitize()`. API/audit không ghi Authorization token, secret hoặc stack trace. Nếu audit chính và outbox cùng thất bại, business transaction fail-closed.
+1. PostgreSQL và MySQL CI/PHPUnit/integration PASS;
+2. QA1 ký xác nhận WWHN-173;
+3. QA2 ký xác nhận WWHN-174;
+4. BE2 + Tech Lead ký boundary WWHN-171;
+5. DBA/DevOps ký migration preflight/dry-run/rollback;
+6. Jira có handoff text matrix và artifact hashes;
+7. không còn P0/P1 blocker chưa có disposition.
 
-## 8. API handoff cho FE1/QA
-
-### Preconditions
-
-- `POST /api/v1/skus`: giữ backward compatibility; `Idempotency-Key` optional. Khi có key, exact replay và same-key/different-payload conflict được áp dụng.
-- Mutation mới (`PATCH SKU`, physical-code mutation, container create/update/seal): `Idempotency-Key` bắt buộc, tối đa 128 ký tự.
-- `If-Match: "<version>"` hoặc body `version`: bắt buộc cho update/revoke/seal.
-- First execution trả `Idempotent-Replay: false`; replay exact trả `true`.
-
-### Endpoints
-
-| Method | Endpoint | Permission | Purpose |
-|---|---|---|---|
-| POST | `/api/v1/skus` | `sku.manage` | Create aggregate atomically |
-| GET | `/api/v1/skus/{id}` | `sku.manage` | Aggregate detail |
-| PATCH | `/api/v1/skus/{id}` | `sku.manage` | Optimistic aggregate update |
-| POST | `/api/v1/skus/{id}/physical-codes` | `sku.manage` | Assign/reactivate code |
-| DELETE | `/api/v1/skus/{id}/physical-codes/{physicalCodeId}` | `sku.manage` | Revoke code |
-| GET | `/api/v1/containers` | `inventory.view` | Paginated/filter list |
-| GET | `/api/v1/containers/{id}` | `inventory.view` | Aggregate detail |
-| POST | `/api/v1/containers` | `warehouse.manage` | Atomic create |
-| PATCH | `/api/v1/containers/{id}` | `warehouse.manage` | Optimistic update |
-| POST | `/api/v1/containers/{id}/seal` | `warehouse.manage` | Immutable seal transition |
-
-### Error codes chính
-
-- `PRECONDITION_REQUIRED` — thiếu idempotency key trên mutation mới hoặc thiếu expected version (`428`).
-- `IDEMPOTENCY_ERROR` — same key/different payload hoặc competing lease (`409`).
-- `SKU_VERSION_CONFLICT`, `CONTAINER_VERSION_CONFLICT` (`409`).
-- `SKU_COMPONENT_SELF_REFERENCE`, `SKU_COMPONENT_CYCLE`, `DUPLICATE_COMPONENT` (`422`).
-- `PHYSICAL_CODE_ALREADY_ASSIGNED` (`409`).
-- `SERIAL_ALREADY_CONTAINERIZED`, `SERIAL_NOT_CONTAINERIZABLE` (`409`).
-- `CONTAINER_PARENT_CYCLE`, `CONTAINER_WAREHOUSE_MISMATCH` (`422`).
-- `CONTAINER_IMMUTABLE`, `CONTAINER_STATE_CONFLICT` (`409`).
-- `EMPTY_CONTAINER_CANNOT_SEAL` (`422`).
-
-## 9. Test/evidence source
-
-`tests/Feature/Wwhn172SkuContainerTransactionTest.php` hiện cover:
-
-1. SKU aggregate create với component + physical code;
-2. exact idempotent replay, không duplicate row/audit;
-3. same key/different payload `409` không side effect;
-4. component cycle rollback edge/version/audit;
-5. stale SKU version;
-6. container create/replay;
-7. seal và immutable update;
-8. duplicate item làm rollback root/item/audit.
-
-Test-case register có 20 P0/P1 scenario, gồm race physical code, race serial, audit failure, cross-warehouse, hierarchy cycle, empty seal, RBAC và no-stack-trace contract.
-
-Static verification đã thực hiện trong phiên triển khai:
-
-```text
-PHP syntax: 9/9 changed PHP files — no syntax errors
-OpenAPI YAML: parse success
-Postman JSON: parse success
-Test-case JSON: parse success
-```
-
-Giới hạn evidence: connector không cung cấp private repository checkout/vendor runtime, do đó chưa chạy full PHPUnit và database-engine matrix trong phiên này. CI/QA phải chạy trên exact commit SHA và attach raw logs trước formal Done/Approved. Không ghi test runtime là PASS khi chưa có log thực tế.
-
-## 10. Migration/rollback
-
-Migration `2026_08_03_000210_harden_sku_component_container_contract.php`:
-
-- tạo `sku_component` với UUID PK, FK, pair unique, reverse index, version;
-- thêm `physical_code.product_id`, `physical_code.version`, product/status index;
-- thêm `container.sealed_at`;
-- thêm/backfill `container_item.item_key`, `version`, unique `(container_id,item_key)`;
-- legacy row thiếu cả serial/product dùng `LEGACY:<container_item_id>` để không tạo null ambiguity;
-- tự precheck duplicate `(container_id,item_key)` và fail-fast với message WWHN-172 trước khi tạo unique index;
-- thêm DB check trên MySQL/PostgreSQL khi hỗ trợ; application guard vẫn là portable enforcement cho SQLite test.
-
-Không tự động merge/xóa legacy duplicate. Production migration phải có reconciliation owner/evidence nếu precheck fail.
-
-## 11. Handoff và gate còn lại
-
-### FE1
-
-- Lưu `version` từ response.
-- Gửi `If-Match` cho update/revoke/seal.
-- Tạo idempotency key mới cho mỗi user command; chỉ reuse khi retry đúng payload cũ.
-- Với `409`, refresh/reconcile; không blind retry payload mới dưới key cũ.
-
-### QA/BA
-
-- Chạy `docs/testing/WWHN-172-test-cases.json` trên exact commit.
-- Verify DB before/after và audit row trong cùng scenario.
-- Chạy parallel requests cho same version, same key, physical-code và serial ownership.
-- Xác nhận cycle/self-reference/cross-warehouse/sealed immutability.
-- Formal sign-off phải reference exact commit, environment, migration state và raw logs.
-
-### Blocker disposition
-
-Không còn known blocker thuộc phần code BE1. Formal QA/BA runtime verification, CI result và sign-off vẫn pending; tài liệu này không thay thế approval gate.
+Tài liệu không tự tuyên bố PASS cho các bước chưa có raw log hoặc reviewer độc lập.
