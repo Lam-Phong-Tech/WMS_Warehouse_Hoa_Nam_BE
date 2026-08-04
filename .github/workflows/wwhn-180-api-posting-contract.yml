@@ -62,7 +62,40 @@ jobs:
           WWHN180_EMAIL: manager01@gmail.com
           WWHN180_NO_PERMISSION_EMAIL: test-no-permission@hoanam.com
           DB_CONNECTION: sqlite
-        run: bash scripts/collect-wwhn180-canonical-evidence.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Postman auth belongs to the request object. Older CI harness revisions
+          # placed item-level auth that Newman ignored and inherited the manager token.
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'docs/postman/WWHN-180 Posting Contract.postman_collection.json';
+          const collection = JSON.parse(fs.readFileSync(path, 'utf8'));
+          let migrated = 0;
+          const walk = (items = []) => {
+            for (const item of items) {
+              if (item.request && item.auth) {
+                if (item.request.auth) throw new Error(`Duplicate auth definition: ${item.name}`);
+                item.request.auth = item.auth;
+                delete item.auth;
+                migrated += 1;
+              }
+              walk(item.item);
+            }
+          };
+          walk(collection.item);
+          const denied = collection.item.find((item) => item.name === '23 Reconciliation denied without permission');
+          const token = denied?.request?.auth?.bearer?.find((entry) => entry.key === 'token')?.value;
+          if (token !== '{{no_permission_token}}') {
+            throw new Error('RBAC request must explicitly use {{no_permission_token}} at request.auth');
+          }
+          if (migrated < 3) {
+            throw new Error(`Expected at least 3 item-level auth definitions to migrate, got ${migrated}`);
+          }
+          fs.writeFileSync(path, `${JSON.stringify(collection)}\n`);
+          console.log(`Postman request-auth normalization PASS: ${migrated} definitions migrated`);
+          NODE
+          bash scripts/collect-wwhn180-canonical-evidence.sh
       - name: Verify exact-SHA evidence
         shell: bash
         run: |
@@ -72,12 +105,16 @@ jobs:
           node - "$root" <<'NODE'
           const fs=require('fs'), root=process.argv[2], read=n=>JSON.parse(fs.readFileSync(`${root}/${n}`,'utf8'));
           const m=read('build-metadata.json'), c=read('canonical-handoff-verification.json'), h=read('credential-hygiene.json');
+          const ciCollection=read('wwhn180.ci-harness.collection.json');
+          const denied=ciCollection.item.find(item=>item.name==='23 Reconciliation denied without permission');
+          const deniedToken=denied?.request?.auth?.bearer?.find(entry=>entry.key==='token')?.value;
+          if(deniedToken!=='{{no_permission_token}}'||denied?.auth) throw Error('Postman RBAC auth gate failed');
           if(m.commit_sha!==process.env.GITHUB_SHA||m.artifact_name!==`api-data-evidence-${process.env.GITHUB_SHA}`||m.approval_status!=='PENDING_INDEPENDENT_SIGN_OFF'||m.canonical_drift_status!=='PASS'||m.canonical_postman_request_count!==15) throw Error('metadata gate failed');
           if(c.status!=='PASS'||c.forbidden_request_count||c.forbidden_openapi_path_count||c.committed_secret_value_count) throw Error('canonical gate failed');
           if(read('wwhn180-contract-verification.json').summary?.status!=='PASS'||read('wwhn180-db-delta.json').summary?.status!=='PASS'||read('reconciliation-report.json').summary?.status!=='PASS'||(read('newman.result.json').run?.failures??[]).length) throw Error('runtime evidence failed');
           if(h.status!=='PASS'||h.residual_runtime_secret_count||h.residual_jwt_count) throw Error('credential gate failed');
           NODE
-          required=(build-metadata.json source-tree.sha256 SHA256SUMS SHA256SUMS.sha256 canonical-handoff-verification.json immutable-handoff-manifest.json openapi.json openapi.yaml wwhn180-openapi.json wwhn180-openapi.yaml wwhn180.postman.collection.json wwhn180.postman.environment.json wwhn180.ci-harness.collection.json wwhn180.ci-harness.environment.json route-list.raw.json permission-catalog.json permission-catalog.static.json be-fe-permission-mapping.json credential-hygiene.json phpunit.raw.log newman.raw.log newman.result.json db-before.json db-after.json wwhn180-db-delta.json reconciliation-report.json g1-closure-matrix.json)
+          required=(build-metadata.json source-tree.sha256 SHA256SUMS SHA256SUMS.sha256 canonical-handoff-verification.json immutable-handoff-manifest.json openapi.json openapi.yaml wwhn180-openapi.json wwhn180-openapi.yaml wwhn180.postman.collection.json wwhn180.postman.environment.json wwhn180.ci-harness.collection.json wwhn180.ci-harness.environment.json route-list.raw.json permission-catalog.json permission-catalog.static.json be-fe-permission-mapping.json credential-hygiene.json health-response.json health-http-status.txt health-probe-evidence.json phpunit.raw.log newman.raw.log newman.result.json db-before.json db-after.json wwhn180-db-delta.json reconciliation-report.json g1-closure-matrix.json)
           for file in "${required[@]}"; do test -s "$root/$file"; done
           (cd "$root" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
       - name: Upload passing evidence
