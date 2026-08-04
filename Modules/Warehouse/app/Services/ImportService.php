@@ -75,6 +75,7 @@ class ImportService
                 $skuMatch = $bySku->get($record['sku_code']);
                 if ($codeMatch && $skuMatch && $codeMatch->id !== $skuMatch->id) {
                     $dbErrors[] = $this->error($index + 2, 'SKU_IDENTITY_COLLISION', 'code,sku_code', 'code và sku_code trỏ tới hai SKU khác nhau.', $record['code']);
+
                     continue;
                 }
                 $matched = $codeMatch ?? $skuMatch;
@@ -213,6 +214,7 @@ class ImportService
 
             if ($rowErrors !== []) {
                 array_push($errors, ...$rowErrors);
+
                 continue;
             }
             $seenCode[$code] = $number;
@@ -245,8 +247,10 @@ class ImportService
         }
         if (! in_array($value, $allowed, true)) {
             $errors[] = $this->error($row, 'INVALID_ENUM', $field, $field.' phải thuộc '.implode(', ', $allowed).'.', $value);
+
             return $default;
         }
+
         return $value;
     }
 
@@ -258,8 +262,10 @@ class ImportService
         }
         if (! in_array($value, $allowed, true)) {
             $errors[] = $this->error($row, 'INVALID_ENUM', $field, $field.' phải thuộc '.implode(', ', $allowed).'.', $value);
+
             return null;
         }
+
         return $value;
     }
 
@@ -273,18 +279,21 @@ class ImportService
             return true;
         }
         $errors[] = $this->error($row, 'INVALID_BOOLEAN', $field, $field.' không hợp lệ.', $value);
+
         return false;
     }
 
     private function upper(mixed $value): ?string
     {
         $value = strtoupper(trim((string) $value));
+
         return $value === '' ? null : $value;
     }
 
     private function text(mixed $value): ?string
     {
         $value = trim((string) $value);
+
         return $value === '' ? null : $value;
     }
 

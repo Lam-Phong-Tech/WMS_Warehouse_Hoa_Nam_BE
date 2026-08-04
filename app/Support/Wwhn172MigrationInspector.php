@@ -18,6 +18,7 @@ final class Wwhn172MigrationInspector
                 return $this->skipped('sku_component chưa tồn tại');
             }
             $count = DB::table('sku_component')->whereColumn('parent_product_id', 'component_product_id')->count();
+
             return $this->result($count, 'Không được có parent_product_id = component_product_id.');
         });
 
@@ -25,6 +26,7 @@ final class Wwhn172MigrationInspector
             if (! Schema::hasTable('sku_component')) {
                 return $this->skipped('sku_component chưa tồn tại');
             }
+
             return $this->result(DB::table('sku_component')->where('quantity', '<=', 0)->count(), 'quantity của component phải > 0.');
         });
 
@@ -37,6 +39,7 @@ final class Wwhn172MigrationInspector
                 ->groupBy('parent_product_id', 'component_product_id')
                 ->havingRaw('COUNT(*) > 1')->limit(20)->get()
                 ->map(fn (object $row): array => (array) $row)->all();
+
             return $this->result(count($sample), 'Mỗi parent/component pair chỉ có một row.', $sample);
         });
 
@@ -45,6 +48,7 @@ final class Wwhn172MigrationInspector
                 return $this->skipped('container_item chưa tồn tại');
             }
             $count = DB::table('container_item')->whereNull('inventory_serial_id')->whereNull('product_id')->count();
+
             return $this->result($count, 'Container item phải có serial hoặc product.');
         });
 
@@ -53,6 +57,7 @@ final class Wwhn172MigrationInspector
                 return $this->skipped('container_item chưa tồn tại');
             }
             $count = DB::table('container_item')->where(fn ($query) => $query->whereNull('quantity')->orWhere('quantity', '<=', 0))->count();
+
             return $this->result($count, 'Container item quantity phải > 0.');
         });
 
@@ -61,6 +66,7 @@ final class Wwhn172MigrationInspector
                 return $this->skipped('item_key chưa tồn tại');
             }
             $count = DB::table('container_item')->where(fn ($query) => $query->whereNull('item_key')->orWhere('item_key', ''))->count();
+
             return $this->result($count, 'item_key phải được backfill trước khi tạo unique index.');
         });
 
@@ -73,6 +79,7 @@ final class Wwhn172MigrationInspector
                 ->whereNotNull('item_key')->groupBy('container_id', 'item_key')
                 ->havingRaw('COUNT(*) > 1')->limit(20)->get()
                 ->map(fn (object $row): array => (array) $row)->all();
+
             return $this->result(count($sample), 'item_key phải unique trong một container.', $sample);
         });
 
@@ -85,6 +92,7 @@ final class Wwhn172MigrationInspector
                 ->whereNotNull('inventory_serial_id')->groupBy('inventory_serial_id')
                 ->havingRaw('COUNT(DISTINCT container_id) > 1')->limit(20)->get()
                 ->map(fn (object $row): array => (array) $row)->all();
+
             return $this->result(count($sample), 'Một serial chỉ được có một container-item owner.', $sample);
         });
 
@@ -98,10 +106,12 @@ final class Wwhn172MigrationInspector
             }
             $sample = $query->groupBy('physical_code_id')->havingRaw('COUNT(*) > 1')->limit(20)->get()
                 ->map(fn (object $row): array => (array) $row)->all();
+
             return $this->result(count($sample), 'Một physical code chỉ thuộc một container còn hiệu lực.', $sample);
         });
 
         $failed = collect($checks)->where('status', 'BLOCKED')->count();
+
         return [
             'schema_version' => '1.0.0',
             'task' => 'WWHN-172',
