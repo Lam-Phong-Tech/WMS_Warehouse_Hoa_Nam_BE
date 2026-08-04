@@ -3,11 +3,13 @@
 namespace Modules\Warehouse\Services;
 
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Product;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Throwable;
 
 class ImportService
 {
@@ -30,13 +32,13 @@ class ImportService
         $this->assertFile($filePath);
         $checksum = hash_file('sha256', $filePath);
         if (! is_string($checksum)) {
-            throw new \InvalidArgumentException('Không tính được SHA-256 của file import.');
+            throw new InvalidArgumentException('Không tính được SHA-256 của file import.');
         }
 
         try {
             $rows = IOFactory::load($filePath)->getActiveSheet()->toArray(null, true, true, false);
-        } catch (\Throwable $e) {
-            throw new \InvalidArgumentException('Workbook Excel không đọc được hoặc đã hỏng.', previous: $e);
+        } catch (Throwable $e) {
+            throw new InvalidArgumentException('Workbook Excel không đọc được hoặc đã hỏng.', previous: $e);
         }
 
         $header = array_shift($rows) ?? [];
@@ -45,7 +47,7 @@ class ImportService
             ->contains(fn (mixed $value): bool => trim((string) $value) !== '')));
 
         if ($rows === [] || count($rows) > 1000) {
-            throw new \InvalidArgumentException($rows === []
+            throw new InvalidArgumentException($rows === []
                 ? 'File import không có dòng dữ liệu.'
                 : 'File import vượt quá 1000 dòng dữ liệu.');
         }
@@ -129,7 +131,7 @@ class ImportService
 
     public function createTemplate(string $path): void
     {
-        $sheet = (new Spreadsheet())->getActiveSheet();
+        $sheet = (new Spreadsheet)->getActiveSheet();
         $sheet->fromArray(self::COLUMNS, null, 'A1');
         $sheet->fromArray([
             'SKU-DEMO-001', 'SKU-DEMO-001', 'Sản phẩm mẫu', 'cái', 'PRODUCT',
@@ -141,13 +143,13 @@ class ImportService
     private function assertFile(string $filePath): void
     {
         if (! is_file($filePath)) {
-            throw new \InvalidArgumentException('Không tìm thấy file import.');
+            throw new InvalidArgumentException('Không tìm thấy file import.');
         }
         if (! in_array(strtolower(pathinfo($filePath, PATHINFO_EXTENSION)), ['xlsx', 'xls'], true)) {
-            throw new \InvalidArgumentException('Chỉ chấp nhận file xlsx hoặc xls.');
+            throw new InvalidArgumentException('Chỉ chấp nhận file xlsx hoặc xls.');
         }
         if (($size = filesize($filePath)) === false || $size > 10 * 1024 * 1024) {
-            throw new \InvalidArgumentException('File import vượt quá 10MB.');
+            throw new InvalidArgumentException('File import vượt quá 10MB.');
         }
     }
 
@@ -161,13 +163,13 @@ class ImportService
                 continue;
             }
             if (! in_array($name, self::COLUMNS, true) || isset($map[$name])) {
-                throw new \InvalidArgumentException(isset($map[$name]) ? "Cột bị lặp: {$name}." : "Cột không hỗ trợ: {$name}.");
+                throw new InvalidArgumentException(isset($map[$name]) ? "Cột bị lặp: {$name}." : "Cột không hỗ trợ: {$name}.");
             }
             $map[$name] = (int) $index;
         }
         foreach (['code', 'name'] as $required) {
             if (! isset($map[$required])) {
-                throw new \InvalidArgumentException("Thiếu cột bắt buộc: {$required}.");
+                throw new InvalidArgumentException("Thiếu cột bắt buộc: {$required}.");
             }
         }
 

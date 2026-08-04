@@ -12,6 +12,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Product;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use RuntimeException;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -177,7 +178,7 @@ class Wwhn174SkuImportValidationTest extends TestCase
         );
         $eventName = 'eloquent.creating: '.AuditLog::class;
         Event::listen($eventName, static function (): never {
-            throw new \RuntimeException('forced import audit failure');
+            throw new RuntimeException('forced import audit failure');
         });
 
         try {
@@ -240,7 +241,7 @@ class Wwhn174SkuImportValidationTest extends TestCase
 
     private function xlsx(array $headers, array $rows): UploadedFile
     {
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->fromArray($headers, null, 'A1');
         foreach ($rows as $index => $row) {

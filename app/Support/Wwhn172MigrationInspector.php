@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 final class Wwhn172MigrationInspector
 {
@@ -123,7 +124,7 @@ final class Wwhn172MigrationInspector
     {
         try {
             $checks[] = array_merge(['name' => $name], $callback());
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $checks[] = [
                 'name' => $name,
                 'status' => 'BLOCKED',
