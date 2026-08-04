@@ -1,0 +1,139 @@
+name: WWHN-172 One Commit Bootstrap
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn172-bootstrap-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact m1 staging head
+        uses: actions/checkout@v4
+        with:
+          ref: m1
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify, squash and publish one final commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BASE_SHA='029018af1a6998ea5815977d96f75970e5cf84e6'
+          PAYLOAD_SHA='922724d3cf33bdeea339e778c5be21c969368a1c8df2d50b6049f616e3f0b2e5'
+
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          cat .github/wwhn172-bootstrap/payload.b64.part-* | base64 --decode > /tmp/wwhn172-payload.tar.gz
+          printf '%s  %s\n' "$PAYLOAD_SHA" /tmp/wwhn172-payload.tar.gz | sha256sum --check
+
+          python - <<'PY'
+          import pathlib, tarfile
+          expected = {
+              '.env.example',
+              '.github/workflows/wwhn-172-sku-container-contract.yml',
+              'Modules/Warehouse/app/Http/Controllers/ImportController.php',
+              'Modules/Warehouse/app/Services/ImportService.php',
+              'Modules/Warehouse/database/migrations/2026_08_04_000220_harden_wwhn172_serial_and_code_uniqueness.php',
+              'Modules/Warehouse/routes/api.php',
+              'app/Console/Commands/Wwhn172MigrationPreflight.php',
+              'app/Http/Middleware/Wwhn172AggregateLock.php',
+              'app/Support/Wwhn172MigrationInspector.php',
+              'bootstrap/app.php',
+              'config/audit.php',
+              'docs/api-contract/WWHN-172-sku-container-openapi.yaml',
+              'docs/docs_task_jira/WWHN-172-source-register.json',
+              'docs/docs_task_jira/WWHN-172.md',
+              'docs/evidence/WWHN-172/AUDIT_DB_PROOF_PROTOCOL.md',
+              'docs/evidence/WWHN-172/BE1_BE2_BOUNDARY_MATRIX.md',
+              'docs/evidence/WWHN-172/DBA_DEVOPS_SIGNOFF.md',
+              'docs/evidence/WWHN-172/MIGRATION_ROLLBACK_RUNBOOK.md',
+              'docs/evidence/WWHN-172/QA1_CONSTRAINT_API_TRACE_CHECKLIST.md',
+              'docs/evidence/WWHN-172/QA2_IMPORT_VALIDATION_CHECKLIST.md',
+              'docs/postman/WWHN-172 SKU Container CI.postman_environment.json',
+              'docs/postman/WWHN-172 SKU Container Contract.postman_collection.json',
+              'docs/testing/WWHN-172-test-cases.json',
+              'routes/api.php',
+              'scripts/collect-wwhn172-db-snapshot.php',
+              'scripts/collect-wwhn172-evidence.sh',
+              'scripts/prepare-wwhn172-evidence.php',
+              'scripts/redact-wwhn172-evidence.mjs',
+              'scripts/run-wwhn172-concurrency.mjs',
+              'scripts/verify-wwhn172-contract.mjs',
+              'tests/Feature/Wwhn172AuditFailClosedTest.php',
+              'tests/Feature/Wwhn172MigrationSafetyTest.php',
+              'tests/Feature/Wwhn174SkuImportValidationTest.php',
+          }
+          archive = pathlib.Path('/tmp/wwhn172-payload.tar.gz')
+          with tarfile.open(archive, 'r:gz') as tf:
+              actual = set()
+              for member in tf.getmembers():
+                  name = member.name.removeprefix('./')
+                  path = pathlib.PurePosixPath(name)
+                  if member.isdir():
+                      continue
+                  if path.is_absolute() or '..' in path.parts or not member.isfile():
+                      raise SystemExit(f'Unsafe tar member: {member.name}')
+                  actual.add(name)
+              if actual != expected:
+                  raise SystemExit(f'Payload file mismatch. missing={sorted(expected-actual)}, extra={sorted(actual-expected)}')
+          PY
+
+          git reset --soft "$BASE_SHA"
+          tar -xzf /tmp/wwhn172-payload.tar.gz -C .
+          rm -rf .github/wwhn172-bootstrap
+          rm -f .github/workflows/wwhn172-bootstrap-apply.yml
+          git add -A
+          git diff --cached --check
+
+          while IFS= read -r -d '' file; do php -l "$file"; done < <(git diff --cached --name-only --diff-filter=ACM -z | grep -zE '\.php$' || true)
+          while IFS= read -r -d '' file; do node --check "$file"; done < <(git diff --cached --name-only --diff-filter=ACM -z | grep -zE '\.mjs$' || true)
+          bash -n scripts/collect-wwhn172-evidence.sh
+          python - <<'PY'
+          import json, pathlib
+          for path in pathlib.Path('.').rglob('*.json'):
+              if 'vendor' not in path.parts and 'node_modules' not in path.parts:
+                  json.loads(path.read_text(encoding='utf-8'))
+          PY
+          python -m pip install --quiet pyyaml
+          python - <<'PY'
+          import pathlib, yaml
+          for path in [pathlib.Path('.github/workflows/wwhn-172-sku-container-contract.yml'), pathlib.Path('docs/api-contract/WWHN-172-sku-container-openapi.yaml')]:
+              yaml.safe_load(path.read_text(encoding='utf-8'))
+          PY
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Hoàn thiện WWHN-172: khóa giao dịch, import nguyên tử và evidence CI đa CSDL'
+          FINAL_SHA="$(git rev-parse HEAD)"
+          git push --force-with-lease=refs/heads/m1:${GITHUB_SHA} origin HEAD:m1
+          echo "Published final SHA: ${FINAL_SHA}"
+
+          for attempt in $(seq 1 12); do
+            if gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/workflows/wwhn-172-sku-container-contract.yml/dispatches" -f ref=m1; then
+              echo 'Dispatched WWHN-172 exact-SHA workflow.'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Final commit published, but workflow dispatch could not be confirmed.' >&2
+          exit 1
