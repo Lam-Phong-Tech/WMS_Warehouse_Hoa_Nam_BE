@@ -1,254 +1,142 @@
-# WWHN-131 — Independent Review, DBA/Security Retest và DEC-STK-001 Protocol
+# WWHN-131 — Independent review and DEC-STK-001 decision protocol
 
-> Version `1.0.0` — Status **PROPOSED**. Tài liệu này là protocol bắt buộc để tạo bằng chứng độc lập; không phải QA/Tech Lead/DBA/Security/BA/PM sign-off và không được dùng để tự chuyển Jira sang Done.
+> Version `1.1.0` — **PROPOSED**. This is an execution protocol, not a sign-off.
 
-## 1. Exact-SHA input bắt buộc
+## 1. Immutable review input
 
-Mọi reviewer phải dùng cùng một bộ input:
+Every reviewer must use the same successful artifact:
 
-| Field | Giá trị phải ghi |
-|---|---|
-| Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` |
-| Branch | `m1` |
-| Workflow | `.github/workflows/wwhn-131-stocktake-contract.yml` |
-| Exact SHA | `build-metadata.json.commit_sha` |
-| CI run | `build-metadata.json.ci_run_url` |
-| Artifact | `stocktake-evidence-<exact_sha>` |
-| Source tree | `source-tree.sha256` |
-| Manifest | `SHA256SUMS` |
-| Manifest digest | `SHA256SUMS.sha256` |
-| Environment/deployment SHA | `<QA/staging SHA hoặc N/A>` |
-| Reviewer | `<họ tên + Jira account>` |
-| Executed at | `<ISO-8601 +07:00>` |
+- repository `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE`, branch `m1`;
+- exact SHA from `build-metadata.json.commit_sha`;
+- artifact `stocktake-evidence-<exact_sha>`;
+- source-tree hash `source-tree.sha256`;
+- `SHA256SUMS` and `SHA256SUMS.sha256` both verified;
+- `credential-hygiene.json.status=PASS` with zero residual runtime secret/JWT;
+- environment/deployment SHA and reviewer execution date.
 
-Artifact chỉ hợp lệ khi:
+Reviewing a moving branch, a different SHA, an unverified artifact or a redaction-failed diagnostics package is invalid.
 
-```bash
-cd stocktake-evidence-<exact_sha>
-sha256sum --check SHA256SUMS
-sha256sum --check SHA256SUMS.sha256
-```
+## 2. Role separation
 
-Cả hai lệnh phải PASS. Reviewer phải đối chiếu `build-metadata.json.commit_sha`, workflow run SHA, artifact name và source-tree hash. Không review theo branch động.
-
-## 2. Phân tách trách nhiệm
-
-| Role | Được xác nhận | Không được tự xác nhận thay |
+| Role | Owns | Must not self-confirm |
 |---|---|---|
-| BE1 | Implementation, source paths, artifact generation, handoff | QA1, Tech Lead, DBA, Security, BA, PM |
-| QA1 | API/DB negative, retry, rollback, race evidence | Tech architecture decision, DBA rehearsal |
-| Tech Lead | Concurrency/idempotency/transaction/ledger design review | PM/BA business decision |
-| DBA | Migration rehearsal, constraint/index/FK validation trên target engine/data copy | Security/RBAC |
-| Security | Cross-session/cross-warehouse/RBAC response leak negative tests | DBA schema |
-| BA | Business contract, impacted requirement sources, DEC-STK-001 draft/final | Tech/QA evidence |
-| PM | Final GO/CONDITIONAL/NO-GO | Test execution |
+| BE1 | implementation, contract sources, workflow, artifact generation and handoff | FE1/QA/Tech/DBA/Security/BA/PM/BAS result |
+| FE1 | endpoint/payload/error/RBAC mapping and integration acknowledgement | backend correctness or business decision |
+| QA1 | API/DB negative, retry, rollback, race and reconciliation execution | architecture or DBA approval |
+| Tech Lead | concurrency/idempotency/transaction/ledger review | PM/BA business decision |
+| DBA | target PostgreSQL migration/backfill/constraint/lock rehearsal | Security/RBAC |
+| Security | cross-session/cross-warehouse/replay-leak/no-write review | DBA schema result |
+| BA | business rule, impacted sources and final decision draft | technical test execution |
+| PM | GO / CONDITIONAL GO / NO-GO | test evidence generation |
+| BAS | current BRD/SRS/BPD/DEC-INV IDs/hashes and impacted links | technical approval |
 
-Một người có nhiều vai trò chỉ được ký khi Jira/RACI chính thức cho phép; phải ghi rõ vai trò và account.
+## 3. FE1 handoff gate
 
-## 3. QA1 + Tech Lead independent retest
+FE1 must bind its result to exact BE SHA, exact generated OpenAPI/Postman hashes and the FE integration SHA. Verify:
 
-### 3.1 Automation baseline
+- canonical session lifecycle and status rendering;
+- apply input excludes authoritative expected/effect fields;
+- idempotency header behavior and replay response;
+- movement warning/acknowledgement state;
+- stale version, invalid variance, ledger mismatch and scope-denied errors;
+- read/write action visibility for `inventory.view` and `stocktake.adjust`.
 
-Reviewer chạy trên source checkout đúng exact SHA:
+Result format: reviewer, date, BE SHA, FE SHA, OpenAPI/Postman hashes, `PASS|FAIL|CONDITIONAL`, mismatches/defect IDs.
 
-```bash
-php artisan test --filter=StocktakeThreeLayerContractTest
-php artisan test --filter=StocktakeApplyLedgerIntegrityTest
-php artisan test --filter=StocktakeReviewGateTest
-php artisan test
-node scripts/verify-stocktake-contract.mjs \
-  build/evidence/wwhn-131/openapi.json \
-  build/evidence/wwhn-131/route-list.raw.json \
-  build/evidence/wwhn-131/stocktake.postman.collection.json \
-  build/evidence/wwhn-131/stocktake-test-cases.json \
-  build/evidence/wwhn-131/stocktake-source-register.json \
-  /tmp/stocktake-contract-verification.json
-```
+## 4. QA1 and Tech Lead matrix
 
-### 3.2 Mandatory matrix
+Run focused suites, full PHPUnit, Newman, contract verifier and reconciliation. Independently execute:
 
-| Gate | Setup | Expected PASS |
-|---|---|---|
-| Race apply | Hai DB connection/worker gửi cùng session/version, cùng key/payload đồng thời | Một business effect; request còn lại replay hoặc conflict hợp lệ; không duplicate movement/event |
-| Same key retry | Request đầu commit nhưng client mô phỏng mất response; retry cùng key/payload | Replay response snapshot; movement/balance/session không thay đổi lần hai |
-| Same key conflict | Retry cùng key, khác reason/variance/version | `409 IDEMPOTENCY_ERROR`; không có DB write mới |
-| Different key double post | Apply thành công rồi gọi key khác với payload cũ | `409`; chỉ một posting event business operation và một movement effect |
-| Pending/incomplete event | Event cùng operation/key nhưng chưa COMMITTED hoặc thiếu snapshot | `409 IDEMPOTENCY_IN_PROGRESS`; không lộ partial response |
-| Exact variance set | Foreign, missing, duplicate hoặc partial variance IDs | `422`; session/variance/balance/movement không đổi |
-| Movement ack | Thiếu ack hoặc ack set khác detected set | `428` hoặc `409`; không apply |
-| Timeout after commit | Network timeout sau DB commit | Retry trả snapshot giống request đầu |
-| Three-layer rollback | Làm ITEM/CONTAINER grain invalid sau review | Toàn bộ balance/movement/session/variance/physical update/posting_event rollback |
-| Ledger mismatch | Sửa balance không qua signed ledger | `409 LEDGER_BALANCE_MISMATCH`; không operation commit |
-| Zero effect | Expected tại count bằng actual | Không movement `qty_delta=0`; balance version không tăng |
-| Reconcile | Sau canonical Newman | `reconciliation-report.summary.status=PASS`, mismatch `0` |
+1. same-key/same-payload retry after simulated lost response — replay only;
+2. same-key/different-payload — `409 IDEMPOTENCY_ERROR`, no write;
+3. different key after successful apply — no second effect;
+4. two-worker race on same session/version — one business effect only;
+5. pending/incomplete event — `409 IDEMPOTENCY_IN_PROGRESS`;
+6. foreign/missing/partial/duplicate variance IDs — `422`, no write;
+7. missing or mismatched movement acknowledgement — blocked, no write;
+8. invalid ITEM/CONTAINER after review — full transaction rollback;
+9. signed-ledger mismatch — `409`, no write;
+10. zero effect — no movement and no balance version increment;
+11. canonical flow reconciliation — PASS with zero mismatch;
+12. cross-scope replay — `403` before response-snapshot disclosure.
 
-### 3.3 Evidence phải attach
+Attach raw requests/responses, worker timestamps, DB before/after rows and exact SHA/digest. Do not replace race evidence with sequential requests.
 
-- Focused/full PHPUnit raw logs.
-- Race worker request/response timestamps và raw DB transaction logs.
-- `posting_event`, `stock_movements`, `inventory_balances`, `stocktake_session`, `stocktake_variance` before/after queries.
-- Newman raw/JSON.
-- Reconciliation report.
-- Exact SHA, artifact digest, environment/deployment SHA.
-- Reviewer result: `PASS | FAIL | CONDITIONAL`, failed TC/defect IDs.
+## 5. DBA target database rehearsal
 
-## 4. DBA migration rehearsal
+SQLite CI proves repository consistency only. DBA must use the target PostgreSQL version and a controlled data copy:
 
-### 4.1 CI schema baseline
+- backup/snapshot ID, row counts/checksums and rollback reference;
+- detect NULL/duplicate warehouse, grain and posting-event data before migration;
+- use only BA-approved backfill mapping;
+- run migrations and `verify-wwhn131-schema.php`;
+- verify NOT NULL, unique, indexes and FKs;
+- run canonical stocktake lifecycle;
+- record duration, locks/blocking queries, row counts/checksums after migration;
+- return `PASS|FAIL|CONDITIONAL` with exact SHA and migration hash.
 
-Artifact phải có:
+## 6. Security negative matrix
 
-- `migration-rehearsal.raw.log`
-- `schema-verification.json`
-- migration source copy
-- exact migration SHA-256
+Use scoped and non-scoped users to verify:
 
-CI verifier kiểm tra:
+- cross-warehouse create/detail/variance/review/ack/apply returns `403` with no write/data leak;
+- committed-response replay is not disclosed outside warehouse scope;
+- cross-session variance injection returns `422`;
+- missing `stocktake.adjust` returns `403` on every write lifecycle endpoint;
+- legacy alias lists only in-scope sessions;
+- business errors contain no stack trace, token or secret.
 
-- `stocktake_session.warehouse_id` NOT NULL.
-- `grain_type`, `grain_id`, `grain_key` NOT NULL trên snapshot/count/variance.
-- Unique `(session_id, grain_key)` trên ba bảng.
-- Unique `(operation, idempotency_key)` trên `posting_event`.
-- Index `(warehouse_id, status)` và `(session_id, status)`.
-- FK `stocktake_session.warehouse_id -> warehouses.id`.
-- FK `stock_movements.stocktake_variance_id -> stocktake_variance.variance_id`.
+Attach redacted raw HTTP and DB no-write evidence on the exact environment SHA.
 
-### 4.2 Target DB rehearsal bắt buộc
+## 7. BAS traceability gate
 
-DBA chạy trên bản sao dữ liệu gần production, đúng engine/version:
+On `WWHN-133`, BAS must record current authoritative BRD, SRS, BPD and DEC-INV attachment IDs, versions/dates, SHA-256, impacted rules/tickets and reviewer/date. Existing WWHN-131 attachment IDs `11565` and `11564` are not immutable evidence until hashes are recorded or they are superseded by the exact-SHA artifact.
 
-1. Backup/snapshot và ghi row count/checksum trước migration.
-2. Dry-run kiểm tra legacy `warehouse_id` NULL.
-3. Kiểm tra grain NULL/duplicate theo `(session_id, grain_key)`.
-4. Kiểm tra duplicate `posting_event(operation,idempotency_key)`.
-5. Backfill bằng mapping nghiệp vụ được BA xác nhận; không đoán warehouse/grain.
-6. Chạy migration.
-7. Chạy `php scripts/verify-wwhn131-schema.php <output.json>`.
-8. So sánh row count/checksum trước/sau.
-9. Chạy canonical create/start/count/review/apply.
-10. Ghi execution time, lock duration, blocking query, rollback plan.
-
-DBA result phải có: engine/version, dataset snapshot ID, exact SHA, migration hash, schema verifier JSON, backup/rollback reference, `PASS | FAIL | CONDITIONAL`.
-
-## 5. Security independent negative retest
-
-| Case | Actor | Target | Expected |
-|---|---|---|---|
-| Cross-warehouse create | User scope Warehouse A | Create session Warehouse B | `403 WAREHOUSE_SCOPE_DENIED`, no row |
-| Cross-warehouse detail | User scope A | Session B | `403`, no session/variance data |
-| Cross-warehouse variance list | User scope A | Variances session B | `403`, no IDs/quantity leak |
-| Cross-warehouse review | User scope A | Review session B | `403`, no status/version change |
-| Cross-warehouse acknowledge | User scope A | Ack variance session B | `403`, no acknowledged_by/at |
-| Cross-warehouse apply | User scope A | Apply session B | `403`, no posting event/movement |
-| Replay leak | Admin commits session B; user A retries same key/payload | Committed response snapshot | `403` before replay; no response data leak |
-| Cross-session variance | Authorized warehouse, variance from other session | Apply | `422 INVALID_VARIANCE_SELECTION` |
-| Missing permission | User has scope but lacks `stocktake.adjust` | Write lifecycle endpoints | `403`, no DB write |
-| Legacy list alias | Restricted user | `/api/v1/stocktake/sessions` | Only in-scope rows |
-
-Security attach raw HTTP requests/responses with secrets redacted, DB no-write evidence, exact SHA/digest, reviewer/date/result.
-
-## 6. DEC-STK-001 formal decision payload
-
-BA prepares; Tech Lead, QA1, DBA, Security provide referenced evidence; PM decides.
+## 8. Formal DEC-STK-001 payload
 
 ```text
-[DEC-STK-001 — STOCKTAKE APPLY DECISION]
-Jira decision issue: WWHN-25
-BA final issue: WWHN-132
-Traceability issue: WWHN-133
+[DEC-STK-001 — STOCKTAKE MODEL A DECISION]
+Jira: WWHN-25
+BE evidence: WWHN-131
+BA final: WWHN-132
+Traceability: WWHN-133
+Decision document: docs/decision-records/DEC-STK-001.md v1.0.0 / PROPOSED
+Task document: docs/docs_task_jira/WWHN-131.md v1.3.0 / PROPOSED
+Source Register: docs/docs_task_jira/WWHN-131-source-register.json v1.3.0 / PROPOSED
+Exact BE SHA: <sha>
+CI run/artifact: <url/name>
+Source-tree SHA-256: <hash>
+SHA256SUMS digest: <hash>
+Credential hygiene: PASS / <report hash>
+Deployment environment/SHA: <value>
 
-Document: docs/docs_task_jira/WWHN-131.md
-Document version/status: 1.2.0 / PROPOSED
-Source Register: docs/docs_task_jira/WWHN-131-source-register.json
-Source Register version/status: 1.2.0 / PROPOSED
-Branch: m1
-Exact review SHA: <build-metadata.commit_sha>
-CI run: <build-metadata.ci_run_url>
-Artifact: stocktake-evidence-<exact_sha>
-Source-tree SHA-256: <source-tree.sha256>
-SHA256SUMS digest: <SHA256SUMS.sha256 digest>
-Deployment SHA/environment: <value>
-
-QA1: <name/date/PASS|FAIL|CONDITIONAL/evidence URL>
-Tech Lead: <name/date/PASS|FAIL|CONDITIONAL/evidence URL>
-DBA: <name/date/PASS|FAIL|CONDITIONAL/evidence URL>
-Security: <name/date/PASS|FAIL|CONDITIONAL/evidence URL>
+FE1: <name/date/result/BE+FE SHA/evidence>
+QA1: <name/date/result/evidence>
+Tech Lead: <name/date/result/evidence>
+DBA: <name/date/result/evidence>
+Security: <name/date/result/evidence>
 BA: <name/date/contract result>
 PM: <name/date/GO|CONDITIONAL GO|NO-GO>
+BAS: <name/date/source-hash result>
 
-OpenAPI SHA-256: <hash>
-Postman SHA-256: <hash>
-Test register SHA-256: <hash>
-Migration SHA-256: <hash>
-Contract verifier: PASS / <hash>
-Schema verifier: PASS / <hash>
-Full PHPUnit: PASS / <log>
-Newman: PASS / <raw+json>
-Reconciliation: PASS / <json>
 Open defects/conditions: <IDs or NONE>
-
-Decision result: GO | CONDITIONAL GO | NO-GO
-Decision effective at: <ISO-8601 +07:00>
-Conditions/deadline/owner: <exact list or NONE>
+Decision: GO | CONDITIONAL GO | NO-GO
+Effective date: <ISO-8601 +07:00 or NULL>
+Conditions/owner/deadline: <exact list or NONE>
 ```
 
-Không dùng chữ `APPROVED`, `100%` hoặc chuyển Done nếu thiếu một reviewer bắt buộc hoặc hash không cùng exact SHA.
-
-## 7. WWHN-133 traceability update
-
-BAS phải thay toàn bộ NULL bằng attachment hiện hành:
-
-| Source | Attachment ID | Version/date | SHA-256 | Impacted rules/tickets | BAS reviewer |
-|---|---|---|---|---|---|
-| BRD | `<id>` | `<value>` | `<hash>` | `<list>` | `<name/date>` |
-| SRS | `<id>` | `<value>` | `<hash>` | `<list>` | `<name/date>` |
-| BPD | `<id>` | `<value>` | `<hash>` | `<list>` | `<name/date>` |
-| DEC-INV | `<id>` | `<value>` | `<hash>` | `<list>` | `<name/date>` |
-| DEC-STK-001 | `<id/comment>` | `final` | `<hash/N/A comment>` | WWHN-25/131/132/133 | `<name/date>` |
-
-BAS phải ghi impacted tickets và xác nhận source hiện hành, không dùng bản archived/deprecated.
-
-## 8. Structured BE1 Jira handoff
-
-```text
-[WWHN-131 BE1 STRUCTURED HANDOFF]
-File: docs/docs_task_jira/WWHN-131.md
-Version/status: 1.2.0 / PROPOSED
-Scope: stocktake DRAFT/start/count/review/ack/apply; idempotency; signed ledger; data scope; three-layer rollback; schema integrity
-Branch: m1
-Exact SHA: <sha>
-CI run: <url>
-Artifact: stocktake-evidence-<sha>
-Manifest digest: <sha256>
-Source tree hash: <sha256>
-
-Repository completion:
-- dedicated exact-SHA workflow and immutable artifact
-- OpenAPI/Postman/test/source register hashes
-- focused and full PHPUnit logs
-- schema verifier and migration rehearsal log
-- DB before/after and reconciliation
-- QA/Tech/DBA/Security/Decision protocol
-
-Independent reviewers required:
-QA1, Tech Lead, DBA, Security, BA, PM
-
-Impacted tickets:
-WWHN-25, WWHN-131, WWHN-132, WWHN-133
-
-Blockers:
-- <exact external gates; use NONE only when evidence is attached>
-```
+A `CONDITIONAL GO` without named conditions, owner and deadline is invalid. A `GO` is invalid while any P0/P1 lacks disposition or evidence references a different SHA/digest.
 
 ## 9. Closure states
 
-| State | Điều kiện |
+| State | Evidence |
 |---|---|
-| `REPOSITORY_IMPLEMENTED` | Code/tests/workflow/protocol committed on `m1` |
-| `CI_VERIFIED` | Exact-SHA workflow PASS; artifact checksums PASS |
-| `INDEPENDENTLY_VERIFIED` | QA1 + Tech Lead + DBA + Security PASS cùng SHA/digest |
-| `CONDITIONAL GO` | PM/BA decision có conditions/owner/deadline |
-| `APPROVED` | DEC-STK-001 GO, traceability complete, no open P0/P1 |
-| `NO-GO` | Một mandatory gate FAIL hoặc evidence mismatch |
+| `REPOSITORY_IMPLEMENTED` | one final commit on `m1` contains decision, docs, workflow, redactor and verifier |
+| `CI_VERIFIED` | exact-SHA workflow and every manifest/contract/schema/Newman/PHPUnit/reconciliation/hygiene gate PASS |
+| `INDEPENDENTLY_VERIFIED` | FE1, QA1, Tech Lead, DBA and Security results bind the same SHA/digest |
+| `TRACEABILITY_VERIFIED` | BAS current source IDs/hashes and impacted links complete |
+| `CONDITIONAL GO` | BA/PM decision includes exact conditions, owner and deadline |
+| `APPROVED` | formal GO, effective date, no open P0/P1 and all evidence complete |
+| `NO-GO` | a mandatory gate fails or evidence SHA/digest mismatches |
 
-Repository automation không tự nâng trạng thái vượt `CI_VERIFIED`.
+Automation cannot elevate status above `CI_VERIFIED`; BE1 cannot elevate another reviewer’s result.

@@ -11,11 +11,15 @@ on:
       - 'Modules/Warehouse/database/migrations/*stocktake*'
       - 'database/migrations/*idempotency*'
       - 'Modules/Warehouse/routes/api.php'
+      - 'docs/decision-records/DEC-STK-001.md'
+      - 'docs/docs_task_jira/WWHN-130.md'
       - 'docs/docs_task_jira/WWHN-131*'
       - 'docs/evidence/WWHN-131/**'
       - 'docs/postman/WWHN-131*'
       - 'docs/testing/WWHN-131*'
       - 'scripts/collect-wwhn131-evidence.sh'
+      - 'scripts/redact-wwhn131-evidence.mjs'
+      - 'scripts/verify-wwhn131-evidence-pipeline.mjs'
       - 'scripts/verify-stocktake-contract.mjs'
       - 'scripts/verify-wwhn131-schema.php'
       - 'scripts/verify-inventory-reconciliation.mjs'
@@ -33,11 +37,15 @@ on:
       - 'Modules/Warehouse/database/migrations/*stocktake*'
       - 'database/migrations/*idempotency*'
       - 'Modules/Warehouse/routes/api.php'
+      - 'docs/decision-records/DEC-STK-001.md'
+      - 'docs/docs_task_jira/WWHN-130.md'
       - 'docs/docs_task_jira/WWHN-131*'
       - 'docs/evidence/WWHN-131/**'
       - 'docs/postman/WWHN-131*'
       - 'docs/testing/WWHN-131*'
       - 'scripts/collect-wwhn131-evidence.sh'
+      - 'scripts/redact-wwhn131-evidence.mjs'
+      - 'scripts/verify-wwhn131-evidence-pipeline.mjs'
       - 'scripts/verify-stocktake-contract.mjs'
       - 'scripts/verify-wwhn131-schema.php'
       - 'tests/Feature/Stocktake*Test.php'
@@ -61,6 +69,8 @@ jobs:
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
       AUDIT_WRITE_POLICY: outbox_required
+      EVIDENCE_DIR: build/evidence/wwhn-131
+      WWHN131_EMAIL: manager01@gmail.com
 
     steps:
       - name: Checkout exact commit
@@ -87,6 +97,26 @@ jobs:
           composer install --no-interaction --prefer-dist --no-progress
           npm ci --ignore-scripts
 
+      - name: Generate ephemeral CI credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="W131-$(openssl rand -hex 24)"
+          jwt_secret="W131-JWT-$(openssl rand -hex 32)"
+
+          if [[ ${#password} -lt 32 || ${#jwt_secret} -lt 48 ]]; then
+            echo '::error::Không tạo được credential CI đủ mạnh.'
+            exit 1
+          fi
+
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt_secret"
+          {
+            printf 'CI_DEMO_PASSWORD=%s\n' "$password"
+            printf 'WWHN131_PASSWORD=%s\n' "$password"
+            printf 'JWT_SECRET=%s\n' "$jwt_secret"
+          } >> "$GITHUB_ENV"
+
       - name: Prepare isolated test environment
         shell: bash
         run: |
@@ -95,7 +125,17 @@ jobs:
           php artisan key:generate
           rm -f /tmp/wms-wwhn131.sqlite
           touch /tmp/wms-wwhn131.sqlite
-          echo 'JWT_SECRET=ci-jwt-secret-wwhn131' >> .env
+          {
+            echo 'APP_ENV=testing'
+            echo 'APP_DEBUG=false'
+            echo 'DB_CONNECTION=sqlite'
+            echo 'DB_DATABASE=/tmp/wms-wwhn131.sqlite'
+            echo 'CACHE_STORE=array'
+            echo 'SESSION_DRIVER=array'
+            echo 'QUEUE_CONNECTION=sync'
+            echo 'AUDIT_WRITE_POLICY=outbox_required'
+            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
+          } >> .env
 
       - name: Static integrity gate
         shell: bash
@@ -112,7 +152,10 @@ jobs:
           php -l tests/Feature/StocktakeApplyLedgerIntegrityTest.php
           php -l tests/Feature/StocktakeReviewGateTest.php
           node --check scripts/verify-stocktake-contract.mjs
+          node --check scripts/redact-wwhn131-evidence.mjs
+          node --check scripts/verify-wwhn131-evidence-pipeline.mjs
           bash -n scripts/collect-wwhn131-evidence.sh
+          node scripts/verify-wwhn131-evidence-pipeline.mjs /tmp/wwhn131-evidence-pipeline-static.json
           git diff --check
           ./vendor/bin/pint --test \
             Modules/Warehouse/app/Http/Controllers/StocktakeController.php \
@@ -127,8 +170,7 @@ jobs:
             tests/Feature/StocktakeReviewGateTest.php
 
       - name: Collect immutable WWHN-131 evidence
-        env:
-          EVIDENCE_DIR: build/evidence/wwhn-131
+        shell: bash
         run: bash scripts/collect-wwhn131-evidence.sh
 
       - name: Lint generated OpenAPI
@@ -157,11 +199,14 @@ jobs:
             'db-before.json',
             'db-after.json',
             'reconciliation-report.json',
+            'evidence-pipeline-verification.json',
+            'credential-hygiene.json',
           ];
           const parsed = {};
           for (const file of requiredJson) {
             parsed[file] = JSON.parse(fs.readFileSync(file, 'utf8'));
           }
+
           const metadata = parsed['build-metadata.json'];
           if (metadata.commit_sha !== process.env.GITHUB_SHA) {
             throw new Error(`Exact SHA mismatch: ${metadata.commit_sha} != ${process.env.GITHUB_SHA}`);
@@ -169,16 +214,36 @@ jobs:
           if (metadata.artifact_name !== `stocktake-evidence-${process.env.GITHUB_SHA}`) {
             throw new Error('Artifact name is not exact-SHA bound');
           }
+          if (metadata.credential_mode !== 'EPHEMERAL_PER_WORKFLOW_RUN') {
+            throw new Error(
+`Unnexpected credential mode ${metadata.credential_mode}`
+            );
+          }
+          if (metadata.document_status !== 'PROPOSED' || metadata.approval_status !== 'PENDING_INDEPENDENT_REVIEW_AND_FORMAL_DECISION') {
+            throw new Error('Invalid approval claim in build metadata');
+          }
+
           for (const file of [
             'stocktake-contract-verification.json',
             'schema-verification.json',
             'reconciliation-report.json',
+            'evidence-pipeline-verification.json',
           ]) {
             const result = parsed[file];
             if (result.summary?.failed !== 0 || result.summary?.status !== 'PASS') {
               throw new Error(`${file} is not PASS`);
             }
           }
+
+          const hygiene = parsed['credential-hygiene.json'];
+          if (
+            hygiene.status !== 'PASS' ||
+            hygiene.residual_runtime_secret_count !== 0 ||
+            hygiene.residual_jwt_count !== 0
+          ) {
+            throw new Error('Credential hygiene verification is not PASS');
+          }
+
           const newman = parsed['stocktake-newman.result.json'];
           if ((newman.run?.failures ?? []).length !== 0) {
             throw new Error('Stocktake Newman contains failures');
@@ -188,6 +253,35 @@ jobs:
           }
           NODE
 
+          required_files=(
+            build-metadata.json source-tree.sha256 SHA256SUMS SHA256SUMS.sha256
+            openapi.json openapi.yaml route-list.raw.json
+            stocktake.postman.collection.json stocktake.postman.environment.json
+            stocktake-test-cases.json stocktake-source-register.json
+            stocktake-contract-verification.json schema-verification.json
+            evidence-pipeline-verification.json credential-hygiene.json
+            migration-rehearsal.raw.log database-seed-rehearsal.raw.log
+            phpunit-stocktake-three-layer.raw.log phpunit-stocktake-ledger.raw.log
+            phpunit-stocktake-review-gate.raw.log phpunit-full.raw.log
+            stocktake-newman.raw.log stocktake-newman.result.json
+            db-before.json db-after.json reconciliation-report.json
+            DEC-STK-001.md WWHN-130.md WWHN-131.md
+            jira-handoff-comment.txt ci-summary.md
+          )
+          for file in "${required_files[@]}"; do
+            [[ -s "$file" ]] || { echo "Missing required evidence file: $file" >&2; exit 1; }
+          done
+
+      - name: Publish CI summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f build/evidence/wwhn-131/ci-summary.md ]]; then
+            cat build/evidence/wwhn-131/ci-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'WWHN-131 evidence collector did not produce ci-summary.md.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload immutable exact-SHA artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -196,3 +290,12 @@ jobs:
           path: build/evidence/wwhn-131
           if-no-files-found: error
           retention-days: 90
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stocktake-diagnostics-${{ github.sha }}
+          path: build/evidence/wwhn-131
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,135 +1,112 @@
 {
   "register_id": "WWHN-131-SOURCE-REGISTER",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "status": "PROPOSED",
+  "generated_for": "DEC-STK-001",
+  "authoritative_jira_key": "WWHN-131",
+  "parent_jira_key": "WWHN-25",
+  "parent_temp_key": "HN-DEC-003",
+  "epic_temp_key": "HN-EPIC-01",
+  "role": "BE1",
+  "assignee_placeholder": "HN-BE-01",
   "branch": "m1",
-  "exact_commit_source": "build-metadata.json.commit_sha",
-  "implementation_baseline": "Exact commit được workflow checkout và ghi trong build-metadata.json; không dùng hard-coded commit cũ hoặc branch động.",
+  "architecture_baseline": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+  "exact_commit_source": "build/evidence/wwhn-131/build-metadata.json.commit_sha",
   "workflow": ".github/workflows/wwhn-131-stocktake-contract.yml",
   "artifact_name_pattern": "stocktake-evidence-<exact_commit_sha>",
-  "evidence_directory": "build/evidence/wwhn-131",
+  "failure_artifact_name_pattern": "stocktake-diagnostics-<exact_commit_sha>",
+  "source_tree_hash": "source-tree.sha256",
   "hash_manifest": "SHA256SUMS",
   "hash_manifest_digest": "SHA256SUMS.sha256",
-  "source_tree_hash": "source-tree.sha256",
+  "decision_record": {
+    "path": "docs/decision-records/DEC-STK-001.md",
+    "version": "1.0.0",
+    "status": "PROPOSED",
+    "effective_at": null
+  },
   "contract_invariants": {
-    "state_machine": "DRAFT -> IN_PROGRESS -> REVIEWED -> APPLIED bằng row lock và session_version CAS",
-    "apply_input": "session_version + exact full set variance_ids + reason; expected/effect do backend sở hữu",
-    "idempotency": "unique(operation,idempotency_key), canonical SHA-256 request hash, committed response snapshot replay, same-key/different-payload=409",
-    "replay_scope": "warehouse scope được kiểm tra trước posting_event lookup/response snapshot replay",
-    "variance_scope": "variance phải APPROVED, thuộc đúng session và requested set phải bằng full approved set",
-    "signed_ledger": "SUM(stock_movements.qty_delta); outbound/adjust-out âm; pre-apply ledger phải bằng balance",
-    "zero_effect": "không tạo movement qty_delta=0 và không tăng balance version",
-    "atomicity": "session, variance, balance, movement, posting_event và physical ITEM/CONTAINER cùng commit hoặc rollback",
-    "formal_status": "PROPOSED cho đến khi QA1, Tech Lead, DBA, Security, BA và PM ký trên cùng exact SHA/artifact digest"
+    "state_machine": "DRAFT -> IN_PROGRESS -> REVIEWED -> APPLIED with row lock and session_version CAS",
+    "expected_at_count": "snapshot_qty + SUM(signed stock_movements.qty_delta from stocktake_started_at through count cutoff)",
+    "apply_input": "session_version + exact full approved variance_ids + reason + Idempotency-Key",
+    "idempotency": "unique(operation,idempotency_key), canonical SHA-256 request hash, committed response snapshot replay",
+    "scope_before_replay": true,
+    "signed_ledger": "SUM(stock_movements.qty_delta); pre-apply ledger equals balance",
+    "zero_effect_movement": false,
+    "atomicity": "session, variance, balance, movement, posting_event and ITEM/CONTAINER commit or rollback together",
+    "formal_status": "PROPOSED until exact-SHA CI and all independent Jira evidence are complete"
   },
   "repository_sources": [
-    {"type": "WORKFLOW", "path": ".github/workflows/wwhn-131-stocktake-contract.yml", "sha256_source": "SHA256SUMS"},
-    {"type": "EVIDENCE_PIPELINE", "path": "scripts/collect-wwhn131-evidence.sh", "sha256_source": "SHA256SUMS"},
-    {"type": "API_CONTRACT", "path": "storage/api-docs/api-docs.json", "version_source": "OpenAPI info.version", "artifact_path": "openapi.json", "sha256_source": "build-metadata.json.openapi_sha256"},
-    {"type": "GENERATED_API_CONTRACT_YAML", "source": "storage/api-docs/api-docs.json", "generator": "scripts/collect-wwhn131-evidence.sh", "artifact_path": "openapi.yaml", "sha256_source": "SHA256SUMS"},
-    {"type": "RUNTIME_ROUTE", "path": "Modules/Warehouse/routes/api.php", "artifact_path": "route-list.raw.json", "sha256_source": "SHA256SUMS"},
-    {"type": "CONTROLLER", "path": "Modules/Warehouse/app/Http/Controllers/StocktakeController.php", "sha256_source": "SHA256SUMS"},
-    {"type": "IMPLEMENTATION", "path": "Modules/Warehouse/app/Services/StocktakeAdjustmentService.php", "sha256_source": "SHA256SUMS"},
-    {"type": "IMPLEMENTATION", "path": "Modules/Warehouse/app/Services/StocktakeService.php", "sha256_source": "SHA256SUMS"},
-    {"type": "SECURITY_SCOPE_GUARD", "path": "Modules/Warehouse/app/Services/StocktakeSessionGuard.php", "sha256_source": "SHA256SUMS"},
-    {"type": "GRAIN_RESOLVER", "path": "Modules/Warehouse/app/Services/StocktakeGrainService.php", "sha256_source": "SHA256SUMS"},
-    {"type": "DDL", "path": "Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php", "sha256_source": "build-metadata.json.migration_sha256"},
-    {"type": "IDEMPOTENCY_DDL", "path": "database/migrations/2026_08_03_000200_allow_completed_idempotency_lease_release.php", "sha256_source": "build-metadata.json.idempotency_migration_sha256"},
-    {"type": "POSTMAN", "path": "docs/postman/WWHN-131 Stocktake Contract.postman_collection.json", "version": "1.0.0", "sha256_source": "build-metadata.json.postman_sha256"},
-    {"type": "POSTMAN_ENV", "path": "docs/postman/WWHN-131 Stocktake CI.postman_environment.json", "version": "1.0.0", "sha256_source": "SHA256SUMS"},
-    {"type": "TEST_CASE", "path": "docs/testing/WWHN-131-stocktake-test-cases.json", "version": "1.2.0", "sha256_source": "build-metadata.json.test_case_sha256"},
-    {"type": "AUTOMATED_TEST", "path": "tests/Feature/StocktakeThreeLayerContractTest.php", "sha256_source": "SHA256SUMS"},
-    {"type": "AUTOMATED_TEST", "path": "tests/Feature/StocktakeApplyLedgerIntegrityTest.php", "sha256_source": "SHA256SUMS"},
-    {"type": "AUTOMATED_SECURITY_TEST", "path": "tests/Feature/StocktakeReviewGateTest.php", "sha256_source": "SHA256SUMS"},
-    {"type": "CONTRACT_VERIFIER", "path": "scripts/verify-stocktake-contract.mjs", "version": "1.2.0", "sha256_source": "build-metadata.json.contract_verifier_sha256"},
-    {"type": "SCHEMA_VERIFIER", "path": "scripts/verify-wwhn131-schema.php", "version": "1.0.0", "sha256_source": "build-metadata.json.schema_verifier_sha256"},
-    {"type": "INDEPENDENT_REVIEW_PROTOCOL", "path": "docs/evidence/WWHN-131/INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md", "version": "1.0.0", "sha256_source": "SHA256SUMS"},
-    {"type": "JIRA_HANDOFF_DOCUMENT", "path": "docs/docs_task_jira/WWHN-131.md", "version": "1.2.0", "sha256_source": "SHA256SUMS"}
+    {"type":"DECISION_RECORD","path":"docs/decision-records/DEC-STK-001.md","version":"1.0.0","status":"PROPOSED"},
+    {"type":"TASK_DOCUMENT","path":"docs/docs_task_jira/WWHN-131.md","version":"1.3.0","status":"PROPOSED"},
+    {"type":"REQUESTED_NON_AUTHORITY_LOG","path":"docs/docs_task_jira/WWHN-130.md","authority":"NON_AUTHORITATIVE","note":"Jira WWHN-130 belongs to WWHN-24/DEC-INV-001"},
+    {"type":"WORKFLOW","path":".github/workflows/wwhn-131-stocktake-contract.yml"},
+    {"type":"EVIDENCE_COLLECTOR","path":"scripts/collect-wwhn131-evidence.sh"},
+    {"type":"CREDENTIAL_REDACTOR","path":"scripts/redact-wwhn131-evidence.mjs","version":"1.0.0"},
+    {"type":"PIPELINE_VERIFIER","path":"scripts/verify-wwhn131-evidence-pipeline.mjs","version":"1.0.0"},
+    {"type":"CONTRACT_VERIFIER","path":"scripts/verify-stocktake-contract.mjs","version":"1.2.0"},
+    {"type":"SCHEMA_VERIFIER","path":"scripts/verify-wwhn131-schema.php","version":"1.0.0"},
+    {"type":"CONTROLLER","path":"Modules/Warehouse/app/Http/Controllers/StocktakeController.php"},
+    {"type":"SERVICE","path":"Modules/Warehouse/app/Services/StocktakeService.php"},
+    {"type":"SERVICE","path":"Modules/Warehouse/app/Services/StocktakeAdjustmentService.php"},
+    {"type":"SCOPE_GUARD","path":"Modules/Warehouse/app/Services/StocktakeSessionGuard.php"},
+    {"type":"GRAIN_SERVICE","path":"Modules/Warehouse/app/Services/StocktakeGrainService.php"},
+    {"type":"ROUTES","path":"Modules/Warehouse/routes/api.php"},
+    {"type":"MIGRATION","path":"Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php"},
+    {"type":"IDEMPOTENCY_MIGRATION","path":"database/migrations/2026_08_03_000200_allow_completed_idempotency_lease_release.php"},
+    {"type":"POSTMAN","path":"docs/postman/WWHN-131 Stocktake Contract.postman_collection.json","version":"1.0.0"},
+    {"type":"POSTMAN_ENV","path":"docs/postman/WWHN-131 Stocktake CI.postman_environment.json","credential_policy":"runtime only"},
+    {"type":"TEST_CASE_REGISTER","path":"docs/testing/WWHN-131-stocktake-test-cases.json","version":"1.2.0"},
+    {"type":"FEATURE_TEST","path":"tests/Feature/StocktakeThreeLayerContractTest.php"},
+    {"type":"FEATURE_TEST","path":"tests/Feature/StocktakeApplyLedgerIntegrityTest.php"},
+    {"type":"SECURITY_TEST","path":"tests/Feature/StocktakeReviewGateTest.php"},
+    {"type":"REVIEW_PROTOCOL","path":"docs/evidence/WWHN-131/INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md","version":"1.1.0"}
   ],
-  "artifact_outputs": [
-    "build-metadata.json",
-    "source-tree.sha256",
-    "SHA256SUMS",
-    "SHA256SUMS.sha256",
-    "openapi.json",
-    "openapi.yaml",
-    "route-list.raw.json",
-    "stocktake.postman.collection.json",
-    "stocktake.postman.environment.json",
-    "stocktake-test-cases.json",
-    "stocktake-source-register.json",
-    "stocktake-contract-verification.json",
-    "schema-verification.json",
-    "migration-rehearsal.raw.log",
-    "phpunit-stocktake-three-layer.raw.log",
-    "phpunit-stocktake-ledger.raw.log",
-    "phpunit-stocktake-review-gate.raw.log",
-    "phpunit-full.raw.log",
-    "stocktake-newman.raw.log",
-    "stocktake-newman.result.json",
-    "db-before.json",
-    "db-after.json",
-    "reconciliation-report.json",
-    "source/"
+  "required_artifact_outputs": [
+    "build-metadata.json","source-tree.sha256","SHA256SUMS","SHA256SUMS.sha256","openapi.json","openapi.yaml","route-list.raw.json",
+    "stocktake.postman.collection.json","stocktake.postman.environment.json","stocktake-test-cases.json","stocktake-source-register.json",
+    "stocktake-contract-verification.json","evidence-pipeline-verification.json","credential-hygiene.json","schema-verification.json",
+    "migration-rehearsal.raw.log","database-seed-rehearsal.raw.log","phpunit-stocktake-three-layer.raw.log","phpunit-stocktake-ledger.raw.log",
+    "phpunit-stocktake-review-gate.raw.log","phpunit-full.raw.log","stocktake-newman.raw.log","stocktake-newman.result.json",
+    "db-before.json","db-after.json","reconciliation-report.json","DEC-STK-001.md","WWHN-130.md","WWHN-131.md","jira-handoff-comment.txt","ci-summary.md","source/"
   ],
-  "current_evaluation_closure": {
-    "STK-P1-01": {
-      "repository_fix": "DEC-STK-001 exact-SHA decision payload và role separation đã được phát hành trong independent review protocol.",
-      "repository_status": "READY_FOR_EXTERNAL_DECISION",
-      "external_gate": "BA, Tech Lead và PM comment exact version/hash/date/result trên WWHN-25."
-    },
-    "STK-P1-02": {
-      "repository_fix": "Dedicated focused/full test logs, exact-SHA artifact và QA1/Tech Lead race/retry/timeout/rollback matrix.",
-      "repository_status": "AUTOMATION_AND_PROTOCOL_IMPLEMENTED",
-      "external_gate": "QA1/Tech Lead chạy độc lập trên cùng SHA/digest."
-    },
-    "STK-P1-03": {
-      "repository_fix": "Schema verifier đa engine, migration rehearsal log và Security negative matrix gồm replay leak/cross-session/cross-warehouse.",
-      "repository_status": "AUTOMATION_AND_PROTOCOL_IMPLEMENTED",
-      "external_gate": "DBA target-DB rehearsal và Security independent retest."
-    },
-    "STK-P1-04": {
-      "repository_fix": "Artifact name, metadata, source-tree hash, per-file manifest và manifest digest đã được bind vào exact SHA trong workflow riêng.",
-      "repository_status": "IMPLEMENTED_PENDING_WORKFLOW_RESULT",
-      "external_gate": "Workflow exact final SHA phải PASS và artifact phải được attach/link trên Jira."
-    },
-    "STK-P1-05": {
-      "repository_fix": "DEC-STK-001 final payload quy định GO/CONDITIONAL GO/NO-GO, reviewer và closure condition.",
-      "repository_status": "READY_FOR_BA_FINAL",
-      "external_gate": "BA phát hành final decision trên WWHN-132 sau independent evidence."
-    },
-    "STK-P1-06": {
-      "repository_fix": "Source Register 1.2.0 liệt kê đầy đủ source/artifact/impacted external sources và WWHN-133 update matrix.",
-      "repository_status": "REPOSITORY_TRACEABILITY_TEMPLATE_PREPARED",
-      "external_gate": "BAS điền current Jira attachment IDs/SHA-256 của BRD/SRS/BPD/DEC-INV."
-    },
-    "STK-P2-01": {
-      "repository_fix": "Structured BE1 Jira handoff đầy đủ file/version/status/scope/hash/reviewer/blockers đã chuẩn bị trong WWHN-131.md.",
-      "repository_status": "READY_TO_POST",
-      "external_gate": "Atlassian app/permission phải khả dụng để post comment thật."
-    }
+  "ci": {
+    "credential_mode": "EPHEMERAL_PER_WORKFLOW_RUN",
+    "password_source": "openssl-generated and exported as CI_DEMO_PASSWORD/WWHN131_PASSWORD",
+    "jwt_source": "openssl-generated JWT_SECRET",
+    "redaction": "password/JWT/Bearer removed before manifest and upload; failed diagnostics are redacted or discarded",
+    "approval_ceiling": "CI_VERIFIED"
   },
+  "finding_disposition": {
+    "STK-P1-01":"READY_FOR_BA_TECH_PM_DECISION",
+    "STK-P1-02":"AUTOMATION_READY_PENDING_QA1_TECH_EXECUTION",
+    "STK-P1-03":"AUTOMATION_READY_PENDING_DBA_SECURITY_EXECUTION",
+    "STK-P1-04":"IMPLEMENTED_PENDING_FINAL_SHA_WORKFLOW",
+    "STK-P1-05":"READY_FOR_BA_FINAL_ON_WWHN-132",
+    "STK-P1-06":"TEMPLATE_READY_PENDING_BAS_SOURCE_HASHES",
+    "STK-P2-01":"STRUCTURED_HANDOFF_READY"
+  },
+  "jira_observed_at": "2026-08-04T12:13:00+07:00",
+  "jira_observed_facts": [
+    {"key":"WWHN-25","status":"In Progress","role":"Decision parent"},
+    {"key":"WWHN-131","status":"In Progress","role":"Authoritative BE1 task","attachment_ids":["11565","11564"],"attachment_sha256":null},
+    {"key":"WWHN-132","status":"In Progress","role":"BA final decision"},
+    {"key":"WWHN-133","status":"To Do","role":"BAS traceability"},
+    {"key":"WWHN-130","status":"In Progress","role":"Unrelated BAS task of WWHN-24/DEC-INV-001"}
+  ],
   "external_sources": [
-    {"jira": "WWHN-25", "expected_type": "DEC-STK-001_FORMAL_DECISION", "attachment_id": null, "sha256": null, "status": "BLOCKED_ATLASSIAN_APP_NOT_INSTALLED_OR_PENDING_REVIEW"},
-    {"jira": "WWHN-132", "expected_type": "BA_FINAL_DECISION", "attachment_id": null, "sha256": null, "status": "PENDING_INDEPENDENT_EVIDENCE"},
-    {"jira": "WWHN-133", "expected_type": "TRACEABILITY_REGISTER", "attachment_id": null, "sha256": null, "status": "PENDING_BAS_SOURCE_IDS"},
-    {"key": "BRD", "attachment_id": null, "sha256": null, "status": "PENDING_BAS_CURRENT_ATTACHMENT"},
-    {"key": "SRS", "attachment_id": null, "sha256": null, "status": "PENDING_BAS_CURRENT_ATTACHMENT"},
-    {"key": "BPD", "attachment_id": null, "sha256": null, "status": "PENDING_BAS_CURRENT_ATTACHMENT"},
-    {"key": "DEC-INV", "attachment_id": null, "sha256": null, "status": "PENDING_BAS_CURRENT_ATTACHMENT"}
+    {"key":"BRD","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"SRS","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"BPD","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"DEC-INV","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"DEC-STK-001","jira":"WWHN-25","comment_or_attachment_id":null,"manifest_digest":null,"status":"PROPOSED"}
   ],
-  "technical_closure": {
-    "status": "REPOSITORY_IMPLEMENTED_PENDING_EXACT_SHA_CI_AND_INDEPENDENT_REVIEW",
-    "ci_result": null,
-    "artifact_name": "stocktake-evidence-<exact_commit_sha>",
-    "rule": "Chỉ nâng thành CI_VERIFIED khi workflow exact SHA PASS, SHA256SUMS và SHA256SUMS.sha256 verify PASS, contract/schema/reconcile đều PASS."
-  },
   "approval": {
     "decision": "PROPOSED",
-    "required_reviewers": ["QA1", "Tech Lead", "DBA", "Security", "BA", "PM"],
+    "required_reviewers": ["FE1","QA1","Tech Lead","DBA","Security","BA","PM","BAS"],
     "reviewers": [],
     "approved_at": null,
+    "effective_at": null,
     "jira_comment_id": null,
-    "rule": "Không checkbox hoặc APPROVED/100% nào hợp lệ nếu Jira chưa ghi exact commit SHA, source-tree SHA-256, manifest digest, artifact/CI URL, reviewer, date và decision result."
+    "rule": "No APPROVED, GO, 100% or Done claim without exact commit SHA, verified artifact/manifests, all independent results, current source hashes and formal Jira decision."
   }
 }
