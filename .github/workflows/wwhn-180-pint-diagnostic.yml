@@ -3,7 +3,7 @@ on:
   push:
     branches: [m1]
 permissions:
-  contents: read
+  contents: write
   statuses: write
 jobs:
   pint-diff:
@@ -15,14 +15,23 @@ jobs:
           script: |
             await github.rest.repos.createCommitStatus({owner: context.repo.owner, repo: context.repo.repo, sha: context.sha, state: 'pending', context: 'wwhn-180/pint-diagnostic', description: 'Pint diagnostic is running', target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`});
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Print exact Pint patch
+      - name: Apply exact Pint patch
         shell: bash
         run: |
+          set -euo pipefail
           ./vendor/bin/pint Modules/Warehouse/app/Services/ImportService.php app/Support/Wwhn172MigrationInspector.php
           git diff -- Modules/Warehouse/app/Services/ImportService.php app/Support/Wwhn172MigrationInspector.php
-          test -z "$(git status --porcelain -- Modules/Warehouse/app/Services/ImportService.php app/Support/Wwhn172MigrationInspector.php)"
+          if ! git diff --quiet -- Modules/Warehouse/app/Services/ImportService.php app/Support/Wwhn172MigrationInspector.php; then
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add Modules/Warehouse/app/Services/ImportService.php app/Support/Wwhn172MigrationInspector.php
+            git commit -m "Áp dụng định dạng Pint chính xác cho WWHN-180"
+            git push origin HEAD:m1
+          fi
