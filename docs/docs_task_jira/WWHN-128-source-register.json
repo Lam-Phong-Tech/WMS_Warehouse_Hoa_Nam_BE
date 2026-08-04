@@ -1,124 +1,228 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "ticket": "WWHN-128",
+  "parent_ticket": "WWHN-24",
+  "parent_temp_key": "HN-DEC-002",
+  "epic_temp_key": "HN-EPIC-01",
   "decision_id": "DEC-INV-001",
-  "document_revision": "1.3-R3",
-  "status": "PROPOSED",
+  "document_revision": "1.4-R4",
+  "status": "PROPOSED_FINAL_APPROVAL_CANDIDATE",
   "repository": {
     "full_name": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
     "branch": "m1",
     "direct_branch_update": true,
     "pull_request": null,
-    "code_and_ci_baseline_commit": "d8643c66cb2dd7cf24d16833ebfcdb411c645385",
-    "source_register_introduced_commit": "ce4023dfc4c251907121c3c782a80489f53e4bba",
-    "decision_document_commit": "2f73f455bd76da8fd180bad683f06ddb979bb328",
-    "decision_document_blob_sha": "150a2ce682d41a59e0619a6cced5a9959e3e7d85",
-    "branch_head_observed_before_this_register_update": "2f73f455bd76da8fd180bad683f06ddb979bb328"
+    "parent_commit_before_r4": "60d5e5ba3f0d5d13c120a50c245f00c75367bd87",
+    "release_commit_sha": null,
+    "release_commit_binding": "MUST_BE_RECORDED_IN_JIRA_AFTER_COMMIT",
+    "decision_document_path": "docs/docs_task_jira/WWHN-128.md",
+    "decision_document_blob_sha": "109ff220090f0b00e9d980a3b6f9c28c7380bc2b",
+    "source_register_path": "docs/docs_task_jira/WWHN-128-source-register.json",
+    "architecture_guide": {
+      "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+      "git_blob_sha": "a6e4e3183afe0b695ea63fd97faa45e74ac7a75e"
+    }
   },
   "jira_access": {
-    "status": "UNAVAILABLE",
+    "read_status": "PARTIAL_DATA_AVAILABLE_FROM_REVIEW_FINDINGS",
+    "write_status": "BLOCKED",
     "observed_error": "HTTP 403 - Atlassian app is not installed on this instance",
-    "effect": "Attachment bytes, full SHA-256, comments, workflow status and independent approvals cannot be verified or written from this execution context"
+    "allowed_claim": "Repository package may be prepared; Jira comments, attachment upload, workflow transitions and independent approvals remain external gates"
   },
-  "decision_attachment": {
-    "jira_issue": "WWHN-24",
-    "attachment_id": 11552,
-    "attachment_id_source": "BE1 R2 re-review finding supplied by reviewer",
-    "supersedes_attachment_id": 11420,
-    "filename": null,
-    "sha256": null,
-    "uploaded_at": null,
-    "status": "PENDING_EXACT_METADATA_VERIFICATION",
-    "approval_rule": "Approval comment must reference attachment 11552 and the SHA-256 calculated from the exact downloaded attachment bytes. Attachment 11420 is superseded and must not be approved."
+  "release_unit": {
+    "decision_artifact": {
+      "previous_attachment_id": 11560,
+      "target_attachment_id": null,
+      "filename": null,
+      "sha256": null,
+      "status": "PENDING_POST_COMMIT_UPLOAD_AND_HASH",
+      "supersedes_after_upload": [
+        11560,
+        11552,
+        11420
+      ]
+    },
+    "source_register_artifact": {
+      "previous_attachment_id": 11559,
+      "target_attachment_id": null,
+      "filename": null,
+      "sha256": null,
+      "status": "PENDING_POST_COMMIT_UPLOAD_AND_HASH",
+      "supersedes_after_upload": [
+        11559
+      ]
+    },
+    "pair_rule": "Both artifacts must be generated from the same exact m1 commit and independently hashed from downloaded Jira bytes before approval"
   },
+  "jira_business_sources": [
+    {
+      "source_type": "BRD",
+      "version": "3.12",
+      "attachment_id": 11386,
+      "filename": null,
+      "sha256": null,
+      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
+      "authority_source": "WWHN-129 BA current-source statement"
+    },
+    {
+      "source_type": "SRS_FRD",
+      "version": "1.5",
+      "attachment_id": 11415,
+      "filename": null,
+      "sha256": null,
+      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
+      "authority_source": "WWHN-129 BA current-source statement"
+    },
+    {
+      "source_type": "OPENAPI",
+      "version": "1.1",
+      "attachment_id": 11414,
+      "filename": null,
+      "sha256": null,
+      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
+      "authority_source": "WWHN-129 BA current-source statement"
+    },
+    {
+      "source_type": "BPD",
+      "version": "1.4",
+      "attachment_id": 11419,
+      "filename": null,
+      "sha256": null,
+      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
+      "authority_source": "WWHN-129 BA current-source statement"
+    },
+    {
+      "source_type": "BASELINE_REGISTER",
+      "version": "2.2.1",
+      "attachment_id": 11545,
+      "filename": null,
+      "sha256": null,
+      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
+      "authority_source": "WWHN-129 BA current-source statement"
+    }
+  ],
   "repository_sources": [
+    {
+      "source_id": "HN-TECH-GUIDE",
+      "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+      "git_blob_sha": "a6e4e3183afe0b695ea63fd97faa45e74ac7a75e",
+      "status": "TECHNICAL_BASELINE_REFERENCE"
+    },
     {
       "source_id": "HN-BA-MASTER-001",
       "path": "HN_BA_Master_WMS_PV_v1_0_MD/HN_BA_Master_WMS_PV_v1_0.md",
       "git_blob_sha": "1f0ca8de0982b7e5676c6cf3b72b4dd3c1b58a5a",
-      "declared_document_version": "1.0",
-      "embedded_versions": {
-        "BRD": "3.11",
-        "SRS_FRD": "1.3",
-        "BPD": "1.2"
-      },
-      "status": "WORKING_REFERENCE",
-      "approval_effect": "NONE"
-    }
-  ],
-  "jira_business_sources": [
-    {
-      "source_type": "BRD",
-      "current_version_claimed_in_WWHN_129": "3.12",
-      "attachment_id": null,
-      "filename": null,
-      "sha256": null,
-      "status": "PENDING_WWHN_129_METADATA_RETRIEVAL"
-    },
-    {
-      "source_type": "SRS_FRD",
-      "current_version_claimed_in_WWHN_129": "1.5",
-      "attachment_id": null,
-      "filename": null,
-      "sha256": null,
-      "status": "PENDING_WWHN_129_METADATA_RETRIEVAL"
-    },
-    {
-      "source_type": "BPD",
-      "current_version_claimed_in_WWHN_129": "1.4",
-      "attachment_id": null,
-      "filename": null,
-      "sha256": null,
-      "status": "PENDING_WWHN_129_METADATA_RETRIEVAL"
+      "status": "WORKING_REFERENCE_NOT_CURRENT_APPROVAL_SOURCE"
     }
   ],
   "implementation_artifacts": [
     {
       "path": "Modules/Warehouse/app/Models/InventorySerial.php",
       "git_blob_sha": "fced829234390ca6faa3a7d862159d1c4ec33c0d",
-      "purpose": "Canonical serial status constants including RETURNED_TO_CUSTOMER"
+      "purpose": "Canonical serial statuses"
     },
     {
       "path": "Modules/Warehouse/app/Http/Controllers/WarrantyController.php",
       "git_blob_sha": "c112ae240e95d169b429e3e6dac9bcbe53e50ad1",
-      "purpose": "Status-only TEMP_ONLY operation, IN_STOCK rejection, active warranty guard and operation-level idempotency"
+      "purpose": "Warranty status-only operation, eligibility and active-case guard"
     },
     {
       "path": "app/Support/IdempotencyStore.php",
       "git_blob_sha": "78e45f98f799da90d6170dfb6259ce23263383b3",
-      "purpose": "Atomic operation-level idempotency and exact response replay"
+      "purpose": "Operation-level idempotency, canonical hash, response replay and lease ownership"
     },
     {
       "path": "Modules/Warehouse/app/Http/Controllers/ReportController.php",
       "git_blob_sha": "91612835ee00192fdd36590c403c1d1363fd8edc",
-      "purpose": "Signed SUM(qty_delta) reconciliation by warehouse/product/stock_status"
+      "purpose": "Signed ledger reconciliation by warehouse/product/stock_status"
     }
   ],
   "test_artifacts": [
     {
       "path": "tests/Feature/WarrantyStatusOnlyContractTest.php",
-      "git_blob_sha": "f2e101eec4a0836fab4d2e0f5661282e703e01d0",
-      "covers": ["WAR-AC-01", "WAR-AC-02", "WAR-AC-03", "WAR-AC-04", "WAR-AC-05", "single-active-warranty"]
+      "git_blob_sha": "485fa3253ddb6f908a839a8d99499ff2096509ae",
+      "covers": [
+        "WAR-AC-01",
+        "WAR-AC-02",
+        "WAR-AC-03",
+        "WAR-AC-04",
+        "WAR-AC-05",
+        "WAR-AC-06"
+      ]
     },
     {
       "path": "tests/Feature/InventoryReconciliationSignedStatusTest.php",
       "git_blob_sha": "3d941e075585bfb2c68f2b1b4eb78b57da5588be",
-      "covers": ["RECON-SIGNED-SUM", "RECON-STOCK-STATUS-DIMENSION"]
-    },
-    {
-      "path": "tests/Feature/Wwhn180IdempotencyAtomicityTest.php",
-      "git_blob_sha": "37e5f6806c021d009bca904e922e30d5da85e971",
-      "covers": ["same-key-same-payload-replay", "same-key-different-payload-409", "atomic-rollback"]
+      "covers": [
+        "SIGNED_SUM",
+        "STOCK_STATUS_DIMENSION"
+      ]
     },
     {
       "path": "tests/Feature/InventoryReconciliationIntegrityTest.php",
       "git_blob_sha": "2374dbff3c679a0cfebb022b1a4ff8ece6fa6588",
-      "covers": ["ledger-without-balance", "balance-without-ledger"]
+      "covers": [
+        "LEDGER_WITHOUT_BALANCE",
+        "BALANCE_WITHOUT_LEDGER"
+      ]
+    },
+    {
+      "path": "tests/Feature/Wwhn180IdempotencyAtomicityTest.php",
+      "git_blob_sha": "37e5f6806c021d009bca904e922e30d5da85e971",
+      "covers": [
+        "CANONICAL_REPLAY",
+        "DIFFERENT_PAYLOAD_409",
+        "ATOMIC_ROLLBACK",
+        "LEASE_OWNERSHIP"
+      ]
+    }
+  ],
+  "traceability": [
+    {
+      "source": "BRD 3.12",
+      "decision_section": "2",
+      "rule": "Warranty status-only and IN_STOCK rejection",
+      "code_or_api": "WarrantyController::tempOnly / assertLinkedSerialEligible",
+      "test": "WAR-AC-01..06",
+      "tickets": [
+        "WWHN-24",
+        "WWHN-31",
+        "WWHN-33",
+        "WWHN-128",
+        "WWHN-129",
+        "WWHN-130"
+      ]
+    },
+    {
+      "source": "OpenAPI 1.1",
+      "decision_section": "6",
+      "rule": "Operation-level idempotency",
+      "code_or_api": "IdempotencyStore::handle",
+      "test": "WAR-AC-03..04 and WWHN-180 suite",
+      "tickets": [
+        "WWHN-31",
+        "WWHN-33",
+        "WWHN-128",
+        "WWHN-130"
+      ]
+    },
+    {
+      "source": "DEC-INV-001",
+      "decision_section": "7",
+      "rule": "Signed reconciliation by stock_status",
+      "code_or_api": "ReportController::inventoryReconciliation",
+      "test": "RECON suite",
+      "tickets": [
+        "WWHN-31",
+        "WWHN-33",
+        "WWHN-128",
+        "WWHN-130"
+      ]
     }
   ],
   "ci_gate": {
     "workflow_path": ".github/workflows/wwhn-128-inventory-decision-contract.yml",
-    "workflow_introduced_commit": "d8643c66cb2dd7cf24d16833ebfcdb411c645385",
+    "workflow_blob_sha": "9e6dfab80742be4902ec139845762700c7243fd6",
     "required_artifact_name": "wwhn-128-evidence-<exact-github-sha>",
     "required_outputs": [
       "build-metadata.json",
@@ -130,16 +234,88 @@
       "SHA256SUMS"
     ],
     "latest_verified_run_id": null,
+    "latest_verified_run_attempt": null,
     "latest_verified_conclusion": null,
-    "status": "PENDING_WORKFLOW_COMPLETION_AND_QA1_REVIEW"
+    "artifact_digest": null,
+    "qa1_review": null,
+    "status": "EXECUTION_EVIDENCE_PENDING"
   },
   "independent_review": {
-    "BA_BAS": "PENDING",
-    "TECH_LEAD": "PENDING",
-    "QA1": "PENDING",
-    "PM_APPROVER": "PENDING"
+    "BA_BAS": {
+      "status": "PENDING",
+      "scope": "AC, source register, traceability and business consequence"
+    },
+    "TECH_LEAD": {
+      "status": "PENDING",
+      "scope": "Transactions, locks, idempotency, indexes and signed query"
+    },
+    "QA1": {
+      "status": "PENDING",
+      "scope": "Negative/race/regression, DB before-after and artifact digest"
+    },
+    "PM_APPROVER": {
+      "status": "PENDING",
+      "scope": "Formal decision approval, effective date and conditions"
+    }
   },
-  "prohibited_claims": [
+  "external_gates": [
+    {
+      "gate": "UPLOAD_HASH_R4_PAIR",
+      "owner": "BE1_OR_JIRA_UPLOADER",
+      "target_sla": "IMMEDIATE_WHEN_JIRA_WRITE_ACCESS_IS_AVAILABLE",
+      "disposition": "Upload exact files from final commit and record IDs/filenames/SHA-256",
+      "impact": "Approval target does not exist"
+    },
+    {
+      "gate": "WWHN_130_TRACE_POST",
+      "owner": "BAS",
+      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_UPLOAD",
+      "disposition": "Post structured traceability comment",
+      "impact": "Jira traceability remains open"
+    },
+    {
+      "gate": "BA_REREVIEW",
+      "owner": "BA",
+      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_UPLOAD",
+      "disposition": "Review each R3 finding on exact R4",
+      "impact": "P1-06 remains open"
+    },
+    {
+      "gate": "TECH_REVIEW",
+      "owner": "TECH_LEAD",
+      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_EXACT_SHA",
+      "disposition": "Review transaction/schema/query contracts",
+      "impact": "P0/P1 design gates remain open"
+    },
+    {
+      "gate": "CI_QA_REVIEW",
+      "owner": "QA1",
+      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_WORKFLOW",
+      "disposition": "Verify run, artifact and SHA256SUMS",
+      "impact": "TEST PASS cannot be claimed"
+    },
+    {
+      "gate": "FORMAL_APPROVAL",
+      "owner": "PM_APPROVER",
+      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_ALL_REVIEWS",
+      "disposition": "Approve exact artifact pair",
+      "impact": "Decision is not effective"
+    }
+  ],
+  "closure_status": {
+    "BE1_R3_P0_01": "BE1_COMPLETE_SIGNOFF_PENDING",
+    "BE1_R3_P1_01": "RELEASE_PACKAGE_READY_APPROVAL_PENDING",
+    "BE1_R3_P1_02": "ID_VERIFIED_SHA_PENDING",
+    "BE1_R3_P1_03": "BE1_COMPLETE_BAS_ACTION_PENDING",
+    "BE1_R3_P1_04": "IMPLEMENTED_REVIEW_PENDING",
+    "BE1_R3_P1_05": "IMPLEMENTED_EVIDENCE_PENDING",
+    "BE1_R3_P1_06": "REQUEST_READY_BA_PENDING",
+    "BE1_R3_P1_07": "POLICY_COMPLETE_RUN_PENDING",
+    "BE1_R3_P1_08": "LEDGER_READY_SIGNATURES_PENDING",
+    "BE1_R3_P2_01": "DONE",
+    "BE1_R3_P2_02": "READY_TO_POST_JIRA_WRITE_BLOCKED"
+  },
+  "prohibited_claims_until_gates_close": [
     "APPROVED",
     "BASELINED",
     "EFFECTIVE",
