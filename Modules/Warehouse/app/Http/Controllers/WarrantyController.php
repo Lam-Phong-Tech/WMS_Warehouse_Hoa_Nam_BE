@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,12 @@ use OpenApi\Attributes as OA;
     tags: ['13. Warranty'],
     parameters: [
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 128)),
+        new OA\Parameter(
+            name: 'Idempotency-Key',
+            in: 'header',
+            required: true,
+            schema: new OA\Schema(type: 'string', minLength: IdempotencyKeyGuard::MIN_LENGTH, maxLength: IdempotencyKeyGuard::MAX_LENGTH)
+        ),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -42,7 +48,7 @@ use OpenApi\Attributes as OA;
     responses: [
         new OA\Response(response: 200, description: 'Tiếp nhận TEMP_ONLY thành công, stock_effect=NONE'),
         new OA\Response(response: 409, description: 'Sai trạng thái, active warranty trùng hoặc khóa idempotency xung đột payload'),
-        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc serial chưa Post Issue'),
+        new OA\Response(response: 422, description: 'Dữ liệu hoặc Idempotency-Key không hợp lệ, hoặc serial chưa Post Issue'),
         new OA\Response(response: 428, description: 'Thiếu Idempotency-Key'),
     ]
 )]
@@ -64,10 +70,7 @@ class WarrantyController extends Controller
 
     public function tempOnly(Request $request, string $id)
     {
-        $idemKey = trim((string) $request->header('Idempotency-Key'));
-        if ($idemKey === '') {
-            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Header Idempotency-Key là bắt buộc.');
-        }
+        $idemKey = IdempotencyKeyGuard::require($request);
 
         $validated = $request->validate([
             'temporary_item_code' => ['required', 'string', 'max:150'],

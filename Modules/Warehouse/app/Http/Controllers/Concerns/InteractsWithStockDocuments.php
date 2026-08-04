@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Http\Controllers\Concerns;
 
 use App\Support\ApiError;
+use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -147,22 +148,7 @@ trait InteractsWithStockDocuments
 
     protected function requireIdempotencyKey(Request $request): string
     {
-        $idemKey = trim((string) $request->header('Idempotency-Key', ''));
-        if ($idemKey === '') {
-            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Header Idempotency-Key là bắt buộc cho thao tác này.');
-        }
-
-        $length = mb_strlen($idemKey, 'UTF-8');
-        if ($length < 8 || $length > 100) {
-            ApiError::abort(
-                422,
-                'VALIDATION_ERROR',
-                'Header Idempotency-Key phải có độ dài từ 8 đến 100 ký tự.',
-                ['Idempotency-Key' => ['Độ dài hợp lệ là 8–100 ký tự.']]
-            );
-        }
-
-        return $idemKey;
+        return IdempotencyKeyGuard::require($request);
     }
 
     protected function envelope(string $message, $data): array

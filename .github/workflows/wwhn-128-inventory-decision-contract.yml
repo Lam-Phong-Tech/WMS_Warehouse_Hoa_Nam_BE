@@ -6,14 +6,17 @@ on:
     branches: [m1]
     paths:
       - '.github/workflows/wwhn-128-inventory-decision-contract.yml'
+      - 'Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php'
       - 'Modules/Warehouse/app/Http/Controllers/WarrantyController.php'
       - 'Modules/Warehouse/app/Http/Controllers/ReportController.php'
       - 'Modules/Warehouse/app/Models/InventorySerial.php'
       - 'Modules/Warehouse/app/Models/WarrantyCase.php'
       - 'Modules/Warehouse/app/Models/WarrantyEvent.php'
+      - 'app/Support/IdempotencyKeyGuard.php'
       - 'app/Support/IdempotencyStore.php'
       - 'docs/docs_task_jira/WWHN-128*'
       - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
+      - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
       - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
       - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
       - 'tests/Feature/Wwhn180IdempotencyAtomicityTest.php'
@@ -23,12 +26,15 @@ on:
     branches: [m1]
     paths:
       - '.github/workflows/wwhn-128-inventory-decision-contract.yml'
+      - 'Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php'
       - 'Modules/Warehouse/app/Http/Controllers/WarrantyController.php'
       - 'Modules/Warehouse/app/Http/Controllers/ReportController.php'
       - 'Modules/Warehouse/app/Models/InventorySerial.php'
+      - 'app/Support/IdempotencyKeyGuard.php'
       - 'app/Support/IdempotencyStore.php'
       - 'docs/docs_task_jira/WWHN-128*'
       - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
+      - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
       - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
       - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
       - 'tests/Feature/Wwhn180IdempotencyAtomicityTest.php'
@@ -85,20 +91,26 @@ jobs:
         run: |
           set -euo pipefail
           php -l Modules/Warehouse/app/Models/InventorySerial.php
+          php -l Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php
           php -l Modules/Warehouse/app/Http/Controllers/WarrantyController.php
           php -l Modules/Warehouse/app/Http/Controllers/ReportController.php
+          php -l app/Support/IdempotencyKeyGuard.php
           php -l app/Support/IdempotencyStore.php
           php -l tests/Feature/WarrantyStatusOnlyContractTest.php
+          php -l tests/Feature/WarrantyIdempotencyKeyContractTest.php
           php -l tests/Feature/InventoryReconciliationSignedStatusTest.php
           php -l tests/Feature/InventoryReconciliationIntegrityTest.php
           php -l tests/Feature/Wwhn180IdempotencyAtomicityTest.php
           git diff --check
           ./vendor/bin/pint --test \
             Modules/Warehouse/app/Models/InventorySerial.php \
+            Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php \
             Modules/Warehouse/app/Http/Controllers/WarrantyController.php \
             Modules/Warehouse/app/Http/Controllers/ReportController.php \
+            app/Support/IdempotencyKeyGuard.php \
             app/Support/IdempotencyStore.php \
             tests/Feature/WarrantyStatusOnlyContractTest.php \
+            tests/Feature/WarrantyIdempotencyKeyContractTest.php \
             tests/Feature/InventoryReconciliationSignedStatusTest.php \
             tests/Feature/InventoryReconciliationIntegrityTest.php \
             tests/Feature/Wwhn180IdempotencyAtomicityTest.php
@@ -109,7 +121,7 @@ jobs:
           set -euo pipefail
           mkdir -p build/evidence/wwhn-128
           ./vendor/bin/phpunit \
-            --filter '/(WarrantyStatusOnlyContractTest|InventoryReconciliationSignedStatusTest|InventoryReconciliationIntegrityTest|Wwhn180IdempotencyAtomicityTest)/' \
+            --filter '/(WarrantyStatusOnlyContractTest|WarrantyIdempotencyKeyContractTest|InventoryReconciliationSignedStatusTest|InventoryReconciliationIntegrityTest|Wwhn180IdempotencyAtomicityTest)/' \
             --log-junit build/evidence/wwhn-128/junit.xml \
             2>&1 | tee build/evidence/wwhn-128/phpunit.log
 
