@@ -33,7 +33,9 @@ const paths = {
 const collection = JSON.parse(fs.readFileSync(collectionPath, 'utf8'));
 const environment = JSON.parse(fs.readFileSync(environmentPath, 'utf8'));
 const idempotencySource = fs.readFileSync(idempotencySourcePath, 'utf8');
-const focusedOpenApi = fs.readFileSync(focusedOpenApiPath, 'utf8');
+const focusedOpenApiSource = fs.readFileSync(focusedOpenApiPath, 'utf8');
+const focusedOpenApiJsonPath = focusedOpenApiPath.replace(/\.(?:yaml|yml)$/i, '.json');
+const focusedOpenApi = JSON.parse(fs.readFileSync(focusedOpenApiJsonPath, 'utf8'));
 const workflowSource = fs.readFileSync(paths.workflow, 'utf8');
 const collectorSource = fs.readFileSync(paths.collector, 'utf8');
 const redactorSource = fs.readFileSync(paths.redactor, 'utf8');
@@ -68,18 +70,19 @@ const hasScenario = (pattern, scriptPattern) => {
   return Boolean(request && (!scriptPattern || scriptPattern.test(request.scripts)));
 };
 
-const openApiPathBlock = (apiPath) => {
-  const marker = `  ${apiPath}:`;
-  const start = focusedOpenApi.indexOf(marker);
-  if (start < 0) return '';
-  const next = focusedOpenApi.indexOf('\n  /api/', start + marker.length);
-  return focusedOpenApi.slice(start, next < 0 ? focusedOpenApi.length : next);
-};
-const openApiHasPathContract = (apiPath, permission, requiredFragments = []) => {
-  const block = openApiPathBlock(apiPath);
-  return block.length > 0
-    && block.includes(`x-permission: ${permission}`)
-    && requiredFragments.every((fragment) => block.includes(fragment));
+const operation = (apiPath, method) => focusedOpenApi.paths?.[apiPath]?.[method.toLowerCase()] ?? null;
+const operationHasResponses = (candidate, codes) =>
+  Boolean(candidate && codes.every((code) => Object.hasOwn(candidate.responses ?? {}, String(code))));
+const operationHasParameterRef = (candidate, reference) =>
+  Boolean(candidate?.parameters?.some((parameter) => parameter?.$ref === reference));
+const operationHasContract = (apiPath, method, permission, stockEffect, responseCodes) => {
+  const candidate = operation(apiPath, method);
+  return Boolean(
+    candidate
+      && candidate['x-permission'] === permission
+      && (stockEffect === null || candidate['x-stock-effect'] === stockEffect)
+      && operationHasResponses(candidate, responseCodes),
+  );
 };
 
 const environmentSecrets = (environment.values ?? [])
@@ -123,6 +126,9 @@ const requiredAliases = [
 
 const redactorIndex = collectorSource.indexOf('redact-wwhn180-evidence.mjs');
 const manifestIndex = collectorSource.indexOf('SHA256SUMS');
+const idempotencyKeySchema = focusedOpenApi.components?.parameters?.IdempotencyKey?.schema ?? {};
+const receiptOperation = operation('/api/v1/inbound-documents/{id}/post-receipt', 'post');
+const issueOperation = operation('/api/v1/outbound-documents/{id}/post-issue', 'post');
 
 const checks = {
   collection_version_1_1_or_newer:
@@ -142,7 +148,7 @@ const checks = {
     && workflowSource.includes('JWT_SECRET='),
   workflow_masks_ephemeral_credentials:
     workflowSource.includes('::add-mask::$password')
-    && workflowSource.includes('::add-mask::$jwt_secret'),
+    && /::add-mask::\$(?:jwt|jwt_secret)/.test(workflowSource),
   collector_requires_seed_and_newman_credential_identity:
     collectorSource.includes('CI_DEMO_PASSWORD')
     && collectorSource.includes('runtime credentials must match CI_DEMO_PASSWORD'),
@@ -155,27 +161,22 @@ const checks = {
     && redactorSource.includes("status !== 'PASS'"),
 
   focused_openapi_idempotency_key_bounds:
-    /IdempotencyKey:[\s\S]*minLength:\s*8[\s\S]*maxLength:\s*100/.test(focusedOpenApi),
+    idempotencyKeySchema.minLength === 8
+    && idempotencyKeySchema.maxLength === 100,
   focused_openapi_scan_classify:
-    openApiHasPathContract('/api/v1/scan/classify', 'scan.classify', ['stock_effect=NONE']),
+    operationHasContract('/api/v1/scan/classify', 'post', 'scan.classify', 'NONE', ['200', '401', '403', '409', '422']),
   focused_openapi_inbound_scan:
-    openApiHasPathContract('/api/v1/inbound-documents/{id}/scan', 'stock_document.scan', [
-      'stock_effect=NONE', "$ref: '#/components/schemas/DocumentLineScanResult'",
-    ]),
+    operationHasContract('/api/v1/inbound-documents/{id}/scan', 'post', 'stock_document.scan', 'NONE', ['200', '401', '403', '409', '422']),
   focused_openapi_outbound_scan:
-    openApiHasPathContract('/api/v1/outbound-documents/{id}/scan', 'stock_document.scan', [
-      'stock_effect=NONE', "$ref: '#/components/schemas/DocumentLineScanResult'",
-    ]),
+    operationHasContract('/api/v1/outbound-documents/{id}/scan', 'post', 'stock_document.scan', 'NONE', ['200', '401', '403', '409', '422']),
   focused_openapi_post_receipt:
-    openApiHasPathContract('/api/v1/inbound-documents/{id}/post-receipt', 'stock_document.post', [
-      "$ref: '#/components/parameters/IdempotencyKey'", "'409':", "'428':",
-    ]),
+    operationHasContract('/api/v1/inbound-documents/{id}/post-receipt', 'post', 'stock_document.post', 'RECEIPT_IN', ['200', '401', '403', '409', '422', '428'])
+    && operationHasParameterRef(receiptOperation, '#/components/parameters/IdempotencyKey'),
   focused_openapi_post_issue:
-    openApiHasPathContract('/api/v1/outbound-documents/{id}/post-issue', 'stock_document.post', [
-      "$ref: '#/components/parameters/IdempotencyKey'", "'409':", "'428':",
-    ]),
+    operationHasContract('/api/v1/outbound-documents/{id}/post-issue', 'post', 'stock_document.post', 'ISSUE_OUT', ['200', '401', '403', '409', '422', '428'])
+    && operationHasParameterRef(issueOperation, '#/components/parameters/IdempotencyKey'),
   focused_openapi_reconciliation:
-    openApiHasPathContract('/api/v1/reports/inventory-reconciliation', 'report.view', ["'200':", "'403':"]),
+    operationHasContract('/api/v1/reports/inventory-reconciliation', 'get', 'report.view', 'NONE', ['200', '401', '403', '422']),
 
   static_permission_catalog_integrity_pass:
     staticPermissionCatalog.integrity?.status === 'PASS'
@@ -263,7 +264,7 @@ const failedChecks = Object.entries(checks)
   .map(([name]) => name);
 
 const output = {
-  schema_version: '1.4.0',
+  schema_version: '1.5.0',
   generated_at_utc: new Date().toISOString(),
   document_status: 'PROPOSED',
   approval_status: 'PENDING_INDEPENDENT_SIGN_OFF',
@@ -282,6 +283,8 @@ const output = {
     repository_secret_references: repositorySecretReferences,
     workflow_literal_password_matches: literalPasswordAssignments,
     focused_openapi_path: focusedOpenApiPath,
+    focused_openapi_json_path: focusedOpenApiJsonPath,
+    focused_openapi_source_has_refs: focusedOpenApiSource.includes('$ref:'),
     static_permission_catalog_entry_count: permissionEntries.length,
     mapping_fe_exact_sha: permissionMapping.frontend_observed_source?.exact_commit_sha ?? null,
     mapping_row_count: permissionMapping.integrity?.critical_rows ?? null,
