@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.1.0",
+  "task": "WWHN-172",
+  "branch": "m1",
+  "status": "PROPOSED_PENDING_EXACT_SHA_CI_AND_INDEPENDENT_SIGNOFF",
+  "architecture_baseline": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+  "sources": [
+    {
+      "path": "docs/api-contract/WWHN-172-sku-container-openapi.yaml",
+      "version": "CANONICAL_BASE_PLUS_EXACT_SHA_HASH",
+      "role": "OpenAPI source contract",
+      "sha256": "CALCULATED_BY_CI"
+    },
+    {
+      "path": "docs/postman/WWHN-172 SKU Container Contract.postman_collection.json",
+      "version": "CANONICAL_BASE_PLUS_EXACT_SHA_HASH",
+      "role": "API executable contract",
+      "sha256": "CALCULATED_BY_CI"
+    },
+    {
+      "path": "docs/testing/WWHN-172-test-cases.json",
+      "version": "CANONICAL_BASE_PLUS_EXACT_SHA_HASH",
+      "role": "P0/P1/P2 test register",
+      "sha256": "CALCULATED_BY_CI"
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_08_04_000220_harden_wwhn172_serial_and_code_uniqueness.php",
+      "version": "1.0.0",
+      "role": "Migration safety, mutex and unique guard",
+      "sha256": "CALCULATED_BY_CI"
+    },
+    {
+      "path": "scripts/collect-wwhn172-evidence.sh",
+      "version": "1.0.0",
+      "role": "Exact-SHA evidence collector",
+      "sha256": "CALCULATED_BY_CI"
+    },
+    {
+      "path": ".github/workflows/wwhn-172-sku-container-contract.yml",
+      "version": "1.0.0",
+      "role": "SQLite/PostgreSQL/MySQL matrix gate",
+      "sha256": "CALCULATED_BY_CI"
+    }
+  ],
+  "reviewers_required": [
+    "QA1",
+    "QA2",
+    "BE2",
+    "Tech Lead",
+    "DevOps/DBA"
+  ],
+  "formal_closure_rule": "Không chuyển Done/Approved chỉ dựa trên file do BE1 tự ghi. Jira sign-off phải reference exact commit SHA, CI run URL, engine artifact và SHA256SUMS."
+}

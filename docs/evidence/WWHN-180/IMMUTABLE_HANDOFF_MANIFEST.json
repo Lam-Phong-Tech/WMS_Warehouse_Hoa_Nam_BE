@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0.0",
+  "jira_key": "WWHN-180",
+  "document_version": "1.6.0",
+  "branch": "m1",
+  "parent_commit_sha": "54d5f4ff9cbaa678e16dcf322bd55836e177409a",
+  "final_commit_binding": "The Git commit created from this manifest and listed files is the immutable release SHA.",
+  "canonical_rule": "Canonical handoff contains no /submit, /approve or /reject request/path.",
+  "entries": [
+    {
+      "path": ".github/workflows/wwhn-180-api-posting-contract.yml",
+      "sha256": "f6f4e89e998bcde3533f45110a43a6fe7924bdf523e6a9c6331359ab4439b61c",
+      "git_blob_sha": "f5105d5d4bc4951e412450387c4e5d2086fea549",
+      "classification": "CI_ENFORCEMENT"
+    },
+    {
+      "path": "scripts/collect-wwhn180-canonical-evidence.sh",
+      "sha256": "4ad3fd334a637875551f28adebdfd39fc9bd26f18abc373dfcec95a52746cc66",
+      "git_blob_sha": "d8514a65be0af481bdc24a7249c987ffd5e502bf",
+      "classification": "CI_CANONICAL_WRAPPER"
+    },
+    {
+      "path": "scripts/verify-wwhn180-canonical-handoff.mjs",
+      "sha256": "c7cef34cd76cad8d0830072e201cc88bb75982db7e8f5b1a6f4f0b3104559d10",
+      "git_blob_sha": "a6cc65b20f3e756bc2eebdbc4226880e434bfbae",
+      "classification": "CI_ENFORCEMENT"
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.json",
+      "sha256": "e3d7634f08f6c5b1c08413ab3e33c32027ff11741ed8d176db5925930a11bcdf",
+      "git_blob_sha": "0376e0931163e8812c61df4d57e3661f14aa0119",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+      "sha256": "8634cd8c626f8b158a3689ecd07dfe46199f97eb71b4f613da63c17cbfe8b749",
+      "git_blob_sha": "e58ee493a1c9958f10cf7f1e842ab2901cd2d130",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/postman/WWHN-180 Canonical Contract.postman_collection.json",
+      "sha256": "44488ce57ca9e782bd2f9665d22e3a83191cdf24d571fc062a647ee917b537aa",
+      "git_blob_sha": "cbb87df0f41e0ef5a22e025186d307af57592af9",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/postman/WWHN-180 Canonical Contract.postman_environment.json",
+      "sha256": "5a007f437f2b08829e2091fd908389e9fbd64009e68a6910b8fd99175f7889b0",
+      "git_blob_sha": "5172d650a6f7055986c480801656d3de0250b3a2",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-180-source-register.json",
+      "sha256": "bbd42ba415fe54e09da55db1b0540365ede1a94dfd858df00e70c5e1b316f800",
+      "git_blob_sha": "d3921b3bad613b1ed8d83556a340782bd8829ab5",
+      "classification": "TRACEABILITY"
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-180.md",
+      "sha256": "f01ea61cf8fa6a6b59af09542ed0abc34f811f7004b95ad23ef07d2c5788c473",
+      "git_blob_sha": "1bc0349df142cbebd5a654e895e68489304df2c8",
+      "classification": "TRACEABILITY"
+    },
+    {
+      "path": "docs/postman/WWHN-180 Posting Contract.postman_collection.json",
+      "git_blob_sha": "fa78c2bfa5e0ea3f5018bc48ece2ee5a2ac42039",
+      "classification": "INTERNAL_CI_HARNESS_NON_CANONICAL"
+    },
+    {
+      "path": "docs/postman/WWHN-180 Posting CI.postman_environment.json",
+      "git_blob_sha": "96091aee5819443a3c3bec5efac693a647956751",
+      "classification": "INTERNAL_CI_HARNESS_ENV"
+    },
+    {
+      "path": "docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json",
+      "git_blob_sha": "f28fef532599373716e4f6e474c99cf4601e6373",
+      "classification": "PERMISSION_MAPPING"
+    },
+    {
+      "path": "docs/evidence/WWHN-180/permission-catalog.json",
+      "git_blob_sha": "8d88ed13423308e89307a8409c9cbe6a69bc7e27",
+      "classification": "PERMISSION_CATALOG"
+    },
+    {
+      "path": "docs/testing/WWHN-180-posting-test-cases.json",
+      "git_blob_sha": "bbacb0474654ddfbb7834253fd33be2d4d3a9e75",
+      "classification": "TEST_MATRIX"
+    }
+  ],
+  "verification": {
+    "script": "scripts/verify-wwhn180-canonical-handoff.mjs",
+    "commit_status_context": "wwhn-180/evidence-gate",
+    "runtime_manifest": "build/evidence/api-data/SHA256SUMS",
+    "runtime_manifest_digest": "build/evidence/api-data/SHA256SUMS.sha256"
+  }
+}

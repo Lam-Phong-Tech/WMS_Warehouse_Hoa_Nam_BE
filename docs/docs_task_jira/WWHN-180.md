@@ -1,199 +1,140 @@
 # [BE1] Chủ trì rà soát API/dữ liệu — WWHN-180
 
-## 1. Document control
+## 1. Kiểm soát tài liệu
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Parent gate | `WWHN-40` — `[G1] Rà soát contract FE/BE/QA và cổng kiểm soát payload mẫu` |
-| Related Jira | `WWHN-181` FE1; `WWHN-182` QA2; `WWHN-183` BA/G1 |
-| Parent Temp Key | `HN-INT-001` |
-| Epic Temp Key | `HN-EPIC-03` |
-| Role / Assignee Placeholder | `BE1` / `HN-BE-01` |
-| Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` |
-| Branch | **Chỉ `m1`**, direct update, không tạo branch/PR riêng |
-| Parent commit trước release này | `f3b225ec0f5374c9c3d2b395fb59efbcfc601390` |
-| Document version | `1.4.0` |
-| Document status | **PROPOSED** |
-| BE implementation | **READY FOR EXACT-SHA CI + INDEPENDENT REVIEW** |
-| Formal approval | **PENDING BA + FE1 + QA2 INDEPENDENT SIGN-OFF** |
-| Exact release SHA | `build/evidence/api-data/build-metadata.json.commit_sha` của workflow PASS |
+| Parent gate | `WWHN-40` |
+| Related Jira | `WWHN-181` FE1; `WWHN-182` QA2; `WWHN-183` BA |
+| Repository / branch | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` / **`m1`** |
+| Architecture baseline | `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md` |
+| Document version | **1.7.0** |
+| Status | **PROPOSED / PENDING_INDEPENDENT_SIGN_OFF** |
+| Exact SHA authority | `build/evidence/api-data/build-metadata.json.commit_sha` |
+| CI status context | `wwhn-180/evidence-gate` |
 | Passing artifact | `api-data-evidence-<exact_commit_sha>` |
-| Hash authority | `SHA256SUMS` + `SHA256SUMS.sha256` trong passing artifact |
 
-> BE1 không tự ghi `APPROVED`, `Done` hoặc `100%`. Final approval chỉ hợp lệ khi BA, FE1 và QA2 cùng dẫn chiếu **một exact BE SHA**, exact FE SHA, cùng workflow run và verified artifact digest.
+Không tự ghi `APPROVED`, `Done` hoặc `100%`. Final approval chỉ hợp lệ khi workflow PASS và BA, FE1, QA2 cùng dẫn chiếu một exact BE SHA, exact FE SHA và verified manifest digest.
 
-## 2. Kết quả xử lý vòng 1.4.0
+## 2. Kết quả rà soát sâu vòng 1.7.0
 
-### 2.1 Lỗi thực tế đã phát hiện và xử lý
+### 2.1 Canonical handoff đã tách khỏi CI harness
 
-1. **CI phụ thuộc repository secrets:** workflow cũ dừng nếu thiếu `WWHN180_PASSWORD` và `WWHN180_NO_PERMISSION_PASSWORD`, nên evidence gate không tự chạy được.
-   - Workflow mới sinh password và JWT secret ngẫu nhiên cho từng run.
-   - `AuthDatabaseSeeder` nhận password qua `CI_DEMO_PASSWORD`.
-   - Không cần repository secret.
-   - Password/token được redact trước khi hash/upload artifact.
-   - `credential-hygiene.json` là hard gate.
+Postman handoff cũ chứa các request `submit` và `approve`, trong khi baseline Hoa Nam quy định inbound/outbound không dùng approval workflow làm canonical flow.
 
-2. **Permission mismatch giữa FE và BE:**
-   - FE exact SHA `5cd10ec46021cecd24949075cb4eeefaa1fcc9b2` dùng `inbound.post`, `outbound.post`, `scan.inbound`, `scan.outbound`.
-   - BE route middleware dùng canonical `stock_document.post`, `stock_document.scan`.
-   - Đã thêm compatibility permission seed có kiểm soát; chỉ role đã có canonical capability mới nhận alias.
-   - Middleware API vẫn giữ canonical permission, không thay bằng alias và không nới quyền backend.
-   - Có regression test bảo đảm `NO_PERMISSION` không nhận alias.
+Đã tách rõ:
 
-3. **Route mismatch stocktake adjustment:**
-   - FE gọi `POST /api/v1/stocktake/sessions/{id}/apply-adjustment`.
-   - BE trước đó chỉ có `POST /api/v1/stocktake-sessions/{id}/apply-adjustment`.
-   - Đã bổ sung route alias FE, dùng cùng `StocktakeController@applyAdjustment` và `permission:stocktake.adjust`.
-   - Route cũ được giữ để bảo toàn backward compatibility.
+- **Canonical handoff:** chỉ chứa Scan, Post Receipt, Post Issue, Stocktake Adjustment, Warranty TEMP_ONLY và Reconciliation.
+- **CI harness:** được giữ riêng để provision dữ liệu kiểm thử cho backend; không phải API contract giao FE/QA.
+- CI fail nếu canonical Postman hoặc focused OpenAPI xuất hiện `/submit`, `/approve` hoặc `/reject`.
 
-4. **Evidence artifact có nguy cơ chứa runtime credential/token:**
-   - Đã thêm redactor quét toàn bộ text artifact.
-   - Runtime password, Bearer token và JWT bị thay bằng marker redacted trước `SHA256SUMS`.
-   - Workflow fail nếu còn residual secret/JWT.
+Việc tách này ngăn reviewer nhầm platform capability với Hoa Nam canonical flow và đóng trực tiếp finding contract mismatch.
 
-5. **P1-03 chỉ có catalog BE, chưa có source mapping FE thật:**
-   - Đã tạo `BE_FE_PERMISSION_MAPPING.json`.
-   - Mapping khóa FE repo, branch, exact SHA và baseline blob SHA.
-   - Phân biệt rõ source observation của BE1 với independent FE1 sign-off.
+### 2.2 CI observability không cần PR
 
-### 2.2 Các file chính của release
+Workflow chạy trên push `m1` và publish commit status:
 
-| File | Vai trò |
-|---|---|
-| `.github/workflows/wwhn-180-api-posting-contract.yml` | Exact-SHA evidence gate tự chứa credential runtime |
-| `scripts/collect-wwhn180-evidence.sh` | Thu full/focused test, OpenAPI, Newman, DB delta, reconcile, manifest |
-| `scripts/redact-wwhn180-evidence.mjs` | Redact runtime credential/JWT và sinh hygiene report |
-| `Modules/Auth/database/seeders/WmsPermissionCompatibilitySeeder.php` | Compatibility permission không thay canonical middleware |
-| `database/seeders/DatabaseSeeder.php` | Đăng ký compatibility seeder sau Auth baseline |
-| `Modules/Warehouse/routes/api.php` | Route alias stocktake apply-adjustment cho FE |
-| `tests/Feature/Wwhn180PermissionAliasContractTest.php` | Regression permission alias, NO_PERMISSION và canonical middleware |
-| `docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json` | Mapping BE ↔ FE exact SHA |
-| `docs/evidence/WWHN-180/permission-catalog.json` | Static permission catalog có FE observed source |
-| `docs/testing/WWHN-180-posting-test-cases.json` | Test matrix P0/P1 v1.3.0 |
-| `docs/docs_task_jira/WWHN-180-source-register.json` | Source/evidence register v1.4.0 |
+```text
+context = wwhn-180/evidence-gate
+state   = pending | success | failure
+target  = exact GitHub Actions run URL
+```
 
-## 3. P0/P1/P2 closure matrix
+Nhờ đó exact-SHA CI có thể được kiểm tra bằng commit status dù không tạo branch/PR riêng.
 
-| ID | Sev | Required fix | Kết quả BE/repo v1.4.0 | Formal status |
-|---|---|---|---|---|
-| `BE1-P0-01` | P0 | BA decision, FE1 mapping, QA2 evidence cùng exact SHA/hash | Exact-SHA/artifact rules, FE exact source, sign-off templates và Jira matrix đã khóa | **READY; PENDING BA + FE1 + QA2** |
-| `BE1-P0-02` | P0 | QA2 verify stock effect, idempotency, race, DB before/after, reconcile | Full/focused PHPUnit, Newman, DB delta, reconcile, race/atomicity source và immutable artifact pipeline đã wire | **BE CLOSED; PENDING QA2 INDEPENDENT RETEST** |
-| `BE1-P1-01` | P1 | OpenAPI JSON/YAML + Postman collection/env hoặc immutable URL/SHA/digest | Focused OpenAPI và Postman commit trực tiếp; generated OpenAPI JSON/YAML + checksums trong artifact | **REPO CLOSED; CI ARTIFACT VERIFICATION REQUIRED** |
-| `BE1-P1-02` | P1 | CI URL, metadata, raw logs, route list, DB delta, SHA256SUMS | Workflow tự chứa credential, không cần repo secret; artifact gồm đầy đủ raw/structured/hash evidence | **IMPLEMENTED; PASS RUN MUST BE OBSERVED** |
-| `BE1-P1-03` | P1 | Permission catalog + FE/BA mapping | Đã đối chiếu FE exact SHA, tạo mapping, compatibility aliases và regression test; middleware BE vẫn canonical | **BE CLOSED; FE1/BA REVIEW PENDING** |
-| `BE1-P1-04` | P1 | QA2 happy/negative/RBAC/idempotency/double-post/race/reconcile | Test matrix 32 cases, full/focused logs, Newman 23 request, DB delta/reconcile và hygiene hard gate | **AUTOMATED; QA2 EXECUTION PENDING** |
-| `BE1-P1-05` | P1 | BA G1 minutes và decision register | G1 template + decision inputs + exact SHA/hash rules đã chuẩn hóa | **READY; BA ACTION PENDING** |
-| `BE1-P2-01` | P2 | Closure matrix đọc nhanh trực tiếp trên Jira | Mục 11 là payload Jira; phải post sau final commit để gắn exact SHA | **READY TO POST** |
+### 2.3 Sửa lỗi CI readiness tại run 30912919649
 
-## 4. Contract G1 được bảo toàn
+Run trên exact SHA `ebd69d06238ce12d67d1253cb213e8804ee90a43` chứng minh static gate, full PHPUnit `152 tests / 1416 assertions` và các focused suite đều PASS, nhưng collector dừng trước Newman vì dùng `curl --fail /api/health` làm readiness probe. Laravel server thực tế đã listen cổng 8000; endpoint health trả `503` theo đúng semantic `degraded`, nên bị nhận nhầm thành process chưa sẵn sàng.
 
-| Action | Endpoint | Backend permission | FE permission/guard | Stock effect | Idempotency |
+Đã sửa collector theo nguyên tắc fail-closed:
+
+- kiểm tra PID server còn sống;
+- coi process ready khi nhận được bất kỳ HTTP response hợp lệ `1xx..5xx`;
+- lưu `health-response.json`, `health-http-status.txt`, `health-probe-evidence.json`;
+- không biến health degraded thành PASS; Newman, DB delta, reconciliation, credential hygiene và checksum vẫn là hard gate;
+- dump `server.raw.log` khi process chết hoặc timeout để tránh lỗi mù.
+
+Commit sửa collector: `64362d86d9acf8212b23604ca40a89598ed0b19c`. CI chính thức phải dẫn chiếu exact head SHA sau commit cập nhật tài liệu này.
+
+## 3. Canonical contract Hoa Nam
+
+| Action | Endpoint | Permission BE | FE guard | Stock effect | Idempotency |
 |---|---|---|---|---|---|
 | Classify scan | `POST /api/v1/scan/classify` | `scan.classify` | `scan.classify` | `NONE` | N/A |
-| Scan inbound | `POST /api/v1/inbound-documents/{id}/scan` | `stock_document.scan` | `scan.inbound` alias | `NONE` | N/A |
-| Scan outbound | `POST /api/v1/outbound-documents/{id}/scan` | `stock_document.scan` | `scan.outbound` alias | `NONE` | N/A |
-| Post receipt | `POST /api/v1/inbound-documents/{id}/post-receipt` | `stock_document.post` | `inbound.post` alias | signed `RECEIPT_IN`, exactly once | Required |
-| Post issue | `POST /api/v1/outbound-documents/{id}/post-issue` | `stock_document.post` | `outbound.post` alias | signed `ISSUE_OUT`, exactly once | Required |
-| Apply adjustment | `POST /api/v1/stocktake/sessions/{id}/apply-adjustment` | `stocktake.adjust` | `stocktake.adjust` | adjustment, exactly once | Required by controller contract |
+| Scan inbound | `POST /api/v1/inbound-documents/{id}/scan` | `stock_document.scan` | `scan.inbound` | `NONE` | N/A |
+| Scan outbound | `POST /api/v1/outbound-documents/{id}/scan` | `stock_document.scan` | `scan.outbound` | `NONE` | N/A |
+| Post receipt | `POST /api/v1/inbound-documents/{id}/post-receipt` | `stock_document.post` | `inbound.post` | `RECEIPT_IN`, exactly once | Required |
+| Post issue | `POST /api/v1/outbound-documents/{id}/post-issue` | `stock_document.post` | `outbound.post` | `ISSUE_OUT`, exactly once | Required |
+| Apply adjustment | `POST /api/v1/stocktake/sessions/{id}/apply-adjustment` | `stocktake.adjust` | `stocktake.adjust` | Adjustment, exactly once | Required |
 | Warranty TEMP_ONLY | `POST /api/v1/warranty-cases/{id}/temp-only` | `warranty.temp_only` | `warranty.temp_only` | `NONE` | Required |
 | Reconcile | `GET /api/v1/reports/inventory-reconciliation` | `report.view` | `report.view` | `NONE` | N/A |
 
-Compatibility aliases chỉ phục vụ FE route/action visibility. Backend vẫn trả `403` theo canonical middleware và data scope.
+Canonical scope:
 
-## 5. Transaction, idempotency và race invariants
+- một kho tổng Hoa Nam;
+- Agency là nơi nhận, không phải warehouse;
+- transfer/multi-warehouse ngoài scope Hoa Nam;
+- platform approval workflow ngoài canonical handoff;
+- scan không tạo movement và không đổi balance.
 
-### 5.1 Idempotency identity
+## 4. Contract artifacts bất biến
+
+| Artifact | Repository path |
+|---|---|
+| Focused OpenAPI YAML | `docs/api-contract/WWHN-180-posting-openapi.yaml` |
+| Focused OpenAPI JSON | `docs/api-contract/WWHN-180-posting-openapi.json` |
+| Canonical Postman | `docs/postman/WWHN-180 Canonical Contract.postman_collection.json` |
+| Canonical Postman environment | `docs/postman/WWHN-180 Canonical Contract.postman_environment.json` |
+| Internal CI harness | `docs/postman/WWHN-180 Posting Contract.postman_collection.json` |
+| CI environment | `docs/postman/WWHN-180 Posting CI.postman_environment.json` |
+| Test matrix | `docs/testing/WWHN-180-posting-test-cases.json` |
+| Permission catalog | `docs/evidence/WWHN-180/permission-catalog.json` |
+| BE/FE mapping | `docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json` |
+| Static hashes/blob identities | `docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json` |
+
+Canonical environment không chứa password, token hoặc secret value.
+
+## 5. Transaction, race và idempotency invariants
 
 ```text
-(idem_key, operation, user_id)
+Idempotency identity = (trimmed key, operation, user_id)
 ```
 
-- Missing/blank key: `428 PRECONDITION_REQUIRED`, trước business write.
-- Trimmed key ngoài 8–100 ký tự: `422 VALIDATION_ERROR`.
-- Same key + same canonical payload: replay persisted response snapshot.
+- Missing/blank key: `428 PRECONDITION_REQUIRED`; không business write.
+- Key ngoài 8–100 ký tự: `422 VALIDATION_ERROR`; không business write.
+- Same key + same canonical payload: replay exact persisted response.
 - Same key + different payload: `409 IDEMPOTENCY_ERROR`.
 - Different key + document đã post: `409 STATE_CONFLICT`.
-- Canonical request hash dùng SHA-256 v2; JSON object-key order không đổi semantic digest.
-- Business write và response snapshot cùng outer transaction.
-- Failure trước commit rollback cả stock write và owned lease.
-- Retry sau client timeout replay snapshot, không hạch toán lần hai.
+- Document, line và inventory balance được lock tại stock-effect boundary.
+- Movement là append-only và có unique business key.
+- Business write, posting event và response snapshot commit/rollback cùng transaction.
+- Race/double-post chỉ được có một stock effect.
+- Reconciliation phải trả `PASS`, `mismatch_count=0`.
 
-### 5.2 Authoritative stock-effect boundary
+## 6. CI evidence package
 
-```text
-lock current stock_documents row
-→ verify current doc_type/status=approved
-→ lock current stock_document_lines
-→ recompute warehouse/product/qty/business key
-→ lock/create inventory balance
-→ CAS/version update
-→ append unique stock movement
-→ status/history/posting event
-→ persist response snapshot
-→ commit
-```
-
-Model `approved` đã stale không được dùng làm source of truth tại stock-effect boundary.
-
-### 5.3 Scan boundary
-
-Scan chỉ update scan state sau validation. Scan không được tạo hoặc sửa:
-
-- `stock_movements`;
-- `inventory_balances`;
-- posting event;
-- posting status của document.
-
-## 6. Permission compatibility design
-
-### 6.1 Alias assignments
-
-| FE permission | Canonical capability | Role nhận alias |
-|---|---|---|
-| `inbound.post` | `stock_document.post` | `WAREHOUSE_KEEPER`, `WAREHOUSE_MANAGER` |
-| `outbound.post` | `stock_document.post` | `WAREHOUSE_KEEPER`, `WAREHOUSE_MANAGER` |
-| `scan.inbound` | `stock_document.scan` | `WAREHOUSE_KEEPER`, `WAREHOUSE_MANAGER` |
-| `scan.outbound` | `stock_document.scan` | `WAREHOUSE_KEEPER`, `WAREHOUSE_MANAGER` |
-| `scan.warranty` | warranty/scan action | `WAREHOUSE_MANAGER` |
-| `inventory.trace` | inventory/scan route entry | `WAREHOUSE_KEEPER`, `WAREHOUSE_MANAGER` |
-| `stocktake.count` | `stocktake.adjust` route entry | `WAREHOUSE_MANAGER` |
-| `warranty.manage` | `warranty.temp_only` route entry | `WAREHOUSE_MANAGER` |
-| `report.export` | narrower FE export guard | `WAREHOUSE_MANAGER` |
-
-### 6.2 Guard rails
-
-- `NO_PERMISSION` alias count phải bằng `0`.
-- Alias không xuất hiện trong API route middleware.
-- Role không có canonical capability không được nhận alias.
-- Runtime catalog và static catalog đều phải `integrity.status=PASS`.
-- FE source được khóa tại exact SHA `5cd10ec46021cecd24949075cb4eeefaa1fcc9b2`.
-
-## 7. Executable evidence package
-
-Passing artifact phải có tối thiểu:
+Passing artifact bắt buộc có:
 
 ```text
 build-metadata.json
-g1-closure-matrix.json
-jira-closure-comment.txt
-ci-summary.md
 source-tree.sha256
 SHA256SUMS
 SHA256SUMS.sha256
+canonical-handoff-verification.json
+wwhn180-openapi.json
+wwhn180-openapi.yaml
+wwhn180.postman.collection.json
+wwhn180.postman.environment.json
+wwhn180.ci-harness.collection.json
+wwhn180.ci-harness.environment.json
 route-list.raw.json
 permission-catalog.json
 permission-catalog.static.json
 be-fe-permission-mapping.json
 credential-hygiene.json
-openapi.json
-openapi.yaml
-wwhn180-openapi.yaml
-wwhn180.postman.collection.json
-wwhn180.postman.environment.json
-wwhn180-source-register.json
-wwhn180-test-cases.json
-wwhn180-contract-verification.json
-wwhn180-db-delta.json
+health-response.json
+health-http-status.txt
+health-probe-evidence.json
 phpunit.raw.log
 wwhn180-atomicity-phpunit.raw.log
 stock-document-canonical-phpunit.raw.log
@@ -204,141 +145,91 @@ newman.raw.log
 newman.result.json
 db-before.json
 db-after.json
+wwhn180-db-delta.json
 reconciliation-report.json
-source/*
 ```
 
-## 8. CI gates
+Hard gates:
 
-1. PHP syntax toàn scope.
-2. `git diff --check`.
-3. Pint `--test`.
-4. npm lint/test/build.
-5. Full PHPUnit.
-6. Focused atomicity/canonical/concurrency/permission-alias/reconciliation PHPUnit.
-7. OpenAPI generation + Redocly lint.
-8. Runtime/static permission catalog integrity.
-9. BE-FE exact-SHA mapping integrity.
-10. Newman failure count bằng `0`.
-11. DB delta PASS.
-12. Reconciliation PASS, failed/mismatch bằng `0`.
-13. Credential hygiene PASS, không còn runtime secret/JWT.
-14. `build-metadata.commit_sha == GITHUB_SHA`.
-15. Approval metadata vẫn `PROPOSED/PENDING_INDEPENDENT_SIGN_OFF`.
-16. `SHA256SUMS` và `SHA256SUMS.sha256` verify OK.
+1. PHP syntax, Pint, npm lint/test/build.
+2. Full PHPUnit và focused atomicity/concurrency/RBAC/reconciliation.
+3. Canonical handoff drift verification.
+4. Generated và focused OpenAPI lint.
+5. Newman failure count bằng `0`.
+6. DB delta và reconciliation `PASS`.
+7. Credential hygiene residual count bằng `0`.
+8. Artifact commit SHA bằng workflow SHA.
+9. `SHA256SUMS` và `SHA256SUMS.sha256` verify PASS.
+10. Commit status `wwhn-180/evidence-gate=success`.
 
-## 9. QA2 independent retest — WWHN-182
+## 7. P0/P1/P2 closure matrix
 
-QA2 phải dùng exact SHA/artifact, không test branch name động.
-
-| Gate | Expected |
-|---|---|
-| Scan | `stock_effect=NONE`; movement/balance/posting event/status không đổi |
-| Receipt/Issue happy | Signed movement và balance đúng một lần |
-| Replay | Exact response/movement replay, không callback lần hai |
-| Same key/different payload | `409 IDEMPOTENCY_ERROR`, DB không đổi |
-| Different key/double post | `409 STATE_CONFLICT`, một stock effect |
-| Missing/invalid key | 428/422, DB không đổi |
-| Race/stale model | Exactly one winner; loser không tạo stock effect |
-| RBAC | 403; `NO_PERMISSION` không có alias và không có DB write |
-| Route alias | FE stocktake path match cùng controller/middleware canonical |
-| DB delta | `wwhn180-db-delta.summary.status=PASS` |
-| Reconcile | `summary.status=PASS`, mismatch/failed=0 |
-| Hygiene | residual secret/JWT=0 |
-| Manifest | Mọi checksum verify PASS |
-
-QA2 comment phải có reviewer, date, exact SHA, workflow URL, artifact name, manifest digest, test count, DB delta, race result và reconciliation result.
-
-## 10. BA/FE1 sign-off input
-
-### 10.1 FE1
-
-FE1 xác nhận trên exact BE SHA và FE SHA:
-
-- endpoint/method/path;
-- payload/response/error;
-- canonical BE permission và FE alias;
-- route alias stocktake;
-- retry/idempotency behavior;
-- result/reviewer/date/evidence URL.
-
-### 10.2 BA G1
-
-BA ghi một final decision:
-
-```text
-GO
-CONDITIONAL_GO
-NO_GO
-```
-
-Decision phải có blocker → endpoint/schema/rule → test/evidence → reviewer → result → owner/date/disposition.
-
-## 11. Jira closure comment — post sau final commit
-
-```text
-[WWHN-180 API/DATA CLOSURE MATRIX — v1.4.0]
-Branch: m1 — direct update, no separate PR
-Exact BE SHA: <final commit SHA>
-Commit URL: <commit URL>
-Exact FE SHA observed: 5cd10ec46021cecd24949075cb4eeefaa1fcc9b2
-FE baseline blob: 86cc8f024b1f520ebb355eb086f453d0438d3de1
-CI run: <workflow URL or PENDING_NOT_OBSERVED>
-Artifact: api-data-evidence-<exact SHA>
-SHA256SUMS digest: <digest or PENDING_CI>
-Credential hygiene: <PASS/PENDING>
-OpenAPI/Postman: committed + artifact-bound
-Permission mapping: BE compatibility implemented; FE1/BA review pending
-
-BE1-P0-01: READY — pending BA+FE1+QA2 same SHA/digest
-BE1-P0-02: BE CLOSED — pending QA2 independent retest
-BE1-P1-01: REPO CLOSED — pending passing artifact verification
-BE1-P1-02: IMPLEMENTED — self-contained CI, no repository secret
-BE1-P1-03: BE CLOSED — exact FE source mapping + safe aliases + route regression
-BE1-P1-04: AUTOMATED — pending QA2 execution/comment
-BE1-P1-05: READY — pending BA G1 minutes
-BE1-P2-01: PASS — this readable matrix is posted directly
-
-WWHN-181: FE exact source observed; independent final sign-off pending
-WWHN-182: QA2 independent evidence pending
-WWHN-183/WWHN-40: BA G1 decision pending
-Formal status: PROPOSED / PENDING_INDEPENDENT_SIGN_OFF
-```
-
-## 12. Definition of Done và trạng thái trung thực
-
-### 12.1 BE/repository scope
-
-- [x] Chỉ sửa branch `m1`.
-- [x] Một release commit bằng tiếng Việt.
-- [x] Bảo toàn canonical stock-effect/idempotency/reconciliation.
-- [x] OpenAPI/Postman/test cases/source register trong repo.
-- [x] CI không phụ thuộc repository credential secret.
-- [x] Artifact credential/JWT redaction hard gate.
-- [x] Exact FE SHA mapping.
-- [x] Compatibility aliases không thay canonical middleware.
-- [x] Stocktake FE path alias.
-- [x] Regression test alias/NO_PERMISSION/middleware.
-- [x] Jira closure matrix sẵn sàng post.
-
-### 12.2 External/formal gates
-
-- [ ] Workflow PASS trên exact final SHA.
-- [ ] Verify và ghi `SHA256SUMS.sha256`.
-- [ ] FE1 reviewer/result/date trên exact BE+FE SHA.
-- [ ] QA2 independent API/DB/race/reconcile evidence.
-- [ ] BA G1 minutes và final decision.
-- [ ] WWHN-181/182/183 cùng dẫn chiếu exact SHA/artifact digest.
-- [ ] Chỉ sau đó mới chuyển `APPROVED/Done/100%`.
-
-## 13. Residual ownership
-
-| Gate | Owner | Cách đóng |
+| ID | Kết quả BE/repository v1.7.0 | Formal gate còn lại |
 |---|---|---|
-| Passing CI artifact | BE1 / Repo CI | Workflow PASS trên final commit; verify manifests |
-| FE mapping sign-off | FE1 + BA | Review mapping/runtime trên exact BE+FE SHA |
-| QA independent retest | QA2 | Execute protocol và attach/comment raw evidence |
-| G1 minutes/decision | BA/PM | Ghi decision register trên WWHN-40/WWHN-183 |
-| Final approval | BA/PM | Chỉ khi P0/P1 external gates đều PASS |
+| `BE1-P0-01` | Exact-SHA rules, canonical artifacts, reviewer forms và Jira trace đã khóa | BA + FE1 + QA2 sign cùng SHA/digest |
+| `BE1-P0-02` | Atomicity/idempotency/race/DB/reconcile tests và evidence collector có hard gate | QA2 independent execution |
+| `BE1-P1-01` | OpenAPI JSON/YAML, canonical Postman/env và static manifest được commit | Reviewer verify immutable commit/blob/hash |
+| `BE1-P1-02` | Push-CI publish commit status; readiness false-negative đã sửa; raw logs/artifact/checksums được hard-gate | Quan sát status success và artifact của exact head SHA |
+| `BE1-P1-03` | Permission catalog + exact FE source mapping + safe aliases | FE1/BA reviewer/result/date |
+| `BE1-P1-04` | QA protocol executable, CI harness tách khỏi canonical contract | QA2 comment/attachment |
+| `BE1-P1-05` | G1 minutes inputs đầy đủ | BA decision `GO|CONDITIONAL_GO|NO_GO` |
+| `BE1-P2-01` | Readable closure matrix đã post Jira và phải cập nhật theo final artifact | Update final digest |
 
-**Kết luận:** phạm vi BE/repository được chuẩn bị để đóng sâu các finding P0/P1/P2. Formal score `100%` không được claim trước independent sign-off; đây là kiểm soát chất lượng, không phải thiếu code.
+## 8. Reviewer acceptance
+
+### FE1 — WWHN-181
+
+Phải ghi reviewer/date/result và xác nhận:
+
+- canonical paths/payload/error;
+- mapping FE aliases → canonical BE permission;
+- không dùng platform approval routes làm Hoa Nam flow;
+- stocktake route alias;
+- exact BE SHA và FE SHA `5cd10ec46021cecd24949075cb4eeefaa1fcc9b2`.
+
+### QA2 — WWHN-182
+
+Phải attach/comment:
+
+- happy/negative/RBAC;
+- missing/invalid key;
+- replay/conflict/double-post;
+- race/stale model;
+- scan stock effect `NONE`;
+- DB before/after;
+- reconciliation;
+- workflow URL, artifact, manifest digest;
+- result `PASS|FAIL|CONDITIONAL`.
+
+### BA — WWHN-183 / WWHN-40
+
+Minutes phải có:
+
+```text
+blocker → endpoint/schema/rule → test/evidence
+→ reviewer/result/date → owner/disposition
+→ GO | CONDITIONAL_GO | NO_GO
+```
+
+## 9. Definition of Done trung thực
+
+### BE/repository
+
+- [x] Chỉ sửa nhánh `m1`.
+- [x] Canonical OpenAPI JSON/YAML.
+- [x] Canonical Postman/env không chứa approval workflow.
+- [x] CI harness được phân loại ngoài handoff.
+- [x] Drift verifier ngăn contract quay lại sai baseline.
+- [x] Push-CI commit status observability.
+- [x] Readiness probe tách khỏi business-health semantics; lưu đầy đủ HTTP status/body và server diagnostics.
+- [x] Raw test/API/DB/reconcile/checksum artifact contract.
+- [x] Permission mapping và closure traceability.
+
+### External/formal
+
+- [ ] Commit status `wwhn-180/evidence-gate=success`.
+- [ ] Passing artifact và checksum digest.
+- [ ] FE1 sign-off.
+- [ ] QA2 independent evidence.
+- [ ] BA G1 minutes/decision.
+- [ ] Chỉ sau các mục trên mới được chấm `100/100`.

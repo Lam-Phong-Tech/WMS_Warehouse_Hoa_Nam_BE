@@ -24,7 +24,7 @@ class FoundationMasterDataEpicTest extends TestCase
 
         $login = $this->postJson('/api/v1/auth/login', [
             'email' => 'admin@gmail.com',
-            'password' => 'Cntt@1234',
+            'password' => env('CI_DEMO_PASSWORD', 'Cntt@1234'),
         ]);
 
         $login->assertOk()

@@ -10,6 +10,10 @@ return [
     | fail_closed: ghi audit chính lỗi thì request thất bại, kể cả đã vào outbox.
     | best_effort: luôn cảnh báo/đẩy outbox nhưng không làm hỏng nghiệp vụ.
     |
+    | WWHN-172 mutation routes ép policy fail_closed theo request trong
+    | Wwhn172AggregateLock và restore policy ở finally để không làm thay đổi
+    | hành vi của use case ngoài phạm vi.
+    |
     */
     'write_policy' => env('AUDIT_WRITE_POLICY', 'outbox_required'),
 

@@ -1,14 +1,15 @@
 <?php
 
 use App\Http\Middleware\ApiConventionMiddleware;
+use App\Http\Middleware\Wwhn172AggregateLock;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Middleware\Authenticate;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Modules\Auth\Http\Middleware\CheckPermission;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -25,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(Wwhn172AggregateLock::class);
         $middleware->prepend(ApiConventionMiddleware::class);
 
         $middleware->alias([
@@ -36,8 +38,6 @@ return Application::configure(basePath: dirname(__DIR__))
             CheckPermission::class,
         ]);
 
-        // Dự án chỉ có API (không có route web `login`) — không redirect guest, để
-        // AuthenticationException tự render JSON qua exception handler bên dưới.
         $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -45,35 +45,17 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*'),
         );
 
-        $exceptions->render(function (AuthenticationException $e, $request) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Chưa xác thực',
-                'error_code' => 'UNAUTHENTICATED',
-                'errors' => [],
-                'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
-            ], 401);
-        });
+        $unauthenticated = static fn () => response()->json([
+            'success' => false,
+            'message' => 'Chưa xác thực',
+            'error_code' => 'UNAUTHENTICATED',
+            'errors' => [],
+            'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
+        ], 401);
 
-        $exceptions->render(function (UnauthorizedHttpException $e, $request) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Chưa xác thực',
-                'error_code' => 'UNAUTHENTICATED',
-                'errors' => [],
-                'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
-            ], 401);
-        });
-
-        $exceptions->render(function (JWTException $e, $request) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Chưa xác thực',
-                'error_code' => 'UNAUTHENTICATED',
-                'errors' => [],
-                'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
-            ], 401);
-        });
+        $exceptions->render(fn (AuthenticationException $e, $request) => $unauthenticated());
+        $exceptions->render(fn (UnauthorizedHttpException $e, $request) => $unauthenticated());
+        $exceptions->render(fn (JWTException $e, $request) => $unauthenticated());
 
         $exceptions->render(function (MethodNotAllowedHttpException $e, $request) {
             return response()->json([
@@ -99,9 +81,35 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 404);
         });
 
-        // Bắt các exception hệ thống chưa xử lý riêng ở trên (500 ngoài dự kiến). Không đụng tới
-        // ValidationException/HttpResponseException (đã đúng shape sẵn từ FormRequest/Repository)
-        // hay các HttpExceptionInterface khác (403, 429...) — chỉ nhắm lỗi hệ thống chung.
+        $exceptions->render(function (QueryException $e, $request) {
+            if (! ($request->is('api/*') || $request->expectsJson())) {
+                return null;
+            }
+
+            $sqlState = (string) ($e->errorInfo[0] ?? $e->getCode());
+            $driverCode = (string) ($e->errorInfo[1] ?? '');
+            $internalMessage = strtolower($e->getMessage());
+            $isUniqueConflict = $sqlState === '23505'
+                || in_array($driverCode, ['1062', '1555', '2067'], true)
+                || str_contains($internalMessage, 'unique constraint failed')
+                || str_contains($internalMessage, 'duplicate entry');
+
+            if (! $isUniqueConflict) {
+                return null;
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu đã được ghi bởi request khác hoặc vi phạm ràng buộc duy nhất.',
+                'error_code' => 'UNIQUE_CONSTRAINT_CONFLICT',
+                'errors' => [],
+                'error' => [
+                    'code' => 'UNIQUE_CONSTRAINT_CONFLICT',
+                    'details' => [],
+                ],
+            ], 409);
+        });
+
         $exceptions->render(function (Throwable $e, $request) {
             if (! ($request->is('api/*') || $request->expectsJson())) {
                 return null;
@@ -111,21 +119,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            $payload = [
+            return response()->json([
                 'success' => false,
                 'message' => 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.',
                 'error_code' => 'INTERNAL_SERVER_ERROR',
                 'errors' => [],
                 'error' => ['code' => 'INTERNAL_SERVER_ERROR', 'details' => []],
-            ];
-
-            if (config('app.debug')) {
-                $payload['exception'] = get_class($e);
-                $payload['file'] = $e->getFile();
-                $payload['line'] = $e->getLine();
-                $payload['trace'] = collect($e->getTrace())->map(fn ($t) => Arr::except($t, ['args']))->all();
-            }
-
-            return response()->json($payload, 500);
+            ], 500);
         });
     })->create();
