@@ -79,9 +79,9 @@ class Wwhn172MigrationSafetyTest extends TestCase
             $this->assertSame('BLOCKED', $serialCheck['status']);
             $this->assertSame(1, $serialCheck['violation_count']);
         } finally {
-            DB::disconnect('wwhn172_fixture');
             DB::setDefaultConnection($original);
-            DB::purge($original);
+            DB::disconnect('wwhn172_fixture');
+            DB::purge('wwhn172_fixture');
         }
     }
 }
