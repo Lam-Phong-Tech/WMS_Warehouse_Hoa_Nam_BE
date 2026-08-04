@@ -1,50 +1,64 @@
 # WWHN-180 — FE1 API/Permission Mapping Sign-off
 
-> Trạng thái tài liệu: **PROPOSED**. Mẫu này không phải chữ ký phê duyệt. FE1 phải tự kiểm tra artifact từ workflow PASS và điền thông tin thực tế trên Jira.
+> Trạng thái: **PROPOSED / PENDING FE1 REVIEW**. BE1 đã đối chiếu source FE ở chế độ read-only; nội dung dưới đây không phải chữ ký FE1.
 
-## 1. Build bắt buộc
+## 1. Exact source đã khóa
 
-- Branch: `m1`
-- Exact commit SHA: `<build-metadata.json.commit_sha>`
-- CI run URL: `<build-metadata.json.workflow_run_url>`
-- Artifact: `api-data-evidence-<exact_sha>`
-- `SHA256SUMS.sha256`: `<digest>`
-- FE mapping version/commit: `<FE repository + exact SHA>`
+| Trường | Giá trị |
+|---|---|
+| BE repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` |
+| BE branch | `m1` |
+| Exact BE SHA | `<build-metadata.json.commit_sha>` |
+| CI run | `<build-metadata.json.workflow_run_url>` |
+| Artifact | `api-data-evidence-<exact BE SHA>` |
+| Artifact digest | `<SHA256SUMS.sha256>` |
+| FE repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE` |
+| FE branch | `m1` |
+| Exact FE SHA observed | `5cd10ec46021cecd24949075cb4eeefaa1fcc9b2` |
+| FE baseline | `docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json` |
+| FE baseline blob SHA | `86cc8f024b1f520ebb355eb086f453d0438d3de1` |
 
-Không dùng branch name động, ảnh chụp, hash viết tay hoặc artifact từ run FAIL để ký.
+Không dùng branch name động hoặc artifact từ run FAIL.
 
-## 2. Ma trận FE route → API → permission
+## 2. Mapping cần FE1 xác nhận
 
-| FE action | API | Method | Permission bắt buộc | FE guard/action visibility | Result |
-|---|---|---:|---|---|---|
-| Scan dòng phiếu nhập | `/api/v1/inbound-documents/{id}/scan` | POST | `stock_document.scan` | `<route/component/action>` | PENDING |
-| Scan dòng phiếu xuất | `/api/v1/outbound-documents/{id}/scan` | POST | `stock_document.scan` | `<route/component/action>` | PENDING |
-| Hạch toán nhập | `/api/v1/inbound-documents/{id}/post-receipt` | POST | `stock_document.post` | `<route/component/action>` | PENDING |
-| Hạch toán xuất | `/api/v1/outbound-documents/{id}/post-issue` | POST | `stock_document.post` | `<route/component/action>` | PENDING |
-| Xem reconciliation | `/api/v1/reports/inventory-reconciliation` | GET | `report.view` | `<route/component/action>` | PENDING |
-| Xem sản phẩm | `/api/v1/products` | GET | `product.view` | `<route/component/action>` | PENDING |
-| Quản lý sản phẩm | `/api/v1/products*` | POST/PATCH | `product.manage` | `<route/component/action>` | PENDING |
-| Quản lý SKU alias | `/api/v1/sku-aliases*` | write | `sku.manage` | `<route/component/action>` | PENDING |
+| FE action | API runtime | BE middleware | FE guard observed | BE disposition | FE1 result |
+|---|---|---|---|---|---|
+| Scan classify | `POST /api/v1/scan/classify` | `scan.classify` | `scan.classify` | Exact | PENDING |
+| Scan inbound | `POST /api/v1/inbound-documents/{id}/scan` | `stock_document.scan` | `scan.inbound` | Safe alias seeded; BE middleware canonical | PENDING |
+| Scan outbound | `POST /api/v1/outbound-documents/{id}/scan` | `stock_document.scan` | `scan.outbound` | Safe alias seeded; BE middleware canonical | PENDING |
+| Post receipt | `POST /api/v1/inbound-documents/{id}/post-receipt` | `stock_document.post` | `inbound.post` | Safe alias seeded; BE middleware canonical | PENDING |
+| Post issue | `POST /api/v1/outbound-documents/{id}/post-issue` | `stock_document.post` | `outbound.post` | Safe alias seeded; BE middleware canonical | PENDING |
+| Apply adjustment | `POST /api/v1/stocktake/sessions/{id}/apply-adjustment` | `stocktake.adjust` | `stocktake.adjust` | FE route alias added | PENDING |
+| Warranty TEMP_ONLY | `POST /api/v1/warranty-cases/{id}/temp-only` | `warranty.temp_only` | `warranty.temp_only` | Exact | PENDING |
+| Reconciliation | `GET /api/v1/reports/inventory-reconciliation` | `report.view` | `report.view` | Exact | PENDING |
+| Report export | `GET /api/v1/reports/inventory-xnt/export-excel` | `report.view` | `report.export` | FE narrower action alias; manager only | PENDING |
 
-## 3. Contract phải xác nhận
+Machine-readable source: `BE_FE_PERMISSION_MAPPING.json`.
 
-- Scan trả `stock_effect=NONE`, không tạo movement và không đổi trạng thái chứng từ.
-- Post receipt/issue bắt buộc `Idempotency-Key`; thiếu key trả `428 PRECONDITION_REQUIRED`.
-- Cùng key/cùng payload replay đúng response snapshot; FE không tự cộng tồn lần hai.
-- Cùng key/khác payload trả `409 IDEMPOTENCY_ERROR`.
-- Key khác khi chứng từ đã post trả `409 STATE_CONFLICT`.
-- `403 ACCESS_DENIED` phải ẩn/chặn action tương ứng, nhưng API vẫn là enforcement cuối cùng.
-- FE hiển thị lỗi từ `error.code`, không suy diễn từ message tự do.
+## 3. Contract assertions
 
-## 4. Kết quả review
+- Scan trả `stock_effect=NONE`, không tạo movement/balance/posting event.
+- Receipt/issue bắt buộc `Idempotency-Key`.
+- Missing/blank key: 428; invalid length: 422.
+- Same key/same payload replay exact response; FE không tự cộng/trừ tồn lần hai.
+- Same key/different payload: 409 `IDEMPOTENCY_ERROR`.
+- Different key khi document đã post: 409 `STATE_CONFLICT`.
+- Backend canonical middleware là enforcement cuối cùng.
+- Compatibility alias chỉ điều khiển FE route/action visibility.
+- `NO_PERMISSION` không nhận alias.
 
-- Reviewer FE1: `<họ tên/GitHub/Jira user>`
-- Review date/time: `<ISO-8601 +07:00>`
+## 4. FE1 independent result
+
+- Reviewer FE1: `<name/Jira user>`
+- Reviewed at: `<ISO-8601 +07:00>`
 - Exact BE SHA: `<sha>`
-- Artifact digest: `<SHA256SUMS.sha256>`
-- Exact FE SHA/version: `<sha/version>`
+- Exact FE SHA: `5cd10ec46021cecd24949075cb4eeefaa1fcc9b2`
+- CI run/artifact: `<url/name>`
+- Manifest digest: `<SHA256SUMS.sha256>`
+- Runtime environment/build: `<value>`
 - Result: `PASS | FAIL | CONDITIONAL`
-- Blockers/findings: `<danh sách hoặc NONE>`
-- Jira comment/evidence URL: `<url>`
+- Findings/blockers: `<NONE or IDs>`
+- Jira evidence URL: `<url>`
 
-Chỉ comment do FE1 thực hiện trên cùng exact BE SHA/artifact digest mới được tính là independent sign-off.
+Chỉ comment do FE1 thực hiện trên cùng exact SHA/digest mới được tính là independent sign-off.

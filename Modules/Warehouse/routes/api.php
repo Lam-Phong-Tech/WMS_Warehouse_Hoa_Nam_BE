@@ -83,7 +83,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('putaway/tasks', [WmsContractController::class, 'putawayTasks'])->middleware('permission:inventory.view');
     Route::get('putaway/history', [WmsContractController::class, 'putawayHistory'])->middleware('permission:inventory.view');
 
-    // Kiểm kê ba lớp. Giữ alias /stocktake/sessions cho FE cũ nhưng dùng cùng data-scope guard.
+    // Kiểm kê ba lớp. Giữ alias /stocktake/sessions cho FE nhưng dùng cùng controller và permission canonical.
     Route::get('stocktake/sessions', [StocktakeController::class, 'index'])->middleware('permission:inventory.view');
     Route::get('stocktake-sessions', [StocktakeController::class, 'index'])->middleware('permission:inventory.view');
     Route::post('stocktake-sessions', [StocktakeController::class, 'store'])->middleware('permission:stocktake.adjust');
@@ -94,6 +94,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('stocktake-sessions/{id}/acknowledge-movements', [StocktakeController::class, 'acknowledgeMovements'])->middleware('permission:stocktake.adjust');
     Route::get('stocktake-sessions/{id}/variances', [StocktakeController::class, 'variances'])->middleware('permission:inventory.view');
     Route::post('stocktake-sessions/{id}/apply-adjustment', [StocktakeController::class, 'applyAdjustment'])->middleware('permission:stocktake.adjust');
+    Route::post('stocktake/sessions/{id}/apply-adjustment', [StocktakeController::class, 'applyAdjustment'])->middleware('permission:stocktake.adjust');
 
     Route::get('reversal-documents', [WmsContractController::class, 'reversalDocuments'])->middleware('permission:stock_document.reverse');
     Route::get('warranty/cases', [WmsContractController::class, 'warrantyCases'])->middleware('permission:inventory.view');

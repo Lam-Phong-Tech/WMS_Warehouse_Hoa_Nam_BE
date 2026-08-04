@@ -44,6 +44,29 @@ jobs:
           composer install --no-interaction --prefer-dist --no-progress
           npm ci --ignore-scripts
 
+      - name: Generate ephemeral CI credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="W180-$(openssl rand -hex 24)"
+          jwt_secret="W180-JWT-$(openssl rand -hex 32)"
+          if [[ ${#password} -lt 32 || ${#jwt_secret} -lt 48 ]]; then
+            echo '::error::Unable to generate sufficiently strong ephemeral CI credentials.'
+            exit 1
+          fi
+
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt_secret"
+          {
+            printf 'CI_DEMO_PASSWORD=%s\n' "$password"
+            printf 'WWHN180_PASSWORD=%s\n' "$password"
+            printf 'WWHN180_NO_PERMISSION_PASSWORD=%s\n' "$password"
+            printf 'JWT_SECRET=%s\n' "$jwt_secret"
+          } >> "$GITHUB_ENV"
+
+          echo 'Ephemeral credential generated for this workflow run only.'
+          echo 'No repository secret or committed password is required by WWHN-180.'
+
       - name: Prepare deterministic environment
         shell: bash
         run: |
@@ -53,7 +76,7 @@ jobs:
           rm -f /tmp/wms-wwhn180.sqlite
           touch /tmp/wms-wwhn180.sqlite
           {
-            echo 'JWT_SECRET=ci-jwt-secret-wwhn180'
+            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
             echo 'DB_CONNECTION=sqlite'
             echo 'DB_DATABASE=/tmp/wms-wwhn180.sqlite'
             echo 'CACHE_STORE=array'
@@ -61,24 +84,6 @@ jobs:
             echo 'QUEUE_CONNECTION=sync'
             echo 'AUDIT_WRITE_POLICY=outbox_required'
           } >> .env
-
-      - name: Validate runtime-only Newman credentials
-        shell: bash
-        env:
-          WWHN180_PASSWORD: ${{ secrets.WWHN180_PASSWORD }}
-          WWHN180_NO_PERMISSION_PASSWORD: ${{ secrets.WWHN180_NO_PERMISSION_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${WWHN180_PASSWORD:-}" ]]; then
-            echo '::error::Missing repository secret WWHN180_PASSWORD for the seeded manager evidence account.'
-            exit 1
-          fi
-          if [[ -z "${WWHN180_NO_PERMISSION_PASSWORD:-}" ]]; then
-            echo '::error::Missing repository secret WWHN180_NO_PERMISSION_PASSWORD for the seeded no-permission evidence account.'
-            exit 1
-          fi
-          echo "::add-mask::$WWHN180_PASSWORD"
-          echo "::add-mask::$WWHN180_NO_PERMISSION_PASSWORD"
 
       - name: PHP syntax and formatting gate
         shell: bash
@@ -98,9 +103,7 @@ jobs:
         env:
           EVIDENCE_DIR: build/evidence/api-data
           WWHN180_EMAIL: manager01@gmail.com
-          WWHN180_PASSWORD: ${{ secrets.WWHN180_PASSWORD }}
           WWHN180_NO_PERMISSION_EMAIL: test-no-permission@hoanam.com
-          WWHN180_NO_PERMISSION_PASSWORD: ${{ secrets.WWHN180_NO_PERMISSION_PASSWORD }}
           DB_CONNECTION: sqlite
         run: bash scripts/collect-wwhn180-evidence.sh
 
@@ -120,6 +123,9 @@ jobs:
           const jsonFiles = [
             'route-list.raw.json',
             'permission-catalog.json',
+            'permission-catalog.static.json',
+            'be-fe-permission-mapping.json',
+            'credential-hygiene.json',
             'openapi.json',
             'wwhn180.postman.collection.json',
             'wwhn180.postman.environment.json',
@@ -148,6 +154,9 @@ jobs:
           if (metadata.document_status !== 'PROPOSED' || metadata.approval_status !== 'PENDING_INDEPENDENT_SIGN_OFF') {
             throw new Error('Evidence metadata contains an invalid approval claim');
           }
+          if (metadata.credential_mode !== 'EPHEMERAL_PER_WORKFLOW_RUN') {
+            throw new Error(`Unexpected credential mode ${metadata.credential_mode}`);
+          }
 
           const contract = JSON.parse(fs.readFileSync(`${root}/wwhn180-contract-verification.json`, 'utf8'));
           if (contract.summary?.status !== 'PASS' || contract.summary?.failed !== 0) {
@@ -167,7 +176,28 @@ jobs:
           }
           const catalog = JSON.parse(fs.readFileSync(`${root}/permission-catalog.json`, 'utf8'));
           if (catalog.integrity?.status !== 'PASS') {
-            throw new Error('Permission catalog integrity is not PASS');
+            throw new Error('Runtime permission catalog integrity is not PASS');
+          }
+          const staticCatalog = JSON.parse(fs.readFileSync(`${root}/permission-catalog.static.json`, 'utf8'));
+          if (staticCatalog.integrity?.status !== 'PASS') {
+            throw new Error('Static permission catalog integrity is not PASS');
+          }
+          const mapping = JSON.parse(fs.readFileSync(`${root}/be-fe-permission-mapping.json`, 'utf8'));
+          if (
+            mapping.integrity?.status !== 'PASS' ||
+            mapping.integrity?.unmapped_permission_rows !== 0 ||
+            mapping.integrity?.canonical_middleware_replaced_by_alias !== false ||
+            mapping.frontend_observed_source?.exact_commit_sha !== '5cd10ec46021cecd24949075cb4eeefaa1fcc9b2'
+          ) {
+            throw new Error('BE/FE permission mapping is not internally consistent or exact-SHA bound');
+          }
+          const hygiene = JSON.parse(fs.readFileSync(`${root}/credential-hygiene.json`, 'utf8'));
+          if (
+            hygiene.status !== 'PASS' ||
+            hygiene.residual_runtime_secret_count !== 0 ||
+            hygiene.residual_jwt_count !== 0
+          ) {
+            throw new Error('Credential hygiene verification is not PASS');
           }
           const closure = JSON.parse(fs.readFileSync(`${root}/g1-closure-matrix.json`, 'utf8'));
           if (closure.final_decision !== 'BLOCKED_PENDING_INDEPENDENT_SIGN_OFF') {
@@ -177,10 +207,11 @@ jobs:
 
           required_files=(
             openapi.json openapi.yaml wwhn180-openapi.yaml
-            route-list.raw.json permission-catalog.json
+            route-list.raw.json permission-catalog.json permission-catalog.static.json be-fe-permission-mapping.json
+            credential-hygiene.json
             phpunit.raw.log wwhn180-atomicity-phpunit.raw.log
             stock-document-canonical-phpunit.raw.log stock-document-concurrency-phpunit.raw.log
-            reconciliation-integrity-phpunit.raw.log
+            wwhn180-permission-alias-phpunit.raw.log reconciliation-integrity-phpunit.raw.log
             newman.raw.log newman.result.json
             db-before.json db-after.json wwhn180-db-delta.json reconciliation-report.json
             build-metadata.json g1-closure-matrix.json jira-closure-comment.txt ci-summary.md
