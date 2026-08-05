@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "jira_key": "WWHN-180",
   "parent_key": "WWHN-40",
   "status": "SOURCE_MAPPING_PASS_PENDING_INDEPENDENT_REVIEW",
@@ -17,18 +17,20 @@
   "frontend_observed_source": {
     "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
     "branch": "m1",
-    "exact_commit_sha": "5cd10ec46021cecd24949075cb4eeefaa1fcc9b2",
+    "exact_commit_sha": "f6e137d01ed7afec5d30e8fecde6a2cc31bb7c8b",
     "baseline_path": "docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json",
-    "baseline_git_blob_sha": "86cc8f024b1f520ebb355eb086f453d0438d3de1",
-    "task_document_path": "docs/Task_docs_Jira/WWHN-181.md",
-    "observation_date": "2026-08-04",
-    "authority_note": "Read-only source comparison by BE1; this is not FE1 independent sign-off."
+    "baseline_git_blob_sha": "656b3315cdb64d2c74e854cde8fdd896477e8c52",
+    "task_document_path": "docs/Task_docs_Jira/WWHN-153.md",
+    "observation_date": "2026-08-05",
+    "authority_note": "Read-only comparison against the latest FE handoff SHA recorded in Jira. The FE baseline is a WWHN-153 fail-closed control artifact; it does not replace FE1 independent review on WWHN-181.",
+    "baseline_task_key": "WWHN-153",
+    "review_task_key": "WWHN-181"
   },
   "rules": {
     "backend_enforcement": "Canonical permission in route middleware remains the authorization source of truth.",
     "frontend_alias": "Compatibility permissions are returned to FE for UX/action guards only.",
     "no_privilege_escalation": "Aliases are assigned only to roles already holding the corresponding canonical backend capability.",
-    "independent_signoff": "FE1 and BA must record reviewer/result/date on the exact BE SHA and FE SHA."
+    "independent_signoff": "FE1 and BA must record reviewer/result/date on the exact BE SHA, FE SHA and passing artifact digest; BE1 cannot self-sign."
   },
   "rows": [
     {
@@ -175,7 +177,8 @@
     "canonical_middleware_replaced_by_alias": false,
     "no_permission_role_alias_count_expected": 0,
     "automated_test": "tests/Feature/Wwhn180PermissionAliasContractTest.php",
-    "status": "PASS"
+    "status": "PASS",
+    "frontend_source_binding": "PASS_CURRENT_FE_HANDOFF_SHA"
   },
   "independent_review": {
     "FE1": {

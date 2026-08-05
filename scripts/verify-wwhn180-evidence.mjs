@@ -28,6 +28,7 @@ const paths = {
   aliasTest: 'tests/Feature/Wwhn180PermissionAliasContractTest.php',
   staticCatalog: 'docs/evidence/WWHN-180/permission-catalog.json',
   mapping: 'docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json',
+  sourceRegister: 'docs/docs_task_jira/WWHN-180-source-register.json',
 };
 
 const collection = JSON.parse(fs.readFileSync(collectionPath, 'utf8'));
@@ -45,6 +46,7 @@ const compatibilitySeederSource = fs.readFileSync(paths.compatibilitySeeder, 'ut
 const aliasTestSource = fs.readFileSync(paths.aliasTest, 'utf8');
 const staticPermissionCatalog = JSON.parse(fs.readFileSync(paths.staticCatalog, 'utf8'));
 const permissionMapping = JSON.parse(fs.readFileSync(paths.mapping, 'utf8'));
+const sourceRegister = JSON.parse(fs.readFileSync(paths.sourceRegister, 'utf8'));
 
 const flatten = (items, output = []) => {
   for (const item of items ?? []) {
@@ -178,6 +180,11 @@ const checks = {
   focused_openapi_reconciliation:
     operationHasContract('/api/v1/reports/inventory-reconciliation', 'get', 'report.view', 'NONE', ['200', '401', '403', '422']),
 
+  static_permission_catalog_current_fe_source:
+    staticPermissionCatalog.document_version === '1.7.0'
+    && staticPermissionCatalog.frontend_observed_source?.exact_commit_sha === sourceRegister.frontend_observed_source?.exact_commit_sha
+    && staticPermissionCatalog.frontend_observed_source?.baseline_git_blob_sha === sourceRegister.frontend_observed_source?.baseline_git_blob_sha
+    && staticPermissionCatalog.frontend_observed_source?.review_task_key === 'WWHN-181',
   static_permission_catalog_integrity_pass:
     staticPermissionCatalog.integrity?.status === 'PASS'
     && staticPermissionCatalog.integrity?.required_entry_count === 8
@@ -190,8 +197,10 @@ const checks = {
     && staticPermissionCatalog.ba_review?.result === 'PENDING',
 
   mapping_is_exact_fe_sha_bound:
-    permissionMapping.frontend_observed_source?.exact_commit_sha === '5cd10ec46021cecd24949075cb4eeefaa1fcc9b2'
-    && permissionMapping.frontend_observed_source?.baseline_git_blob_sha === '86cc8f024b1f520ebb355eb086f453d0438d3de1',
+    sourceRegister.version === '1.7.0'
+    && permissionMapping.frontend_observed_source?.exact_commit_sha === sourceRegister.frontend_observed_source?.exact_commit_sha
+    && permissionMapping.frontend_observed_source?.baseline_git_blob_sha === sourceRegister.frontend_observed_source?.baseline_git_blob_sha
+    && permissionMapping.frontend_observed_source?.review_task_key === 'WWHN-181',
   mapping_integrity_pass:
     permissionMapping.integrity?.status === 'PASS'
     && permissionMapping.integrity?.unmapped_permission_rows === 0
@@ -264,7 +273,7 @@ const failedChecks = Object.entries(checks)
   .map(([name]) => name);
 
 const output = {
-  schema_version: '1.5.0',
+  schema_version: '1.6.0',
   generated_at_utc: new Date().toISOString(),
   document_status: 'PROPOSED',
   approval_status: 'PENDING_INDEPENDENT_SIGN_OFF',
@@ -286,7 +295,9 @@ const output = {
     focused_openapi_json_path: focusedOpenApiJsonPath,
     focused_openapi_source_has_refs: focusedOpenApiSource.includes('$ref:'),
     static_permission_catalog_entry_count: permissionEntries.length,
+    source_register_version: sourceRegister.version ?? null,
     mapping_fe_exact_sha: permissionMapping.frontend_observed_source?.exact_commit_sha ?? null,
+    mapping_fe_baseline_blob_sha: permissionMapping.frontend_observed_source?.baseline_git_blob_sha ?? null,
     mapping_row_count: permissionMapping.integrity?.critical_rows ?? null,
   },
 };
