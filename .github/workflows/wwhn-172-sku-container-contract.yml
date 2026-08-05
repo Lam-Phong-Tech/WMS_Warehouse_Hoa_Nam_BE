@@ -54,7 +54,10 @@ jobs:
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
       FILESYSTEM_DISK: local
-      AUDIT_WRITE_POLICY: fail_closed
+      # Global default remains outbox_required. WWHN-172 mutations and their
+      # focused test explicitly force fail_closed, so the matrix verifies both
+      # audit policies instead of changing unrelated use-case semantics.
+      AUDIT_WRITE_POLICY: outbox_required
       DB_CONNECTION: ${{ matrix.database }}
       EVIDENCE_DIR: build/evidence/wwhn-172/${{ matrix.database }}
 

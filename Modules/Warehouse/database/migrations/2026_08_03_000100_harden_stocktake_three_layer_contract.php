@@ -19,6 +19,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        // MySQL may use the legacy composite unique index as the supporting
+        // index for stocktake_snapshot.session_id. Restore it before dropping
+        // the replacement dimension index, otherwise rollback can fail with
+        // ER_DROP_INDEX_FK (1553). Duplicate legacy grains block rollback.
+        $this->restoreLegacySnapshotUniqueIndex();
+
         $this->dropIndexIfExists('stocktake_session', 'idx_stocktake_session_warehouse_status');
         $this->dropIndexIfExists('stocktake_snapshot', 'uk_stocktake_snapshot_session_grain', true);
         $this->dropIndexIfExists('stocktake_snapshot', 'idx_stocktake_snapshot_dimension');
@@ -63,16 +69,6 @@ return new class extends Migration
                         $table->dropColumn($column);
                     }
                 }
-            });
-        }
-
-        if (Schema::hasTable('stocktake_snapshot')
-            && ! $this->hasIndex('stocktake_snapshot', 'uk_stocktake_snapshot_session_product_status')) {
-            Schema::table('stocktake_snapshot', function (Blueprint $table): void {
-                $table->unique(
-                    ['session_id', 'product_id', 'stock_status'],
-                    'uk_stocktake_snapshot_session_product_status'
-                );
             });
         }
     }
@@ -132,6 +128,10 @@ return new class extends Migration
         $this->backfillSkuGrain('stocktake_snapshot', 'snapshot_id');
         $this->assertRequiredGrain('stocktake_snapshot');
         $this->assertNoDuplicateGrain('stocktake_snapshot');
+
+        // Create a leading session_id index before removing the legacy unique.
+        // InnoDB may use that unique as the supporting index for the session FK.
+        $this->ensureSnapshotDimensionIndex();
         if ($this->hasIndex('stocktake_snapshot', 'uk_stocktake_snapshot_session_product_status')) {
             Schema::table('stocktake_snapshot', fn (Blueprint $table) => $table->dropUnique('uk_stocktake_snapshot_session_product_status'));
         }
@@ -141,9 +141,6 @@ return new class extends Migration
             $table->string('grain_key', 180)->nullable(false)->change();
             if (! $this->hasIndex('stocktake_snapshot', 'uk_stocktake_snapshot_session_grain')) {
                 $table->unique(['session_id', 'grain_key'], 'uk_stocktake_snapshot_session_grain');
-            }
-            if (! $this->hasIndex('stocktake_snapshot', 'idx_stocktake_snapshot_dimension')) {
-                $table->index(['session_id', 'product_id', 'stock_status'], 'idx_stocktake_snapshot_dimension');
             }
         });
     }
@@ -273,6 +270,50 @@ return new class extends Migration
                 $table->unique(['operation', 'idempotency_key'], 'uk_posting_event_operation_idem');
             });
         }
+    }
+
+    private function ensureSnapshotDimensionIndex(): void
+    {
+        if (! Schema::hasTable('stocktake_snapshot')
+            || $this->hasIndex('stocktake_snapshot', 'idx_stocktake_snapshot_dimension')) {
+            return;
+        }
+
+        Schema::table('stocktake_snapshot', function (Blueprint $table): void {
+            $table->index(
+                ['session_id', 'product_id', 'stock_status'],
+                'idx_stocktake_snapshot_dimension'
+            );
+        });
+    }
+
+    private function restoreLegacySnapshotUniqueIndex(): void
+    {
+        if (! Schema::hasTable('stocktake_snapshot')
+            || $this->hasIndex('stocktake_snapshot', 'uk_stocktake_snapshot_session_product_status')) {
+            return;
+        }
+
+        if (! DB::connection()->pretending()) {
+            $duplicate = DB::table('stocktake_snapshot')
+                ->select('session_id', 'product_id', 'stock_status')
+                ->groupBy('session_id', 'product_id', 'stock_status')
+                ->havingRaw('COUNT(*) > 1')
+                ->first();
+            if ($duplicate) {
+                throw new RuntimeException(
+                    'Rollback stocktake bị chặn: dữ liệu hiện có trùng session/product/status; '
+                    .'phải reconcile về legacy grain trước khi khôi phục unique constraint.'
+                );
+            }
+        }
+
+        Schema::table('stocktake_snapshot', function (Blueprint $table): void {
+            $table->unique(
+                ['session_id', 'product_id', 'stock_status'],
+                'uk_stocktake_snapshot_session_product_status'
+            );
+        });
     }
 
     private function backfillSkuGrain(string $table, string $primaryKey, bool $copyVariance = false): void

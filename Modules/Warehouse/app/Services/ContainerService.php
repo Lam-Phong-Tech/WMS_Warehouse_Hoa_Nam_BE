@@ -159,12 +159,16 @@ class ContainerService
                 ]);
             }
 
-            $itemCount = DB::table('container_item')
+            // Lock concrete rows rather than combining FOR UPDATE with COUNT().
+            // PostgreSQL rejects row locks on aggregate queries; ordering also
+            // preserves the deterministic aggregate lock order across engines.
+            $activeItemIds = DB::table('container_item')
                 ->where('container_id', $containerId)
                 ->where('status', 'ACTIVE')
+                ->orderBy('container_item_id')
                 ->lockForUpdate()
-                ->count();
-            if ($itemCount === 0) {
+                ->pluck('container_item_id');
+            if ($activeItemIds->isEmpty()) {
                 ApiError::abort(422, 'EMPTY_CONTAINER_CANNOT_SEAL', 'Container rỗng không được seal.');
             }
 
