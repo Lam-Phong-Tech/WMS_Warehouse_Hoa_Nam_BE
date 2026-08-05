@@ -1,22 +1,27 @@
 name: WWHN-172 Exact SHA DB Evidence
+
 on:
   push:
     branches: [m1]
   workflow_dispatch:
+
 permissions:
   contents: read
+
 concurrency:
   group: wwhn-172-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   evidence:
     name: ${{ matrix.database }} exact-SHA
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         database: [sqlite, pgsql, mysql]
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -25,14 +30,23 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports: ['5432:5432']
-        options: --health-cmd="pg_isready -U postgres -d wms_wwhn172_ci" --health-interval=10s --health-timeout=5s --health-retries=10
+        options: >-
+          --health-cmd="pg_isready -U postgres -d wms_wwhn172_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
       mysql:
         image: mysql:8.4
         env:
           MYSQL_DATABASE: wms_wwhn172_ci
           MYSQL_ROOT_PASSWORD: root
         ports: ['3306:3306']
-        options: --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot" --health-interval=10s --health-timeout=5s --health-retries=12
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
     env:
       APP_ENV: testing
       APP_DEBUG: 'false'
@@ -42,58 +56,107 @@ jobs:
       FILESYSTEM_DISK: local
       AUDIT_WRITE_POLICY: fail_closed
       DB_CONNECTION: ${{ matrix.database }}
+      EVIDENCE_DIR: build/evidence/wwhn-172/${{ matrix.database }}
+
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring,bcmath,sqlite3,pdo_sqlite,pgsql,pdo_pgsql,mysqli,pdo_mysql
           coverage: none
           tools: composer:v2
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - run: composer install --no-interaction --prefer-dist --no-progress
-      - run: npm ci --ignore-scripts
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+
       - name: Configure exact isolated environment
         shell: bash
         run: |
+          set -euo pipefail
           cp .env.example .env
           php artisan key:generate
           password="$(openssl rand -base64 36 | tr -d '\n')"
           jwt="$(openssl rand -base64 64 | tr -d '\n')"
-          echo "::add-mask::$password"; echo "::add-mask::$jwt"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
           echo "CI_DEMO_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "WWHN172_PASSWORD=$password" >> "$GITHUB_ENV"
           echo "JWT_SECRET=$jwt" >> "$GITHUB_ENV"
           case "${{ matrix.database }}" in
             sqlite)
-              rm -f /tmp/wms-wwhn172.sqlite; touch /tmp/wms-wwhn172.sqlite
-              echo 'DB_DATABASE=/tmp/wms-wwhn172.sqlite' >> "$GITHUB_ENV";;
+              rm -f /tmp/wms-wwhn172.sqlite
+              touch /tmp/wms-wwhn172.sqlite
+              echo 'DB_DATABASE=/tmp/wms-wwhn172.sqlite' >> "$GITHUB_ENV"
+              ;;
             pgsql)
-              echo 'DB_HOST=127.0.0.1' >> "$GITHUB_ENV"; echo 'DB_PORT=5432' >> "$GITHUB_ENV"; echo 'DB_DATABASE=wms_wwhn172_ci' >> "$GITHUB_ENV"; echo 'DB_USERNAME=postgres' >> "$GITHUB_ENV"; echo 'DB_PASSWORD=postgres' >> "$GITHUB_ENV";;
+              echo 'DB_HOST=127.0.0.1' >> "$GITHUB_ENV"
+              echo 'DB_PORT=5432' >> "$GITHUB_ENV"
+              echo 'DB_DATABASE=wms_wwhn172_ci' >> "$GITHUB_ENV"
+              echo 'DB_USERNAME=postgres' >> "$GITHUB_ENV"
+              echo 'DB_PASSWORD=postgres' >> "$GITHUB_ENV"
+              ;;
             mysql)
-              echo 'DB_HOST=127.0.0.1' >> "$GITHUB_ENV"; echo 'DB_PORT=3306' >> "$GITHUB_ENV"; echo 'DB_DATABASE=wms_wwhn172_ci' >> "$GITHUB_ENV"; echo 'DB_USERNAME=root' >> "$GITHUB_ENV"; echo 'DB_PASSWORD=root' >> "$GITHUB_ENV";;
+              echo 'DB_HOST=127.0.0.1' >> "$GITHUB_ENV"
+              echo 'DB_PORT=3306' >> "$GITHUB_ENV"
+              echo 'DB_DATABASE=wms_wwhn172_ci' >> "$GITHUB_ENV"
+              echo 'DB_USERNAME=root' >> "$GITHUB_ENV"
+              echo 'DB_PASSWORD=root' >> "$GITHUB_ENV"
+              ;;
           esac
-      - name: Static gates
+
+      - name: Static and contract gates
+        shell: bash
         run: |
-          find app Modules tests scripts -name '*.php' -print0 | xargs -0 -n1 php -l
-          bash -n scripts/collect-wwhn172-evidence.sh
-          git diff --check HEAD^
-          ./vendor/bin/pint --test app Modules tests scripts bootstrap config routes
-          npx redocly lint docs/api-contract/WWHN-172-sku-container-openapi.yaml
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          {
+            find app Modules tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+            php -l scripts/collect-wwhn172-db-snapshot.php
+            php -l scripts/collect-wwhn172-service-proof.php
+            php -l scripts/prepare-wwhn172-evidence.php
+            bash -n scripts/collect-wwhn172-evidence.sh
+            node --check scripts/run-wwhn172-concurrency.mjs
+            git diff --check HEAD^ HEAD
+            ./vendor/bin/pint --test \
+              app Modules tests bootstrap/app.php config routes \
+              scripts/collect-wwhn172-db-snapshot.php \
+              scripts/collect-wwhn172-service-proof.php \
+              scripts/prepare-wwhn172-evidence.php
+            npx redocly lint docs/api-contract/WWHN-172-sku-container-openapi.yaml
+            node -e "for (const f of process.argv.slice(1)) JSON.parse(require('fs').readFileSync(f, 'utf8'))" \
+              "docs/postman/WWHN-172 SKU Container Contract.postman_collection.json" \
+              "docs/postman/WWHN-172 SKU Container CI.postman_environment.json" \
+              docs/testing/WWHN-172-test-cases.json \
+              docs/docs_task_jira/WWHN-172-source-register.json
+          } 2>&1 | tee "$EVIDENCE_DIR/static-contract-gates.raw.log"
+
       - name: Collect runtime evidence
-        run: EVIDENCE_DIR="build/evidence/wwhn-172/${{ matrix.database }}" bash scripts/collect-wwhn172-evidence.sh
+        shell: bash
+        run: bash scripts/collect-wwhn172-evidence.sh
+
       - name: Verify manifest
-        run: cd "build/evidence/wwhn-172/${{ matrix.database }}" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256
+        shell: bash
+        run: |
+          cd "$EVIDENCE_DIR"
+          sha256sum --check SHA256SUMS
+          sha256sum --check SHA256SUMS.sha256
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: wwhn-172-evidence-${{ matrix.database }}-${{ github.sha }}
           path: build/evidence/wwhn-172/${{ matrix.database }}
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30

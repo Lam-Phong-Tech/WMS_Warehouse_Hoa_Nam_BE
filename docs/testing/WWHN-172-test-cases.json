@@ -1,30 +1,222 @@
 {
+  "schema_version": "2.0.0",
   "task": "WWHN-172",
   "parent": "WWHN-37",
   "dependency": "HN-MC-001-ST01",
-  "generated_at": "2026-08-03T19:00:00+07:00",
-  "execution_status": "NOT_EXECUTED_IN_CONNECTOR_SESSION",
-  "execution_note": "Run against the exact m1 commit and attach raw PHPUnit/Postman/DB logs before QA sign-off.",
+  "assessment_reference_sha_prefix": "376c14f",
+  "execution_status": "AUTOMATED_SOURCE_READY_EXACT_SHA_CI_REQUIRED",
+  "execution_note": "Kết quả PASS/FAIL chỉ hợp lệ khi lấy từ artifact của final exact SHA trên m1; file nguồn này không tự chứng nhận QA/BE2/DBA.",
+  "evidence_mapping": {
+    "phpunit_aggregate": "phpunit-aggregate.raw.log + phpunit-aggregate.junit.xml",
+    "phpunit_audit": "phpunit-audit.raw.log + phpunit-audit.junit.xml",
+    "phpunit_import": "phpunit-import.raw.log + phpunit-import.junit.xml",
+    "phpunit_migration": "phpunit-migration.raw.log + phpunit-migration.junit.xml",
+    "phpunit_full": "phpunit-full.raw.log + phpunit-full.junit.xml",
+    "newman": "newman.raw.log + newman.junit.xml",
+    "race": "concurrency-report.json on PostgreSQL and MySQL",
+    "database": "db-before.json + db-after.json + service-proof.json",
+    "migration": "migration-pretend/preflight/rollback/reapply/postcheck artifacts"
+  },
   "test_cases": [
-    {"id":"WWHN172-TC-001","severity":"P0","area":"SKU transaction","scenario":"Create SKU with valid component and physical code","expected":"201; products, component, code, audit and idempotency snapshot commit together"},
-    {"id":"WWHN172-TC-002","severity":"P0","area":"Idempotency","scenario":"Retry exact SKU create with same key and canonical payload","expected":"Exact response replay; no duplicate rows or audit; Idempotent-Replay=true"},
-    {"id":"WWHN172-TC-003","severity":"P0","area":"Idempotency","scenario":"Reuse same key with changed SKU payload","expected":"409 IDEMPOTENCY_ERROR; no business side effect"},
-    {"id":"WWHN172-TC-004","severity":"P0","area":"Component graph","scenario":"Create direct self reference","expected":"422 SKU_COMPONENT_SELF_REFERENCE; full rollback"},
-    {"id":"WWHN172-TC-005","severity":"P0","area":"Component graph","scenario":"Create transitive cycle A->B->C->A","expected":"422 SKU_COMPONENT_CYCLE; edge, version and audit unchanged"},
-    {"id":"WWHN172-TC-006","severity":"P1","area":"Component constraint","scenario":"Duplicate component or quantity <= 0","expected":"422; no duplicate or invalid row"},
-    {"id":"WWHN172-TC-007","severity":"P0","area":"Physical code ownership","scenario":"Two concurrent SKUs assign one physical code","expected":"One commits; loser 409 PHYSICAL_CODE_ALREADY_ASSIGNED"},
-    {"id":"WWHN172-TC-008","severity":"P1","area":"SKU concurrency","scenario":"Two updates use the same SKU version","expected":"One commits and increments once; loser 409 SKU_VERSION_CONFLICT"},
-    {"id":"WWHN172-TC-009","severity":"P0","area":"Audit atomicity","scenario":"Force both audit and audit-outbox write failure","expected":"Business transaction fails; aggregate rows roll back"},
-    {"id":"WWHN172-TC-010","severity":"P0","area":"Container transaction","scenario":"Create container with valid bulk item","expected":"Root, items, audit and snapshot commit together"},
-    {"id":"WWHN172-TC-011","severity":"P0","area":"Container rollback","scenario":"Duplicate item_key in create payload","expected":"422 DUPLICATE_CONTAINER_ITEM; root, item and audit absent"},
-    {"id":"WWHN172-TC-012","severity":"P0","area":"Serial ownership","scenario":"Two containers claim one active serial concurrently","expected":"One commits; loser 409 SERIAL_ALREADY_CONTAINERIZED"},
-    {"id":"WWHN172-TC-013","severity":"P1","area":"Serial state","scenario":"Containerize ISSUED or RETURNED_TO_CUSTOMER serial","expected":"409 SERIAL_NOT_CONTAINERIZABLE"},
-    {"id":"WWHN172-TC-014","severity":"P1","area":"Warehouse boundary","scenario":"Container and serial or parent use different warehouses","expected":"422 warehouse mismatch; no mutation"},
-    {"id":"WWHN172-TC-015","severity":"P0","area":"Container hierarchy","scenario":"Create self-parent or transitive parent cycle","expected":"422; hierarchy unchanged"},
-    {"id":"WWHN172-TC-016","severity":"P0","area":"Seal transition","scenario":"Seal empty container","expected":"422 EMPTY_CONTAINER_CANNOT_SEAL"},
-    {"id":"WWHN172-TC-017","severity":"P0","area":"Seal immutability","scenario":"Update items, location or parent after SEALED","expected":"409 CONTAINER_IMMUTABLE; no row changes"},
-    {"id":"WWHN172-TC-018","severity":"P1","area":"Container concurrency","scenario":"Two updates use the same container version","expected":"One commits; loser 409 CONTAINER_VERSION_CONFLICT"},
-    {"id":"WWHN172-TC-019","severity":"P1","area":"RBAC","scenario":"Missing permission or unauthenticated","expected":"403 or 401; no data or audit side effect"},
-    {"id":"WWHN172-TC-020","severity":"P1","area":"Error contract","scenario":"Trigger validation and business conflicts","expected":"Canonical envelope with request_id; no secret, SQL, file path or stack trace"}
+    {
+      "id": "WWHN172-TC-001",
+      "severity": "P0",
+      "area": "SKU transaction",
+      "automation": "Wwhn172SkuContainerTransactionTest",
+      "scenario": "Create SKU with valid component and physical code",
+      "expected": "201; products, component, code, audit and idempotency snapshot commit together"
+    },
+    {
+      "id": "WWHN172-TC-002",
+      "severity": "P0",
+      "area": "Idempotency",
+      "automation": "PHPUnit + Newman",
+      "scenario": "Retry exact SKU create with same key and canonical payload",
+      "expected": "Exact response replay; no duplicate rows or audit; Idempotent-Replay=true"
+    },
+    {
+      "id": "WWHN172-TC-003",
+      "severity": "P0",
+      "area": "Idempotency",
+      "automation": "PHPUnit + Newman",
+      "scenario": "Reuse same key with changed SKU payload",
+      "expected": "409 IDEMPOTENCY_ERROR; no business side effect"
+    },
+    {
+      "id": "WWHN172-TC-004",
+      "severity": "P0",
+      "area": "Component graph",
+      "automation": "PHPUnit",
+      "scenario": "Create direct self reference",
+      "expected": "422 SKU_COMPONENT_SELF_REFERENCE; full rollback"
+    },
+    {
+      "id": "WWHN172-TC-005",
+      "severity": "P0",
+      "area": "Component graph",
+      "automation": "PHPUnit",
+      "scenario": "Create transitive cycle A->B->C->A",
+      "expected": "422 SKU_COMPONENT_CYCLE; edge, version and audit unchanged"
+    },
+    {
+      "id": "WWHN172-TC-006",
+      "severity": "P1",
+      "area": "Component constraint",
+      "automation": "PHPUnit",
+      "scenario": "Duplicate component or quantity <= 0",
+      "expected": "422; no duplicate or invalid row"
+    },
+    {
+      "id": "WWHN172-TC-007",
+      "severity": "P0",
+      "area": "Physical code race",
+      "automation": "Node multi-worker race on PostgreSQL/MySQL",
+      "scenario": "Two concurrent SKUs assign one physical code",
+      "expected": "One commits; loser 409 ownership/unique conflict; no double ownership"
+    },
+    {
+      "id": "WWHN172-TC-008",
+      "severity": "P1",
+      "area": "SKU concurrency",
+      "automation": "Node multi-worker race + PHPUnit",
+      "scenario": "Two updates use the same SKU version",
+      "expected": "One commits and increments once; loser 409 SKU_VERSION_CONFLICT"
+    },
+    {
+      "id": "WWHN172-TC-009",
+      "severity": "P0",
+      "area": "Audit atomicity",
+      "automation": "Wwhn172AuditFailClosedTest",
+      "scenario": "Force audit write failure under fail-closed policy",
+      "expected": "500 canonical error; business/audit/outbox/idempotency all roll back; no stack trace"
+    },
+    {
+      "id": "WWHN172-TC-010",
+      "severity": "P0",
+      "area": "Container transaction",
+      "automation": "PHPUnit + Newman",
+      "scenario": "Create container with valid bulk item",
+      "expected": "Root, items, audit and snapshot commit together"
+    },
+    {
+      "id": "WWHN172-TC-011",
+      "severity": "P0",
+      "area": "Container rollback",
+      "automation": "PHPUnit",
+      "scenario": "Duplicate item_key in create payload",
+      "expected": "422 DUPLICATE_CONTAINER_ITEM; root, item and audit absent"
+    },
+    {
+      "id": "WWHN172-TC-012",
+      "severity": "P0",
+      "area": "Serial ownership race",
+      "automation": "Node multi-worker race on PostgreSQL/MySQL",
+      "scenario": "Two containers claim one active serial concurrently",
+      "expected": "One commits; loser 409 serial ownership/unique conflict"
+    },
+    {
+      "id": "WWHN172-TC-013",
+      "severity": "P1",
+      "area": "Serial state",
+      "automation": "PHPUnit/service guard",
+      "scenario": "Containerize non-containerizable serial",
+      "expected": "409 SERIAL_NOT_CONTAINERIZABLE; no mutation"
+    },
+    {
+      "id": "WWHN172-TC-014",
+      "severity": "P1",
+      "area": "Warehouse boundary",
+      "automation": "PHPUnit/service guard",
+      "scenario": "Container and serial or parent use different warehouses",
+      "expected": "422 warehouse mismatch; no mutation"
+    },
+    {
+      "id": "WWHN172-TC-015",
+      "severity": "P0",
+      "area": "Container hierarchy",
+      "automation": "PHPUnit/service guard",
+      "scenario": "Create self-parent or transitive parent cycle",
+      "expected": "422; hierarchy unchanged"
+    },
+    {
+      "id": "WWHN172-TC-016",
+      "severity": "P0",
+      "area": "Seal transition",
+      "automation": "PHPUnit + Newman",
+      "scenario": "Seal empty container",
+      "expected": "422 EMPTY_CONTAINER_CANNOT_SEAL"
+    },
+    {
+      "id": "WWHN172-TC-017",
+      "severity": "P0",
+      "area": "Seal immutability",
+      "automation": "PHPUnit + Newman",
+      "scenario": "Update items, location or parent after SEALED",
+      "expected": "409 CONTAINER_IMMUTABLE; no row changes"
+    },
+    {
+      "id": "WWHN172-TC-018",
+      "severity": "P1",
+      "area": "Container concurrency",
+      "automation": "PHPUnit/service guard",
+      "scenario": "Two updates use the same container version",
+      "expected": "One commits; loser 409 CONTAINER_VERSION_CONFLICT"
+    },
+    {
+      "id": "WWHN172-TC-019",
+      "severity": "P1",
+      "area": "RBAC",
+      "automation": "Full PHPUnit regression",
+      "scenario": "Missing permission or unauthenticated",
+      "expected": "403 or 401; no business/audit side effect"
+    },
+    {
+      "id": "WWHN172-TC-020",
+      "severity": "P1",
+      "area": "Error contract",
+      "automation": "Audit PHPUnit + Newman",
+      "scenario": "Trigger validation, business conflict and forced internal failure",
+      "expected": "Canonical envelope with request_id; no secret, SQL, file path or stack trace"
+    },
+    {
+      "id": "WWHN172-TC-021",
+      "severity": "P1",
+      "area": "Import validation",
+      "automation": "Wwhn174SkuImportValidationTest",
+      "scenario": "File contains duplicate, invalid enum/boolean and inactive SKU",
+      "expected": "422; committed=false; inserted_rows=0; updated_rows=0; DB/audit unchanged"
+    },
+    {
+      "id": "WWHN172-TC-022",
+      "severity": "P1",
+      "area": "Migration safety",
+      "automation": "Wwhn172MigrationSafetyTest + CLI preflight",
+      "scenario": "Legacy duplicate serial claim exists before hardening",
+      "expected": "Preflight BLOCKED with violation count; deployment cannot proceed"
+    },
+    {
+      "id": "WWHN172-TC-023",
+      "severity": "P2",
+      "area": "Aggregate response",
+      "automation": "PHPUnit + Newman",
+      "scenario": "Read SKU/container after successful mutation",
+      "expected": "Nested components/physical_codes/items and version are returned consistently"
+    },
+    {
+      "id": "WWHN172-TC-024",
+      "severity": "P2",
+      "area": "Backward compatibility",
+      "automation": "Newman",
+      "scenario": "Legacy POST /v1/skus without Idempotency-Key",
+      "expected": "201 remains supported; new mutations keep strict idempotency/version rules"
+    },
+    {
+      "id": "WWHN172-TC-025",
+      "severity": "P2",
+      "area": "Evidence integrity",
+      "automation": "CI SHA256 verification",
+      "scenario": "Verify every artifact and the manifest itself",
+      "expected": "sha256sum --check passes for SHA256SUMS and SHA256SUMS.sha256"
+    }
   ]
 }

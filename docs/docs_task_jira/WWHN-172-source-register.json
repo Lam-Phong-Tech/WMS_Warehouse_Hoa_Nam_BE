@@ -1,53 +1,101 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "2.0.0",
   "task": "WWHN-172",
   "branch": "m1",
-  "status": "PROPOSED_PENDING_EXACT_SHA_CI_AND_INDEPENDENT_SIGNOFF",
+  "status": "REMEDIATION_SOURCE_COMPLETE_PENDING_FINAL_EXACT_SHA_CI_AND_INDEPENDENT_SIGNOFF",
+  "assessment_reference_sha_prefix": "376c14f",
+  "assessment_sha_note": "376c14f... là provenance của lần đánh giá. Sau remediation, mọi PASS phải tham chiếu final exact commit SHA mới và artifact hash tương ứng.",
   "architecture_baseline": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+  "api_contract_version": "1.0.0",
+  "evidence_bundle_schema": "2.0.0",
   "sources": [
     {
       "path": "docs/api-contract/WWHN-172-sku-container-openapi.yaml",
-      "version": "CANONICAL_BASE_PLUS_EXACT_SHA_HASH",
-      "role": "OpenAPI source contract",
-      "sha256": "CALCULATED_BY_CI"
+      "version": "1.0.0",
+      "role": "Canonical OpenAPI contract",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
     },
     {
       "path": "docs/postman/WWHN-172 SKU Container Contract.postman_collection.json",
-      "version": "CANONICAL_BASE_PLUS_EXACT_SHA_HASH",
-      "role": "API executable contract",
-      "sha256": "CALCULATED_BY_CI"
+      "version": "2.1 collection schema",
+      "role": "Executable API contract",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
+    },
+    {
+      "path": "docs/postman/WWHN-172 SKU Container CI.postman_environment.json",
+      "version": "1.0.0",
+      "role": "Secret-free CI environment; runtime token/fixture injection",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
     },
     {
       "path": "docs/testing/WWHN-172-test-cases.json",
-      "version": "CANONICAL_BASE_PLUS_EXACT_SHA_HASH",
-      "role": "P0/P1/P2 test register",
-      "sha256": "CALCULATED_BY_CI"
+      "version": "2.0.0",
+      "role": "P0/P1/P2 test and evidence register",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
+    },
+    {
+      "path": "scripts/run-wwhn172-concurrency.mjs",
+      "version": "1.0.0",
+      "role": "PostgreSQL/MySQL multi-worker race gate",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
+    },
+    {
+      "path": "scripts/collect-wwhn172-evidence.sh",
+      "version": "2.0.0",
+      "role": "Exact-SHA evidence collector",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
+    },
+    {
+      "path": "scripts/prepare-wwhn172-evidence.php",
+      "version": "2.0.0",
+      "role": "Deterministic fixture generator with fixture hashes",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
+    },
+    {
+      "path": "scripts/collect-wwhn172-service-proof.php",
+      "version": "2.0.0",
+      "role": "Business/audit/idempotency transaction proof",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
     },
     {
       "path": "Modules/Warehouse/database/migrations/2026_08_04_000220_harden_wwhn172_serial_and_code_uniqueness.php",
       "version": "1.0.0",
-      "role": "Migration safety, mutex and unique guard",
-      "sha256": "CALCULATED_BY_CI"
-    },
-    {
-      "path": "scripts/collect-wwhn172-evidence.sh",
-      "version": "1.0.0",
-      "role": "Exact-SHA evidence collector",
-      "sha256": "CALCULATED_BY_CI"
+      "role": "Migration hardening and unique guards",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
     },
     {
       "path": ".github/workflows/wwhn-172-sku-container-contract.yml",
-      "version": "1.0.0",
-      "role": "SQLite/PostgreSQL/MySQL matrix gate",
-      "sha256": "CALCULATED_BY_CI"
+      "version": "2.0.0",
+      "role": "SQLite/PostgreSQL/MySQL exact-SHA gate",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-172.md",
+      "version": "2.0.0",
+      "role": "Jira technical handoff and closure matrix",
+      "sha256": "CALCULATED_BY_EXACT_SHA_CI"
     }
   ],
+  "artifact_contract": {
+    "name": "wwhn-172-evidence-{database}-{exact_commit_sha}",
+    "engines": [
+      "sqlite",
+      "pgsql",
+      "mysql"
+    ],
+    "required_index": "evidence-index.json",
+    "required_metadata": "build-metadata.json",
+    "required_manifest": [
+      "SHA256SUMS",
+      "SHA256SUMS.sha256"
+    ],
+    "retention_days": 30
+  },
   "reviewers_required": [
-    "QA1",
-    "QA2",
-    "BE2",
-    "Tech Lead",
+    "QA1 (WWHN-173)",
+    "QA2 (WWHN-174)",
+    "BE2 + Tech Lead (WWHN-171)",
     "DevOps/DBA"
   ],
-  "formal_closure_rule": "Không chuyển Done/Approved chỉ dựa trên file do BE1 tự ghi. Jira sign-off phải reference exact commit SHA, CI run URL, engine artifact và SHA256SUMS."
+  "formal_closure_rule": "BE1 không tự ký thay reviewer. Chỉ chuyển Done/Approved khi Jira comment của từng reviewer tham chiếu final exact SHA, CI run URL, engine artifact, evidence group và hash manifest."
 }

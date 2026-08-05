@@ -21,8 +21,11 @@ if ($password === '') {
 }
 
 $fixtureDir = $evidenceDir.'/fixtures';
-if (! is_dir($fixtureDir) && ! mkdir($fixtureDir, 0755, true) && ! is_dir($fixtureDir)) {
-    throw new RuntimeException("Không tạo được {$fixtureDir}");
+if (is_dir($fixtureDir) === false) {
+    $created = mkdir($fixtureDir, 0755, true);
+    if ($created === false && is_dir($fixtureDir) === false) {
+        throw new RuntimeException("Không tạo được {$fixtureDir}");
+    }
 }
 
 $component = Product::query()->updateOrCreate(
@@ -83,16 +86,20 @@ DB::table('inventory_serials')->updateOrInsert(
         'updated_at' => now(),
     ]
 );
-$serialId = (string) DB::table('inventory_serials')->where('serial_no', 'W172-SERIAL-0001')->value('id');
+$serialId = (string) DB::table('inventory_serials')
+    ->where('serial_no', 'W172-SERIAL-0001')
+    ->value('id');
 
 $writeXlsx = static function (string $path, array $headers, array $rows): void {
-    $spreadsheet = new Spreadsheet();
+    $spreadsheet = new Spreadsheet;
     $sheet = $spreadsheet->getActiveSheet();
     $sheet->fromArray($headers, null, 'A1');
     foreach ($rows as $index => $row) {
         $sheet->fromArray($row, null, 'A'.($index + 2));
     }
-    (new Xlsx($spreadsheet))->save($path);
+
+    $writer = new Xlsx($spreadsheet);
+    $writer->save($path);
     $spreadsheet->disconnectWorksheets();
 };
 
@@ -119,8 +126,10 @@ $writeXlsx(
 );
 
 $metadata = [
+    'schema_version' => '2.0.0',
     'task' => 'WWHN-172',
     'generated_at' => now()->toIso8601String(),
+    'database_driver' => DB::getDriverName(),
     'component_id' => (string) $component->id,
     'product_id' => (string) $bulkProduct->id,
     'serial_product_id' => (string) $serialProduct->id,
@@ -131,5 +140,8 @@ $metadata = [
 ];
 file_put_contents(
     $evidenceDir.'/fixture-metadata.json',
-    json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).PHP_EOL
+    json_encode(
+        $metadata,
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+    ).PHP_EOL,
 );

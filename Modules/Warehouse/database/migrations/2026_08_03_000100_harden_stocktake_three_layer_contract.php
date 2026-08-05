@@ -322,6 +322,14 @@ return new class extends Migration
 
     private function assertRequiredGrain(string $table): void
     {
+        // During `artisan migrate --pretend`, schema SQL is logged but not applied.
+        // Runtime data assertions must remain fail-closed for real migrations only;
+        // otherwise Schema::hasColumn() observes the pre-migration schema and creates
+        // a false blocker on every supported database engine.
+        if (DB::connection()->pretending()) {
+            return;
+        }
+
         foreach (['grain_type', 'grain_id', 'grain_key'] as $column) {
             if (! Schema::hasColumn($table, $column) || DB::table($table)->whereNull($column)->exists()) {
                 throw new RuntimeException("{$table}.{$column} còn NULL; phải backfill/reconcile trước khi đặt NOT NULL.");

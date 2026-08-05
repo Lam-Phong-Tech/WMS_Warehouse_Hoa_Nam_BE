@@ -3,6 +3,8 @@ info:
   title: WWHN-172 SKU and Container Contract
   version: 1.0.0
   description: Atomic transaction, audit, idempotency and optimistic-concurrency contract.
+  license:
+    name: Proprietary - Hoa Nam WMS Internal Use
 servers:
   - url: /api
 security:
@@ -10,6 +12,7 @@ security:
 paths:
   /v1/skus:
     post:
+      operationId: createSku
       tags: [SKU]
       summary: Create SKU, components and physical codes atomically
       parameters:
@@ -28,10 +31,12 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SkuEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
   /v1/skus/{id}:
     get:
+      operationId: getSku
       tags: [SKU]
       summary: Get aggregate SKU detail
       parameters: [{ $ref: '#/components/parameters/Id' }]
@@ -41,8 +46,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SkuEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
+      operationId: updateSku
       tags: [SKU]
       summary: Update aggregate using optimistic concurrency
       parameters:
@@ -60,11 +67,13 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SkuEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
         '428': { $ref: '#/components/responses/Precondition' }
   /v1/skus/{id}/physical-codes:
     post:
+      operationId: assignSkuPhysicalCode
       tags: [SKU]
       summary: Assign or reactivate a physical code
       parameters:
@@ -83,11 +92,13 @@ paths:
                     version: { type: integer, minimum: 1 }
       responses:
         '200': { description: Assigned }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
         '428': { $ref: '#/components/responses/Precondition' }
   /v1/skus/{id}/physical-codes/{physicalCodeId}:
     delete:
+      operationId: revokeSkuPhysicalCode
       tags: [SKU]
       summary: Revoke a physical code
       parameters:
@@ -100,10 +111,12 @@ paths:
         - $ref: '#/components/parameters/IfMatch'
       responses:
         '200': { description: Revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '428': { $ref: '#/components/responses/Precondition' }
   /v1/containers:
     get:
+      operationId: listContainers
       tags: [Container]
       summary: List containers
       parameters:
@@ -113,7 +126,9 @@ paths:
         - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
       responses:
         '200': { description: Paginated list }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     post:
+      operationId: createContainer
       tags: [Container]
       summary: Create container and item set atomically
       parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
@@ -128,11 +143,13 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ContainerEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
         '428': { $ref: '#/components/responses/Precondition' }
   /v1/containers/{id}:
     get:
+      operationId: getContainer
       tags: [Container]
       summary: Get container and active items
       parameters: [{ $ref: '#/components/parameters/Id' }]
@@ -142,8 +159,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ContainerEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
+      operationId: updateContainer
       tags: [Container]
       summary: Update mutable container aggregate
       parameters:
@@ -157,11 +176,13 @@ paths:
             schema: { $ref: '#/components/schemas/ContainerUpdate' }
       responses:
         '200': { description: Updated }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
         '428': { $ref: '#/components/responses/Precondition' }
   /v1/containers/{id}/seal:
     post:
+      operationId: sealContainer
       tags: [Container]
       summary: Seal an ACTIVE non-empty container
       parameters:
@@ -178,6 +199,7 @@ paths:
                 version: { type: integer, minimum: 1 }
       responses:
         '200': { description: Sealed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
         '428': { $ref: '#/components/responses/Precondition' }
@@ -216,7 +238,10 @@ components:
       required: [component_id, quantity]
       properties:
         component_id: { type: string, format: uuid }
-        quantity: { type: number, exclusiveMinimum: 0 }
+        quantity:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
     PhysicalCode:
       type: object
       required: [code_value]
@@ -255,7 +280,10 @@ components:
       properties:
         inventory_serial_id: { type: string, format: uuid, nullable: true }
         product_id: { type: string, format: uuid, nullable: true }
-        quantity: { type: number, exclusiveMinimum: 0 }
+        quantity:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
     ContainerWrite:
       type: object
       required: [container_code, container_type, items]
@@ -303,6 +331,11 @@ components:
         error: { type: object, additionalProperties: true }
         meta: { type: object, additionalProperties: true }
   responses:
+    Unauthorized:
+      description: Missing, invalid or expired bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
     Conflict:
       description: Idempotency, ownership, state or version conflict
       content:

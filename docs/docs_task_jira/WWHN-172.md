@@ -1,131 +1,270 @@
-# WWHN-172 — Ràng buộc, audit và ranh giới giao dịch
+# WWHN-172 — Handoff kỹ thuật SKU/component/mã vật lý/container
 
-- **Version:** 1.1.0
-- **Branch:** `m1`
-- **Baseline:** `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`
-- **Parent:** WWHN-37
-- **Review dependencies:** WWHN-171 (BE2), WWHN-173 (QA1), WWHN-174 (QA2), Tech Lead, DevOps/DBA
-- **Status:** implementation/evidence pipeline complete; chờ exact-SHA CI và sign-off độc lập.
+> Phiên bản hồ sơ: **2.1.0**
+> Nhánh triển khai duy nhất: **`m1`**
+> Architecture baseline: `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`
+> Assessment reference: **80/100 — PASS có điều kiện**, SHA prefix tham chiếu `376c14f...`
 
-## 1. Thay đổi kỹ thuật chính
+## 1. Nguyên tắc xác minh
 
-### Transaction/race guard
+`376c14f...` chỉ là provenance của lần đánh giá. Bộ remediation làm thay đổi source nên không được dùng hash cũ để ký PASS. Kết quả hợp lệ phải gắn với:
 
-`App\Http\Middleware\Wwhn172AggregateLock` được prepend toàn cục nhưng chỉ khóa mutation dưới `/api/v1/skus*` và `/api/v1/containers*`. Mutex row chạy trong DB transaction trên SQLite/PostgreSQL/MySQL, giải quyết race tại thời điểm object/edge chưa tồn tại: opposite graph edge, physical-code claim, serial/container claim và concurrent aggregate mutation.
+1. final exact commit SHA trên `m1`;
+2. GitHub Actions run URL của exact SHA đó;
+3. artifact theo từng DB engine;
+4. `build-metadata.json`, `evidence-index.json`, `SHA256SUMS`, `SHA256SUMS.sha256`;
+5. comment PASS/FAIL độc lập của đúng reviewer.
 
-Các service hiện có tiếp tục giữ row lock, expected version, DAG/hierarchy validation, idempotency snapshot và audit trong cùng commit unit.
+BE1 không tự đánh dấu PASS thay QA1, QA2, BE2, Tech Lead hoặc DBA/DevOps.
 
-### Import all-or-nothing
+## 2. Baseline kiến trúc đã áp dụng
 
-Lỗi runtime cũ: `ImportController` gọi `AuditLogger::record(metadata: ...)` dù method không có tham số `metadata`; lỗi có thể xảy ra sau partial write.
+Triển khai giữ đúng modular monolith Laravel và ranh giới ghi dữ liệu trong architecture guide:
 
-Đã sửa:
+- controller mỏng; validation/request → service/use case → persistence;
+- mutation SKU/container/import chạy trong transaction;
+- lock order xác định và optimistic version guard;
+- idempotency key lưu canonical request hash và response snapshot;
+- audit/audit-outbox nằm trong cùng commit boundary, policy `fail_closed`;
+- error envelope không lộ secret, SQL, file path hoặc stack trace;
+- OpenAPI/Postman/test-case là contract nguồn và được hash trong CI;
+- full PHPUnit chạy trên toàn repository để phát hiện regression ngoài WWHN-172.
 
-- controller chỉ orchestration/response/temp-file cleanup;
-- `ImportService` chạy hai pha `validate toàn file -> DB lock/recheck -> write toàn bộ`;
-- map theo **tên header**, không theo vị trí;
-- reject unknown/duplicate/missing header;
-- enum/boolean strict, không silent coercion;
-- duplicate trong file/DB, inactive SKU hoặc identity collision làm `committed=false`, `partial_write=false`, zero business side effect;
-- `update_existing=true` chỉ update SKU ACTIVE và tăng version một lần;
-- per-row audit và summary audit nằm trong cùng transaction.
+## 3. Phạm vi nghiệp vụ đã harden
 
-### Audit và error safety
+### 3.1 SKU aggregate
 
-- Mutation WWHN-172 ép `audit.write_policy=fail_closed` theo request và restore trong `finally`.
-- Audit failure rollback business row, idempotency row và outbox.
-- API 500 không trả `exception/file/line/trace`, kể cả `APP_DEBUG=true`.
-- Unique race được chuẩn hóa thành 409 `UNIQUE_CONSTRAINT_CONFLICT`, không lộ SQL/binding.
+Atomic boundary:
 
-## 2. Migration safety
-
-Migration:
-
-`Modules/Warehouse/database/migrations/2026_08_04_000220_harden_wwhn172_serial_and_code_uniqueness.php`
-
-Nội dung:
-
-- tạo `aggregate_mutexes`;
-- chạy `Wwhn172MigrationInspector` trước DDL và BLOCK nếu legacy data vi phạm;
-- unique `container_item.inventory_serial_id`;
-- unique `container.physical_code_id`;
-- check self-component, positive quantity và container-item identity trên PostgreSQL/MySQL;
-- không nuốt lỗi DDL;
-- có command preflight:
-
-```bash
-php artisan wwhn172:migration-preflight --output=build/evidence/wwhn-172/preflight.json
+```text
+products
++ sku_component
++ physical_code
++ audit_log / audit_outbox
++ idempotency response snapshot
 ```
 
-CI chạy `migrate --pretend`, `migrate:fresh`, preflight, rollback một step, re-apply và postcheck trên SQLite/PostgreSQL/MySQL.
+Guard bắt buộc:
 
-## 3. Runtime/evidence pipeline
+- code normalize uppercase và unique;
+- component không self-reference, quantity > 0, không duplicate, không cycle;
+- component phải tồn tại và ACTIVE;
+- physical code không bị chuyển ownership trái phép;
+- update dùng `If-Match` hoặc body `version`;
+- exact replay không tạo thêm business/audit row;
+- same key + different payload trả `409` và không side effect.
 
-Workflow:
+### 3.2 Container aggregate
 
-`.github/workflows/wwhn-172-sku-container-contract.yml`
+Atomic boundary:
 
-Mỗi DB engine chạy trên exact `${{ github.sha }}`:
+```text
+container
++ container_item
++ product/serial/physical-code locks
++ audit_log / audit_outbox
++ idempotency response snapshot
+```
 
-1. PHP syntax, Pint, `git diff --check`, Redocly;
-2. migration pretend/fresh/preflight/rollback/reapply/postcheck;
-3. focused tests:
-   - `Wwhn172SkuContainerTransactionTest`;
-   - `Wwhn172AuditFailClosedTest`;
-   - `Wwhn172MigrationSafetyTest`;
-   - `Wwhn174SkuImportValidationTest`;
-4. full PHPUnit + JUnit;
-5. generated OpenAPI;
-6. copy OpenAPI/Postman/test-case source vào artifact;
-7. DB before/after snapshot;
-8. service proof: business row + audit row + exact idempotent replay + outbox empty;
-9. exact commit/source-tree metadata;
-10. `SHA256SUMS` và credential-leak gate.
+Guard bắt buộc:
 
-Artifact:
+- parent không self/cycle và không lệch warehouse;
+- item grain dùng `item_key` xác định, không phụ thuộc NULL uniqueness;
+- serial chỉ thuộc một active container;
+- bulk quantity > 0 và product ACTIVE;
+- `SEALED`/`CLOSED` immutable;
+- seal chỉ từ `ACTIVE` và container phải có item;
+- stale version trả `409`;
+- transaction retry có giới hạn cho deadlock.
 
-`wwhn-172-evidence-<sqlite|pgsql|mysql>-<exact-sha>`
+### 3.3 Import/data validation
 
-## 4. Contract/source bundle
+- map cột theo header, không theo vị trí cố định;
+- validate toàn file trước khi commit;
+- duplicate trong file/DB, enum/boolean sai, inactive SKU đều fail rõ ràng;
+- `ALL_OR_NOTHING`, không partial write;
+- audit failure rollback toàn bộ row và outbox;
+- fixture hợp lệ/không hợp lệ được tạo trong CI và khóa bằng SHA-256.
 
-| Source | Version/status |
-|---|---|
-| `docs/api-contract/WWHN-172-sku-container-openapi.yaml` | canonical contract; copied and hashed by CI |
-| `docs/postman/WWHN-172 SKU Container Contract.postman_collection.json` | executable collection; copied and hashed by CI |
-| `docs/testing/WWHN-172-test-cases.json` | P0/P1 test register; copied and hashed by CI |
-| `docs/docs_task_jira/WWHN-172.md` | 1.1.0 |
+## 4. Root cause của các lần CI chưa đạt
 
-`build-metadata.json`, `SHA256SUMS` và `SHA256SUMS.sha256` là nguồn hash exact-SHA. Không ghi trước commit SHA/hash tĩnh vào chính tài liệu để tránh self-referential hash.
+### 4.1 Run `30999373942`
 
-## 5. Disposition đánh giá 74/100
+Exact SHA `23f57c27fed8dd2cad4846bdea0ed1f51d32f807`.
 
-| Finding | Disposition |
-|---|---|
-| BE1-P1-01 Runtime/DB evidence | exact-SHA CI, full/focused PHPUnit, raw logs, JUnit và matrix SQLite/PostgreSQL/MySQL |
-| BE1-P1-02 OpenAPI/Postman | canonical files được copy vào artifact và hash trong manifest |
-| BE1-P1-03 QA1 trace | automated idempotency/cycle/version/audit/no-stack tests; WWHN-173 vẫn cần QA1 sign-off độc lập trên exact artifact |
-| BE1-P1-04 QA2 import | import all-or-nothing + duplicate/invalid/inactive/audit-failure tests; WWHN-174 cần QA2 sign-off độc lập |
-| BE1-P1-05 BE2 boundary | mutex/transaction/schema ownership được chốt trong code và tài liệu; WWHN-171 + Tech Lead cần review độc lập |
-| BE1-P1-06 Audit proof | `service-proof.json`, DB before/after, fail-closed raw test và outbox=0 |
-| BE1-P1-07 Migration safety | preflight, pretend, rollback/reapply và DB matrix; DBA/DevOps cần ký target-environment result |
-| BE1-P2-01 Jira handoff | collector sinh `jira-handoff-comment.txt`; BE1 post comment exact SHA/artifact/hash/reviewer/blocker |
+Cả SQLite/PostgreSQL/MySQL dừng ở static gate trước khi collector chạy. Pint đã quét:
 
-Bảng đánh giá không nêu finding P0. Không suy diễn P0 mới là đã đóng.
+- `bootstrap/cache/*.php` được framework sinh tự động;
+- các maintenance script ngoài phạm vi WWHN-172;
+- hai evidence script WWHN-172 còn style issue thật.
 
-## 6. Files thay đổi
+Disposition:
 
-- `.github/workflows/wwhn-172-sku-container-contract.yml`
-- `.env.example`, `config/audit.php`, `bootstrap/app.php`
-- `app/Http/Middleware/Wwhn172AggregateLock.php`
-- `app/Support/Wwhn172MigrationInspector.php`
-- `app/Console/Commands/Wwhn172MigrationPreflight.php`
-- `routes/api.php`
-- `Modules/Warehouse/app/Http/Controllers/ImportController.php`
-- `Modules/Warehouse/app/Services/ImportService.php`
-- migration hardening WWHN-172
-- focused tests và evidence scripts
-- tài liệu này và reviewer checklist.
+- loại generated cache và unrelated maintenance scripts khỏi Pint scope của workflow WWHN-172;
+- vẫn syntax-check source PHP và Pint toàn bộ `app`, `Modules`, `tests`, config/routes;
+- sửa style thật trong `prepare-wwhn172-evidence.php` và `collect-wwhn172-service-proof.php`;
+- tạo evidence directory trước static gate để failure cũng có artifact chẩn đoán;
+- thêm Newman và race runner thực trên PostgreSQL/MySQL.
 
-## 7. Closure rule
+### 4.2 Run `31001257267`
 
-BE1 chỉ được ghi **CI_VERIFIED** khi cả ba matrix jobs PASS trên exact commit. `Done/Approved/100%` cần đủ comment/sign-off từ QA1 WWHN-173, QA2 WWHN-174, BE2 WWHN-171, Tech Lead và DevOps/DBA. Tài liệu không tự xác nhận thay reviewer độc lập.
+Exact SHA `3eeb5f0e2a5373ad7af0680e375348488d8b790d`.
+
+Syntax check và Pint đã PASS toàn bộ phạm vi 211 file. Ba matrix job tiếp tục dừng trước runtime collector vì OpenAPI khai báo `openapi: 3.0.3` nhưng dùng cú pháp numeric `exclusiveMinimum: 0` của OpenAPI 3.1 tại hai schema quantity. Redocly yêu cầu `exclusiveMinimum` là boolean trong OpenAPI 3.0.
+
+Remediation trong phiên bản 2.1.0:
+
+- giữ nguyên OpenAPI 3.0.3 để không tạo breaking change tooling;
+- biểu diễn điều kiện `quantity > 0` bằng `minimum: 0` và `exclusiveMinimum: true`;
+- bổ sung `operationId` duy nhất cho từng operation;
+- bổ sung `info.license` cho contract nội bộ;
+- bổ sung response `401` chuẩn hóa cho các endpoint có bearer security, bao gồm list container;
+- không thay đổi endpoint, payload nghiệp vụ, error code, transaction boundary hoặc compatibility behavior.
+
+## 5. Remediation matrix P0/P1/P2
+
+| ID | Sev | Required fix | Thực hiện trong `m1` | Evidence đóng lỗi |
+|---|---:|---|---|---|
+| P0 regression gate | P0 | Không để sửa evidence làm hỏng transaction/permission/audit | Full PHPUnit toàn repo trên SQLite/PostgreSQL/MySQL; focused P0 tests; OpenAPI lint | `phpunit-full.*`, focused JUnit/raw, static log |
+| BE1-P1-01 | P1 | Raw CI/DB matrix có thể verify | Workflow exact SHA; raw/JUnit PHPUnit; raw/JUnit Newman; DB engine/version; route list; build metadata; manifest hai lớp | `build-metadata.json`, `database-version.raw.log`, `phpunit-full.*`, `newman.*`, `SHA256SUMS*` |
+| BE1-P1-02 | P1 | OpenAPI/Postman/environment/test-case file rời | Copy canonical files vào từng engine artifact; source register ghi version/path/role; CI hash toàn bộ | `wwhn172.openapi.yaml`, `openapi.generated.json`, `wwhn172.postman.collection.json`, `wwhn172.postman.environment.json`, `wwhn172.test-cases.json` |
+| BE1-P1-03 | P1 | QA1 verify race/idempotency/cycle/audit/no-stack | Focused PHPUnit + Newman + multi-worker Node race trên PostgreSQL/MySQL + DB snapshots | `phpunit-aggregate.*`, `phpunit-audit.*`, `concurrency-report.json`, `newman.*`, `db-before.json`, `db-after.json` |
+| BE1-P1-04 | P1 | QA2 verify duplicate/invalid/inactive/no-side-effect | Import test suite, valid/invalid XLSX fixtures, fixture hash, audit rollback test | `phpunit-import.*`, `fixture-metadata.json`, `fixtures/*.xlsx` |
+| BE1-P1-05 | P1 | BE2/Tech Lead sign writer boundary/trace grain/alignment | Giữ boundary matrix và source register trong artifact exact SHA | `reviewer-protocols/BE1_BE2_BOUNDARY_MATRIX.md`, source register |
+| BE1-P1-06 | P1 | Business row + audit/outbox + rollback proof | Service proof ghi business/audit/idempotency rows; DB before/after; forced audit failure test dưới `APP_DEBUG=true` | `service-proof.json`, `db-before.json`, `db-after.json`, `phpunit-audit.*` |
+| BE1-P1-07 | P1 | Migration preflight/dry-run/rollback/reapply | Migrate pretend, preflight JSON, rollback one step, reapply, postcheck và focused migration test trên từng engine | `migration-*.raw.log`, `migration-preflight.json`, `migration-postcheck.json`, `phpunit-migration.*` |
+| BE1-P2-01 | P2 | Aggregate response/compatibility | Newman đọc lại aggregate; legacy POST SKU không idempotency key vẫn 201; versioned writes vẫn strict | `newman.raw.log`, `newman.junit.xml` |
+| BE1-P2-02 | P2 | Evidence dễ audit, không claim bề mặt | Một `evidence-index.json` map finding → artifact; source tree SHA; manifest hash hai lớp | `evidence-index.json`, `build-metadata.json`, `SHA256SUMS*` |
+
+Assessment hiện tại không nêu P0 còn mở. P0 vẫn được giữ như regression gate, không tự suy diễn “không có P0” thành bỏ test.
+
+## 6. CI/evidence contract
+
+Workflow: `.github/workflows/wwhn-172-sku-container-contract.yml`
+
+Matrix:
+
+- SQLite: compatibility/reference engine;
+- PostgreSQL 16: DB chuẩn cho lock/race;
+- MySQL 8.4: portability matrix;
+- PHP 8.3, Node 22, Composer v2, Newman 6.x.
+
+Race test dùng PHP CLI server nhiều worker. SQLite ghi `SKIPPED` có lý do; PostgreSQL và MySQL bắt buộc PASS các nhóm:
+
+1. hai update cùng version → một `200`, một `409 SKU_VERSION_CONFLICT`;
+2. hai SKU claim cùng physical code → một `201`, một `409` ownership/unique conflict;
+3. hai container claim cùng serial → một `201`, một `409` serial ownership/unique conflict.
+
+Collector từ chối chạy nếu DB không phải database CI chuyên dụng.
+
+## 7. Artifact bắt buộc
+
+Tên artifact:
+
+```text
+wwhn-172-evidence-{sqlite|pgsql|mysql}-{exact_commit_sha}
+```
+
+Artifact tối thiểu gồm:
+
+- static/contract gate raw log;
+- tool/runtime/OS/DB version logs;
+- full và focused PHPUnit raw + JUnit;
+- Newman raw + JUnit;
+- PostgreSQL/MySQL race report;
+- migration pretend/preflight/rollback/reapply/postcheck;
+- fixture metadata và XLSX hash;
+- DB before/after và service proof;
+- canonical OpenAPI/Postman/environment/test-case/source register;
+- reviewer protocols;
+- `build-metadata.json`, `evidence-index.json`, `SHA256SUMS`, `SHA256SUMS.sha256`.
+
+Credential leak gate kiểm cả pattern lẫn exact temporary password/JWT. Artifact không được chứa token hoặc secret.
+
+## 8. Lock order và writer boundary
+
+Lock order chuẩn:
+
+```text
+idempotency lease
+→ aggregate root
+→ parent/root references
+→ component/product references theo ID tăng dần
+→ physical codes theo normalized code tăng dần
+→ serials theo ID tăng dần
+→ business writes
+→ audit/audit_outbox
+→ response snapshot
+→ COMMIT
+```
+
+Writer ownership:
+
+- BE1: SKU aggregate, physical-code ownership, container aggregate, import contract;
+- BE2: shared schema/report/query boundary và các writer ngoài aggregate trên;
+- Tech Lead: phê duyệt boundary cuối cùng;
+- mọi writer mới chạm `products`, `physical_code`, `container`, `container_item`, `inventory_serials` phải review lock order và impacted contract.
+
+## 9. Reviewer checklist bắt buộc
+
+### WWHN-173 — QA1
+
+Comment theo từng nhóm, không ghi PASS chung chung:
+
+- race;
+- idempotency exact replay và changed-payload conflict;
+- component self/cycle;
+- audit success + forced fail-closed rollback;
+- canonical error/no stack trace;
+- exact SHA, engine artifact, `SHA256SUMS` hash, reviewer identity.
+
+### WWHN-174 — QA2
+
+- valid import commit;
+- duplicate in file/DB;
+- invalid enum/boolean/header;
+- inactive existing SKU;
+- no partial business/audit row;
+- fixture SHA-256;
+- exact SHA, engine artifact, reviewer identity.
+
+### WWHN-171 — BE2 + Tech Lead
+
+- writer ownership;
+- transaction boundary;
+- lock order;
+- trace grain;
+- branch alignment;
+- impacted OpenAPI/Postman/schema;
+- exact SHA và disposition.
+
+### DevOps/DBA
+
+- DB engine/version mục tiêu;
+- preflight PASS;
+- dry-run reviewed;
+- backup/restore point;
+- rollback/reapply log;
+- deployment window và owner.
+
+## 10. Definition of Done thực tế
+
+### BE1 technical completion
+
+Đạt khi final exact SHA có ba matrix jobs hoàn tất, artifact/hash đầy đủ và không có regression.
+
+### Formal Jira closure
+
+Chỉ đạt 100% khi đồng thời có:
+
+- QA1 PASS độc lập WWHN-173;
+- QA2 PASS độc lập WWHN-174;
+- BE2 + Tech Lead sign-off WWHN-171;
+- DevOps/DBA migration confirmation;
+- Jira WWHN-172 tham chiếu final exact SHA, run URL, artifact names và manifest hashes.
+
+Không được đổi trạng thái `Done/Approved` chỉ dựa trên nội dung do BE1 tự ghi.
+
+## 11. Quy tắc ghi nhận exact SHA sau commit
+
+Do tài liệu này nằm trong chính commit remediation, exact SHA không được tự ghi trước khi Git tạo commit. Giá trị authoritative là SHA của commit trên nhánh `m1` chứa phiên bản **2.1.0** này. GitHub Actions phải checkout trực tiếp SHA đó; Jira handoff phải ghi run URL, artifact ID, artifact name và manifest hash sau khi workflow hoàn tất.
