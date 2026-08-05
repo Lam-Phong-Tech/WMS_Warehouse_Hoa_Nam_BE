@@ -1,105 +1,114 @@
-# [BE1] Triển khai auth/RBAC/audit và contract xử lý lỗi
+# [BE1] Triển khai auth/RBAC/audit và contract xử lý lỗi — WWHN-164
 
-- Jira: WWHN-35, WWHN-166, WWHN-167
 - Repository: `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE`
-- Base: `m1`
-- Scoped branch: `fix/wwhn-auth-rbac-audit-hardening`
-- Pull request: `#1`
-- Evidence SHA đã pass gate: `aa75b3ec22f7705e7c339e325e14899a4ffaf63d`
-- CI run: `30783838510` — **SUCCESS**
-- Artifact: `8844568934`
-- Artifact name: `auth-rbac-audit-contract-53365c76137e8858a4725614f4e8724cd9040cd9`
-- Artifact digest: `sha256:2fcccecefa1bb13ca25426f4483be14004f75c15071084a20faef17b7798c6a6`
-- Cập nhật: 2026-08-03
+- Branch bắt buộc: `m1`
+- Kiến trúc tham chiếu: `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`
+- Runtime: Laravel 13, PHP 8.3, JWT, modular architecture, OpenAPI/L5-Swagger.
+- Trạng thái BE: **implementation hoàn tất; closure artifact tự động hóa; chờ independent sign-off**.
+- Cập nhật: 2026-08-05.
 
-> Không lưu credential dùng được trong tài liệu, source, Postman collection hoặc evidence. `APPROVED` chỉ do reviewer có thẩm quyền xác nhận trên PR/Jira.
+> Không lưu credential dùng được trong source, docs, Postman hoặc evidence. Không dùng từ `APPROVED` nếu chưa có reviewer có thẩm quyền xác nhận trên Jira/GitHub.
 
-## 1. Exact Fix Action Register
+## 1. Kết quả xử lý đánh giá 80/100
 
-| ID | Sev | Trạng thái kỹ thuật | Kết quả thực hiện | Gate còn phải có từ người phụ trách |
-|---|---|---|---|---|
-| FIX-01 | P1 | **CI PASS / Ready for QA1** | Test token invalid/expired, refresh replay, RBAC, audit redaction/failure, negative API, Kho A/Kho B. Full suite pass **93 tests / 856 assertions** trên SHA evidence. | QA1 chạy lại staging/current build, đính kèm command log, SHA và DB evidence; BA/Lead ký Done/Redflag. |
-| FIX-02 | P1 | **Parent Ready** | Backend đã trả role, permission, `scope_ref`, `warehouse_scope_ids`; 401/403/logout/session contract đã khóa bằng automated tests. | QA2/FE1 chạy browser thật: login, expiry, logout, direct URL, 403, menu role và viewport; đính kèm video/screenshots/build SHA. |
-| FIX-03 | P1 | **Contract generated/linted** | Login canonical dùng `email`; loại password mẫu thật; server lấy từ `APP_URL`/`L5_SWAGGER_CONST_HOST`; CI regenerate JSON/YAML và Redocly lint pass. | Tech Lead/FE/QA duyệt generated artifact. |
-| FIX-04 | P1 | **Collection validated** | Postman có login/refresh/logout/me; rotate/replay 401; invalid credential 401; missing refresh token 422; không tự ghi APPROVED. | QA1 import collection và chạy Newman trên staging bằng secret environment riêng. |
-| FIX-05 | P1 | **PR + CI PASS** | Scoped PR #1; exact SHA/run/artifact đã ghi trên đầu tài liệu. Syntax, scoped Pint, full PHPUnit, Swagger, OpenAPI lint, Postman validation, npm lint/test/build đều pass. | Tech Lead/QA1 review và approval thật trước merge. |
-| FIX-06 | P1 | **Implemented/tested** | `scope_ref` từ active role assignment; list filter scope; detail/mutation ngoài scope trả `403 ACCESS_DENIED`; test Kho A/Kho B pass. | QA1/Security review policy/query filter và DB evidence staging. |
-| FIX-07 | P1 | **Implemented/tested** | Policy `outbox_required`; audit primary failure ghi `audit_outbox`; nested secret redaction; lỗi cả audit/outbox thì fail-closed; có `audit:reconcile`, retry/backoff và error/critical logs. | Tech Lead/Security duyệt policy; DevOps cấu hình alert/monitoring và lịch reconcile. |
-| FIX-08 | P1 | **Repository sanitized** | Không còn credential trong tài liệu/Postman variables; audit redaction chặn password/token/authorization/cookie/session/secret/API key. | DevOps/Security rotate/revoke account từng chia sẻ nếu có và lưu rotation record ngoài repository. |
-| FIX-09 | P2 | **Implemented** | Evidence đồng bộ key runtime: `audit_log.view`, `warehouse.view`, `warehouse.manage`, `stock_document.*`, `inventory.view`, `report.view`. | BA/QA1 xác nhận traceability version. |
-| FIX-10 | P2 | **Implemented** | Xóa toàn bộ tracked `.npm-cache` bằng commit `56584b38a29068a9c05ca16a21c5ac901b97a6c5`; `.gitignore` chặn tái phát. | Tech Lead xác nhận clean PR diff. |
+| ID | Sev | Phần BE đã hoàn thiện trên `m1` | Closure gate bắt buộc |
+|---|---|---|---|
+| FIX-01 | P1 | Khóa test 401/403, invalid/expired token, refresh replay, RBAC, audit leakage/failure, negative API và data-scope trong targeted + full PHPUnit; xuất JUnit/log theo exact SHA. | QA1 chạy độc lập trên current SHA/DB staging và cập nhật WWHN-166. |
+| FIX-02 | P1 | Backend contract login/expiry/logout/403/role/permission/scope đã ổn định; runbook browser/viewport được chuẩn hóa. | QA2 chạy browser thật, video/screenshots và cập nhật WWHN-167. |
+| FIX-03 | P1 | CI generate OpenAPI từ runtime annotations, lint, rồi generate Postman từ **cùng OpenAPI artifact**; kiểm tra endpoint parity và checksum. | Tech Lead/FE/QA duyệt cùng artifact/SHA/version. |
+| FIX-04 | P1 | Workflow mới ghi exact SHA, branch, run ID, PHP, DB engine, audit policy; upload artifact 90 ngày. Do yêu cầu sửa thẳng `m1`, dùng direct-commit review record thay PR mới. | Tech Lead/QA1 review commit, changed files, run/jobs và artifact digest. |
+| FIX-05 | P1 | Targeted security test + full regression và runbook DB evidence Kho A/Kho B list/detail/mutation. | QA1/Security retest staging và ký DB evidence. |
+| FIX-06 | P1 | Policy outbox-required/fail-closed, failure tests và artifact được khóa; bổ sung checklist reconcile/lock/retry/alert/dashboard/runbook. | Tech/Security/DevOps duyệt policy và cung cấp monitoring/schedule evidence. |
+| FIX-07 | P1 | CI secret-pattern scan không in giá trị match; tài liệu cấm đưa secret/rotation value vào repo. | DevOps/Security xác nhận Rotate/Revoke hoặc Not Applicable có căn cứ. |
+| FIX-08 | P2 | CI trích permission keys trực tiếp từ runtime DB, JSON parse gate và checksum. | BA/QA1 đối chiếu seed/middleware/contract/role matrix và ký version. |
 
-## 2. Auth và token lifecycle
+Không có P0 được liệt kê trong lần đánh giá ngày 2026-08-03. Các P1/P2 thuộc BE đã có disposition và evidence mechanism; các mục còn lại là separation-of-duties gate, BE không thể tự ký thay.
 
-| Method | Endpoint | Contract |
-|---|---|---|
-| POST | `/api/v1/auth/login` | Bắt buộc `email`, `password`; trả access token, refresh token, user, roles, permissions, warehouse scopes. |
-| POST | `/api/v1/auth/refresh` | Rotate một lần. Replay token cũ trả 401 và revoke toàn bộ active refresh-token family của user. |
-| POST | `/api/v1/auth/logout` | Revoke refresh token được gửi hoặc toàn bộ refresh token của user; invalidate access token hiện tại. |
-| GET | `/api/v1/auth/me` | Trả profile, active roles theo effective window, permissions, `scope_ref`, `warehouse_scope_ids`. |
+## 2. Thay đổi kỹ thuật bổ sung
 
-Error baseline: `400 MALFORMED_JSON`, `401 UNAUTHENTICATED`, `403 ACCESS_DENIED`, `404 RESOURCE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `409 STATE_CONFLICT/IDEMPOTENCY_ERROR`, `422 VALIDATION_ERROR/BUSINESS_RULE_ERROR`, `500 INTERNAL_SERVER_ERROR`. Response có `X-Request-ID` và `meta.request_id` để trace audit.
+### 2.1 Exact-SHA closure workflow
 
-## 3. Data-scope policy
+File: `.github/workflows/wwhn-164-closure-gate.yml`
 
-- `SUPER_ADMIN`: unrestricted.
-- Active role có `scope_ref=<warehouse UUID>`: chỉ được truy cập các kho đã gán.
-- List: filter records theo scope.
-- Detail/mutation ngoài scope: trả `403 ACCESS_DENIED` trước khi đọc hoặc cập nhật dữ liệu.
-- Active assignment phải thỏa role ACTIVE, `effective_from <= now`, `effective_to > now` hoặc mốc null.
-- FE có thể dùng scope payload để dựng menu/context; backend vẫn là enforcement source of truth.
+Workflow chạy khi push vào `m1` hoặc manual dispatch:
 
-## 4. Audit reliability policy
+1. Checkout full history đúng SHA.
+2. Cài PHP 8.3 và Node 22 từ lock files.
+3. Tạo SQLite test database tách biệt, generate JWT secret ngẫu nhiên cho CI.
+4. Chạy syntax, `git diff --check`, Pint và shell syntax.
+5. Chạy targeted security tests và full PHPUnit suite.
+6. Generate/lint OpenAPI; generate Postman từ exact OpenAPI artifact.
+7. Kiểm tra canonical auth paths và collection structure.
+8. Scan tracked files cho private key/token patterns mà không log secret.
+9. Trích runtime permission catalog.
+10. Tạo metadata, signoff register Pending, SHA256 checksums.
+11. Upload `wwhn-164-closure-evidence-<SHA>` retention 90 ngày.
 
-1. Sanitize payload đệ quy trước khi ghi.
-2. Ghi `audit_log` thành công: hoàn tất.
-3. Ghi chính lỗi: phát `AUDIT_WRITE_FAILED`, ghi payload đã sanitize vào `audit_outbox`.
-4. Cả audit và outbox lỗi: phát `AUDIT_OUTBOX_WRITE_FAILED` mức critical và fail request.
-5. `php artisan audit:reconcile` replay theo batch, tăng attempts và exponential backoff.
-6. Có thể dùng `AUDIT_WRITE_POLICY=fail_closed` cho mutation cực nhạy cảm.
+### 2.2 Evidence collector
 
-Sensitive keys gồm password/password hash, current/new password, access/refresh token, Authorization, cookie, session, secret, API/private key; giá trị được thay bằng `[REDACTED]`.
+File: `scripts/collect-wwhn164-closure-evidence.sh`
 
-## 5. Evidence kỹ thuật
+Script fail-fast và không tạo false-positive approval. `review/signoff-register.json` được khởi tạo Pending; CI sẽ fail nếu automation tự ghi một gate là Approved.
 
-| Hạng mục | File/evidence |
-|---|---|
-| Audit policy | `config/audit.php` |
-| Audit outbox | `Modules/AuditLog/database/migrations/2026_08_03_000001_create_audit_outbox_table.php`; `Modules/AuditLog/app/Models/AuditOutbox.php` |
-| Audit writer/reconcile | `Modules/AuditLog/app/Services/AuditLogger.php`; `app/Console/Commands/ReconcileAuditOutbox.php` |
-| Data scope | `Modules/Auth/app/Models/User.php`; `Modules/Warehouse/app/Http/Controllers/WarehouseController.php` |
-| Auth lifecycle | `Modules/Auth/app/Http/Controllers/AuthController.php` |
-| Security/regression test | `tests/Feature/AuthRbacAuditHardeningTest.php`; `tests/Feature/SecurityRbacAuditNegativeTest.php` |
-| Postman | `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json` |
-| CI | `.github/workflows/auth-rbac-audit-contract.yml` |
-| PR | `#1`, base `m1`, head `fix/wwhn-auth-rbac-audit-hardening` |
-| CI pass | Run `30783838510`, SHA `aa75b3ec22f7705e7c339e325e14899a4ffaf63d` |
-| Generated contract artifact | ID `8844568934`, digest `sha256:2fcccecefa1bb13ca25426f4483be14004f75c15071084a20faef17b7798c6a6` |
+### 2.3 Reviewer runbook
 
-CI gate đã pass:
+File: `docs/evidence/WWHN-164-CLOSURE-RUNBOOK.md`
+
+Runbook quy định command, expected result, browser viewport, DB evidence, audit operations, credential rotation/N-A record, permission traceability và closure decision cho từng FIX-01…08.
+
+## 3. Artifact structure
 
 ```text
-PHP 8.3 syntax
-Pint --test trên các PHP file thay đổi
-93 PHPUnit tests / 856 assertions
-L5-Swagger JSON/YAML generation
-Redocly OpenAPI lint
-Postman JSON/non-empty validation
-npm lint
-npm test
-npm build
-artifact upload theo exact SHA
+build/evidence/wwhn-164/
+├── build-metadata.json
+├── SHA256SUMS
+├── contracts/
+│   ├── openapi.json
+│   ├── openapi-lint.log
+│   ├── postman.collection.json
+│   ├── postman-conversion.log
+│   └── contract-parity.json
+├── tests/
+│   ├── phpunit-security.xml
+│   ├── phpunit-security.log
+│   ├── phpunit-full.xml
+│   ├── phpunit-full.log
+│   ├── credential-scan-files.txt
+│   └── runtime-permission-keys.json
+└── review/
+    └── signoff-register.json
 ```
 
-## 6. Closure rule
+`build-metadata.json` và artifact name phải khớp `GITHUB_SHA`; toàn bộ file được kiểm tra bằng `SHA256SUMS`.
 
-Không đánh dấu 100% Done hoặc merge chỉ dựa vào tài liệu này. Closure cần đủ:
+## 4. Contract và security baseline
 
-1. CI xanh trên final PR head SHA.
-2. Tech Lead review code/data-scope/audit policy.
-3. QA1 report + command log + DB evidence trên cùng SHA/build.
-4. QA2 browser evidence cho WWHN-167.
-5. Security/DevOps xác nhận credential rotation nếu từng có credential được chia sẻ và cấu hình audit monitoring.
-6. FE/QA/Tech Lead duyệt generated OpenAPI/Postman artifact.
+- Auth canonical: `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
+- Error baseline: 401 unauthenticated; 403 access denied; 422 validation; 409 conflict/idempotency; 500 không lộ stack trace.
+- Refresh token rotate một lần; replay bị từ chối và revoke token family theo implementation hiện hành.
+- Data scope được backend enforce; FE visibility không thay thế authorization.
+- Audit payload sanitize đệ quy; primary failure đi outbox; audit + outbox failure fail request theo policy.
+- Repository evidence chỉ chứa sanitized data và metadata; secret values không được commit.
 
-Các đầu việc code, automated test, contract, CI và repository hygiene đã hoàn tất. Approval, staging/browser evidence và rotation record là external gate, không được BE tự xác nhận thay.
+## 5. Hướng dẫn reviewer
+
+Chi tiết tại `docs/evidence/WWHN-164-CLOSURE-RUNBOOK.md`.
+
+Reviewer phải khóa cùng full SHA và artifact checksum. Evidence từ SHA khác không được dùng để đóng task. Với sửa trực tiếp `m1`, review được ghi trên commit/Jira sau CI thay vì tự tạo nhánh/PR trái yêu cầu.
+
+## 6. Closure matrix
+
+| Gate | Owner | Jira/record | Trạng thái sau commit |
+|---|---|---|---|
+| Security/API/DB independent retest | QA1 | WWHN-166 | Pending reviewer |
+| Browser/viewport | QA2 | WWHN-167 | Pending reviewer |
+| OpenAPI/Postman approval | Tech Lead/FE/QA | WWHN-164 comment | Pending reviewer |
+| Direct commit + CI review | Tech Lead/QA1 | GitHub/Jira | Pending reviewer |
+| Data-scope DB evidence | QA1/Security | WWHN-166/WWHN-164 | Pending reviewer |
+| Audit monitoring/reconcile | Tech/Security/DevOps | ops evidence link | Pending reviewer |
+| Credential rotation/N-A | DevOps/Security | protected change record | Pending reviewer |
+| Permission traceability | BA/QA1 | WWHN-164 comment | Pending reviewer |
+
+## 7. Definition of Done chính xác
+
+Phần BE được xem là Ready for Review khi workflow final SHA xanh và artifact tải được. WWHN-164 chỉ đạt 100% khi tám gate độc lập phía trên có reviewer, timestamp, exact SHA và evidence link. Việc tự ghi approval để nâng điểm là không hợp lệ và bị CI guard ngăn chặn.

@@ -1,0 +1,102 @@
+name: WWHN-164 Auth RBAC Audit Closure Gate
+
+on:
+  push:
+    branches: [m1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP_ENV: testing
+  DB_CONNECTION: sqlite
+  DB_DATABASE: /tmp/wms-wwhn164.sqlite
+  CACHE_STORE: array
+  SESSION_DRIVER: array
+  QUEUE_CONNECTION: sync
+  AUDIT_WRITE_POLICY: outbox_required
+
+concurrency:
+  group: wwhn-164-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  closure-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout exact m1 commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress --no-scripts
+          php artisan package:discover --ansi
+          npm ci --ignore-scripts
+
+      - name: Prepare isolated test database
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          rm -f "$DB_DATABASE"
+          touch "$DB_DATABASE"
+          echo "JWT_SECRET=$(openssl rand -hex 48)" >> .env
+          php artisan migrate:fresh --force
+
+      - name: Static quality and repository integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          find app Modules tests config database routes scripts -name '*.php' -print0 | xargs -0 -n1 php -l
+          ./vendor/bin/pint --test app Modules tests config database routes
+          bash -n scripts/collect-wwhn164-closure-evidence.sh
+
+      - name: Generate immutable closure evidence
+        run: bash scripts/collect-wwhn164-closure-evidence.sh
+
+      - name: Validate exact-SHA metadata and human-approval boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const base = 'build/evidence/wwhn-164';
+          const metadata = JSON.parse(fs.readFileSync(`${base}/build-metadata.json`, 'utf8'));
+          const signoff = JSON.parse(fs.readFileSync(`${base}/review/signoff-register.json`, 'utf8'));
+          if (metadata.commit_sha !== process.env.GITHUB_SHA) throw new Error('Evidence is not bound to GITHUB_SHA');
+          if (metadata.branch !== process.env.GITHUB_REF_NAME) throw new Error('Evidence branch mismatch');
+          if (metadata.approval_state !== 'PENDING_HUMAN_REVIEW') throw new Error('Automation must not claim approval');
+          for (const [key, value] of Object.entries(signoff.signoffs)) {
+            if (value.status === 'APPROVED') throw new Error(`Automation illegally approved ${key}`);
+          }
+          NODE
+          (cd build/evidence/wwhn-164 && sha256sum --check SHA256SUMS)
+
+      - name: Upload exact-SHA closure artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-164-closure-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-164
+          if-no-files-found: error
+          retention-days: 90
