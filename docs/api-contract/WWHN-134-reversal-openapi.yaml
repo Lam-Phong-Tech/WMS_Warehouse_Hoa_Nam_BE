@@ -1,0 +1,153 @@
+openapi: 3.0.3
+info:
+  title: WMS Hoa Nam Reversal API
+  version: 1.2.0-proposed
+  description: Proposed contract for DEC-REV-001. Not implementation evidence and not approved until WWHN-26 formal sign-off.
+servers:
+  - url: /api/v1
+paths:
+  /reversals:
+    post:
+      operationId: createReversal
+      summary: Create append-only reversal
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReversalRequest'
+            examples:
+              receiptCorrection:
+                value:
+                  original_document_type: RECEIPT
+                  original_document_id: 018f3a7e-4c0a-7c9d-b4c2-4f679eec0001
+                  reason_code: DATA_CORRECTION
+                  reason: Correct quantity posted by mistake
+                  lines:
+                    - original_line_id: 018f3a7e-4c0a-7c9d-b4c2-4f679eec0002
+                      quantity: 1
+                      physical_return_status: PENDING_RETURN
+      responses:
+        '201':
+          description: Reversal created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReversalResponse'}
+        '200':
+          description: Idempotent replay of the same key and payload
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReversalResponse'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Validation'}
+        '428': {$ref: '#/components/responses/IdempotencyRequired'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 128}
+  schemas:
+    CreateReversalRequest:
+      type: object
+      additionalProperties: false
+      required: [original_document_type, original_document_id, reason_code, reason, lines]
+      properties:
+        original_document_type:
+          type: string
+          enum: [RECEIPT, ISSUE, ADJUSTMENT]
+        original_document_id: {type: string, format: uuid}
+        reason_code:
+          type: string
+          enum: [DATA_CORRECTION, WRONG_DOCUMENT, DAMAGED_RETURN, OTHER]
+        reason: {type: string, minLength: 10, maxLength: 500}
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: {$ref: '#/components/schemas/CreateReversalLine'}
+    CreateReversalLine:
+      type: object
+      additionalProperties: false
+      required: [original_line_id, quantity, physical_return_status]
+      properties:
+        original_line_id: {type: string, format: uuid}
+        quantity: {type: number, format: double, exclusiveMinimum: 0}
+        physical_return_status:
+          type: string
+          enum: [NOT_REQUIRED, PENDING_RETURN, RETURNED, WAIVED]
+        evidence_uri: {type: string, format: uri, maxLength: 2048}
+    ReversalResponse:
+      type: object
+      required: [success, message, data, meta]
+      properties:
+        success: {type: boolean, enum: [true]}
+        message: {type: string}
+        data:
+          type: object
+          required: [id, status, original_document_id, created_at]
+          properties:
+            id: {type: string, format: uuid}
+            status: {type: string, enum: [POSTED]}
+            original_document_id: {type: string, format: uuid}
+            created_at: {type: string, format: date-time}
+        meta: {$ref: '#/components/schemas/Meta'}
+    ErrorResponse:
+      type: object
+      required: [success, message, error, meta]
+      properties:
+        success: {type: boolean, enum: [false]}
+        message: {type: string}
+        error:
+          type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              enum: [UNAUTHENTICATED, NO_PERMISSION, ORIGINAL_NOT_FOUND, IDEMPOTENCY_ERROR, INVALID_STATE, REVERSAL_LIMIT_EXCEEDED, REVERSAL_DEPENDENCY_CONFLICT, CONCURRENT_MODIFICATION, VALIDATION_ERROR, IDEMPOTENCY_KEY_REQUIRED]
+            details: {type: object, additionalProperties: true}
+        meta: {$ref: '#/components/schemas/Meta'}
+    Meta:
+      type: object
+      required: [request_id, timestamp]
+      properties:
+        request_id: {type: string, format: uuid}
+        timestamp: {type: string, format: date-time}
+  responses:
+    Unauthenticated:
+      description: Missing or invalid authentication
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Forbidden:
+      description: Missing stock.reversal.create or out of warehouse scope
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    NotFound:
+      description: Original document not found in permitted scope
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Conflict:
+      description: State, dependency, limit, concurrency or idempotency conflict
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Validation:
+      description: Request validation failed
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    IdempotencyRequired:
+      description: Idempotency-Key is required
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}

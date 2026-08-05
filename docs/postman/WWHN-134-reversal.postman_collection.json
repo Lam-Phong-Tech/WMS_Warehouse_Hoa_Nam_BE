@@ -1,0 +1,63 @@
+{
+  "info": {
+    "name": "WWHN-134 DEC-REV-001 Reversal Contract",
+    "description": "Proposed contract collection. This is not actual API/DB test evidence and must not be used to claim implementation Done.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": {"major": 1, "minor": 2, "patch": 0}
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost/api/v1"},
+    {"key": "token", "value": ""},
+    {"key": "originalDocumentId", "value": "018f3a7e-4c0a-7c9d-b4c2-4f679eec0001"},
+    {"key": "originalLineId", "value": "018f3a7e-4c0a-7c9d-b4c2-4f679eec0002"}
+  ],
+  "item": [
+    {
+      "name": "Create reversal - contract happy path",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{token}}", "type": "text"},
+          {"key": "Content-Type", "value": "application/json", "type": "text"},
+          {"key": "X-Request-Id", "value": "{{$guid}}", "type": "text"},
+          {"key": "Idempotency-Key", "value": "wwhn134-{{$timestamp}}-happy", "type": "text"}
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\"\n    }\n  ]\n}"
+        }
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('contract status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));","const json = pm.response.json();","pm.test('standard envelope', () => { pm.expect(json).to.have.property('success', true); pm.expect(json).to.have.nested.property('meta.request_id'); });"]}}]
+    },
+    {
+      "name": "Missing Idempotency-Key - 428",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{token}}"},
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "X-Request-Id", "value": "{{$guid}}"}
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {"mode":"raw","raw":"{\"original_document_type\":\"RECEIPT\",\"original_document_id\":\"{{originalDocumentId}}\",\"reason_code\":\"DATA_CORRECTION\",\"reason\":\"Correct quantity posted by mistake\",\"lines\":[{\"original_line_id\":\"{{originalLineId}}\",\"quantity\":1,\"physical_return_status\":\"PENDING_RETURN\"}]}"}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('status 428', () => pm.response.to.have.status(428));","pm.test('error code', () => pm.expect(pm.response.json()).to.have.nested.property('error.code','IDEMPOTENCY_KEY_REQUIRED'));","pm.test('no stack trace', () => pm.expect(JSON.stringify(pm.response.json()).toLowerCase()).not.to.include('stack trace')); "]}}]
+    },
+    {
+      "name": "No permission - 403",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{token}}"},
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "X-Request-Id", "value": "{{$guid}}"},
+          {"key": "Idempotency-Key", "value": "wwhn134-no-permission"}
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {"mode":"raw","raw":"{\"original_document_type\":\"RECEIPT\",\"original_document_id\":\"{{originalDocumentId}}\",\"reason_code\":\"DATA_CORRECTION\",\"reason\":\"Correct quantity posted by mistake\",\"lines\":[{\"original_line_id\":\"{{originalLineId}}\",\"quantity\":1,\"physical_return_status\":\"PENDING_RETURN\"}]}"}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('status 403', () => pm.response.to.have.status(403));","pm.test('NO_PERMISSION', () => pm.expect(pm.response.json()).to.have.nested.property('error.code','NO_PERMISSION')); "]}}]
+    }
+  ]
+}
