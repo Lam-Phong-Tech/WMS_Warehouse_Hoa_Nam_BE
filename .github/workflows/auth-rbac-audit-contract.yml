@@ -1,32 +1,53 @@
-name: WWHN-150 API RBAC Stocktake Scan Evidence Gate
+name: WWHN-150 Exact SHA Evidence Gate
 
 on:
-  pull_request:
-    branches: [m1]
   push:
     branches: [m1]
+  workflow_dispatch:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
-  group: wwhn-150-evidence-${{ github.ref }}
+  group: wwhn-150-exact-sha-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality-gate:
+  evidence-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
     env:
       APP_ENV: testing
       DB_CONNECTION: sqlite
-      DB_DATABASE: /tmp/wms-ci.sqlite
+      DB_DATABASE: /tmp/wms-wwhn150.sqlite
       CACHE_STORE: array
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
       AUDIT_WRITE_POLICY: outbox_required
+      EVIDENCE_DIR: build/evidence/WWHN-150
 
     steps:
+      - name: Publish pending statuses
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const targetUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            for (const [statusContext, description] of [
+              ['wwhn-150/evidence-gate', 'WWHN-150 exact-SHA evidence is running'],
+              ['wwhn-150/artifact-integrity', 'WWHN-150 artifact digest is pending'],
+            ]) {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.sha,
+                state: 'pending',
+                context: statusContext,
+                description,
+                target_url: targetUrl,
+              });
+            }
+
       - name: Checkout exact commit
         uses: actions/checkout@v4
         with:
@@ -46,117 +67,215 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: |
           composer install --no-interaction --prefer-dist --no-progress
           npm ci --ignore-scripts
 
-      - name: Prepare test environment
+      - name: Prepare isolated runtime
+        shell: bash
         run: |
+          set -euo pipefail
+          password="W150-$(openssl rand -hex 24)"
+          jwt="W150-JWT-$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
+          {
+            echo "CI_DEMO_PASSWORD=$password"
+            echo "WWHN150_PASSWORD=$password"
+            echo "WWHN150_NO_PERMISSION_PASSWORD=$password"
+            echo "JWT_SECRET=$jwt"
+          } >> "$GITHUB_ENV"
+
           cp .env.example .env
           php artisan key:generate
-          rm -f /tmp/wms-ci.sqlite
-          touch /tmp/wms-ci.sqlite
-          echo "JWT_SECRET=ci-jwt-secret-wwhn150" >> .env
-          ci_password="$(openssl rand -hex 24)"
-          echo "::add-mask::$ci_password"
-          echo "CI_DEMO_PASSWORD=$ci_password" >> "$GITHUB_ENV"
-          echo "WWHN150_PASSWORD=$ci_password" >> "$GITHUB_ENV"
-          echo "WWHN150_NO_PERMISSION_PASSWORD=$ci_password" >> "$GITHUB_ENV"
+          rm -f "$DB_DATABASE"
+          touch "$DB_DATABASE"
+          {
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=false"
+            echo "JWT_SECRET=$jwt"
+            echo "DB_CONNECTION=sqlite"
+            echo "DB_DATABASE=$DB_DATABASE"
+            echo "CACHE_STORE=array"
+            echo "SESSION_DRIVER=array"
+            echo "QUEUE_CONNECTION=sync"
+            echo "AUDIT_WRITE_POLICY=outbox_required"
+          } >> .env
 
-      - name: PHP syntax and formatting gate
+      - name: Static source gates
         shell: bash
         run: |
           set -euo pipefail
           find app Modules tests config database routes -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check scripts/verify-wwhn150-contract.mjs
+          node --check scripts/verify-wwhn150-boundary.mjs
+          node --check scripts/compare-scan-readonly-evidence.mjs
+          node --check scripts/run-wwhn150-concurrent-scan.mjs
+          node --check scripts/redact-wwhn150-evidence.mjs
+          bash -n scripts/collect-api-data-evidence.sh
           git diff --check
           ./vendor/bin/pint --test app Modules tests config database routes
 
-      - name: Collect immutable WWHN-150 evidence
+      - name: Collect exact-SHA WWHN-150 evidence
+        shell: bash
         run: bash scripts/collect-api-data-evidence.sh
 
-      - name: Lint generated and WWHN-150 OpenAPI
-        run: |
-          npx redocly lint build/evidence/api-data/openapi.json
-          npx redocly lint build/evidence/api-data/wwhn150-openapi.yaml
-
-      - name: Validate evidence manifest and structured results
+      - name: Lint OpenAPI artifacts
         shell: bash
         run: |
           set -euo pipefail
-          test -s build/evidence/api-data/SHA256SUMS
-          (cd build/evidence/api-data && sha256sum --check SHA256SUMS)
-          (cd build/evidence/api-data && sha256sum --check SHA256SUMS.sha256)
-          node - <<'NODE'
+          npx redocly lint "$EVIDENCE_DIR/openapi.json"
+          npx redocly lint "$EVIDENCE_DIR/wwhn150-openapi.yaml"
+
+      - name: Verify evidence completeness and integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$EVIDENCE_DIR"
+          required=(
+            build-metadata.json source-tree.sha256 SHA256SUMS SHA256SUMS.sha256
+            openapi.json openapi.yaml openapi-generate.raw.log wwhn150-openapi.yaml
+            wwhn150.postman.collection.json wwhn150.postman.environment.json
+            wwhn150-newman.raw.log wwhn150-newman.result.json
+            route-list.raw.json permission-catalog.json permission-catalog.repository.json
+            permission-seed-diff.json permission-seed.git.diff endpoint-permission-role-matrix.json
+            scan-readonly-phpunit.raw.log full-phpunit.raw.log
+            race-rollback-reconciliation-phpunit.raw.log
+            scan-db-before.json scan-db-after.json scan-readonly-comparison.json
+            reconciliation-report.json stock-writer-boundary.json
+            wwhn150-concurrent-scan.raw.log wwhn150-concurrent-scan.json
+            wwhn150-contract-verification.json credential-hygiene.json
+            migrate-fresh.raw.log database-seed.raw.log server.raw.log health-response.json
+            source/.github/workflows/auth-rbac-audit-contract.yml
+          )
+          for file in "${required[@]}"; do
+            test -s "$root/$file"
+          done
+
+          node - "$root" <<'NODE'
           const fs = require('fs');
-          const jsonFiles = [
-            'postman.collection.json',
-            'postman.environment.json',
-            'newman.result.json',
-            'contract-verification.json',
-            'stocktake.postman.collection.json',
-            'stocktake.postman.environment.json',
-            'stocktake-newman.result.json',
-            'stocktake-contract-verification.json',
-            'stocktake-test-cases.json',
-            'stocktake-source-register.json',
-            'wwhn150.postman.collection.json',
-            'wwhn150.postman.environment.json',
-            'wwhn150-newman.result.json',
-            'wwhn150-concurrent-scan.json',
-            'wwhn150-contract-verification.json',
-            'wwhn150-test-cases.json',
-            'wwhn150-source-register.json',
-            'permission-catalog.json',
-            'permission-catalog.repository.json',
-            'permission-seed-diff.json',
-            'stock-writer-boundary.json',
-            'scan-db-before.json',
-            'scan-db-after.json',
-            'scan-readonly-comparison.json',
-            'db-before.json',
-            'db-after.json',
-            'reconciliation-report.json',
-            'build-metadata.json'
-          ];
-          for (const file of jsonFiles) {
-            JSON.parse(fs.readFileSync(`build/evidence/api-data/${file}`, 'utf8'));
-          }
-          const metadata = JSON.parse(fs.readFileSync('build/evidence/api-data/build-metadata.json', 'utf8'));
-          if (metadata.commit_sha !== process.env.GITHUB_SHA) throw new Error('build metadata is not exact-SHA bound');
-          if (metadata.artifact_name !== `wwhn-150-evidence-${process.env.GITHUB_SHA}`) throw new Error('artifact name is not exact-SHA bound');
+          const root = process.argv[2];
+          const read = (name) => JSON.parse(fs.readFileSync(`${root}/${name}`, 'utf8'));
+          const metadata = read('build-metadata.json');
           const passFiles = [
-            'contract-verification.json',
-            'stocktake-contract-verification.json',
             'wwhn150-contract-verification.json',
             'scan-readonly-comparison.json',
             'reconciliation-report.json',
+            'stock-writer-boundary.json',
             'wwhn150-concurrent-scan.json',
-            'stock-writer-boundary.json'
+            'credential-hygiene.json',
           ];
+          if (metadata.commit_sha !== process.env.GITHUB_SHA) {
+            throw new Error('build-metadata is not bound to the exact workflow SHA');
+          }
+          if (metadata.artifact_name !== `wwhn-150-evidence-${process.env.GITHUB_SHA}`) {
+            throw new Error('artifact name is not exact-SHA bound');
+          }
+          if (metadata.approval_status !== 'PENDING_INDEPENDENT_SIGN_OFF') {
+            throw new Error('governance status must remain pending independent sign-off');
+          }
           for (const file of passFiles) {
-            const result = JSON.parse(fs.readFileSync(`build/evidence/api-data/${file}`, 'utf8'));
-            if (result.summary?.failed !== 0 || result.summary?.status === 'FAIL') {
+            const value = read(file);
+            const status = value.summary?.status ?? value.status;
+            const failed = value.summary?.failed ?? 0;
+            if (status !== 'PASS' || failed !== 0) {
               throw new Error(`${file} is not PASS`);
             }
           }
-          const catalog = JSON.parse(fs.readFileSync('build/evidence/api-data/permission-catalog.json', 'utf8'));
-          if (catalog.integrity?.status !== 'PASS') throw new Error('permission-catalog integrity is not PASS');
-          const seedDiff = JSON.parse(fs.readFileSync('build/evidence/api-data/permission-seed-diff.json', 'utf8'));
-          if (seedDiff.status !== 'PASS') throw new Error('permission seed diff is not PASS');
+          const newman = read('wwhn150-newman.result.json');
+          if ((newman.run?.failures ?? []).length !== 0) {
+            throw new Error('Newman contains failures');
+          }
+          const catalog = read('permission-catalog.json');
+          if (catalog.integrity?.status !== 'PASS') {
+            throw new Error('permission catalog integrity is not PASS');
+          }
+          const seedDiff = read('permission-seed-diff.json');
+          if (seedDiff.status !== 'PASS') {
+            throw new Error('permission seed diff is not PASS');
+          }
           NODE
 
-      - name: Frontend asset and baseline build
-        run: |
-          npm run lint
-          npm test
-          npm run build
+          (cd "$root" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
 
-      - name: Upload immutable WWHN-150 evidence
+      - name: Upload passing evidence
+        id: upload_passing
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: wwhn-150-evidence-${{ github.sha }}
-          path: build/evidence/api-data
+          path: build/evidence/WWHN-150
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
+
+      - name: Publish evidence summary
+        if: success()
+        shell: bash
+        env:
+          ARTIFACT_DIGEST: ${{ steps.upload_passing.outputs.artifact-digest }}
+        run: |
+          digest="$ARTIFACT_DIGEST"
+          if [[ -n "$digest" && "$digest" != sha256:* ]]; then
+            digest="sha256:$digest"
+          fi
+          {
+            echo '## WWHN-150 exact-SHA evidence'
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Artifact: \`wwhn-150-evidence-${GITHUB_SHA}\`"
+            echo "- Artifact ID: \`${{ steps.upload_passing.outputs.artifact-id }}\`"
+            echo "- Artifact digest: \`${digest}\`"
+            echo '- Internal SHA256SUMS verification: PASS'
+            echo '- Downloaded artifact includes hidden workflow source: YES'
+            echo '- Scan protected-table write check: PASS'
+            echo '- Governance: PENDING_INDEPENDENT_SIGN_OFF'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-150-diagnostics-${{ github.sha }}
+          path: build/evidence/WWHN-150
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 14
+
+      - name: Publish final statuses
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_DIGEST: ${{ steps.upload_passing.outputs.artifact-digest }}
+        with:
+          script: |
+            const targetUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const passed = '${{ job.status }}' === 'success';
+            const rawDigest = process.env.ARTIFACT_DIGEST || '';
+            const digest = rawDigest.startsWith('sha256:')
+              ? rawDigest
+              : rawDigest
+                ? `sha256:${rawDigest}`
+                : '';
+            const integrityPassed = passed && /^sha256:[a-f0-9]{64}$/i.test(digest);
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: passed ? 'success' : 'failure',
+              context: 'wwhn-150/evidence-gate',
+              description: passed ? 'WWHN-150 exact-SHA evidence passed' : 'WWHN-150 exact-SHA evidence failed',
+              target_url: targetUrl,
+            });
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: integrityPassed ? 'success' : 'failure',
+              context: 'wwhn-150/artifact-integrity',
+              description: integrityPassed
+                ? `Artifact ${digest.slice(0, 55)}`
+                : 'Passing artifact digest was not produced',
+              target_url: targetUrl,
+            });

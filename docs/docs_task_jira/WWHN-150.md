@@ -1,163 +1,70 @@
-# WWHN-150 — BE1 Output Architecture, scan read-only contract và evidence handoff
+# WWHN-150 — BE1 Output Architecture & Exact-SHA Evidence Handoff
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Branch triển khai | `m1` |
-| Document version | `1.1.0` |
-| Document status | **PROPOSED** |
+| Branch | `m1` |
+| Document version | `1.2.0` |
+| Scan contract version | `1.1.0` / runtime `WWHN-150.1.1.0` |
+| Trạng thái | **PROPOSED — PENDING INDEPENDENT SIGN-OFF** |
 | Implementation owner | BE1 |
-| Independent reviewers | QA1, BE2, FE1, BA, Tech Lead/PM |
-| Exact review commit | Lấy từ `wwhn-150-evidence-<SHA>/build-metadata.json` |
-| Artifact hash source | `wwhn-150-evidence-<SHA>/SHA256SUMS` |
-| Formal approval | **PENDING FORMAL JIRA APPROVAL** |
+| Independent reviewers | QA1 (WWHN-152), BE2 (WWHN-151), FE1 + BA (WWHN-153) |
+| Exact SHA | `build-metadata.json.commit_sha` trong artifact |
+| Workflow | `.github/workflows/auth-rbac-audit-contract.yml` |
+| Artifact | `wwhn-150-evidence-<exact_commit_sha>` |
+| Integrity | GitHub artifact digest + `SHA256SUMS` + `SHA256SUMS.sha256` |
 
-Tài liệu này không tự xác nhận `APPROVED`, `Done` hoặc `100%`. Repository đã triển khai các fix có thể thực hiện bởi BE1; các gate QA1/BE2/FE/BA/Tech Lead phải review độc lập trên **exact commit SHA** và ghi bằng chứng trên Jira.
+Tài liệu này chỉ ghi nhận phần BE1 có thể hoàn tất trong repository. Không tự nhận thay QA1, BE2, FE1 hoặc BA và không tự tuyên bố `Done/100%` trước sign-off độc lập.
 
-## 1. Kết quả xử lý P0/P1/P2
+## 1. Kết quả khắc phục P0/P1/P2
 
-| ID | Sev | Required fix | Thay đổi đã triển khai trên `m1` | Evidence repository/CI | Trạng thái trung thực |
-|---|---|---|---|---|---|
-| `BE1-P0-01` | P0 | Attach OpenAPI JSON/YAML, Postman collection/environment, changelog, raw logs; hash verify được | Thêm OpenAPI contract YAML riêng, Postman collection/environment thực thi, changelog, source register; CI generate full OpenAPI JSON/YAML, raw generation log, route list, PHPUnit/Newman logs, build metadata, source-tree hash và `SHA256SUMS` | `docs/api-contract/WWHN-150-scan-openapi.yaml`; `docs/postman/WWHN-150*`; `scripts/collect-api-data-evidence.sh`; workflow artifact `wwhn-150-evidence-<SHA>` | **REPOSITORY IMPLEMENTED**; Jira attachment/formal approval còn phải thực hiện bởi owner/reviewer |
-| `BE1-P1-01` | P1 | QA1 verify scan không tạo movement/balance/posting_event/idempotency cache | Thay mock resolver bằng lookup dữ liệu thật; scan chỉ đọc; remove required idempotency contract; data-scope guard; response có write flags; feature tests fingerprint DB trước/sau và replay cùng key | `ScanClassificationService.php`; `ScanController.php`; `ScanClassifyReadOnlyContractTest.php`; `scan-readonly-comparison.json` | **REPOSITORY IMPLEMENTED**; QA1 independent sign-off pending |
-| `BE1-P1-02` | P1 | Raw `php artisan test`, `route:list`, build SHA, DB before-after, reconcile report | CI xuất targeted scan test log + full PHPUnit log, route list JSON, OpenAPI generation log, Newman raw/JSON, exact commit/source-tree SHA, DB snapshots trước/sau scan và reconciliation report | `phpunit.raw.log`; `scan-readonly-phpunit.raw.log`; `route-list.raw.json`; `build-metadata.json`; `scan-db-before.json`; `scan-db-after.json`; `reconciliation-report.json`; `SHA256SUMS` | **REPOSITORY IMPLEMENTED**; kết quả chỉ PASS khi workflow exact SHA thành công |
-| `BE1-P1-03` | P1 | QA1 review 403/409/422, idempotency, race, rollback, reconciliation theo OpenAPI hash | Test matrix có 200/401/403/404/409/422, same-key, cross-warehouse privacy và DB no-write; source register khóa review vào generated OpenAPI hash; stocktake/race/rollback/reconcile evidence tiếp tục nằm trong cùng artifact | `docs/testing/WWHN-150-scan-readonly-test-cases.json`; `WWHN-150-source-register.json`; existing stocktake tests/evidence | **READY FOR QA1 REVIEW**; không giả mạo QA1 sign-off |
-| `BE1-P1-04` | P1 | BE2 xác nhận boundary schema/report/warranty/PV, không tạo nguồn tồn lệch BE1 | Chốt ownership: scan classify chỉ resolve; balance/ledger/posting_event chỉ được ghi bởi posting services; machine verifier hash và kiểm report/snapshot/warranty boundary; không tạo bảng tồn/song song mới | Mục 2 Architecture Boundary; `verify-wwhn150-contract.mjs`; `verify-wwhn150-boundary.mjs` | **READY FOR BE2 REVIEW**; BE2 sign-off pending |
-| `BE1-P1-05` | P1 | FE mapping endpoint/payload/error/permission sau contract chính thức | Chốt endpoint, payload, success flags, error codes, permission và data scope; Postman là executable mapping baseline | Mục 5 FE handoff; generated OpenAPI + Postman exact SHA | **READY FOR FE1 + BA REVIEW**; sign-off pending |
-| `BE1-P1-06` | P1 | Permission catalog, seed diff/hash, endpoint → permission → role matrix | Permission exporter bổ sung source SHA-256, route integrity gate và endpoint-permission-role matrix; static catalog cập nhật WWHN-150 | `ExportPermissionCatalog.php`; `permission-catalog.json`; `docs/permissions/WMS_PERMISSION_CATALOG_BE1.*` | **REPOSITORY IMPLEMENTED**; FE/BA review pending |
-| `BE1-P2-01` | P2 | Jira closure matrix AC → artifact/version/hash → reviewer → status → blocker | Tạo exact closure matrix và ready-to-paste Jira comment; hash/version lấy từ exact artifact, không ghi hash giả | Mục 7 và Mục 8 | **READY FOR JIRA HANDOFF** |
+| ID | Fix đã triển khai | Evidence exact-SHA | Trạng thái |
+|---|---|---|---|
+| BE1-P0-01 | Workflow riêng WWHN-150 tạo OpenAPI JSON/YAML, Postman collection/environment, changelog, raw logs, build metadata, source-tree hash, `SHA256SUMS`, artifact digest và run URL | `wwhn-150-evidence-<SHA>` | **BE1 IMPLEMENTED** |
+| BE1-P1-01 | Scan classify bị khóa read-only bằng test fingerprint và query listener; không DML vào `inventory_balances`, `stock_movements`, `posting_event`, `idempotency_keys`, `scan_event` | `scan-readonly-phpunit.raw.log`, `scan-db-before.json`, `scan-db-after.json`, `scan-readonly-comparison.json` | **READY FOR QA1** |
+| BE1-P1-02 | Xuất raw full PHPUnit, route list, OpenAPI generation, migration/seed, HTTP/Newman, DB before/after và reconciliation | `full-phpunit.raw.log`, `route-list.raw.json`, `openapi-generate.raw.log`, `migrate-fresh.raw.log`, `database-seed.raw.log`, `wwhn150-newman.raw.log`, `reconciliation-report.json` | **BE1 IMPLEMENTED** |
+| BE1-P1-03 | Exact-SHA packet có 403/404/409/422, same-key replay, 20 concurrent requests, race, rollback, idempotency và reconciliation | `race-rollback-reconciliation-phpunit.raw.log`, `wwhn150-concurrent-scan.json`, `wwhn150-newman.result.json` | **READY FOR QA1** |
+| BE1-P1-04 | Machine boundary report kiểm report/snapshot/warranty/PV không tạo nguồn tồn cạnh tranh | `stock-writer-boundary.json` | **READY FOR BE2** |
+| BE1-P1-05 | Endpoint/payload/error/permission khóa bằng generated OpenAPI + focused OpenAPI + executable Postman cùng exact SHA | `openapi.json`, `wwhn150-openapi.yaml`, `wwhn150.postman.collection.json`, `wwhn150-contract-verification.json` | **READY FOR FE1 + BA** |
+| BE1-P1-06 | Permission catalog runtime, seed diff/hash, endpoint → permission → role matrix là artifact rời | `permission-catalog.json`, `permission-seed-diff.json`, `permission-seed.git.diff`, `endpoint-permission-role-matrix.json` | **BE1 IMPLEMENTED** |
+| BE1-P2-01 | Closure matrix được lưu trong repository và phải post trực tiếp lên Jira cùng exact run/hash | `docs/evidence/WWHN-150/CLOSURE_MATRIX.md` | **READY FOR JIRA** |
 
-## 2. Output Architecture và boundary ownership
-
-### 2.1 Read path của scan/classify
+## 2. Canonical architecture boundary
 
 ```text
-FE / Scanner
-  -> POST /api/v1/scan/classify
+POST /api/v1/scan/classify
   -> auth:api
   -> permission:scan.classify
-  -> warehouse data-scope check
+  -> warehouse data-scope guard
   -> ScanClassificationService (SELECT-only)
-       -> physical_code
-       -> inventory_serials / item_instance
-       -> container
-       -> products + inventory_balances (read-only SKU information)
   -> response stock_effect=NONE
 ```
 
-### 2.2 Write boundary bắt buộc
+Scan/classify không phải posting operation. Nó không được:
 
-```text
-scan/classify                     : READ ONLY
-inbound post-receipt              : WRITE balance + movement + posting_event
-outbound post-issue               : WRITE balance + movement + posting_event
-stocktake apply-adjustment        : WRITE balance + movement + posting_event
-transfer posting                  : WRITE theo transfer service contract
-warranty TEMP_ONLY                : không được tự tạo nguồn tồn cạnh tranh
-report/PV                         : read model, không phải stock source of truth
-```
+- tạo hoặc sửa `inventory_balances`;
+- tạo `stock_movements`;
+- tạo `posting_event`;
+- ghi `idempotency_keys`;
+- ghi `scan_event`;
+- thay đổi trạng thái chứng từ, bảo hành hoặc snapshot.
 
-Nguồn tồn canonical của BE1:
+Nguồn tồn canonical vẫn là:
 
-- `inventory_balances`: current balance theo warehouse/product/status;
 - `stock_movements`: signed append-only ledger;
-- `posting_event`: operation-level posting/idempotency evidence cho **write operation**;
-- scan/classify không được ghi vào ba nguồn trên và không được tạo idempotency cache.
+- `inventory_balances`: projection/current balance;
+- `posting_event`: operation-level posting evidence cho write operation.
 
-### 2.3 Static and runtime guard
+Report/PV là read model; warranty `TEMP_ONLY` là status-only. Mọi write tồn phải đi qua posting service được kiểm soát, không đi qua scan.
 
-`verify-wwhn150-contract.mjs` fail khi controller/service scan chứa write patterns như `insert`, `update`, `delete`, model `create`, `IdempotencyStore`, `StockMovement` hoặc `InventoryBalance` mutation. Runtime proof dùng DB fingerprint trước/sau Newman scan.
+## 3. Contract FE/QA
 
-## 3. Artifact pack bắt buộc
-
-### 3.1 Source artifacts trong repository
-
-| Artifact | Version/status |
-|---|---|
-| `storage/api-docs/api-docs.json` | generated full OpenAPI từ source code hiện hành |
-| `docs/api-contract/WWHN-150-scan-openapi.yaml` | `1.1.0 / PROPOSED` |
-| `docs/api-contract/WWHN-150_OpenAPI_Changelog_BE1.md` | `1.1.0 / PROPOSED` |
-| `docs/postman/WWHN-150 Scan ReadOnly Contract.postman_collection.json` | `1.1.0` |
-| `docs/postman/WWHN-150 Scan ReadOnly CI.postman_environment.json` | `1.1.0`, password để trống và chỉ inject trong CI |
-| `docs/testing/WWHN-150-scan-readonly-test-cases.json` | `1.1.0 / PROPOSED` |
-| `docs/docs_task_jira/WWHN-150-source-register.json` | `1.1.0 / PROPOSED` |
-| `docs/permissions/WMS_PERMISSION_CATALOG_BE1.md` | `1.1.0-be1-wwhn150 / PROPOSED` |
-| `docs/permissions/WMS_PERMISSION_CATALOG_BE1.json` | generated seed/route/role catalog thật |
-
-### 3.2 Generated immutable evidence
-
-GitHub Actions artifact name:
-
-```text
-wwhn-150-evidence-<exact_commit_sha>
-```
-
-Required files:
-
-- `build-metadata.json` — exact commit SHA, source-tree SHA-256, runtime/tool versions và source hashes;
-- `source-tree.sha256` — hash của `git archive HEAD`;
-- `SHA256SUMS` — hash manifest của toàn bộ evidence/source copy;
-- `SHA256SUMS.sha256` — digest độc lập của manifest;
-- `openapi.json`, `openapi.yaml`, `openapi-generate.raw.log`;
-- `postman.collection.json`, `postman.environment.json`, `newman.raw.log`, `newman.result.json`;
-- stocktake collection/result/log giữ nguyên để QA1 review race/rollback/reconcile;
-- `wwhn150.postman.collection.json`, `wwhn150.postman.environment.json`, `wwhn150-newman.raw.log`, `wwhn150-newman.result.json`;
-- `wwhn150-concurrent-scan.raw.log`, `wwhn150-concurrent-scan.json` — 20 requests đồng thời dùng cùng key, cùng mã;
-- `phpunit.raw.log`, `scan-readonly-phpunit.raw.log`;
-- `route-list.raw.json`, `permission-catalog.json`;
-- `permission-seed-diff.json`, `permission-seed.git.diff`, `permission-catalog.raw.log`;
-- `stock-writer-boundary.json` — machine-verifiable report/warranty/PV boundary;
-- `scan-db-before.json`, `scan-db-after.json`, `scan-readonly-comparison.json`;
-- `db-before.json`, `db-after.json`, `reconciliation-report.json`;
-- `wwhn150-contract-verification.json`;
-- `migrate-fresh.raw.log`, `database-seed.raw.log`, `server.raw.log`.
-
-Verification command after download:
-
-```bash
-cd wwhn-150-evidence-<SHA>
-sha256sum --check SHA256SUMS
-sha256sum --check SHA256SUMS.sha256
-node -e "const r=require('./wwhn150-contract-verification.json'); if(r.summary.status!=='PASS') process.exit(1)"
-node -e "const r=require('./wwhn150-concurrent-scan.json'); if(r.summary.status!=='PASS') process.exit(1)"
-node -e "const r=require('./scan-readonly-comparison.json'); if(r.summary.status!=='PASS') process.exit(1)"
-node -e "const r=require('./reconciliation-report.json'); if(r.summary.status!=='PASS') process.exit(1)"
-```
-
-## 4. QA1 review packet — WWHN-152
-
-QA1 phải chạy trên exact SHA, không review branch động.
-
-| Gate | Expected evidence | Expected result |
-|---|---|---|
-| Auth/RBAC | no-permission Newman + feature test | `403` |
-| Data scope | scoped warehouse negative test | `403 WAREHOUSE_SCOPE_DENIED` |
-| Cross-warehouse privacy | scoped actor requests allowed kho với raw code thuộc kho khác | generic `404 SCAN_CODE_NOT_FOUND`, không lộ warehouse/object ID, DB unchanged |
-| Invalid object/context | feature test | `409` và không ghi DB |
-| Validation | Postman/feature test | `422` và không ghi DB |
-| Unknown code | Postman/feature test | `404 SCAN_CODE_NOT_FOUND` |
-| Same key retry | two identical scan requests | cả hai `200`; idempotency table unchanged |
-| Concurrent same key | 20 parallel HTTP requests + DB fingerprint | mọi response resolve cùng item, write flags=false, protected tables unchanged |
-| Stock effect | DB fingerprint | balance/movement/posting_event unchanged |
-| Scan event | DB fingerprint | `scan_event` unchanged |
-| Reconciliation | generated report | `failed=0` |
-| OpenAPI lock | `openapi.json` hash in `SHA256SUMS` | hash PASS |
-| Stocktake race/rollback | existing stocktake tests/artifact | PASS on same exact SHA |
-
-QA1 comment phải ghi: exact SHA, artifact URL/name, `SHA256SUMS` result, reviewed OpenAPI hash, test result, reviewer, date và blocker.
-
-## 5. FE1 + BA contract handoff — WWHN-153
-
-### 5.1 Endpoint
+### Request
 
 ```http
 POST /api/v1/scan/classify
 Authorization: Bearer <JWT>
 Content-Type: application/json
 ```
-
-`Idempotency-Key` không bắt buộc. Nếu FE vẫn gửi header để thống nhất client interceptor, backend bỏ qua và không ghi cache.
-
-### 5.2 Request
 
 ```json
 {
@@ -167,179 +74,103 @@ Content-Type: application/json
 }
 ```
 
-### 5.3 Success invariants
+`Idempotency-Key` không bắt buộc. Nếu client gửi, endpoint vẫn không tạo idempotency cache.
+
+### Success invariants
 
 ```json
 {
   "success": true,
   "data": {
-    "classification": "ITEM",
+    "contract_version": "WWHN-150.1.1.0",
     "stock_effect": "NONE",
     "movement_created": false,
     "posting_event_created": false,
-    "idempotency_cache_written": false,
-    "current_location": {
-      "warehouse_id": "<uuid>"
-    }
+    "idempotency_cache_written": false
   }
 }
 ```
 
-FE không được tăng/giảm tồn, giả lập posting, hoặc coi classify response là hạch toán thành công. Posting chỉ xảy ra qua endpoint posting riêng.
+### Error mapping
 
-### 5.4 Error mapping
-
-| HTTP | Error code | FE behavior |
+| HTTP | Nhóm lỗi | Yêu cầu |
 |---|---|---|
-| 401 | `UNAUTHENTICATED` | logout/refresh token theo auth policy |
-| 403 | `ACCESS_DENIED` hoặc `WAREHOUSE_SCOPE_DENIED` | ẩn action hoặc báo không có quyền/phạm vi kho |
-| 404 | `SCAN_CODE_NOT_FOUND` hoặc `WAREHOUSE_NOT_FOUND` | cho scan lại/nhập mã khác; không suy luận object/kho ngoài scope từ response |
-| 409 | `WAREHOUSE_INACTIVE`, `SCAN_CODE_INACTIVE`, `SCAN_WAREHOUSE_MISMATCH`, `SCAN_CONTEXT_CONFLICT`, ... | hiển thị business conflict, không retry tự động |
-| 422 | validation envelope | map lỗi field |
+| 401 | `UNAUTHENTICATED` | Không DB side effect |
+| 403 | `ACCESS_DENIED`, `WAREHOUSE_SCOPE_DENIED` | Không lộ object ngoài scope |
+| 404 | `SCAN_CODE_NOT_FOUND`, `WAREHOUSE_NOT_FOUND` | Cross-warehouse raw code trả generic 404 |
+| 409 | inactive/mismatch/context conflict | Không retry tự động; không DB side effect |
+| 422 | validation | Map lỗi field; không DB side effect |
 
-### 5.5 Permission
+Permission canonical:
 
 ```text
 POST /api/v1/scan/classify
-  -> permission: scan.classify
-  -> seeded role: WAREHOUSE_MANAGER
-  -> SUPER_ADMIN: backend bypass
+  -> scan.classify
+  -> WAREHOUSE_MANAGER
+  -> SUPER_ADMIN bypass theo backend policy
 ```
 
-FE permission visibility chỉ là UX; backend middleware vẫn là nguồn enforcement.
+## 4. Exact-SHA artifact contents
 
-## 6. BE2 boundary review — WWHN-151
+Artifact chỉ được phát hành khi workflow PASS. Tối thiểu gồm:
 
-BE2 cần xác nhận bằng Jira comment:
+- `build-metadata.json`, `source-tree.sha256`;
+- `SHA256SUMS`, `SHA256SUMS.sha256`;
+- generated `openapi.json`, `openapi.yaml`, focused `wwhn150-openapi.yaml`;
+- Postman collection/environment, Newman raw log/result;
+- raw `php artisan test`, targeted scan, race/rollback/reconciliation logs;
+- raw route list, migration/seed logs;
+- permission catalog, seed diff/git diff, endpoint-permission-role matrix;
+- DB before/after, read-only comparison, reconciliation report;
+- concurrency result cho 20 request;
+- report/warranty/PV boundary report;
+- credential hygiene report;
+- source copies cần thiết để reviewer kiểm tra độc lập.
 
-- không tạo balance/ledger/posting_event thứ hai cho schema/report/warranty/PV;
-- report và PV chỉ đọc nguồn canonical hoặc read model có reconciliation rõ ràng;
-- warranty TEMP_ONLY không tự post tồn;
-- field `warehouse_id`, product/SKU reference và status mapping không tạo mapping song song không kiểm soát;
-- endpoint/DB ownership không xung đột với BE1 posting services;
-- exact OpenAPI/source hash đã review.
+Verification sau khi tải artifact:
 
-Boundary đã khóa bằng máy trong `stock-writer-boundary.json`:
-
-- `inventory_report_snapshots` là read model dẫn xuất, rebuild được từ signed `stock_movements`; owner là reporting boundary, không phải nguồn tồn canonical và tuyệt đối không post ngược vào balance/ledger.
-- `ReportController` chỉ đọc `inventory_balances`/`stock_movements`; việc ghi file XLSX không phải DB stock mutation.
-- `warranty_case`/`warranty_event` chỉ quản lý vòng đời bảo hành; `TEMP_ONLY` không ghi ba nguồn tồn canonical.
-- `pv_product_profile` chỉ chứa metadata/catalog và tham chiếu product, không chứa quantity/balance/ledger/posting field; không có runtime PV handler trong `Modules/Warehouse/app`, chỉ có migration + baseline seeder được hash để BE2 review.
-- Verifier hash từng source report/snapshot/warranty và fail nếu phát hiện writer ngoài boundary.
-
-Nếu BE2 phát hiện schema mirror (`warehouse`, `sku`, `inventory_movement`) còn được dùng, phải ghi rõ mapping/owner/reconcile rule; không được coi mirror là nguồn tồn canonical thứ hai.
-
-## 7. Closure matrix P2
-
-| AC/Fix ID | Artifact/version | Hash source | Reviewer | Repository status | External blocker |
-|---|---|---|---|---|---|
-| `BE1-P0-01` | OpenAPI/Postman/source register `1.1.0` | `SHA256SUMS` + `SHA256SUMS.sha256` | Tech Lead/PM | Implemented | Jira attachment + formal approval |
-| `BE1-P1-01` | Scan service/controller/test `WWHN-150.1.1.0` | source copy hashes | QA1 | Implemented | QA1 independent test |
-| `BE1-P1-02` | Raw logs/route/build/DB/reconcile | `SHA256SUMS` | QA1 + DevOps | CI wired | exact SHA workflow success |
-| `BE1-P1-03` | Test matrix `1.1.0` | source + result hashes | QA1 | Ready | QA1 comment |
-| `BE1-P1-04` | Architecture boundary v1.0 | doc/source hashes | BE2 | Ready | BE2 comment |
-| `BE1-P1-05` | FE contract v1.1.0 | OpenAPI/Postman hashes | FE1 + BA | Ready | FE/BA comment |
-| `BE1-P1-06` | Permission catalog `1.1.0` | seed/route/middleware SHA-256 | FE1 + BA | Implemented | FE/BA comment |
-| `BE1-P2-01` | This closure matrix | document SHA-256 | BE1/PM | Ready | Jira closure comment |
-
-## 8. Ready-to-paste Jira closure comment
-
-```text
-WWHN-150 BE1 HANDOFF — PROPOSED FOR INDEPENDENT REVIEW
-
-Branch: m1
-Exact review commit: <build-metadata.json.commit_sha>
-Workflow run: <url>
-Artifact: wwhn-150-evidence-<exact_commit_sha>
-Source-tree SHA-256: <build-metadata.json.source_tree_sha256>
-SHA256SUMS validation: PASS|FAIL — <evidence/link>
-SHA256SUMS digest validation: PASS|FAIL — <SHA256SUMS.sha256>
-Generated OpenAPI SHA-256: <SHA256SUMS openapi.json>
-Postman collection SHA-256: <SHA256SUMS wwhn150.postman.collection.json>
-Permission seed SHA-256: <permission-catalog.json.source_hashes.permission_seed.sha256>
-Warehouse routes SHA-256: <permission-catalog.json.source_hashes.warehouse_routes.sha256>
-
-Repository implementation:
-- scan/classify real resolver, no mock IDs
-- permission + warehouse data-scope enforcement
-- stock_effect=NONE; no balance/movement/posting_event/scan_event/idempotency writes
-- targeted + full PHPUnit raw logs
-- route:list, generated OpenAPI JSON/YAML, Postman/Newman raw/JSON
-- DB before/after fingerprint and reconciliation report
-- endpoint -> permission -> role matrix and source hashes
-
-Automated gate:
-- wwhn150-contract-verification: PASS|FAIL
-- scan-readonly-comparison: PASS|FAIL
-- wwhn150-concurrent-scan: PASS|FAIL
-- reconciliation-report: PASS|FAIL
-- permission-seed-diff: PASS|FAIL
-- stock-writer-boundary: PASS|FAIL
-- full PHPUnit: PASS|FAIL
-- WWHN-150 Newman: PASS|FAIL
-
-Independent reviews:
-- QA1 / WWHN-152: PENDING|PASS — <reviewer/date/comment>
-- BE2 / WWHN-151: PENDING|PASS — <reviewer/date/comment>
-- FE1 + BA / WWHN-153: PENDING|PASS — <reviewer/date/comment>
-- Tech Lead/PM approval: PENDING|APPROVED — <reviewer/date/comment>
-
-Remaining blockers: <none or exact blockers>
-Decision: PROPOSED until every independent review and formal Jira approval above is recorded.
+```bash
+sha256sum --check SHA256SUMS
+sha256sum --check SHA256SUMS.sha256
 ```
 
-## 9. Remediation thực thi cho đánh giá 66/100
+Các file structured sau phải có `PASS`: `wwhn150-contract-verification.json`, `scan-readonly-comparison.json`, `reconciliation-report.json`, `stock-writer-boundary.json`, `wwhn150-concurrent-scan.json`, `credential-hygiene.json`.
 
-### 9.1 P0 artifact pipeline
+## 5. Independent review gates
 
-- Workflow export môi trường SQLite test ở job scope; không còn phụ thuộc thứ tự biến trùng trong `.env.example`.
-- Collector fail-fast nếu không đúng `APP_ENV=testing` và `/tmp/wms-ci.sqlite`; đường dẫn xóa đệ quy bị giới hạn cứng bên dưới `<repo>/build/evidence/`, sau đó mới xóa pack cũ để không trộn file stale.
-- Collector từ chối worktree dirty/untracked để mọi source copy, `git archive HEAD`, build metadata và manifest luôn cùng một exact commit.
-- Sửa đủ đối số cho stocktake verifier; thêm exact `GITHUB_SHA`/artifact-name validation.
-- Artifact chuẩn chỉ upload khi mọi gate PASS; artifact partial không được dùng nhầm làm approval evidence.
-- Manifest có `SHA256SUMS` và `SHA256SUMS.sha256`, tự verify trước upload.
-- Full generated OpenAPI JSON có response schema scan thật; YAML standalone, Postman collection/environment, changelog, source register và repository permission catalog đều là file thật.
-- Previous run trên `404fa84` đã FAIL trước collector và có zero artifact; run đó bị tuyên bố rõ là **không hợp lệ để review**.
+### QA1 — WWHN-152
 
-### 9.2 P1 scan/API/DB/RBAC evidence
+QA1 phải ghi trên Jira: exact SHA, workflow run URL, artifact ID/digest, focused OpenAPI SHA-256, Postman SHA-256, `SHA256SUMS PASS`, kết quả 403/409/422, same-key/concurrent, no-write DB, race/rollback/reconciliation và kết luận PASS/FAIL.
 
-| Control | Repository proof | Kết quả local trước final commit |
-|---|---|---|
-| Scan no stock effect | ITEM/SKU/CONTAINER, replay, 401/403/404/409/422, cross-warehouse privacy, fingerprint và transient-DML listener | `ScanClassifyReadOnlyContractTest`: **PASS — 7 tests, 72 assertions** |
-| Contract structure | Generated OpenAPI success/error schemas, `x-permission`, Postman 409, secret-safe environment, version alignment | `verify-wwhn150-contract.mjs`: **PASS — 25/25 checks** |
-| Concurrent probe implementation | Mock HTTP harness kiểm login/warehouse/20 parallel responses/stable item/output summary | local self-test **PASS — 20/20 responses**; kết quả race trên DB thật chờ exact-SHA CI |
-| BE2 writer boundary | report/snapshot model+service/warranty/PV schema+runtime source hashes và writer guard | `verify-wwhn150-boundary.mjs`: **PASS — 8/8 checks** |
-| Permission seed/catalog | actual DB seed, route → permission → role matrix, exact source hashes, missing/unexpected diff | exporter test **PASS — 1 test, 12 assertions**; `permission_seed_diff.status=PASS` |
-| OpenAPI lint | standalone WWHN-150 + generated core OpenAPI | **PASS**; generated core còn warning ngoài scope nhưng không có error |
-| Full regression | Toàn bộ backend + frontend baseline/reconciliation/build | PHPUnit **PASS — 137 tests, 1283 assertions**; npm lint/test/build **PASS** |
+### BE2 — WWHN-151
 
-Rollback cho `scan/classify` được đánh dấu **N/A có lý do**: operation này SELECT-only, không tạo transaction posting, idempotency lease hay state transition để rollback. Race được probe bằng 20 HTTP requests đồng thời cùng key/mã trên CI server 8 workers, nằm giữa hai protected-table snapshots. QA1 vẫn phải chạy độc lập và xác nhận fingerprint không đổi. Race/rollback/reconciliation của các write operation tiếp tục được kiểm tra trong stocktake/full suite cùng exact artifact.
+BE2 phải xác nhận schema/report/warranty/PV không:
 
-### 9.3 Closure ledger không được giả mạo
+- tạo balance/ledger/posting source thứ hai;
+- ghi ngược read model vào tồn canonical;
+- dùng warranty `TEMP_ONLY` để post tồn;
+- tạo mapping warehouse/product/status song song không reconciliation.
 
-| ID | Phần BE1 đã hoàn thành | Evidence bên ngoài còn bắt buộc | Status trung thực |
-|---|---|---|---|
-| `BE1-P0-01` | File thật + exact-SHA artifact pipeline + checksum/digest | Workflow run URL và artifact ID sau khi final commit được push | **PENDING EXACT-SHA CI** |
-| `BE1-P1-01` | Automated no-write coverage sâu | QA1 name/date/raw independent result trên WWHN-152 | **PENDING QA1** |
-| `BE1-P1-02` | Raw log/route/build/DB/reconcile collector | DevOps xác nhận artifact tải được và checksum PASS | **PENDING CI/DEVOPS** |
-| `BE1-P1-03` | QA packet 401/403/404/409/422 + concurrent race probe + rollback N/A rationale + same-SHA stocktake suite | QA1 review exact OpenAPI hash | **PENDING QA1** |
-| `BE1-P1-04` | Machine-verifiable report/warranty/PV boundary | BE2 reviewer/date/comment trên WWHN-151 | **PENDING BE2** |
-| `BE1-P1-05` | OpenAPI/Postman/error/permission mapping v1.1.0 | FE repository/SHA, route-permission mapping và FE1+BA comment trên WWHN-153 | **PENDING FE1/BA** |
-| `BE1-P1-06` | Static + runtime permission catalog, seed diff/hash, endpoint-role matrix | FE xác nhận visibility/action mapping | **PENDING FE1/BA** |
-| `BE1-P2-01` | Ready-to-paste comment mục 8 | Jira comment ID/link và reviewer status thật | **READY AFTER CI** |
+### FE1 + BA — WWHN-153
 
-Không được thay các status PENDING bằng PASS/APPROVED nếu chưa có reviewer, date, exact artifact URL/hash và Jira comment thật.
+FE1 + BA phải xác nhận trên exact hash:
 
-## 10. Definition of Done
+- endpoint/method/request payload;
+- success invariants;
+- error envelope 401/403/404/409/422;
+- permission `scan.classify`;
+- FE không coi classify là posting và không tự tăng/giảm tồn.
 
-- [ ] Exact `m1` commit workflow success.
-- [ ] Artifact downloaded; `sha256sum --check SHA256SUMS` PASS.
-- [ ] `wwhn150-contract-verification.summary.status=PASS`.
-- [ ] `scan-readonly-comparison.summary.status=PASS`.
-- [ ] `reconciliation-report.summary.status=PASS`.
-- [ ] Full PHPUnit and all Newman suites PASS.
-- [ ] QA1 signs WWHN-152 on exact SHA/hash.
-- [ ] BE2 signs WWHN-151 boundary on exact SHA/hash.
-- [ ] FE1 + BA sign WWHN-153 mapping on exact OpenAPI/Postman hash.
-- [ ] Tech Lead/PM records formal Jira approval with version/hash/date.
-- [ ] Only after all gates: change Jira/document status from `PROPOSED` to approved closure state.
+## 6. Exit criteria
+
+WWHN-150 chỉ được chuyển final khi đồng thời có:
+
+1. workflow `wwhn-150/evidence-gate` PASS;
+2. workflow `wwhn-150/artifact-integrity` PASS;
+3. artifact `wwhn-150-evidence-<SHA>` có digest và checksum PASS;
+4. QA1 sign-off WWHN-152;
+5. BE2 boundary sign-off WWHN-151;
+6. FE1 + BA sign-off WWHN-153;
+7. closure matrix được post trực tiếp trên Jira.
+
+Mọi review phải dùng commit SHA bất biến, không review theo branch động.
