@@ -1,137 +1,83 @@
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "ticket": "WWHN-128",
   "parent_ticket": "WWHN-24",
   "decision_id": "DEC-INV-001",
-  "document_revision": "1.6-R6",
+  "document_revision": "1.7-R7",
   "released_at": "2026-08-06",
-  "status": "BE1_TECHNICAL_PACKAGE_COMPLETE_INDEPENDENT_REVIEW_PENDING",
+  "status": "REPO_CONTROLS_COMPLETE_EXTERNAL_GATES_PENDING",
   "repository": {
     "full_name": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
     "branch": "m1",
     "direct_branch_update": true,
-    "baseline_before_r6": "a9951965ee2d968435ada425a389f03b5aa4bede",
-    "implementation_baseline_r5": "f3b225ec0f5374c9c3d2b395fb59efbcfc601390",
-    "release_commit_sha": null,
-    "release_commit_binding": "RECORD_EXACT_R6_SHA_IN_JIRA_AFTER_SINGLE_COMMIT",
+    "base_head_before_r7": "14a271eea1c2714a5e8fc54b4857af37f6b128ad",
+    "r6_commit": "7d7091c48798114b5bbf7ff4c0b58617d177c737",
+    "r7_release_commit_sha": null,
+    "post_commit_binding": "POST_EXACT_R7_SHA_AND_BLOBS_TO_JIRA_AFTER_SINGLE_COMMIT",
     "decision_document_path": "docs/docs_task_jira/WWHN-128.md",
     "source_register_path": "docs/docs_task_jira/WWHN-128-source-register.json",
+    "closure_register_path": "docs/evidence/WWHN-128/INV_P1_P2_CLOSURE_REGISTER.json",
+    "downstream_gate_path": "docs/evidence/WWHN-128/DOWNSTREAM_CONTRACT_GATE.json",
     "review_protocol_path": "docs/evidence/WWHN-128/REVIEW_AND_APPROVAL_PROTOCOL.md",
-    "workflow_path": ".github/workflows/wwhn-128-inventory-decision-contract.yml",
-    "evidence_test_path": "tests/Feature/Wwhn128EvidenceContractTest.php"
+    "verifier_path": "scripts/verify_wwhn128_closure.py",
+    "workflow_path": ".github/workflows/wwhn-128-inventory-decision-contract.yml"
   },
   "architecture_baseline": {
     "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
-    "git_blob_sha": "a6e4e3183afe0b695ea63fd97faa45e74ac7a75e",
+    "git_blob_sha_at_base": "a6e4e3183afe0b695ea63fd97faa45e74ac7a75e",
     "rules": [
       "BACKEND_ENFORCES_RBAC_AND_DATA_SCOPE",
       "STOCK_CHANGING_OPERATIONS_REQUIRE_TRANSACTION_LOCK_AND_IDEMPOTENCY",
       "STOCK_MOVEMENTS_ARE_APPEND_ONLY_AUTHORITY",
       "INVENTORY_BALANCES_ARE_PROJECTION",
       "SIGNED_RECONCILIATION_BY_WAREHOUSE_PRODUCT_STATUS",
+      "POSTGRESQL_IS_PRIMARY_TARGET_AND_EXECUTED_ENGINE_MUST_BE_DECLARED",
       "NO_FALSE_PASS_WITHOUT_EXACT_SHA_EVIDENCE"
     ]
   },
-  "jira_release_artifacts_r5": [
+  "current_jira_artifacts": [
     {
       "filename": "WWHN-128.md",
-      "attachment_id": 11570,
-      "jira_metadata_size_bytes": 25184,
-      "candidate_sha256_from_exact_ci_source_bytes": "82bf4521c0e96ca9421ef29e57d1c5c01f99001037955b0ce7a5c66340eed0b6",
-      "candidate_source_artifact_id": 8879619822,
-      "verification_state": "METADATA_SIZE_MATCH_CANDIDATE_HASH_EXACT_JIRA_BYTES_NOT_DOWNLOADED"
+      "attachment_id": 11647,
+      "size_bytes": 13447,
+      "sha256": null,
+      "exact_jira_bytes_verified": false,
+      "disposition": "EXTERNAL_DOWNLOAD_OR_FORMAL_ACCEPTED_WITH_CONDITION_REQUIRED"
     },
     {
       "filename": "WWHN-128-source-register.json",
-      "attachment_id": 11569,
-      "jira_metadata_size_bytes": 12329,
-      "candidate_sha256_from_exact_ci_source_bytes": "f76c4b01be2d78029aea200dca3b9c680157d414b4987252678363dadd3a2db9",
-      "candidate_source_artifact_id": 8879619822,
-      "verification_state": "METADATA_SIZE_MATCH_CANDIDATE_HASH_EXACT_JIRA_BYTES_NOT_DOWNLOADED"
+      "attachment_id": 11646,
+      "size_bytes": 9446,
+      "sha256": null,
+      "exact_jira_bytes_verified": false,
+      "disposition": "EXTERNAL_DOWNLOAD_OR_FORMAL_ACCEPTED_WITH_CONDITION_REQUIRED"
     }
   ],
   "jira_attachment_hash_policy": {
-    "current_limitation": "CONNECTED_ATLASSIAN_ACTIONS_DO_NOT_EXPOSE_JIRA_ATTACHMENT_BYTE_DOWNLOAD",
+    "connector_byte_download_available": false,
     "verified_claim_allowed": false,
     "valid_dispositions": [
       "DOWNLOAD_EXACT_JIRA_BYTES_AND_VERIFY_SHA256",
       "ACCEPTED_WITH_CONDITION_CONNECTOR_BYTE_DOWNLOAD_UNAVAILABLE"
     ],
-    "anti_false_claim": "Size match and candidate CI checksum do not equal exact Jira byte verification"
+    "required_condition_fields": ["owner", "deadline", "attachment_id", "size_bytes", "candidate_or_pending_hash_state"],
+    "anti_false_claim": "Attachment metadata and repository source bytes do not prove exact Jira attachment bytes"
   },
   "business_sources": [
-    {
-      "source_type": "BRD",
-      "version": "3.12",
-      "attachment_id": 11386,
-      "sha256": null,
-      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
-    },
-    {
-      "source_type": "SRS_FRD",
-      "version": "1.5",
-      "attachment_id": 11415,
-      "sha256": null,
-      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
-    },
-    {
-      "source_type": "OPENAPI",
-      "version": "1.1",
-      "attachment_id": 11414,
-      "sha256": null,
-      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
-    },
-    {
-      "source_type": "BPD",
-      "version": "1.4",
-      "attachment_id": 11419,
-      "sha256": null,
-      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
-    },
-    {
-      "source_type": "BASELINE_REGISTER",
-      "version": "2.2.1",
-      "attachment_id": 11545,
-      "sha256": null,
-      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
-    }
+    {"source_type": "BRD", "version": "3.12", "attachment_id": 11386, "sha256": null, "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"},
+    {"source_type": "SRS_FRD", "version": "1.5", "attachment_id": 11415, "sha256": null, "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"},
+    {"source_type": "OPENAPI", "version": "1.1", "attachment_id": 11414, "sha256": null, "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"},
+    {"source_type": "BPD", "version": "1.4", "attachment_id": 11419, "sha256": null, "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"},
+    {"source_type": "BASELINE_REGISTER", "version": "2.2.1", "attachment_id": 11545, "sha256": null, "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"}
   ],
   "implementation_artifacts": [
-    {
-      "path": "app/Support/IdempotencyKeyGuard.php",
-      "git_blob_sha": "f0ea48754fbab4c9b09cc522b7f59a864e924161",
-      "control": "SHARED_428_422_AND_8_100_BOUNDARY"
-    },
-    {
-      "path": "app/Support/IdempotencyStore.php",
-      "git_blob_sha": "78e45f98f799da90d6170dfb6259ce23263383b3",
-      "control": "ATOMIC_CALLBACK_SNAPSHOT_LEASE_OWNERSHIP_CANONICAL_HASH"
-    },
-    {
-      "path": "Modules/Warehouse/app/Http/Controllers/WarrantyController.php",
-      "git_blob_sha": "dbafecd8b606dafa7c5ca3c83b9b4ee840160fa2",
-      "control": "WARRANTY_STATUS_ONLY_ELIGIBILITY_ACTIVE_CASE_ROW_LOCK"
-    },
-    {
-      "path": "Modules/Warehouse/app/Http/Controllers/ReportController.php",
-      "git_blob_sha": "91612835ee00192fdd36590c403c1d1363fd8edc",
-      "control": "SIGNED_SUM_UNION_DIMENSION_RECONCILIATION"
-    },
-    {
-      "path": "database/migrations/2026_01_01_000010_create_idempotency_keys_table.php",
-      "git_blob_sha": "915dd4bbee58e3871c6272b6ebc3680a0605fd2a",
-      "control": "UNIQUE_IDEM_KEY_OPERATION_USER"
-    },
-    {
-      "path": "Modules/Warehouse/database/migrations/2026_01_01_000034_create_inventory_balances_table.php",
-      "git_blob_sha": "77b283a1684d12c3b00dd87e58c55e056cedab71",
-      "control": "UNIQUE_WAREHOUSE_PRODUCT_STOCK_STATUS"
-    },
-    {
-      "path": "Modules/Warehouse/database/migrations/2026_01_01_000035_create_stock_movements_table.php",
-      "git_blob_sha": "c9d47f3b7c239d220a326b8f53be3179629ee8b7",
-      "control": "UNIQUE_MOVEMENT_BUSINESS_KEY_APPEND_ONLY_LEDGER"
-    }
+    {"path": "app/Support/IdempotencyKeyGuard.php", "git_blob_sha_at_r6": "f0ea48754fbab4c9b09cc522b7f59a864e924161", "control": "SHARED_428_422_AND_8_100_BOUNDARY"},
+    {"path": "app/Support/IdempotencyStore.php", "git_blob_sha_at_r6": "78e45f98f799da90d6170dfb6259ce23263383b3", "control": "ATOMIC_CALLBACK_SNAPSHOT_LEASE_OWNERSHIP_CANONICAL_HASH"},
+    {"path": "Modules/Warehouse/app/Http/Controllers/WarrantyController.php", "git_blob_sha_at_r6": "dbafecd8b606dafa7c5ca3c83b9b4ee840160fa2", "control": "WARRANTY_STATUS_ONLY_ELIGIBILITY_ACTIVE_CASE_ROW_LOCK"},
+    {"path": "Modules/Warehouse/app/Http/Controllers/ReportController.php", "git_blob_sha_at_r6": "91612835ee00192fdd36590c403c1d1363fd8edc", "control": "SIGNED_SUM_UNION_DIMENSION_RECONCILIATION"},
+    {"path": "database/migrations/2026_01_01_000010_create_idempotency_keys_table.php", "git_blob_sha_at_r6": "915dd4bbee58e3871c6272b6ebc3680a0605fd2a", "control": "UNIQUE_IDEM_KEY_OPERATION_USER"},
+    {"path": "Modules/Warehouse/database/migrations/2026_01_01_000034_create_inventory_balances_table.php", "git_blob_sha_at_r6": "77b283a1684d12c3b00dd87e58c55e056cedab71", "control": "UNIQUE_WAREHOUSE_PRODUCT_STOCK_STATUS"},
+    {"path": "Modules/Warehouse/database/migrations/2026_01_01_000035_create_stock_movements_table.php", "git_blob_sha_at_r6": "c9d47f3b7c239d220a326b8f53be3179629ee8b7", "control": "UNIQUE_MOVEMENT_BUSINESS_KEY_APPEND_ONLY_LEDGER"}
   ],
   "verified_r5_ci": {
     "commit_sha": "f3b225ec0f5374c9c3d2b395fb59efbcfc601390",
@@ -147,104 +93,92 @@
     "failures": 0,
     "errors": 0,
     "skipped": 0,
-    "php": "8.3.33",
-    "phpunit": "12.5.33",
     "database_engine": "sqlite",
-    "scope": "WWHN-128 focused regression"
+    "scope": "WWHN-128 focused regression; not PostgreSQL/UAT"
   },
-  "r6_ci_gate": {
+  "r6_ci_observation": {
+    "commit_sha": "7d7091c48798114b5bbf7ff4c0b58617d177c737",
+    "run_id": 31082380025,
+    "run_attempt": 2,
+    "job_id": 92570314627,
+    "conclusion": "failure",
+    "runner_allocated": false,
+    "steps": [],
+    "artifact_count": 0,
+    "classification": "BLOCKED_BEFORE_RUNNER_BY_BILLING_OR_SPENDING_LIMIT",
+    "code_or_test_failure": false,
+    "required_action": "DEVOPS_OR_ORG_BILLING_ADMIN_FIX_THEN_RERUN_EXACT_FAILED_RUN"
+  },
+  "r7_ci_contract": {
     "artifact_name_pattern": "wwhn-128-evidence-<exact-github-sha>",
     "database_engine_declared": "sqlite",
     "required_outputs": [
-      "build-metadata.json",
-      "test-summary.json",
-      "junit.xml",
-      "phpunit.log",
-      "db-before.json",
-      "db-after.json",
-      "schema-verification.json",
-      "reconciliation-report.json",
-      "route-list.json",
-      "commit-stat.txt",
-      "changed-files.txt",
-      "source-tree.sha256",
-      "WWHN-128.md",
-      "WWHN-128-source-register.json",
-      "REVIEW_AND_APPROVAL_PROTOCOL.md",
-      "review-ledger.json",
-      "artifact-manifest.json",
-      "jira-handoff-comment.txt",
-      "ci-summary.md",
-      "SHA256SUMS",
-      "SHA256SUMS.sha256"
+      "build-metadata.json", "test-summary.json", "junit.xml", "phpunit.log",
+      "db-before.json", "db-after.json", "schema-verification.json", "reconciliation-report.json",
+      "route-list.json", "commit-stat.txt", "changed-files.txt", "source-tree.sha256",
+      "WWHN-128.md", "WWHN-128-source-register.json", "REVIEW_AND_APPROVAL_PROTOCOL.md",
+      "INV_P1_P2_CLOSURE_REGISTER.json", "DOWNSTREAM_CONTRACT_GATE.json",
+      "closure-verification.json", "review-ledger.json", "artifact-manifest.json",
+      "jira-handoff-comment.txt", "ci-summary.md", "SHA256SUMS", "SHA256SUMS.sha256"
     ],
-    "latest_run_id": null,
-    "latest_run_attempt": null,
-    "latest_conclusion": null,
-    "latest_artifact_id": null,
-    "latest_artifact_digest": null,
-    "post_commit_binding": "RECORD_LIVE_R6_VALUES_IN_JIRA_FINAL_HANDOFF"
+    "postgresql_uat_policy": "QA1_OR_TECH_LEAD_MAY_REQUIRE_PASS_WITH_CONDITIONS_UNTIL_POSTGRESQL_OR_UAT_EVIDENCE_EXISTS"
   },
   "traceability": [
     {
-      "source": "BRD 3.12",
-      "decision_rule": "WARRANTY_STATUS_ONLY_AND_ELIGIBILITY",
-      "api_or_code": "WarrantyController::tempOnly / assertLinkedSerialEligible",
-      "test_or_evidence": "WarrantyStatusOnlyContractTest and WarrantyIdempotencyKeyContractTest",
-      "tickets": ["WWHN-24", "WWHN-31", "WWHN-33", "WWHN-128", "WWHN-129", "WWHN-130"]
+      "rule": "WARRANTY_STATUS_ONLY",
+      "api_or_code": ["Modules/Warehouse/app/Http/Controllers/WarrantyController.php"],
+      "tests": ["tests/Feature/WarrantyStatusOnlyContractTest.php", "tests/Feature/WarrantyIdempotencyKeyContractTest.php"],
+      "tickets": ["WWHN-24", "WWHN-31", "WWHN-40", "WWHN-128", "WWHN-129", "WWHN-130", "WWHN-180"]
     },
     {
-      "source": "OpenAPI 1.1",
-      "decision_rule": "IDEMPOTENCY_KEY_8_100_AND_OPERATION_LEVEL_REPLAY",
-      "api_or_code": "IdempotencyKeyGuard::require / IdempotencyStore::handle",
-      "test_or_evidence": "Warranty key suite and Wwhn180IdempotencyAtomicityTest",
-      "tickets": ["WWHN-31", "WWHN-33", "WWHN-128", "WWHN-130", "WWHN-180"]
+      "rule": "OPERATION_LEVEL_IDEMPOTENCY",
+      "api_or_code": ["app/Support/IdempotencyKeyGuard.php", "app/Support/IdempotencyStore.php"],
+      "tests": ["tests/Feature/Wwhn180IdempotencyAtomicityTest.php"],
+      "tickets": ["WWHN-31", "WWHN-40", "WWHN-128", "WWHN-180"]
     },
     {
-      "source": "DEC-INV-001",
-      "decision_rule": "SIGNED_RECONCILIATION_BY_WAREHOUSE_PRODUCT_STOCK_STATUS",
-      "api_or_code": "ReportController::inventoryReconciliation",
-      "test_or_evidence": "Inventory reconciliation suites and Wwhn128EvidenceContractTest",
-      "tickets": ["WWHN-31", "WWHN-33", "WWHN-128", "WWHN-130"]
+      "rule": "SIGNED_LEDGER_RECONCILIATION",
+      "api_or_code": ["Modules/Warehouse/app/Http/Controllers/ReportController.php"],
+      "tests": ["tests/Feature/InventoryReconciliationSignedStatusTest.php", "tests/Feature/InventoryReconciliationIntegrityTest.php", "tests/Feature/Wwhn128EvidenceContractTest.php"],
+      "tickets": ["WWHN-31", "WWHN-40", "WWHN-128", "WWHN-180"]
     }
   ],
-  "independent_review": {
-    "BA": {
-      "issue": "WWHN-129",
-      "status": "PENDING_INDEPENDENT_DISPOSITION"
-    },
-    "BAS": {
-      "issue": "WWHN-130",
-      "status": "PENDING_INDEPENDENT_DISPOSITION"
-    },
-    "TECH_LEAD": {
-      "issue": "WWHN-24_OR_WWHN-128",
-      "status": "PENDING_INDEPENDENT_DISPOSITION"
-    },
-    "QA1": {
-      "issue": "WWHN-24_OR_WWHN-128",
-      "status": "PENDING_EXACT_SHA_ARTIFACT_REVIEW"
-    },
-    "PM_APPROVER": {
-      "issue": "WWHN-24",
-      "status": "PENDING_FORMAL_DECISION"
-    },
-    "anti_impersonation": "BE1 and CI cannot sign for independent roles"
+  "downstream_gates": {
+    "WWHN-31": {"status_observed": "IN_PROGRESS", "required_result": "OFFICIAL_CONTRACT_PUBLISHED_AND_INDEPENDENTLY_VERIFIED", "open_owner": "BE1_BE2_TECH_LEAD_QA1"},
+    "WWHN-40": {"status_observed": "IN_PROGRESS", "required_result": "GO_OR_CONDITIONAL_GO_OR_NO_GO", "open_owner": "BA_FE1_QA"},
+    "WWHN-180": {"status_observed": "IN_PROGRESS", "required_result": "API_DATA_EVIDENCE_AND_DOWNSTREAM_MAPPING_VERIFIED", "open_owner": "BE1_FE1_QA2_BA"}
   },
   "latest_findings": {
-    "BE1-R5-P1-01": "FORMAL_DECISION_EXTERNAL_PENDING",
-    "BE1-R5-P1-02": "CANDIDATE_HASH_AND_SIZE_RECORDED_EXACT_JIRA_BYTES_EXTERNAL",
-    "BE1-R5-P1-03": "BA_DISPOSITION_EXTERNAL_PENDING",
-    "BE1-R5-P1-04": "BAS_DISPOSITION_EXTERNAL_PENDING",
-    "BE1-R5-P1-05": "TECH_LEAD_DISPOSITION_EXTERNAL_PENDING",
-    "BE1-R5-P1-06": "R5_CI_VERIFIED_R6_EVIDENCE_PIPELINE_ADDED_QA1_PENDING",
-    "BE1-R5-P1-07": "SOURCE_IDS_VERIFIED_SOURCE_BYTES_EXTERNAL_PENDING",
-    "BE1-R5-P2-01": "STRUCTURED_FINAL_HANDOFF_READY_POST_COMMIT"
+    "INV-P1-01": {"repo_status": "COMPLETE", "external_status": "PENDING_FORMAL_DECISION"},
+    "INV-P1-02": {"repo_status": "COMPLETE", "external_status": "BLOCKED_BY_GITHUB_BILLING"},
+    "INV-P1-03": {"repo_status": "COMPLETE", "external_status": "PENDING_SUCCESSFUL_RUN_AND_QA1_REVIEW"},
+    "INV-P1-04": {"repo_status": "COMPLETE", "external_status": "PENDING_WWHN_129_DISPOSITION"},
+    "INV-P1-05": {"repo_status": "COMPLETE", "external_status": "PENDING_WWHN_130_DISPOSITION"},
+    "INV-P1-06": {"repo_status": "COMPLETE", "external_status": "PENDING_INDEPENDENT_TECH_LEAD_REVIEW"},
+    "INV-P1-07": {"repo_status": "COMPLETE", "external_status": "PENDING_EXACT_BYTE_HASH_OR_FORMAL_ACCEPTED_CONDITION"},
+    "INV-P1-08": {"repo_status": "COMPLETE", "external_status": "PENDING_INDEPENDENT_CONSUMER_G1_AND_QA_DISPOSITIONS"},
+    "INV-P2-01": {"repo_status": "CLOSED", "external_status": "NONE"}
+  },
+  "canonical_jira_comments": {
+    "primary_closure_text": [14742, 14761],
+    "excluded_as_evidence": [14762],
+    "rule": "BLOB_ONLY_COMMENT_MUST_NOT_BE_USED_AS_CLOSURE_EVIDENCE"
+  },
+  "independent_review": {
+    "BA": {"issue": "WWHN-129", "status": "PENDING_INDEPENDENT_DISPOSITION"},
+    "BAS": {"issue": "WWHN-130", "status": "PENDING_INDEPENDENT_DISPOSITION"},
+    "TECH_LEAD": {"issue": "WWHN-24_OR_WWHN-128", "status": "PENDING_INDEPENDENT_DISPOSITION"},
+    "QA1": {"issue": "WWHN-24_OR_WWHN-128", "status": "PENDING_EXACT_SHA_ARTIFACT_REVIEW"},
+    "PM_APPROVER": {"issue": "WWHN-24", "status": "PENDING_FORMAL_DECISION"}
   },
   "claim_policy": {
-    "be1_scope_after_successful_r6_run": "COMPLETE",
-    "formal_decision": "NOT_APPROVED_UNTIL_INDEPENDENT_DISPOSITIONS",
-    "qa_status": "NOT_QA_PASS_UNTIL_QA1_REVIEW",
-    "effective_status": "NOT_EFFECTIVE_UNTIL_PM_APPROVER_DECISION"
+    "p0_open_in_current_register": 0,
+    "repo_controlled_findings_complete": true,
+    "formal_closure": "NOT_CLAIMED",
+    "approved": false,
+    "baselined": false,
+    "effective": false,
+    "qa_pass": false,
+    "anti_impersonation": "BE1_AND_CI_MUST_NOT_SIGN_FOR_INDEPENDENT_ROLES"
   }
 }

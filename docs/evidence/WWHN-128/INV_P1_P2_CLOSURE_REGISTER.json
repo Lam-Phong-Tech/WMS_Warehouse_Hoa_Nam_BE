@@ -1,0 +1,154 @@
+{
+  "schema_version": "1.0",
+  "ticket": "WWHN-128",
+  "parent_ticket": "WWHN-24",
+  "decision_id": "DEC-INV-001",
+  "document_revision": "1.7-R7",
+  "generated_at": "2026-08-06T17:05:00+07:00",
+  "repository": {
+    "full_name": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "direct_branch_only": true,
+    "base_head_before_r7": "14a271eea1c2714a5e8fc54b4857af37f6b128ad",
+    "r6_commit": "7d7091c48798114b5bbf7ff4c0b58617d177c737",
+    "r7_commit": null,
+    "post_commit_binding": "POST_EXACT_R7_SHA_AND_GIT_BLOBS_TO_JIRA_AFTER_SINGLE_COMMIT"
+  },
+  "current_jira_artifacts": [
+    {
+      "filename": "WWHN-128.md",
+      "attachment_id": 11647,
+      "size_bytes": 13447,
+      "sha256": null,
+      "exact_jira_bytes_verified": false,
+      "disposition": "EXTERNAL_DOWNLOAD_OR_FORMAL_ACCEPTED_WITH_CONDITION_REQUIRED"
+    },
+    {
+      "filename": "WWHN-128-source-register.json",
+      "attachment_id": 11646,
+      "size_bytes": 9446,
+      "sha256": null,
+      "exact_jira_bytes_verified": false,
+      "disposition": "EXTERNAL_DOWNLOAD_OR_FORMAL_ACCEPTED_WITH_CONDITION_REQUIRED"
+    }
+  ],
+  "ci_truth": {
+    "r6_run_id": 31082380025,
+    "r6_commit": "7d7091c48798114b5bbf7ff4c0b58617d177c737",
+    "latest_attempt": 2,
+    "latest_job_id": 92570314627,
+    "conclusion": "failure",
+    "runner_allocated": false,
+    "steps_started": false,
+    "artifact_count": 0,
+    "classification": "GITHUB_BILLING_OR_SPENDING_LIMIT_PRE_RUNNER_BLOCKER",
+    "code_or_test_failure_claimed": false,
+    "owner": "DEVOPS_OR_GITHUB_ORG_BILLING_ADMIN",
+    "required_action": "RESOLVE_BILLING_THEN_RERUN_EXACT_FAILED_RUN"
+  },
+  "canonical_jira_comments": {
+    "primary_closure_text": [14742, 14761],
+    "excluded_as_evidence": [14762],
+    "rule": "BLOB_ONLY_COMMENT_MUST_NOT_BE_USED_AS_CLOSURE_EVIDENCE"
+  },
+  "findings": [
+    {
+      "id": "INV-P1-01",
+      "severity": "P1",
+      "owner": "PM_APPROVER",
+      "repo_control": "FORMAL_DECISION_TEMPLATE_FAIL_CLOSED",
+      "repo_status": "COMPLETE",
+      "external_status": "PENDING_FORMAL_DECISION",
+      "closure_evidence": "WWHN-24 decision with exact commit, attachment/hash disposition, scope, date and account"
+    },
+    {
+      "id": "INV-P1-02",
+      "severity": "P1",
+      "owner": "DEVOPS_OR_GITHUB_ORG_ADMIN",
+      "repo_control": "CI_BLOCKER_RECORDED_WITH_EXACT_RUN_ATTEMPT_JOB_AND_NO_FALSE_CODE_FAILURE",
+      "repo_status": "COMPLETE",
+      "external_status": "BLOCKED_BY_GITHUB_BILLING",
+      "closure_evidence": "Successful rerun of run 31082380025 on exact R6 commit after billing recovery"
+    },
+    {
+      "id": "INV-P1-03",
+      "severity": "P1",
+      "owner": "BE1_AND_QA1",
+      "repo_control": "WORKFLOW_REQUIRES_ARTIFACT_DIGEST_JUNIT_RAW_LOG_DB_BEFORE_AFTER_SCHEMA_RECONCILIATION_AND_DUAL_CHECKSUM",
+      "repo_status": "COMPLETE",
+      "external_status": "PENDING_SUCCESSFUL_RUN_AND_QA1_REVIEW",
+      "closure_evidence": "Artifact ID/name/digest and verified SHA256SUMS package"
+    },
+    {
+      "id": "INV-P1-04",
+      "severity": "P1",
+      "owner": "BA",
+      "repo_control": "FINDING_BY_FINDING_BA_DISPOSITION_TEMPLATE",
+      "repo_status": "COMPLETE",
+      "external_status": "PENDING_WWHN_129_DISPOSITION",
+      "closure_evidence": "BA ACCEPTED, ACCEPTED WITH CONDITIONS or REJECTED on exact revision"
+    },
+    {
+      "id": "INV-P1-05",
+      "severity": "P1",
+      "owner": "BAS",
+      "repo_control": "MACHINE_READABLE_SOURCE_DECISION_RULE_API_CODE_TEST_EVIDENCE_TICKET_CHAIN",
+      "repo_status": "COMPLETE",
+      "external_status": "PENDING_WWHN_130_DISPOSITION",
+      "closure_evidence": "BAS traceability sign-off with reviewer identity and timestamp"
+    },
+    {
+      "id": "INV-P1-06",
+      "severity": "P1",
+      "owner": "TECH_LEAD",
+      "repo_control": "EXACT_SCOPE_REVIEW_TEMPLATE_FOR_TRANSACTION_LOCK_IDEMPOTENCY_INDEX_LEDGER_RECONCILIATION",
+      "repo_status": "COMPLETE",
+      "external_status": "PENDING_INDEPENDENT_TECH_LEAD_REVIEW",
+      "closure_evidence": "Tech Lead result on exact commit/artifact"
+    },
+    {
+      "id": "INV-P1-07",
+      "severity": "P1",
+      "owner": "BE1_PM_BA_BAS",
+      "repo_control": "ATTACHMENT_IDS_SIZES_LIMITATION_AND_ACCEPTED_CONDITION_POLICY_RECORDED",
+      "repo_status": "COMPLETE",
+      "external_status": "PENDING_EXACT_BYTE_HASH_OR_FORMAL_ACCEPTED_CONDITION",
+      "closure_evidence": "Exact Jira/source SHA-256 or owner/deadline accepted condition"
+    },
+    {
+      "id": "INV-P1-08",
+      "severity": "P1",
+      "owner": "BE1_QA_BA_FE",
+      "repo_control": "DOWNSTREAM_CONTRACT_GATE_FOR_WWHN_31_40_180",
+      "repo_status": "COMPLETE",
+      "external_status": "PENDING_INDEPENDENT_CONSUMER_G1_AND_QA_DISPOSITIONS",
+      "closure_evidence": "Official contract identity plus FE/QA/BA mapping and G1 decision"
+    },
+    {
+      "id": "INV-P2-01",
+      "severity": "P2",
+      "owner": "BE1",
+      "repo_control": "CANONICAL_TEXT_COMMENTS_14742_14761_AND_EXCLUSION_OF_14762",
+      "repo_status": "CLOSED",
+      "external_status": "NONE",
+      "closure_evidence": "This register and structured Jira handoff"
+    }
+  ],
+  "independent_roles": {
+    "BA": {"issue": "WWHN-129", "status": "PENDING_INDEPENDENT_DISPOSITION"},
+    "BAS": {"issue": "WWHN-130", "status": "PENDING_INDEPENDENT_DISPOSITION"},
+    "TECH_LEAD": {"issue": "WWHN-24_OR_WWHN-128", "status": "PENDING_INDEPENDENT_DISPOSITION"},
+    "QA1": {"issue": "WWHN-24_OR_WWHN-128", "status": "PENDING_EXACT_SHA_ARTIFACT_REVIEW"},
+    "PM_APPROVER": {"issue": "WWHN-24", "status": "PENDING_FORMAL_DECISION"}
+  },
+  "claim_policy": {
+    "p0_open_in_current_register": 0,
+    "repo_controlled_findings_complete": true,
+    "formal_closure": "NOT_CLAIMED",
+    "approved": false,
+    "baselined": false,
+    "effective": false,
+    "qa_pass": false,
+    "anti_impersonation": "BE1_AND_CI_MUST_NOT_SIGN_FOR_INDEPENDENT_ROLES"
+  }
+}

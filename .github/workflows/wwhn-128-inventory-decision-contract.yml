@@ -19,6 +19,12 @@ on:
       - 'app/Support/IdempotencyStore.php'
       - 'docs/docs_task_jira/WWHN-128*'
       - 'docs/evidence/WWHN-128/**'
+      - 'docs/api-contract/WWHN-180-posting-openapi.*'
+      - 'docs/postman/WWHN-180 Posting *'
+      - 'docs/testing/WWHN-180-posting-test-cases.json'
+      - 'docs/evidence/WWHN-180/permission-catalog.json'
+      - 'docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json'
+      - 'scripts/verify_wwhn128_closure.py'
       - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
       - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
       - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
@@ -44,12 +50,20 @@ on:
       - 'app/Support/IdempotencyStore.php'
       - 'docs/docs_task_jira/WWHN-128*'
       - 'docs/evidence/WWHN-128/**'
+      - 'docs/api-contract/WWHN-180-posting-openapi.*'
+      - 'docs/postman/WWHN-180 Posting *'
+      - 'docs/testing/WWHN-180-posting-test-cases.json'
+      - 'docs/evidence/WWHN-180/permission-catalog.json'
+      - 'docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json'
+      - 'scripts/verify_wwhn128_closure.py'
       - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
       - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
       - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
       - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
       - 'tests/Feature/Wwhn128EvidenceContractTest.php'
       - 'tests/Feature/Wwhn180IdempotencyAtomicityTest.php'
+      - 'composer.json'
+      - 'composer.lock'
 
 permissions:
   contents: read
@@ -60,7 +74,7 @@ concurrency:
 
 jobs:
   exact-sha-contract:
-    name: exact-SHA contract and DB evidence
+    name: exact-SHA contract, governance and DB evidence
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -88,6 +102,11 @@ jobs:
           extensions: mbstring, sqlite3, pdo_sqlite, bcmath
           coverage: none
           tools: composer:v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
@@ -121,7 +140,7 @@ jobs:
             printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
           } >> .env
 
-      - name: Static integrity gate
+      - name: Static integrity and governance gate
         shell: bash
         run: |
           set -euo pipefail
@@ -139,15 +158,11 @@ jobs:
             tests/Feature/Wwhn128EvidenceContractTest.php
             tests/Feature/Wwhn180IdempotencyAtomicityTest.php
           )
-          for file in "${php_files[@]}"; do
-            php -l "$file"
-          done
+          for file in "${php_files[@]}"; do php -l "$file"; done
           git diff --check
           ./vendor/bin/pint --test "${php_files[@]}"
-          php -r '
-            json_decode(file_get_contents("docs/docs_task_jira/WWHN-128-source-register.json"), true, 512, JSON_THROW_ON_ERROR);
-            echo "Source register JSON hợp lệ.\n";
-          '
+          python3 -m py_compile scripts/verify_wwhn128_closure.py
+          python3 scripts/verify_wwhn128_closure.py | tee "$EVIDENCE_DIR/closure-verification.json"
 
       - name: Run WWHN-128 scoped regression and evidence suite
         shell: bash
@@ -171,7 +186,7 @@ jobs:
           {
             "ticket": "WWHN-128",
             "decision_id": "DEC-INV-001",
-            "document_revision": "1.6-R6",
+            "document_revision": "1.7-R7",
             "commit_sha": "${GITHUB_SHA}",
             "branch_or_ref": "${GITHUB_REF}",
             "run_id": "${GITHUB_RUN_ID}",
@@ -180,14 +195,16 @@ jobs:
             "artifact_name": "wwhn-128-evidence-${GITHUB_SHA}",
             "database_engine": "sqlite",
             "database_evidence": ["db-before.json", "db-after.json", "schema-verification.json", "reconciliation-report.json"],
-            "test_scope": "WWHN-128 focused regression; not the repository-wide PHPUnit suite",
-            "approval_policy": "CI success is technical evidence only; BA/BAS/Tech Lead/QA1/PM independent dispositions remain required"
+            "test_scope": "WWHN-128 focused regression; not repository-wide PHPUnit or PostgreSQL/UAT",
+            "approval_policy": "CI success is technical evidence only; independent dispositions remain required"
           }
           JSON
 
           cp docs/docs_task_jira/WWHN-128.md "$EVIDENCE_DIR/WWHN-128.md"
           cp docs/docs_task_jira/WWHN-128-source-register.json "$EVIDENCE_DIR/WWHN-128-source-register.json"
           cp docs/evidence/WWHN-128/REVIEW_AND_APPROVAL_PROTOCOL.md "$EVIDENCE_DIR/REVIEW_AND_APPROVAL_PROTOCOL.md"
+          cp docs/evidence/WWHN-128/INV_P1_P2_CLOSURE_REGISTER.json "$EVIDENCE_DIR/INV_P1_P2_CLOSURE_REGISTER.json"
+          cp docs/evidence/WWHN-128/DOWNSTREAM_CONTRACT_GATE.json "$EVIDENCE_DIR/DOWNSTREAM_CONTRACT_GATE.json"
 
           php -r '
             $xml = simplexml_load_file(getenv("EVIDENCE_DIR")."/junit.xml");
@@ -202,7 +219,8 @@ jobs:
               "skipped" => (int) $a["skipped"],
             ];
             $payload["status"] = ($payload["errors"] + $payload["failures"] === 0) ? "PASS" : "FAIL";
-            file_put_contents(getenv("EVIDENCE_DIR")."/test-summary.json", json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n");
+            file_put_contents(getenv("EVIDENCE_DIR")."/test-summary.json",
+              json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n");
           '
 
           cat > "$EVIDENCE_DIR/review-ledger.json" <<'JSON'
@@ -212,8 +230,13 @@ jobs:
               "BA": {"status": "PENDING_INDEPENDENT_DISPOSITION", "issue": "WWHN-129"},
               "BAS": {"status": "PENDING_INDEPENDENT_DISPOSITION", "issue": "WWHN-130"},
               "TECH_LEAD": {"status": "PENDING_INDEPENDENT_DISPOSITION", "issue": "WWHN-24"},
-              "QA1": {"status": "PENDING_ARTIFACT_REVIEW", "issue": "WWHN-24"},
+              "QA1": {"status": "PENDING_EXACT_SHA_ARTIFACT_REVIEW", "issue": "WWHN-24"},
               "PM_APPROVER": {"status": "PENDING_FORMAL_DECISION", "issue": "WWHN-24"}
+            },
+            "downstream": {
+              "WWHN-31": "IN_PROGRESS",
+              "WWHN-40": "IN_PROGRESS",
+              "WWHN-180": "IN_PROGRESS"
             },
             "anti_impersonation": "BE1 and CI do not sign for independent reviewers"
           }
@@ -231,30 +254,35 @@ jobs:
               "db-before.json", "db-after.json", "schema-verification.json", "reconciliation-report.json",
               "route-list.json", "commit-stat.txt", "changed-files.txt", "source-tree.sha256",
               "WWHN-128.md", "WWHN-128-source-register.json", "REVIEW_AND_APPROVAL_PROTOCOL.md",
-              "review-ledger.json", "jira-handoff-comment.txt", "ci-summary.md", "SHA256SUMS", "SHA256SUMS.sha256"
+              "INV_P1_P2_CLOSURE_REGISTER.json", "DOWNSTREAM_CONTRACT_GATE.json",
+              "closure-verification.json", "review-ledger.json", "artifact-manifest.json",
+              "jira-handoff-comment.txt", "ci-summary.md", "SHA256SUMS", "SHA256SUMS.sha256"
             ]
           }
           JSON
 
           cat > "$EVIDENCE_DIR/jira-handoff-comment.txt" <<TEXT
-          [BE1 R6 FINAL HANDOFF — WWHN-128]
-          Decision: DEC-INV-001 v1.6-R6
+          [BE1 R7 STRUCTURED HANDOFF — WWHN-128]
+          Decision: DEC-INV-001 v1.7-R7
           Repository/branch: ${GITHUB_REPOSITORY} / m1
           Exact commit: ${GITHUB_SHA}
-          Workflow run: ${GITHUB_RUN_ID}, attempt ${GITHUB_RUN_ATTEMPT}
+          Workflow run/attempt: ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}
           Artifact: wwhn-128-evidence-${GITHUB_SHA}
-          Technical gate: inspect workflow conclusion and artifact digest in GitHub Actions.
-          Independent review: BA/BAS/Tech Lead/QA1/PM remain role-owned and must not be self-signed by BE1.
+          Closure register: INV_P1_P2_CLOSURE_REGISTER.json
+          Downstream gate: DOWNSTREAM_CONTRACT_GATE.json
+          Canonical prior text: Jira comments 14742 and 14761; comment 14762 is blob-only and excluded.
+          Formal state: NOT APPROVED / NOT BASELINED / NOT EFFECTIVE.
           TEXT
 
           cat > "$EVIDENCE_DIR/ci-summary.md" <<TEXT
-          ## WWHN-128 exact-SHA evidence
+          ## WWHN-128 exact-SHA evidence R7
 
           - Commit: \`${GITHUB_SHA}\`
-          - Run: \`${GITHUB_RUN_ID}\`, attempt \`${GITHUB_RUN_ATTEMPT}\`
-          - Database: \`sqlite\` isolated CI database
-          - Evidence: JUnit, raw PHPUnit log, DB before/after, schema/index verification, reconciliation response, route list, source-tree digest and dual checksum manifests
-          - Governance boundary: CI does not replace BA/BAS/Tech Lead/QA1/PM disposition
+          - Run/attempt: \`${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}\`
+          - Database: \`sqlite\` isolated CI; not PostgreSQL/UAT
+          - Governance verifier: \`scripts/verify_wwhn128_closure.py\`
+          - Evidence: JUnit/raw log, DB before/after, schema, reconciliation, closure/downstream registers and dual checksums
+          - Boundary: CI does not replace BA/BAS/Tech Lead/QA/FE/PM dispositions
           TEXT
 
           cd "$EVIDENCE_DIR"
@@ -275,27 +303,27 @@ jobs:
             db-before.json db-after.json schema-verification.json reconciliation-report.json
             route-list.json commit-stat.txt changed-files.txt source-tree.sha256
             WWHN-128.md WWHN-128-source-register.json REVIEW_AND_APPROVAL_PROTOCOL.md
-            review-ledger.json artifact-manifest.json jira-handoff-comment.txt ci-summary.md
-            SHA256SUMS SHA256SUMS.sha256
+            INV_P1_P2_CLOSURE_REGISTER.json DOWNSTREAM_CONTRACT_GATE.json
+            closure-verification.json review-ledger.json artifact-manifest.json
+            jira-handoff-comment.txt ci-summary.md SHA256SUMS SHA256SUMS.sha256
           )
           for file in "${required_files[@]}"; do
-            [[ -s "$file" ]] || {
-              echo "Missing required evidence file: $file" >&2
-              exit 1
-            }
+            [[ -s "$file" ]] || { echo "Missing required evidence file: $file" >&2; exit 1; }
           done
 
           jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '
-            .commit_sha == $sha
-            and .run_id == $run
-            and .document_revision == "1.6-R6"
+            .commit_sha == $sha and .run_id == $run
+            and .document_revision == "1.7-R7"
             and .database_engine == "sqlite"
           ' build-metadata.json >/dev/null
           jq -e '.status == "PASS" and .errors == 0 and .failures == 0 and .tests >= 18' test-summary.json >/dev/null
           jq -e '.summary.status == "PASS" and .summary.failed == 0' schema-verification.json >/dev/null
           jq -e '.status == "PASS" and .summary.mismatch_count == 0 and .summary.rows_checked == 2' reconciliation-report.json >/dev/null
+          jq -e '.status == "PASS" and .formal_closure == "NOT_CLAIMED" and .finding_count == 9' closure-verification.json >/dev/null
+          jq -e '.claim_policy.approved == false and .claim_policy.formal_closure == "NOT_CLAIMED"' INV_P1_P2_CLOSURE_REGISTER.json >/dev/null
+          jq -e '.gate_status == "FAIL_CLOSED_PENDING_INDEPENDENT_DISPOSITIONS"' DOWNSTREAM_CONTRACT_GATE.json >/dev/null
           jq -e '.roles.BA.status == "PENDING_INDEPENDENT_DISPOSITION" and .roles.PM_APPROVER.status == "PENDING_FORMAL_DECISION"' review-ledger.json >/dev/null
-          jq -e --arg sha "$GITHUB_SHA" '.commit_sha == $sha and (.required_files | length >= 18)' artifact-manifest.json >/dev/null
+          jq -e --arg sha "$GITHUB_SHA" '.commit_sha == $sha and (.required_files | length >= 24)' artifact-manifest.json >/dev/null
 
       - name: Publish CI summary
         if: always()
