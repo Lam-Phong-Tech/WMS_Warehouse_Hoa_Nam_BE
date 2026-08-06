@@ -12,7 +12,6 @@ on:
       - 'database/migrations/*idempotency*'
       - 'Modules/Warehouse/routes/api.php'
       - 'docs/decision-records/DEC-STK-001.md'
-      - 'docs/docs_task_jira/WWHN-130.md'
       - 'docs/docs_task_jira/WWHN-131*'
       - 'docs/evidence/WWHN-131/**'
       - 'docs/postman/WWHN-131*'
@@ -38,7 +37,6 @@ on:
       - 'database/migrations/*idempotency*'
       - 'Modules/Warehouse/routes/api.php'
       - 'docs/decision-records/DEC-STK-001.md'
-      - 'docs/docs_task_jira/WWHN-130.md'
       - 'docs/docs_task_jira/WWHN-131*'
       - 'docs/evidence/WWHN-131/**'
       - 'docs/postman/WWHN-131*'
@@ -48,6 +46,7 @@ on:
       - 'scripts/verify-wwhn131-evidence-pipeline.mjs'
       - 'scripts/verify-stocktake-contract.mjs'
       - 'scripts/verify-wwhn131-schema.php'
+      - 'scripts/verify-inventory-reconciliation.mjs'
       - 'tests/Feature/Stocktake*Test.php'
 
 permissions:
@@ -59,6 +58,7 @@ concurrency:
 
 jobs:
   exact-sha-evidence:
+    name: exact-SHA evidence
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -94,6 +94,7 @@ jobs:
 
       - name: Install locked dependencies
         run: |
+          set -euo pipefail
           composer install --no-interaction --prefer-dist --no-progress
           npm ci --ignore-scripts
 
@@ -103,12 +104,7 @@ jobs:
           set -euo pipefail
           password="W131-$(openssl rand -hex 24)"
           jwt_secret="W131-JWT-$(openssl rand -hex 32)"
-
-          if [[ ${#password} -lt 32 || ${#jwt_secret} -lt 48 ]]; then
-            echo '::error::Không tạo được credential CI đủ mạnh.'
-            exit 1
-          fi
-
+          [[ ${#password} -ge 32 && ${#jwt_secret} -ge 48 ]]
           echo "::add-mask::$password"
           echo "::add-mask::$jwt_secret"
           {
@@ -141,33 +137,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l Modules/Warehouse/app/Http/Controllers/StocktakeController.php
-          php -l Modules/Warehouse/app/Services/StocktakeAdjustmentService.php
-          php -l Modules/Warehouse/app/Services/StocktakeService.php
-          php -l Modules/Warehouse/app/Services/StocktakeSessionGuard.php
-          php -l Modules/Warehouse/app/Services/StocktakeGrainService.php
-          php -l Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php
-          php -l scripts/verify-wwhn131-schema.php
-          php -l tests/Feature/StocktakeThreeLayerContractTest.php
-          php -l tests/Feature/StocktakeApplyLedgerIntegrityTest.php
-          php -l tests/Feature/StocktakeReviewGateTest.php
+          php_files=(
+            Modules/Warehouse/app/Http/Controllers/StocktakeController.php
+            Modules/Warehouse/app/Services/StocktakeAdjustmentService.php
+            Modules/Warehouse/app/Services/StocktakeService.php
+            Modules/Warehouse/app/Services/StocktakeSessionGuard.php
+            Modules/Warehouse/app/Services/StocktakeGrainService.php
+            Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php
+            scripts/verify-wwhn131-schema.php
+            tests/Feature/StocktakeThreeLayerContractTest.php
+            tests/Feature/StocktakeApplyLedgerIntegrityTest.php
+            tests/Feature/StocktakeReviewGateTest.php
+          )
+          for file in "${php_files[@]}"; do
+            php -l "$file"
+          done
           node --check scripts/verify-stocktake-contract.mjs
           node --check scripts/redact-wwhn131-evidence.mjs
           node --check scripts/verify-wwhn131-evidence-pipeline.mjs
           bash -n scripts/collect-wwhn131-evidence.sh
           node scripts/verify-wwhn131-evidence-pipeline.mjs /tmp/wwhn131-evidence-pipeline-static.json
           git diff --check
-          ./vendor/bin/pint --test \
-            Modules/Warehouse/app/Http/Controllers/StocktakeController.php \
-            Modules/Warehouse/app/Services/StocktakeAdjustmentService.php \
-            Modules/Warehouse/app/Services/StocktakeService.php \
-            Modules/Warehouse/app/Services/StocktakeSessionGuard.php \
-            Modules/Warehouse/app/Services/StocktakeGrainService.php \
-            Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php \
-            scripts/verify-wwhn131-schema.php \
-            tests/Feature/StocktakeThreeLayerContractTest.php \
-            tests/Feature/StocktakeApplyLedgerIntegrityTest.php \
-            tests/Feature/StocktakeReviewGateTest.php
+          ./vendor/bin/pint --test "${php_files[@]}"
 
       - name: Collect immutable WWHN-131 evidence
         shell: bash
@@ -176,82 +167,37 @@ jobs:
       - name: Lint generated OpenAPI
         run: npx redocly lint build/evidence/wwhn-131/openapi.json
 
-      - name: Validate exact SHA, manifests and structured PASS results
+      - name: Validate exact SHA, manifests and PASS results
         shell: bash
         run: |
           set -euo pipefail
           cd build/evidence/wwhn-131
           sha256sum --check SHA256SUMS
           sha256sum --check SHA256SUMS.sha256
-          node - <<'NODE'
-          const fs = require('fs');
-          const requiredJson = [
-            'build-metadata.json',
-            'openapi.json',
-            'route-list.raw.json',
-            'stocktake.postman.collection.json',
-            'stocktake.postman.environment.json',
-            'stocktake-test-cases.json',
-            'stocktake-source-register.json',
-            'stocktake-contract-verification.json',
-            'schema-verification.json',
-            'stocktake-newman.result.json',
-            'db-before.json',
-            'db-after.json',
-            'reconciliation-report.json',
-            'evidence-pipeline-verification.json',
-            'credential-hygiene.json',
-          ];
-          const parsed = {};
-          for (const file of requiredJson) {
-            parsed[file] = JSON.parse(fs.readFileSync(file, 'utf8'));
-          }
 
-          const metadata = parsed['build-metadata.json'];
-          if (metadata.commit_sha !== process.env.GITHUB_SHA) {
-            throw new Error(`Exact SHA mismatch: ${metadata.commit_sha} != ${process.env.GITHUB_SHA}`);
-          }
-          if (metadata.artifact_name !== `stocktake-evidence-${process.env.GITHUB_SHA}`) {
-            throw new Error('Artifact name is not exact-SHA bound');
-          }
-          if (metadata.credential_mode !== 'EPHEMERAL_PER_WORKFLOW_RUN') {
-            throw new Error(
-`Unnexpected credential mode ${metadata.credential_mode}`
-            );
-          }
-          if (metadata.document_status !== 'PROPOSED' || metadata.approval_status !== 'PENDING_INDEPENDENT_REVIEW_AND_FORMAL_DECISION') {
-            throw new Error('Invalid approval claim in build metadata');
-          }
+          jq -e --arg sha "$GITHUB_SHA" '
+            .commit_sha == $sha
+            and .artifact_name == ("stocktake-evidence-" + $sha)
+            and .credential_mode == "EPHEMERAL_PER_WORKFLOW_RUN"
+            and .document_status == "PROPOSED"
+            and .approval_status == "PENDING_INDEPENDENT_REVIEW_AND_FORMAL_DECISION"
+          ' build-metadata.json >/dev/null
 
-          for (const file of [
-            'stocktake-contract-verification.json',
-            'schema-verification.json',
-            'reconciliation-report.json',
-            'evidence-pipeline-verification.json',
-          ]) {
-            const result = parsed[file];
-            if (result.summary?.failed !== 0 || result.summary?.status !== 'PASS') {
-              throw new Error(`${file} is not PASS`);
-            }
-          }
+          for file in \
+            stocktake-contract-verification.json \
+            schema-verification.json \
+            reconciliation-report.json \
+            evidence-pipeline-verification.json; do
+            jq -e '.summary.failed == 0 and .summary.status == "PASS"' "$file" >/dev/null
+          done
 
-          const hygiene = parsed['credential-hygiene.json'];
-          if (
-            hygiene.status !== 'PASS' ||
-            hygiene.residual_runtime_secret_count !== 0 ||
-            hygiene.residual_jwt_count !== 0
-          ) {
-            throw new Error('Credential hygiene verification is not PASS');
-          }
-
-          const newman = parsed['stocktake-newman.result.json'];
-          if ((newman.run?.failures ?? []).length !== 0) {
-            throw new Error('Stocktake Newman contains failures');
-          }
-          if (parsed['stocktake-source-register.json'].status !== 'PROPOSED') {
-            throw new Error('Source register must remain PROPOSED before independent sign-off');
-          }
-          NODE
+          jq -e '
+            .status == "PASS"
+            and .residual_runtime_secret_count == 0
+            and .residual_jwt_count == 0
+          ' credential-hygiene.json >/dev/null
+          jq -e '(.run.failures // []) | length == 0' stocktake-newman.result.json >/dev/null
+          jq -e '.status == "PROPOSED"' stocktake-source-register.json >/dev/null
 
           required_files=(
             build-metadata.json source-tree.sha256 SHA256SUMS SHA256SUMS.sha256
@@ -269,7 +215,10 @@ jobs:
             jira-handoff-comment.txt ci-summary.md
           )
           for file in "${required_files[@]}"; do
-            [[ -s "$file" ]] || { echo "Missing required evidence file: $file" >&2; exit 1; }
+            [[ -s "$file" ]] || {
+              echo "Missing required evidence file: $file" >&2
+              exit 1
+            }
           done
 
       - name: Publish CI summary
@@ -291,7 +240,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Upload failure diagnostics
+      - name: Upload redacted failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:

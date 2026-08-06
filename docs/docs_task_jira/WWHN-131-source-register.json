@@ -1,15 +1,15 @@
 {
   "register_id": "WWHN-131-SOURCE-REGISTER",
   "version": "1.3.0",
+  "revision": "2026-08-06-remediation-2",
   "status": "PROPOSED",
   "generated_for": "DEC-STK-001",
   "authoritative_jira_key": "WWHN-131",
   "parent_jira_key": "WWHN-25",
   "parent_temp_key": "HN-DEC-003",
-  "epic_temp_key": "HN-EPIC-01",
   "role": "BE1",
-  "assignee_placeholder": "HN-BE-01",
   "branch": "m1",
+  "repository_head_before_remediation": "ef5f5753acbb62dcc2645f40ffeac4c6b8d93901",
   "architecture_baseline": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
   "exact_commit_source": "build/evidence/wwhn-131/build-metadata.json.commit_sha",
   "workflow": ".github/workflows/wwhn-131-stocktake-contract.yml",
@@ -33,71 +33,104 @@
     "signed_ledger": "SUM(stock_movements.qty_delta); pre-apply ledger equals balance",
     "zero_effect_movement": false,
     "atomicity": "session, variance, balance, movement, posting_event and ITEM/CONTAINER commit or rollback together",
-    "formal_status": "PROPOSED until exact-SHA CI and all independent Jira evidence are complete"
+    "approval_ceiling": "CI_VERIFIED"
   },
   "repository_sources": [
+    {"type":"ARCHITECTURE","path":"docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md"},
     {"type":"DECISION_RECORD","path":"docs/decision-records/DEC-STK-001.md","version":"1.0.0","status":"PROPOSED"},
     {"type":"TASK_DOCUMENT","path":"docs/docs_task_jira/WWHN-131.md","version":"1.3.0","status":"PROPOSED"},
-    {"type":"REQUESTED_NON_AUTHORITY_LOG","path":"docs/docs_task_jira/WWHN-130.md","authority":"NON_AUTHORITATIVE","note":"Jira WWHN-130 belongs to WWHN-24/DEC-INV-001"},
     {"type":"WORKFLOW","path":".github/workflows/wwhn-131-stocktake-contract.yml"},
     {"type":"EVIDENCE_COLLECTOR","path":"scripts/collect-wwhn131-evidence.sh"},
-    {"type":"CREDENTIAL_REDACTOR","path":"scripts/redact-wwhn131-evidence.mjs","version":"1.0.0"},
-    {"type":"PIPELINE_VERIFIER","path":"scripts/verify-wwhn131-evidence-pipeline.mjs","version":"1.0.0"},
-    {"type":"CONTRACT_VERIFIER","path":"scripts/verify-stocktake-contract.mjs","version":"1.2.0"},
-    {"type":"SCHEMA_VERIFIER","path":"scripts/verify-wwhn131-schema.php","version":"1.0.0"},
+    {"type":"CREDENTIAL_REDACTOR","path":"scripts/redact-wwhn131-evidence.mjs"},
+    {"type":"PIPELINE_VERIFIER","path":"scripts/verify-wwhn131-evidence-pipeline.mjs"},
+    {"type":"CONTRACT_VERIFIER","path":"scripts/verify-stocktake-contract.mjs"},
+    {"type":"SCHEMA_VERIFIER","path":"scripts/verify-wwhn131-schema.php"},
     {"type":"CONTROLLER","path":"Modules/Warehouse/app/Http/Controllers/StocktakeController.php"},
     {"type":"SERVICE","path":"Modules/Warehouse/app/Services/StocktakeService.php"},
     {"type":"SERVICE","path":"Modules/Warehouse/app/Services/StocktakeAdjustmentService.php"},
     {"type":"SCOPE_GUARD","path":"Modules/Warehouse/app/Services/StocktakeSessionGuard.php"},
     {"type":"GRAIN_SERVICE","path":"Modules/Warehouse/app/Services/StocktakeGrainService.php"},
-    {"type":"ROUTES","path":"Modules/Warehouse/routes/api.php"},
     {"type":"MIGRATION","path":"Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php"},
     {"type":"IDEMPOTENCY_MIGRATION","path":"database/migrations/2026_08_03_000200_allow_completed_idempotency_lease_release.php"},
-    {"type":"POSTMAN","path":"docs/postman/WWHN-131 Stocktake Contract.postman_collection.json","version":"1.0.0"},
+    {"type":"POSTMAN","path":"docs/postman/WWHN-131 Stocktake Contract.postman_collection.json"},
     {"type":"POSTMAN_ENV","path":"docs/postman/WWHN-131 Stocktake CI.postman_environment.json","credential_policy":"runtime only"},
-    {"type":"TEST_CASE_REGISTER","path":"docs/testing/WWHN-131-stocktake-test-cases.json","version":"1.2.0"},
+    {"type":"TEST_CASE_REGISTER","path":"docs/testing/WWHN-131-stocktake-test-cases.json"},
     {"type":"FEATURE_TEST","path":"tests/Feature/StocktakeThreeLayerContractTest.php"},
     {"type":"FEATURE_TEST","path":"tests/Feature/StocktakeApplyLedgerIntegrityTest.php"},
     {"type":"SECURITY_TEST","path":"tests/Feature/StocktakeReviewGateTest.php"},
-    {"type":"REVIEW_PROTOCOL","path":"docs/evidence/WWHN-131/INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md","version":"1.1.0"}
+    {"type":"REVIEW_PROTOCOL","path":"docs/evidence/WWHN-131/INDEPENDENT_REVIEW_AND_DECISION_PROTOCOL.md"}
   ],
   "required_artifact_outputs": [
-    "build-metadata.json","source-tree.sha256","SHA256SUMS","SHA256SUMS.sha256","openapi.json","openapi.yaml","route-list.raw.json",
-    "stocktake.postman.collection.json","stocktake.postman.environment.json","stocktake-test-cases.json","stocktake-source-register.json",
-    "stocktake-contract-verification.json","evidence-pipeline-verification.json","credential-hygiene.json","schema-verification.json",
-    "migration-rehearsal.raw.log","database-seed-rehearsal.raw.log","phpunit-stocktake-three-layer.raw.log","phpunit-stocktake-ledger.raw.log",
-    "phpunit-stocktake-review-gate.raw.log","phpunit-full.raw.log","stocktake-newman.raw.log","stocktake-newman.result.json",
-    "db-before.json","db-after.json","reconciliation-report.json","DEC-STK-001.md","WWHN-130.md","WWHN-131.md","jira-handoff-comment.txt","ci-summary.md","source/"
+    "build-metadata.json",
+    "source-tree.sha256",
+    "SHA256SUMS",
+    "SHA256SUMS.sha256",
+    "openapi.json",
+    "openapi.yaml",
+    "route-list.raw.json",
+    "stocktake.postman.collection.json",
+    "stocktake.postman.environment.json",
+    "stocktake-test-cases.json",
+    "stocktake-source-register.json",
+    "stocktake-contract-verification.json",
+    "evidence-pipeline-verification.json",
+    "credential-hygiene.json",
+    "schema-verification.json",
+    "migration-rehearsal.raw.log",
+    "database-seed-rehearsal.raw.log",
+    "phpunit-stocktake-three-layer.raw.log",
+    "phpunit-stocktake-ledger.raw.log",
+    "phpunit-stocktake-review-gate.raw.log",
+    "phpunit-full.raw.log",
+    "stocktake-newman.raw.log",
+    "stocktake-newman.result.json",
+    "db-before.json",
+    "db-after.json",
+    "reconciliation-report.json",
+    "DEC-STK-001.md",
+    "WWHN-131.md",
+    "jira-handoff-comment.txt",
+    "ci-summary.md",
+    "source/"
   ],
-  "ci": {
-    "credential_mode": "EPHEMERAL_PER_WORKFLOW_RUN",
-    "password_source": "openssl-generated and exported as CI_DEMO_PASSWORD/WWHN131_PASSWORD",
-    "jwt_source": "openssl-generated JWT_SECRET",
-    "redaction": "password/JWT/Bearer removed before manifest and upload; failed diagnostics are redacted or discarded",
-    "approval_ceiling": "CI_VERIFIED"
-  },
   "finding_disposition": {
-    "STK-P1-01":"READY_FOR_BA_TECH_PM_DECISION",
-    "STK-P1-02":"AUTOMATION_READY_PENDING_QA1_TECH_EXECUTION",
-    "STK-P1-03":"AUTOMATION_READY_PENDING_DBA_SECURITY_EXECUTION",
-    "STK-P1-04":"IMPLEMENTED_PENDING_FINAL_SHA_WORKFLOW",
-    "STK-P1-05":"READY_FOR_BA_FINAL_ON_WWHN-132",
-    "STK-P1-06":"TEMPLATE_READY_PENDING_BAS_SOURCE_HASHES",
-    "STK-P2-01":"STRUCTURED_HANDOFF_READY"
+    "STK-P1-01": {"repository":"READY_FOR_FORMAL_DECISION","owner_gate":"BA+Tech Lead+PM"},
+    "STK-P1-02": {"repository":"AUTOMATION_AND_MATRIX_READY","owner_gate":"QA1+Tech Lead exact-SHA independent execution"},
+    "STK-P1-03": {"repository":"SCHEMA_AND_SECURITY_MATRIX_READY","owner_gate":"DBA target PostgreSQL + Security staging"},
+    "STK-P1-04": {"repository":"WORKFLOW_AND_ARTIFACT_CONTRACT_CORRECTED","owner_gate":"GitHub Actions billing restoration then successful run"},
+    "STK-P1-05": {"repository":"DECISION_PAYLOAD_READY","owner_gate":"BA WWHN-132 + PM"},
+    "STK-P1-06": {"repository":"SOURCE_SLOTS_READY","owner_gate":"BAS WWHN-133"},
+    "STK-P2-01": {"repository":"STRUCTURED_CLOSURE_MATRIX_READY","owner_gate":"reviewer-owned evidence"}
   },
-  "jira_observed_at": "2026-08-04T12:13:00+07:00",
+  "jira_observed_at": "2026-08-06T13:40:00+07:00",
   "jira_observed_facts": [
     {"key":"WWHN-25","status":"In Progress","role":"Decision parent"},
-    {"key":"WWHN-131","status":"In Progress","role":"Authoritative BE1 task","attachment_ids":["11565","11564"],"attachment_sha256":null},
+    {"key":"WWHN-131","status":"In Progress","role":"Authoritative BE1 evidence task","attachment_ids":["11565","11564"],"attachment_sha256":null},
     {"key":"WWHN-132","status":"In Progress","role":"BA final decision"},
-    {"key":"WWHN-133","status":"To Do","role":"BAS traceability"},
-    {"key":"WWHN-130","status":"In Progress","role":"Unrelated BAS task of WWHN-24/DEC-INV-001"}
+    {"key":"WWHN-133","status":"To Do","role":"BAS traceability"}
   ],
+  "github_actions": {
+    "observed_run_id": 31077768118,
+    "observed_head_sha": "ef5f5753acbb62dcc2645f40ffeac4c6b8d93901",
+    "observed_result": "FAIL_NO_JOB",
+    "workflow_parser_remediation": "replace invalid heredoc indentation with valid jq-based exact-SHA validation",
+    "external_blocker": {
+      "status": "BLOCKED",
+      "owner": "GitHub organization administrator/finance",
+      "reason": "recent account payments failed or Actions spending limit must be increased",
+      "required_action": "restore billing/spending then rerun exact-SHA workflow",
+      "cannot_be_replaced_by": [
+        "local self-written log",
+        "old Jira attachment",
+        "different commit artifact"
+      ]
+    }
+  },
   "external_sources": [
-    {"key":"BRD","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
-    {"key":"SRS","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
-    {"key":"BPD","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
-    {"key":"DEC-INV","attachment_id":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"BRD","attachment_id":null,"version":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"SRS","attachment_id":null,"version":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"BPD","attachment_id":null,"version":null,"sha256":null,"owner":"BAS","status":"PENDING"},
+    {"key":"DEC-INV","attachment_id":null,"version":null,"sha256":null,"owner":"BAS","status":"PENDING"},
     {"key":"DEC-STK-001","jira":"WWHN-25","comment_or_attachment_id":null,"manifest_digest":null,"status":"PROPOSED"}
   ],
   "approval": {
@@ -107,6 +140,6 @@
     "approved_at": null,
     "effective_at": null,
     "jira_comment_id": null,
-    "rule": "No APPROVED, GO, 100% or Done claim without exact commit SHA, verified artifact/manifests, all independent results, current source hashes and formal Jira decision."
+    "rule": "No APPROVED, GO, 100% or Done claim without one exact SHA, successful artifact/manifests, independent results, current source hashes and formal Jira decision."
   }
 }
