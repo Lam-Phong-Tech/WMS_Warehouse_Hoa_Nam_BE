@@ -1,325 +1,250 @@
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "ticket": "WWHN-128",
   "parent_ticket": "WWHN-24",
-  "parent_temp_key": "HN-DEC-002",
-  "epic_temp_key": "HN-EPIC-01",
   "decision_id": "DEC-INV-001",
-  "document_revision": "1.5-R5",
-  "status": "READY_FOR_INDEPENDENT_REREVIEW_NOT_APPROVED",
-  "released_at": "2026-08-04",
+  "document_revision": "1.6-R6",
+  "released_at": "2026-08-06",
+  "status": "BE1_TECHNICAL_PACKAGE_COMPLETE_INDEPENDENT_REVIEW_PENDING",
   "repository": {
     "full_name": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
     "branch": "m1",
     "direct_branch_update": true,
-    "pull_request": null,
-    "parent_commit_before_r5": "10680c2e07ca6366e0d51004344daa3ad7634b96",
+    "baseline_before_r6": "a9951965ee2d968435ada425a389f03b5aa4bede",
+    "implementation_baseline_r5": "f3b225ec0f5374c9c3d2b395fb59efbcfc601390",
     "release_commit_sha": null,
-    "release_commit_binding": "RECORD_EXACT_40_CHAR_SHA_IN_JIRA_AFTER_SINGLE_COMMIT",
+    "release_commit_binding": "RECORD_EXACT_R6_SHA_IN_JIRA_AFTER_SINGLE_COMMIT",
     "decision_document_path": "docs/docs_task_jira/WWHN-128.md",
-    "decision_document_git_blob_sha": "029a33af4e77fa1d45aa6ee04aab03fc7752fdd7",
     "source_register_path": "docs/docs_task_jira/WWHN-128-source-register.json",
-    "source_register_git_blob_sha": null,
-    "self_blob_binding": "AVAILABLE_FROM_FINAL_COMMIT_TREE_AND_MUST_BE_RECORDED_IN_JIRA_POST_COMMIT",
-    "architecture_guide": {
-      "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
-      "git_blob_sha": "a6e4e3183afe0b695ea63fd97faa45e74ac7a75e"
-    }
+    "review_protocol_path": "docs/evidence/WWHN-128/REVIEW_AND_APPROVAL_PROTOCOL.md",
+    "workflow_path": ".github/workflows/wwhn-128-inventory-decision-contract.yml",
+    "evidence_test_path": "tests/Feature/Wwhn128EvidenceContractTest.php"
   },
-  "jira_access": {
-    "verified_at": "2026-08-04T10:44:00+07:00",
-    "read_status": "LIVE_VERIFIED",
-    "comment_write_status": "AVAILABLE",
-    "issue_transition_status": "AVAILABLE_NOT_USED_FOR_OTHER_ROLE_TICKETS",
-    "attachment_upload_status": "ACTION_NOT_EXPOSED_BY_CONNECTED_ATLASSIAN_TOOL",
-    "attachment_byte_download_status": "ACTION_NOT_EXPOSED_BY_CONNECTED_ATLASSIAN_TOOL",
-    "allowed_claim": "Live issue metadata and comments may be read/written; exact Jira attachment IDs and SHA-256 remain pending until files are uploaded and downloaded through an authorized channel"
+  "architecture_baseline": {
+    "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+    "git_blob_sha": "a6e4e3183afe0b695ea63fd97faa45e74ac7a75e",
+    "rules": [
+      "BACKEND_ENFORCES_RBAC_AND_DATA_SCOPE",
+      "STOCK_CHANGING_OPERATIONS_REQUIRE_TRANSACTION_LOCK_AND_IDEMPOTENCY",
+      "STOCK_MOVEMENTS_ARE_APPEND_ONLY_AUTHORITY",
+      "INVENTORY_BALANCES_ARE_PROJECTION",
+      "SIGNED_RECONCILIATION_BY_WAREHOUSE_PRODUCT_STATUS",
+      "NO_FALSE_PASS_WITHOUT_EXACT_SHA_EVIDENCE"
+    ]
   },
-  "release_unit": {
-    "pair_rule": "Both files must come from the same exact m1 commit; approval requires exact commit SHA plus independently verified Jira attachment IDs and SHA-256 values",
-    "decision_artifact": {
-      "path": "docs/docs_task_jira/WWHN-128.md",
+  "jira_release_artifacts_r5": [
+    {
       "filename": "WWHN-128.md",
-      "git_blob_sha": "029a33af4e77fa1d45aa6ee04aab03fc7752fdd7",
-      "previous_attachment_id": 11560,
-      "target_attachment_id": null,
-      "jira_attachment_sha256": null,
-      "status": "PENDING_EXACT_R5_UPLOAD_AND_HASH",
-      "supersedes_after_successful_upload": [11560, 11552, 11420]
+      "attachment_id": 11570,
+      "jira_metadata_size_bytes": 25184,
+      "candidate_sha256_from_exact_ci_source_bytes": "82bf4521c0e96ca9421ef29e57d1c5c01f99001037955b0ce7a5c66340eed0b6",
+      "candidate_source_artifact_id": 8879619822,
+      "verification_state": "METADATA_SIZE_MATCH_CANDIDATE_HASH_EXACT_JIRA_BYTES_NOT_DOWNLOADED"
     },
-    "source_register_artifact": {
-      "path": "docs/docs_task_jira/WWHN-128-source-register.json",
+    {
       "filename": "WWHN-128-source-register.json",
-      "git_blob_sha": null,
-      "previous_attachment_id": 11559,
-      "target_attachment_id": null,
-      "jira_attachment_sha256": null,
-      "status": "PENDING_EXACT_R5_UPLOAD_AND_HASH",
-      "supersedes_after_successful_upload": [11559]
+      "attachment_id": 11569,
+      "jira_metadata_size_bytes": 12329,
+      "candidate_sha256_from_exact_ci_source_bytes": "f76c4b01be2d78029aea200dca3b9c680157d414b4987252678363dadd3a2db9",
+      "candidate_source_artifact_id": 8879619822,
+      "verification_state": "METADATA_SIZE_MATCH_CANDIDATE_HASH_EXACT_JIRA_BYTES_NOT_DOWNLOADED"
     }
+  ],
+  "jira_attachment_hash_policy": {
+    "current_limitation": "CONNECTED_ATLASSIAN_ACTIONS_DO_NOT_EXPOSE_JIRA_ATTACHMENT_BYTE_DOWNLOAD",
+    "verified_claim_allowed": false,
+    "valid_dispositions": [
+      "DOWNLOAD_EXACT_JIRA_BYTES_AND_VERIFY_SHA256",
+      "ACCEPTED_WITH_CONDITION_CONNECTOR_BYTE_DOWNLOAD_UNAVAILABLE"
+    ],
+    "anti_false_claim": "Size match and candidate CI checksum do not equal exact Jira byte verification"
   },
-  "jira_business_sources": [
+  "business_sources": [
     {
       "source_type": "BRD",
       "version": "3.12",
       "attachment_id": 11386,
-      "filename": null,
       "sha256": null,
-      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
-      "authority_source": "Live WWHN-129 BA comment"
+      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
     },
     {
       "source_type": "SRS_FRD",
       "version": "1.5",
       "attachment_id": 11415,
-      "filename": null,
       "sha256": null,
-      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
-      "authority_source": "Live WWHN-129 BA comment"
+      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
     },
     {
       "source_type": "OPENAPI",
       "version": "1.1",
       "attachment_id": 11414,
-      "filename": null,
       "sha256": null,
-      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
-      "authority_source": "Live WWHN-129 BA comment"
+      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
     },
     {
       "source_type": "BPD",
       "version": "1.4",
       "attachment_id": 11419,
-      "filename": null,
       "sha256": null,
-      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
-      "authority_source": "Live WWHN-129 BA comment"
+      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
     },
     {
       "source_type": "BASELINE_REGISTER",
       "version": "2.2.1",
       "attachment_id": 11545,
-      "filename": null,
       "sha256": null,
-      "status": "CURRENT_ID_VERIFIED_SHA_PENDING",
-      "authority_source": "Live WWHN-129 BA comment"
+      "status": "ID_VERIFIED_SHA_PENDING_EXTERNAL"
     }
   ],
   "implementation_artifacts": [
     {
       "path": "app/Support/IdempotencyKeyGuard.php",
       "git_blob_sha": "f0ea48754fbab4c9b09cc522b7f59a864e924161",
-      "purpose": "Single Idempotency-Key 428/422 and 8-100 boundary contract"
-    },
-    {
-      "path": "Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php",
-      "git_blob_sha": "d24467b2368d81acdf44bbfc3512bc397642cb72",
-      "purpose": "Inbound and outbound document operations delegate key validation to the shared guard"
-    },
-    {
-      "path": "Modules/Warehouse/app/Http/Controllers/WarrantyController.php",
-      "git_blob_sha": "dbafecd8b606dafa7c5ca3c83b9b4ee840160fa2",
-      "purpose": "Warranty status-only operation, eligibility, active-case guard and OpenAPI key boundary"
-    },
-    {
-      "path": "Modules/Warehouse/app/Models/InventorySerial.php",
-      "git_blob_sha": "fced829234390ca6faa3a7d862159d1c4ec33c0d",
-      "purpose": "Canonical serial statuses"
+      "control": "SHARED_428_422_AND_8_100_BOUNDARY"
     },
     {
       "path": "app/Support/IdempotencyStore.php",
       "git_blob_sha": "78e45f98f799da90d6170dfb6259ce23263383b3",
-      "purpose": "Operation-level scope, canonical request hash, exact replay and lease ownership"
+      "control": "ATOMIC_CALLBACK_SNAPSHOT_LEASE_OWNERSHIP_CANONICAL_HASH"
+    },
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/WarrantyController.php",
+      "git_blob_sha": "dbafecd8b606dafa7c5ca3c83b9b4ee840160fa2",
+      "control": "WARRANTY_STATUS_ONLY_ELIGIBILITY_ACTIVE_CASE_ROW_LOCK"
     },
     {
       "path": "Modules/Warehouse/app/Http/Controllers/ReportController.php",
       "git_blob_sha": "91612835ee00192fdd36590c403c1d1363fd8edc",
-      "purpose": "Signed reconciliation by warehouse, product and stock_status"
+      "control": "SIGNED_SUM_UNION_DIMENSION_RECONCILIATION"
+    },
+    {
+      "path": "database/migrations/2026_01_01_000010_create_idempotency_keys_table.php",
+      "git_blob_sha": "915dd4bbee58e3871c6272b6ebc3680a0605fd2a",
+      "control": "UNIQUE_IDEM_KEY_OPERATION_USER"
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_01_01_000034_create_inventory_balances_table.php",
+      "git_blob_sha": "77b283a1684d12c3b00dd87e58c55e056cedab71",
+      "control": "UNIQUE_WAREHOUSE_PRODUCT_STOCK_STATUS"
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_01_01_000035_create_stock_movements_table.php",
+      "git_blob_sha": "c9d47f3b7c239d220a326b8f53be3179629ee8b7",
+      "control": "UNIQUE_MOVEMENT_BUSINESS_KEY_APPEND_ONLY_LEDGER"
     }
   ],
-  "test_artifacts": [
-    {
-      "path": "tests/Feature/WarrantyStatusOnlyContractTest.php",
-      "git_blob_sha": "485fa3253ddb6f908a839a8d99499ff2096509ae",
-      "covers": ["WAR-AC-01", "WAR-AC-02", "WAR-AC-03", "WAR-AC-04", "WAR-AC-05", "WAR-AC-06"]
-    },
-    {
-      "path": "tests/Feature/WarrantyIdempotencyKeyContractTest.php",
-      "git_blob_sha": "f07d1b983e4108e0e46c2989878a25256755b0f0",
-      "covers": ["WAR-AC-07", "WAR-AC-08", "WAR-AC-09"]
-    },
-    {
-      "path": "tests/Feature/InventoryReconciliationSignedStatusTest.php",
-      "git_blob_sha": "3d941e075585bfb2c68f2b1b4eb78b57da5588be",
-      "covers": ["SIGNED_SUM", "STOCK_STATUS_DIMENSION"]
-    },
-    {
-      "path": "tests/Feature/InventoryReconciliationIntegrityTest.php",
-      "git_blob_sha": "2374dbff3c679a0cfebb022b1a4ff8ece6fa6588",
-      "covers": ["LEDGER_WITHOUT_BALANCE", "BALANCE_WITHOUT_LEDGER"]
-    },
-    {
-      "path": "tests/Feature/Wwhn180IdempotencyAtomicityTest.php",
-      "git_blob_sha": "37e5f6806c021d009bca904e922e30d5da85e971",
-      "covers": ["CANONICAL_REPLAY", "DIFFERENT_PAYLOAD_409", "ATOMIC_ROLLBACK", "LEASE_OWNERSHIP", "KEY_BOUNDARY"]
-    }
-  ],
+  "verified_r5_ci": {
+    "commit_sha": "f3b225ec0f5374c9c3d2b395fb59efbcfc601390",
+    "workflow_run_id": 30876196296,
+    "run_attempt": 1,
+    "conclusion": "success",
+    "job_id": 91888041476,
+    "artifact_id": 8879619822,
+    "artifact_name": "wwhn-128-evidence-f3b225ec0f5374c9c3d2b395fb59efbcfc601390",
+    "artifact_digest": "sha256:a5d37aad06ffb47edb381c26b9a12cb56cce36108336d100a262614149c3094a",
+    "tests": 17,
+    "assertions": 99,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "php": "8.3.33",
+    "phpunit": "12.5.33",
+    "database_engine": "sqlite",
+    "scope": "WWHN-128 focused regression"
+  },
+  "r6_ci_gate": {
+    "artifact_name_pattern": "wwhn-128-evidence-<exact-github-sha>",
+    "database_engine_declared": "sqlite",
+    "required_outputs": [
+      "build-metadata.json",
+      "test-summary.json",
+      "junit.xml",
+      "phpunit.log",
+      "db-before.json",
+      "db-after.json",
+      "schema-verification.json",
+      "reconciliation-report.json",
+      "route-list.json",
+      "commit-stat.txt",
+      "changed-files.txt",
+      "source-tree.sha256",
+      "WWHN-128.md",
+      "WWHN-128-source-register.json",
+      "REVIEW_AND_APPROVAL_PROTOCOL.md",
+      "review-ledger.json",
+      "artifact-manifest.json",
+      "jira-handoff-comment.txt",
+      "ci-summary.md",
+      "SHA256SUMS",
+      "SHA256SUMS.sha256"
+    ],
+    "latest_run_id": null,
+    "latest_run_attempt": null,
+    "latest_conclusion": null,
+    "latest_artifact_id": null,
+    "latest_artifact_digest": null,
+    "post_commit_binding": "RECORD_LIVE_R6_VALUES_IN_JIRA_FINAL_HANDOFF"
+  },
   "traceability": [
     {
       "source": "BRD 3.12",
-      "decision_section": "2",
-      "rule": "Warranty status-only, IN_STOCK rejection and one active case per serial",
-      "code_or_api": "WarrantyController::tempOnly / assertLinkedSerialEligible",
-      "test": "WAR-AC-01..06",
+      "decision_rule": "WARRANTY_STATUS_ONLY_AND_ELIGIBILITY",
+      "api_or_code": "WarrantyController::tempOnly / assertLinkedSerialEligible",
+      "test_or_evidence": "WarrantyStatusOnlyContractTest and WarrantyIdempotencyKeyContractTest",
       "tickets": ["WWHN-24", "WWHN-31", "WWHN-33", "WWHN-128", "WWHN-129", "WWHN-130"]
     },
     {
       "source": "OpenAPI 1.1",
-      "decision_section": "2.2 and 6",
-      "rule": "Shared Idempotency-Key 8-100 plus operation-level idempotency",
-      "code_or_api": "IdempotencyKeyGuard::require / IdempotencyStore::handle",
-      "test": "WAR-AC-03,04,07,08,09 and WWHN-180 suite",
+      "decision_rule": "IDEMPOTENCY_KEY_8_100_AND_OPERATION_LEVEL_REPLAY",
+      "api_or_code": "IdempotencyKeyGuard::require / IdempotencyStore::handle",
+      "test_or_evidence": "Warranty key suite and Wwhn180IdempotencyAtomicityTest",
       "tickets": ["WWHN-31", "WWHN-33", "WWHN-128", "WWHN-130", "WWHN-180"]
     },
     {
       "source": "DEC-INV-001",
-      "decision_section": "7",
-      "rule": "Signed reconciliation by stock_status",
-      "code_or_api": "ReportController::inventoryReconciliation",
-      "test": "InventoryReconciliationSignedStatusTest and InventoryReconciliationIntegrityTest",
+      "decision_rule": "SIGNED_RECONCILIATION_BY_WAREHOUSE_PRODUCT_STOCK_STATUS",
+      "api_or_code": "ReportController::inventoryReconciliation",
+      "test_or_evidence": "Inventory reconciliation suites and Wwhn128EvidenceContractTest",
       "tickets": ["WWHN-31", "WWHN-33", "WWHN-128", "WWHN-130"]
-    },
-    {
-      "source": "Baseline Register 2.2.1",
-      "decision_section": "9",
-      "rule": "No PASS without exact-SHA execution evidence",
-      "code_or_api": ".github/workflows/wwhn-128-inventory-decision-contract.yml",
-      "test": "EVID-01..05",
-      "tickets": ["WWHN-24", "WWHN-128", "WWHN-129", "WWHN-130"]
     }
   ],
-  "ci_gate": {
-    "workflow_path": ".github/workflows/wwhn-128-inventory-decision-contract.yml",
-    "workflow_git_blob_sha": "7668045c51ec0a30e612fbe4c96d4e781adbed0c",
-    "required_artifact_name": "wwhn-128-evidence-<exact-github-sha>",
-    "required_outputs": [
-      "build-metadata.json",
-      "junit.xml",
-      "phpunit.log",
-      "route-list.json",
-      "commit-stat.txt",
-      "changed-files.txt",
-      "SHA256SUMS"
-    ],
-    "latest_verified_run_id": null,
-    "latest_verified_run_attempt": null,
-    "latest_verified_conclusion": null,
-    "artifact_digest": null,
-    "qa1_review": null,
-    "status": "EXECUTION_EVIDENCE_PENDING"
-  },
   "independent_review": {
-    "BA_BAS": {
-      "status": "PENDING",
-      "scope": "AC, source register, traceability and business consequence"
+    "BA": {
+      "issue": "WWHN-129",
+      "status": "PENDING_INDEPENDENT_DISPOSITION"
+    },
+    "BAS": {
+      "issue": "WWHN-130",
+      "status": "PENDING_INDEPENDENT_DISPOSITION"
     },
     "TECH_LEAD": {
-      "status": "PENDING",
-      "scope": "Transactions, locks, shared key guard, idempotency, indexes and signed query"
+      "issue": "WWHN-24_OR_WWHN-128",
+      "status": "PENDING_INDEPENDENT_DISPOSITION"
     },
     "QA1": {
-      "status": "PENDING",
-      "scope": "Negative, boundary, race, regression, DB before-after and artifact digest"
+      "issue": "WWHN-24_OR_WWHN-128",
+      "status": "PENDING_EXACT_SHA_ARTIFACT_REVIEW"
     },
     "PM_APPROVER": {
-      "status": "PENDING",
-      "scope": "Formal decision approval, effective date and conditions"
-    }
-  },
-  "post_commit_jira_actions": [
-    {
-      "issue": "WWHN-128",
-      "action": "POST_STRUCTURED_BE1_R5_CLOSURE_MATRIX",
-      "status": "READY_TO_POST_AFTER_EXACT_COMMIT"
-    },
-    {
-      "issue": "WWHN-130",
-      "action": "POST_STRUCTURED_TRACEABILITY_EVIDENCE",
-      "status": "READY_TO_POST_AFTER_EXACT_COMMIT"
-    },
-    {
-      "issue": "WWHN-129",
-      "action": "POST_EXACT_R5_BA_REREVIEW_REQUEST",
-      "status": "READY_TO_POST_AFTER_EXACT_COMMIT"
-    },
-    {
       "issue": "WWHN-24",
-      "action": "POST_BE1_RELEASE_CANDIDATE_HANDOFF_NOT_FORMAL_APPROVAL",
-      "status": "READY_TO_POST_AFTER_EXACT_COMMIT"
-    }
-  ],
-  "external_gates": [
-    {
-      "gate": "UPLOAD_HASH_R5_PAIR",
-      "owner": "BE1_OR_AUTHORIZED_JIRA_UPLOADER",
-      "target_sla": "IMMEDIATE_AFTER_COMMIT",
-      "disposition": "Upload exact files, download exact Jira bytes and record IDs plus SHA-256",
-      "impact": "Formal approval target is incomplete"
+      "status": "PENDING_FORMAL_DECISION"
     },
-    {
-      "gate": "WWHN_130_BAS_REVIEW",
-      "owner": "BAS",
-      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_TRACE_POST",
-      "disposition": "Review structured traceability comment",
-      "impact": "P1-03 remains pending independent disposition"
-    },
-    {
-      "gate": "BA_REREVIEW",
-      "owner": "BA",
-      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_UPLOAD",
-      "disposition": "Review each R3 finding on exact R5",
-      "impact": "P1-06 remains open"
-    },
-    {
-      "gate": "TECH_REVIEW",
-      "owner": "TECH_LEAD",
-      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_EXACT_SHA",
-      "disposition": "Review transaction, key guard, schema and query contracts",
-      "impact": "P0 and P1 design gates remain open"
-    },
-    {
-      "gate": "CI_QA_REVIEW",
-      "owner": "QA1",
-      "target_sla": "WITHIN_1_BUSINESS_DAY_AFTER_WORKFLOW",
-      "disposition": "Verify run, artifact and SHA256SUMS",
-      "impact": "TEST PASS cannot be claimed"
-    },
-    {
-      "gate": "FORMAL_APPROVAL",
-      "owner": "PM_APPROVER",
-      "target_sla": "AFTER_ALL_REQUIRED_REVIEWS",
-      "disposition": "Approve exact R5 artifact pair",
-      "impact": "Decision is not effective"
-    }
-  ],
-  "closure_status": {
-    "BE1_R3_P0_01": "BE1_COMPLETE_SIGNOFF_PENDING",
-    "BE1_R3_P1_01": "RELEASE_PACKAGE_READY_UPLOAD_HASH_APPROVAL_PENDING",
-    "BE1_R3_P1_02": "LIVE_ID_VERIFIED_SHA_PENDING",
-    "BE1_R3_P1_03": "STRUCTURED_TRACE_READY_POST_COMMIT_BAS_REVIEW_PENDING",
-    "BE1_R3_P1_04": "IMPLEMENTED_SHARED_GUARD_REVIEW_PENDING",
-    "BE1_R3_P1_05": "IMPLEMENTED_EVIDENCE_PENDING",
-    "BE1_R3_P1_06": "REQUEST_READY_POST_COMMIT_BA_PENDING",
-    "BE1_R3_P1_07": "AUTOMATION_READY_RUN_PENDING",
-    "BE1_R3_P1_08": "LEDGER_READY_SIGNATURES_PENDING",
-    "BE1_R3_P2_01": "DONE",
-    "BE1_R3_P2_02": "STRUCTURED_COMMENT_READY_TO_POST_AFTER_COMMIT"
+    "anti_impersonation": "BE1 and CI cannot sign for independent roles"
   },
-  "prohibited_claims_until_gates_close": [
-    "APPROVED",
-    "BASELINED",
-    "EFFECTIVE",
-    "TEST_PASS",
-    "DONE"
-  ]
+  "latest_findings": {
+    "BE1-R5-P1-01": "FORMAL_DECISION_EXTERNAL_PENDING",
+    "BE1-R5-P1-02": "CANDIDATE_HASH_AND_SIZE_RECORDED_EXACT_JIRA_BYTES_EXTERNAL",
+    "BE1-R5-P1-03": "BA_DISPOSITION_EXTERNAL_PENDING",
+    "BE1-R5-P1-04": "BAS_DISPOSITION_EXTERNAL_PENDING",
+    "BE1-R5-P1-05": "TECH_LEAD_DISPOSITION_EXTERNAL_PENDING",
+    "BE1-R5-P1-06": "R5_CI_VERIFIED_R6_EVIDENCE_PIPELINE_ADDED_QA1_PENDING",
+    "BE1-R5-P1-07": "SOURCE_IDS_VERIFIED_SOURCE_BYTES_EXTERNAL_PENDING",
+    "BE1-R5-P2-01": "STRUCTURED_FINAL_HANDOFF_READY_POST_COMMIT"
+  },
+  "claim_policy": {
+    "be1_scope_after_successful_r6_run": "COMPLETE",
+    "formal_decision": "NOT_APPROVED_UNTIL_INDEPENDENT_DISPOSITIONS",
+    "qa_status": "NOT_QA_PASS_UNTIL_QA1_REVIEW",
+    "effective_status": "NOT_EFFECTIVE_UNTIL_PM_APPROVER_DECISION"
+  }
 }

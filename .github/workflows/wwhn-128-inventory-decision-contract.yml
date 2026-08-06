@@ -1,4 +1,4 @@
-name: WWHN-128 Inventory Decision Exact-SHA Gate
+name: WWHN-128 Inventory Decision Exact-SHA Evidence Gate
 
 on:
   workflow_dispatch:
@@ -12,13 +12,18 @@ on:
       - 'Modules/Warehouse/app/Models/InventorySerial.php'
       - 'Modules/Warehouse/app/Models/WarrantyCase.php'
       - 'Modules/Warehouse/app/Models/WarrantyEvent.php'
+      - 'Modules/Warehouse/database/migrations/*inventory_balances*'
+      - 'Modules/Warehouse/database/migrations/*stock_movements*'
+      - 'database/migrations/*idempotency*'
       - 'app/Support/IdempotencyKeyGuard.php'
       - 'app/Support/IdempotencyStore.php'
       - 'docs/docs_task_jira/WWHN-128*'
+      - 'docs/evidence/WWHN-128/**'
       - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
       - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
       - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
       - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
+      - 'tests/Feature/Wwhn128EvidenceContractTest.php'
       - 'tests/Feature/Wwhn180IdempotencyAtomicityTest.php'
       - 'composer.json'
       - 'composer.lock'
@@ -30,13 +35,20 @@ on:
       - 'Modules/Warehouse/app/Http/Controllers/WarrantyController.php'
       - 'Modules/Warehouse/app/Http/Controllers/ReportController.php'
       - 'Modules/Warehouse/app/Models/InventorySerial.php'
+      - 'Modules/Warehouse/app/Models/WarrantyCase.php'
+      - 'Modules/Warehouse/app/Models/WarrantyEvent.php'
+      - 'Modules/Warehouse/database/migrations/*inventory_balances*'
+      - 'Modules/Warehouse/database/migrations/*stock_movements*'
+      - 'database/migrations/*idempotency*'
       - 'app/Support/IdempotencyKeyGuard.php'
       - 'app/Support/IdempotencyStore.php'
       - 'docs/docs_task_jira/WWHN-128*'
+      - 'docs/evidence/WWHN-128/**'
       - 'tests/Feature/WarrantyStatusOnlyContractTest.php'
       - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
       - 'tests/Feature/InventoryReconciliationSignedStatusTest.php'
       - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
+      - 'tests/Feature/Wwhn128EvidenceContractTest.php'
       - 'tests/Feature/Wwhn180IdempotencyAtomicityTest.php'
 
 permissions:
@@ -48,8 +60,20 @@ concurrency:
 
 jobs:
   exact-sha-contract:
+    name: exact-SHA contract and DB evidence
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/wms-wwhn128.sqlite
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      EVIDENCE_DIR: build/evidence/wwhn-128
+      WWHN128_EVIDENCE_DIR: build/evidence/wwhn-128
 
     steps:
       - name: Checkout exact commit
@@ -68,6 +92,14 @@ jobs:
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Generate ephemeral CI secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          jwt_secret="W128-JWT-$(openssl rand -hex 32)"
+          echo "::add-mask::$jwt_secret"
+          printf 'JWT_SECRET=%s\n' "$jwt_secret" >> "$GITHUB_ENV"
+
       - name: Prepare isolated test environment
         shell: bash
         run: |
@@ -76,67 +108,70 @@ jobs:
           php artisan key:generate
           rm -f /tmp/wms-wwhn128.sqlite
           touch /tmp/wms-wwhn128.sqlite
-          cat >> .env <<'ENV'
-          JWT_SECRET=ci-jwt-secret-wwhn128
-          DB_CONNECTION=sqlite
-          DB_DATABASE=/tmp/wms-wwhn128.sqlite
-          CACHE_STORE=array
-          SESSION_DRIVER=array
-          QUEUE_CONNECTION=sync
-          AUDIT_WRITE_POLICY=outbox_required
-          ENV
+          mkdir -p "$EVIDENCE_DIR"
+          {
+            echo 'APP_ENV=testing'
+            echo 'APP_DEBUG=false'
+            echo 'DB_CONNECTION=sqlite'
+            echo 'DB_DATABASE=/tmp/wms-wwhn128.sqlite'
+            echo 'CACHE_STORE=array'
+            echo 'SESSION_DRIVER=array'
+            echo 'QUEUE_CONNECTION=sync'
+            echo 'AUDIT_WRITE_POLICY=outbox_required'
+            printf 'JWT_SECRET=%s\n' "$JWT_SECRET"
+          } >> .env
 
       - name: Static integrity gate
         shell: bash
         run: |
           set -euo pipefail
-          php -l Modules/Warehouse/app/Models/InventorySerial.php
-          php -l Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php
-          php -l Modules/Warehouse/app/Http/Controllers/WarrantyController.php
-          php -l Modules/Warehouse/app/Http/Controllers/ReportController.php
-          php -l app/Support/IdempotencyKeyGuard.php
-          php -l app/Support/IdempotencyStore.php
-          php -l tests/Feature/WarrantyStatusOnlyContractTest.php
-          php -l tests/Feature/WarrantyIdempotencyKeyContractTest.php
-          php -l tests/Feature/InventoryReconciliationSignedStatusTest.php
-          php -l tests/Feature/InventoryReconciliationIntegrityTest.php
-          php -l tests/Feature/Wwhn180IdempotencyAtomicityTest.php
-          git diff --check
-          ./vendor/bin/pint --test \
-            Modules/Warehouse/app/Models/InventorySerial.php \
-            Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php \
-            Modules/Warehouse/app/Http/Controllers/WarrantyController.php \
-            Modules/Warehouse/app/Http/Controllers/ReportController.php \
-            app/Support/IdempotencyKeyGuard.php \
-            app/Support/IdempotencyStore.php \
-            tests/Feature/WarrantyStatusOnlyContractTest.php \
-            tests/Feature/WarrantyIdempotencyKeyContractTest.php \
-            tests/Feature/InventoryReconciliationSignedStatusTest.php \
-            tests/Feature/InventoryReconciliationIntegrityTest.php \
+          php_files=(
+            Modules/Warehouse/app/Models/InventorySerial.php
+            Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php
+            Modules/Warehouse/app/Http/Controllers/WarrantyController.php
+            Modules/Warehouse/app/Http/Controllers/ReportController.php
+            app/Support/IdempotencyKeyGuard.php
+            app/Support/IdempotencyStore.php
+            tests/Feature/WarrantyStatusOnlyContractTest.php
+            tests/Feature/WarrantyIdempotencyKeyContractTest.php
+            tests/Feature/InventoryReconciliationSignedStatusTest.php
+            tests/Feature/InventoryReconciliationIntegrityTest.php
+            tests/Feature/Wwhn128EvidenceContractTest.php
             tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+          )
+          for file in "${php_files[@]}"; do
+            php -l "$file"
+          done
+          git diff --check
+          ./vendor/bin/pint --test "${php_files[@]}"
+          php -r '
+            json_decode(file_get_contents("docs/docs_task_jira/WWHN-128-source-register.json"), true, 512, JSON_THROW_ON_ERROR);
+            echo "Source register JSON hợp lệ.\n";
+          '
 
-      - name: Run WWHN-128 regression suite
+      - name: Run WWHN-128 scoped regression and evidence suite
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/evidence/wwhn-128
           ./vendor/bin/phpunit \
-            --filter '/(WarrantyStatusOnlyContractTest|WarrantyIdempotencyKeyContractTest|InventoryReconciliationSignedStatusTest|InventoryReconciliationIntegrityTest|Wwhn180IdempotencyAtomicityTest)/' \
-            --log-junit build/evidence/wwhn-128/junit.xml \
-            2>&1 | tee build/evidence/wwhn-128/phpunit.log
+            --filter '/(WarrantyStatusOnlyContractTest|WarrantyIdempotencyKeyContractTest|InventoryReconciliationSignedStatusTest|InventoryReconciliationIntegrityTest|Wwhn128EvidenceContractTest|Wwhn180IdempotencyAtomicityTest)/' \
+            --log-junit "$EVIDENCE_DIR/junit.xml" \
+            2>&1 | tee "$EVIDENCE_DIR/phpunit.log"
 
-      - name: Collect exact-SHA contract evidence
-        if: always()
+      - name: Collect immutable exact-SHA evidence package
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/evidence/wwhn-128
-          php artisan route:list --json > build/evidence/wwhn-128/route-list.json || true
-          git show --stat --oneline --decorate --no-renames "$GITHUB_SHA" > build/evidence/wwhn-128/commit-stat.txt
-          git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" > build/evidence/wwhn-128/changed-files.txt
-          cat > build/evidence/wwhn-128/build-metadata.json <<JSON
+          php artisan route:list --json > "$EVIDENCE_DIR/route-list.json"
+          git show --stat --oneline --decorate --no-renames "$GITHUB_SHA" > "$EVIDENCE_DIR/commit-stat.txt"
+          git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" > "$EVIDENCE_DIR/changed-files.txt"
+          git ls-tree -r --full-tree "$GITHUB_SHA" | sha256sum | awk '{print $1}' > "$EVIDENCE_DIR/source-tree.sha256"
+
+          cat > "$EVIDENCE_DIR/build-metadata.json" <<JSON
           {
             "ticket": "WWHN-128",
+            "decision_id": "DEC-INV-001",
+            "document_revision": "1.6-R6",
             "commit_sha": "${GITHUB_SHA}",
             "branch_or_ref": "${GITHUB_REF}",
             "run_id": "${GITHUB_RUN_ID}",
@@ -144,22 +179,148 @@ jobs:
             "repository": "${GITHUB_REPOSITORY}",
             "artifact_name": "wwhn-128-evidence-${GITHUB_SHA}",
             "database_engine": "sqlite",
-            "status_policy": "Workflow conclusion and QA1 review are required before PASS is claimed"
+            "database_evidence": ["db-before.json", "db-after.json", "schema-verification.json", "reconciliation-report.json"],
+            "test_scope": "WWHN-128 focused regression; not the repository-wide PHPUnit suite",
+            "approval_policy": "CI success is technical evidence only; BA/BAS/Tech Lead/QA1/PM independent dispositions remain required"
           }
           JSON
-          cp docs/docs_task_jira/WWHN-128.md build/evidence/wwhn-128/WWHN-128.md
-          if [ -f docs/docs_task_jira/WWHN-128-source-register.json ]; then
-            cp docs/docs_task_jira/WWHN-128-source-register.json build/evidence/wwhn-128/source-register.json
-          fi
-          cd build/evidence/wwhn-128
-          find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+
+          cp docs/docs_task_jira/WWHN-128.md "$EVIDENCE_DIR/WWHN-128.md"
+          cp docs/docs_task_jira/WWHN-128-source-register.json "$EVIDENCE_DIR/WWHN-128-source-register.json"
+          cp docs/evidence/WWHN-128/REVIEW_AND_APPROVAL_PROTOCOL.md "$EVIDENCE_DIR/REVIEW_AND_APPROVAL_PROTOCOL.md"
+
+          php -r '
+            $xml = simplexml_load_file(getenv("EVIDENCE_DIR")."/junit.xml");
+            if ($xml === false) { throw new RuntimeException("Không đọc được JUnit XML"); }
+            $a = $xml->attributes();
+            $payload = [
+              "ticket" => "WWHN-128",
+              "tests" => (int) $a["tests"],
+              "assertions" => (int) $a["assertions"],
+              "errors" => (int) $a["errors"],
+              "failures" => (int) $a["failures"],
+              "skipped" => (int) $a["skipped"],
+            ];
+            $payload["status"] = ($payload["errors"] + $payload["failures"] === 0) ? "PASS" : "FAIL";
+            file_put_contents(getenv("EVIDENCE_DIR")."/test-summary.json", json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n");
+          '
+
+          cat > "$EVIDENCE_DIR/review-ledger.json" <<'JSON'
+          {
+            "ticket": "WWHN-128",
+            "roles": {
+              "BA": {"status": "PENDING_INDEPENDENT_DISPOSITION", "issue": "WWHN-129"},
+              "BAS": {"status": "PENDING_INDEPENDENT_DISPOSITION", "issue": "WWHN-130"},
+              "TECH_LEAD": {"status": "PENDING_INDEPENDENT_DISPOSITION", "issue": "WWHN-24"},
+              "QA1": {"status": "PENDING_ARTIFACT_REVIEW", "issue": "WWHN-24"},
+              "PM_APPROVER": {"status": "PENDING_FORMAL_DECISION", "issue": "WWHN-24"}
+            },
+            "anti_impersonation": "BE1 and CI do not sign for independent reviewers"
+          }
+          JSON
+
+          cat > "$EVIDENCE_DIR/artifact-manifest.json" <<JSON
+          {
+            "ticket": "WWHN-128",
+            "commit_sha": "${GITHUB_SHA}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "artifact_name": "wwhn-128-evidence-${GITHUB_SHA}",
+            "required_files": [
+              "build-metadata.json", "test-summary.json", "junit.xml", "phpunit.log",
+              "db-before.json", "db-after.json", "schema-verification.json", "reconciliation-report.json",
+              "route-list.json", "commit-stat.txt", "changed-files.txt", "source-tree.sha256",
+              "WWHN-128.md", "WWHN-128-source-register.json", "REVIEW_AND_APPROVAL_PROTOCOL.md",
+              "review-ledger.json", "jira-handoff-comment.txt", "ci-summary.md", "SHA256SUMS", "SHA256SUMS.sha256"
+            ]
+          }
+          JSON
+
+          cat > "$EVIDENCE_DIR/jira-handoff-comment.txt" <<TEXT
+          [BE1 R6 FINAL HANDOFF — WWHN-128]
+          Decision: DEC-INV-001 v1.6-R6
+          Repository/branch: ${GITHUB_REPOSITORY} / m1
+          Exact commit: ${GITHUB_SHA}
+          Workflow run: ${GITHUB_RUN_ID}, attempt ${GITHUB_RUN_ATTEMPT}
+          Artifact: wwhn-128-evidence-${GITHUB_SHA}
+          Technical gate: inspect workflow conclusion and artifact digest in GitHub Actions.
+          Independent review: BA/BAS/Tech Lead/QA1/PM remain role-owned and must not be self-signed by BE1.
+          TEXT
+
+          cat > "$EVIDENCE_DIR/ci-summary.md" <<TEXT
+          ## WWHN-128 exact-SHA evidence
+
+          - Commit: \`${GITHUB_SHA}\`
+          - Run: \`${GITHUB_RUN_ID}\`, attempt \`${GITHUB_RUN_ATTEMPT}\`
+          - Database: \`sqlite\` isolated CI database
+          - Evidence: JUnit, raw PHPUnit log, DB before/after, schema/index verification, reconciliation response, route list, source-tree digest and dual checksum manifests
+          - Governance boundary: CI does not replace BA/BAS/Tech Lead/QA1/PM disposition
+          TEXT
+
+          cd "$EVIDENCE_DIR"
+          find . -maxdepth 1 -type f ! -name SHA256SUMS ! -name SHA256SUMS.sha256 -print0 \
+            | sort -z | xargs -0 sha256sum > SHA256SUMS
+          sha256sum SHA256SUMS > SHA256SUMS.sha256
+
+      - name: Validate evidence, manifests and result policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$EVIDENCE_DIR"
           sha256sum --check SHA256SUMS
+          sha256sum --check SHA256SUMS.sha256
+
+          required_files=(
+            build-metadata.json test-summary.json junit.xml phpunit.log
+            db-before.json db-after.json schema-verification.json reconciliation-report.json
+            route-list.json commit-stat.txt changed-files.txt source-tree.sha256
+            WWHN-128.md WWHN-128-source-register.json REVIEW_AND_APPROVAL_PROTOCOL.md
+            review-ledger.json artifact-manifest.json jira-handoff-comment.txt ci-summary.md
+            SHA256SUMS SHA256SUMS.sha256
+          )
+          for file in "${required_files[@]}"; do
+            [[ -s "$file" ]] || {
+              echo "Missing required evidence file: $file" >&2
+              exit 1
+            }
+          done
+
+          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '
+            .commit_sha == $sha
+            and .run_id == $run
+            and .document_revision == "1.6-R6"
+            and .database_engine == "sqlite"
+          ' build-metadata.json >/dev/null
+          jq -e '.status == "PASS" and .errors == 0 and .failures == 0 and .tests >= 18' test-summary.json >/dev/null
+          jq -e '.summary.status == "PASS" and .summary.failed == 0' schema-verification.json >/dev/null
+          jq -e '.status == "PASS" and .summary.mismatch_count == 0 and .summary.rows_checked == 2' reconciliation-report.json >/dev/null
+          jq -e '.roles.BA.status == "PENDING_INDEPENDENT_DISPOSITION" and .roles.PM_APPROVER.status == "PENDING_FORMAL_DECISION"' review-ledger.json >/dev/null
+          jq -e --arg sha "$GITHUB_SHA" '.commit_sha == $sha and (.required_files | length >= 18)' artifact-manifest.json >/dev/null
+
+      - name: Publish CI summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$EVIDENCE_DIR/ci-summary.md" ]]; then
+            cat "$EVIDENCE_DIR/ci-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'WWHN-128 evidence package was not completed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload immutable exact-SHA artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: wwhn-128-evidence-${{ github.sha }}
           path: build/evidence/wwhn-128
           if-no-files-found: error
           retention-days: 90
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-128-diagnostics-${{ github.sha }}
+          path: build/evidence/wwhn-128
+          if-no-files-found: warn
+          retention-days: 30
