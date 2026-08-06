@@ -1,63 +1,441 @@
 {
   "info": {
-    "name": "WWHN-134 DEC-REV-001 Reversal Contract",
-    "description": "Proposed contract collection. This is not actual API/DB test evidence and must not be used to claim implementation Done.",
+    "_postman_id": "d0b8e30c-c269-4fab-8d7b-134000000013",
+    "name": "WWHN-134 DEC-REV-001 Reversal Contract 1.3.0-proposed",
+    "description": "Official immutable proposal collection. It defines testable contract cases only; it is not API/DB execution evidence and cannot be used to claim implementation Done.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "version": {"major": 1, "minor": 2, "patch": 0}
+    "version": {
+      "major": 1,
+      "minor": 3,
+      "patch": 0
+    }
   },
   "variable": [
-    {"key": "baseUrl", "value": "http://localhost/api/v1"},
-    {"key": "token", "value": ""},
-    {"key": "originalDocumentId", "value": "018f3a7e-4c0a-7c9d-b4c2-4f679eec0001"},
-    {"key": "originalLineId", "value": "018f3a7e-4c0a-7c9d-b4c2-4f679eec0002"}
+    {
+      "key": "baseUrl",
+      "value": "http://localhost/api/v1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "noPermissionToken",
+      "value": ""
+    },
+    {
+      "key": "originalDocumentId",
+      "value": "018f3a7e-4c0a-7c9d-b4c2-4f679eec0001"
+    },
+    {
+      "key": "originalLineId",
+      "value": "018f3a7e-4c0a-7c9d-b4c2-4f679eec0002"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "wwhn134-contract-fixed-key"
+    }
   ],
   "item": [
     {
-      "name": "Create reversal - contract happy path",
+      "name": "01 Create reversal - first write 201",
       "request": {
         "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
         "header": [
-          {"key": "Authorization", "value": "Bearer {{token}}", "type": "text"},
-          {"key": "Content-Type", "value": "application/json", "type": "text"},
-          {"key": "X-Request-Id", "value": "{{$guid}}", "type": "text"},
-          {"key": "Idempotency-Key", "value": "wwhn134-{{$timestamp}}-happy", "type": "text"}
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "type": "text"
+          }
         ],
         "url": "{{baseUrl}}/reversals",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\"\n    }\n  ]\n}"
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('contract status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));","const json = pm.response.json();","pm.test('standard envelope', () => { pm.expect(json).to.have.property('success', true); pm.expect(json).to.have.nested.property('meta.request_id'); });"]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 201', () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "pm.test('standard success envelope', () => { pm.expect(json.success).to.eql(true); pm.expect(json).to.have.nested.property('meta.request_id'); });",
+              "pm.test('no stack/internal path', () => { const raw = JSON.stringify(json).toLowerCase(); pm.expect(raw).not.to.include('stack trace'); pm.expect(raw).not.to.include('/var/www'); });"
+            ]
+          }
+        }
+      ]
     },
     {
-      "name": "Missing Idempotency-Key - 428",
+      "name": "02 Same key and payload - replay 200",
       "request": {
         "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
         "header": [
-          {"key": "Authorization", "value": "Bearer {{token}}"},
-          {"key": "Content-Type", "value": "application/json"},
-          {"key": "X-Request-Id", "value": "{{$guid}}"}
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "type": "text"
+          }
         ],
         "url": "{{baseUrl}}/reversals",
-        "body": {"mode":"raw","raw":"{\"original_document_type\":\"RECEIPT\",\"original_document_id\":\"{{originalDocumentId}}\",\"reason_code\":\"DATA_CORRECTION\",\"reason\":\"Correct quantity posted by mistake\",\"lines\":[{\"original_line_id\":\"{{originalLineId}}\",\"quantity\":1,\"physical_return_status\":\"PENDING_RETURN\"}]}"}
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('status 428', () => pm.response.to.have.status(428));","pm.test('error code', () => pm.expect(pm.response.json()).to.have.nested.property('error.code','IDEMPOTENCY_KEY_REQUIRED'));","pm.test('no stack trace', () => pm.expect(JSON.stringify(pm.response.json()).toLowerCase()).not.to.include('stack trace')); "]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('replayed header true', () => pm.expect(pm.response.headers.get('Idempotency-Replayed')).to.eql('true'));"
+            ]
+          }
+        }
+      ]
     },
     {
-      "name": "No permission - 403",
+      "name": "03 Same key different payload - 409",
       "request": {
         "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
         "header": [
-          {"key": "Authorization", "value": "Bearer {{token}}"},
-          {"key": "Content-Type", "value": "application/json"},
-          {"key": "X-Request-Id", "value": "{{$guid}}"},
-          {"key": "Idempotency-Key", "value": "wwhn134-no-permission"}
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "type": "text"
+          }
         ],
         "url": "{{baseUrl}}/reversals",
-        "body": {"mode":"raw","raw":"{\"original_document_type\":\"RECEIPT\",\"original_document_id\":\"{{originalDocumentId}}\",\"reason_code\":\"DATA_CORRECTION\",\"reason\":\"Correct quantity posted by mistake\",\"lines\":[{\"original_line_id\":\"{{originalLineId}}\",\"quantity\":1,\"physical_return_status\":\"PENDING_RETURN\"}]}"}
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 2,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
       },
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('status 403', () => pm.response.to.have.status(403));","pm.test('NO_PERMISSION', () => pm.expect(pm.response.json()).to.have.nested.property('error.code','NO_PERMISSION')); "]}}]
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 409', () => pm.response.to.have.status(409));",
+              "pm.test('IDEMPOTENCY_ERROR', () => pm.expect(pm.response.json()).to.have.nested.property('error.code', 'IDEMPOTENCY_ERROR'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Missing Idempotency-Key - 428",
+      "request": {
+        "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          }
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 428', () => pm.response.to.have.status(428));",
+              "pm.test('IDEMPOTENCY_KEY_REQUIRED', () => pm.expect(pm.response.json()).to.have.nested.property('error.code', 'IDEMPOTENCY_KEY_REQUIRED'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Invalid Idempotency-Key length - 422",
+      "request": {
+        "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "short",
+            "type": "text"
+          }
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 422', () => pm.response.to.have.status(422));",
+              "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json()).to.have.nested.property('error.code', 'VALIDATION_ERROR'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Unauthenticated - 401",
+      "request": {
+        "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "type": "text"
+          }
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 401', () => pm.response.to.have.status(401));",
+              "pm.test('UNAUTHENTICATED', () => pm.expect(pm.response.json()).to.have.nested.property('error.code', 'UNAUTHENTICATED'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Out of permission or warehouse scope - 403",
+      "request": {
+        "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{noPermissionToken}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "type": "text"
+          }
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"Correct quantity posted by mistake\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 403', () => pm.response.to.have.status(403));",
+              "pm.test('NO_PERMISSION', () => pm.expect(pm.response.json()).to.have.nested.property('error.code', 'NO_PERMISSION'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Validation reason too short - 422",
+      "request": {
+        "method": "POST",
+        "description": "Contract case; not proof that the runtime is implemented.",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Request-Id",
+            "value": "{{$guid}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotencyKey}}",
+            "type": "text"
+          }
+        ],
+        "url": "{{baseUrl}}/reversals",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_document_type\": \"RECEIPT\",\n  \"original_document_id\": \"{{originalDocumentId}}\",\n  \"reason_code\": \"DATA_CORRECTION\",\n  \"reason\": \"short\",\n  \"lines\": [\n    {\n      \"original_line_id\": \"{{originalLineId}}\",\n      \"quantity\": 1,\n      \"physical_return_status\": \"PENDING_RETURN\",\n      \"evidence_uri\": \"https://evidence.example.invalid/returns/RET-0001\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status 422', () => pm.response.to.have.status(422));",
+              "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json()).to.have.nested.property('error.code', 'VALIDATION_ERROR'));"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

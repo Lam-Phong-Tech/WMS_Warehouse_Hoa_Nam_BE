@@ -1,126 +1,163 @@
 # WWHN-134 — BE1 Soạn nội dung kỹ thuật/nghiệp vụ và lựa chọn đề xuất
 
-## 1. Kết quả xử lý đánh giá 80/100
+## 1. Release remediation
 
-| Finding | Cách xử lý trong release này | Trạng thái |
-|---|---|---|
-| BE1-P1-01 — chưa có review sau v1.1 | Phát hành DEC-REV-001 v1.2, mapping đầy đủ các thay đổi BA yêu cầu; tạo mẫu comment explicit acceptance cho BA/Tech Lead | READY_FOR_INDEPENDENT_REVIEW |
-| BE1-P1-02 — parent chưa formal sign-off | Giữ trạng thái `PROPOSED`; ghi Decision Owner Nguyễn Quang Đức, ETA 2026-08-06; cấm claim APPROVED trước comment độc lập trên WWHN-26 | DISPOSITIONED, PENDING OWNER ACTION |
-| BE1-P1-03 — WWHN-136 To Do | Lập traceability matrix WWHN-17/31/33/35/40 và mẫu comment để BAS ghim; không tự nhận hoàn tất thay BAS | READY_FOR_BAS_ACTION |
-| BE1-P1-04 — OpenAPI/Postman chưa khóa | Bổ sung `docs/api-contract/WWHN-134-reversal-openapi.yaml` và `docs/postman/WWHN-134-reversal.postman_collection.json` phiên bản 1.2.0-proposed | COMPLETED AT PROPOSAL LEVEL |
-| BE1-P2-01 — chưa có actual evidence | Ghi rõ contract/Decision Record không phải implementation evidence; exact-SHA CI/API/DB/race/reconciliation là downstream gate | COMPLETED |
-| BE1-P2-02 — sign-off table trống | Điền owner cho Tech Lead, QA Testability, Decision Owner; giữ PENDING thay vì giả mạo chữ ký | COMPLETED / PENDING INDEPENDENT SIGN-OFF |
+- Contract: `DEC-REV-001`
+- Version: `1.3.0-proposed`
+- Status: `PROPOSED — PENDING INDEPENDENT SIGN-OFF`
+- Branch: `m1`
+- Immutable release: `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/`
+- Manifest SHA-256: `bd0e356e6301c4e7e142b57108c69684c2624a64c0ea2349a2be4b046472cf95`
+- SHA256SUMS SHA-256: `26e39d4de842f589fdecf797388fc819975f0cdfba18ae764568e01228b55c4f`
+- Prior proposal commit: `f9c8c5ca74017c4269cf503bd7d6222b5ad3cc9c`
+- Observed parent commit: `7d7091c48798114b5bbf7ff4c0b58617d177c737`
 
-Không có P0 được nêu trong bảng đánh giá. Mọi P1/P2 đã có output hoặc disposition rõ ràng; các chữ ký độc lập còn lại không thuộc quyền BE1 tự xác nhận.
+BE1-controlled documentation, governance, traceability and artifact verification are complete. Overall Jira closure remains fail-closed because independent Tech Lead/QA/FE/BAS/PM actions cannot be self-signed by BE1.
 
-## 2. Baseline kỹ thuật đã áp dụng
+## 2. Risk & Action Register disposition
 
-Theo `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`:
+| ID | Sev | Root cause | Remediation in this release | BE status | External closure gate |
+|---|---|---|---|---|---|
+| BE1-P1-01 | P1 | v1.2 lacked independent acceptance target with exact hashes | Added immutable package, manifest, checksums, exact comment protocol and CI evidence artifact | `READY_FOR_INDEPENDENT_REVIEW` | Tech Lead/QA/FE result on exact SHA + manifest hash |
+| BE1-P1-02 | P1 | WWHN-26 has no final outcome | Added formal PM/PO outcome template, allowed vocabulary and fail-closed policy | `READY_FOR_PM_PO_DECISION` | WWHN-26 `APPROVED/REJECTED/CHANGES REQUIRED` |
+| BE1-P1-03 | P1 | WWHN-136 remains To Do | Added source register and immutable traceability matrix for WWHN-17/31/33/35/40 | `READY_FOR_BAS_PIN` | BAS `TRACEABILITY-PINNED` with comment IDs/date |
+| BE1-P1-04 | P1 | repo paths were mutable self-claims | Added versioned OpenAPI/Postman/schema, changelog, manifest, SHA256SUMS and publisher separation | `BE_COMPLETE` | Tech Lead `PUBLISHED-VERIFIED` |
+| BE1-P1-05 | P1 | prior review could not verify commit/files | Added exact-SHA GitHub workflow, commit/diff/tree digest and downloadable evidence artifact | `BE_COMPLETE` | Reviewer verifies workflow/artifact or Jira attachment |
+| BE1-P2-01 | P2 | proposal could be confused with implementation evidence | Kept and strengthened downstream boundary; documented actual route/permission divergence | `BE_COMPLETE` | No runtime claim until separate implementation evidence |
+| BE1-P2-02 | P2 | closure table lacked enforceable reviewer fields | Added role-separated ledger, allowed outcomes and mandatory exact-hash fields | `BE_COMPLETE` | Each reviewer records own disposition |
 
-- Laravel Modular Monolith, PostgreSQL là database chính.
-- Reverse phải chạy transaction, lock balance/document liên quan, validate lại state và tồn, append movement đối ứng, rollback khi lỗi.
-- Inventory movement là audit source chính, không sửa/xóa movement đã phát sinh.
-- Backend enforce RBAC và warehouse/data scope; frontend không phải security boundary.
-- Idempotency bắt buộc cho action đổi tồn.
-- Error contract rõ ràng, không lộ secret/stack trace.
+## 3. Architecture and technical baseline
 
-## 3. BA REVIEW CHANGES REQUIRED — mapping v1.2
+Applied from `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`:
 
-| BA request | Addressed tại |
+- Laravel Modular Monolith and PostgreSQL;
+- transaction + deterministic row-level lock for stock-changing actions;
+- append-only inventory movement as the audit source;
+- backend RBAC and warehouse/data scope;
+- mandatory idempotency and atomic replay snapshot;
+- audit/outbox in the same transaction;
+- standardized error envelope without stack trace, SQL, secret or internal path.
+
+## 4. Official immutable artifacts
+
+| Artifact | SHA-256 |
 |---|---|
-| BRD v3.11, SRS/FRD v1.4, BPD v1.3; v3.9 superseded | DEC-REV-001 §1 |
-| HTTP 409 + `error.code=IDEMPOTENCY_ERROR` | DEC-REV-001 §3/§5; OpenAPI 409 enum |
-| PENDING_RETURN không phải document status | DEC-REV-001 §4; OpenAPI `physical_return_status` ở line |
-| OP-REV-02/03/04 có owner/ETA/disposition | DEC-REV-001 §9 |
-| Danh sách affected tickets | DEC-REV-001 §7; traceability matrix bên dưới |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/openapi.yaml` | `c852d2bb19687045a0298ed6135f218afb3636588fd4ce16c0a8de1067f3738a` |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/reversal.schema.json` | `08146ec2d07155a8fce7c92a2b9b287033675ae2360c2ea18b6035077ec4623f` |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/postman_collection.json` | `04464880408cde560c58f4b51c45f57b319d7fd3af87d4dd097185856002d93f` |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/CHANGELOG.md` | `035763c41272e98a79686041144d6b4bbc04a27e88a4c8416330a449cc04821c` |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/REVIEW_AND_APPROVAL.md` | `151767e4ed2d1f3f2c5d7f74479c60f99053bd1fa2f63eb7e4cdffb1940fa6f4` |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/TRACEABILITY.md` | `047dfdd77ee635662503089e21fa3a9055995e6c1981e1ede96035a35d714f26` |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/RELEASE_MANIFEST.json` | `bd0e356e6301c4e7e142b57108c69684c2624a64c0ea2349a2be4b046472cf95` |
+| `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/SHA256SUMS` | `26e39d4de842f589fdecf797388fc819975f0cdfba18ae764568e01228b55c4f` |
 
-## 4. Output đã phát hành trên nhánh m1
+Canonical aliases:
 
-1. `docs/decision-records/DEC-REV-001.md` — Decision Record v1.2, trạng thái Proposed.
-2. `docs/api-contract/WWHN-134-reversal-openapi.yaml` — OpenAPI 3.0.3 cho `POST /api/v1/reversals`.
-3. `docs/postman/WWHN-134-reversal.postman_collection.json` — Postman contract cases.
-4. `docs/docs_task_jira/WWHN-134.md` — hồ sơ remediation và handoff này.
+- `docs/api-contract/WWHN-134-reversal-openapi.yaml` — byte-identical to immutable `openapi.yaml`;
+- `docs/postman/WWHN-134-reversal.postman_collection.json` — byte-identical to immutable `postman_collection.json`.
 
 ## 5. Contract summary
 
-### Endpoint
+- Target endpoint: `POST /api/v1/reversals`
+- Target permission: `stock.reversal.create`
+- Scope: warehouse/data scope enforced by backend
+- Required headers: `Authorization`, `X-Request-Id`, `Idempotency-Key`
+- Success: 201 first write; 200 same-key/same-payload replay
+- Conflict: 409 `IDEMPOTENCY_ERROR`, `INVALID_STATE`, `REVERSAL_LIMIT_EXCEEDED`, `REVERSAL_DEPENDENCY_CONFLICT`, `CONCURRENT_MODIFICATION`
+- Other errors: 401, 403, 404, 422, 428
+- Document status remains `DRAFT/CONFIRMED/POSTED/CANCELLED`
+- `PENDING_RETURN` remains line/evidence state only
 
-`POST /api/v1/reversals`
+## 6. Runtime divergence — explicit fail-closed disposition
 
-### Permission
+Observed runtime at `7d7091c48798114b5bbf7ff4c0b58617d177c737`:
 
-`stock.reversal.create`, đồng thời kiểm tra warehouse/data scope tại backend.
+- `POST /api/v1/inbound-documents/{id}/reverse`
+- `POST /api/v1/outbound-documents/{id}/reverse`
+- permission `stock_document.reverse`
 
-### Headers bắt buộc
+Target proposal:
 
-- `Authorization`
-- `X-Request-Id`
-- `Idempotency-Key` (8–128 ký tự)
+- `POST /api/v1/reversals`
+- permission `stock.reversal.create`
 
-### Error codes khóa
+This release does not claim an alias, migration or deployed runtime endpoint. A separate implementation change and exact-SHA QA/FE evidence are mandatory before runtime Done.
 
-- 401 `UNAUTHENTICATED`
-- 403 `NO_PERMISSION`
-- 404 `ORIGINAL_NOT_FOUND`
-- 409 `IDEMPOTENCY_ERROR`, `INVALID_STATE`, `REVERSAL_LIMIT_EXCEEDED`, `REVERSAL_DEPENDENCY_CONFLICT`, `CONCURRENT_MODIFICATION`
-- 422 `VALIDATION_ERROR`
-- 428 `IDEMPOTENCY_KEY_REQUIRED`
+## 7. Publisher and sign-off separation
 
-### Idempotency semantics
-
-- Cùng key + cùng canonical payload: replay response, không tạo movement/balance delta lần hai.
-- Cùng key + payload khác: HTTP 409 `IDEMPOTENCY_ERROR`.
-- Idempotency claim, reversal, movement, balance, audit và response snapshot phải nằm trong cùng transaction hoặc cơ chế bảo đảm atomic tương đương.
-
-## 6. Traceability matrix cho WWHN-136
-
-| Ticket | Nội dung cần ghim | Evidence repo |
-|---|---|---|
-| WWHN-17 | Append-only reversal; PENDING_RETURN ở line/evidence; BRD v3.11 điều khiển | DEC-REV-001 §1–§4 |
-| WWHN-31 | `/reversals`, payload, errors, headers, idempotency | OpenAPI v1.2.0-proposed |
-| WWHN-33 | Positive/negative/RBAC/replay/conflict/race/rollback/audit/reconciliation test scope | DEC-REV-001 §8 + Postman cases |
-| WWHN-35 | `stock.reversal.create`, 401/403, audit/no-stack-trace | DEC-REV-001 §3/§5 |
-| WWHN-40 | Contract gate FE/BE/QA, sample payload, approval condition | toàn bộ release WWHN-134 |
-
-## 7. Downstream evidence boundary
-
-Các file trong release này là decision/contract artifacts. Chúng không chứng minh endpoint đã được implement hoặc tests đã PASS. Khi implementation được thực hiện, Definition of Done phải có:
-
-- exact backend commit SHA;
-- CI/PHPUnit/Newman raw logs;
-- PostgreSQL version/environment;
-- API happy/negative/RBAC/idempotency replay+conflict;
-- concurrent double-reversal/race result;
-- DB before/after movement và balance delta;
-- rollback, audit, no-stack-trace và reconciliation evidence;
-- independent QA reviewer/result/date.
-
-Không dùng branch URL động, local path hoặc BE self-review để thay evidence trên exact SHA.
-
-## 8. Sign-off gate
-
-| Gate | Owner | Kết quả hiện tại | ETA |
+| Role | Owner | Allowed result | Current |
 |---|---|---|---|
-| BA xác nhận v1.2 đã address CHANGES REQUIRED và accept proposal | Nguyễn Đình Hùng | PENDING | 2026-08-06 |
-| Tech Lead technical review | Tech Lead | PENDING | 2026-08-06 |
-| QA testability review | QA1/QA2 | PENDING | 2026-08-06 |
-| BAS ghim traceability WWHN-17/31/33/35/40 | Nguyễn Thị Hải Yến | PENDING | 2026-08-06 |
-| Decision Owner formal approval hoặc giữ Proposed có ETA | Nguyễn Quang Đức | PROPOSED / PENDING | 2026-08-06 |
+| BE1 Author | Quang Nguyễn Thanh | `PROPOSED` | `PROPOSED` |
+| BA | Nguyễn Đình Hùng | `REVIEWED-SUFFICIENT / CHANGES REQUIRED` | `PENDING` |
+| Tech Lead independent publisher | Tech Lead | `PUBLISHED-VERIFIED / CHANGES REQUIRED` | `PENDING` |
+| QA | QA1/QA2 | `REVIEWED-SUFFICIENT / CHANGES REQUIRED` | `PENDING` |
+| FE consumer | FE | `REVIEWED-SUFFICIENT / CHANGES REQUIRED` | `PENDING` |
+| BAS | Nguyễn Thị Hải Yến | `TRACEABILITY-PINNED / CHANGES REQUIRED` | `PENDING` |
+| PM/PO Decision Owner | Nguyễn Quang Đức | `APPROVED / REJECTED / CHANGES REQUIRED` | `PENDING` |
 
-## 9. Comment mẫu để cập nhật Jira sau commit
+BE1 and CI do not sign for independent roles.
 
-### WWHN-134 — yêu cầu BA/Tech Lead/QA review
+## 8. Traceability
 
-> BE1 đã phát hành DEC-REV-001 v1.2 trên exact commit `[SHA]`. V1.2 đã address toàn bộ BA REVIEW CHANGES REQUIRED: baseline BRD v3.11/SRS-FRD v1.4/BPD v1.3; 409 IDEMPOTENCY_ERROR; PENDING_RETURN ở line/evidence; OP-REV-02/03/04 có owner/ETA/disposition; affected-ticket traceability. Đề nghị reviewer ghi rõ `REVIEWED-SUFFICIENT` hoặc `CHANGES REQUIRED`, reviewer, date và exact SHA. Contract vẫn `PROPOSED`, không claim implementation Done.
+- WWHN-17: business baseline, append-only rule and line-level `PENDING_RETURN`.
+- WWHN-31: official OpenAPI/schema/version/hash/changelog/publisher separation.
+- WWHN-33: positive/negative/RBAC/idempotency/race/rollback/audit/reconciliation testability.
+- WWHN-35: permission, data scope, audit and error envelope.
+- WWHN-40: FE/BE/QA consumer contract and compatibility/adoption gap.
+- WWHN-136: BAS pins all links with reviewer/date/result.
 
-### WWHN-26 — Decision Owner
+Detailed matrix: `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/TRACEABILITY.md`.
 
-> DEC-REV-001 v1.2 tại exact commit `[SHA]` đang ở trạng thái `PROPOSED`. Decision Owner: Nguyễn Quang Đức; ETA 2026-08-06. Đề nghị ghi rõ `APPROVED` hoặc `REJECTED/CHANGES REQUIRED` kèm ngày và exact SHA. Nếu chưa ký, các phụ thuộc tiếp tục fail-closed theo Proposed.
+## 9. Exact-SHA evidence
+
+Workflow: `.github/workflows/wwhn-134-reversal-decision-contract.yml`
+
+Expected artifact after the release commit:
+
+`wwhn-134-contract-evidence-<exact-40-character-sha>`
+
+The artifact includes release files, manifest/checksums, exact commit metadata, commit stat, changed files, source-tree digest and verification logs.
+
+## 10. Jira comment payload after commit
+
+### WWHN-134 — independent review request
+
+```text
+[WWHN-134 DEC-REV-001 1.3.0-proposed RELEASE]
+Exact commit SHA: <FULL_SHA>
+Immutable path: docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/
+RELEASE_MANIFEST.json SHA-256: bd0e356e6301c4e7e142b57108c69684c2624a64c0ea2349a2be4b046472cf95
+SHA256SUMS SHA-256: 26e39d4de842f589fdecf797388fc819975f0cdfba18ae764568e01228b55c4f
+Workflow/artifact: wwhn-134-contract-evidence-<FULL_SHA>
+Requested results:
+- Tech Lead: PUBLISHED-VERIFIED | CHANGES REQUIRED
+- QA/FE/BA: REVIEWED-SUFFICIENT | CHANGES REQUIRED
+Each comment must include reviewer, date, exact SHA, manifest hash and evidence.
+Runtime implementation is NOT_CLAIMED.
+```
+
+### WWHN-26 — PM/PO formal outcome
+
+```text
+[DEC-REV-001 FORMAL OUTCOME REQUIRED]
+Exact commit SHA: <FULL_SHA>
+Release: 1.3.0-proposed
+Manifest SHA-256: bd0e356e6301c4e7e142b57108c69684c2624a64c0ea2349a2be4b046472cf95
+Outcome: APPROVED | REJECTED | CHANGES REQUIRED
+Decision owner/date/effective scope/conditions/evidence are mandatory.
+```
 
 ### WWHN-136 — BAS traceability
 
-> Đề nghị BAS ghim DEC-REV-001 v1.2 exact commit `[SHA]` xuống WWHN-17/31/33/35/40 theo matrix trong `docs/docs_task_jira/WWHN-134.md`, xác nhận BRD v3.11/SRS-FRD v1.4/BPD v1.3 là baseline và v3.9 superseded.
+```text
+[DEC-REV-001 TRACEABILITY PIN REQUIRED]
+Exact commit SHA: <FULL_SHA>
+Manifest SHA-256: bd0e356e6301c4e7e142b57108c69684c2624a64c0ea2349a2be4b046472cf95
+Pin WWHN-17/31/33/35/40 using docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/TRACEABILITY.md.
+Result: TRACEABILITY-PINNED | CHANGES REQUIRED.
+Include BAS reviewer/date/comment IDs.
+```
 
-## 10. Kết luận BE1
+## 11. Closure statement
 
-BE1 đã hoàn thành sâu phần thuộc quyền kiểm soát: Decision Record, transaction/concurrency/idempotency/audit rules, OpenAPI, Postman, error/permission contract, traceability matrix, downstream evidence boundary và sign-off ownership. Điểm còn mở là hành động review/phê duyệt độc lập của BA, Tech Lead, QA, BAS và Decision Owner; không được đánh dấu hoàn tất bằng self-sign-off.
+BE1-controlled scope is complete and reproducibly verifiable. The overall ticket/decision must remain pending until independent reviewers and PM/PO provide their own exact-artifact dispositions. No proposal artifact is used to claim implementation Done.
