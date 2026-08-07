@@ -31,15 +31,24 @@ class HealthController extends Controller
             'checks' => $checks,
         ];
 
-        return $healthy
+        $response = $healthy
             ? $this->respondSuccess($payload, 'Backend health check passed.')
             : $this->respondError('Backend health check degraded.', $payload, 503, 'HEALTH_CHECK_DEGRADED');
+
+        // Readiness responses must never be cached by browsers, proxies or CDNs.
+        // A stale 200/503 can produce unsafe deployment decisions.
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Expires', '0');
+
+        return $response;
     }
 
     private function databaseCheck(): array
     {
         try {
             DB::select('select 1');
+
             return ['status' => 'ok', 'driver' => DB::connection()->getDriverName()];
         } catch (Throwable) {
             return ['status' => 'fail'];
@@ -50,6 +59,7 @@ class HealthController extends Controller
     {
         try {
             $count = DB::table(config('database.migrations.table', 'migrations'))->count();
+
             return ['status' => $count > 0 ? 'ok' : 'fail', 'ran_count' => $count];
         } catch (Throwable) {
             return ['status' => 'fail', 'ran_count' => 0];
@@ -64,6 +74,7 @@ class HealthController extends Controller
                 'baseline_warehouse' => DB::table('warehouses')->where('code', 'KHO-TONG-HN')->exists(),
                 'baseline_product' => DB::table('products')->where('code', 'HN-PV-BASE-001')->exists(),
             ];
+
             return ['status' => collect($markers)->every() ? 'ok' : 'fail', 'markers' => $markers];
         } catch (Throwable) {
             return ['status' => 'fail', 'markers' => ['admin_user' => false, 'baseline_warehouse' => false, 'baseline_product' => false]];

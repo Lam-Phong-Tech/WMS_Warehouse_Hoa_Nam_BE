@@ -1,0 +1,138 @@
+name: WWHN-155 Migration Seed Health Evidence
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-155-migration-seed-health-evidence.yml'
+      - 'app/Http/Controllers/HealthController.php'
+      - 'app/Http/Middleware/ApiConventionMiddleware.php'
+      - 'app/Traits/ApiResponse.php'
+      - 'config/health.php'
+      - 'database/**'
+      - 'routes/api.php'
+      - 'tests/Feature/BackendMigrationSeedHealthTest.php'
+      - 'scripts/collect-wwhn155-evidence.sh'
+      - 'scripts/verify-wwhn155-release.mjs'
+      - 'docs/api-contract/releases/WWHN-155/**'
+      - 'docs/docs_task_jira/WWHN-155*'
+      - 'docs/testing/WWHN-155-health-test-cases.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-155-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-sha-postgresql:
+    name: PostgreSQL exact-SHA evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: wms_wwhn155_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d wms_wwhn155_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      APP_VERSION: '1.0.0'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      FILESYSTEM_DISK: local
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: wms_wwhn155_ci
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      EVIDENCE_DIR: build/evidence/wwhn-155/postgresql
+
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring,bcmath,pgsql,pdo_pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+
+      - name: Configure isolated evidence environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          password="$(openssl rand -base64 36 | tr -d '\n')"
+          jwt="$(openssl rand -base64 64 | tr -d '\n')"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
+          echo "CI_DEMO_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "JWT_SECRET=$jwt" >> "$GITHUB_ENV"
+
+      - name: Static, syntax and release gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/collect-wwhn155-evidence.sh
+          php -l app/Http/Controllers/HealthController.php
+          php -l tests/Feature/BackendMigrationSeedHealthTest.php
+          ./vendor/bin/pint --test app/Http/Controllers/HealthController.php tests/Feature/BackendMigrationSeedHealthTest.php
+          node --check scripts/verify-wwhn155-release.mjs
+          node scripts/verify-wwhn155-release.mjs
+          npx redocly lint docs/api-contract/releases/WWHN-155/1.0.0/openapi.yaml
+          node -e "for (const f of process.argv.slice(1)) JSON.parse(require('fs').readFileSync(f, 'utf8'))" \
+            docs/api-contract/releases/WWHN-155/1.0.0/postman_collection.json \
+            docs/api-contract/releases/WWHN-155/1.0.0/RELEASE_MANIFEST.json \
+            docs/docs_task_jira/WWHN-155-source-register.json \
+            docs/testing/WWHN-155-health-test-cases.json
+
+      - name: Collect raw PostgreSQL evidence
+        shell: bash
+        run: bash scripts/collect-wwhn155-evidence.sh
+
+      - name: Verify final artifact manifest
+        shell: bash
+        run: |
+          cd build/evidence/wwhn-155/postgresql
+          sha256sum --check SHA256SUMS
+
+      - name: Upload immutable evidence artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wwhn-155-evidence-postgresql-${{ github.sha }}
+          path: build/evidence/wwhn-155/postgresql
+          if-no-files-found: error
+          retention-days: 30

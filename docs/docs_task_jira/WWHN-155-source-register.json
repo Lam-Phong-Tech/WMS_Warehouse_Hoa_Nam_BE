@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "jira_issue": "WWHN-155",
+  "canonical_branch": "m1",
+  "contract_id": "WWHN-156-health-v1",
+  "contract_version": "1.0.0",
+  "canonical_endpoint": "GET /api/v1/health",
+  "legacy_endpoint": {
+    "path": "/api/health",
+    "expected_status": 404,
+    "status": "SUPERSEDED"
+  },
+  "supersession": {
+    "jira_attachment_id": "11304",
+    "filename": "HN-DEVOPS-001_BE1_MIGRATION_SEED_HEALTH_EVIDENCE.md",
+    "status": "SUPERSEDED",
+    "reason": "Uses legacy /api/health and lacks current versioned fields/artifact hashes",
+    "replacement": "docs/docs_task_jira/WWHN-155.md"
+  },
+  "source_files": [
+    "routes/api.php",
+    "app/Http/Controllers/HealthController.php",
+    "config/health.php",
+    "tests/Feature/BackendMigrationSeedHealthTest.php"
+  ],
+  "release_artifacts": [
+    "docs/api-contract/releases/WWHN-155/1.0.0/openapi.yaml",
+    "docs/api-contract/releases/WWHN-155/1.0.0/postman_collection.json",
+    "docs/api-contract/releases/WWHN-155/1.0.0/CHANGELOG.md",
+    "docs/api-contract/releases/WWHN-155/1.0.0/RELEASE_MANIFEST.json",
+    "docs/api-contract/releases/WWHN-155/1.0.0/REVIEW_AND_APPROVAL.md",
+    "docs/api-contract/releases/WWHN-155/1.0.0/SHA256SUMS",
+    "docs/testing/WWHN-155-health-test-cases.json"
+  ],
+  "runtime_evidence": {
+    "workflow": ".github/workflows/wwhn-155-migration-seed-health-evidence.yml",
+    "collector": "scripts/collect-wwhn155-evidence.sh",
+    "artifact_pattern": "wwhn-155-evidence-postgresql-<exact_sha>",
+    "result_source": "GitHub Actions run bound to exact SHA",
+    "current_status": "PENDING_EXACT_SHA_RUN"
+  },
+  "risk_disposition": [
+    {
+      "id": "BE1-HLT-P1-01",
+      "owner": "BE1/GitHub admin",
+      "status": "CLOSED_BY_ACCESSIBLE_EXACT_SHA_LINKS"
+    },
+    {
+      "id": "BE1-HLT-P1-02",
+      "owner": "QA1/WWHN-157",
+      "status": "BLOCKED_EXTERNAL"
+    },
+    {
+      "id": "BE1-HLT-P1-03",
+      "owner": "DevOps/WWHN-32",
+      "status": "BLOCKED_EXTERNAL"
+    },
+    {
+      "id": "BE1-HLT-P1-04",
+      "owner": "BE1",
+      "status": "READY_FOR_EXACT_SHA_RUNTIME_GATE"
+    },
+    {
+      "id": "BE1-HLT-P1-05",
+      "owner": "BE1/Tech Lead",
+      "status": "CLOSED_BY_VERSIONED_RELEASE_PACK"
+    },
+    {
+      "id": "BE1-HLT-P2-01",
+      "owner": "BE1/BA",
+      "status": "SUPERSEDED"
+    }
+  ]
+}
