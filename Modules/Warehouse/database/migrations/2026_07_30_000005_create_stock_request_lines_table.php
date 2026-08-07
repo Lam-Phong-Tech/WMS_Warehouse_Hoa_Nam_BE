@@ -12,7 +12,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('request_id')->constrained('stock_requests')->cascadeOnDelete();
             $table->smallInteger('line_no');
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->decimal('qty_planned', 18, 3);
             $table->decimal('unit_cost', 18, 3)->nullable();
             $table->string('note', 500)->nullable();

@@ -1,26 +1,28 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\AgencyController;
+use Modules\Warehouse\Http\Controllers\ContainerController;
+use Modules\Warehouse\Http\Controllers\DefectCatalogController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusHistoryController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusTransitionController;
-use Modules\Warehouse\Http\Controllers\ImportController;
+use Modules\Warehouse\Http\Controllers\ImportBatchController;
 use Modules\Warehouse\Http\Controllers\InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Http\Controllers\InventoryReservationController;
 use Modules\Warehouse\Http\Controllers\InventorySnapshotController;
+use Modules\Warehouse\Http\Controllers\ItemInstanceController;
 use Modules\Warehouse\Http\Controllers\OutboundDocumentController;
+use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\ProductController;
+use Modules\Warehouse\Http\Controllers\ProductMasterController;
 use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\SafeStockAlertController;
 use Modules\Warehouse\Http\Controllers\SafeStockConfigController;
-use Modules\Warehouse\Http\Controllers\ScanController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\StockRequestController;
-use Modules\Warehouse\Http\Controllers\StocktakeController;
 use Modules\Warehouse\Http\Controllers\TransferController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
-use Modules\Warehouse\Http\Controllers\WarrantyController;
-use Modules\Warehouse\Http\Controllers\WmsContractController;
 
 Route::prefix('v1')->middleware('auth:api')->group(function () {
     // Kho tổng — chỉ tra cứu + sửa thông tin, không tạo/xoá qua API (1 kho tổng duy nhất).
@@ -31,18 +33,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('products', [ProductController::class, 'index'])->middleware('permission:product.view');
     Route::post('products', [ProductController::class, 'store'])->middleware('permission:product.manage');
     Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:product.view');
-    Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:product.manage');
-    Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:product.manage');
-
-    Route::get('product-categories', [WmsContractController::class, 'productCategories'])->middleware('permission:master.manage');
-    Route::get('uoms', [WmsContractController::class, 'uoms'])->middleware('permission:master.manage');
-    Route::get('suppliers', [WmsContractController::class, 'suppliers'])->middleware('permission:master.manage');
-    Route::get('skus', [ProductController::class, 'index'])->middleware('permission:sku.manage');
-    Route::post('skus', [ProductController::class, 'store'])->middleware('permission:sku.manage');
-    Route::get('skus/{id}', [ProductController::class, 'show'])->middleware('permission:sku.manage');
-    Route::post('skus/import-excel', [ImportController::class, 'importExcel'])->middleware('permission:sku.manage');
-    Route::get('items', [WmsContractController::class, 'items'])->middleware('permission:inventory.view');
-    Route::get('physical-codes', [WmsContractController::class, 'physicalCodes'])->middleware('permission:inventory.view');
+    Route::patch('products/{id}', [ProductController::class, 'update'])->middleware('permission:product.manage');
 
     // Nhập kho (inbound-documents = stock_documents.doc_type=receipt).
     Route::get('inbound-documents', [InboundDocumentController::class, 'index'])->middleware('permission:stock_document.view');
@@ -54,7 +45,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('inbound-documents/{id}/reject', [InboundDocumentController::class, 'reject'])->middleware('permission:stock_document.approve');
     Route::post('inbound-documents/{id}/cancel', [InboundDocumentController::class, 'cancel'])->middleware('permission:stock_document.cancel');
     Route::post('inbound-documents/{id}/post-receipt', [InboundDocumentController::class, 'postReceipt'])->middleware('permission:stock_document.post');
-    Route::post('inbound-documents/{id}/scan', [InboundDocumentController::class, 'scan'])->middleware('permission:stock_document.scan');
+    Route::post('inbound-documents/{id}/scan', [InboundDocumentController::class, 'scan'])->middleware('permission:stock_document.post');
     Route::post('inbound-documents/{id}/close-remainder', [InboundDocumentController::class, 'closeRemainder'])->middleware('permission:stock_document.post');
     Route::post('inbound-documents/{id}/reverse', [InboundDocumentController::class, 'reverse'])->middleware('permission:stock_document.reverse');
 
@@ -68,7 +59,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('outbound-documents/{id}/reject', [OutboundDocumentController::class, 'reject'])->middleware('permission:stock_document.approve');
     Route::post('outbound-documents/{id}/cancel', [OutboundDocumentController::class, 'cancel'])->middleware('permission:stock_document.cancel');
     Route::post('outbound-documents/{id}/post-issue', [OutboundDocumentController::class, 'postIssue'])->middleware('permission:stock_document.post');
-    Route::post('outbound-documents/{id}/scan', [OutboundDocumentController::class, 'scan'])->middleware('permission:stock_document.scan');
+    Route::post('outbound-documents/{id}/scan', [OutboundDocumentController::class, 'scan'])->middleware('permission:stock_document.post');
     Route::post('outbound-documents/{id}/close-remainder', [OutboundDocumentController::class, 'closeRemainder'])->middleware('permission:stock_document.post');
     Route::post('outbound-documents/{id}/reverse', [OutboundDocumentController::class, 'reverse'])->middleware('permission:stock_document.reverse');
 
@@ -79,31 +70,6 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::delete('safe-stock-configs/{id}', [SafeStockConfigController::class, 'destroy'])->middleware('permission:safe_stock.manage');
     Route::get('safe-stock-alerts', [SafeStockAlertController::class, 'index'])->middleware('permission:safe_stock.view');
     Route::get('safe-stock-alerts/history', [SafeStockAlertController::class, 'history'])->middleware('permission:safe_stock.view');
-
-    Route::get('putaway/tasks', [WmsContractController::class, 'putawayTasks'])->middleware('permission:inventory.view');
-    Route::get('putaway/history', [WmsContractController::class, 'putawayHistory'])->middleware('permission:inventory.view');
-
-    // Kiểm kê ba lớp. Giữ alias /stocktake/sessions cho FE nhưng dùng cùng controller và permission canonical.
-    Route::get('stocktake/sessions', [StocktakeController::class, 'index'])->middleware('permission:inventory.view');
-    Route::get('stocktake-sessions', [StocktakeController::class, 'index'])->middleware('permission:inventory.view');
-    Route::post('stocktake-sessions', [StocktakeController::class, 'store'])->middleware('permission:stocktake.adjust');
-    Route::get('stocktake-sessions/{id}', [StocktakeController::class, 'show'])->middleware('permission:inventory.view');
-    Route::post('stocktake-sessions/{id}/start', [StocktakeController::class, 'start'])->middleware('permission:stocktake.adjust');
-    Route::post('stocktake-sessions/{id}/counts', [StocktakeController::class, 'recordCounts'])->middleware('permission:stocktake.adjust');
-    Route::post('stocktake-sessions/{id}/review', [StocktakeController::class, 'review'])->middleware('permission:stocktake.adjust');
-    Route::post('stocktake-sessions/{id}/acknowledge-movements', [StocktakeController::class, 'acknowledgeMovements'])->middleware('permission:stocktake.adjust');
-    Route::get('stocktake-sessions/{id}/variances', [StocktakeController::class, 'variances'])->middleware('permission:inventory.view');
-    Route::post('stocktake-sessions/{id}/apply-adjustment', [StocktakeController::class, 'applyAdjustment'])->middleware('permission:stocktake.adjust');
-    Route::post('stocktake/sessions/{id}/apply-adjustment', [StocktakeController::class, 'applyAdjustment'])->middleware('permission:stocktake.adjust');
-
-    Route::get('reversal-documents', [WmsContractController::class, 'reversalDocuments'])->middleware('permission:stock_document.reverse');
-    Route::get('warranty/cases', [WmsContractController::class, 'warrantyCases'])->middleware('permission:inventory.view');
-    Route::get('warranty/cases/{caseId}/events', [WmsContractController::class, 'warrantyEvents'])->middleware('permission:inventory.view');
-    Route::post('warranty-cases/{id}/temp-only', [WarrantyController::class, 'tempOnly'])->middleware('permission:warranty.temp_only');
-    Route::post('scan/classify', [ScanController::class, 'classify'])->middleware('permission:scan.classify');
-    Route::get('scan/batches', [WmsContractController::class, 'scanBatches'])->middleware('permission:inventory.view');
-    Route::post('scan/batches', [WmsContractController::class, 'storeScanBatch'])->middleware('permission:inventory.view');
-    Route::get('scan/events', [WmsContractController::class, 'scanEvents'])->middleware('permission:inventory.view');
 
     // Tồn kho hiện tại + lịch sử biến động (inventory_movement).
     Route::get('inventory/balances', [InventoryBalanceController::class, 'index'])->middleware('permission:inventory.view');
@@ -120,7 +86,7 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::post('inventory-snapshots/generate', [InventorySnapshotController::class, 'generate'])->middleware('permission:warehouse.manage');
 
     // Lịch sử chuyển trạng thái chứng từ (read-only).
-    Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:stock_document.view');
+    Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:warehouse.view');
 
     // Danh mục tham khảo state machine (không phải nguồn enforcement thực tế).
     Route::get('document-status-transitions', [DocumentStatusTransitionController::class, 'index'])->middleware('permission:warehouse.view');
@@ -156,5 +122,47 @@ Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('reports/inventory-xnt', [ReportController::class, 'inventoryXnt'])->middleware('permission:report.view');
     Route::get('reports/inventory-xnt/export-excel', [ReportController::class, 'exportExcel'])->middleware('permission:report.view');
     Route::get('reports/dashboard-quick', [ReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
-    Route::get('reports/inventory-reconciliation', [ReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
+
+    // Đại lý — chỉ dùng để tham chiếu/gán, không có inventory_balance riêng (BR-AGY-01).
+    Route::get('agencies', [AgencyController::class, 'index'])->middleware('permission:agency.view');
+    Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
+    Route::get('agencies/{id}', [AgencyController::class, 'show'])->middleware('permission:agency.view');
+    Route::patch('agencies/{id}', [AgencyController::class, 'update'])->middleware('permission:agency.manage');
+    Route::delete('agencies/{id}', [AgencyController::class, 'destroy'])->middleware('permission:agency.manage');
+
+    // Danh mục lỗi/bệnh máy dùng cho bảo hành và báo cáo.
+    Route::get('defect-catalogs', [DefectCatalogController::class, 'index'])->middleware('permission:defect_catalog.view');
+    Route::post('defect-catalogs', [DefectCatalogController::class, 'store'])->middleware('permission:defect_catalog.manage');
+    Route::get('defect-catalogs/{id}', [DefectCatalogController::class, 'show'])->middleware('permission:defect_catalog.view');
+    Route::patch('defect-catalogs/{id}', [DefectCatalogController::class, 'update'])->middleware('permission:defect_catalog.manage');
+    Route::delete('defect-catalogs/{id}', [DefectCatalogController::class, 'destroy'])->middleware('permission:defect_catalog.manage');
+
+    // WWHN-37: SKU/item/component/mã vật lý/container + import batch (traceability).
+    Route::get('product-masters', [ProductMasterController::class, 'index'])->middleware('permission:product_master.view');
+    Route::post('product-masters', [ProductMasterController::class, 'store'])->middleware('permission:product_master.manage');
+    Route::get('product-masters/{id}', [ProductMasterController::class, 'show'])->middleware('permission:product_master.view');
+    Route::patch('product-masters/{id}', [ProductMasterController::class, 'update'])->middleware('permission:product_master.manage');
+
+    Route::get('physical-codes', [PhysicalCodeController::class, 'index'])->middleware('permission:physical_code.view');
+    Route::post('physical-codes', [PhysicalCodeController::class, 'store'])->middleware('permission:physical_code.manage');
+    Route::get('physical-codes/{id}', [PhysicalCodeController::class, 'show'])->middleware('permission:physical_code.view');
+    Route::patch('physical-codes/{id}', [PhysicalCodeController::class, 'update'])->middleware('permission:physical_code.manage');
+
+    Route::get('import-batches', [ImportBatchController::class, 'index'])->middleware('permission:import_batch.view');
+    Route::post('import-batches', [ImportBatchController::class, 'store'])->middleware('permission:import_batch.manage');
+    Route::get('import-batches/{id}', [ImportBatchController::class, 'show'])->middleware('permission:import_batch.view');
+    Route::patch('import-batches/{id}', [ImportBatchController::class, 'update'])->middleware('permission:import_batch.manage');
+
+    Route::get('containers', [ContainerController::class, 'index'])->middleware('permission:container.view');
+    Route::post('containers', [ContainerController::class, 'store'])->middleware('permission:container.manage');
+    Route::get('containers/{id}', [ContainerController::class, 'show'])->middleware('permission:container.view');
+    Route::patch('containers/{id}', [ContainerController::class, 'update'])->middleware('permission:container.manage');
+    Route::post('containers/{id}/items', [ContainerController::class, 'addItem'])->middleware('permission:container.manage');
+    Route::delete('containers/{id}/items/{containerItemId}', [ContainerController::class, 'removeItem'])->middleware('permission:container.manage');
+
+    Route::get('item-instances', [ItemInstanceController::class, 'index'])->middleware('permission:item_instance.view');
+    Route::post('item-instances', [ItemInstanceController::class, 'store'])->middleware('permission:item_instance.manage');
+    Route::get('item-instances/{id}', [ItemInstanceController::class, 'show'])->middleware('permission:item_instance.view');
+    Route::patch('item-instances/{id}', [ItemInstanceController::class, 'update'])->middleware('permission:item_instance.manage');
+    Route::get('item-instances/{id}/trace', [ItemInstanceController::class, 'trace'])->middleware('permission:item_instance.view');
 });

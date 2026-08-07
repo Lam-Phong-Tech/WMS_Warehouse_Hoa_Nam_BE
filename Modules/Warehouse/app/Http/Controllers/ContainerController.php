@@ -3,205 +3,283 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Support\ApiError;
-use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Modules\Warehouse\Services\ContainerService;
+use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Http\Requests\StoreContainerItemRequest;
+use Modules\Warehouse\Http\Requests\StoreContainerRequest;
+use Modules\Warehouse\Http\Requests\UpdateContainerRequest;
+use Modules\Warehouse\Repositories\Contracts\ContainerItemRepositoryInterface;
+use Modules\Warehouse\Repositories\Contracts\ContainerRepositoryInterface;
+use OpenApi\Attributes as OA;
 
+/**
+ * Thùng CARTON, hộp linh kiện BOX và khay TRAY (ERD §5.2 container). Container/locator không
+ * phải bucket tồn độc lập.
+ */
 class ContainerController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly ContainerService $service) {}
+    public function __construct(
+        private readonly ContainerRepositoryInterface $containers,
+        private readonly ContainerItemRepositoryInterface $containerItems,
+    ) {}
 
-    public function index(Request $request): JsonResponse
+    #[OA\Get(
+        path: '/api/v1/containers',
+        operationId: 'container_list',
+        summary: 'Danh sách container (phân trang, filter theo keyword/container_type/status/zone_code)',
+        security: [['bearerAuth' => []]],
+        tags: ['23. Container'],
+        parameters: [
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'container_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['CARTON', 'BOX', 'TRAY'])),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách container'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.view'),
+        ]
+    )]
+    public function index(Request $request)
     {
-        $perPage = max(1, min(100, (int) $request->input('per_page', 15)));
-        $query = DB::table('container')->whereNull('deleted_at')->orderByDesc('created_at');
-
-        if ($request->filled('status')) {
-            $query->where('status', strtoupper(trim((string) $request->input('status'))));
-        }
-        if ($request->filled('warehouse_id')) {
-            $query->where('warehouse_id', $request->input('warehouse_id'));
-        }
-        if ($request->filled('keyword')) {
-            $keyword = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim((string) $request->input('keyword'))).'%';
-            $query->where(function ($nested) use ($keyword): void {
-                $nested->where('container_code', 'like', $keyword)
-                    ->orWhere('container_type', 'like', $keyword)
-                    ->orWhere('zone_code', 'like', $keyword);
-            });
-        }
-
-        return $this->respondPaginated($query->paginate($perPage));
+        return $this->respondPaginated(
+            $this->containers->paginate($request->all(), (int) $request->input('per_page', 15))
+        );
     }
 
-    public function show(string $id): JsonResponse
+    #[OA\Post(
+        path: '/api/v1/containers',
+        operationId: 'container_create',
+        summary: 'Tạo container mới (CARTON/BOX/TRAY)',
+        security: [['bearerAuth' => []]],
+        tags: ['23. Container'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['container_code', 'container_type', 'physical_code_id', 'status'],
+                properties: [
+                    new OA\Property(property: 'container_code', type: 'string', maxLength: 100),
+                    new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY']),
+                    new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true, description: 'Bắt buộc với CARTON/BOX'),
+                    new OA\Property(property: 'parent_container_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
+                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 255, nullable: true),
+                    new OA\Property(property: 'status', type: 'string'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo container thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: CARTON/BOX thiếu primary_sku_id)'),
+        ]
+    )]
+    public function store(StoreContainerRequest $request)
     {
-        $data = $this->service->snapshot($id);
-        if ($data === []) {
+        $container = DB::transaction(fn () => $this->containers->create($request->validated() + ['version' => 1]));
+
+        AuditLogger::record(
+            action: 'CREATE',
+            objectType: 'container',
+            objectId: $container->container_id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            afterData: $container->toArray(),
+        );
+
+        return $this->respondCreated($container, 'Tạo container thành công');
+    }
+
+    #[OA\Get(
+        path: '/api/v1/containers/{id}',
+        operationId: 'container_detail',
+        summary: 'Chi tiết container (kèm danh sách item bên trong)',
+        security: [['bearerAuth' => []]],
+        tags: ['23. Container'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Chi tiết container'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy container'),
+        ]
+    )]
+    public function show(string $id)
+    {
+        $container = $this->containers->find($id);
+
+        if (! $container) {
             return $this->respondNotFound('Không tìm thấy container.');
         }
 
-        return $this->respondSuccess($data);
+        return $this->respondSuccess($container->load('items'));
     }
 
-    public function store(Request $request): JsonResponse
+    #[OA\Patch(
+        path: '/api/v1/containers/{id}',
+        operationId: 'container_update',
+        summary: 'Sửa container (optimistic locking qua version)',
+        security: [['bearerAuth' => []]],
+        tags: ['23. Container'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'container_code', type: 'string', maxLength: 100),
+                new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY']),
+                new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'parent_container_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
+                new OA\Property(property: 'location_hint', type: 'string', maxLength: 255, nullable: true),
+                new OA\Property(property: 'status', type: 'string'),
+                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking'),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy container'),
+            new OA\Response(response: 409, description: 'version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        ]
+    )]
+    public function update(UpdateContainerRequest $request, string $id)
     {
-        $validated = $this->validatePayload($request, false);
+        $before = $this->containers->find($id);
 
-        return $this->idempotent(
-            $request,
-            'container_create',
-            fn (): array => [
-                201,
-                $this->envelope(
-                    'Tạo container thành công.',
-                    $this->service->create($validated, $this->actorId(), $this->requestId($request))
-                ),
-            ]
-        );
-    }
-
-    public function update(Request $request, string $id): JsonResponse
-    {
-        $validated = $this->validatePayload($request, true);
-        $expectedVersion = $this->expectedVersion($request);
-
-        return $this->idempotent(
-            $request,
-            "container_update_{$id}",
-            fn (): array => [
-                200,
-                $this->envelope(
-                    'Cập nhật container thành công.',
-                    $this->service->update(
-                        $id,
-                        $validated,
-                        $expectedVersion,
-                        $this->actorId(),
-                        $this->requestId($request)
-                    )
-                ),
-            ]
-        );
-    }
-
-    public function seal(Request $request, string $id): JsonResponse
-    {
-        $request->validate(['version' => ['sometimes', 'integer', 'min:1']]);
-        $expectedVersion = $this->expectedVersion($request);
-
-        return $this->idempotent(
-            $request,
-            "container_seal_{$id}",
-            fn (): array => [
-                200,
-                $this->envelope(
-                    'Seal container thành công.',
-                    $this->service->seal(
-                        $id,
-                        $expectedVersion,
-                        $this->actorId(),
-                        $this->requestId($request)
-                    )
-                ),
-            ]
-        );
-    }
-
-    private function validatePayload(Request $request, bool $partial): array
-    {
-        $required = $partial ? 'sometimes' : 'required';
-
-        return $request->validate([
-            'container_code' => [$required, 'string', 'max:150'],
-            'container_type' => [$required, Rule::in(['PALLET', 'CARTON', 'BOX', 'TRAY', 'BIN', 'BAG', 'OTHER'])],
-            'parent_container_id' => ['sometimes', 'nullable', 'uuid'],
-            'warehouse_id' => ['sometimes', 'nullable', 'uuid', 'exists:warehouses,id'],
-            'primary_product_id' => ['sometimes', 'nullable', 'uuid', 'exists:products,id'],
-            'physical_code_id' => ['sometimes', 'nullable', 'uuid', 'exists:physical_code,physical_code_id'],
-            'zone_code' => ['sometimes', 'nullable', 'string', 'max:80'],
-            'location_hint' => ['sometimes', 'nullable', 'string', 'max:200'],
-            'status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE'])],
-            'version' => ['sometimes', 'integer', 'min:1'],
-            'items' => [$partial ? 'sometimes' : 'present', 'array', 'max:1000'],
-            'items.*.inventory_serial_id' => ['nullable', 'uuid'],
-            'items.*.product_id' => ['nullable', 'uuid'],
-            'items.*.quantity' => ['nullable', 'numeric', 'gt:0'],
-        ]);
-    }
-
-    private function idempotent(Request $request, string $operation, callable $callback): JsonResponse
-    {
-        $key = trim((string) $request->header('Idempotency-Key'));
-        if ($key === '') {
-            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Header Idempotency-Key là bắt buộc.');
-        }
-        if (mb_strlen($key) > 128) {
-            ApiError::abort(422, 'INVALID_IDEMPOTENCY_KEY', 'Idempotency-Key tối đa 128 ký tự.');
+        if (! $before) {
+            return $this->respondNotFound('Không tìm thấy container.');
         }
 
-        [$code, $body, $replay] = IdempotencyStore::handle(
-            $key,
-            $operation,
-            $this->actorId(),
-            IdempotencyStore::requestHash($request),
-            $callback
-        );
+        $beforeData = $before->toArray();
+        $data = $request->validated();
 
-        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
-    }
+        if (array_key_exists('version', $data)) {
+            $expectedVersion = $data['version'];
+            unset($data['version']);
 
-    private function expectedVersion(Request $request): int
-    {
-        $header = trim((string) $request->header('If-Match'));
-        if ($header !== '') {
-            $header = preg_replace('/^W\//', '', $header) ?? $header;
-            $header = trim($header, '" ');
-            if (ctype_digit($header) && (int) $header > 0) {
-                return (int) $header;
+            if ((int) $before->version !== (int) $expectedVersion) {
+                return $this->respondConflict(
+                    'Container đã bị thay đổi bởi thao tác khác, vui lòng tải lại dữ liệu.',
+                    [],
+                    'STATE_CONFLICT'
+                );
             }
-            ApiError::abort(422, 'INVALID_IF_MATCH', 'If-Match phải chứa version số nguyên dương.');
         }
 
-        $version = $request->input('version');
-        if (is_numeric($version) && (int) $version > 0) {
-            return (int) $version;
+        $data['version'] = $before->version + 1;
+
+        $container = DB::transaction(fn () => $this->containers->update($id, $data));
+
+        AuditLogger::record(
+            action: 'UPDATE',
+            objectType: 'container',
+            objectId: $id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            beforeData: $beforeData,
+            afterData: $container->toArray(),
+        );
+
+        return $this->respondSuccess($container, 'Cập nhật container thành công');
+    }
+
+    #[OA\Post(
+        path: '/api/v1/containers/{id}/items',
+        operationId: 'container_add_item',
+        summary: 'Gán item (serial) hoặc sku+quantity vào container',
+        security: [['bearerAuth' => []]],
+        tags: ['23. Container'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, description: 'XOR với sku_id — dùng cho hàng có serial'),
+                new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, description: 'XOR với item_id — dùng cho hàng theo số lượng'),
+                new OA\Property(property: 'quantity', type: 'number', nullable: true, description: 'Bắt buộc khi dùng sku_id'),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Gán item vào container thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy container'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vi phạm XOR item_id/sku_id+quantity)'),
+        ]
+    )]
+    public function addItem(StoreContainerItemRequest $request, string $id)
+    {
+        $container = $this->containers->find($id);
+
+        if (! $container) {
+            return $this->respondNotFound('Không tìm thấy container.');
         }
 
-        ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match hoặc field version là bắt buộc.');
+        $containerItem = DB::transaction(function () use ($request, $id) {
+            return $this->containerItems->create($request->validated() + [
+                'container_id' => $id,
+                'status' => 'ACTIVE',
+            ]);
+        });
+
+        AuditLogger::record(
+            action: 'CREATE',
+            objectType: 'container_item',
+            objectId: $containerItem->container_item_id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            afterData: $containerItem->toArray(),
+        );
+
+        return $this->respondCreated($containerItem, 'Gán item vào container thành công');
     }
 
-    private function actorId(): ?string
+    #[OA\Delete(
+        path: '/api/v1/containers/{id}/items/{containerItemId}',
+        operationId: 'container_remove_item',
+        summary: 'Gỡ item khỏi container (đánh dấu REMOVED, không xoá bản ghi)',
+        security: [['bearerAuth' => []]],
+        tags: ['23. Container'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'containerItemId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Gỡ item thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy mapping item trong container'),
+        ]
+    )]
+    public function removeItem(Request $request, string $id, string $containerItemId)
     {
-        $id = auth('api')->id();
+        $containerItem = $this->containerItems->find($containerItemId);
 
-        return $id === null ? null : (string) $id;
-    }
+        if (! $containerItem || $containerItem->container_id !== $id) {
+            return $this->respondNotFound('Không tìm thấy mapping item trong container.');
+        }
 
-    private function requestId(Request $request): ?string
-    {
-        $id = $request->attributes->get('request_id');
+        $beforeData = $containerItem->toArray();
+        $updated = $this->containerItems->update($containerItemId, ['status' => 'REMOVED']);
 
-        return is_string($id) ? $id : null;
-    }
+        AuditLogger::record(
+            action: 'UPDATE',
+            objectType: 'container_item',
+            objectId: $containerItemId,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            beforeData: $beforeData,
+            afterData: $updated->toArray(),
+        );
 
-    private function envelope(string $message, array $data): array
-    {
-        return [
-            'success' => true,
-            'message' => $message,
-            'data' => $data,
-            'meta' => [
-                'request_id' => request()->attributes->get('request_id'),
-                'timestamp' => now()->toIso8601String(),
-            ],
-        ];
+        return $this->respondSuccess($updated, 'Gỡ item khỏi container thành công');
     }
 }

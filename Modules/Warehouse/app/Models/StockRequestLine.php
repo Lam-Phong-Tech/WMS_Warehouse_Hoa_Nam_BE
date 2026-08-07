@@ -31,6 +31,6 @@ class StockRequestLine extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Sku::class, 'product_id', 'sku_id');
     }
 }

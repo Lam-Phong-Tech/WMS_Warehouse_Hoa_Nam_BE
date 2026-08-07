@@ -27,11 +27,46 @@ services:
       - SESSION_DRIVER=redis
       - REDIS_HOST=valkey
       - REDIS_PORT=6379
+      - MAIL_HOST=mailpit
+      - AWS_ENDPOINT=http://minio:9000
+      - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
     depends_on:
       postgres:
         condition: service_healthy
       valkey:
         condition: service_started
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9000 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - wms
+
+  queue:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=90"]
+    volumes:
+      - .:/var/www/html:delegated
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - MAIL_HOST=mailpit
+      - AWS_ENDPOINT=http://minio:9000
+      - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - wms
 
