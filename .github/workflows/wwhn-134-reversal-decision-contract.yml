@@ -1,0 +1,198 @@
+name: WWHN-134 Reversal Decision Contract Exact-SHA Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-134-reversal-decision-contract.yml'
+      - 'scripts/verify_wwhn134_release.py'
+      - 'docs/decision-records/DEC-REV-001.md'
+      - 'docs/api-contract/WWHN-134-reversal-openapi.yaml'
+      - 'docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/**'
+      - 'docs/postman/WWHN-134-reversal.postman_collection.json'
+      - 'docs/docs_task_jira/WWHN-134*'
+      - 'docs/evidence/WWHN-134/**'
+  pull_request:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-134-reversal-decision-contract.yml'
+      - 'scripts/verify_wwhn134_release.py'
+      - 'docs/decision-records/DEC-REV-001.md'
+      - 'docs/api-contract/WWHN-134-reversal-openapi.yaml'
+      - 'docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/**'
+      - 'docs/postman/WWHN-134-reversal.postman_collection.json'
+      - 'docs/docs_task_jira/WWHN-134*'
+      - 'docs/evidence/WWHN-134/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-134-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  immutable-contract:
+    name: immutable contract, hashes and governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EVIDENCE_DIR: build/evidence/wwhn-134
+      RELEASE_DIR: docs/api-contract/releases/DEC-REV-001/1.3.0-proposed
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify immutable release and aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python scripts/verify_wwhn134_release.py \
+            | tee "$EVIDENCE_DIR/static-release-verification.json"
+
+      - name: Parse and inspect OpenAPI YAML
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby - "$RELEASE_DIR/openapi.yaml" <<'RUBY' | tee "$EVIDENCE_DIR/openapi-structure-verification.txt"
+          require 'yaml'
+          path = ARGV.fetch(0)
+          document = YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: true)
+          abort 'OpenAPI version mismatch' unless document['openapi'] == '3.0.3'
+          info = document.fetch('info')
+          abort 'Contract version mismatch' unless info['version'] == '1.3.0-proposed'
+          abort 'Contract status mismatch' unless info['x-contract-status'] == 'PROPOSED'
+          abort 'Implementation status mismatch' unless info['x-implementation-status'] == 'NOT_CLAIMED'
+          operation = document.fetch('paths').fetch('/reversals').fetch('post')
+          abort 'Permission mismatch' unless operation['x-permission'] == 'stock.reversal.create'
+          responses = operation.fetch('responses').keys.map(&:to_s)
+          %w[200 201 401 403 404 409 422 428].each do |code|
+            abort "Missing response #{code}" unless responses.include?(code)
+          end
+          puts 'OpenAPI YAML structure: PASS'
+          RUBY
+
+      - name: Collect immutable exact-SHA evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR/release"
+          cp -R "$RELEASE_DIR/." "$EVIDENCE_DIR/release/"
+          cp docs/decision-records/DEC-REV-001.md "$EVIDENCE_DIR/"
+          cp docs/docs_task_jira/WWHN-134.md "$EVIDENCE_DIR/"
+          cp docs/docs_task_jira/WWHN-134-source-register.json "$EVIDENCE_DIR/"
+          cp docs/evidence/WWHN-134/REVIEW_AND_APPROVAL_PROTOCOL.md "$EVIDENCE_DIR/"
+
+          git show --stat --oneline --decorate --no-renames "$GITHUB_SHA" \
+            > "$EVIDENCE_DIR/commit-stat.txt"
+          git diff-tree --no-commit-id --name-status -r "$GITHUB_SHA" \
+            > "$EVIDENCE_DIR/changed-files.txt"
+          git ls-tree -r --full-tree "$GITHUB_SHA" \
+            | sha256sum | awk '{print $1}' \
+            > "$EVIDENCE_DIR/source-tree.sha256"
+
+          cat > "$EVIDENCE_DIR/build-metadata.json" <<JSON
+          {
+            "ticket": "WWHN-134",
+            "contract_id": "DEC-REV-001",
+            "release_version": "1.3.0-proposed",
+            "release_status": "PROPOSED",
+            "implementation_status": "NOT_CLAIMED",
+            "repository": "${GITHUB_REPOSITORY}",
+            "ref": "${GITHUB_REF}",
+            "commit_sha": "${GITHUB_SHA}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "artifact_name": "wwhn-134-contract-evidence-${GITHUB_SHA}",
+            "governance_boundary": "CI verifies integrity only; independent BA/Tech Lead/QA/FE/BAS/PM dispositions remain required"
+          }
+          JSON
+
+          cat > "$EVIDENCE_DIR/review-ledger.json" <<'JSON'
+          {
+            "BE1_AUTHOR": "PROPOSED",
+            "BA": "PENDING_INDEPENDENT_DISPOSITION",
+            "TECH_LEAD_INDEPENDENT_PUBLISHER": "PENDING_INDEPENDENT_DISPOSITION",
+            "QA": "PENDING_INDEPENDENT_DISPOSITION",
+            "FE": "PENDING_INDEPENDENT_DISPOSITION",
+            "BAS": "PENDING_TRACEABILITY_PIN",
+            "PM_PO": "PENDING_FORMAL_DECISION",
+            "anti_impersonation": "BE1 and CI do not sign for independent roles"
+          }
+          JSON
+
+          cat > "$EVIDENCE_DIR/jira-handoff-comment.txt" <<TEXT
+          [WWHN-134 DEC-REV-001 1.3.0-proposed]
+          Exact commit SHA: ${GITHUB_SHA}
+          Immutable path: ${RELEASE_DIR}/
+          Workflow run: ${GITHUB_RUN_ID}, attempt ${GITHUB_RUN_ATTEMPT}
+          Artifact: wwhn-134-contract-evidence-${GITHUB_SHA}
+          Runtime implementation: NOT_CLAIMED
+          Independent reviewers must record exact SHA, manifest SHA-256, date, result and evidence.
+          TEXT
+
+          (
+            cd "$EVIDENCE_DIR"
+            find . -type f \
+              ! -name 'GENERATED_SHA256SUMS' \
+              ! -name 'GENERATED_SHA256SUMS.sha256' \
+              -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > GENERATED_SHA256SUMS
+            sha256sum GENERATED_SHA256SUMS > GENERATED_SHA256SUMS.sha256
+          )
+
+      - name: Validate collected evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd "$EVIDENCE_DIR"
+            sha256sum --check GENERATED_SHA256SUMS
+            sha256sum --check GENERATED_SHA256SUMS.sha256
+          )
+          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '
+            .commit_sha == $sha
+            and .run_id == $run
+            and .release_version == "1.3.0-proposed"
+            and .release_status == "PROPOSED"
+            and .implementation_status == "NOT_CLAIMED"
+          ' "$EVIDENCE_DIR/build-metadata.json" >/dev/null
+          jq -e '
+            .TECH_LEAD_INDEPENDENT_PUBLISHER == "PENDING_INDEPENDENT_DISPOSITION"
+            and .PM_PO == "PENDING_FORMAL_DECISION"
+          ' "$EVIDENCE_DIR/review-ledger.json" >/dev/null
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## WWHN-134 exact-SHA contract evidence'
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Release: \`DEC-REV-001 1.3.0-proposed\`"
+            echo "- Artifact: \`wwhn-134-contract-evidence-${GITHUB_SHA}\`"
+            echo '- Scope: immutable contract integrity, hashes, aliases and governance'
+            echo '- Runtime implementation: NOT_CLAIMED'
+            echo '- Independent acceptance: still role-owned and fail-closed'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload exact-SHA evidence artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-134-contract-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-134
+          if-no-files-found: error
+          retention-days: 90

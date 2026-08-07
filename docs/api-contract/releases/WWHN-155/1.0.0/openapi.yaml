@@ -1,0 +1,240 @@
+openapi: 3.1.0
+info:
+  title: WMS Hoa Nam Health Readiness Contract
+  version: 1.0.0
+  description: >-
+    Canonical, public and read-only readiness contract for WWHN-155.
+    Contract ID WWHN-156-health-v1. The legacy /api/health path is not supported.
+  x-jira-issue: WWHN-155
+  x-contract-id: WWHN-156-health-v1
+servers:
+  - url: https://dev-api.example.invalid
+    description: DEV placeholder; replace with the controlled environment URL.
+  - url: https://uat-api.example.invalid
+    description: UAT placeholder; replace with the controlled environment URL.
+tags:
+  - name: Platform Health
+paths:
+  /api/v1/health:
+    get:
+      tags: [Platform Health]
+      operationId: backend_health_v1
+      summary: Check backend readiness
+      description: >-
+        Returns 200 only when the application, database, migration baseline and
+        required seed markers are ready. Returns a sanitized 503 otherwise.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Backend is ready.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthSuccess'
+              examples:
+                ready:
+                  value:
+                    success: true
+                    message: Backend health check passed.
+                    data:
+                      status: ok
+                      version: 1.0.0
+                      environment: uat
+                      server_time: '2026-08-07T10:30:00+07:00'
+                      request_id: WWHN-155-UAT-001
+                      checks:
+                        app: {status: ok}
+                        database: {status: ok, driver: pgsql}
+                        migrations: {status: ok, ran_count: 42}
+                        seed:
+                          status: ok
+                          markers:
+                            admin_user: true
+                            baseline_warehouse: true
+                            baseline_product: true
+                    meta:
+                      request_id: WWHN-155-UAT-001
+                      timestamp: '2026-08-07T10:30:00+07:00'
+        '503':
+          description: Backend is not ready. Infrastructure details are sanitized.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthDegraded'
+        '405':
+          description: Mutating methods are not supported.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+components:
+  parameters:
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Caller-provided trace ID. Invalid values are replaced server-side.
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 255
+        pattern: '^[a-zA-Z0-9\-\._:\/=\+]+$'
+  headers:
+    RequestId:
+      description: Effective trace ID used by the server.
+      schema:
+        type: string
+    CacheControl:
+      description: Readiness responses are not cacheable.
+      schema:
+        type: string
+        example: no-store, no-cache, must-revalidate, private
+  schemas:
+    StatusOk:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    DatabaseCheck:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, fail]
+        driver:
+          type: string
+          enum: [pgsql, mysql, sqlite, sqlsrv]
+    MigrationCheck:
+      type: object
+      additionalProperties: false
+      required: [status, ran_count]
+      properties:
+        status:
+          type: string
+          enum: [ok, fail]
+        ran_count:
+          type: integer
+          minimum: 0
+    SeedMarkers:
+      type: object
+      additionalProperties: false
+      required: [admin_user, baseline_warehouse, baseline_product]
+      properties:
+        admin_user: {type: boolean}
+        baseline_warehouse: {type: boolean}
+        baseline_product: {type: boolean}
+    SeedCheck:
+      type: object
+      additionalProperties: false
+      required: [status, markers]
+      properties:
+        status:
+          type: string
+          enum: [ok, fail]
+        markers:
+          $ref: '#/components/schemas/SeedMarkers'
+    HealthChecks:
+      type: object
+      additionalProperties: false
+      required: [app, database, migrations, seed]
+      properties:
+        app:
+          $ref: '#/components/schemas/StatusOk'
+        database:
+          $ref: '#/components/schemas/DatabaseCheck'
+        migrations:
+          $ref: '#/components/schemas/MigrationCheck'
+        seed:
+          $ref: '#/components/schemas/SeedCheck'
+    HealthData:
+      type: object
+      additionalProperties: false
+      required: [status, version, environment, server_time, request_id, checks]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        version:
+          type: string
+          minLength: 1
+        environment:
+          type: string
+          minLength: 1
+        server_time:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          minLength: 1
+        checks:
+          $ref: '#/components/schemas/HealthChecks'
+    Meta:
+      type: object
+      additionalProperties: false
+      required: [request_id, timestamp]
+      properties:
+        request_id: {type: string, minLength: 1}
+        timestamp: {type: string, format: date-time}
+    HealthSuccess:
+      type: object
+      additionalProperties: false
+      required: [success, message, data, meta]
+      properties:
+        success: {type: boolean, const: true}
+        message: {type: string, const: Backend health check passed.}
+        data:
+          allOf:
+            - $ref: '#/components/schemas/HealthData'
+            - type: object
+              properties:
+                status: {type: string, const: ok}
+        meta:
+          $ref: '#/components/schemas/Meta'
+    HealthDegraded:
+      type: object
+      additionalProperties: false
+      required: [success, message, error_code, errors, error, meta]
+      properties:
+        success: {type: boolean, const: false}
+        message: {type: string, const: Backend health check degraded.}
+        error_code: {type: string, const: HEALTH_CHECK_DEGRADED}
+        errors:
+          allOf:
+            - $ref: '#/components/schemas/HealthData'
+            - type: object
+              properties:
+                status: {type: string, const: degraded}
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, details]
+          properties:
+            code: {type: string, const: HEALTH_CHECK_DEGRADED}
+            details:
+              $ref: '#/components/schemas/HealthData'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    ApiError:
+      type: object
+      required: [success, message, error_code]
+      properties:
+        success: {type: boolean, const: false}
+        message: {type: string}
+        error_code: {type: string}

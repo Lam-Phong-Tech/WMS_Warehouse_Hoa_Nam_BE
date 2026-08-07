@@ -6,7 +6,7 @@
         "build": "vite build",
         "dev": "vite",
         "lint": "node scripts/verify-frontend-baseline.mjs",
-        "test": "node scripts/verify-frontend-baseline.mjs",
+        "test": "node scripts/verify-frontend-baseline.mjs && node scripts/verify-inventory-reconciliation-selftest.mjs",
         "health:contract": "node scripts/verify-frontend-baseline.mjs",
         "api:lint": "redocly lint storage/api-docs/api-docs.json",
         "api:postman": "openapi2postmanv2 -s storage/api-docs/api-docs.json -o \"docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json\" -p -O folderStrategy=Tags",

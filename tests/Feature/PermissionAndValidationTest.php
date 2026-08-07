@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
@@ -81,17 +81,37 @@ class PermissionAndValidationTest extends TestCase
     {
         $headers = $this->authHeadersWithPermissions([], 'no_perms');
 
-        $response = $this->postJson('/api/v1/products', ['code' => 'SP-X', 'name' => 'San pham X'], $headers);
+        $response = $this->postJson('/api/v1/products', ['sku_code' => 'SP-X', 'sku_name' => 'San pham X'], $headers);
 
         $response->assertStatus(403)->assertJsonPath('error.code', 'ACCESS_DENIED');
+    }
+
+    public function test_product_routes_use_product_permissions_not_sku_permissions(): void
+    {
+        $productHeaders = $this->authHeadersWithPermissions(['product.view'], 'product_view_only');
+        $skuHeaders = $this->authHeadersWithPermissions(['sku.manage'], 'sku_only');
+
+        Product::create(['code' => 'SP-PROD-PERM', 'name' => 'San pham product permission', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+
+        $this->getJson('/api/v1/products', $productHeaders)
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->getJson('/api/v1/products', $skuHeaders)
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+
+        $this->getJson('/api/v1/skus', $skuHeaders)
+            ->assertOk()
+            ->assertJsonPath('success', true);
     }
 
     public function test_product_create_with_duplicate_code_returns_422(): void
     {
         $headers = $this->authHeadersWithPermissions(['product.manage'], 'product_manager');
-        Product::create(['code' => 'SP-DUP', 'name' => 'San pham goc', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        Sku::create(['sku_code' => 'SP-DUP', 'sku_name' => 'San pham goc', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $response = $this->postJson('/api/v1/products', ['code' => 'SP-DUP', 'name' => 'San pham trung code'], $headers);
+        $response = $this->postJson('/api/v1/products', ['sku_code' => 'SP-DUP', 'sku_name' => 'San pham trung code'], $headers);
 
         // 422 chung không phân biệt validate-rule vs business-rule — ApiConventionMiddleware
         // luôn suy ra BUSINESS_RULE_ERROR cho status 422 trừ khi message chứa từ khoá tồn kho.
@@ -105,6 +125,20 @@ class PermissionAndValidationTest extends TestCase
         $response = $this->getJson('/api/v1/products/'.Str::uuid(), $headers);
 
         $response->assertStatus(404)->assertJsonPath('error.code', 'RESOURCE_NOT_FOUND');
+    }
+
+    public function test_document_status_history_uses_stock_document_view_permission(): void
+    {
+        $stockDocumentHeaders = $this->authHeadersWithPermissions(['stock_document.view'], 'stock_doc_viewer');
+        $warehouseHeaders = $this->authHeadersWithPermissions(['warehouse.view'], 'warehouse_viewer');
+
+        $this->getJson('/api/v1/document-status-history', $stockDocumentHeaders)
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->getJson('/api/v1/document-status-history', $warehouseHeaders)
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
 
     public function test_inbound_document_create_without_lines_returns_422(): void
@@ -121,7 +155,7 @@ class PermissionAndValidationTest extends TestCase
     }
 
     /**
-     * Idempotency-Key trên store() là tuỳ chọn (chỉ bắt buộc ở post-receipt/scan/reverse vì
+     * Idempotency-Key trên store() là tuỳ chọn (chỉ bắt buộc ở post-receipt/post-issue/reverse vì
      * những action đó đổi tồn thật) — nhưng nếu client có gửi, gọi lại đúng key phải trả về
      * đúng 1 chứng từ duy nhất thay vì tạo bản ghi thứ hai.
      */
@@ -129,11 +163,11 @@ class PermissionAndValidationTest extends TestCase
     {
         $headers = $this->authHeadersWithPermissions(['stock_document.create'], 'creator2');
         $warehouse = Warehouse::create(['code' => 'KHO-PERM4', 'name' => 'Kho perm 4', 'status' => 'ACTIVE']);
-        $product = Product::create(['code' => 'SP-PERM4', 'name' => 'San pham perm 4', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $product = Sku::create(['sku_code' => 'SP-PERM4', 'sku_name' => 'San pham perm 4', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
         $payload = [
             'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $product->id, 'qty_planned' => 1]],
+            'lines' => [['product_id' => $product->sku_id, 'qty_planned' => 1]],
         ];
 
         $first = $this->postJson('/api/v1/inbound-documents', $payload, $headers + ['Idempotency-Key' => 'perm-create-idem']);

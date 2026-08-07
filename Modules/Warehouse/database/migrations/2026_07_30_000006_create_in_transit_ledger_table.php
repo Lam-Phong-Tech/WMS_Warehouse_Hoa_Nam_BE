@@ -19,7 +19,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('document_id')->constrained('stock_documents')->cascadeOnDelete();
             $table->foreignUuid('document_line_id')->constrained('stock_document_lines')->cascadeOnDelete();
-            $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+            $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
             $table->foreignUuid('src_warehouse_id')->constrained('warehouses')->restrictOnDelete();
             $table->foreignUuid('dst_warehouse_id')->constrained('warehouses')->restrictOnDelete();
             $table->decimal('qty_dispatched', 18, 3)->default(0);

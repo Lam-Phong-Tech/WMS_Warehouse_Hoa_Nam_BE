@@ -36,8 +36,8 @@ class FoundationAuthRbacAuditTest extends TestCase
         $user = $this->createUser('manager', 'WAREHOUSE_MANAGER');
 
         $login = $this->postJson('/api/v1/auth/login', [
-            'username' => 'manager',
-            'password' => 'Cntt@1234',
+            'email' => 'manager@wms-hoanam.test',
+            'password' => 'secret123',
         ]);
 
         $login->assertOk()
@@ -88,7 +88,7 @@ class FoundationAuthRbacAuditTest extends TestCase
         $this->createUser('active', null);
 
         $wrongPassword = $this->postJson('/api/v1/auth/login', [
-            'username' => 'active',
+            'email' => 'active@wms-hoanam.test',
             'password' => 'wrong-password',
         ]);
 
@@ -99,8 +99,8 @@ class FoundationAuthRbacAuditTest extends TestCase
             ->assertJsonStructure(['error' => ['code', 'details'], 'meta' => ['request_id', 'timestamp']]);
 
         $locked = $this->postJson('/api/v1/auth/login', [
-            'username' => 'locked',
-            'password' => 'Cntt@1234',
+            'email' => 'locked@wms-hoanam.test',
+            'password' => 'secret123',
         ]);
 
         $locked->assertStatus(403)
@@ -191,7 +191,7 @@ class FoundationAuthRbacAuditTest extends TestCase
             [],
             [],
             ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'],
-            '{"username": "admin", "password":'
+            '{"email": "admin@gmail.com", "password":'
         );
 
         $response->assertStatus(400)
@@ -236,7 +236,7 @@ class FoundationAuthRbacAuditTest extends TestCase
             'username' => $username,
             'display_name' => Str::headline($username),
             'email' => "{$username}@wms-hoanam.test",
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make('secret123'),
             'status' => $status,
             'version' => 1,
         ]);

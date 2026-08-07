@@ -23,8 +23,8 @@ class FoundationMasterDataEpicTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $login = $this->postJson('/api/v1/auth/login', [
-            'username' => 'admin',
-            'password' => 'Cntt@1234',
+            'email' => 'admin@gmail.com',
+            'password' => env('CI_DEMO_PASSWORD', 'Cntt@1234'),
         ]);
 
         $login->assertOk()
@@ -173,7 +173,7 @@ class FoundationMasterDataEpicTest extends TestCase
             'username' => $username,
             'display_name' => Str::headline($username),
             'email' => "{$username}@wms-hoanam.test",
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

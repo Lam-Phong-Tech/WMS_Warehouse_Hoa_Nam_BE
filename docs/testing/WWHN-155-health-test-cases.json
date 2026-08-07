@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "jira": "WWHN-155",
+  "contract_id": "WWHN-156-health-v1",
+  "cases": [
+    {
+      "id": "HLT-001",
+      "level": "integration",
+      "scenario": "DatabaseSeeder runs twice",
+      "expected": "Required marker counts remain exactly one"
+    },
+    {
+      "id": "HLT-002",
+      "level": "api",
+      "scenario": "Seeded PostgreSQL readiness",
+      "expected": "HTTP 200, canonical schema, no-store, matching request IDs"
+    },
+    {
+      "id": "HLT-003",
+      "level": "api",
+      "scenario": "Migrations present but seed missing",
+      "expected": "HTTP 503, HEALTH_CHECK_DEGRADED, sanitized body"
+    },
+    {
+      "id": "HLT-004",
+      "level": "security",
+      "scenario": "Invalid X-Request-ID",
+      "expected": "Server replaces it and uses one consistent ID"
+    },
+    {
+      "id": "HLT-005",
+      "level": "compatibility",
+      "scenario": "GET /api/health",
+      "expected": "HTTP 404"
+    },
+    {
+      "id": "HLT-006",
+      "level": "method-safety",
+      "scenario": "POST/PUT/DELETE canonical health",
+      "expected": "HTTP 405"
+    },
+    {
+      "id": "HLT-007",
+      "level": "database",
+      "scenario": "Query seed markers",
+      "expected": "admin, warehouse and product markers exist exactly once"
+    }
+  ]
+}

@@ -42,7 +42,7 @@ use OpenApi\Attributes as OA;
     path: '/api/v1/outbound-documents',
     operationId: 'stock_out_create',
     summary: 'Tạo phiếu xuất kho (trạng thái draft)',
-    description: 'Phiếu ở trạng thái draft chưa ảnh hưởng tồn kho. Header Idempotency-Key là tuỳ chọn ở action này (chỉ bắt buộc ở post-issue/scan/reverse vì các action đó đổi tồn thật) — nếu có gửi, gọi lại đúng key sẽ trả về đúng chứng từ đã tạo thay vì tạo bản ghi mới.',
+    description: 'Phiếu ở trạng thái draft chưa ảnh hưởng tồn kho. Header Idempotency-Key là tuỳ chọn ở action này (chỉ bắt buộc ở post-issue/reverse vì các action đó đổi tồn thật) — nếu có gửi, gọi lại đúng key sẽ trả về đúng chứng từ đã tạo thay vì tạo bản ghi mới.',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [
@@ -205,13 +205,12 @@ use OpenApi\Attributes as OA;
 #[OA\Post(
     path: '/api/v1/outbound-documents/{id}/scan',
     operationId: 'stock_out_scan',
-    summary: 'Ghi nhận xuất kho từng phần theo dòng (scan từng line qty)',
-    description: 'Cho phép hạch toán từng phần (partially_posted) trước khi đủ toàn bộ số lượng kế hoạch. Đổi tồn thật, bắt buộc header Idempotency-Key.',
+    summary: 'Validate scan dòng phiếu xuất kho (stock_effect=NONE)',
+    description: 'Validate line_id/qty trên phiếu approved để FE xác nhận mã/dòng trước khi post-issue. Không ghi stock_movements, không đổi inventory_balances, không đổi trạng thái chứng từ.',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -224,13 +223,11 @@ use OpenApi\Attributes as OA;
         )
     ),
     responses: [
-        new OA\Response(response: 200, description: 'Ghi nhận scan thành công'),
+        new OA\Response(response: 200, description: 'Validate scan thành công, stock_effect=NONE'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.post'),
+        new OA\Response(response: 403, description: 'Không có quyền stock_document.scan'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ hoặc dòng'),
-        new OA\Response(response: 409, description: 'Idempotency-Key đã dùng với payload khác hoặc xung đột optimistic lock'),
         new OA\Response(response: 422, description: 'Sai trạng thái hiện tại, qty vượt kế hoạch còn lại, hoặc không đủ tồn để xuất'),
-        new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key'),
     ]
 )]
 #[OA\Post(

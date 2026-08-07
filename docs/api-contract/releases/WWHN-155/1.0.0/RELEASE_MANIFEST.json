@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "jira_issue": "WWHN-155",
+  "contract_id": "WWHN-156-health-v1",
+  "version": "1.0.0",
+  "released_on": "2026-08-07",
+  "canonical_branch": "m1",
+  "commit_binding": "Resolve the exact commit containing this manifest and record it in Jira and workflow metadata.",
+  "endpoint": {
+    "method": "GET",
+    "path": "/api/v1/health",
+    "authentication": "public",
+    "success_status": 200,
+    "degraded_status": 503,
+    "legacy_path": "/api/health",
+    "legacy_expected_status": 404
+  },
+  "artifacts": [
+    "openapi.yaml",
+    "postman_collection.json",
+    "CHANGELOG.md",
+    "REVIEW_AND_APPROVAL.md",
+    "SHA256SUMS"
+  ],
+  "runtime_evidence": {
+    "workflow": ".github/workflows/wwhn-155-migration-seed-health-evidence.yml",
+    "artifact_pattern": "wwhn-155-evidence-postgresql-<exact_sha>"
+  },
+  "external_gates": [
+    {
+      "issue": "WWHN-157",
+      "owner": "QA1",
+      "status": "BLOCKED_EXTERNAL"
+    },
+    {
+      "issue": "WWHN-32",
+      "owner": "DevOps",
+      "status": "BLOCKED_EXTERNAL"
+    }
+  ]
+}

@@ -5,10 +5,11 @@ namespace Modules\Auth\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Http\Requests\LoginRequest;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
-use Modules\AuditLog\Services\AuditLogger;
 use OpenApi\Attributes as OA;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -22,45 +23,35 @@ class AuthController extends Controller
     ) {}
 
     #[OA\Post(
-        path: '/api/v1/auth/login',
-        operationId: 'auth_login',
-        summary: 'Đăng nhập bằng username/password, trả về JWT access token + refresh token',
-        tags: ['01. Authentication'],
-        security: [],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['username', 'password'],
-                properties: [
-                    new OA\Property(property: 'username', type: 'string', example: 'admin'),
-                    new OA\Property(property: 'password', type: 'string', format: 'password', example: 'Cntt@1234'),
-                ]
-            )
-        ),
+        path: '/api/v1/auth/login', operationId: 'auth_login',
+        summary: 'Đăng nhập bằng email/password, trả về JWT access token và refresh token',
+        tags: ['01. Authentication'], security: [],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['email', 'password'], properties: [
+                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'user@example.com'),
+                new OA\Property(property: 'password', type: 'string', format: 'password', example: 'your-password'),
+            ]
+        )),
         responses: [
             new OA\Response(response: 200, description: 'Đăng nhập thành công'),
-            new OA\Response(response: 401, description: 'Sai tên đăng nhập hoặc mật khẩu'),
+            new OA\Response(response: 401, description: 'Sai email hoặc mật khẩu'),
             new OA\Response(response: 403, description: 'Tài khoản bị khoá/ngừng hoạt động'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
         ]
     )]
     public function login(LoginRequest $request)
     {
-        $credentials = $request->only('username', 'password');
+        $credentials = $request->only('email', 'password');
 
         if (! $accessToken = auth('api')->attempt($credentials)) {
-            $user = User::where('username', $credentials['username'] ?? null)->first();
+            $user = User::where('email', $credentials['email'] ?? null)->first();
             $this->auditLogger->log(
-                'LOGIN_FAILED',
-                'app_user',
-                $user?->user_id,
-                $user?->user_id,
-                $this->currentRequestId(),
-                [],
-                ['username' => $credentials['username'] ?? null],
-                'Invalid username or password'
+                'LOGIN_FAILED', 'app_user', $user?->user_id, $user?->user_id,
+                $this->currentRequestId(), [], ['email' => $credentials['email'] ?? null],
+                'Invalid email or password'
             );
 
-            return $this->respondError('Tên đăng nhập hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
+            return $this->respondError('Email hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
         }
 
         /** @var User $user */
@@ -69,13 +60,8 @@ class AuthController extends Controller
         if ($user->status !== 'ACTIVE') {
             auth('api')->logout();
             $this->auditLogger->log(
-                'LOGIN_DENIED',
-                'app_user',
-                $user->user_id,
-                $user->user_id,
-                $this->currentRequestId(),
-                [],
-                ['status' => $user->status],
+                'LOGIN_DENIED', 'app_user', $user->user_id, $user->user_id,
+                $this->currentRequestId(), [], ['status' => $user->status],
                 'Inactive or locked account'
             );
 
@@ -90,56 +76,41 @@ class AuthController extends Controller
             'refresh_token' => $refreshToken,
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
-            'user' => [
-                'user_id' => $user->user_id,
-                'username' => $user->username,
-                'display_name' => $user->display_name,
-                'roles' => $user->roles()
-                    ->where('role.status', 'ACTIVE')
-                    ->orderBy('role_code')
-                    ->get(['role.role_id', 'role.role_code', 'role.role_name'])
-                    ->map(fn ($role) => [
-                        'role_id' => $role->role_id,
-                        'role_code' => $role->role_code,
-                        'role_name' => $role->role_name,
-                    ])
-                    ->values()
-                    ->all(),
-                'permissions' => $user->permissionCodes(),
-            ],
+            'user' => $this->userPayload($user),
         ], 'Đăng nhập thành công');
     }
 
     #[OA\Post(
-        path: '/api/v1/auth/refresh',
-        operationId: 'auth_refresh',
-        summary: 'Làm mới access token bằng refresh token (xoay vòng — refresh token cũ bị thu hồi)',
-        tags: ['01. Authentication'],
-        security: [],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['refresh_token'],
-                properties: [new OA\Property(property: 'refresh_token', type: 'string')]
-            )
-        ),
+        path: '/api/v1/auth/refresh', operationId: 'auth_refresh',
+        summary: 'Xoay vòng refresh token; token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên',
+        tags: ['01. Authentication'], security: [],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['refresh_token'], properties: [new OA\Property(property: 'refresh_token', type: 'string')]
+        )),
         responses: [
             new OA\Response(response: 200, description: 'Làm mới token thành công'),
-            new OA\Response(response: 401, description: 'Refresh token không hợp lệ hoặc đã hết hạn'),
+            new OA\Response(response: 401, description: 'Refresh token không hợp lệ, hết hạn hoặc bị replay'),
+            new OA\Response(response: 422, description: 'Thiếu refresh_token'),
         ]
     )]
     public function refresh(Request $request)
     {
         $request->validate(['refresh_token' => ['required', 'string']]);
-
-        $rotated = $this->refreshTokens->rotate($request->input('refresh_token'), $request);
+        $rawToken = (string) $request->input('refresh_token');
+        $rotated = $this->refreshTokens->rotate($rawToken, $request);
 
         if ($rotated === null) {
+            $this->auditLogger->log(
+                'TOKEN_REFRESH_FAILED', 'refresh_token', null, null,
+                $this->currentRequestId(), [], ['token_fingerprint' => substr(hash('sha256', $rawToken), 0, 12)],
+                'Invalid, expired, revoked or replayed refresh token'
+            );
+
             return $this->respondError('Refresh token không hợp lệ hoặc đã hết hạn.', [], 401, 'UNAUTHENTICATED');
         }
 
-        $accessToken = JWTAuth::fromUser($rotated['user']);
         $user = $rotated['user'];
+        $accessToken = JWTAuth::fromUser($user);
         $this->auditLogger->log('TOKEN_REFRESH', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
 
         return $this->respondSuccess([
@@ -152,19 +123,16 @@ class AuthController extends Controller
     }
 
     #[OA\Post(
-        path: '/api/v1/auth/logout',
-        operationId: 'auth_logout',
-        summary: 'Đăng xuất — thu hồi refresh token (nếu có) và huỷ access token hiện tại',
-        security: [['bearerAuth' => []]],
-        tags: ['01. Authentication'],
-        requestBody: new OA\RequestBody(
-            content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'refresh_token', type: 'string', nullable: true),
-            ])
-        ),
+        path: '/api/v1/auth/logout', operationId: 'auth_logout',
+        summary: 'Đăng xuất, thu hồi refresh token và huỷ access token hiện tại',
+        security: [['bearerAuth' => []]], tags: ['01. Authentication'],
+        requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'refresh_token', type: 'string', nullable: true),
+        ])),
         responses: [
             new OA\Response(response: 200, description: 'Đăng xuất thành công'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 422, description: 'refresh_token sai kiểu dữ liệu'),
         ]
     )]
     public function logout(Request $request)
@@ -174,7 +142,9 @@ class AuthController extends Controller
         $user = auth('api')->user();
 
         if ($request->filled('refresh_token')) {
-            $this->refreshTokens->revoke($request->input('refresh_token'));
+            $this->refreshTokens->revoke((string) $request->input('refresh_token'));
+        } else {
+            $this->refreshTokens->revokeAllForUser($user->user_id);
         }
 
         auth('api')->logout();
@@ -184,11 +154,9 @@ class AuthController extends Controller
     }
 
     #[OA\Get(
-        path: '/api/v1/auth/me',
-        operationId: 'auth_me',
-        summary: 'Thông tin tài khoản đang đăng nhập + danh sách permission_key',
-        security: [['bearerAuth' => []]],
-        tags: ['01. Authentication'],
+        path: '/api/v1/auth/me', operationId: 'auth_me',
+        summary: 'Thông tin tài khoản, role, scope và permission hiện hành',
+        security: [['bearerAuth' => []]], tags: ['01. Authentication'],
         responses: [
             new OA\Response(response: 200, description: 'Thông tin tài khoản'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
@@ -209,12 +177,72 @@ class AuthController extends Controller
         ]);
     }
 
+    public function changePassword(Request $request)
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+        /** @var User $user */
+        $user = auth('api')->user();
+
+        if (! Hash::check($data['current_password'], $user->password_hash)) {
+            return $this->respondError('Mật khẩu hiện tại không đúng.', [
+                'current_password' => ['Mật khẩu hiện tại không đúng.'],
+            ], 422, 'VALIDATION_ERROR');
+        }
+
+        $user->forceFill([
+            'password_hash' => Hash::make($data['new_password']),
+            'version' => ((int) $user->version) + 1,
+        ])->save();
+        $this->refreshTokens->revokeAllForUser($user->user_id);
+        $this->auditLogger->log('CHANGE_PASSWORD', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
+
+        return $this->respondSuccess(null, 'Đổi mật khẩu thành công');
+    }
+
+    public function switchContext(Request $request)
+    {
+        $request->validate([
+            'context_type' => ['nullable', 'string', 'max:50'],
+            'context_id' => ['nullable', 'string', 'max:100'],
+            'scope_ref' => ['nullable', 'string', 'max:100'],
+        ]);
+        /** @var User $user */
+        $user = auth('api')->user();
+        $scopeRef = $request->input('scope_ref');
+
+        if ($scopeRef !== null && ! $user->canAccessWarehouse((string) $scopeRef)) {
+            return $this->respondError('Ngữ cảnh kho nằm ngoài phạm vi được gán.', [], 403, 'ACCESS_DENIED');
+        }
+
+        $accessToken = JWTAuth::fromUser($user);
+        $this->auditLogger->log(
+            'SWITCH_CONTEXT', 'app_user', $user->user_id, $user->user_id,
+            $this->currentRequestId(), [], $request->only(['context_type', 'context_id', 'scope_ref'])
+        );
+
+        return $this->respondSuccess([
+            'access_token' => $accessToken,
+            'token_type' => 'bearer',
+            'expires_in' => auth('api')->factory()->getTTL() * 60,
+            'active_context' => [
+                'context_type' => $request->input('context_type', 'SYSTEM'),
+                'context_id' => $request->input('context_id') ?? $scopeRef,
+                'scope_ref' => $scopeRef,
+            ],
+            'user' => $this->userPayload($user),
+        ], 'Chuyển ngữ cảnh thành công');
+    }
+
     private function userPayload(User $user): array
     {
         return [
             'user_id' => $user->user_id,
             'username' => $user->username,
             'display_name' => $user->display_name,
+            'email' => $user->email,
             ...$this->userAuthorizationPayload($user),
         ];
     }
@@ -222,18 +250,16 @@ class AuthController extends Controller
     private function userAuthorizationPayload(User $user): array
     {
         return [
-            'roles' => $user->roles()
-                ->where('role.status', 'ACTIVE')
-                ->orderBy('role_code')
+            'roles' => $user->activeRoles()->orderBy('role_code')
                 ->get(['role.role_id', 'role.role_code', 'role.role_name'])
                 ->map(fn ($role) => [
                     'role_id' => $role->role_id,
                     'role_code' => $role->role_code,
                     'role_name' => $role->role_name,
-                ])
-                ->values()
-                ->all(),
+                    'scope_ref' => $role->pivot->scope_ref,
+                ])->values()->all(),
             'permissions' => $user->permissionCodes(),
+            'warehouse_scope_ids' => $user->warehouseScopeIds(),
         ];
     }
 }

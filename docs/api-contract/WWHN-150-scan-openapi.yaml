@@ -1,0 +1,225 @@
+openapi: 3.0.3
+info:
+  title: WWHN-150 Scan ReadOnly Contract
+  version: 1.1.0
+  license:
+    name: Proprietary
+    url: https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE
+  description: >-
+    Contract source for independent QA/FE review. Runtime source remains the generated
+    OpenAPI artifact from the exact commit SHA.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Isolated CI evidence server
+paths:
+  /api/v1/scan/classify:
+    post:
+      operationId: scan_classify
+      x-permission: scan.classify
+      summary: Phân loại và validate mã scan, không thay đổi tồn kho
+      description: >-
+        Read-only operation. stock_effect is always NONE. The endpoint does not create
+        inventory balances, stock movements, posting_event, scan_event or idempotency cache.
+        Idempotency-Key is not required and is ignored when supplied.
+      security:
+        - bearerAuth: []
+      tags:
+        - 11. Scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - raw_code
+                - context
+                - warehouse_id
+              properties:
+                raw_code:
+                  type: string
+                  maxLength: 150
+                context:
+                  type: string
+                  enum: [INBOUND, OUTBOUND, STOCKTAKE, WARRANTY_TEMP_ONLY]
+                warehouse_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Resolved without stock effect
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, data, meta]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - raw_code
+                      - context
+                      - classification
+                      - stock_status
+                      - resolved_source
+                      - contract_version
+                      - stock_effect
+                      - movement_created
+                      - posting_event_created
+                      - idempotency_cache_written
+                      - current_location
+                    properties:
+                      raw_code:
+                        type: string
+                      context:
+                        type: string
+                      classification:
+                        type: string
+                        enum: [ITEM, CONTAINER, SKU]
+                      item_id:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      sku_id:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      product_id:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      stock_status:
+                        type: string
+                      object_status:
+                        type: string
+                      resolved_source:
+                        type: string
+                        enum: [physical_code, inventory_serials.serial_no, container.container_code, products.code]
+                      contract_version:
+                        type: string
+                        enum: [WWHN-150.1.1.0]
+                      stock_effect:
+                        type: string
+                        enum: [NONE]
+                      movement_created:
+                        type: boolean
+                        enum: [false]
+                      posting_event_created:
+                        type: boolean
+                        enum: [false]
+                      idempotency_cache_written:
+                        type: boolean
+                        enum: [false]
+                      current_location:
+                        type: object
+                        required: [warehouse_id, warehouse_code, warehouse_name]
+                        properties:
+                          warehouse_id:
+                            type: string
+                            format: uuid
+                          warehouse_code:
+                            type: string
+                          warehouse_name:
+                            type: string
+                  meta:
+                    type: object
+                    required: [request_id, timestamp]
+                    properties:
+                      request_id:
+                        type: string
+                      timestamp:
+                        type: string
+                        format: date-time
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Missing scan.classify permission or warehouse outside data scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Scan code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: Inactive warehouse/code, warehouse mismatch or context conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiError:
+      type: object
+      required: [success, message, error_code, errors, error, meta]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        message:
+          type: string
+        error_code:
+          type: string
+          enum:
+            - UNAUTHENTICATED
+            - ACCESS_DENIED
+            - WAREHOUSE_SCOPE_DENIED
+            - SCAN_CODE_NOT_FOUND
+            - WAREHOUSE_NOT_FOUND
+            - WAREHOUSE_INACTIVE
+            - SCAN_CODE_INACTIVE
+            - SCAN_CONTAINER_INACTIVE
+            - SCAN_SKU_INACTIVE
+            - SCAN_LOCATION_UNKNOWN
+            - SCAN_WAREHOUSE_MISMATCH
+            - SCAN_CONTEXT_CONFLICT
+            - BUSINESS_RULE_ERROR
+            - VALIDATION_ERROR
+        errors:
+          oneOf:
+            - type: object
+            - type: array
+              items: {}
+        error:
+          type: object
+          required: [code, details]
+          properties:
+            code:
+              type: string
+            details:
+              oneOf:
+                - type: object
+                - type: array
+                  items: {}
+        meta:
+          type: object
+          required: [request_id, timestamp]
+          properties:
+            request_id:
+              type: string
+            timestamp:
+              type: string
+              format: date-time

@@ -19,7 +19,7 @@ class StoreOutboundDocumentRequest extends FormRequest
             'src_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'note' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.product_id' => ['required', 'uuid', 'exists:products,id'],
+            'lines.*.product_id' => ['required', 'uuid', 'exists:sku,sku_id'],
             'lines.*.qty_planned' => ['required', 'numeric', 'gt:0'],
         ];
     }

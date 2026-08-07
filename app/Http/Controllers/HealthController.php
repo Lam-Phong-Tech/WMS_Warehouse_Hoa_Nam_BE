@@ -12,84 +12,57 @@ class HealthController extends Controller
 {
     use ApiResponse;
 
-    #[OA\Get(
-        path: '/api/health',
-        operationId: 'backend_health',
-        summary: 'Public backend health endpoint for environment, database, migration and seed baseline checks',
-        tags: ['00. Platform'],
-        security: [],
-        responses: [
-            new OA\Response(response: 200, description: 'Backend health check passed'),
-            new OA\Response(response: 503, description: 'Backend health check degraded'),
-        ]
-    )]
+    #[OA\Get(path: '/api/v1/health', operationId: 'backend_health_v1', summary: 'Public readiness health check', tags: ['00. Platform'], security: [], responses: [new OA\Response(response: 200, description: 'Ready'), new OA\Response(response: 503, description: 'Degraded')])]
     public function show(): JsonResponse
     {
         $checks = [
-            'app' => [
-                'status' => 'ok',
-                'environment' => app()->environment(),
-                'timezone' => config('app.timezone'),
-            ],
+            'app' => ['status' => 'ok'],
             'database' => $this->databaseCheck(),
             'migrations' => $this->migrationCheck(),
             'seed' => $this->seedCheck(),
         ];
-
         $healthy = collect($checks)->every(fn (array $check): bool => ($check['status'] ?? null) === 'ok');
-
         $payload = [
             'status' => $healthy ? 'ok' : 'degraded',
+            'version' => (string) config('health.version'),
+            'environment' => app()->environment(),
+            'server_time' => now()->toIso8601String(),
+            'request_id' => $this->currentRequestId(),
             'checks' => $checks,
         ];
 
-        if (! $healthy) {
-            return $this->respondError(
-                'Backend health check degraded.',
-                $payload,
-                503,
-                'HEALTH_CHECK_DEGRADED'
-            );
-        }
+        $response = $healthy
+            ? $this->respondSuccess($payload, 'Backend health check passed.')
+            : $this->respondError('Backend health check degraded.', $payload, 503, 'HEALTH_CHECK_DEGRADED');
 
-        return $this->respondSuccess($payload, 'Backend health check passed.');
+        // Readiness responses must never be cached by browsers, proxies or CDNs.
+        // A stale 200/503 can produce unsafe deployment decisions.
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Expires', '0');
+
+        return $response;
     }
 
-    /**
-     * Keep health output deployable: expose component status, never connection strings,
-     * credentials, SQL errors, paths, stack traces or hostnames.
-     */
     private function databaseCheck(): array
     {
         try {
             DB::select('select 1');
 
-            return [
-                'status' => 'ok',
-                'connection' => DB::connection()->getDriverName(),
-            ];
+            return ['status' => 'ok', 'driver' => DB::connection()->getDriverName()];
         } catch (Throwable) {
-            return [
-                'status' => 'fail',
-                'connection' => config('database.default'),
-            ];
+            return ['status' => 'fail'];
         }
     }
 
     private function migrationCheck(): array
     {
         try {
-            $ranCount = DB::table(config('database.migrations.table', 'migrations'))->count();
+            $count = DB::table(config('database.migrations.table', 'migrations'))->count();
 
-            return [
-                'status' => $ranCount > 0 ? 'ok' : 'fail',
-                'ran_count' => $ranCount,
-            ];
+            return ['status' => $count > 0 ? 'ok' : 'fail', 'ran_count' => $count];
         } catch (Throwable) {
-            return [
-                'status' => 'fail',
-                'ran_count' => 0,
-            ];
+            return ['status' => 'fail', 'ran_count' => 0];
         }
     }
 
@@ -102,19 +75,9 @@ class HealthController extends Controller
                 'baseline_product' => DB::table('products')->where('code', 'HN-PV-BASE-001')->exists(),
             ];
 
-            return [
-                'status' => collect($markers)->every(fn (bool $exists): bool => $exists) ? 'ok' : 'fail',
-                'markers' => $markers,
-            ];
+            return ['status' => collect($markers)->every() ? 'ok' : 'fail', 'markers' => $markers];
         } catch (Throwable) {
-            return [
-                'status' => 'fail',
-                'markers' => [
-                    'admin_user' => false,
-                    'baseline_warehouse' => false,
-                    'baseline_product' => false,
-                ],
-            ];
+            return ['status' => 'fail', 'markers' => ['admin_user' => false, 'baseline_warehouse' => false, 'baseline_product' => false]];
         }
     }
 }

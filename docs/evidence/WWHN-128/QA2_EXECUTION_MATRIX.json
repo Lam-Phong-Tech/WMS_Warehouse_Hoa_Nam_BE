@@ -1,0 +1,49 @@
+{
+  "schema_version": "2.0.0",
+  "ticket": "WWHN-182",
+  "source_ticket": "WWHN-128",
+  "decision_id": "DEC-INV-001",
+  "document_revision": "1.8-R8",
+  "contract_version": "1.7.0",
+  "execution_status": "NOT_EXECUTED_BY_QA2",
+  "execution_binding_required": [
+    "backend_commit_sha",
+    "frontend_commit_sha",
+    "workflow_run_id",
+    "artifact_id",
+    "artifact_name",
+    "artifact_digest",
+    "SHA256SUMS verification result",
+    "environment and DB engine",
+    "reviewer account and timestamp"
+  ],
+  "cases": [
+    {"id":"QA2-ART-001","priority":"P0","area":"artifact-integrity","scenario":"Verify BE commit, workflow run, artifact ID/name/digest and both checksum files","expected":"Metadata commit equals workflow SHA and both checksum checks pass","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-IN-001","priority":"P0","area":"happy-stock-effect","scenario":"Post one approved receipt","expected":"One movement per line; balance increases once; committed posting event","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-OUT-001","priority":"P0","area":"happy-stock-effect","scenario":"Post one approved issue","expected":"One movement per line; balance decreases once; committed posting event","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-IDEM-001","priority":"P0","area":"idempotency","scenario":"Retry same key and same semantic payload","expected":"Persisted response replay; same movement IDs; no second stock effect","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-IDEM-002","priority":"P0","area":"idempotency","scenario":"Reuse same key with different payload","expected":"409 IDEMPOTENCY_ERROR; no write","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-DOUBLE-001","priority":"P0","area":"double-post","scenario":"Use a different key after document is already posted","expected":"409 STATE_CONFLICT; no duplicate movement/balance/history","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-RACE-001","priority":"P0","area":"race","scenario":"Two overlapping requests with same key","expected":"One callback/stock effect; second request conflicts or replays","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-RACE-002","priority":"P0","area":"race","scenario":"Two different keys post the same document concurrently","expected":"One success and one conflict; unique movement prevents duplication","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-ROLLBACK-001","priority":"P0","area":"rollback","scenario":"Inject failure after business write before completion","expected":"Business write rolls back; processing lease cleaned","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-REC-001","priority":"P0","area":"reconciliation","scenario":"Run reconciliation after canonical receipt/issue sequence","expected":"status=PASS, mismatch_count=0, balance equals signed ledger by stock_status","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-RBAC-001","priority":"P1","area":"rbac","scenario":"Call post endpoint without canonical permission","expected":"403; no DB write","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-SCOPE-001","priority":"P1","area":"data-scope","scenario":"Call endpoint for foreign warehouse scope","expected":"403 WAREHOUSE_SCOPE_DENIED; no DB write","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-PRE-001","priority":"P1","area":"precondition","scenario":"Omit Idempotency-Key or If-Match where required","expected":"428/412 per contract; no stock effect","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-NEG-001","priority":"P1","area":"negative","scenario":"Post issue with insufficient stock","expected":"422 INSUFFICIENT_STOCK; transaction rollback","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-DB-001","priority":"P1","area":"db-before-after","scenario":"Compare DB snapshots","expected":"Expected movement/posting/idempotency deltas only; no orphan/duplicate rows","result":"NOT_RUN","raw_evidence":null},
+    {"id":"QA2-SEC-001","priority":"P1","area":"secret-hygiene","scenario":"Inspect raw logs and artifact","expected":"No password, JWT, secret or stack trace leakage","result":"NOT_RUN","raw_evidence":null}
+  ],
+  "result_policy": {
+    "PASS": "All P0 and P1 cases pass on the same exact artifact.",
+    "CONDITIONAL": "No P0 failure; each open P1 has owner, due date and objective closure condition.",
+    "FAIL": "Any P0 fails, integrity binding differs, or DB/reconciliation proves duplicate or incorrect stock effect."
+  },
+  "automation_evidence": {
+    "sqlite_newman_runtime": "artifact/runtime/",
+    "postgresql_race_and_reconciliation": "artifact/postgresql/",
+    "decision_regression": "artifact/decision/",
+    "automation_is_not_QA2_signature": true
+  }
+}

@@ -3,6 +3,12 @@
 namespace Modules\Auth\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\Auth\Repositories\Contracts\PermissionRepositoryInterface;
+use Modules\Auth\Repositories\Contracts\RoleRepositoryInterface;
+use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
+use Modules\Auth\Repositories\PermissionRepository;
+use Modules\Auth\Repositories\RoleRepository;
+use Modules\Auth\Repositories\UserRepository;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class AuthServiceProvider extends ModuleServiceProvider
@@ -33,6 +39,15 @@ class AuthServiceProvider extends ModuleServiceProvider
         EventServiceProvider::class,
         RouteServiceProvider::class,
     ];
+
+    public function register(): void
+    {
+        parent::register();
+
+        $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
+        $this->app->bind(RoleRepositoryInterface::class, RoleRepository::class);
+        $this->app->bind(PermissionRepositoryInterface::class, PermissionRepository::class);
+    }
 
     /**
      * Define module schedules.

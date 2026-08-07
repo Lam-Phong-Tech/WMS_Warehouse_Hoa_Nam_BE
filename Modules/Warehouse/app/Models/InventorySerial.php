@@ -10,6 +10,14 @@ class InventorySerial extends Model
 {
     use HasUuids;
 
+    public const STATUS_IN_STOCK = 'IN_STOCK';
+
+    public const STATUS_ISSUED = 'ISSUED';
+
+    public const STATUS_IN_TRANSIT = 'IN_TRANSIT';
+
+    public const STATUS_RETURNED_TO_CUSTOMER = 'RETURNED_TO_CUSTOMER';
+
     protected $table = 'inventory_serials';
 
     public $incrementing = false;
@@ -23,7 +31,7 @@ class InventorySerial extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Sku::class, 'product_id', 'sku_id');
     }
 
     public function warehouse(): BelongsTo

@@ -1,0 +1,233 @@
+name: WWHN-128 DEC-INV-001 R8 Exact-SHA Evidence Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-128-inventory-decision-contract.yml'
+      - 'app/**'
+      - 'Modules/Warehouse/**'
+      - 'database/**'
+      - 'routes/**'
+      - 'tests/Feature/**'
+      - 'scripts/collect-wwhn180-*.sh'
+      - 'scripts/verify_wwhn128_closure.py'
+      - 'scripts/verify-wwhn180-*.mjs'
+      - 'docs/docs_task_jira/WWHN-128*'
+      - 'docs/docs_task_jira/WWHN-180-source-register.json'
+      - 'docs/evidence/WWHN-128/**'
+      - 'docs/evidence/WWHN-180/**'
+      - 'docs/api-contract/WWHN-180-posting-openapi.*'
+      - 'docs/postman/WWHN-180 *'
+      - 'docs/testing/WWHN-180-posting-test-cases.json'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-128-r8-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  exact-sha-evidence:
+    name: exact-SHA API, stock, race, DB and governance evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wms_wwhn128
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wms_wwhn128"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      EVIDENCE_ROOT: build/evidence/wwhn-128
+      DOCUMENT_REVISION: '1.8-R8'
+      CONTRACT_VERSION: '1.7.0'
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: |
+          set -euo pipefail
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+      - name: Prepare isolated runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="W128-$(openssl rand -hex 24)"
+          jwt="W128-JWT-$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
+          printf 'CI_DEMO_PASSWORD=%s\nWWHN180_PASSWORD=%s\nWWHN180_NO_PERMISSION_PASSWORD=%s\nJWT_SECRET=%s\n' "$password" "$password" "$password" "$jwt" >> "$GITHUB_ENV"
+          cp .env.example .env
+          php artisan key:generate
+          rm -f /tmp/wms-wwhn128.sqlite
+          touch /tmp/wms-wwhn128.sqlite
+          printf 'APP_ENV=testing\nAPP_DEBUG=false\nDB_CONNECTION=sqlite\nDB_DATABASE=/tmp/wms-wwhn128.sqlite\nCACHE_STORE=array\nSESSION_DRIVER=array\nQUEUE_CONNECTION=sync\nAUDIT_WRITE_POLICY=outbox_required\nJWT_SECRET=%s\n' "$jwt" >> .env
+          mkdir -p "$EVIDENCE_ROOT/decision" "$EVIDENCE_ROOT/runtime" "$EVIDENCE_ROOT/postgresql" "$EVIDENCE_ROOT/contract" "$EVIDENCE_ROOT/governance"
+      - name: Static integrity and governance gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/verify_wwhn128_closure.py
+          python3 scripts/verify_wwhn128_closure.py | tee "$EVIDENCE_ROOT/decision/closure-verification.json"
+          git diff --check
+          php -l tests/Feature/Wwhn128EvidenceContractTest.php
+          php -l tests/Feature/Wwhn180IdempotencyAtomicityTest.php
+          php -l tests/Feature/StockDocumentConcurrencyGuardTest.php
+          ./vendor/bin/pint --test tests/Feature/Wwhn128EvidenceContractTest.php tests/Feature/Wwhn180IdempotencyAtomicityTest.php tests/Feature/StockDocumentConcurrencyGuardTest.php
+      - name: Run focused SQLite decision regression
+        shell: bash
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: /tmp/wms-wwhn128.sqlite
+          WWHN128_EVIDENCE_DIR: build/evidence/wwhn-128/decision
+        run: |
+          set -euo pipefail
+          ./vendor/bin/phpunit --filter '/(WarrantyStatusOnlyContractTest|WarrantyIdempotencyKeyContractTest|InventoryReconciliationSignedStatusTest|InventoryReconciliationIntegrityTest|Wwhn128EvidenceContractTest|Wwhn180IdempotencyAtomicityTest|StockDocumentIdempotencyTest|StockDocumentCanonicalFlowTest|StockDocumentConcurrencyGuardTest|Wwhn180PermissionAliasContractTest)/' --log-junit "$EVIDENCE_ROOT/decision/junit.xml" 2>&1 | tee "$EVIDENCE_ROOT/decision/phpunit.raw.log"
+      - name: Normalize executable Postman auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'docs/postman/WWHN-180 Posting Contract.postman_collection.json';
+          const collection = JSON.parse(fs.readFileSync(path, 'utf8'));
+          let migrated = 0;
+          const walk = (items = []) => { for (const item of items) { if (item.request && item.auth) { if (item.request.auth) throw new Error(`Duplicate auth: ${item.name}`); item.request.auth = item.auth; delete item.auth; migrated += 1; } walk(item.item); } };
+          walk(collection.item);
+          const denied = collection.item.find(item => item.name === '23 Reconciliation denied without permission');
+          const token = denied?.request?.auth?.bearer?.find(entry => entry.key === 'token')?.value;
+          if (token !== '{{no_permission_token}}' || migrated < 3) throw new Error('Postman auth normalization failed');
+          fs.writeFileSync(path, `${JSON.stringify(collection)}\n`);
+          NODE
+      - name: Collect API, Newman and SQLite DB evidence
+        shell: bash
+        env:
+          EVIDENCE_DIR: build/evidence/wwhn-128/runtime
+          WWHN180_EMAIL: manager01@gmail.com
+          WWHN180_NO_PERMISSION_EMAIL: test-no-permission@hoanam.com
+          DB_CONNECTION: sqlite
+          DB_DATABASE: /tmp/wms-wwhn128.sqlite
+        run: |
+          set -euo pipefail
+          bash scripts/collect-wwhn180-canonical-evidence.sh
+      - name: Run PostgreSQL race and reconciliation suite
+        shell: bash
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_DATABASE: wms_wwhn128
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          WWHN128_EVIDENCE_DIR: build/evidence/wwhn-128/postgresql
+        run: |
+          set -euo pipefail
+          php artisan config:clear
+          php artisan migrate:fresh --force 2>&1 | tee "$EVIDENCE_ROOT/postgresql/migrate-fresh.raw.log"
+          ./vendor/bin/phpunit --filter '/(Wwhn180IdempotencyAtomicityTest|StockDocumentIdempotencyTest|StockDocumentCanonicalFlowTest|StockDocumentConcurrencyGuardTest|InventoryReconciliationIntegrityTest|Wwhn128EvidenceContractTest)/' --log-junit "$EVIDENCE_ROOT/postgresql/junit.xml" 2>&1 | tee "$EVIDENCE_ROOT/postgresql/phpunit.raw.log"
+      - name: Assemble direct artifact pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp docs/api-contract/WWHN-180-posting-openapi.json docs/api-contract/WWHN-180-posting-openapi.yaml "$EVIDENCE_ROOT/contract/"
+          cp "docs/postman/WWHN-180 Canonical Contract.postman_collection.json" "docs/postman/WWHN-180 Canonical Contract.postman_environment.json" "$EVIDENCE_ROOT/contract/"
+          cp "docs/postman/WWHN-180 Posting Contract.postman_collection.json" "docs/postman/WWHN-180 Posting CI.postman_environment.json" "$EVIDENCE_ROOT/contract/"
+          cp docs/testing/WWHN-180-posting-test-cases.json docs/evidence/WWHN-180/permission-catalog.json docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json "$EVIDENCE_ROOT/contract/"
+          cp docs/docs_task_jira/WWHN-128.md docs/docs_task_jira/WWHN-128-source-register.json "$EVIDENCE_ROOT/governance/"
+          cp docs/evidence/WWHN-128/INV_P1_P2_CLOSURE_REGISTER.json docs/evidence/WWHN-128/DOWNSTREAM_CONTRACT_GATE.json docs/evidence/WWHN-128/G1_SIGNOFF_LEDGER.json docs/evidence/WWHN-128/QA2_EXECUTION_MATRIX.json docs/evidence/WWHN-128/G1_MINUTES_TEMPLATE.md docs/evidence/WWHN-128/REVIEW_AND_APPROVAL_PROTOCOL.md "$EVIDENCE_ROOT/governance/"
+          git ls-tree -r --full-tree "$GITHUB_SHA" | sha256sum | awk '{print $1}' > "$EVIDENCE_ROOT/source-tree.sha256"
+          cat > "$EVIDENCE_ROOT/build-metadata.json" <<JSON
+          {"ticket":"WWHN-128","decision_id":"DEC-INV-001","document_revision":"$DOCUMENT_REVISION","contract_version":"$CONTRACT_VERSION","commit_sha":"$GITHUB_SHA","run_id":"$GITHUB_RUN_ID","run_attempt":"$GITHUB_RUN_ATTEMPT","repository":"$GITHUB_REPOSITORY","run_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID","artifact_name":"wwhn-128-evidence-$GITHUB_SHA","database_engines":["sqlite","postgresql-16"],"formal_approval":false,"qa2_pass":false,"g1_result":"PENDING"}
+          JSON
+          python3 - "$EVIDENCE_ROOT" <<'PY'
+          import hashlib, json, os, pathlib, sys
+          root = pathlib.Path(sys.argv[1]); entries = []
+          for path in sorted(p for p in root.rglob('*') if p.is_file() and p.name not in {'SHA256SUMS','SHA256SUMS.sha256','artifact-manifest.json'}):
+              data = path.read_bytes(); entries.append({'path':path.relative_to(root).as_posix(),'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+          payload = {'ticket':'WWHN-128','document_revision':os.environ['DOCUMENT_REVISION'],'contract_version':os.environ['CONTRACT_VERSION'],'commit_sha':os.environ['GITHUB_SHA'],'run_id':os.environ['GITHUB_RUN_ID'],'artifact_name':f"wwhn-128-evidence-{os.environ['GITHUB_SHA']}",'files':entries}
+          (root/'artifact-manifest.json').write_text(json.dumps(payload,indent=2)+'\n')
+          PY
+          (cd "$EVIDENCE_ROOT" && find . -type f ! -name SHA256SUMS ! -name SHA256SUMS.sha256 -printf '%P\n' | LC_ALL=C sort | while IFS= read -r file; do sha256sum "$file"; done > SHA256SUMS && sha256sum SHA256SUMS > SHA256SUMS.sha256)
+      - name: Validate artifact and result policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd "$EVIDENCE_ROOT" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
+          jq -e --arg sha "$GITHUB_SHA" '.commit_sha==$sha and .document_revision=="1.8-R8" and .contract_version=="1.7.0" and .formal_approval==false and .qa2_pass==false' "$EVIDENCE_ROOT/build-metadata.json" >/dev/null
+          jq -e '.status=="PASS" and .formal_closure=="NOT_CLAIMED"' "$EVIDENCE_ROOT/decision/closure-verification.json" >/dev/null
+          jq -e '(.run.failures // []) | length == 0' "$EVIDENCE_ROOT/runtime/newman.result.json" >/dev/null
+          test -s "$EVIDENCE_ROOT/runtime/newman.raw.log"
+          jq -e '.summary.status=="PASS"' "$EVIDENCE_ROOT/runtime/reconciliation-report.json" >/dev/null
+          jq -e '.summary.status=="PASS"' "$EVIDENCE_ROOT/runtime/wwhn180-db-delta.json" >/dev/null
+          test -s "$EVIDENCE_ROOT/postgresql/junit.xml"
+          test -s "$EVIDENCE_ROOT/postgresql/phpunit.raw.log"
+          test -s "$EVIDENCE_ROOT/postgresql/migrate-fresh.raw.log"
+          test -s "$EVIDENCE_ROOT/contract/WWHN-180-posting-openapi.json"
+          test -s "$EVIDENCE_ROOT/governance/G1_SIGNOFF_LEDGER.json"
+      - name: Upload immutable exact-SHA artifact
+        id: upload_evidence
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-128-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-128
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## WWHN-128 R8 exact-SHA evidence' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run/attempt: \`$GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact ID: \`${{ steps.upload_evidence.outputs.artifact-id }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact digest: \`${{ steps.upload_evidence.outputs.artifact-digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo '- Formal G1 remains pending WWHN-181/182/183/40.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-128-diagnostics-${{ github.sha }}
+          path: build/evidence/wwhn-128
+          if-no-files-found: warn
+          retention-days: 30

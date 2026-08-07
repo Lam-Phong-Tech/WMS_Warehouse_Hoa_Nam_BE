@@ -1,0 +1,93 @@
+{
+  "contract_id": "DEC-REV-001",
+  "ticket": "WWHN-134",
+  "decision_ticket": "WWHN-26",
+  "traceability_ticket": "WWHN-136",
+  "release_version": "1.3.0-proposed",
+  "release_status": "PROPOSED",
+  "implementation_status": "NOT_CLAIMED",
+  "release_date": "2026-08-06",
+  "immutable_release_path": "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed",
+  "prior_proposal_commit": "f9c8c5ca74017c4269cf503bd7d6222b5ad3cc9c",
+  "observed_parent_commit": "7d7091c48798114b5bbf7ff4c0b58617d177c737",
+  "release_commit_policy": "Use the exact commit containing this manifest. The resulting 40-character SHA must be recorded in Jira after the single atomic commit is created.",
+  "canonical_aliases": {
+    "openapi": "docs/api-contract/WWHN-134-reversal-openapi.yaml",
+    "postman": "docs/postman/WWHN-134-reversal.postman_collection.json"
+  },
+  "runtime_divergence": {
+    "observed_routes": [
+      "POST /api/v1/inbound-documents/{id}/reverse",
+      "POST /api/v1/outbound-documents/{id}/reverse"
+    ],
+    "observed_permission": "stock_document.reverse",
+    "target_route": "POST /api/v1/reversals",
+    "target_permission": "stock.reversal.create",
+    "disposition": "FAIL_CLOSED_SEPARATE_IMPLEMENTATION_REQUIRED"
+  },
+  "publishers_and_reviewers": {
+    "BE1_AUTHOR": {
+      "owner": "Quang Nguyễn Thanh",
+      "status": "PROPOSED"
+    },
+    "TECH_LEAD_INDEPENDENT_PUBLISHER": {
+      "owner": "Tech Lead",
+      "status": "PENDING"
+    },
+    "QA_TESTABILITY": {
+      "owner": "QA1/QA2",
+      "status": "PENDING"
+    },
+    "FE_CONSUMER": {
+      "owner": "FE",
+      "status": "PENDING"
+    },
+    "BAS_TRACEABILITY": {
+      "owner": "Nguyễn Thị Hải Yến",
+      "status": "PENDING"
+    },
+    "PM_PO_DECISION": {
+      "owner": "Nguyễn Quang Đức",
+      "status": "PENDING"
+    }
+  },
+  "anti_impersonation": "BE1 and CI do not sign or approve for independent roles.",
+  "artifacts": [
+    {
+      "path": "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/openapi.yaml",
+      "relative_path": "openapi.yaml",
+      "sha256": "c852d2bb19687045a0298ed6135f218afb3636588fd4ce16c0a8de1067f3738a",
+      "media_type": "application/yaml"
+    },
+    {
+      "path": "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/reversal.schema.json",
+      "relative_path": "reversal.schema.json",
+      "sha256": "08146ec2d07155a8fce7c92a2b9b287033675ae2360c2ea18b6035077ec4623f",
+      "media_type": "application/json"
+    },
+    {
+      "path": "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/postman_collection.json",
+      "relative_path": "postman_collection.json",
+      "sha256": "04464880408cde560c58f4b51c45f57b319d7fd3af87d4dd097185856002d93f",
+      "media_type": "application/json"
+    },
+    {
+      "path": "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/CHANGELOG.md",
+      "relative_path": "CHANGELOG.md",
+      "sha256": "035763c41272e98a79686041144d6b4bbc04a27e88a4c8416330a449cc04821c",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/REVIEW_AND_APPROVAL.md",
+      "relative_path": "REVIEW_AND_APPROVAL.md",
+      "sha256": "151767e4ed2d1f3f2c5d7f74479c60f99053bd1fa2f63eb7e4cdffb1940fa6f4",
+      "media_type": "text/markdown"
+    },
+    {
+      "path": "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/TRACEABILITY.md",
+      "relative_path": "TRACEABILITY.md",
+      "sha256": "047dfdd77ee635662503089e21fa3a9055995e6c1981e1ede96035a35d714f26",
+      "media_type": "text/markdown"
+    }
+  ]
+}

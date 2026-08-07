@@ -46,10 +46,14 @@ class StockMovement extends Model
     protected $fillable = [
         'movement_no', 'business_key', 'movement_type', 'warehouse_id', 'product_id', 'stock_status',
         'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'stock_document_line_id',
-        'original_movement_id', 'created_by', 'request_id', 'occurred_at', 'created_at',
+        'stocktake_variance_id', 'original_movement_id', 'created_by', 'request_id', 'occurred_at',
+        'created_at',
     ];
 
     protected $casts = [
+        'qty_before' => 'decimal:3',
+        'qty_delta' => 'decimal:3',
+        'qty_after' => 'decimal:3',
         'occurred_at' => 'datetime',
         'created_at' => 'datetime',
     ];
@@ -72,11 +76,16 @@ class StockMovement extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Sku::class, 'product_id', 'sku_id');
     }
 
     public function document(): BelongsTo
     {
         return $this->belongsTo(StockDocument::class, 'stock_document_id');
+    }
+
+    public function stocktakeVariance(): BelongsTo
+    {
+        return $this->belongsTo(StocktakeVariance::class, 'stocktake_variance_id');
     }
 }

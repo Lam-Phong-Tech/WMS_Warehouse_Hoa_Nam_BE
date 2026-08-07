@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wwhn:dec-rev-001:1.3.0-proposed",
+  "title": "DEC-REV-001 Reversal Contract Schemas",
+  "description": "Standalone schema companion for the immutable proposal release. It is not runtime evidence.",
+  "x-contract-id": "DEC-REV-001",
+  "x-version": "1.3.0-proposed",
+  "x-status": "PROPOSED",
+  "$defs": {
+    "CreateReversalLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "original_line_id",
+        "quantity",
+        "physical_return_status"
+      ],
+      "properties": {
+        "original_line_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "physical_return_status": {
+          "type": "string",
+          "enum": [
+            "NOT_REQUIRED",
+            "PENDING_RETURN",
+            "RETURNED",
+            "WAIVED"
+          ]
+        },
+        "evidence_uri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        }
+      }
+    },
+    "CreateReversalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "original_document_type",
+        "original_document_id",
+        "reason_code",
+        "reason",
+        "lines"
+      ],
+      "properties": {
+        "original_document_type": {
+          "type": "string",
+          "enum": [
+            "RECEIPT",
+            "ISSUE",
+            "ADJUSTMENT"
+          ]
+        },
+        "original_document_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reason_code": {
+          "type": "string",
+          "enum": [
+            "DATA_CORRECTION",
+            "WRONG_DOCUMENT",
+            "DAMAGED_RETURN",
+            "OTHER"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 500
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/CreateReversalLine"
+          }
+        }
+      }
+    },
+    "Meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "timestamp"
+      ],
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ReversalResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "success",
+        "message",
+        "data",
+        "meta"
+      ],
+      "properties": {
+        "success": {
+          "const": true
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status",
+            "original_document_id",
+            "created_at"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "status": {
+              "const": "POSTED"
+            },
+            "original_document_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "meta": {
+          "$ref": "#/$defs/Meta"
+        }
+      }
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "success",
+        "message",
+        "error",
+        "meta"
+      ],
+      "properties": {
+        "success": {
+          "const": false
+        },
+        "message": {
+          "type": "string"
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "UNAUTHENTICATED",
+                "NO_PERMISSION",
+                "ORIGINAL_NOT_FOUND",
+                "IDEMPOTENCY_ERROR",
+                "INVALID_STATE",
+                "REVERSAL_LIMIT_EXCEEDED",
+                "REVERSAL_DEPENDENCY_CONFLICT",
+                "CONCURRENT_MODIFICATION",
+                "VALIDATION_ERROR",
+                "IDEMPOTENCY_KEY_REQUIRED"
+              ]
+            },
+            "details": {
+              "type": "object"
+            }
+          }
+        },
+        "meta": {
+          "$ref": "#/$defs/Meta"
+        }
+      }
+    }
+  }
+}

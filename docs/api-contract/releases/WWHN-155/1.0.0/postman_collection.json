@@ -1,0 +1,114 @@
+{
+  "info": {
+    "_postman_id": "9c999b43-7c54-4f75-9bc7-155000100100",
+    "name": "WWHN-155 Health Readiness Contract 1.0.0",
+    "description": "Canonical Postman artifact for WWHN-155 / WWHN-156-health-v1. No credentials are stored. Set baseUrl and expectedHealthStatus per controlled environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "expectedHealthStatus",
+      "value": "200",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "GET /api/v1/health — canonical 200/503 contract",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const expected = Number(pm.collectionVariables.get('expectedHealthStatus') || 200);",
+              "pm.test('Expected HTTP status', () => pm.response.to.have.status(expected));",
+              "pm.test('No-store cache policy', () => pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'));",
+              "pm.test('Request ID header exists', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+              "const body = pm.response.json();",
+              "pm.test('Envelope is explicit', () => pm.expect(body.success).to.be.a('boolean'));",
+              "pm.test('No sensitive diagnostic fragments', () => { const raw = pm.response.text().toLowerCase(); ['password','secret','dsn','sqlstate','pdoexception','stack trace','vendor/','connection refused','db_password'].forEach(x => pm.expect(raw).not.to.include(x)); });",
+              "if (expected === 200) {",
+              "  pm.test('Healthy schema fields', () => { pm.expect(body.success).to.eql(true); pm.expect(body.data.status).to.eql('ok'); ['version','environment','server_time','request_id','checks'].forEach(k => pm.expect(body.data).to.have.property(k)); pm.expect(body.meta.request_id).to.eql(body.data.request_id); });",
+              "} else {",
+              "  pm.test('Degraded schema fields', () => { pm.expect(body.success).to.eql(false); pm.expect(body.error_code).to.eql('HEALTH_CHECK_DEGRADED'); pm.expect(body.errors.status).to.eql('degraded'); pm.expect(body.meta.request_id).to.eql(body.errors.request_id); });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Request-ID",
+            "value": "WWHN-155-POSTMAN-{{$timestamp}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "health"
+          ]
+        },
+        "description": "Public readiness endpoint. Run once with expectedHealthStatus=503 before seed and once with expectedHealthStatus=200 after seed."
+      },
+      "response": []
+    },
+    {
+      "name": "GET /api/health — legacy path must be 404",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Legacy endpoint is removed', () => pm.response.to.have.status(404));",
+              "const body = pm.response.json();",
+              "pm.test('Canonical not-found envelope', () => { pm.expect(body.success).to.eql(false); pm.expect(body.error_code).to.eql('RESOURCE_NOT_FOUND'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

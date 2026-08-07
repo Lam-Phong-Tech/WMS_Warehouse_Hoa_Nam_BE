@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.1.0",
+  "jira_key": "WWHN-180",
+  "parent_key": "WWHN-40",
+  "status": "SOURCE_MAPPING_PASS_PENDING_INDEPENDENT_REVIEW",
+  "generated_for_branch": "m1",
+  "backend": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "exact_release_sha_source": "build/evidence/api-data/build-metadata.json.commit_sha",
+    "middleware_authority": "Modules/Warehouse/routes/api.php",
+    "permission_seed_authority": [
+      "Modules/Auth/database/seeders/AuthDatabaseSeeder.php",
+      "Modules/Auth/database/seeders/WmsPermissionCompatibilitySeeder.php"
+    ]
+  },
+  "frontend_observed_source": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "branch": "m1",
+    "exact_commit_sha": "f6e137d01ed7afec5d30e8fecde6a2cc31bb7c8b",
+    "baseline_path": "docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json",
+    "baseline_git_blob_sha": "656b3315cdb64d2c74e854cde8fdd896477e8c52",
+    "task_document_path": "docs/Task_docs_Jira/WWHN-153.md",
+    "observation_date": "2026-08-05",
+    "authority_note": "Read-only comparison against the latest FE handoff SHA recorded in Jira. The FE baseline is a WWHN-153 fail-closed control artifact; it does not replace FE1 independent review on WWHN-181.",
+    "baseline_task_key": "WWHN-153",
+    "review_task_key": "WWHN-181"
+  },
+  "rules": {
+    "backend_enforcement": "Canonical permission in route middleware remains the authorization source of truth.",
+    "frontend_alias": "Compatibility permissions are returned to FE for UX/action guards only.",
+    "no_privilege_escalation": "Aliases are assigned only to roles already holding the corresponding canonical backend capability.",
+    "independent_signoff": "FE1 and BA must record reviewer/result/date on the exact BE SHA, FE SHA and passing artifact digest; BE1 cannot self-sign."
+  },
+  "rows": [
+    {
+      "flow": "SCAN_CLASSIFY",
+      "method": "POST",
+      "runtime_path": "/api/v1/scan/classify",
+      "backend_permission": "scan.classify",
+      "frontend_permission": "scan.classify",
+      "mapping": "EXACT",
+      "backend_enforcement": "permission:scan.classify",
+      "implementation": "PASS"
+    },
+    {
+      "flow": "SCAN_INBOUND",
+      "method": "POST",
+      "runtime_path": "/api/v1/inbound-documents/{id}/scan",
+      "backend_permission": "stock_document.scan",
+      "frontend_permission": "scan.inbound",
+      "mapping": "COMPATIBILITY_ALIAS",
+      "backend_enforcement": "permission:stock_document.scan",
+      "alias_seed_roles": [
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_MANAGER"
+      ],
+      "implementation": "PASS"
+    },
+    {
+      "flow": "SCAN_OUTBOUND",
+      "method": "POST",
+      "runtime_path": "/api/v1/outbound-documents/{id}/scan",
+      "backend_permission": "stock_document.scan",
+      "frontend_permission": "scan.outbound",
+      "mapping": "COMPATIBILITY_ALIAS",
+      "backend_enforcement": "permission:stock_document.scan",
+      "alias_seed_roles": [
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_MANAGER"
+      ],
+      "implementation": "PASS"
+    },
+    {
+      "flow": "POST_RECEIPT",
+      "method": "POST",
+      "runtime_path": "/api/v1/inbound-documents/{id}/post-receipt",
+      "backend_permission": "stock_document.post",
+      "frontend_permission": "inbound.post",
+      "mapping": "COMPATIBILITY_ALIAS",
+      "backend_enforcement": "permission:stock_document.post",
+      "alias_seed_roles": [
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_MANAGER"
+      ],
+      "implementation": "PASS"
+    },
+    {
+      "flow": "POST_ISSUE",
+      "method": "POST",
+      "runtime_path": "/api/v1/outbound-documents/{id}/post-issue",
+      "backend_permission": "stock_document.post",
+      "frontend_permission": "outbound.post",
+      "mapping": "COMPATIBILITY_ALIAS",
+      "backend_enforcement": "permission:stock_document.post",
+      "alias_seed_roles": [
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_MANAGER"
+      ],
+      "implementation": "PASS"
+    },
+    {
+      "flow": "APPLY_ADJUSTMENT",
+      "method": "POST",
+      "runtime_path": "/api/v1/stocktake/sessions/{id}/apply-adjustment",
+      "frontend_runtime_path": "/api/v1/stocktake/sessions/{sessionId}/apply-adjustment",
+      "backend_permission": "stocktake.adjust",
+      "frontend_permission": "stocktake.adjust",
+      "mapping": "EXACT_WITH_BACKWARD_COMPATIBLE_ROUTE_ALIAS",
+      "implementation": "PASS",
+      "legacy_backend_path": "/api/v1/stocktake-sessions/{id}/apply-adjustment"
+    },
+    {
+      "flow": "WARRANTY_TEMP_ONLY",
+      "method": "POST",
+      "runtime_path": "/api/v1/warranty-cases/{id}/temp-only",
+      "backend_permission": "warranty.temp_only",
+      "frontend_permission": "warranty.temp_only",
+      "mapping": "EXACT",
+      "backend_enforcement": "permission:warranty.temp_only",
+      "implementation": "PASS"
+    },
+    {
+      "flow": "REPORT_EXPORT",
+      "method": "GET",
+      "runtime_path": "/api/v1/reports/inventory-xnt/export-excel",
+      "backend_permission": "report.view",
+      "frontend_permission": "report.export",
+      "mapping": "FE_NARROWER_ACTION_ALIAS",
+      "backend_enforcement": "permission:report.view",
+      "alias_seed_roles": [
+        "WAREHOUSE_MANAGER"
+      ],
+      "implementation": "PASS_WITH_FE_NARROWER_UX_GUARD"
+    }
+  ],
+  "route_entry_aliases": [
+    {
+      "frontend_permission": "inventory.trace",
+      "canonical_capability": "inventory.view/scan.classify",
+      "roles": [
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_MANAGER"
+      ],
+      "status": "PASS"
+    },
+    {
+      "frontend_permission": "stocktake.count",
+      "canonical_capability": "stocktake.adjust",
+      "roles": [
+        "WAREHOUSE_MANAGER"
+      ],
+      "status": "PASS"
+    },
+    {
+      "frontend_permission": "warranty.manage",
+      "canonical_capability": "warranty.temp_only",
+      "roles": [
+        "WAREHOUSE_MANAGER"
+      ],
+      "status": "PASS"
+    },
+    {
+      "frontend_permission": "scan.warranty",
+      "canonical_capability": "warranty.temp_only/scan.classify",
+      "roles": [
+        "WAREHOUSE_MANAGER"
+      ],
+      "status": "PASS"
+    }
+  ],
+  "integrity": {
+    "critical_rows": 8,
+    "exact_or_implemented_alias_rows": 8,
+    "formal_path_disposition_rows": 0,
+    "unmapped_permission_rows": 0,
+    "canonical_middleware_replaced_by_alias": false,
+    "no_permission_role_alias_count_expected": 0,
+    "automated_test": "tests/Feature/Wwhn180PermissionAliasContractTest.php",
+    "status": "PASS",
+    "frontend_source_binding": "PASS_CURRENT_FE_HANDOFF_SHA"
+  },
+  "independent_review": {
+    "FE1": {
+      "result": "PENDING",
+      "reviewer": null,
+      "reviewed_at": null,
+      "comment_url": null
+    },
+    "BA": {
+      "result": "PENDING",
+      "reviewer": null,
+      "reviewed_at": null,
+      "comment_url": null
+    }
+  }
+}

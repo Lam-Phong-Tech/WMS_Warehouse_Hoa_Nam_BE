@@ -1,0 +1,13 @@
+WMS Permission Catalog — BE1
+Version: 1.1.0-be1-wwhn150
+Status: PROPOSED
+
+WWHN-150:
+POST /api/v1/scan/classify -> scan.classify -> WAREHOUSE_MANAGER (+ SUPER_ADMIN bypass)
+
+Generated evidence:
+- build/evidence/api-data/permission-catalog.json
+- build/evidence/api-data/route-list.raw.json
+- build/evidence/api-data/SHA256SUMS
+
+The generated catalog includes source SHA-256, route integrity checks, role assignments and endpoint-permission-role matrix. FE/BA review must use the exact commit artifact.

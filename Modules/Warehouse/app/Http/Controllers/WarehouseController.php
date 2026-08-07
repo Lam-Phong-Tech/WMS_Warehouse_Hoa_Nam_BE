@@ -89,23 +89,23 @@ class WarehouseController extends Controller
     )]
     public function update(UpdateWarehouseRequest $request, string $id)
     {
-        $warehouse = $this->warehouses->find($id);
+        $before = $this->warehouses->find($id);
 
-        if (! $warehouse) {
+        if (! $before) {
             return $this->respondNotFound('Không tìm thấy kho.');
         }
 
-        $before = $warehouse->only(['id', 'code', 'name', 'address', 'contact_person', 'phone', 'status']);
+        $beforeData = $before->toArray();
         $warehouse = $this->warehouses->update($id, $request->validated());
 
         AuditLogger::record(
-            'UPDATE',
-            'warehouse',
-            $warehouse->getKey(),
-            auth('api')->id(),
-            $request->attributes->get('request_id'),
-            beforeData: $before,
-            afterData: $warehouse->only(['id', 'code', 'name', 'address', 'contact_person', 'phone', 'status'])
+            action: 'UPDATE',
+            objectType: 'warehouse',
+            objectId: $id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            beforeData: $beforeData,
+            afterData: $warehouse->toArray(),
         );
 
         return $this->respondSuccess($warehouse, 'Cập nhật kho thành công');

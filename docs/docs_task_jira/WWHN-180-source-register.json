@@ -1,0 +1,150 @@
+{
+  "jira_key": "WWHN-180",
+  "parent_key": "WWHN-40",
+  "version": "1.7.0",
+  "status": "PROPOSED",
+  "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
+  "branch": "m1",
+  "exact_commit_source": "build/evidence/api-data/build-metadata.json.commit_sha",
+  "architecture_baseline": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+  "version_invariants": {
+    "source_register": "1.7.0",
+    "task_document": "1.7.0",
+    "focused_openapi_json": "1.7.0",
+    "focused_openapi_yaml": "1.7.0",
+    "canonical_postman": "1.7.0",
+    "immutable_manifest": "1.7.0",
+    "enforcement": "CI fails when any canonical version differs or JSON/YAML semantic parity fails.",
+    "permission_catalog_document_version": "1.7.0",
+    "test_matrix": "1.7.0"
+  },
+  "canonical_scope": {
+    "warehouse_model": "ONE_ACTIVE_MASTER_WAREHOUSE_HOA_NAM",
+    "agency_model": "DESTINATION_PARTY_NOT_WAREHOUSE",
+    "scan_stock_effect": "NONE",
+    "stock_change_actions": [
+      "POST_RECEIPT",
+      "POST_ISSUE",
+      "APPLY_ADJUSTMENT"
+    ],
+    "legacy_approval_routes": "OUT_OF_SCOPE_NOT_IN_HANDOFF",
+    "transfer_multi_warehouse": "OUT_OF_SCOPE_HOA_NAM"
+  },
+  "frontend_observed_source": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "branch": "m1",
+    "exact_commit_sha": "f6e137d01ed7afec5d30e8fecde6a2cc31bb7c8b",
+    "baseline_path": "docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json",
+    "baseline_git_blob_sha": "656b3315cdb64d2c74e854cde8fdd896477e8c52",
+    "baseline_task_key": "WWHN-153",
+    "review_task_key": "WWHN-181",
+    "disposition": "CURRENT_FE_HANDOFF_OBSERVED_READ_ONLY_PENDING_WWHN_181_INDEPENDENT_REVIEW"
+  },
+  "contracts": {
+    "focused_openapi_yaml": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+    "focused_openapi_json": "docs/api-contract/WWHN-180-posting-openapi.json",
+    "canonical_postman_collection": "docs/postman/WWHN-180 Canonical Contract.postman_collection.json",
+    "canonical_postman_environment": "docs/postman/WWHN-180 Canonical Contract.postman_environment.json",
+    "ci_harness_collection": "docs/postman/WWHN-180 Posting Contract.postman_collection.json",
+    "ci_harness_environment": "docs/postman/WWHN-180 Posting CI.postman_environment.json",
+    "test_cases": "docs/testing/WWHN-180-posting-test-cases.json",
+    "permission_catalog": "docs/evidence/WWHN-180/permission-catalog.json",
+    "be_fe_permission_mapping": "docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json",
+    "immutable_handoff_manifest": "docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json",
+    "repository_release_pack": "docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md",
+    "repository_sha256sums": "docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS"
+  },
+  "separation_of_concerns": {
+    "canonical_handoff": "Contains only Hoa Nam G1 operations and no platform approval workflow request.",
+    "ci_harness": "May provision executable fixtures using platform-only setup endpoints; it is not the FE/QA canonical contract.",
+    "enforcement": "scripts/verify-wwhn180-canonical-handoff.mjs fails CI if canonical artifacts contain submit/approve/reject or version drift."
+  },
+  "ci": {
+    "workflow": ".github/workflows/wwhn-180-api-posting-contract.yml",
+    "collector": "scripts/collect-wwhn180-canonical-evidence.sh",
+    "canonical_verifier": "scripts/verify-wwhn180-canonical-handoff.mjs",
+    "immutable_verifier": "scripts/verify-wwhn180-immutable-handoff.mjs",
+    "commit_status_context": "wwhn-180/evidence-gate",
+    "artifact_status_context": "wwhn-180/artifact-integrity",
+    "observability": "Push workflow publishes pending/success/failure status and the successful artifact SHA-256 digest without requiring a pull request.",
+    "success_artifact_pattern": "api-data-evidence-<commit_sha>",
+    "required_outputs": [
+      "build-metadata.json",
+      "source-tree.sha256",
+      "SHA256SUMS",
+      "SHA256SUMS.sha256",
+      "canonical-handoff-verification.json",
+      "immutable-handoff-verification.json",
+      "immutable-handoff-manifest.json",
+      "openapi-lint.raw.log",
+      "openapi-lint-status.json",
+      "openapi-parity-verification.json",
+      "openapi.json",
+      "openapi.yaml",
+      "wwhn180-openapi.json",
+      "wwhn180-openapi.yaml",
+      "wwhn180.postman.collection.json",
+      "wwhn180.postman.environment.json",
+      "wwhn180.ci-harness.collection.json",
+      "wwhn180.ci-harness.environment.json",
+      "route-list.raw.json",
+      "permission-catalog.json",
+      "permission-catalog.static.json",
+      "be-fe-permission-mapping.json",
+      "credential-hygiene.json",
+      "phpunit.raw.log",
+      "newman.raw.log",
+      "newman.result.json",
+      "db-before.json",
+      "db-after.json",
+      "wwhn180-db-delta.json",
+      "reconciliation-report.json",
+      "g1-closure-matrix.json"
+    ],
+    "base_collector": "scripts/collect-wwhn180-evidence.sh",
+    "one_commit_release_rule": "Immutable verifier requires HEAD to be the sole direct child of release_parent_sha and the exact changed path set to match manifest.changed_paths.",
+    "pre_runtime_repository_verification": [
+      "sha256sum -c docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS",
+      "node scripts/verify-wwhn180-immutable-handoff.mjs docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json docs/docs_task_jira/WWHN-180-source-register.json build/evidence/api-data/immutable-handoff-verification.json"
+    ]
+  },
+  "reviewers": {
+    "FE1": {
+      "jira": "WWHN-181",
+      "result": "PENDING",
+      "required": "reviewer/result/date for endpoint/payload/error/permission mapping on exact BE+FE SHA and artifact digest"
+    },
+    "QA2": {
+      "jira": "WWHN-182",
+      "result": "PENDING",
+      "required": "independent happy/negative/RBAC/idempotency/double-post/race/DB/reconcile evidence on passing artifact"
+    },
+    "BA": {
+      "jira": "WWHN-183",
+      "result": "PENDING",
+      "required": "G1 minutes on WWHN-40 and GO/CONDITIONAL_GO/NO_GO"
+    }
+  },
+  "approval_rule": "Do not mark APPROVED, Done or 100% until a successful exact-SHA artifact is verified and FE1, QA2 and BA sign the same BE SHA, FE SHA and artifact digest.",
+  "self_reference_rule": "The final BE commit SHA and artifact digest are never hard-coded into source documents; build-metadata.json and the GitHub artifact API are the runtime authorities.",
+  "repository_remediation": {
+    "audit_snapshot": "76/100",
+    "audit_date": "2026-08-07",
+    "code_controls": {
+      "stock_effect_document_lock": "Modules/Warehouse/app/Services/StockDocumentService.php",
+      "stale_model_regression": "tests/Feature/StockDocumentConcurrencyGuardTest.php",
+      "rule": "Receipt, issue and reverse must reload the document with SELECT ... FOR UPDATE before status validation or ledger calls."
+    },
+    "direct_repository_artifacts": {
+      "release_pack": "docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md",
+      "sha256sums": "docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS",
+      "immutable_manifest": "docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json"
+    },
+    "external_gates": {
+      "github_actions_runner": "REQUIRED; organization billing/spending limit must allow runner allocation",
+      "FE1": "WWHN-181 independent sign-off",
+      "QA2": "WWHN-182 independent runtime PASS/FAIL/CONDITIONAL",
+      "BA": "WWHN-183 and WWHN-40 GO/CONDITIONAL_GO/NO_GO minutes"
+    }
+  }
+}

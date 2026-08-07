@@ -1,0 +1,358 @@
+openapi: 3.0.3
+info:
+  title: WWHN-172 SKU and Container Contract
+  version: 1.0.0
+  description: Atomic transaction, audit, idempotency and optimistic-concurrency contract.
+  license:
+    name: Proprietary - Hoa Nam WMS Internal Use
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /v1/skus:
+    post:
+      operationId: createSku
+      tags: [SKU]
+      summary: Create SKU, components and physical codes atomically
+      parameters:
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SkuCreate' }
+      responses:
+        '201':
+          description: Created or exact replay
+          headers:
+            Idempotent-Replay:
+              schema: { type: string, enum: ['true', 'false'] }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+  /v1/skus/{id}:
+    get:
+      operationId: getSku
+      tags: [SKU]
+      summary: Get aggregate SKU detail
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: SKU aggregate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateSku
+      tags: [SKU]
+      summary: Update aggregate using optimistic concurrency
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SkuUpdate' }
+      responses:
+        '200':
+          description: Updated or exact replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SkuEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+        '428': { $ref: '#/components/responses/Precondition' }
+  /v1/skus/{id}/physical-codes:
+    post:
+      operationId: assignSkuPhysicalCode
+      tags: [SKU]
+      summary: Assign or reactivate a physical code
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PhysicalCode'
+                - type: object
+                  properties:
+                    version: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Assigned }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+        '428': { $ref: '#/components/responses/Precondition' }
+  /v1/skus/{id}/physical-codes/{physicalCodeId}:
+    delete:
+      operationId: revokeSkuPhysicalCode
+      tags: [SKU]
+      summary: Revoke a physical code
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: physicalCodeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200': { description: Revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '428': { $ref: '#/components/responses/Precondition' }
+  /v1/containers:
+    get:
+      operationId: listContainers
+      tags: [Container]
+      summary: List containers
+      parameters:
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: warehouse_id, in: query, schema: { type: string, format: uuid } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200': { description: Paginated list }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createContainer
+      tags: [Container]
+      summary: Create container and item set atomically
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContainerWrite' }
+      responses:
+        '201':
+          description: Created or exact replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContainerEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+        '428': { $ref: '#/components/responses/Precondition' }
+  /v1/containers/{id}:
+    get:
+      operationId: getContainer
+      tags: [Container]
+      summary: Get container and active items
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: Container aggregate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContainerEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateContainer
+      tags: [Container]
+      summary: Update mutable container aggregate
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContainerUpdate' }
+      responses:
+        '200': { description: Updated }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+        '428': { $ref: '#/components/responses/Precondition' }
+  /v1/containers/{id}/seal:
+    post:
+      operationId: sealContainer
+      tags: [Container]
+      summary: Seal an ACTIVE non-empty container
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Sealed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+        '428': { $ref: '#/components/responses/Precondition' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OptionalIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional only for backward-compatible POST /v1/skus. When supplied, exact replay and same-key/different-payload conflict apply.
+      schema: { type: string, maxLength: 128 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, maxLength: 128 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: Required unless body version is supplied.
+      schema: { type: string, example: '"3"' }
+  schemas:
+    ComponentInput:
+      type: object
+      required: [component_id, quantity]
+      properties:
+        component_id: { type: string, format: uuid }
+        quantity:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+    PhysicalCode:
+      type: object
+      required: [code_value]
+      properties:
+        code_value: { type: string, maxLength: 150 }
+        code_type: { type: string, enum: [BARCODE, QR, RFID, SERIAL], default: BARCODE }
+        carrier_type: { type: string, enum: [UNIT, PACKAGE, LABEL, TAG], default: UNIT }
+        status: { type: string, enum: [ACTIVE, INACTIVE], default: ACTIVE }
+    SkuCreate:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, maxLength: 100 }
+        sku_code: { type: string, maxLength: 100 }
+        name: { type: string, maxLength: 255 }
+        unit: { type: string, maxLength: 30 }
+        sku_type: { type: string, enum: [PRODUCT, COMPONENT], default: PRODUCT }
+        status: { type: string, enum: [ACTIVE, INACTIVE, DRAFT] }
+        is_serial_tracked: { type: boolean }
+        components:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/ComponentInput' }
+        physical_codes:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/PhysicalCode' }
+    SkuUpdate:
+      allOf:
+        - $ref: '#/components/schemas/SkuCreate'
+        - type: object
+          properties:
+            version: { type: integer, minimum: 1 }
+    ContainerItem:
+      type: object
+      properties:
+        inventory_serial_id: { type: string, format: uuid, nullable: true }
+        product_id: { type: string, format: uuid, nullable: true }
+        quantity:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+    ContainerWrite:
+      type: object
+      required: [container_code, container_type, items]
+      properties:
+        container_code: { type: string, maxLength: 150 }
+        container_type: { type: string, enum: [PALLET, CARTON, BOX, TRAY, BIN, BAG, OTHER] }
+        parent_container_id: { type: string, format: uuid, nullable: true }
+        warehouse_id: { type: string, format: uuid, nullable: true }
+        primary_product_id: { type: string, format: uuid, nullable: true }
+        physical_code_id: { type: string, format: uuid, nullable: true }
+        zone_code: { type: string, nullable: true }
+        location_hint: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        items:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/ContainerItem' }
+    ContainerUpdate:
+      allOf:
+        - $ref: '#/components/schemas/ContainerWrite'
+        - type: object
+          properties:
+            version: { type: integer, minimum: 1 }
+    SkuEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data: { type: object, additionalProperties: true }
+        meta: { type: object, additionalProperties: true }
+    ContainerEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data: { type: object, additionalProperties: true }
+        meta: { type: object, additionalProperties: true }
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, enum: [false] }
+        message: { type: string }
+        error_code: { type: string }
+        errors: { type: object, additionalProperties: true }
+        error: { type: object, additionalProperties: true }
+        meta: { type: object, additionalProperties: true }
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired bearer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Idempotency, ownership, state or version conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    BusinessRule:
+      description: Validation or business-rule violation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Precondition:
+      description: Missing Idempotency-Key or expected version
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

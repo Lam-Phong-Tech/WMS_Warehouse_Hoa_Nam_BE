@@ -1,0 +1,107 @@
+{
+  "suite_id": "WWHN-150-SCAN-READONLY",
+  "version": "1.1.0",
+  "status": "PROPOSED",
+  "owner": "BE1 + QA1",
+  "test_cases": [
+    {
+      "id": "SCAN-TC-001",
+      "priority": "P0",
+      "title": "Resolve serial thật và trả stock_effect NONE",
+      "expected_http": 200,
+      "expected": ["classification=ITEM", "stock_effect=NONE", "movement_created=false", "posting_event_created=false", "idempotency_cache_written=false"]
+    },
+    {
+      "id": "SCAN-TC-002",
+      "priority": "P0",
+      "title": "Gọi lặp cùng Idempotency-Key không ghi idempotency cache",
+      "expected_http": 200,
+      "expected": ["response contract giữ nguyên", "idempotency_keys before=after"]
+    },
+    {
+      "id": "SCAN-TC-003",
+      "priority": "P0",
+      "title": "DB fingerprint trước/sau scan không đổi",
+      "expected_http": 200,
+      "expected": ["inventory_balances unchanged", "stock_movements unchanged", "posting_event unchanged", "scan_event unchanged", "idempotency_keys unchanged"]
+    },
+    {
+      "id": "SCAN-TC-004",
+      "priority": "P1",
+      "title": "Thiếu scan.classify bị từ chối",
+      "expected_http": 403,
+      "expected": ["backend middleware denies request", "no database side effect"]
+    },
+    {
+      "id": "SCAN-TC-005",
+      "priority": "P1",
+      "title": "Kho ngoài data scope bị từ chối",
+      "expected_http": 403,
+      "expected": ["error_code=WAREHOUSE_SCOPE_DENIED", "no database side effect"]
+    },
+    {
+      "id": "SCAN-TC-006",
+      "priority": "P1",
+      "title": "Mã không tồn tại trả lỗi rõ ràng",
+      "expected_http": 404,
+      "expected": ["error_code=SCAN_CODE_NOT_FOUND", "no database side effect"]
+    },
+    {
+      "id": "SCAN-TC-007",
+      "priority": "P1",
+      "title": "Trạng thái object/context không hợp lệ",
+      "expected_http": 409,
+      "expected": ["error_code=SCAN_CONTEXT_CONFLICT hoặc mã lỗi trạng thái cụ thể", "no database side effect"]
+    },
+    {
+      "id": "SCAN-TC-008",
+      "priority": "P1",
+      "title": "Payload không hợp lệ",
+      "expected_http": 422,
+      "expected": ["validation envelope", "no database side effect"]
+    },
+    {
+      "id": "SCAN-TC-009",
+      "priority": "P0",
+      "title": "Resolver SKU và CONTAINER giữ nguyên protected-table fingerprint",
+      "expected_http": 200,
+      "expected": ["SKU stock_effect=NONE", "CONTAINER stock_effect=NONE", "protected tables unchanged"]
+    },
+    {
+      "id": "SCAN-TC-010",
+      "priority": "P0",
+      "title": "Query listener chặn transient DML",
+      "expected_http": 200,
+      "expected": ["zero INSERT/UPDATE/DELETE/REPLACE on inventory_balances, stock_movements, posting_event, idempotency_keys, scan_event"]
+    },
+    {
+      "id": "SCAN-TC-011",
+      "priority": "P1",
+      "title": "Unauthenticated request",
+      "expected_http": 401,
+      "expected": ["authentication middleware denies", "protected tables unchanged"]
+    },
+    {
+      "id": "SCAN-TC-012",
+      "priority": "P1",
+      "title": "Warehouse existence không lộ trước scope gate",
+      "expected_http": 403,
+      "expected": ["scoped actor receives same WAREHOUSE_SCOPE_DENIED for foreign and unknown warehouse UUID", "protected tables unchanged"]
+    },
+    {
+      "id": "SCAN-TC-013",
+      "priority": "P1",
+      "title": "Raw code ngoài warehouse scope không trở thành object-existence oracle",
+      "expected_http": 404,
+      "expected": ["error_code=SCAN_CODE_NOT_FOUND", "response does not expose object warehouse ID", "protected tables unchanged"]
+    },
+    {
+      "id": "SCAN-TC-014",
+      "priority": "P1",
+      "title": "Concurrent same-key scan không tạo race side effect",
+      "expected_http": 200,
+      "expected": ["20 concurrent responses PASS", "all responses resolve the same item", "write flags remain false", "protected-table before/after fingerprint unchanged"]
+    }
+  ],
+  "closure_rule": "QA1 phải chạy độc lập trên exact commit SHA và attach raw PHPUnit/Newman/DB fingerprint evidence; repository test pass không thay thế independent sign-off."
+}

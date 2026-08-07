@@ -1,0 +1,281 @@
+name: WWHN-180 API Data Contract Evidence Gate
+
+on:
+  push:
+    branches: [m1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: wwhn-180-api-data-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Publish pending statuses
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const targetUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            for (const [statusContext, description] of [
+              ['wwhn-180/evidence-gate', 'WWHN-180 evidence gate is running'],
+              ['wwhn-180/artifact-integrity', 'WWHN-180 artifact digest is pending'],
+            ]) {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.sha,
+                state: 'pending',
+                context: statusContext,
+                description,
+                target_url: targetUrl,
+              });
+            }
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+
+      - name: Prepare isolated runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="W180-$(openssl rand -hex 24)"
+          jwt="W180-JWT-$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
+          printf 'CI_DEMO_PASSWORD=%s\nWWHN180_PASSWORD=%s\nWWHN180_NO_PERMISSION_PASSWORD=%s\nJWT_SECRET=%s\n' \
+            "$password" "$password" "$password" "$jwt" >> "$GITHUB_ENV"
+          cp .env.example .env
+          php artisan key:generate
+          rm -f /tmp/wms-wwhn180.sqlite
+          touch /tmp/wms-wwhn180.sqlite
+          printf 'JWT_SECRET=%s\nDB_CONNECTION=sqlite\nDB_DATABASE=/tmp/wms-wwhn180.sqlite\nCACHE_STORE=array\nSESSION_DRIVER=array\nQUEUE_CONNECTION=sync\nAUDIT_WRITE_POLICY=outbox_required\n' \
+            "$jwt" >> .env
+
+      - name: Static gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          find app Modules tests config database routes -name '*.php' -print0 | xargs -0 -n1 php -l
+          git diff --check
+          ./vendor/bin/pint --test app Modules tests config database routes
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Collect exact-SHA evidence
+        env:
+          EVIDENCE_DIR: build/evidence/api-data
+          WWHN180_EMAIL: manager01@gmail.com
+          WWHN180_NO_PERMISSION_EMAIL: test-no-permission@hoanam.com
+          DB_CONNECTION: sqlite
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Newman requires request-level auth. Normalize the internal CI harness
+          # in the ephemeral checkout only; the canonical FE/QA handoff is unchanged.
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'docs/postman/WWHN-180 Posting Contract.postman_collection.json';
+          const collection = JSON.parse(fs.readFileSync(path, 'utf8'));
+          let migrated = 0;
+          const walk = (items = []) => {
+            for (const item of items) {
+              if (item.request && item.auth) {
+                if (item.request.auth) throw new Error(`Duplicate auth definition: ${item.name}`);
+                item.request.auth = item.auth;
+                delete item.auth;
+                migrated += 1;
+              }
+              walk(item.item);
+            }
+          };
+          walk(collection.item);
+          const denied = collection.item.find(item => item.name === '23 Reconciliation denied without permission');
+          const token = denied?.request?.auth?.bearer?.find(entry => entry.key === 'token')?.value;
+          if (token !== '{{no_permission_token}}') {
+            throw new Error('RBAC request must explicitly use {{no_permission_token}} at request.auth');
+          }
+          if (migrated < 3) {
+            throw new Error(`Expected at least 3 item-level auth definitions to migrate, got ${migrated}`);
+          }
+          fs.writeFileSync(path, `${JSON.stringify(collection)}\n`);
+          console.log(`Postman request-auth normalization PASS: ${migrated} definitions migrated`);
+          NODE
+          bash scripts/collect-wwhn180-canonical-evidence.sh
+
+      - name: Verify exact-SHA evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=build/evidence/api-data
+          node - "$root" <<'NODE'
+          const fs = require('fs');
+          const root = process.argv[2];
+          const read = name => JSON.parse(fs.readFileSync(`${root}/${name}`, 'utf8'));
+          const metadata = read('build-metadata.json');
+          const canonical = read('canonical-handoff-verification.json');
+          const immutable = read('immutable-handoff-verification.json');
+          const parity = read('openapi-parity-verification.json');
+          const lint = read('openapi-lint-status.json');
+          const hygiene = read('credential-hygiene.json');
+          const ciCollection = read('wwhn180.ci-harness.collection.json');
+          const denied = ciCollection.item.find(item => item.name === '23 Reconciliation denied without permission');
+          const deniedToken = denied?.request?.auth?.bearer?.find(entry => entry.key === 'token')?.value;
+          if (deniedToken !== '{{no_permission_token}}' || denied?.auth) {
+            throw new Error('Postman RBAC auth gate failed');
+          }
+          if (
+            metadata.commit_sha !== process.env.GITHUB_SHA ||
+            metadata.artifact_name !== `api-data-evidence-${process.env.GITHUB_SHA}` ||
+            metadata.approval_status !== 'PENDING_INDEPENDENT_SIGN_OFF' ||
+            metadata.document_version !== '1.7.0' ||
+            metadata.source_register_version !== '1.7.0' ||
+            metadata.focused_contract_version !== '1.7.0' ||
+            metadata.canonical_postman_version !== '1.7.0' ||
+            metadata.canonical_postman_request_count !== 15 ||
+            metadata.canonical_drift_status !== 'PASS' ||
+            metadata.openapi_lint_status !== 'PASS' ||
+            metadata.openapi_parity_status !== 'PASS' ||
+            metadata.immutable_handoff_status !== 'PASS'
+          ) {
+            throw new Error('metadata gate failed');
+          }
+          if (
+            canonical.status !== 'PASS' ||
+            canonical.document_version !== '1.7.0' ||
+            canonical.forbidden_request_count ||
+            canonical.forbidden_openapi_path_count ||
+            canonical.committed_secret_value_count
+          ) {
+            throw new Error('canonical gate failed');
+          }
+          if (immutable.status !== 'PASS' || immutable.document_version !== '1.7.0') {
+            throw new Error('immutable handoff gate failed');
+          }
+          if (parity.status !== 'PASS' || lint.status !== 'PASS') {
+            throw new Error('OpenAPI lint/parity gate failed');
+          }
+          if (
+            read('wwhn180-contract-verification.json').summary?.status !== 'PASS' ||
+            read('wwhn180-db-delta.json').summary?.status !== 'PASS' ||
+            read('reconciliation-report.json').summary?.status !== 'PASS' ||
+            (read('newman.result.json').run?.failures ?? []).length
+          ) {
+            throw new Error('runtime evidence failed');
+          }
+          if (hygiene.status !== 'PASS' || hygiene.residual_runtime_secret_count || hygiene.residual_jwt_count) {
+            throw new Error('credential gate failed');
+          }
+          NODE
+
+          required=(
+            build-metadata.json source-tree.sha256 SHA256SUMS SHA256SUMS.sha256
+            canonical-handoff-verification.json immutable-handoff-verification.json immutable-handoff-manifest.json
+            openapi-lint.raw.log openapi-lint-status.json openapi-parity-verification.json
+            openapi.json openapi.yaml wwhn180-openapi.json wwhn180-openapi.yaml
+            wwhn180.postman.collection.json wwhn180.postman.environment.json
+            wwhn180.ci-harness.collection.json wwhn180.ci-harness.environment.json
+            route-list.raw.json permission-catalog.json permission-catalog.static.json
+            be-fe-permission-mapping.json credential-hygiene.json
+            health-response.json health-http-status.txt health-probe-evidence.json
+            phpunit.raw.log wwhn180-atomicity-phpunit.raw.log
+            stock-document-canonical-phpunit.raw.log stock-document-concurrency-phpunit.raw.log
+            wwhn180-permission-alias-phpunit.raw.log reconciliation-integrity-phpunit.raw.log
+            newman.raw.log newman.result.json db-before.json db-after.json
+            wwhn180-db-delta.json reconciliation-report.json g1-closure-matrix.json
+            wwhn180-source-register.json wwhn180-test-cases.json
+          )
+          for file in "${required[@]}"; do
+            test -s "$root/$file"
+          done
+          (cd "$root" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
+
+      - name: Upload passing evidence
+        id: upload_passing
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-data-evidence-${{ github.sha }}
+          path: build/evidence/api-data
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish evidence summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## WWHN-180 exact-SHA evidence'
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Artifact: \`api-data-evidence-${GITHUB_SHA}\`"
+            echo "- Artifact ID: \`${{ steps.upload_passing.outputs.artifact-id }}\`"
+            echo "- Artifact digest: \`${{ steps.upload_passing.outputs.artifact-digest }}\`"
+            echo '- Internal SHA256SUMS verification: PASS'
+            echo '- Governance status: PENDING_INDEPENDENT_SIGN_OFF'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-data-diagnostics-${{ github.sha }}
+          path: build/evidence/api-data
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish final statuses
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_DIGEST: ${{ steps.upload_passing.outputs.artifact-digest }}
+        with:
+          script: |
+            const targetUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const passed = '${{ job.status }}' === 'success';
+            const digest = process.env.ARTIFACT_DIGEST || '';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: passed ? 'success' : 'failure',
+              context: 'wwhn-180/evidence-gate',
+              description: passed ? 'WWHN-180 evidence gate passed' : 'WWHN-180 evidence gate failed',
+              target_url: targetUrl,
+            });
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: passed && digest.startsWith('sha256:') ? 'success' : 'failure',
+              context: 'wwhn-180/artifact-integrity',
+              description: passed && digest
+                ? `Artifact ${digest.slice(0, 55)}`
+                : 'Passing artifact digest was not produced',
+              target_url: targetUrl,
+            });

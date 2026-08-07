@@ -1,0 +1,50 @@
+{
+  "schema_version": "2.0.0",
+  "ticket": "WWHN-128",
+  "decision_id": "DEC-INV-001",
+  "document_revision": "1.8-R8",
+  "contract_version": "1.7.0",
+  "gate_status": "FAIL_CLOSED_PENDING_WWHN_181_182_183_AND_WWHN_40",
+  "repository_contract_sources": [
+    {"control": "ARCHITECTURE_BASELINE", "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md", "status": "PRESENT"},
+    {"control": "OPENAPI_JSON", "path": "docs/api-contract/WWHN-180-posting-openapi.json", "git_blob_sha_at_observation": "7cfe29dbecd87a44cab03b90762f6a986e332079", "version": "1.7.0"},
+    {"control": "OPENAPI_YAML", "path": "docs/api-contract/WWHN-180-posting-openapi.yaml", "git_blob_sha_at_observation": "7cfe29dbecd87a44cab03b90762f6a986e332079", "version": "1.7.0"},
+    {"control": "CANONICAL_POSTMAN", "path": "docs/postman/WWHN-180 Canonical Contract.postman_collection.json", "git_blob_sha_at_observation": "f19e4e771626fa3fcb420bd74a8cfc61578fb0db", "version": "1.7.0"},
+    {"control": "CANONICAL_POSTMAN_ENV", "path": "docs/postman/WWHN-180 Canonical Contract.postman_environment.json", "git_blob_sha_at_observation": "73444e88efda33f219af55ea915b6a0b4d2cb427", "version": "1.7.0"},
+    {"control": "EXECUTABLE_POSTMAN", "path": "docs/postman/WWHN-180 Posting Contract.postman_collection.json", "git_blob_sha_at_observation": "fa78c2bfa5e0ea3f5018bc48ece2ee5a2ac42039", "version": "CI_HARNESS"},
+    {"control": "TEST_MATRIX", "path": "docs/testing/WWHN-180-posting-test-cases.json", "git_blob_sha_at_observation": "67a46513bd0c349cda7c9ba40c90408b935870c0", "version": "1.7.0"},
+    {"control": "PERMISSION_CATALOG", "path": "docs/evidence/WWHN-180/permission-catalog.json", "git_blob_sha_at_observation": "03febce3bccd03032ff847c5a72af9da93801a0d", "version": "1.7.0"},
+    {"control": "BE_FE_PERMISSION_MAPPING", "path": "docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json", "git_blob_sha_at_observation": "59d87af993c1b002f74827fa1331cb426e4d2bda", "version": "1.7.0"},
+    {"control": "QA2_MATRIX", "path": "docs/evidence/WWHN-128/QA2_EXECUTION_MATRIX.json", "status": "R8_REPO_CONTROL"},
+    {"control": "SIGNOFF_LEDGER", "path": "docs/evidence/WWHN-128/G1_SIGNOFF_LEDGER.json", "status": "R8_REPO_CONTROL"}
+  ],
+  "frontend_binding": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "branch": "m1",
+    "observed_commit": "2b88d55922c7fc4269918ef5e35beea86297b49a",
+    "baseline_path": "docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json",
+    "baseline_git_blob_sha": "e2e760c2e6fb22646a4bb314b564ce8c9fc956dc",
+    "prior_binding_invalidated": {
+      "commit": "f6e137d01ed7afec5d30e8fecde6a2cc31bb7c8b",
+      "blob": "656b3315cdb64d2c74e854cde8fdd896477e8c52",
+      "reason": "FE m1 advanced; final review must use the current observed baseline or a newer explicitly recorded one."
+    }
+  },
+  "jira_gates": {
+    "WWHN-181": {"owner_role": "FE1", "observed_status": "IN_PROGRESS_REDFLAG", "required_result": "PASS_OR_FAIL_OR_CONDITIONAL_ON_EXACT_BINDING"},
+    "WWHN-182": {"owner_role": "QA2", "observed_status": "IN_PROGRESS", "required_result": "PASS_OR_FAIL_OR_CONDITIONAL_WITH_RAW_API_DB_RACE_RECONCILIATION_EVIDENCE"},
+    "WWHN-183": {"owner_role": "BA", "observed_status": "IN_PROGRESS", "required_result": "GO_OR_CONDITIONAL_GO_OR_NO_GO_MINUTES"},
+    "WWHN-40": {"owner_role": "G1_GROUP", "observed_status": "IN_PROGRESS", "required_result": "DERIVED_FINAL_GATE_DECISION"}
+  },
+  "closure_formula": {
+    "GO": "WWHN-181 PASS AND WWHN-182 PASS AND WWHN-183 GO AND integrity PASS AND open P0/P1=0",
+    "CONDITIONAL_GO": "No P0 AND all P1 conditions have owner/due/evidence AND required signers explicitly accept conditions",
+    "NO_GO": "Any P0, integrity failure, stock/reconciliation failure, missing signature or blocking P1"
+  },
+  "approval_policy": {
+    "repository_artifacts_equal_formal_approval": false,
+    "dynamic_branch_url_sufficient": false,
+    "BE1_self_confirmation_allowed": false,
+    "missing_digest_or_signature_keeps_gate_closed": true
+  }
+}
