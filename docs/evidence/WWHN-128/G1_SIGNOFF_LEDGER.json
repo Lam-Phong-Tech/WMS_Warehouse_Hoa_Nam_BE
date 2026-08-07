@@ -1,0 +1,68 @@
+{
+  "schema_version": "2.0.0",
+  "ticket": "WWHN-128",
+  "decision_id": "DEC-INV-001",
+  "document_revision": "1.8-R8",
+  "contract_version": "1.7.0",
+  "gate": "G1_API_CONTRACT_APPROVAL",
+  "state": "FAIL_CLOSED_PENDING_ROLE_OWNED_SIGNATURES",
+  "binding": {
+    "backend_repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "backend_branch": "m1",
+    "backend_exact_commit_source": "workflow build-metadata.json.commit_sha",
+    "backend_artifact_name_source": "workflow build-metadata.json.artifact_name",
+    "backend_artifact_digest_source": "GitHub upload-artifact output artifact-digest",
+    "frontend_repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "frontend_branch": "m1",
+    "frontend_observed_commit": "2b88d55922c7fc4269918ef5e35beea86297b49a",
+    "frontend_baseline_path": "docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json",
+    "frontend_baseline_git_blob_sha": "e2e760c2e6fb22646a4bb314b564ce8c9fc956dc",
+    "observed_at": "2026-08-07T10:05:00+07:00",
+    "rule": "Every signature must quote the same BE commit, FE commit, artifact ID/name/digest and verified SHA256SUMS result."
+  },
+  "signatures": {
+    "FE1": {
+      "jira": "WWHN-181",
+      "status": "PENDING_ROLE_SIGNATURE",
+      "allowed_results": ["PASS", "FAIL", "CONDITIONAL"],
+      "required_scope": ["endpoint and method", "request headers and payload", "success and error schema", "permission and role aliases", "FE compatibility"],
+      "reviewer_account": null,
+      "reviewed_at": null,
+      "result": null,
+      "evidence_url": null
+    },
+    "QA2": {
+      "jira": "WWHN-182",
+      "status": "PENDING_ROLE_SIGNATURE",
+      "allowed_results": ["PASS", "FAIL", "CONDITIONAL"],
+      "required_scope": ["happy and negative API", "RBAC and warehouse scope", "idempotency and double-post", "race and rollback", "DB before/after and reconciliation", "artifact checksum verification"],
+      "reviewer_account": null,
+      "reviewed_at": null,
+      "result": null,
+      "evidence_url": null
+    },
+    "BA": {
+      "jira": "WWHN-183",
+      "status": "PENDING_ROLE_SIGNATURE",
+      "allowed_results": ["GO", "CONDITIONAL_GO", "NO_GO"],
+      "required_scope": ["G1 minutes", "business rule and contract alignment", "open P0/P1 count", "conditions owner and due date", "same exact evidence binding"],
+      "reviewer_account": null,
+      "reviewed_at": null,
+      "result": null,
+      "evidence_url": null
+    }
+  },
+  "derived_gate": {
+    "jira": "WWHN-40",
+    "result": "PENDING",
+    "formula": "GO only when FE1=PASS, QA2=PASS, BA=GO, artifact checksum verification=PASS and open P0/P1=0.",
+    "conditional_formula": "CONDITIONAL_GO only when no P0 remains and every P1 condition has owner, due date and objective closure evidence.",
+    "no_go_formula": "NO_GO when any P0 remains, artifact integrity fails, stock-effect/reconciliation fails, or a required signer returns FAIL."
+  },
+  "anti_impersonation": {
+    "BE1_may_prepare_evidence": true,
+    "BE1_may_sign_for_FE1_QA2_BA": false,
+    "CI_may_replace_role_signature": false,
+    "missing_signature_result": "GATE_REMAINS_CLOSED"
+  }
+}
