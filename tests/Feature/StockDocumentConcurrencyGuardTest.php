@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
+use Mockery;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Product;
@@ -13,6 +14,7 @@ use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\StockDocumentService;
+use Modules\Warehouse\Services\StockLedger;
 use Tests\TestCase;
 
 class StockDocumentConcurrencyGuardTest extends TestCase
@@ -94,8 +96,12 @@ class StockDocumentConcurrencyGuardTest extends TestCase
                 'updated_at' => now(),
             ]);
 
+        $ledger = Mockery::mock(StockLedger::class);
+        $ledger->shouldNotReceive('inbound');
+        $service = new StockDocumentService($ledger);
+
         try {
-            app(StockDocumentService::class)->postReceipt(
+            $service->postReceipt(
                 $stale,
                 'qa2-race-probe',
                 'wwhn180-stale-race-key',

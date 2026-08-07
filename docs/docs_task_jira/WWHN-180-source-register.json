@@ -50,7 +50,9 @@
     "test_cases": "docs/testing/WWHN-180-posting-test-cases.json",
     "permission_catalog": "docs/evidence/WWHN-180/permission-catalog.json",
     "be_fe_permission_mapping": "docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json",
-    "immutable_handoff_manifest": "docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json"
+    "immutable_handoff_manifest": "docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json",
+    "repository_release_pack": "docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md",
+    "repository_sha256sums": "docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS"
   },
   "separation_of_concerns": {
     "canonical_handoff": "Contains only Hoa Nam G1 operations and no platform approval workflow request.",
@@ -99,7 +101,12 @@
       "reconciliation-report.json",
       "g1-closure-matrix.json"
     ],
-    "base_collector": "scripts/collect-wwhn180-evidence.sh"
+    "base_collector": "scripts/collect-wwhn180-evidence.sh",
+    "one_commit_release_rule": "Immutable verifier requires HEAD to be the sole direct child of release_parent_sha and the exact changed path set to match manifest.changed_paths.",
+    "pre_runtime_repository_verification": [
+      "sha256sum -c docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS",
+      "node scripts/verify-wwhn180-immutable-handoff.mjs docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json docs/docs_task_jira/WWHN-180-source-register.json build/evidence/api-data/immutable-handoff-verification.json"
+    ]
   },
   "reviewers": {
     "FE1": {
@@ -119,5 +126,25 @@
     }
   },
   "approval_rule": "Do not mark APPROVED, Done or 100% until a successful exact-SHA artifact is verified and FE1, QA2 and BA sign the same BE SHA, FE SHA and artifact digest.",
-  "self_reference_rule": "The final BE commit SHA and artifact digest are never hard-coded into source documents; build-metadata.json and the GitHub artifact API are the runtime authorities."
+  "self_reference_rule": "The final BE commit SHA and artifact digest are never hard-coded into source documents; build-metadata.json and the GitHub artifact API are the runtime authorities.",
+  "repository_remediation": {
+    "audit_snapshot": "76/100",
+    "audit_date": "2026-08-07",
+    "code_controls": {
+      "stock_effect_document_lock": "Modules/Warehouse/app/Services/StockDocumentService.php",
+      "stale_model_regression": "tests/Feature/StockDocumentConcurrencyGuardTest.php",
+      "rule": "Receipt, issue and reverse must reload the document with SELECT ... FOR UPDATE before status validation or ledger calls."
+    },
+    "direct_repository_artifacts": {
+      "release_pack": "docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md",
+      "sha256sums": "docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS",
+      "immutable_manifest": "docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json"
+    },
+    "external_gates": {
+      "github_actions_runner": "REQUIRED; organization billing/spending limit must allow runner allocation",
+      "FE1": "WWHN-181 independent sign-off",
+      "QA2": "WWHN-182 independent runtime PASS/FAIL/CONDITIONAL",
+      "BA": "WWHN-183 and WWHN-40 GO/CONDITIONAL_GO/NO_GO minutes"
+    }
+  }
 }

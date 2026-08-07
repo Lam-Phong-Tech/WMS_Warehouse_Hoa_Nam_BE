@@ -1,1 +1,157 @@
-{"schema_version":"1.1.0","jira_key":"WWHN-180","document_version":"1.7.0","status":"PROPOSED","approval_status":"PENDING_INDEPENDENT_SIGN_OFF","branch":"m1","release_parent_sha":"9a30567248c505607722738034a8428c4d43179a","release_commit_binding":"The final release commit is the sole direct child of release_parent_sha on m1 and contains the exact listed blobs. Provisional failed SHAs are diagnostics only.","canonical_rule":"Canonical handoff contains no /submit, /approve or /reject request/path; OpenAPI JSON/YAML are self-contained and semantically identical.","frontend_source_binding":{"repository":"Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE","branch":"m1","exact_commit_sha":"f6e137d01ed7afec5d30e8fecde6a2cc31bb7c8b","baseline_path":"docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json","baseline_git_blob_sha":"656b3315cdb64d2c74e854cde8fdd896477e8c52","review_task":"WWHN-181","signoff_status":"PENDING_INDEPENDENT_REVIEW"},"entries":[{"path":".github/workflows/wwhn-180-api-posting-contract.yml","sha256":"39cde48377fbeddef95c0a545add5fa8ac73234993aef50ec476275515a74f54","git_blob_sha":"b0d38f66e2c1934357fa93a53a08bf120e5cb1e9","classification":"CI_ENFORCEMENT"},{"path":"scripts/collect-wwhn180-canonical-evidence.sh","sha256":"ccfb8971eddaf465babc988abc54533e53b1dac33ab8974be567f5723d3d8d63","git_blob_sha":"4c84a821ce80f48c4c3682f8e8761530255afbc3","classification":"CI_CANONICAL_WRAPPER"},{"path":"scripts/verify-wwhn180-canonical-handoff.mjs","sha256":"e5c624d688b81262c94cef25d0579d779b48e2b63b6d294f281e236cd0c60a3d","git_blob_sha":"c7421bde0bc4a9999a236da356165c30b0efc306","classification":"CI_CANONICAL_ENFORCEMENT"},{"path":"scripts/verify-wwhn180-evidence.mjs","sha256":"7e9cf187bc1964f1b428d18071f561ed0bf18a205e6d77aa2fbcba41966a49bb","git_blob_sha":"50d8107d91e83a4740a798e3fef52563bea88955","classification":"CI_RUNTIME_CONTRACT_ENFORCEMENT"},{"path":"scripts/verify-wwhn180-immutable-handoff.mjs","sha256":"4e7b239666bd1754226545734ba2eacd571d5aa8a104dada65caf1d5e4f1dc8d","git_blob_sha":"8aaa21c09d0c23f415cf38f071312228101cc256","classification":"CI_IMMUTABLE_SOURCE_ENFORCEMENT"},{"path":"docs/api-contract/WWHN-180-posting-openapi.json","sha256":"8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b","git_blob_sha":"7cfe29dbecd87a44cab03b90762f6a986e332079","classification":"CANONICAL_HANDOFF"},{"path":"docs/api-contract/WWHN-180-posting-openapi.yaml","sha256":"8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b","git_blob_sha":"7cfe29dbecd87a44cab03b90762f6a986e332079","classification":"CANONICAL_HANDOFF"},{"path":"docs/postman/WWHN-180 Canonical Contract.postman_collection.json","sha256":"086dd8836c9915c92c0835760d186e349a7a796eb76cf5c0894805df22974dc9","git_blob_sha":"f19e4e771626fa3fcb420bd74a8cfc61578fb0db","classification":"CANONICAL_HANDOFF"},{"path":"docs/postman/WWHN-180 Canonical Contract.postman_environment.json","sha256":"2f514b5442df83e5db906224a0a96b907dfa5860fbb30485d0ca29c175e08067","git_blob_sha":"73444e88efda33f219af55ea915b6a0b4d2cb427","classification":"CANONICAL_HANDOFF"},{"path":"docs/docs_task_jira/WWHN-180-source-register.json","sha256":"531b3cac52beee86a2b06d95bc54e9daade1d00d0dd20a06fb04f0a744ded51b","git_blob_sha":"864910c8e587e0db5593dc32c89592884efc0f1a","classification":"TRACEABILITY"},{"path":"docs/docs_task_jira/WWHN-180.md","sha256":"8f6e96c554139628adea72b18878f7087c9294600df67576bd440d61eb93ca67","git_blob_sha":"d3933f229dba986c76f0f48d32f232a0cb3d5014","classification":"TRACEABILITY"},{"path":"docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json","sha256":"341a7ec67e49ad6955c793e15c0594c1d7c2bf7748f5da8883049fdeb07d4f9a","git_blob_sha":"59d87af993c1b002f74827fa1331cb426e4d2bda","classification":"PERMISSION_MAPPING"},{"path":"docs/evidence/WWHN-180/permission-catalog.json","sha256":"8c32909202a7d31018a50d59922f259ce565e025438dffc1146d1bc8c827ea58","git_blob_sha":"03febce3bccd03032ff847c5a72af9da93801a0d","classification":"PERMISSION_CATALOG"},{"path":"docs/testing/WWHN-180-posting-test-cases.json","sha256":"e78d0ebc9f15fefb276c0314d021ee59f28fe045e530b92086f135c725103cc2","git_blob_sha":"67a46513bd0c349cda7c9ba40c90408b935870c0","classification":"TEST_MATRIX"}],"verification":{"canonical_script":"scripts/verify-wwhn180-canonical-handoff.mjs","immutable_script":"scripts/verify-wwhn180-immutable-handoff.mjs","runtime_script":"scripts/verify-wwhn180-evidence.mjs","commit_status_contexts":["wwhn-180/evidence-gate","wwhn-180/artifact-integrity"],"runtime_manifest":"build/evidence/api-data/SHA256SUMS","runtime_manifest_digest":"build/evidence/api-data/SHA256SUMS.sha256","github_artifact_digest_source":"actions/upload-artifact@v4 output artifact-digest","canonical_lint":"openapi-lint-status.json is the WWHN-180 canonical hard gate.","full_generated_lint":"openapi-full-lint-status.json preserves cross-module generator debt as advisory evidence."},"approval_rule":"Manifest PASS proves source integrity only; FE1, QA2 and BA must independently sign the same BE SHA, FE SHA and artifact digest before APPROVED/Done/100%."}
+{
+  "schema_version": "1.2.0",
+  "jira_key": "WWHN-180",
+  "document_version": "1.7.0",
+  "status": "PROPOSED",
+  "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
+  "branch": "m1",
+  "release_parent_sha": "04026757d679446b54e1e0c54ea18c3c0a0423ed",
+  "release_commit_binding": "HEAD must be the sole direct child of release_parent_sha on m1; the exact diff must equal changed_paths; every changed file except this self-referential manifest is hash-pinned in entries.",
+  "changed_paths": [
+    "Modules/Warehouse/app/Services/StockDocumentService.php",
+    "docs/docs_task_jira/WWHN-180-source-register.json",
+    "docs/docs_task_jira/WWHN-180.md",
+    "docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json",
+    "docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md",
+    "docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS",
+    "scripts/verify-wwhn180-immutable-handoff.mjs",
+    "tests/Feature/StockDocumentConcurrencyGuardTest.php"
+  ],
+  "canonical_rule": "Canonical handoff contains no /submit, /approve or /reject request/path; OpenAPI JSON/YAML are self-contained and semantically identical.",
+  "frontend_source_binding": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "branch": "m1",
+    "exact_commit_sha": "f6e137d01ed7afec5d30e8fecde6a2cc31bb7c8b",
+    "baseline_path": "docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json",
+    "baseline_git_blob_sha": "656b3315cdb64d2c74e854cde8fdd896477e8c52",
+    "review_task": "WWHN-181",
+    "signoff_status": "PENDING_INDEPENDENT_REVIEW"
+  },
+  "entries": [
+    {
+      "path": ".github/workflows/wwhn-180-api-posting-contract.yml",
+      "sha256": "39cde48377fbeddef95c0a545add5fa8ac73234993aef50ec476275515a74f54",
+      "git_blob_sha": "b0d38f66e2c1934357fa93a53a08bf120e5cb1e9",
+      "classification": "CI_ENFORCEMENT"
+    },
+    {
+      "path": "scripts/collect-wwhn180-canonical-evidence.sh",
+      "sha256": "ccfb8971eddaf465babc988abc54533e53b1dac33ab8974be567f5723d3d8d63",
+      "git_blob_sha": "4c84a821ce80f48c4c3682f8e8761530255afbc3",
+      "classification": "CI_CANONICAL_WRAPPER"
+    },
+    {
+      "path": "scripts/verify-wwhn180-canonical-handoff.mjs",
+      "sha256": "e5c624d688b81262c94cef25d0579d779b48e2b63b6d294f281e236cd0c60a3d",
+      "git_blob_sha": "c7421bde0bc4a9999a236da356165c30b0efc306",
+      "classification": "CI_CANONICAL_ENFORCEMENT"
+    },
+    {
+      "path": "scripts/verify-wwhn180-evidence.mjs",
+      "sha256": "7e9cf187bc1964f1b428d18071f561ed0bf18a205e6d77aa2fbcba41966a49bb",
+      "git_blob_sha": "50d8107d91e83a4740a798e3fef52563bea88955",
+      "classification": "CI_RUNTIME_CONTRACT_ENFORCEMENT"
+    },
+    {
+      "path": "scripts/verify-wwhn180-immutable-handoff.mjs",
+      "sha256": "c5614b5a53a820b9d9ef789ed1213db53259460525a3830b27dbacf7485c20d3",
+      "git_blob_sha": "a5cc36cf70ec5657db617dbccfcde1dd30b99463",
+      "classification": "CI_IMMUTABLE_SOURCE_ENFORCEMENT"
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.json",
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "git_blob_sha": "7cfe29dbecd87a44cab03b90762f6a986e332079",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "git_blob_sha": "7cfe29dbecd87a44cab03b90762f6a986e332079",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/postman/WWHN-180 Canonical Contract.postman_collection.json",
+      "sha256": "086dd8836c9915c92c0835760d186e349a7a796eb76cf5c0894805df22974dc9",
+      "git_blob_sha": "f19e4e771626fa3fcb420bd74a8cfc61578fb0db",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/postman/WWHN-180 Canonical Contract.postman_environment.json",
+      "sha256": "2f514b5442df83e5db906224a0a96b907dfa5860fbb30485d0ca29c175e08067",
+      "git_blob_sha": "73444e88efda33f219af55ea915b6a0b4d2cb427",
+      "classification": "CANONICAL_HANDOFF"
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-180-source-register.json",
+      "sha256": "e27f8ac5e91b02f1e56ed7afcea8964306288c30e084dc737bcf88296dc2de48",
+      "git_blob_sha": "afc1b90665eee49f7d3bf3af76ec33bf8a213bdc",
+      "classification": "TRACEABILITY"
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-180.md",
+      "sha256": "99b529df535b30d00fe7d4d6b046e42529c91d0bd2040cbf9694294d60c1756f",
+      "git_blob_sha": "21e08cd2d3ee9530f7b89cadb63c2a6295f74cd3",
+      "classification": "TRACEABILITY"
+    },
+    {
+      "path": "docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json",
+      "sha256": "341a7ec67e49ad6955c793e15c0594c1d7c2bf7748f5da8883049fdeb07d4f9a",
+      "git_blob_sha": "59d87af993c1b002f74827fa1331cb426e4d2bda",
+      "classification": "PERMISSION_MAPPING"
+    },
+    {
+      "path": "docs/evidence/WWHN-180/permission-catalog.json",
+      "sha256": "8c32909202a7d31018a50d59922f259ce565e025438dffc1146d1bc8c827ea58",
+      "git_blob_sha": "03febce3bccd03032ff847c5a72af9da93801a0d",
+      "classification": "PERMISSION_CATALOG"
+    },
+    {
+      "path": "docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md",
+      "sha256": "a20b0d8d8a9145bceb2e797c51befa20d7da9e6439be512b39f72f3d8010cdb9",
+      "git_blob_sha": "6360e6342e2665fc9eba8b1ecc75cadb74bf7862",
+      "classification": "REPOSITORY_RELEASE_PACK"
+    },
+    {
+      "path": "docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS",
+      "sha256": "0f4dcd23ceb84e39799fae5cb3f112932e6260a34ccff63b1ab7c623c839cb36",
+      "git_blob_sha": "401ca9881241558ec416bb7aa879c37cbbee844f",
+      "classification": "REPOSITORY_CHECKSUMS"
+    },
+    {
+      "path": "docs/testing/WWHN-180-posting-test-cases.json",
+      "sha256": "e78d0ebc9f15fefb276c0314d021ee59f28fe045e530b92086f135c725103cc2",
+      "git_blob_sha": "67a46513bd0c349cda7c9ba40c90408b935870c0",
+      "classification": "TEST_MATRIX"
+    },
+    {
+      "path": "Modules/Warehouse/app/Services/StockDocumentService.php",
+      "sha256": "4bbf640c694b83c2cf80aeac8954553659c4209ac0a243debc07a58c37bb7f9e",
+      "git_blob_sha": "cfcd9df662935ccb50e7f3f868384565c8edd6c3",
+      "classification": "STOCK_EFFECT_IMPLEMENTATION"
+    },
+    {
+      "path": "tests/Feature/StockDocumentConcurrencyGuardTest.php",
+      "sha256": "6d8bf41a67c1acde341a4493eedc18c9105c5ac1eea8f84b056653aa4b5c6b88",
+      "git_blob_sha": "a77096328d342e0646d09063ae4c691b061760ae",
+      "classification": "CONCURRENCY_REGRESSION"
+    }
+  ],
+  "verification": {
+    "canonical_script": "scripts/verify-wwhn180-canonical-handoff.mjs",
+    "immutable_script": "scripts/verify-wwhn180-immutable-handoff.mjs",
+    "runtime_script": "scripts/verify-wwhn180-evidence.mjs",
+    "repository_sha256sums": "docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS",
+    "repository_release_pack": "docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md",
+    "commit_status_contexts": [
+      "wwhn-180/evidence-gate",
+      "wwhn-180/artifact-integrity"
+    ],
+    "runtime_manifest": "build/evidence/api-data/SHA256SUMS",
+    "runtime_manifest_digest": "build/evidence/api-data/SHA256SUMS.sha256",
+    "github_artifact_digest_source": "actions/upload-artifact@v4 output artifact-digest",
+    "canonical_lint": "openapi-lint-status.json is the WWHN-180 canonical hard gate.",
+    "full_generated_lint": "openapi-full-lint-status.json preserves cross-module generator debt as advisory evidence."
+  },
+  "approval_rule": "Manifest PASS proves source integrity only; FE1, QA2 and BA must independently sign the same BE SHA, FE SHA and artifact digest before APPROVED/Done/100%."
+}

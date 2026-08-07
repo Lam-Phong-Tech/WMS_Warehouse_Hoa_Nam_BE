@@ -27,7 +27,15 @@ Bản cuối tách authority:
 3. parity, version, forbidden path, secret hygiene, source hash, runtime checksum vẫn fail-closed;
 4. GitHub artifact ID/digest và status `wwhn-180/evidence-gate`, `wwhn-180/artifact-integrity` là runtime authority.
 
-Tài liệu, source register, focused OpenAPI JSON/YAML, canonical Postman/environment, permission catalog, test matrix và immutable manifest cùng version `1.7.0`.
+Tài liệu, source register, focused OpenAPI JSON/YAML, canonical Postman/environment, permission catalog, test matrix và immutable manifest cùng version `1.7.0`. Nhận xét P2 về lệch `1.6.0/1.7.0` là snapshot cũ; release hiện tại vẫn giữ contract version `1.7.0` vì endpoint/payload không đổi, còn thay đổi code được bind bằng exact commit SHA và manifest blob hash.
+
+### Remediation re-review 76/100 — 2026-08-07
+
+- Gia cố stock-effect boundary: `postReceipt`, `postIssue`, `reverseDocument` khóa lại `stock_documents` bằng `SELECT ... FOR UPDATE`, load lại `lines/movements`, sau đó mới kiểm trạng thái và gọi ledger. Model route-bound stale không còn đi vào ledger rồi mới rollback.
+- Test `StockDocumentConcurrencyGuardTest` dùng mock ledger `shouldNotReceive('inbound')` để chứng minh request stale bị chặn trước stock effect; ngoài ra vẫn kiểm `0` movement, không balance và không posting event.
+- Thêm gói truy xuất trực tiếp trong repo: `REPOSITORY_RELEASE_PACK.md`, `REPOSITORY_SHA256SUMS`, immutable manifest có SHA-256 + Git blob SHA.
+- Immutable verifier khóa: đúng branch `m1`, đúng release parent, đúng **một commit**, đúng toàn bộ changed path, và mọi changed file ngoài manifest phải có hash entry.
+- Các kết quả FE1/QA2/BA vẫn `PENDING`; không được dùng source-side checks để giả lập independent sign-off hoặc runtime PASS.
 
 ### FE source binding
 
@@ -62,6 +70,10 @@ Scope: một kho tổng Hoa Nam; Agency là destination party; scan không tạo
 - `docs/evidence/WWHN-180/permission-catalog.json`
 - `docs/evidence/WWHN-180/BE_FE_PERMISSION_MAPPING.json`
 - `docs/evidence/WWHN-180/IMMUTABLE_HANDOFF_MANIFEST.json`
+- `docs/evidence/WWHN-180/REPOSITORY_RELEASE_PACK.md`
+- `docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS`
+- `Modules/Warehouse/app/Services/StockDocumentService.php`
+- `tests/Feature/StockDocumentConcurrencyGuardTest.php`
 
 Canonical collection có 15 request, không có `/submit`, `/approve`, `/reject`; environment không có secret. Jira dùng URL `blob/<exact_commit_sha>/<path>`, không dùng branch URL động.
 
@@ -72,7 +84,7 @@ Canonical collection có 15 request, không có `/submit`, `/approve`, `/reject`
 - Missing key: `428 PRECONDITION_REQUIRED`; ngoài 8–100 ký tự: `422 VALIDATION_ERROR`.
 - Same key/same payload: replay exact response; same key/different payload: `409 IDEMPOTENCY_ERROR`.
 - Different key/document đã post: `409 STATE_CONFLICT`.
-- Lock document, line, balance tại stock-effect boundary; movement append-only và unique business key.
+- Lock document trước status validation/ledger; lock line/balance tại stock-effect boundary; movement append-only và unique business key.
 - Business write, posting event, response snapshot cùng transaction.
 - Race/double-post chỉ một stock effect; reconciliation PASS, `mismatch_count=0`.
 
@@ -92,17 +104,17 @@ Canonical collection có 15 request, không có `/submit`, `/approve`, `/reject`
 
 | ID | BE disposition | Còn lại |
 |---|---|---|
-| P0-01 | Contract/source/version/hash/evidence fail-closed; FE SHA bind | BA+FE1+QA2 ký cùng SHA/digest |
-| P0-02 | Atomicity/idempotency/race/DB/reconcile hard gate | QA2 retest độc lập |
-| P1-01 | OpenAPI/Postman/env/manifest có path/hash | Post exact-SHA URL + digest |
-| P1-02 | Canonical lint tách full legacy lint; raw logs/metadata/checksum bắt buộc | Final run PASS |
-| P1-03 | Permission mapping bind FE SHA/blob; BE middleware canonical | FE1/BA reviewer/result/date |
-| P1-04 | Happy/negative/RBAC/replay/conflict/double-post/race/DB/reconcile protocol | QA2 evidence |
-| P1-05 | G1 minutes input/closure matrix sẵn sàng | BA decision WWHN-40/183 |
-| P2-01 | Canonical sources đồng bộ `1.7.0`, manifests kiểm hash | Ghi final digest Jira |
+| BE1-P0-01 | Repo-side COMPLETE: contract/source/version/hash fail-closed, FE SHA bind, exact one-commit manifest | EXTERNAL: BA G1 + FE1 + QA2 ký cùng BE SHA/FE SHA/artifact digest |
+| BE1-P0-02 | Repo-side COMPLETE: document row lock trước ledger, atomicity/idempotency/race/DB/reconcile tests/gates | EXTERNAL: QA2 chạy artifact trên env thật và trả `PASS/FAIL/CONDITIONAL` |
+| BE1-P1-01 | COMPLETE: OpenAPI/Postman/env/test matrix/release pack/`REPOSITORY_SHA256SUMS` truy xuất trực tiếp | Sau CI PASS, post artifact ID/name/digest vào Jira |
+| BE1-P1-02 | Repo-side COMPLETE: workflow + raw PHPUnit/Newman/DB/reconcile/checksum output contract | EXTERNAL BLOCKER: GitHub Actions runner/billing phải được mở và final exact-head run PASS |
+| BE1-P1-03 | Repo-side COMPLETE: endpoint → BE permission → FE guard mapping bind FE SHA/blob | EXTERNAL: FE1 + BA reviewer/result/date |
+| BE1-P1-04 | Repo-side COMPLETE: protocol + test matrix + stale-before-ledger regression | EXTERNAL: QA2 evidence trên WWHN-182 |
+| BE1-P1-05 | Repo-side COMPLETE: G1 template/closure inputs | EXTERNAL: BA minutes `GO / CONDITIONAL_GO / NO_GO` trên WWHN-183/WWHN-40 |
+| BE1-P2-01 | COMPLETE: source register và Markdown đều `1.7.0`; immutable verifier khóa version/hash | Post final artifact digest sau successful run |
 
 ## Definition of Done
 
-BE/repository đã hoàn thành: chỉ `m1`, không branch/PR phụ; một release commit từ parent khóa; canonical contract/version/parity; Postman không workflow/secret; CI harness tách canonical; runtime/API/DB/reconcile/checksum/artifact-integrity; FE source binding.
+BE/repository đã hoàn thành: chỉ `m1`, không branch/PR phụ; một release commit từ parent khóa; canonical contract/version/parity; Postman không workflow/secret; document lock trước ledger; concurrency regression; static repository checksums; CI harness tách canonical; runtime/API/DB/reconcile/checksum/artifact-integrity output contract; FE source binding.
 
 Formal còn mở: final evidence gate PASS; artifact digest post Jira; FE1 sign-off WWHN-181; QA2 evidence WWHN-182; BA G1 decision WWHN-183/WWHN-40. Chỉ sau đó mới ghi `100/100`.

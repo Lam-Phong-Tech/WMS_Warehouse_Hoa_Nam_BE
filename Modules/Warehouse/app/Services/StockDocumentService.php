@@ -155,6 +155,7 @@ class StockDocumentService
     public function postReceipt(StockDocument $doc, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $idempotencyKey, $requestHash, $operation) {
+            $doc = $this->lockDocumentForStockEffect($doc);
             $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện nhập kho');
             $this->assertWarehouseActive($doc->dst_warehouse_id);
 
@@ -179,6 +180,7 @@ class StockDocumentService
     public function postIssue(StockDocument $doc, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $idempotencyKey, $requestHash, $operation) {
+            $doc = $this->lockDocumentForStockEffect($doc);
             $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện xuất kho');
             $this->assertWarehouseActive($doc->src_warehouse_id);
 
@@ -287,6 +289,7 @@ class StockDocumentService
     public function reverseDocument(StockDocument $doc, string $userId, ?string $reason, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $reason, $idempotencyKey, $requestHash, $operation) {
+            $doc = $this->lockDocumentForStockEffect($doc);
             $this->assertStatus($doc, [StockDocument::STATUS_RECEIVED, StockDocument::STATUS_ISSUED, StockDocument::STATUS_CLOSED], 'đảo ngược');
 
             $movements = StockMovement::where('stock_document_id', $doc->id)
@@ -311,6 +314,20 @@ class StockDocumentService
 
             return $fresh;
         });
+    }
+
+    /**
+     * Luôn khóa và đọc lại trạng thái chứng từ trong cùng transaction trước khi chạm ledger.
+     * Không sử dụng model route-bound có thể đã stale, vì request cạnh tranh có thể đã post/reverse.
+     */
+    private function lockDocumentForStockEffect(StockDocument $doc): StockDocument
+    {
+        $locked = StockDocument::query()
+            ->whereKey($doc->getKey())
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        return $locked->load(['lines.product', 'movements']);
     }
 
     private function syncLines(StockDocument $doc, array $lines): void
