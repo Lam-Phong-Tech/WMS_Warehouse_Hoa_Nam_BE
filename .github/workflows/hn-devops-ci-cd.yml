@@ -19,6 +19,16 @@ on:
         options:
           - "false"
           - "true"
+      runner_labels:
+        description: JSON runner labels for CI. Use ["self-hosted","Linux","X64","hoa-nam-uat"] when hosted runners are unavailable.
+        required: false
+        default: '["ubuntu-latest"]'
+        type: string
+      uat_runner_labels:
+        description: JSON runner labels for UAT deploy. Use ["self-hosted","Linux","X64","hoa-nam-uat"] when hosted runners are unavailable.
+        required: false
+        default: '["ubuntu-latest"]'
+        type: string
   push:
     branches:
       - dev
@@ -44,7 +54,7 @@ env:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner_labels || vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -152,7 +162,7 @@ jobs:
   deploy-uat:
     needs: ci
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.uat_runner_labels || vars.UAT_RUNNER_LABELS || '["ubuntu-latest"]') }}
     environment: uat
     steps:
       - uses: actions/download-artifact@v4
