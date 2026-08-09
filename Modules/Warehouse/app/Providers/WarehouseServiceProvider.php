@@ -25,6 +25,8 @@ use Modules\Warehouse\Repositories\ProductMasterRepository;
 use Modules\Warehouse\Repositories\ProductRepository;
 use Modules\Warehouse\Repositories\SafeStockConfigRepository;
 use Modules\Warehouse\Repositories\WarehouseRepository;
+use Modules\Warehouse\Services\CanonicalScanClassificationService;
+use Modules\Warehouse\Services\ScanClassificationService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class WarehouseServiceProvider extends ModuleServiceProvider
@@ -71,6 +73,11 @@ class WarehouseServiceProvider extends ModuleServiceProvider
         $this->app->bind(ContainerRepositoryInterface::class, ContainerRepository::class);
         $this->app->bind(ItemInstanceRepositoryInterface::class, ItemInstanceRepository::class);
         $this->app->bind(ContainerItemRepositoryInterface::class, ContainerItemRepository::class);
+
+        // SQLite does not expose compatibility VIEWs through Schema::hasTable()
+        // consistently. Bind the canonical fallback globally so scan/classify always
+        // resolves SKU identity from the single source of truth (`sku`).
+        $this->app->bind(ScanClassificationService::class, CanonicalScanClassificationService::class);
     }
 
     /**

@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\Warehouse;
 use OpenApi\Attributes as OA;
 use Throwable;
 
@@ -66,22 +69,25 @@ class HealthController extends Controller
 
     private function seedCheck(): array
     {
-        // Evaluate each marker independently. One compatibility relation problem
-        // must not erase evidence that the other baseline markers are healthy.
+        // Use canonical Eloquent models. Compatibility VIEW availability must not
+        // influence readiness, and mutable presentation flags are not seed identity.
         $markers = [
-            'admin_user' => $this->safeExists(fn (): bool => DB::table('app_user')
-                ->where('username', 'admin')->exists()),
-            'baseline_warehouse' => $this->safeExists(fn (): bool => DB::table('warehouses')
-                ->where('code', 'KHO-TONG-HN')->exists()),
-            // Read the canonical source of truth; `products` is compatibility only.
-            'baseline_product' => $this->safeExists(fn (): bool => DB::table('sku')
+            'admin_user' => $this->safeExists(fn (): bool => User::query()
+                ->where('username', 'admin')
+                ->where('status', 'ACTIVE')
+                ->exists()),
+            'baseline_warehouse' => $this->safeExists(fn (): bool => Warehouse::query()
+                ->where('code', 'KHO-TONG-HN')
+                ->where('status', 'ACTIVE')
+                ->exists()),
+            'baseline_product' => $this->safeExists(fn (): bool => Sku::query()
                 ->where('sku_code', 'HN-PV-BASE-001')
-                ->where('published_to_app', true)
+                ->where('status', 'ACTIVE')
                 ->exists()),
         ];
 
         return [
-            'status' => collect($markers)->every(fn (bool $value): bool => $value),
+            'status' => collect($markers)->every(fn (bool $value): bool => $value) ? 'ok' : 'fail',
             'markers' => $markers,
         ];
     }

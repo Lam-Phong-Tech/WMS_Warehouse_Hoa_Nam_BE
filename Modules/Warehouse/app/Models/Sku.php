@@ -11,11 +11,8 @@ class Sku extends Model
     use HasUuids;
 
     protected $table = 'sku';
-
     protected $primaryKey = 'sku_id';
-
     public $incrementing = false;
-
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -30,6 +27,34 @@ class Sku extends Model
         'published_to_app' => 'boolean',
         'specification' => 'array',
     ];
+
+    // /products is a legacy façade over this canonical aggregate. Exposing read-only
+    // aliases keeps old API/tests interoperable without creating legacy persistence.
+    protected $appends = ['id', 'code', 'name', 'version'];
+
+    public function getIdAttribute(): ?string
+    {
+        return $this->attributes['sku_id'] ?? null;
+    }
+
+    public function getCodeAttribute(): ?string
+    {
+        return $this->attributes['sku_code'] ?? null;
+    }
+
+    public function getNameAttribute(): ?string
+    {
+        return $this->attributes['sku_name'] ?? null;
+    }
+
+    public function getVersionAttribute(): int
+    {
+        $versionCode = strtoupper((string) ($this->attributes['version_code'] ?? 'V1'));
+
+        return preg_match('/^V(\d+)$/', $versionCode, $matches) === 1
+            ? max(1, (int) $matches[1])
+            : 1;
+    }
 
     public function brand(): BelongsTo
     {
