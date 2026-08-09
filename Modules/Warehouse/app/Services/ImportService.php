@@ -5,7 +5,8 @@ namespace Modules\Warehouse\Services;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Modules\AuditLog\Services\AuditLogger;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\ProductMaster;
+use Modules\Warehouse\Models\Sku;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -15,10 +16,17 @@ class ImportService
 {
     public const TEMPLATE_VERSION = 'WWHN-172-SKU-IMPORT-v1.1.0';
 
-    private const COLUMNS = [
-        'code', 'sku_code', 'name', 'unit', 'sku_type', 'brand_code',
-        'category_code', 'model_code', 'power_or_voltage', 'package_variant',
+    /** Current export template. Legacy code/name/version headers remain accepted on import. */
+    private const TEMPLATE_COLUMNS = [
+        'sku_code', 'sku_name', 'unit', 'sku_type', 'brand_code', 'category_code',
+        'model_code', 'power_or_voltage', 'package_variant', 'version_code',
         'published_to_app', 'is_serial_tracked', 'status',
+    ];
+
+    private const ACCEPTED_COLUMNS = [
+        'code', 'sku_code', 'name', 'sku_name', 'unit', 'sku_type', 'brand_code',
+        'category_code', 'model_code', 'power_or_voltage', 'package_variant',
+        'version', 'version_code', 'published_to_app', 'is_serial_tracked', 'status',
     ];
 
     /** @return array<string, mixed> */
@@ -60,34 +68,39 @@ class ImportService
         return DB::transaction(function () use (
             $records, $rows, $updateExisting, $actorId, $requestId, $originalName, $checksum, $map
         ): array {
-            $codes = collect($records)->pluck('code')->all();
             $skuCodes = collect($records)->pluck('sku_code')->all();
-            $existing = Product::query()
-                ->where(fn ($query) => $query->whereIn('code', $codes)->orWhereIn('sku_code', $skuCodes))
+            $existing = Sku::query()
+                ->whereIn('sku_code', $skuCodes)
                 ->lockForUpdate()
                 ->get();
-            $byCode = $existing->keyBy(fn (Product $p): string => strtoupper((string) $p->code));
-            $bySku = $existing->keyBy(fn (Product $p): string => strtoupper((string) $p->sku_code));
+            $bySku = $existing->keyBy(fn (Sku $sku): string => strtoupper((string) $sku->sku_code));
 
             $dbErrors = [];
             foreach ($records as $index => $record) {
-                $codeMatch = $byCode->get($record['code']);
-                $skuMatch = $bySku->get($record['sku_code']);
-                if ($codeMatch && $skuMatch && $codeMatch->id !== $skuMatch->id) {
-                    $dbErrors[] = $this->error($index + 2, 'SKU_IDENTITY_COLLISION', 'code,sku_code', 'code và sku_code trỏ tới hai SKU khác nhau.', $record['code']);
-
-                    continue;
-                }
-                $matched = $codeMatch ?? $skuMatch;
+                /** @var Sku|null $matched */
+                $matched = $bySku->get($record['sku_code']);
                 if (! $matched) {
                     continue;
                 }
                 if (strtoupper((string) $matched->status) !== 'ACTIVE') {
-                    $dbErrors[] = $this->error($index + 2, 'INACTIVE_SKU_CONFLICT', 'code', 'SKU không ACTIVE, import không được tự kích hoạt.', $record['code']);
+                    $dbErrors[] = $this->error(
+                        $index + 2,
+                        'INACTIVE_SKU_CONFLICT',
+                        'sku_code',
+                        'SKU không ACTIVE, import không được tự kích hoạt.',
+                        $record['sku_code'],
+                    );
                 } elseif (! $updateExisting) {
-                    $dbErrors[] = $this->error($index + 2, 'DUPLICATE_CODE', 'code', 'SKU đã tồn tại; cần bật update_existing.', $record['code']);
+                    $dbErrors[] = $this->error(
+                        $index + 2,
+                        'DUPLICATE_CODE',
+                        'sku_code',
+                        'SKU đã tồn tại; cần bật update_existing.',
+                        $record['sku_code'],
+                    );
                 }
             }
+
             if ($dbErrors !== []) {
                 return $this->result(count($rows), count($records) - count($dbErrors), $dbErrors, 0, 0, false, $checksum, $map);
             }
@@ -95,26 +108,42 @@ class ImportService
             $inserted = 0;
             $updated = 0;
             foreach ($records as $record) {
-                /** @var Product|null $product */
-                $product = $byCode->get($record['code']) ?? $bySku->get($record['sku_code']);
-                $before = $product?->toArray() ?? [];
-                if ($product) {
-                    $record['version'] = ((int) $product->version) + 1;
-                    $product->fill($record)->save();
+                /** @var Sku|null $sku */
+                $sku = $bySku->get($record['sku_code']);
+                $before = $sku?->toArray() ?? [];
+                $attributes = $record;
+                if ($attributes['version_code'] === null) {
+                    unset($attributes['version_code']);
+                }
+
+                if ($sku) {
+                    $sku->fill($attributes)->save();
                     $updated++;
                     $action = 'SKU_IMPORT_UPDATE';
                 } else {
-                    $record['version'] = 1;
-                    $product = Product::query()->create($record);
+                    $sku = Sku::query()->create($attributes);
                     $inserted++;
                     $action = 'SKU_IMPORT_CREATE';
                 }
-                AuditLogger::record($action, 'sku', (string) $product->id, $actorId, $requestId,
-                    beforeData: $before, afterData: $product->fresh()->toArray(),
-                    reason: 'WWHN-172 atomic import '.$checksum);
+
+                AuditLogger::record(
+                    $action,
+                    'sku',
+                    (string) $sku->sku_id,
+                    $actorId,
+                    $requestId,
+                    beforeData: $before,
+                    afterData: $sku->fresh()->toArray(),
+                    reason: 'WWHN-172 atomic import '.$checksum,
+                );
             }
 
-            AuditLogger::record('SKU_IMPORT_COMMIT', 'sku_import', null, $actorId, $requestId,
+            AuditLogger::record(
+                'SKU_IMPORT_COMMIT',
+                'sku_import',
+                null,
+                $actorId,
+                $requestId,
                 afterData: [
                     'file_name' => $originalName,
                     'file_sha256' => $checksum,
@@ -124,7 +153,8 @@ class ImportService
                     'updated_rows' => $updated,
                     'transaction_mode' => 'ALL_OR_NOTHING',
                 ],
-                reason: 'WWHN-172 import summary in same transaction');
+                reason: 'WWHN-172 import summary in same transaction',
+            );
 
             return $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map);
         }, 3);
@@ -133,10 +163,10 @@ class ImportService
     public function createTemplate(string $path): void
     {
         $sheet = (new Spreadsheet)->getActiveSheet();
-        $sheet->fromArray(self::COLUMNS, null, 'A1');
+        $sheet->fromArray(self::TEMPLATE_COLUMNS, null, 'A1');
         $sheet->fromArray([
-            'SKU-DEMO-001', 'SKU-DEMO-001', 'Sản phẩm mẫu', 'cái', 'PRODUCT',
-            'BRAND-01', 'CAT-01', 'MODEL-01', '220V', 'STANDARD', 'false', 'false', 'ACTIVE',
+            'SKU-DEMO-001', 'Sản phẩm mẫu', 'cái', 'PRODUCT',
+            null, null, null, '220V', 'BARE', 'V1', 'false', 'false', 'ACTIVE',
         ], null, 'A2');
         (new Xlsx($sheet->getParent()))->save($path);
     }
@@ -163,15 +193,17 @@ class ImportService
             if ($name === '') {
                 continue;
             }
-            if (! in_array($name, self::COLUMNS, true) || isset($map[$name])) {
+            if (! in_array($name, self::ACCEPTED_COLUMNS, true) || isset($map[$name])) {
                 throw new InvalidArgumentException(isset($map[$name]) ? "Cột bị lặp: {$name}." : "Cột không hỗ trợ: {$name}.");
             }
             $map[$name] = (int) $index;
         }
-        foreach (['code', 'name'] as $required) {
-            if (! isset($map[$required])) {
-                throw new InvalidArgumentException("Thiếu cột bắt buộc: {$required}.");
-            }
+
+        if (! isset($map['sku_code']) && ! isset($map['code'])) {
+            throw new InvalidArgumentException('Thiếu cột bắt buộc: sku_code (hoặc alias legacy code).');
+        }
+        if (! isset($map['sku_name']) && ! isset($map['name'])) {
+            throw new InvalidArgumentException('Thiếu cột bắt buộc: sku_name (hoặc alias legacy name).');
         }
 
         return $map;
@@ -182,54 +214,56 @@ class ImportService
     {
         $records = [];
         $errors = [];
-        $seenCode = [];
         $seenSku = [];
+
         foreach ($rows as $offset => $row) {
             $number = $offset + 2;
             $get = fn (string $column): mixed => isset($map[$column]) ? ($row[$map[$column]] ?? null) : null;
-            $code = strtoupper(trim((string) $get('code')));
-            $skuCode = strtoupper(trim((string) $get('sku_code'))) ?: $code;
-            $name = trim((string) $get('name'));
+            $skuCode = $this->upper($get('sku_code')) ?? $this->upper($get('code')) ?? '';
+            $skuName = $this->text($get('sku_name')) ?? $this->text($get('name')) ?? '';
             $rowErrors = [];
-            foreach ([['code', $code, 100], ['sku_code', $skuCode, 100]] as [$field, $value, $max]) {
-                if ($value === '' || mb_strlen($value) > $max || ! preg_match('/^[A-Z0-9](?:[A-Z0-9._-]*[A-Z0-9])?$/', $value)) {
-                    $rowErrors[] = $this->error($number, 'INVALID_CODE_FORMAT', $field, "{$field} không hợp lệ.", $value);
-                }
+
+            if ($skuCode === '' || mb_strlen($skuCode) > 100 || ! preg_match('/^[A-Z0-9](?:[A-Z0-9._-]*[A-Z0-9])?$/', $skuCode)) {
+                $rowErrors[] = $this->error($number, 'INVALID_CODE_FORMAT', 'sku_code', 'sku_code không hợp lệ.', $skuCode);
             }
-            if ($name === '' || mb_strlen($name) > 255) {
-                $rowErrors[] = $this->error($number, 'INVALID_NAME', 'name', 'name bắt buộc và tối đa 255 ký tự.', $name);
-            }
-            if (isset($seenCode[$code])) {
-                $rowErrors[] = $this->error($number, 'DUPLICATE_CODE_IN_FILE', 'code', "Trùng dòng {$seenCode[$code]}.", $code);
+            if ($skuName === '' || mb_strlen($skuName) > 255) {
+                $rowErrors[] = $this->error($number, 'INVALID_NAME', 'sku_name', 'sku_name bắt buộc và tối đa 255 ký tự.', $skuName);
             }
             if (isset($seenSku[$skuCode])) {
                 $rowErrors[] = $this->error($number, 'DUPLICATE_SKU_CODE_IN_FILE', 'sku_code', "Trùng dòng {$seenSku[$skuCode]}.", $skuCode);
             }
 
             $skuType = $this->enum($get('sku_type'), ['PRODUCT', 'COMPONENT'], 'PRODUCT', $number, 'sku_type', $rowErrors);
-            $status = $this->enum($get('status'), ['ACTIVE', 'INACTIVE', 'DRAFT'], 'ACTIVE', $number, 'status', $rowErrors);
-            $package = $this->nullableEnum($get('package_variant'), ['STANDARD', 'TRAY', 'BOX', 'CARTON', 'PALLET', 'KIT'], $number, 'package_variant', $rowErrors);
+            $status = $this->enum($get('status'), ['ACTIVE', 'INACTIVE'], 'ACTIVE', $number, 'status', $rowErrors);
+            $package = $this->nullableEnum($get('package_variant'), ['BARE', 'KIT', 'SET', 'BODY_ONLY'], $number, 'package_variant', $rowErrors);
             $published = $this->boolean($get('published_to_app'), $number, 'published_to_app', $rowErrors);
             $serial = $this->boolean($get('is_serial_tracked'), $number, 'is_serial_tracked', $rowErrors);
+            $versionCode = $this->text($get('version_code')) ?? $this->text($get('version'));
+            if ($versionCode !== null && mb_strlen($versionCode) > 30) {
+                $rowErrors[] = $this->error($number, 'INVALID_VERSION_CODE', 'version_code', 'version_code tối đa 30 ký tự.', $versionCode);
+            }
+
+            $brandId = $this->resolveMasterId($get('brand_code'), 'BRAND', $number, 'brand_code', $rowErrors);
+            $categoryId = $this->resolveMasterId($get('category_code'), 'CATEGORY', $number, 'category_code', $rowErrors);
+            $modelId = $this->resolveMasterId($get('model_code'), 'MODEL', $number, 'model_code', $rowErrors);
 
             if ($rowErrors !== []) {
                 array_push($errors, ...$rowErrors);
-
                 continue;
             }
-            $seenCode[$code] = $number;
+
             $seenSku[$skuCode] = $number;
             $records[] = [
-                'code' => $code,
                 'sku_code' => $skuCode,
-                'name' => $name,
-                'unit' => trim((string) $get('unit')) ?: 'cái',
+                'sku_name' => $skuName,
+                'unit' => $this->text($get('unit')) ?? 'cái',
                 'sku_type' => $skuType,
-                'brand_code' => $this->upper($get('brand_code')),
-                'category_code' => $this->upper($get('category_code')),
-                'model_code' => $this->upper($get('model_code')),
+                'brand_id' => $brandId,
+                'category_id' => $categoryId,
+                'model_id' => $modelId,
                 'power_or_voltage' => $this->text($get('power_or_voltage')),
                 'package_variant' => $package,
+                'version_code' => $versionCode,
                 'published_to_app' => $published,
                 'is_serial_tracked' => $serial,
                 'status' => $status,
@@ -237,6 +271,27 @@ class ImportService
         }
 
         return [$records, $errors];
+    }
+
+    private function resolveMasterId(mixed $value, string $type, int $row, string $field, array &$errors): ?string
+    {
+        $code = $this->upper($value);
+        if ($code === null) {
+            return null;
+        }
+
+        $master = ProductMaster::query()
+            ->where('master_type', $type)
+            ->where('code', $code)
+            ->where('status', 'ACTIVE')
+            ->first();
+
+        if (! $master) {
+            $errors[] = $this->error($row, 'UNKNOWN_MASTER_CODE', $field, "Không tìm thấy {$type} ACTIVE với code {$code}.", $code);
+            return null;
+        }
+
+        return (string) $master->master_id;
     }
 
     private function enum(mixed $value, array $allowed, string $default, int $row, string $field, array &$errors): string
@@ -247,7 +302,6 @@ class ImportService
         }
         if (! in_array($value, $allowed, true)) {
             $errors[] = $this->error($row, 'INVALID_ENUM', $field, $field.' phải thuộc '.implode(', ', $allowed).'.', $value);
-
             return $default;
         }
 
@@ -262,7 +316,6 @@ class ImportService
         }
         if (! in_array($value, $allowed, true)) {
             $errors[] = $this->error($row, 'INVALID_ENUM', $field, $field.' phải thuộc '.implode(', ', $allowed).'.', $value);
-
             return null;
         }
 
@@ -286,14 +339,12 @@ class ImportService
     private function upper(mixed $value): ?string
     {
         $value = strtoupper(trim((string) $value));
-
         return $value === '' ? null : $value;
     }
 
     private function text(mixed $value): ?string
     {
         $value = trim((string) $value);
-
         return $value === '' ? null : $value;
     }
 
