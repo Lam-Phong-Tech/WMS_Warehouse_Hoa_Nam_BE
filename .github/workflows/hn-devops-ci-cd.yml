@@ -1,0 +1,297 @@
+name: HN DEVOPS CI/CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_uat:
+        description: Deploy the verified artifact to UAT
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      run_uat_seed:
+        description: Run UAT seed after migration. Use only with approved seed policy.
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      runner_labels:
+        description: JSON runner labels for CI. Use ["self-hosted","Linux","X64","hoa-nam-uat"] when hosted runners are unavailable.
+        required: false
+        default: '["ubuntu-latest"]'
+        type: string
+      uat_runner_labels:
+        description: JSON runner labels for UAT deploy. Use ["self-hosted","Linux","X64","hoa-nam-uat"] when hosted runners are unavailable.
+        required: false
+        default: '["ubuntu-latest"]'
+        type: string
+  push:
+    branches:
+      - dev
+      - main
+  pull_request:
+    branches:
+      - dev
+      - main
+
+env:
+  IMAGE_NAME: hoa-nam-backend-backend
+  IMAGE_TAR: hoa-nam-backend-backend.tar
+  CI_APP_URL: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
+  CI_DB_HOST: ${{ vars.CI_DB_HOST || '127.0.0.1' }}
+  CI_DB_PORT: ${{ vars.CI_DB_PORT || '55432' }}
+  CI_DB_DATABASE: ${{ vars.CI_DB_DATABASE || 'wms_hoanam' }}
+  CI_DB_USERNAME: ${{ vars.CI_DB_USERNAME || 'postgres' }}
+  CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+  CI_REDIS_HOST: ${{ vars.CI_REDIS_HOST || '127.0.0.1' }}
+  CI_REDIS_PORT: ${{ vars.CI_REDIS_PORT || '56379' }}
+  CI_SERVER_HOST: ${{ vars.CI_SERVER_HOST || '127.0.0.1' }}
+  CI_SERVER_PORT: ${{ vars.CI_SERVER_PORT || '8000' }}
+
+jobs:
+  ci:
+    runs-on: ${{ fromJSON(inputs.runner_labels || vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ${{ vars.CI_DB_DATABASE || 'wms_hoanam' }}
+          POSTGRES_USER: ${{ vars.CI_DB_USERNAME || 'postgres' }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      valkey:
+        image: valkey/valkey:8-alpine
+        ports:
+          - 56379:6379
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      APP_URL: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
+      DB_CONNECTION: pgsql
+      DB_HOST: ${{ vars.CI_DB_HOST || '127.0.0.1' }}
+      DB_PORT: ${{ vars.CI_DB_PORT || '55432' }}
+      DB_DATABASE: ${{ vars.CI_DB_DATABASE || 'wms_hoanam' }}
+      DB_USERNAME: ${{ vars.CI_DB_USERNAME || 'postgres' }}
+      DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+      REDIS_CLIENT: predis
+      REDIS_HOST: ${{ vars.CI_REDIS_HOST || '127.0.0.1' }}
+      REDIS_PORT: ${{ vars.CI_REDIS_PORT || '56379' }}
+      L5_SWAGGER_CONST_HOST: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build PHP runtime image
+        run: docker build -f docker/php/Dockerfile -t "$IMAGE_NAME:${GITHUB_SHA}" .
+
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          {
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=false"
+            echo "APP_URL=$CI_APP_URL"
+            echo "DB_CONNECTION=pgsql"
+            echo "DB_HOST=127.0.0.1"
+            echo "DB_PORT=$CI_DB_PORT"
+            echo "DB_DATABASE=$CI_DB_DATABASE"
+            echo "DB_USERNAME=$CI_DB_USERNAME"
+            echo "DB_PASSWORD=$CI_DB_PASSWORD"
+            echo "CACHE_STORE=redis"
+            echo "QUEUE_CONNECTION=redis"
+            echo "SESSION_DRIVER=redis"
+            echo "REDIS_CLIENT=predis"
+            echo "REDIS_HOST=127.0.0.1"
+            echo "REDIS_PORT=$CI_REDIS_PORT"
+            echo "L5_SWAGGER_CONST_HOST=$CI_APP_URL"
+          } >> .env
+
+      - name: Install PHP dependencies
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -e COMPOSER_HOME=/tmp/composer \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'composer install --no-interaction --prefer-dist --optimize-autoloader'
+
+      - name: Install Node dependencies
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            node:22-alpine \
+            sh -lc 'npm ci --ignore-scripts'
+
+      - name: Build frontend assets
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            node:22-alpine \
+            sh -lc 'npm run build'
+
+      - name: Offline npm audit
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            node:22-alpine \
+            sh -lc 'npm audit --offline --json'
+
+      - name: Prepare Laravel runtime secrets
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan key:generate --force && php artisan jwt:secret --force'
+
+      - name: Prepare Laravel database and OpenAPI
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan optimize:clear && php artisan migrate --force && php artisan db:seed --force && php artisan l5-swagger:generate'
+
+      - name: Run tests
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan test'
+
+      - name: Run local smoke
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            -e CI_SERVER_HOST="$CI_SERVER_HOST" \
+            -e CI_SERVER_PORT="$CI_SERVER_PORT" \
+            -e CI_APP_URL="$CI_APP_URL" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan migrate:fresh --seed --force && php artisan serve --host="$CI_SERVER_HOST" --port="$CI_SERVER_PORT" > /tmp/laravel.log 2>&1 & sleep 5 && php -r '\''$body = file_get_contents(getenv("CI_APP_URL")."/api/health"); if ($body === false || strpos($body, "\"success\":true") === false) { fwrite(STDERR, $body ?: "health failed"); exit(1); } echo $body.PHP_EOL;'\'''
+
+      - name: Build immutable Docker artifact
+        run: |
+          docker save "$IMAGE_NAME:${GITHUB_SHA}" -o "$IMAGE_TAR"
+          sha256sum "$IMAGE_TAR" > "$IMAGE_TAR.sha256"
+          docker image inspect "$IMAGE_NAME:${GITHUB_SHA}" > image-inspect.json
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hn-backend-${{ github.sha }}
+          path: |
+            ${{ env.IMAGE_TAR }}
+            ${{ env.IMAGE_TAR }}.sha256
+            image-inspect.json
+            storage/api-docs/api-docs.json
+          retention-days: 14
+
+  deploy-uat:
+    needs: ci
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true'
+    runs-on: ${{ fromJSON(inputs.uat_runner_labels || vars.UAT_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    environment: uat
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: hn-backend-${{ github.sha }}
+          path: artifact
+
+      - name: Copy artifact to UAT
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          source: "artifact/*"
+          target: "${{ vars.UAT_ARTIFACT_ROOT || '/tmp' }}/hn-${{ github.sha }}"
+          strip_components: 1
+
+      - name: Deploy exact artifact to UAT
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          RUN_UAT_SEED: ${{ inputs.run_uat_seed }}
+          RELEASE_SHA: ${{ github.sha }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAR: ${{ env.IMAGE_TAR }}
+          UAT_APP_PATH: ${{ vars.UAT_APP_PATH || '/opt/hoa-nam-backend' }}
+          UAT_ARTIFACT_ROOT: ${{ vars.UAT_ARTIFACT_ROOT || '/tmp' }}
+          UAT_BACKUP_DIR: ${{ vars.UAT_BACKUP_DIR || '/tmp' }}
+          UAT_DB_USERNAME: ${{ secrets.UAT_DB_USERNAME || vars.UAT_DB_USERNAME || 'wms_app' }}
+          UAT_DB_DATABASE: ${{ secrets.UAT_DB_DATABASE || vars.UAT_DB_DATABASE || 'wms_hoanam' }}
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          envs: RUN_UAT_SEED,RELEASE_SHA,IMAGE_NAME,IMAGE_TAR,UAT_APP_PATH,UAT_ARTIFACT_ROOT,UAT_BACKUP_DIR,UAT_DB_USERNAME,UAT_DB_DATABASE
+          script: |
+            set -euo pipefail
+            cd "$UAT_APP_PATH"
+            ts=$(date +%Y%m%d%H%M%S)
+            backup_path="${UAT_BACKUP_DIR}/wms_hoanam_predeploy_${ts}.sql"
+            docker compose exec -T postgres pg_dump -U "$UAT_DB_USERNAME" -d "$UAT_DB_DATABASE" --clean --if-exists > "$backup_path"
+            sha256sum "$backup_path" > "${backup_path}.sha256"
+            cd "${UAT_ARTIFACT_ROOT}/hn-${RELEASE_SHA}"
+            sha256sum -c "${IMAGE_TAR}.sha256"
+            docker load -i "${IMAGE_TAR}"
+            docker tag "${IMAGE_NAME}:${RELEASE_SHA}" "${IMAGE_NAME}:uat-${RELEASE_SHA}"
+            docker tag "${IMAGE_NAME}:${RELEASE_SHA}" "${IMAGE_NAME}:latest"
+            cd "$UAT_APP_PATH"
+            docker compose up -d postgres valkey minio mailpit minio-init nginx
+            docker compose up -d --no-build backend nginx
+            docker compose exec -T backend php artisan optimize:clear
+            docker compose exec -T backend php artisan migrate --force
+            if [ "${RUN_UAT_SEED}" = "true" ]; then
+              docker compose exec -T backend php artisan db:seed --force
+            fi
+            docker compose restart backend nginx
+
+      - name: UAT smoke
+        env:
+          UAT_APP_URL: ${{ secrets.UAT_APP_URL }}
+          UAT_SMOKE_USERNAME: ${{ secrets.UAT_SMOKE_USERNAME }}
+          UAT_SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
+        run: |
+          curl --fail "$UAT_APP_URL/api/health"
+          TOKEN=$(curl --fail -s -X POST "$UAT_APP_URL/api/v1/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"$UAT_SMOKE_USERNAME\",\"password\":\"$UAT_SMOKE_PASSWORD\"}" | jq -r '.data.access_token')
+          test -n "$TOKEN"
+          curl --fail -H "Authorization: Bearer $TOKEN" "$UAT_APP_URL/api/v1/warehouses?keyword=KHO-TONG-HN"

@@ -28,7 +28,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $user = User::create([
             'username' => 'tester',
             'display_name' => 'Tester',
-            'password_hash' => Hash::make('secret123'),
+            'password_hash' => Hash::make('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -45,12 +45,12 @@ class StockDocumentIdempotencyTest extends TestCase
         User::create([
             'username' => 'admin',
             'display_name' => 'Admin',
-            'password_hash' => Hash::make('secret123'),
+            'password_hash' => Hash::make('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
 
-        $response = $this->postJson('/api/v1/auth/login', ['username' => 'admin', 'password' => 'secret123']);
+        $response = $this->postJson('/api/v1/auth/login', ['username' => 'admin', 'password' => 'Cntt@1234']);
 
         $response->assertOk()
             ->assertJsonPath('success', true)
@@ -62,7 +62,7 @@ class StockDocumentIdempotencyTest extends TestCase
         User::create([
             'username' => 'admin2',
             'display_name' => 'Admin2',
-            'password_hash' => Hash::make('secret123'),
+            'password_hash' => Hash::make('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

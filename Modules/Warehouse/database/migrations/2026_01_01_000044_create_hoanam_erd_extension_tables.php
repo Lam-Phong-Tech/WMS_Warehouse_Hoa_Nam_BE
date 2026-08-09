@@ -56,6 +56,9 @@ return new class extends Migration
 
     private function createMasterExtensions(): void
     {
+        $skuTable = $this->skuTable();
+        $skuKey = $this->skuKey();
+
         if (! Schema::hasTable('agency')) {
             Schema::create('agency', function (Blueprint $table) {
                 $table->uuid('agency_id')->primary();
@@ -84,11 +87,11 @@ return new class extends Migration
             });
         }
 
-        // ERD calls this sku_alias. It is merged onto current products table, which is the active SKU table in code.
+        // Keep product_id column name for API compatibility while targeting the active SKU table.
         if (! Schema::hasTable('sku_alias')) {
-            Schema::create('sku_alias', function (Blueprint $table) {
+            Schema::create('sku_alias', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('alias_id')->primary();
-                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->cascadeOnDelete();
+                $table->foreignUuid('product_id')->constrained($skuTable, $skuKey)->cascadeOnDelete();
                 $table->string('alias_code', 100)->unique();
                 $table->string('alias_type', 30)->nullable();
                 $table->timestamps();
@@ -120,6 +123,9 @@ return new class extends Migration
 
     private function createCodeAndContainerExtensions(): void
     {
+        $skuTable = $this->skuTable();
+        $skuKey = $this->skuKey();
+
         if (! Schema::hasTable('physical_code')) {
             Schema::create('physical_code', function (Blueprint $table) {
                 $table->uuid('physical_code_id')->primary();
@@ -134,14 +140,14 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('container')) {
-            Schema::create('container', function (Blueprint $table) {
+            Schema::create('container', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('container_id')->primary();
                 $table->foreignUuid('physical_code_id')->nullable()->constrained('physical_code', 'physical_code_id')->nullOnDelete();
                 $table->string('container_code', 150)->unique();
                 $table->string('container_type', 20)->index();
                 $table->uuid('parent_container_id')->nullable()->index();
                 $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
-                $table->foreignUuid('primary_product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
+                $table->foreignUuid('primary_product_id')->nullable()->constrained($skuTable, $skuKey)->nullOnDelete();
                 $table->string('zone_code', 80)->nullable()->index();
                 $table->string('location_hint', 200)->nullable();
                 $table->string('status', 20)->default('ACTIVE')->index();
@@ -152,11 +158,11 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('container_item')) {
-            Schema::create('container_item', function (Blueprint $table) {
+            Schema::create('container_item', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('container_item_id')->primary();
                 $table->foreignUuid('container_id')->constrained('container', 'container_id')->cascadeOnDelete();
                 $table->foreignUuid('inventory_serial_id')->nullable()->constrained('inventory_serials')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->cascadeOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained($skuTable, $skuKey)->cascadeOnDelete();
                 $table->decimal('quantity', 18, 3)->nullable();
                 $table->string('status', 20)->default('ACTIVE')->index();
                 $table->timestamps();
@@ -195,7 +201,7 @@ return new class extends Migration
         if (! Schema::hasTable('posting_event')) {
             Schema::create('posting_event', function (Blueprint $table) {
                 $table->uuid('posting_event_id')->primary();
-                $table->string('operation', 80);
+                $table->string('operation', 160);
                 $table->string('idempotency_key', 100);
                 $table->string('request_hash', 128);
                 $table->string('status', 30)->default('COMMITTED')->index();
@@ -224,11 +230,11 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('putaway_task_line')) {
-            Schema::create('putaway_task_line', function (Blueprint $table) {
+            Schema::create('putaway_task_line', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('putaway_task_line_id')->primary();
                 $table->foreignUuid('putaway_task_id')->constrained('putaway_task', 'putaway_task_id')->cascadeOnDelete();
                 $table->foreignUuid('container_id')->nullable()->constrained('container', 'container_id')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained($skuTable, $skuKey)->nullOnDelete();
                 $table->decimal('quantity', 18, 3)->nullable();
                 $table->foreignUuid('target_container_id')->nullable()->constrained('container', 'container_id')->nullOnDelete();
                 $table->string('target_location_hint', 200)->nullable();
@@ -240,6 +246,9 @@ return new class extends Migration
 
     private function createStocktakeAndReversalExtensions(): void
     {
+        $skuTable = $this->skuTable();
+        $skuKey = $this->skuKey();
+
         if (! Schema::hasTable('stocktake_session')) {
             Schema::create('stocktake_session', function (Blueprint $table) {
                 $table->uuid('session_id')->primary();
@@ -258,10 +267,10 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('stocktake_snapshot')) {
-            Schema::create('stocktake_snapshot', function (Blueprint $table) {
+            Schema::create('stocktake_snapshot', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('snapshot_id')->primary();
                 $table->foreignUuid('session_id')->constrained('stocktake_session', 'session_id')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
+                $table->foreignUuid('product_id')->constrained($skuTable, $skuKey)->restrictOnDelete();
                 $table->string('stock_status', 30)->default('AVAILABLE');
                 $table->decimal('snapshot_qty', 18, 3)->default(0);
                 $table->timestamp('stocktake_started_at');
@@ -271,10 +280,10 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('stocktake_count')) {
-            Schema::create('stocktake_count', function (Blueprint $table) {
+            Schema::create('stocktake_count', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('count_id')->primary();
                 $table->foreignUuid('session_id')->constrained('stocktake_session', 'session_id')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained($skuTable, $skuKey)->nullOnDelete();
                 $table->foreignUuid('inventory_serial_id')->nullable()->constrained('inventory_serials')->nullOnDelete();
                 $table->foreignUuid('container_id')->nullable()->constrained('container', 'container_id')->nullOnDelete();
                 $table->decimal('actual_qty', 18, 3)->default(0);
@@ -287,10 +296,10 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('stocktake_variance')) {
-            Schema::create('stocktake_variance', function (Blueprint $table) {
+            Schema::create('stocktake_variance', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('variance_id')->primary();
                 $table->foreignUuid('session_id')->constrained('stocktake_session', 'session_id')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
+                $table->foreignUuid('product_id')->constrained($skuTable, $skuKey)->restrictOnDelete();
                 $table->decimal('expected_qty', 18, 3)->default(0);
                 $table->decimal('expected_at_count', 18, 3)->default(0);
                 $table->decimal('actual_qty', 18, 3)->default(0);
@@ -335,12 +344,15 @@ return new class extends Migration
 
     private function createWarrantyExtensions(): void
     {
+        $skuTable = $this->skuTable();
+        $skuKey = $this->skuKey();
+
         if (! Schema::hasTable('warranty_case')) {
-            Schema::create('warranty_case', function (Blueprint $table) {
+            Schema::create('warranty_case', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('warranty_case_id')->primary();
                 $table->string('warranty_case_code', 80)->unique();
                 $table->foreignUuid('inventory_serial_id')->nullable()->constrained('inventory_serials')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained($skuTable, $skuKey)->nullOnDelete();
                 $table->string('temporary_item_code', 150)->nullable();
                 $table->string('identification_status', 30)->default('IDENTIFIED')->index();
                 $table->string('missing_code_reason', 500)->nullable();
@@ -378,10 +390,13 @@ return new class extends Migration
 
     private function createPvExtensions(): void
     {
+        $skuTable = $this->skuTable();
+        $skuKey = $this->skuKey();
+
         if (! Schema::hasTable('pv_product_profile')) {
-            Schema::create('pv_product_profile', function (Blueprint $table) {
+            Schema::create('pv_product_profile', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('profile_id')->primary();
-                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->cascadeOnDelete();
+                $table->foreignUuid('product_id')->constrained($skuTable, $skuKey)->cascadeOnDelete();
                 $table->string('display_name', 255);
                 $table->text('description')->nullable();
                 $table->json('image_urls')->nullable();
@@ -438,12 +453,12 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('pv_recommendation_rule')) {
-            Schema::create('pv_recommendation_rule', function (Blueprint $table) {
+            Schema::create('pv_recommendation_rule', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('rule_id')->primary();
                 $table->foreignUuid('industry_id')->constrained('pv_industry', 'industry_id')->cascadeOnDelete();
                 $table->uuid('category_id')->nullable()->index();
                 $table->foreignUuid('tag_id')->nullable()->constrained('pv_filter_tag', 'tag_id')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained($skuTable, $skuKey)->nullOnDelete();
                 $table->unsignedInteger('priority');
                 $table->string('status', 20)->default('ACTIVE')->index();
                 $table->timestamps();
@@ -452,9 +467,9 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('pv_view_event')) {
-            Schema::create('pv_view_event', function (Blueprint $table) {
+            Schema::create('pv_view_event', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('view_event_id')->primary();
-                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained($skuTable, $skuKey)->nullOnDelete();
                 $table->string('keyword', 255)->nullable()->index();
                 $table->foreignUuid('industry_id')->nullable()->constrained('pv_industry', 'industry_id')->nullOnDelete();
                 $table->string('event_type', 40)->index();
@@ -465,6 +480,9 @@ return new class extends Migration
 
     private function createGovernanceExtensions(): void
     {
+        $skuTable = $this->skuTable();
+        $skuKey = $this->skuKey();
+
         if (! Schema::hasTable('migration_batch')) {
             Schema::create('migration_batch', function (Blueprint $table) {
                 $table->uuid('migration_batch_id')->primary();
@@ -485,12 +503,12 @@ return new class extends Migration
         }
 
         if (! Schema::hasTable('reconciliation_incident')) {
-            Schema::create('reconciliation_incident', function (Blueprint $table) {
+            Schema::create('reconciliation_incident', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('incident_id')->primary();
                 $table->string('incident_no', 80)->unique();
                 $table->string('divergence_type', 40)->index();
                 $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained($skuTable, $skuKey)->nullOnDelete();
                 $table->json('detected_value')->nullable();
                 $table->string('status', 30)->default('OPEN')->index();
                 $table->string('resolution_ref', 500)->nullable();
@@ -500,5 +518,15 @@ return new class extends Migration
                 $table->foreignUuid('resolved_by')->nullable()->constrained('app_user', 'user_id')->nullOnDelete();
             });
         }
+    }
+
+    private function skuTable(): string
+    {
+        return Schema::hasTable('sku') ? 'sku' : 'products';
+    }
+
+    private function skuKey(): string
+    {
+        return $this->skuTable() === 'sku' ? 'sku_id' : 'id';
     }
 };

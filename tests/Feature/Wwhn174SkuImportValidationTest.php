@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Event;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
@@ -42,7 +42,7 @@ class Wwhn174SkuImportValidationTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_import_maps_columns_by_header_name_and_commits_all_rows_atomically(): void
+    public function test_import_maps_legacy_headers_to_current_sku_schema_and_commits_atomically(): void
     {
         $file = $this->xlsx(
             ['name', 'status', 'code', 'is_serial_tracked', 'sku_type'],
@@ -65,14 +65,13 @@ class Wwhn174SkuImportValidationTest extends TestCase
             ->assertJsonPath('data.header_map.name', 0)
             ->assertJsonPath('data.header_map.code', 2);
 
-        $this->assertDatabaseHas('products', [
-            'code' => 'IMP-A-001',
+        $this->assertDatabaseHas('sku', [
             'sku_code' => 'IMP-A-001',
-            'name' => 'SKU nhập A',
+            'sku_name' => 'SKU nhập A',
             'is_serial_tracked' => true,
         ]);
-        $this->assertDatabaseHas('products', [
-            'code' => 'IMP-B-001',
+        $this->assertDatabaseHas('sku', [
+            'sku_code' => 'IMP-B-001',
             'sku_type' => 'COMPONENT',
         ]);
         $this->assertSame(2, DB::table('audit_log')->where('action', 'SKU_IMPORT_CREATE')->count());
@@ -81,12 +80,11 @@ class Wwhn174SkuImportValidationTest extends TestCase
 
     public function test_any_duplicate_invalid_or_inactive_row_rejects_the_whole_file_without_side_effect(): void
     {
-        Product::query()->create([
-            'code' => 'INACTIVE-001',
+        Sku::query()->create([
             'sku_code' => 'INACTIVE-001',
-            'name' => 'SKU inactive',
+            'sku_name' => 'SKU inactive',
             'status' => 'INACTIVE',
-            'version' => 4,
+            'version_code' => 'V4',
         ]);
 
         $auditBefore = DB::table('audit_log')->count();
@@ -115,25 +113,24 @@ class Wwhn174SkuImportValidationTest extends TestCase
             ->assertJsonPath('data.inserted_rows', 0)
             ->assertJsonPath('data.updated_rows', 0);
 
-        $this->assertDatabaseMissing('products', ['code' => 'VALID-BUT-ROLLBACK']);
-        $this->assertDatabaseMissing('products', ['code' => 'DUP-FILE']);
-        $this->assertDatabaseMissing('products', ['code' => 'INVALID-ENUM']);
-        $this->assertDatabaseHas('products', [
-            'code' => 'INACTIVE-001',
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'VALID-BUT-ROLLBACK']);
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'DUP-FILE']);
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'INVALID-ENUM']);
+        $this->assertDatabaseHas('sku', [
+            'sku_code' => 'INACTIVE-001',
             'status' => 'INACTIVE',
-            'version' => 4,
+            'version_code' => 'V4',
         ]);
         $this->assertSame($auditBefore, DB::table('audit_log')->count());
     }
 
     public function test_inactive_existing_sku_is_rejected_even_when_update_is_requested(): void
     {
-        Product::query()->create([
-            'code' => 'INACTIVE-ONLY-001',
+        Sku::query()->create([
             'sku_code' => 'INACTIVE-ONLY-001',
-            'name' => 'Không được sửa',
+            'sku_name' => 'Không được sửa',
             'status' => 'INACTIVE',
-            'version' => 7,
+            'version_code' => 'V7',
         ]);
         $file = $this->xlsx(['code', 'name'], [['INACTIVE-ONLY-001', 'Tên mới không được ghi']]);
 
@@ -143,11 +140,11 @@ class Wwhn174SkuImportValidationTest extends TestCase
             ->assertJsonPath('data.committed', false)
             ->assertJsonFragment(['code' => 'INACTIVE_SKU_CONFLICT']);
 
-        $this->assertDatabaseHas('products', [
-            'code' => 'INACTIVE-ONLY-001',
-            'name' => 'Không được sửa',
+        $this->assertDatabaseHas('sku', [
+            'sku_code' => 'INACTIVE-ONLY-001',
+            'sku_name' => 'Không được sửa',
             'status' => 'INACTIVE',
-            'version' => 7,
+            'version_code' => 'V7',
         ]);
     }
 
@@ -159,7 +156,7 @@ class Wwhn174SkuImportValidationTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'SKU_IMPORT_FILE_INVALID')
             ->assertJsonPath('data.committed', false);
-        $this->assertDatabaseMissing('products', ['code' => 'HEADER-001']);
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'HEADER-001']);
 
         $file = $this->xlsx(['code', 'name', 'published_to_app'], [['BOOL-001', 'Boolean invalid', 'maybe']]);
         $this->withHeaders($this->headers())
@@ -167,7 +164,7 @@ class Wwhn174SkuImportValidationTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'SKU_IMPORT_VALIDATION_FAILED')
             ->assertJsonFragment(['code' => 'INVALID_BOOLEAN']);
-        $this->assertDatabaseMissing('products', ['code' => 'BOOL-001']);
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'BOOL-001']);
     }
 
     public function test_import_audit_failure_rolls_back_every_row_and_outbox(): void
@@ -191,38 +188,45 @@ class Wwhn174SkuImportValidationTest extends TestCase
         $response->assertStatus(500)
             ->assertJsonPath('error.code', 'INTERNAL_SERVER_ERROR')
             ->assertJsonMissingPath('trace');
-        $this->assertDatabaseMissing('products', ['code' => 'IMPORT-AUDIT-A']);
-        $this->assertDatabaseMissing('products', ['code' => 'IMPORT-AUDIT-B']);
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'IMPORT-AUDIT-A']);
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'IMPORT-AUDIT-B']);
         $this->assertSame(0, DB::table('audit_outbox')->count());
     }
 
-    public function test_existing_active_sku_requires_explicit_update_and_increments_version_once(): void
+    public function test_existing_active_sku_requires_explicit_update_and_maps_legacy_version_header(): void
     {
-        Product::query()->create([
-            'code' => 'UPDATE-001',
+        Sku::query()->create([
             'sku_code' => 'UPDATE-001',
-            'name' => 'Tên cũ',
+            'sku_name' => 'Tên cũ',
             'status' => 'ACTIVE',
-            'version' => 3,
+            'version_code' => 'V3',
         ]);
 
-        $file = $this->xlsx(['code', 'name'], [['UPDATE-001', 'Tên mới']]);
+        $file = $this->xlsx(['code', 'name', 'version'], [['UPDATE-001', 'Tên mới', 'V4']]);
 
         $this->withHeaders($this->headers())
             ->post('/api/v1/skus/import-excel', ['file' => $file])
             ->assertStatus(422)
             ->assertJsonPath('data.committed', false);
 
-        $this->assertDatabaseHas('products', ['code' => 'UPDATE-001', 'name' => 'Tên cũ', 'version' => 3]);
+        $this->assertDatabaseHas('sku', [
+            'sku_code' => 'UPDATE-001',
+            'sku_name' => 'Tên cũ',
+            'version_code' => 'V3',
+        ]);
 
-        $file = $this->xlsx(['code', 'name'], [['UPDATE-001', 'Tên mới']]);
+        $file = $this->xlsx(['code', 'name', 'version'], [['UPDATE-001', 'Tên mới', 'V4']]);
         $this->withHeaders($this->headers())
             ->post('/api/v1/skus/import-excel', ['file' => $file, 'update_existing' => true])
             ->assertOk()
             ->assertJsonPath('data.updated_rows', 1)
             ->assertJsonPath('data.committed', true);
 
-        $this->assertDatabaseHas('products', ['code' => 'UPDATE-001', 'name' => 'Tên mới', 'version' => 4]);
+        $this->assertDatabaseHas('sku', [
+            'sku_code' => 'UPDATE-001',
+            'sku_name' => 'Tên mới',
+            'version_code' => 'V4',
+        ]);
         $this->assertSame(1, DB::table('audit_log')->where('action', 'SKU_IMPORT_UPDATE')->count());
     }
 

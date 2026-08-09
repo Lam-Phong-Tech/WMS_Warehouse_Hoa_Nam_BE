@@ -38,7 +38,7 @@ class PermissionAndValidationTest extends TestCase
         $user = User::create([
             'username' => $username,
             'display_name' => 'Limited user',
-            'password_hash' => Hash::make('secret123'),
+            'password_hash' => Hash::make('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

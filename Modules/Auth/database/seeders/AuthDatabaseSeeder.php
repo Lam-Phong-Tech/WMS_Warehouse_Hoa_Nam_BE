@@ -21,7 +21,6 @@ class AuthDatabaseSeeder extends Seeder
         ['warehouse.manage', 'Tạo/sửa kho'],
         ['product.view', 'Xem sản phẩm'],
         ['product.manage', 'Tạo/sửa sản phẩm'],
-        ['sku.manage', 'Quản lý SKU'],
         ['master.manage', 'Quản lý master data'],
         ['stock_document.view', 'Xem phiếu kho'],
         ['stock_document.create', 'Tạo phiếu kho'],
@@ -130,11 +129,10 @@ class AuthDatabaseSeeder extends Seeder
                 'item_instance.view', 'item_instance.manage',
             ],
         ],
-        // Test users for authorization testing
         'SKU_MANAGER' => [
             'name' => 'Quản lý SKU (test)',
             'permissions' => [
-                'sku.manage', 'product.view', 'product.manage',
+                'product.view', 'product.manage',
             ],
         ],
         'MASTER_MANAGER' => [
@@ -149,16 +147,12 @@ class AuthDatabaseSeeder extends Seeder
         ],
     ];
 
-    /**
-     * Tài khoản demo cho từng role, dùng chung mật khẩu baseline để tiện test theo permission.
-     */
     private const USERS = [
         ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF'],
         ['username' => 'approver01', 'display_name' => 'Người duyệt 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER'],
         ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER'],
         ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
         ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER'],
-        // Test users for P0-1 authorization testing
         ['username' => 'test-sku-manage', 'display_name' => 'Test SKU Manage', 'email' => 'test-sku-manage@hoanam.com', 'role' => 'SKU_MANAGER'],
         ['username' => 'test-master-manage', 'display_name' => 'Test Master Manage', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
         ['username' => 'test-no-permission', 'display_name' => 'Test No Permission', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
@@ -167,11 +161,6 @@ class AuthDatabaseSeeder extends Seeder
 
     private const DEFAULT_PASSWORD = 'Cntt@1234';
 
-    /**
-     * Seed tối thiểu để smoke test base: role SUPER_ADMIN (bypass mọi permission) + admin,
-     * cộng thêm 4 role demo theo nhóm quyền + 1 user mỗi role để test permission thật.
-     * Không phải seed đầy đủ theo BRD — chỉ đủ để chứng minh Auth chạy được.
-     */
     public function run(): void
     {
         $permissionsByKey = [];
@@ -211,7 +200,6 @@ class AuthDatabaseSeeder extends Seeder
                 $pivotData[$permissionsByKey[$key]->permission_id] = ['role_permission_id' => (string) Str::uuid()];
             }
             $role->permissions()->sync($pivotData);
-
             $roleModels[$code] = $role;
         }
 

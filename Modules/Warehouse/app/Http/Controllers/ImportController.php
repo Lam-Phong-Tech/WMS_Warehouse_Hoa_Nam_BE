@@ -27,7 +27,7 @@ class ImportController extends Controller
         responses: [
             new OA\Response(response: 200, description: 'XLSX template'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing sku.manage permission'),
+            new OA\Response(response: 403, description: 'Missing product.manage permission'),
         ]
     )]
     public function downloadTemplate(): BinaryFileResponse
@@ -64,7 +64,7 @@ class ImportController extends Controller
         responses: [
             new OA\Response(response: 200, description: 'Import committed atomically'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing sku.manage permission'),
+            new OA\Response(response: 403, description: 'Missing product.manage permission'),
             new OA\Response(response: 409, description: 'Concurrent unique conflict; no partial write'),
             new OA\Response(response: 422, description: 'File/row validation failed; no business side effect'),
         ]

@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Services;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Exceptions\WarehouseException;
 use Modules\Warehouse\Models\InventoryBalance;
@@ -163,7 +164,7 @@ class StockLedger
             'stock_document_line_id' => $line?->id,
             'original_movement_id' => $originalMovementId,
             'created_by' => $userId,
-            'occurred_at' => now(),
+            'occurred_at' => $doc->doc_date ? Carbon::parse($doc->doc_date)->endOfDay() : now(),
             'created_at' => now(),
         ]);
 
