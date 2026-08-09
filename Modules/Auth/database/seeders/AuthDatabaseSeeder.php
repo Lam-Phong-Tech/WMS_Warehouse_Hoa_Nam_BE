@@ -11,11 +11,6 @@ use Modules\Auth\Models\User;
 
 class AuthDatabaseSeeder extends Seeder
 {
-    /**
-     * Danh mục permission_key hiện đang được route Warehouse/AuditLog tham chiếu qua
-     * middleware `permission:<CODE>`. SUPER_ADMIN bypass toàn bộ nên không cần gán ở đây,
-     * nhưng các row này bắt buộc phải tồn tại để sau này gán cho role không phải admin.
-     */
     private const PERMISSIONS = [
         ['warehouse.view', 'Xem kho'],
         ['warehouse.manage', 'Tạo/sửa kho'],
@@ -68,10 +63,6 @@ class AuthDatabaseSeeder extends Seeder
         ['item_instance.manage', 'Tạo/sửa item instance'],
     ];
 
-    /**
-     * Role demo theo nhóm quyền (ngoài SUPER_ADMIN) để test middleware `permission:<CODE>`
-     * với user không bypass. permission_key liệt kê ở đây phải là tập con của self::PERMISSIONS.
-     */
     private const ROLES = [
         'WAREHOUSE_STAFF' => [
             'name' => 'Nhân viên kho',
@@ -131,15 +122,11 @@ class AuthDatabaseSeeder extends Seeder
         ],
         'SKU_MANAGER' => [
             'name' => 'Quản lý SKU (test)',
-            'permissions' => [
-                'product.view', 'product.manage',
-            ],
+            'permissions' => ['product.view', 'product.manage'],
         ],
         'MASTER_MANAGER' => [
             'name' => 'Quản lý Master Data (test)',
-            'permissions' => [
-                'master.manage',
-            ],
+            'permissions' => ['master.manage'],
         ],
         'NO_PERMISSION' => [
             'name' => 'Không có quyền (test)',
@@ -203,6 +190,10 @@ class AuthDatabaseSeeder extends Seeder
             $roleModels[$code] = $role;
         }
 
+        // Alias rows must be seeded only after canonical role assignments exist so
+        // compatibility permissions inherit exactly the same roles.
+        $this->call(WmsPermissionCompatibilitySeeder::class);
+
         foreach (self::USERS as $u) {
             $user = User::updateOrCreate(
                 ['username' => $u['username']],
@@ -228,7 +219,6 @@ class AuthDatabaseSeeder extends Seeder
     private function defaultPassword(): string
     {
         $ciPassword = env('CI_DEMO_PASSWORD');
-
         return is_string($ciPassword) && $ciPassword !== '' ? $ciPassword : self::DEFAULT_PASSWORD;
     }
 }

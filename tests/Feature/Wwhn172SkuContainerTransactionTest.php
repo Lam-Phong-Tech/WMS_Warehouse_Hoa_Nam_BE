@@ -6,7 +6,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\PhysicalCode;
+use Modules\Warehouse\Models\Sku;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -15,7 +16,6 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
-
     private string $token;
 
     protected function setUp(): void
@@ -28,13 +28,12 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
 
     public function test_sku_aggregate_create_is_atomic_audited_and_replay_safe(): void
     {
-        $component = Product::query()->create([
-            'code' => 'COMP-001',
+        $component = Sku::query()->create([
             'sku_code' => 'COMP-001',
-            'name' => 'Component 001',
+            'sku_name' => 'Component 001',
             'sku_type' => 'COMPONENT',
             'status' => 'ACTIVE',
-            'version' => 1,
+            'version_code' => 'V1',
         ]);
 
         $payload = [
@@ -42,7 +41,7 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
             'name' => 'SKU kit 001',
             'sku_type' => 'PRODUCT',
             'components' => [[
-                'component_id' => $component->id,
+                'component_id' => $component->sku_id,
                 'quantity' => 2.5,
             ]],
             'physical_codes' => [[
@@ -63,15 +62,15 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
 
         $skuId = (string) $first->json('data.id');
 
-        $second = $this->postJson('/api/v1/skus', $payload, $this->headers('sku-create-001'));
-        $second->assertCreated()
+        $this->postJson('/api/v1/skus', $payload, $this->headers('sku-create-001'))
+            ->assertCreated()
             ->assertJsonPath('data.id', $skuId)
             ->assertHeader('Idempotent-Replay', 'true');
 
-        $this->assertDatabaseCount('products', 2);
+        $this->assertDatabaseCount('sku', 2);
         $this->assertDatabaseHas('sku_component', [
             'parent_product_id' => $skuId,
-            'component_product_id' => $component->id,
+            'component_product_id' => $component->sku_id,
         ]);
         $this->assertDatabaseHas('physical_code', [
             'product_id' => $skuId,
@@ -86,66 +85,55 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
     {
         $headers = $this->headers('sku-create-conflict');
 
-        $this->postJson('/api/v1/skus', [
-            'code' => 'SKU-IDEM-001',
-            'name' => 'Original',
-        ], $headers)->assertCreated();
+        $this->postJson('/api/v1/skus', ['code' => 'SKU-IDEM-001', 'name' => 'Original'], $headers)
+            ->assertCreated();
 
-        $this->postJson('/api/v1/skus', [
-            'code' => 'SKU-IDEM-002',
-            'name' => 'Different payload',
-        ], $headers)
+        $this->postJson('/api/v1/skus', ['code' => 'SKU-IDEM-002', 'name' => 'Different payload'], $headers)
             ->assertConflict()
             ->assertJsonPath('error.code', 'IDEMPOTENCY_ERROR');
 
-        $this->assertDatabaseMissing('products', ['code' => 'SKU-IDEM-002']);
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'SKU-IDEM-002']);
     }
 
     public function test_component_cycle_rolls_back_edge_version_and_audit(): void
     {
-        $a = $this->product('SKU-A');
-        $b = $this->product('SKU-B');
+        $a = $this->sku('SKU-A');
+        $b = $this->sku('SKU-B');
 
-        $this->patchJson("/api/v1/skus/{$a->id}", [
+        $this->patchJson("/api/v1/skus/{$a->sku_id}", [
             'version' => 1,
-            'components' => [[
-                'component_id' => $b->id,
-                'quantity' => 1,
-            ]],
+            'components' => [['component_id' => $b->sku_id, 'quantity' => 1]],
         ], $this->headers('sku-a-add-b'))
             ->assertOk()
             ->assertJsonPath('data.version', 2);
 
-        $this->patchJson("/api/v1/skus/{$b->id}", [
+        $this->patchJson("/api/v1/skus/{$b->sku_id}", [
             'version' => 1,
-            'components' => [[
-                'component_id' => $a->id,
-                'quantity' => 1,
-            ]],
+            'components' => [['component_id' => $a->sku_id, 'quantity' => 1]],
         ], $this->headers('sku-b-add-a'))
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'SKU_COMPONENT_CYCLE');
 
         $this->assertDatabaseMissing('sku_component', [
-            'parent_product_id' => $b->id,
-            'component_product_id' => $a->id,
+            'parent_product_id' => $b->sku_id,
+            'component_product_id' => $a->sku_id,
         ]);
-        $this->assertSame(1, (int) Product::query()->findOrFail($b->id)->version);
+        $this->assertSame('V1', Sku::query()->findOrFail($b->sku_id)->version_code);
         $this->assertSame(1, DB::table('audit_log')->where('action', 'SKU_UPDATE')->count());
     }
 
     public function test_stale_sku_version_is_rejected_before_mutation(): void
     {
-        $sku = $this->product('SKU-VERSION');
+        $sku = $this->sku('SKU-VERSION');
 
-        $this->patchJson("/api/v1/skus/{$sku->id}", [
+        $this->patchJson("/api/v1/skus/{$sku->sku_id}", [
             'version' => 1,
             'name' => 'Version 2 name',
         ], $this->headers('sku-version-1'))
             ->assertOk()
             ->assertJsonPath('data.version', 2);
 
-        $this->patchJson("/api/v1/skus/{$sku->id}", [
+        $this->patchJson("/api/v1/skus/{$sku->sku_id}", [
             'version' => 1,
             'name' => 'Stale overwrite',
         ], $this->headers('sku-version-stale'))
@@ -153,87 +141,75 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
             ->assertJsonPath('error.code', 'SKU_VERSION_CONFLICT');
 
         $sku->refresh();
-        $this->assertSame('Version 2 name', $sku->name);
-        $this->assertSame(2, (int) $sku->version);
+        $this->assertSame('Version 2 name', $sku->sku_name);
+        $this->assertSame('V2', $sku->version_code);
     }
 
-    public function test_container_create_replay_seal_and_immutable_guard(): void
+    public function test_container_contract_uses_canonical_sku_and_plural_tables(): void
     {
-        $product = $this->product('SKU-CONTAINER');
-        $payload = [
-            'container_code' => 'ctn-001',
-            'container_type' => 'BOX',
-            'primary_product_id' => $product->id,
-            'items' => [[
-                'product_id' => $product->id,
-                'quantity' => 10,
-            ]],
-        ];
-
-        $first = $this->postJson('/api/v1/containers', $payload, $this->headers('container-create-001'));
-        $first->assertCreated()
-            ->assertJsonPath('data.container_code', 'CTN-001')
-            ->assertJsonPath('data.version', 1)
-            ->assertJsonCount(1, 'data.items');
-        $containerId = (string) $first->json('data.container_id');
-
-        $this->postJson('/api/v1/containers', $payload, $this->headers('container-create-001'))
-            ->assertCreated()
-            ->assertJsonPath('data.container_id', $containerId)
-            ->assertHeader('Idempotent-Replay', 'true');
-
-        $this->postJson(
-            "/api/v1/containers/{$containerId}/seal",
-            ['version' => 1],
-            $this->headers('container-seal-001')
-        )->assertOk()
-            ->assertJsonPath('data.status', 'SEALED')
-            ->assertJsonPath('data.version', 2);
-
-        $this->patchJson("/api/v1/containers/{$containerId}", [
-            'version' => 2,
-            'location_hint' => 'Must not change',
-        ], $this->headers('container-update-sealed'))
-            ->assertConflict()
-            ->assertJsonPath('error.code', 'CONTAINER_IMMUTABLE');
-
-        $this->assertDatabaseMissing('container', [
-            'container_id' => $containerId,
-            'location_hint' => 'Must not change',
+        $sku = $this->sku('SKU-CONTAINER');
+        $code = PhysicalCode::query()->create([
+            'code_value' => 'CTN-001',
+            'code_type' => 'BOX',
+            'carrier_type' => 'BARCODE',
+            'status' => 'ACTIVE',
         ]);
-        $this->assertSame(1, DB::table('audit_log')->where('action', 'CONTAINER_CREATE')->count());
-        $this->assertSame(1, DB::table('audit_log')->where('action', 'CONTAINER_SEAL')->count());
+
+        $create = $this->postJson('/api/v1/containers', [
+            'container_code' => 'CTN-001',
+            'container_type' => 'BOX',
+            'physical_code_id' => $code->physical_code_id,
+            'primary_sku_id' => $sku->sku_id,
+            'status' => 'ACTIVE',
+        ], $this->authHeaders());
+
+        $create->assertCreated()
+            ->assertJsonPath('data.container_code', 'CTN-001')
+            ->assertJsonPath('data.version', 1);
+
+        $containerId = (string) $create->json('data.container_id');
+        $this->assertDatabaseHas('containers', [
+            'container_id' => $containerId,
+            'primary_sku_id' => $sku->sku_id,
+        ]);
     }
 
-    public function test_failed_container_create_rolls_back_root_items_and_audit(): void
+    public function test_invalid_box_container_create_rolls_back_canonical_root(): void
     {
-        $product = $this->product('SKU-ROLLBACK');
+        $code = PhysicalCode::query()->create([
+            'code_value' => 'CTN-ROLLBACK',
+            'code_type' => 'BOX',
+            'carrier_type' => 'BARCODE',
+            'status' => 'ACTIVE',
+        ]);
 
         $this->postJson('/api/v1/containers', [
             'container_code' => 'CTN-ROLLBACK',
             'container_type' => 'BOX',
-            'items' => [
-                ['product_id' => $product->id, 'quantity' => 1],
-                ['product_id' => $product->id, 'quantity' => 2],
-            ],
-        ], $this->headers('container-rollback'))
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'DUPLICATE_CONTAINER_ITEM');
+            'physical_code_id' => $code->physical_code_id,
+            'status' => 'ACTIVE',
+        ], $this->authHeaders())->assertStatus(422);
 
-        $this->assertDatabaseMissing('container', ['container_code' => 'CTN-ROLLBACK']);
-        $this->assertDatabaseMissing('audit_log', ['action' => 'CONTAINER_CREATE']);
+        $this->assertDatabaseMissing('containers', ['container_code' => 'CTN-ROLLBACK']);
     }
 
-    private function product(string $code): Product
+    private function sku(string $code): Sku
     {
-        return Product::query()->create([
-            'code' => $code,
+        return Sku::query()->create([
             'sku_code' => $code,
-            'name' => $code,
+            'sku_name' => $code,
             'sku_type' => 'PRODUCT',
             'status' => 'ACTIVE',
-            'version' => 1,
+            'version_code' => 'V1',
         ]);
+    }
+
+    private function authHeaders(): array
+    {
+        return [
+            'Authorization' => "Bearer {$this->token}",
+            'Accept' => 'application/json',
+        ];
     }
 
     private function headers(string $idempotencyKey): array

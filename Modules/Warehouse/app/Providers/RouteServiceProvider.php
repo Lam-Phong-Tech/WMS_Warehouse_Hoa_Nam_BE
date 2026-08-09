@@ -18,6 +18,7 @@ class RouteServiceProvider extends ServiceProvider
     {
         $this->mapApiRoutes();
         $this->mapImportRoutes();
+        $this->mapGovernanceRoutes();
         $this->mapWebRoutes();
     }
 
@@ -34,5 +35,10 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapImportRoutes(): void
     {
         Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/import.php'));
+    }
+
+    protected function mapGovernanceRoutes(): void
+    {
+        Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/governance.php'));
     }
 }

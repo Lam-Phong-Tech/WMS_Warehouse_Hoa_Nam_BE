@@ -7,116 +7,125 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 
 /**
- * Single transaction boundary for products + sku_component + physical_code + audit.
+ * WWHN-172 SKU aggregate transaction boundary.
+ *
+ * `sku` / Sku is the canonical SKU source of truth. The WWHN extension tables
+ * deliberately retain legacy FK column names such as parent_product_id and
+ * product_id, but those FKs point to sku.sku_id.
  */
 class SkuAggregateService
 {
     private const SKU_FIELDS = [
-        'code', 'sku_code', 'name', 'unit', 'sku_type', 'brand_code',
-        'category_code', 'model_code', 'power_or_voltage', 'package_variant',
-        'published_to_app', 'is_serial_tracked', 'status',
+        'code', 'sku_code', 'name', 'sku_name', 'unit', 'sku_type',
+        'brand_code', 'category_code', 'model_code', 'power_or_voltage',
+        'package_variant', 'published_to_app', 'is_serial_tracked', 'status',
     ];
 
     private const CODE_TYPES = ['BARCODE', 'QR', 'RFID', 'SERIAL'];
-
     private const CARRIER_TYPES = ['UNIT', 'PACKAGE', 'LABEL', 'TAG'];
 
     public function create(array $payload, ?string $actorId, ?string $requestId): array
     {
         return DB::transaction(function () use ($payload, $actorId, $requestId): array {
             $attributes = $this->normalizeSku(Arr::only($payload, self::SKU_FIELDS));
+            $attributes['sku_type'] = $attributes['sku_type'] ?? 'PRODUCT';
             $attributes['status'] = $attributes['status'] ?? 'ACTIVE';
-            $attributes['version'] = 1;
-            $this->assertCodesAvailable($attributes);
+            $attributes['version_code'] = 'V1';
+            $this->assertSkuCodeAvailable((string) $attributes['sku_code']);
 
-            /** @var Product $product */
-            $product = Product::query()->create($attributes);
-            $this->replaceComponents($product, (array) ($payload['components'] ?? []));
-            $this->replacePhysicalCodes($product, (array) ($payload['physical_codes'] ?? []));
+            /** @var Sku $sku */
+            $sku = Sku::query()->create($attributes);
+            $this->replaceComponents($sku, (array) ($payload['components'] ?? []));
+            $this->replacePhysicalCodes($sku, (array) ($payload['physical_codes'] ?? []));
 
-            $after = $this->snapshot((string) $product->id, true);
-            $this->audit('SKU_CREATE', $product, $actorId, $requestId, [], $after);
+            $after = $this->snapshot((string) $sku->getKey(), true);
+            $this->audit('SKU_CREATE', $sku, $actorId, $requestId, [], $after);
 
             return $after;
         }, 3);
     }
 
     public function update(
-        string $productId,
+        string $skuId,
         array $payload,
         int $expectedVersion,
         ?string $actorId,
         ?string $requestId
     ): array {
-        return DB::transaction(function () use ($productId, $payload, $expectedVersion, $actorId, $requestId): array {
-            $product = $this->lockProduct($productId);
-            $this->assertVersion((int) $product->version, $expectedVersion);
-            $before = $this->snapshot($productId, true);
+        return DB::transaction(function () use ($skuId, $payload, $expectedVersion, $actorId, $requestId): array {
+            $sku = $this->lockSku($skuId);
+            $actualVersion = $this->versionNumber($sku);
+            $this->assertVersion($actualVersion, $expectedVersion);
+            $before = $this->snapshot($skuId, true);
 
-            $attributes = $this->normalizeSku(Arr::only($payload, self::SKU_FIELDS));
-            $this->assertCodesAvailable($attributes, $productId);
-            $product->fill($attributes);
+            $attributes = $this->normalizeSku(Arr::only($payload, self::SKU_FIELDS), false);
+            if (isset($attributes['sku_code'])) {
+                $this->assertSkuCodeAvailable((string) $attributes['sku_code'], $skuId);
+            }
+            $sku->fill($attributes);
 
             if (array_key_exists('components', $payload)) {
-                $this->replaceComponents($product, (array) $payload['components']);
+                $this->replaceComponents($sku, (array) $payload['components']);
             }
             if (array_key_exists('physical_codes', $payload)) {
-                $this->replacePhysicalCodes($product, (array) $payload['physical_codes']);
+                $this->replacePhysicalCodes($sku, (array) $payload['physical_codes']);
             }
 
-            $product->version = ((int) $product->version) + 1;
-            $product->save();
+            $sku->version_code = 'V'.($actualVersion + 1);
+            $sku->save();
 
-            $after = $this->snapshot($productId, true);
-            $this->audit('SKU_UPDATE', $product, $actorId, $requestId, $before, $after);
+            $after = $this->snapshot($skuId, true);
+            $this->audit('SKU_UPDATE', $sku, $actorId, $requestId, $before, $after);
 
             return $after;
         }, 3);
     }
 
     public function addPhysicalCode(
-        string $productId,
+        string $skuId,
         array $physicalCode,
         int $expectedVersion,
         ?string $actorId,
         ?string $requestId
     ): array {
-        return DB::transaction(function () use ($productId, $physicalCode, $expectedVersion, $actorId, $requestId): array {
-            $product = $this->lockProduct($productId);
-            $this->assertVersion((int) $product->version, $expectedVersion);
-            $before = $this->snapshot($productId, true);
+        return DB::transaction(function () use ($skuId, $physicalCode, $expectedVersion, $actorId, $requestId): array {
+            $sku = $this->lockSku($skuId);
+            $actualVersion = $this->versionNumber($sku);
+            $this->assertVersion($actualVersion, $expectedVersion);
+            $before = $this->snapshot($skuId, true);
 
-            $this->upsertPhysicalCode($product, $physicalCode);
-            $product->version = ((int) $product->version) + 1;
-            $product->save();
+            $this->upsertPhysicalCode($sku, $physicalCode);
+            $sku->version_code = 'V'.($actualVersion + 1);
+            $sku->save();
 
-            $after = $this->snapshot($productId, true);
-            $this->audit('SKU_PHYSICAL_CODE_ASSIGN', $product, $actorId, $requestId, $before, $after);
+            $after = $this->snapshot($skuId, true);
+            $this->audit('SKU_PHYSICAL_CODE_ASSIGN', $sku, $actorId, $requestId, $before, $after);
 
             return $after;
         }, 3);
     }
 
     public function revokePhysicalCode(
-        string $productId,
+        string $skuId,
         string $physicalCodeId,
         int $expectedVersion,
         ?string $actorId,
         ?string $requestId
     ): array {
-        return DB::transaction(function () use ($productId, $physicalCodeId, $expectedVersion, $actorId, $requestId): array {
-            $product = $this->lockProduct($productId);
-            $this->assertVersion((int) $product->version, $expectedVersion);
-            $before = $this->snapshot($productId, true);
+        return DB::transaction(function () use ($skuId, $physicalCodeId, $expectedVersion, $actorId, $requestId): array {
+            $sku = $this->lockSku($skuId);
+            $actualVersion = $this->versionNumber($sku);
+            $this->assertVersion($actualVersion, $expectedVersion);
+            $before = $this->snapshot($skuId, true);
 
             $code = DB::table('physical_code')
                 ->where('physical_code_id', $physicalCodeId)
                 ->lockForUpdate()
                 ->first();
-            if ($code === null || (string) $code->product_id !== $productId) {
+            if ($code === null || (string) $code->product_id !== $skuId) {
                 ApiError::abort(404, 'PHYSICAL_CODE_NOT_FOUND', 'Physical code không thuộc SKU này.');
             }
 
@@ -129,40 +138,40 @@ class SkuAggregateService
                 'updated_at' => now(),
             ]);
 
-            $product->version = ((int) $product->version) + 1;
-            $product->save();
+            $sku->version_code = 'V'.($actualVersion + 1);
+            $sku->save();
 
-            $after = $this->snapshot($productId, true);
-            $this->audit('SKU_PHYSICAL_CODE_REVOKE', $product, $actorId, $requestId, $before, $after);
+            $after = $this->snapshot($skuId, true);
+            $this->audit('SKU_PHYSICAL_CODE_REVOKE', $sku, $actorId, $requestId, $before, $after);
 
             return $after;
         }, 3);
     }
 
-    public function snapshot(string $productId, bool $failIfMissing = false): array
+    public function snapshot(string $skuId, bool $failIfMissing = false): array
     {
-        $product = Product::query()->find($productId);
-        if ($product === null) {
+        /** @var Sku|null $sku */
+        $sku = Sku::query()->find($skuId);
+        if ($sku === null) {
             if ($failIfMissing) {
                 ApiError::abort(404, 'SKU_NOT_FOUND', 'Không tìm thấy SKU.');
             }
-
             return [];
         }
 
         $components = DB::table('sku_component as sc')
-            ->join('products as p', 'p.id', '=', 'sc.component_product_id')
-            ->where('sc.parent_product_id', $productId)
+            ->join('sku as s', 's.sku_id', '=', 'sc.component_product_id')
+            ->where('sc.parent_product_id', $skuId)
             ->where('sc.status', 'ACTIVE')
-            ->orderBy('p.code')
+            ->orderBy('s.sku_code')
             ->get([
                 'sc.sku_component_id', 'sc.component_product_id',
-                'p.code as component_code', 'p.sku_code as component_sku_code',
-                'p.name as component_name', 'sc.quantity', 'sc.version',
+                's.sku_code as component_code', 's.sku_code as component_sku_code',
+                's.sku_name as component_name', 'sc.quantity', 'sc.version',
             ])->map(fn (object $row): array => (array) $row)->all();
 
         $physicalCodes = DB::table('physical_code')
-            ->where('product_id', $productId)
+            ->where('product_id', $skuId)
             ->whereIn('status', ['ACTIVE', 'INACTIVE'])
             ->orderBy('code_value')
             ->get([
@@ -170,20 +179,26 @@ class SkuAggregateService
                 'status', 'version', 'created_at', 'updated_at',
             ])->map(fn (object $row): array => (array) $row)->all();
 
-        return array_merge($product->toArray(), [
-            'components' => $components,
-            'physical_codes' => $physicalCodes,
-        ]);
+        $data = $sku->toArray();
+        $data['id'] = (string) $sku->getKey();
+        $data['code'] = (string) $sku->sku_code;
+        $data['name'] = (string) $sku->sku_name;
+        $data['version'] = $this->versionNumber($sku);
+        $data['components'] = $components;
+        $data['physical_codes'] = $physicalCodes;
+
+        return $data;
     }
 
-    private function replaceComponents(Product $product, array $components): void
+    private function replaceComponents(Sku $sku, array $components): void
     {
-        if (strtoupper((string) $product->sku_type) === 'COMPONENT' && $components !== []) {
+        if (strtoupper((string) $sku->sku_type) === 'COMPONENT' && $components !== []) {
             ApiError::abort(422, 'COMPONENT_CANNOT_HAVE_CHILDREN', 'SKU loại COMPONENT không được có component con.');
         }
 
-        DB::table('sku_component')->where('parent_product_id', $product->id)->lockForUpdate()->get();
-        DB::table('sku_component')->where('parent_product_id', $product->id)->delete();
+        $skuId = (string) $sku->getKey();
+        DB::table('sku_component')->where('parent_product_id', $skuId)->lockForUpdate()->get();
+        DB::table('sku_component')->where('parent_product_id', $skuId)->delete();
 
         $seen = [];
         foreach ($components as $index => $component) {
@@ -193,7 +208,7 @@ class SkuAggregateService
             if (! Str::isUuid($componentId)) {
                 ApiError::abort(422, 'INVALID_COMPONENT', "components.{$index}.component_id không hợp lệ.");
             }
-            if ($componentId === strtolower((string) $product->id)) {
+            if ($componentId === strtolower($skuId)) {
                 ApiError::abort(422, 'SKU_COMPONENT_SELF_REFERENCE', 'SKU không thể là component của chính nó.');
             }
             if (isset($seen[$componentId])) {
@@ -203,17 +218,17 @@ class SkuAggregateService
                 ApiError::abort(422, 'INVALID_COMPONENT_QUANTITY', 'Số lượng component phải lớn hơn 0.');
             }
 
-            $componentProduct = Product::query()->lockForUpdate()->find($componentId);
-            if ($componentProduct === null || strtoupper((string) $componentProduct->status) !== 'ACTIVE') {
+            $componentSku = Sku::query()->lockForUpdate()->find($componentId);
+            if ($componentSku === null || strtoupper((string) $componentSku->status) !== 'ACTIVE') {
                 ApiError::abort(422, 'COMPONENT_NOT_ACTIVE', 'Component không tồn tại hoặc không ACTIVE.', [
                     'component_id' => $componentId,
                 ]);
             }
 
-            $this->assertNoCycle((string) $product->id, $componentId);
+            $this->assertNoCycle($skuId, $componentId);
             DB::table('sku_component')->insert([
                 'sku_component_id' => (string) Str::uuid(),
-                'parent_product_id' => (string) $product->id,
+                'parent_product_id' => $skuId,
                 'component_product_id' => $componentId,
                 'quantity' => (string) $quantity,
                 'status' => 'ACTIVE',
@@ -252,7 +267,7 @@ class SkuAggregateService
         }
     }
 
-    private function replacePhysicalCodes(Product $product, array $codes): void
+    private function replacePhysicalCodes(Sku $sku, array $codes): void
     {
         $normalized = [];
         foreach ($codes as $index => $code) {
@@ -263,7 +278,8 @@ class SkuAggregateService
             $normalized[$value['code_value']] = $value;
         }
 
-        $current = DB::table('physical_code')->where('product_id', $product->id)->lockForUpdate()->get();
+        $skuId = (string) $sku->getKey();
+        $current = DB::table('physical_code')->where('product_id', $skuId)->lockForUpdate()->get();
         foreach ($current as $row) {
             if (! isset($normalized[strtoupper((string) $row->code_value)])) {
                 DB::table('physical_code')->where('physical_code_id', $row->physical_code_id)->update([
@@ -278,22 +294,20 @@ class SkuAggregateService
         }
 
         foreach ($normalized as $code) {
-            $this->upsertPhysicalCode($product, $code);
+            $this->upsertPhysicalCode($sku, $code);
         }
     }
 
-    private function upsertPhysicalCode(Product $product, array $code): void
+    private function upsertPhysicalCode(Sku $sku, array $code): void
     {
         $code = $this->normalizePhysicalCode($code);
+        $skuId = (string) $sku->getKey();
         $existing = DB::table('physical_code')->where('code_value', $code['code_value'])->lockForUpdate()->first();
 
         if ($existing !== null) {
-            $productConflict = $existing->product_id !== null
-                && (string) $existing->product_id !== (string) $product->id;
-            $genericConflict = $existing->assigned_object_id !== null
-                && (string) $existing->assigned_object_id !== (string) $product->id;
-            $typeConflict = $existing->assigned_object_id !== null
-                && strtoupper((string) $existing->assigned_object_type) !== 'SKU';
+            $productConflict = $existing->product_id !== null && (string) $existing->product_id !== $skuId;
+            $genericConflict = $existing->assigned_object_id !== null && (string) $existing->assigned_object_id !== $skuId;
+            $typeConflict = $existing->assigned_object_id !== null && strtoupper((string) $existing->assigned_object_type) !== 'SKU';
 
             if ($productConflict || $genericConflict || $typeConflict) {
                 ApiError::abort(409, 'PHYSICAL_CODE_ALREADY_ASSIGNED', 'Physical code đã được gán cho object khác.', [
@@ -305,27 +319,26 @@ class SkuAggregateService
             }
 
             DB::table('physical_code')->where('physical_code_id', $existing->physical_code_id)->update([
-                'product_id' => (string) $product->id,
+                'product_id' => $skuId,
                 'code_type' => $code['code_type'],
                 'carrier_type' => $code['carrier_type'],
                 'assigned_object_type' => 'SKU',
-                'assigned_object_id' => (string) $product->id,
+                'assigned_object_id' => $skuId,
                 'status' => $code['status'],
                 'version' => ((int) $existing->version) + 1,
                 'updated_at' => now(),
             ]);
-
             return;
         }
 
         DB::table('physical_code')->insert([
             'physical_code_id' => (string) Str::uuid(),
-            'product_id' => (string) $product->id,
+            'product_id' => $skuId,
             'code_value' => $code['code_value'],
             'code_type' => $code['code_type'],
             'carrier_type' => $code['carrier_type'],
             'assigned_object_type' => 'SKU',
-            'assigned_object_id' => (string) $product->id,
+            'assigned_object_id' => $skuId,
             'status' => $code['status'],
             'version' => 1,
             'created_at' => now(),
@@ -357,58 +370,75 @@ class SkuAggregateService
         return ['code_value' => $value, 'code_type' => $type, 'carrier_type' => $carrier, 'status' => $status];
     }
 
-    private function normalizeSku(array $attributes): array
+    private function normalizeSku(array $attributes, bool $requireCodeAndName = true): array
     {
-        foreach (['code', 'sku_code', 'brand_code', 'category_code', 'model_code'] as $field) {
-            if (array_key_exists($field, $attributes) && $attributes[$field] !== null) {
-                $attributes[$field] = strtoupper(trim((string) $attributes[$field]));
+        $code = $attributes['sku_code'] ?? $attributes['code'] ?? null;
+        $name = $attributes['sku_name'] ?? $attributes['name'] ?? null;
+
+        if ($code !== null) {
+            $code = strtoupper(trim((string) $code));
+            if ($code === '' || mb_strlen($code) > 100) {
+                ApiError::abort(422, 'INVALID_SKU_CODE', 'sku_code không hợp lệ.');
             }
+            $attributes['sku_code'] = $code;
+        } elseif ($requireCodeAndName) {
+            ApiError::abort(422, 'SKU_CODE_REQUIRED', 'code hoặc sku_code là bắt buộc.');
         }
-        foreach (['name', 'unit', 'power_or_voltage', 'package_variant', 'sku_type', 'status'] as $field) {
+
+        if ($name !== null) {
+            $name = trim((string) $name);
+            if ($name === '' || mb_strlen($name) > 255) {
+                ApiError::abort(422, 'INVALID_SKU_NAME', 'sku_name không hợp lệ.');
+            }
+            $attributes['sku_name'] = $name;
+        } elseif ($requireCodeAndName) {
+            ApiError::abort(422, 'SKU_NAME_REQUIRED', 'name hoặc sku_name là bắt buộc.');
+        }
+
+        unset($attributes['code'], $attributes['name'], $attributes['brand_code'], $attributes['category_code'], $attributes['model_code']);
+
+        foreach (['unit', 'power_or_voltage', 'package_variant', 'sku_type', 'status'] as $field) {
             if (array_key_exists($field, $attributes) && $attributes[$field] !== null) {
                 $attributes[$field] = trim((string) $attributes[$field]);
             }
         }
         foreach (['package_variant', 'sku_type', 'status'] as $field) {
             if (isset($attributes[$field])) {
-                $attributes[$field] = strtoupper($attributes[$field]);
+                $attributes[$field] = strtoupper((string) $attributes[$field]);
             }
-        }
-        if (! isset($attributes['code']) && isset($attributes['sku_code'])) {
-            $attributes['code'] = $attributes['sku_code'];
-        }
-        if (! isset($attributes['sku_code']) && isset($attributes['code'])) {
-            $attributes['sku_code'] = $attributes['code'];
         }
 
         return $attributes;
     }
 
-    private function assertCodesAvailable(array $attributes, ?string $ignoreId = null): void
+    private function assertSkuCodeAvailable(string $code, ?string $ignoreId = null): void
     {
-        foreach (['code', 'sku_code'] as $field) {
-            if (! isset($attributes[$field])) {
-                continue;
-            }
-            $query = Product::query()->where($field, $attributes[$field])->lockForUpdate();
-            if ($ignoreId !== null) {
-                $query->where('id', '!=', $ignoreId);
-            }
-            if ($query->exists()) {
-                ApiError::abort(409, 'SKU_CODE_DUPLICATE', "{$field} đã tồn tại.", [$field => $attributes[$field]]);
-            }
+        $query = Sku::query()->where('sku_code', $code)->lockForUpdate();
+        if ($ignoreId !== null) {
+            $query->where('sku_id', '!=', $ignoreId);
+        }
+        if ($query->exists()) {
+            ApiError::abort(409, 'SKU_CODE_DUPLICATE', 'sku_code đã tồn tại.', ['sku_code' => $code]);
         }
     }
 
-    private function lockProduct(string $productId): Product
+    private function lockSku(string $skuId): Sku
     {
-        /** @var Product|null $product */
-        $product = Product::query()->lockForUpdate()->find($productId);
-        if ($product === null) {
+        /** @var Sku|null $sku */
+        $sku = Sku::query()->lockForUpdate()->find($skuId);
+        if ($sku === null) {
             ApiError::abort(404, 'SKU_NOT_FOUND', 'Không tìm thấy SKU.');
         }
+        return $sku;
+    }
 
-        return $product;
+    private function versionNumber(Sku $sku): int
+    {
+        $raw = strtoupper(trim((string) $sku->version_code));
+        if (preg_match('/^V?(\d+)$/', $raw, $matches) === 1) {
+            return max(1, (int) $matches[1]);
+        }
+        return 1;
     }
 
     private function assertVersion(int $actual, int $expected): void
@@ -423,7 +453,7 @@ class SkuAggregateService
 
     private function audit(
         string $action,
-        Product $product,
+        Sku $sku,
         ?string $actorId,
         ?string $requestId,
         array $before,
@@ -432,7 +462,7 @@ class SkuAggregateService
         AuditLogger::record(
             $action,
             'sku',
-            (string) $product->id,
+            (string) $sku->getKey(),
             $actorId,
             $requestId,
             beforeData: $before,
