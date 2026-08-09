@@ -16,11 +16,8 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     use Authenticatable, HasUuids, SoftDeletes;
 
     protected $table = 'app_user';
-
     protected $primaryKey = 'user_id';
-
     public $incrementing = false;
-
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -66,6 +63,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:super-admin-permissions", 300, function () {
                 return Permission::query()
                     ->where('status', 'ACTIVE')
+                    ->orderByRaw("CASE WHEN permission_key = 'audit_log.view' THEN 0 ELSE 1 END")
                     ->orderBy('permission_key')
                     ->pluck('permission_key')
                     ->values()
@@ -81,6 +79,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
                 ->flatten()
                 ->pluck('permission_key')
                 ->unique()
+                ->sortBy(fn (string $key): string => ($key === 'audit_log.view' ? '0:' : '1:').$key)
                 ->values()
                 ->all();
         });

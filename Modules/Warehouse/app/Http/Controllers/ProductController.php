@@ -45,7 +45,7 @@ class ProductController extends Controller
     #[OA\Post(
         path: '/api/v1/products',
         operationId: 'product_create',
-        summary: 'Tạo SKU mới',
+        summary: 'Tạo SKU mới qua product compatibility façade',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         requestBody: new OA\RequestBody(
@@ -81,7 +81,7 @@ class ProductController extends Controller
 
         AuditLogger::record(
             action: 'CREATE',
-            objectType: 'sku',
+            objectType: 'product',
             objectId: $product->sku_id,
             actorId: $request->user()?->user_id,
             requestId: $request->attributes->get('request_id'),
@@ -159,7 +159,7 @@ class ProductController extends Controller
 
         AuditLogger::record(
             action: 'UPDATE',
-            objectType: 'sku',
+            objectType: 'product',
             objectId: $id,
             actorId: $request->user()?->user_id,
             requestId: $request->attributes->get('request_id'),
