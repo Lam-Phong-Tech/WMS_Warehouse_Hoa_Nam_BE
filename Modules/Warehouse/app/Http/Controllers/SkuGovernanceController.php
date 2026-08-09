@@ -9,7 +9,136 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Services\SkuAggregateService;
+use OpenApi\Attributes as OA;
 
+/**
+ * Quản trị SKU (WWHN-172): cập nhật SKU aggregate, gán/thu hồi physical code.
+ * Tất cả endpoint đều yêu cầu header Idempotency-Key và If-Match (hoặc field version)
+ * để đảm bảo idempotency và optimistic locking.
+ */
+#[OA\Patch(
+    path: '/api/v1/skus/{id}',
+    operationId: 'sku_update',
+    summary: 'Cập nhật SKU aggregate (code/name/unit/sku_type/components/physical_codes...)',
+    description: 'Yêu cầu header Idempotency-Key và If-Match (hoặc field version) để chống ghi trùng và đảm bảo optimistic locking.',
+    security: [['bearerAuth' => []]],
+    tags: ['05. Product'],
+    parameters: [
+        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 128)),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: false, schema: new OA\Schema(type: 'string')),
+    ],
+    requestBody: new OA\RequestBody(
+        required: true,
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: 'code', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'name', type: 'string', maxLength: 255, nullable: true),
+                new OA\Property(property: 'unit', type: 'string', maxLength: 30, nullable: true),
+                new OA\Property(property: 'sku_type', type: 'string', enum: ['PRODUCT', 'COMPONENT'], nullable: true),
+                new OA\Property(property: 'brand_code', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'category_code', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'model_code', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'power_or_voltage', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'package_variant', type: 'string', enum: ['STANDARD', 'TRAY', 'BOX', 'CARTON', 'PALLET', 'KIT'], nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DRAFT'], nullable: true),
+                new OA\Property(property: 'published_to_app', type: 'boolean', nullable: true),
+                new OA\Property(property: 'is_serial_tracked', type: 'boolean', nullable: true),
+                new OA\Property(property: 'version', type: 'integer', minimum: 1, nullable: true),
+                new OA\Property(property: 'components', type: 'array', nullable: true, items: new OA\Items(
+                    properties: [
+                        new OA\Property(property: 'component_id', type: 'string', format: 'uuid'),
+                        new OA\Property(property: 'quantity', type: 'number', format: 'float'),
+                    ]
+                )),
+                new OA\Property(property: 'physical_codes', type: 'array', nullable: true, items: new OA\Items(
+                    properties: [
+                        new OA\Property(property: 'code_value', type: 'string', maxLength: 150),
+                        new OA\Property(property: 'code_type', type: 'string', enum: ['BARCODE', 'QR', 'RFID', 'SERIAL']),
+                        new OA\Property(property: 'carrier_type', type: 'string', enum: ['UNIT', 'PACKAGE', 'LABEL', 'TAG']),
+                        new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                    ]
+                )),
+            ]
+        )
+    ),
+    responses: [
+        new OA\Response(response: 200, description: 'Cập nhật SKU thành công'),
+        new OA\Response(response: 401, description: 'Chưa xác thực'),
+        new OA\Response(response: 403, description: 'Không có quyền sku.manage'),
+        new OA\Response(response: 404, description: 'Không tìm thấy SKU'),
+        new OA\Response(response: 409, description: 'Xung đột version (If-Match không khớp)'),
+        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key hoặc If-Match/version'),
+    ]
+)]
+#[OA\Post(
+    path: '/api/v1/skus/{id}/physical-codes',
+    operationId: 'sku_add_physical_code',
+    summary: 'Gán physical code (barcode/QR/RFID/serial) cho SKU',
+    description: 'Yêu cầu header Idempotency-Key và If-Match (hoặc field version) để chống ghi trùng và đảm bảo optimistic locking.',
+    security: [['bearerAuth' => []]],
+    tags: ['05. Product'],
+    parameters: [
+        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 128)),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: false, schema: new OA\Schema(type: 'string')),
+    ],
+    requestBody: new OA\RequestBody(
+        required: true,
+        content: new OA\JsonContent(
+            required: ['code_value'],
+            properties: [
+                new OA\Property(property: 'code_value', type: 'string', maxLength: 150),
+                new OA\Property(property: 'code_type', type: 'string', enum: ['BARCODE', 'QR', 'RFID', 'SERIAL']),
+                new OA\Property(property: 'carrier_type', type: 'string', enum: ['UNIT', 'PACKAGE', 'LABEL', 'TAG']),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'version', type: 'integer', minimum: 1),
+            ]
+        )
+    ),
+    responses: [
+        new OA\Response(response: 200, description: 'Gán physical code thành công'),
+        new OA\Response(response: 401, description: 'Chưa xác thực'),
+        new OA\Response(response: 403, description: 'Không có quyền sku.manage'),
+        new OA\Response(response: 404, description: 'Không tìm thấy SKU'),
+        new OA\Response(response: 409, description: 'Xung đột version hoặc physical code đã tồn tại'),
+        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key hoặc If-Match/version'),
+    ]
+)]
+#[OA\Delete(
+    path: '/api/v1/skus/{id}/physical-codes/{physicalCodeId}',
+    operationId: 'sku_revoke_physical_code',
+    summary: 'Thu hồi physical code khỏi SKU',
+    description: 'Yêu cầu header Idempotency-Key và If-Match (hoặc field version) để chống ghi trùng và đảm bảo optimistic locking.',
+    security: [['bearerAuth' => []]],
+    tags: ['05. Product'],
+    parameters: [
+        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'physicalCodeId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 128)),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: false, schema: new OA\Schema(type: 'string')),
+    ],
+    requestBody: new OA\RequestBody(
+        required: false,
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: 'version', type: 'integer', minimum: 1),
+            ]
+        )
+    ),
+    responses: [
+        new OA\Response(response: 200, description: 'Thu hồi physical code thành công'),
+        new OA\Response(response: 401, description: 'Chưa xác thực'),
+        new OA\Response(response: 403, description: 'Không có quyền sku.manage'),
+        new OA\Response(response: 404, description: 'Không tìm thấy SKU hoặc physical code'),
+        new OA\Response(response: 409, description: 'Xung đột version'),
+        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key hoặc If-Match/version'),
+    ]
+)]
 class SkuGovernanceController extends Controller
 {
     public function __construct(private readonly SkuAggregateService $service) {}

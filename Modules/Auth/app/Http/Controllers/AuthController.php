@@ -29,7 +29,7 @@ class AuthController extends Controller
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
             required: ['email', 'password'], properties: [
                 new OA\Property(property: 'email', type: 'string', format: 'email', example: 'user@example.com'),
-                new OA\Property(property: 'password', type: 'string', format: 'password', example: 'your-password'),
+                new OA\Property(property: 'password', type: 'string', format: 'password', example: 'Cntt@1234'),
             ]
         )),
         responses: [
@@ -177,6 +177,24 @@ class AuthController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/v1/auth/change-password', operationId: 'auth_change_password',
+        summary: 'Đổi mật khẩu tài khoản hiện tại (thu hồi toàn bộ refresh token)',
+        security: [['bearerAuth' => []]], tags: ['01. Authentication'],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['current_password', 'new_password'],
+            properties: [
+                new OA\Property(property: 'current_password', type: 'string', format: 'password'),
+                new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8),
+                new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password'),
+            ]
+        )),
+        responses: [
+            new OA\Response(response: 200, description: 'Đổi mật khẩu thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 422, description: 'Mật khẩu hiện tại sai hoặc dữ liệu không hợp lệ'),
+        ]
+    )]
     public function changePassword(Request $request)
     {
         $data = $request->validate([
@@ -202,6 +220,24 @@ class AuthController extends Controller
         return $this->respondSuccess(null, 'Đổi mật khẩu thành công');
     }
 
+    #[OA\Post(
+        path: '/api/v1/auth/switch-context', operationId: 'auth_switch_context',
+        summary: 'Chuyển ngữ cảnh (warehouse scope) và cấp lại access token mới',
+        security: [['bearerAuth' => []]], tags: ['01. Authentication'],
+        requestBody: new OA\RequestBody(content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: 'context_type', type: 'string', maxLength: 50, nullable: true),
+                new OA\Property(property: 'context_id', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'scope_ref', type: 'string', maxLength: 100, nullable: true),
+            ]
+        )),
+        responses: [
+            new OA\Response(response: 200, description: 'Chuyển ngữ cảnh thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Ngữ cảnh kho nằm ngoài phạm vi được gán'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        ]
+    )]
     public function switchContext(Request $request)
     {
         $request->validate([

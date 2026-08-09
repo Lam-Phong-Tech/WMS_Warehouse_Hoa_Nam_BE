@@ -21,9 +21,9 @@ services:
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_DATABASE=wms_hoanam
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=postgres
+      - DB_DATABASE=${DB_DATABASE:-wms_hoanam}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - SESSION_DRIVER=redis
       - REDIS_HOST=valkey
       - REDIS_PORT=6379
@@ -55,8 +55,12 @@ services:
     volumes:
       - .:/var/www/html:delegated
     environment:
+      - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-wms_hoanam}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - REDIS_HOST=valkey
       - REDIS_PORT=6379
       - MAIL_HOST=mailpit

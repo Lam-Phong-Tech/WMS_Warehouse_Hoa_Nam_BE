@@ -12,8 +12,8 @@ return new class extends Migration
         if (! Schema::hasTable('sku_component')) {
             Schema::create('sku_component', function (Blueprint $table) {
                 $table->uuid('sku_component_id')->primary();
-                $table->foreignUuid('parent_product_id')->constrained('products')->cascadeOnDelete();
-                $table->foreignUuid('component_product_id')->constrained('products')->restrictOnDelete();
+                $table->foreignUuid('parent_product_id')->constrained('sku', 'sku_id')->cascadeOnDelete();
+                $table->foreignUuid('component_product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
                 $table->decimal('quantity', 18, 3);
                 $table->string('status', 20)->default('ACTIVE')->index();
                 $table->unsignedInteger('version')->default(1);
@@ -29,7 +29,7 @@ return new class extends Migration
                     $table->foreignUuid('product_id')
                         ->nullable()
                         ->after('physical_code_id')
-                        ->constrained('products')
+                        ->constrained('sku', 'sku_id')
                         ->nullOnDelete();
                 }
                 if (! Schema::hasColumn('physical_code', 'version')) {

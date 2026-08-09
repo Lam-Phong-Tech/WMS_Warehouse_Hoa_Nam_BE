@@ -79,5 +79,10 @@ class WarehouseDatabaseSeeder extends Seeder
                 ]
             );
         }
+
+        // Seed dữ liệu demo (product_masters, SKU, import_batches, physical_codes,
+        // containers, item_instances, inventory_serials, stock_documents,
+        // inventory_balances, stock_movements, container_items).
+        $this->call(DemoDataSeeder::class);
     }
 }
