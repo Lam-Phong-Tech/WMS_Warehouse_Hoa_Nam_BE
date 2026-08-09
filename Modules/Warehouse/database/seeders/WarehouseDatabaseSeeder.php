@@ -5,16 +5,13 @@ namespace Modules\Warehouse\Database\Seeders;
 use Illuminate\Database\Seeder;
 use Modules\Warehouse\Models\Agency;
 use Modules\Warehouse\Models\DefectCatalog;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 
 class WarehouseDatabaseSeeder extends Seeder
 {
-    /**
-     * Baseline chỉ có đúng 1 "kho tổng" (DEC-WM-001) — route Warehouse không có POST
-     * nên đây là cách duy nhất để có dữ liệu warehouse trong môi trường mới.
-     */
     private const WAREHOUSE = [
-        'code' => 'WH-MAIN',
+        'code' => 'KHO-TONG-HN',
         'name' => 'Kho tổng Hòa Nam',
         'address' => 'Số 1, KCN Quang Minh, Mê Linh, Hà Nội',
         'contact_person' => 'Nguyễn Văn A',
@@ -22,20 +19,26 @@ class WarehouseDatabaseSeeder extends Seeder
         'status' => 'ACTIVE',
     ];
 
-    /**
-     * Agency là master data chỉ để tham chiếu (điểm nhận hàng xuất kho) — không có
-     * inventory_balance/stocktake riêng theo BR-AGY-01/DEC-WM-001.
-     */
+    private const LEGACY_WAREHOUSE_CODE = 'WH-MAIN';
+
+    private const BASELINE_SKU = [
+        'sku_code' => 'HN-PV-BASE-001',
+        'sku_name' => 'SKU baseline Hòa Nam',
+        'sku_type' => 'PRODUCT',
+        'unit' => 'cái',
+        'is_serial_tracked' => false,
+        'version_code' => 'V1',
+        'warranty_applicable' => false,
+        'published_to_app' => true,
+        'status' => 'ACTIVE',
+    ];
+
     private const AGENCIES = [
         ['agency_code' => 'AG-001', 'agency_name' => 'Đại lý Hòa Nam Hà Nội', 'phone' => '0911111111', 'address' => 'Hà Nội'],
         ['agency_code' => 'AG-002', 'agency_name' => 'Đại lý Hòa Nam Đà Nẵng', 'phone' => '0922222222', 'address' => 'Đà Nẵng'],
         ['agency_code' => 'AG-003', 'agency_name' => 'Đại lý Hòa Nam Hồ Chí Minh', 'phone' => '0933333333', 'address' => 'Hồ Chí Minh'],
     ];
 
-    /**
-     * Danh mục lỗi/bệnh máy dùng chung cho warranty_case — giữ INACTIVE thay vì xoá cứng
-     * nếu về sau không dùng nữa (comment trong migration create_defect_catalogs_table).
-     */
     private const DEFECT_CATALOGS = [
         ['defect_code' => 'DEF-001', 'defect_name' => 'Trầy xước bề mặt', 'description' => 'Trầy xước ngoại quan không ảnh hưởng chức năng'],
         ['defect_code' => 'DEF-002', 'defect_name' => 'Vỡ/nứt vỏ máy', 'description' => 'Vỡ hoặc nứt vỏ ngoài của thiết bị'],
@@ -46,15 +49,18 @@ class WarehouseDatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        Warehouse::firstOrCreate(
-            ['code' => self::WAREHOUSE['code']],
-            [
-                'name' => self::WAREHOUSE['name'],
-                'address' => self::WAREHOUSE['address'],
-                'contact_person' => self::WAREHOUSE['contact_person'],
-                'phone' => self::WAREHOUSE['phone'],
-                'status' => self::WAREHOUSE['status'],
-            ]
+        $warehouse = Warehouse::query()->where('code', self::WAREHOUSE['code'])->first()
+            ?? Warehouse::query()->where('code', self::LEGACY_WAREHOUSE_CODE)->first();
+
+        if ($warehouse === null) {
+            Warehouse::query()->create(self::WAREHOUSE);
+        } else {
+            $warehouse->update(self::WAREHOUSE);
+        }
+
+        Sku::updateOrCreate(
+            ['sku_code' => self::BASELINE_SKU['sku_code']],
+            collect(self::BASELINE_SKU)->except('sku_code')->all()
         );
 
         foreach (self::AGENCIES as $agency) {
@@ -80,9 +86,6 @@ class WarehouseDatabaseSeeder extends Seeder
             );
         }
 
-        // Seed dữ liệu demo (product_masters, SKU, import_batches, physical_codes,
-        // containers, item_instances, inventory_serials, stock_documents,
-        // inventory_balances, stock_movements, container_items).
         $this->call(DemoDataSeeder::class);
     }
 }

@@ -14,13 +14,7 @@ use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
- * P0-1: Backend Authorization Test Suite
- *
- * 36 test cases (9 endpoints × 4 users):
- * - User A: test-sku-manage@hoanam.com - có sku.manage
- * - User B: test-master-manage@hoanam.com - có master.manage
- * - User C: test-no-permission@hoanam.com - không có quyền
- * - User D: test-super-admin@hoanam.com - super admin
+ * P0-1: Backend Authorization Test Suite.
  */
 class AuthorizationTest extends TestCase
 {
@@ -33,12 +27,8 @@ class AuthorizationTest extends TestCase
         Cache::flush();
     }
 
-    /**
-     * Test 9 endpoints with sku.manage permission
-     */
     public function test_sku_manage_endpoints_with_different_users(): void
     {
-        // Create test users
         $skuManager = $this->createTestUser('test-sku-manage', 'SKU_MANAGER');
         $masterManager = $this->createTestUser('test-master-manage', 'MASTER_MANAGER');
         $noPermission = $this->createTestUser('test-no-permission', 'NO_PERMISSION');
@@ -58,7 +48,6 @@ class AuthorizationTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        // Endpoints covered by the SKU/product manager role.
         $skuEndpoints = [
             ['GET', '/api/v1/products', [], 200],
             ['POST', '/api/v1/products', ['code' => 'AUTH-PRODUCT-CREATE', 'name' => 'Authorization Product Create'], 201],
@@ -71,21 +60,17 @@ class AuthorizationTest extends TestCase
         ];
 
         foreach ($skuEndpoints as [$method, $url, $payload, $successStatus]) {
-            // User with sku.manage should have access
             $this->makeRequest($method, $url, $skuManagerToken, $payload)
                 ->assertStatus($successStatus);
 
-            // User with master.manage should be denied (doesn't have sku.manage)
             $this->makeRequest($method, $url, $masterManagerToken, $payload)
                 ->assertStatus(403)
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
-            // User with no permission should be denied
             $this->makeRequest($method, $url, $noPermissionToken, $payload)
                 ->assertStatus(403)
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
-            // Super admin should have access (bypass)
             $superAdminPayload = $method === 'POST'
                 ? array_replace($payload, ['code' => $payload['code'].'-SA'])
                 : $payload;
@@ -95,12 +80,8 @@ class AuthorizationTest extends TestCase
         }
     }
 
-    /**
-     * Test 9 endpoints with master.manage permission
-     */
     public function test_master_manage_endpoints_with_different_users(): void
     {
-        // Create test users
         $skuManager = $this->createTestUser('test-sku-manage', 'SKU_MANAGER');
         $masterManager = $this->createTestUser('test-master-manage', 'MASTER_MANAGER');
         $noPermission = $this->createTestUser('test-no-permission', 'NO_PERMISSION');
@@ -111,7 +92,6 @@ class AuthorizationTest extends TestCase
         $noPermissionToken = JWTAuth::fromUser($noPermission);
         $superAdminToken = JWTAuth::fromUser($superAdmin);
 
-        // 9 endpoints requiring master.manage permission
         $masterEndpoints = [
             ['GET', '/api/v1/product-categories'],
             ['GET', '/api/v1/uoms'],
@@ -119,29 +99,22 @@ class AuthorizationTest extends TestCase
         ];
 
         foreach ($masterEndpoints as [$method, $url]) {
-            // User with sku.manage should be denied (doesn't have master.manage)
             $this->makeRequest($method, $url, $skuManagerToken)
                 ->assertStatus(403)
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
-            // User with master.manage should have access
             $this->makeRequest($method, $url, $masterManagerToken)
                 ->assertStatus(200);
 
-            // User with no permission should be denied
             $this->makeRequest($method, $url, $noPermissionToken)
                 ->assertStatus(403)
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
-            // Super admin should have access (bypass)
             $this->makeRequest($method, $url, $superAdminToken)
                 ->assertStatus(200);
         }
     }
 
-    /**
-     * Test 403 response format is correct
-     */
     public function test_403_response_format_is_correct(): void
     {
         $noPermission = $this->createTestUser('test-no-permission', 'NO_PERMISSION');
@@ -166,52 +139,46 @@ class AuthorizationTest extends TestCase
             ]);
     }
 
-    /**
-     * Test SUPER_ADMIN bypasses all permission checks
-     */
     public function test_super_admin_bypasses_sku_and_master_permissions(): void
     {
         $superAdmin = $this->createTestUser('test-super-admin', 'SUPER_ADMIN');
         $token = JWTAuth::fromUser($superAdmin);
 
-        // SUPER_ADMIN should access sku.manage endpoints
         $this->getJson('/api/v1/products', ['Authorization' => "Bearer {$token}"])
             ->assertStatus(200);
-
-        // SUPER_ADMIN should access master.manage endpoints
         $this->getJson('/api/v1/product-categories', ['Authorization' => "Bearer {$token}"])
             ->assertStatus(200);
     }
 
-    /**
-     * Test user with no permission gets 403 on all protected endpoints
-     */
     public function test_user_with_no_permission_gets_403_on_all_endpoints(): void
     {
         $noPermission = $this->createTestUser('test-no-permission', 'NO_PERMISSION');
         $token = JWTAuth::fromUser($noPermission);
 
-        $protectedEndpoints = [
+        foreach ([
             '/api/v1/products',
             '/api/v1/product-categories',
             '/api/v1/uoms',
             '/api/v1/suppliers',
             '/api/v1/skus',
-        ];
-
-        foreach ($protectedEndpoints as $url) {
+        ] as $url) {
             $this->getJson($url, ['Authorization' => "Bearer {$token}"])
                 ->assertStatus(403)
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
         }
     }
 
-    /**
-     * Helper method to make HTTP requests
-     */
     private function makeRequest(string $method, string $url, string $token, array $payload = [])
     {
         $headers = ['Authorization' => "Bearer {$token}"];
+        if ($method === 'POST') {
+            // POST /skus is intentionally idempotent. Use a deterministic valid
+            // key so authorization is tested after precondition validation.
+            $headers['Idempotency-Key'] = 'auth-'.substr(hash(
+                'sha256',
+                $url.'|'.$token.'|'.json_encode($payload, JSON_UNESCAPED_UNICODE)
+            ), 0, 32);
+        }
 
         return match ($method) {
             'GET' => $this->getJson($url, $headers),
@@ -221,9 +188,6 @@ class AuthorizationTest extends TestCase
         };
     }
 
-    /**
-     * Helper method to create test users with specific roles
-     */
     private function createTestUser(string $username, string $roleCode): User
     {
         $role = Role::firstOrCreate(

@@ -35,8 +35,6 @@ class HealthController extends Controller
             ? $this->respondSuccess($payload, 'Backend health check passed.')
             : $this->respondError('Backend health check degraded.', $payload, 503, 'HEALTH_CHECK_DEGRADED');
 
-        // Readiness responses must never be cached by browsers, proxies or CDNs.
-        // A stale 200/503 can produce unsafe deployment decisions.
         $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         $response->headers->set('Pragma', 'no-cache');
         $response->headers->set('Expires', '0');
@@ -68,16 +66,32 @@ class HealthController extends Controller
 
     private function seedCheck(): array
     {
-        try {
-            $markers = [
-                'admin_user' => DB::table('app_user')->where('username', 'admin')->exists(),
-                'baseline_warehouse' => DB::table('warehouses')->where('code', 'KHO-TONG-HN')->exists(),
-                'baseline_product' => DB::table('products')->where('code', 'HN-PV-BASE-001')->exists(),
-            ];
+        // Evaluate each marker independently. One compatibility relation problem
+        // must not erase evidence that the other baseline markers are healthy.
+        $markers = [
+            'admin_user' => $this->safeExists(fn (): bool => DB::table('app_user')
+                ->where('username', 'admin')->exists()),
+            'baseline_warehouse' => $this->safeExists(fn (): bool => DB::table('warehouses')
+                ->where('code', 'KHO-TONG-HN')->exists()),
+            // Read the canonical source of truth; `products` is compatibility only.
+            'baseline_product' => $this->safeExists(fn (): bool => DB::table('sku')
+                ->where('sku_code', 'HN-PV-BASE-001')
+                ->where('published_to_app', true)
+                ->exists()),
+        ];
 
-            return ['status' => collect($markers)->every() ? 'ok' : 'fail', 'markers' => $markers];
+        return [
+            'status' => collect($markers)->every(fn (bool $value): bool => $value),
+            'markers' => $markers,
+        ];
+    }
+
+    private function safeExists(callable $probe): bool
+    {
+        try {
+            return (bool) $probe();
         } catch (Throwable) {
-            return ['status' => 'fail', 'markers' => ['admin_user' => false, 'baseline_warehouse' => false, 'baseline_product' => false]];
+            return false;
         }
     }
 }

@@ -12,6 +12,21 @@ class StoreProductRequest extends FormRequest
         return true;
     }
 
+    /** Legacy /products clients used code/name before the SKU rename. */
+    protected function prepareForValidation(): void
+    {
+        $mapped = [];
+        if (! $this->has('sku_code') && $this->has('code')) {
+            $mapped['sku_code'] = $this->input('code');
+        }
+        if (! $this->has('sku_name') && $this->has('name')) {
+            $mapped['sku_name'] = $this->input('name');
+        }
+        if ($mapped !== []) {
+            $this->merge($mapped);
+        }
+    }
+
     public function rules(): array
     {
         return [

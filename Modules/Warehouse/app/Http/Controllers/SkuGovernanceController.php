@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,9 +13,8 @@ use Modules\Warehouse\Services\SkuAggregateService;
 
 /**
  * WWHN-172 SKU aggregate endpoints.
- *
- * Idempotency-Key protects replay. Mutations on an existing SKU additionally
- * require If-Match or body version for optimistic locking.
+ * Idempotency-Key uses the project-wide 8..100 contract. Mutations on an
+ * existing SKU also require If-Match or body version for optimistic locking.
  */
 class SkuGovernanceController extends Controller
 {
@@ -24,21 +24,12 @@ class SkuGovernanceController extends Controller
     {
         $validated = $request->validate($this->skuRules(create: true));
 
-        return $this->idempotent(
-            $request,
-            'sku_create',
-            fn (): array => [
-                201,
-                $this->envelope(
-                    'Tạo SKU thành công.',
-                    $this->service->create(
-                        $validated,
-                        $this->actorId(),
-                        $this->requestId($request)
-                    )
-                ),
-            ]
-        );
+        return $this->idempotent($request, 'sku_create', fn (): array => [
+            201,
+            $this->envelope('Tạo SKU thành công.', $this->service->create(
+                $validated, $this->actorId(), $this->requestId($request)
+            )),
+        ]);
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -46,23 +37,12 @@ class SkuGovernanceController extends Controller
         $validated = $request->validate($this->skuRules(create: false));
         $expectedVersion = $this->expectedVersion($request);
 
-        return $this->idempotent(
-            $request,
-            "sku_update_{$id}",
-            fn (): array => [
-                200,
-                $this->envelope(
-                    'Cập nhật SKU thành công.',
-                    $this->service->update(
-                        $id,
-                        $validated,
-                        $expectedVersion,
-                        $this->actorId(),
-                        $this->requestId($request)
-                    )
-                ),
-            ]
-        );
+        return $this->idempotent($request, "sku_update_{$id}", fn (): array => [
+            200,
+            $this->envelope('Cập nhật SKU thành công.', $this->service->update(
+                $id, $validated, $expectedVersion, $this->actorId(), $this->requestId($request)
+            )),
+        ]);
     }
 
     public function addPhysicalCode(Request $request, string $id): JsonResponse
@@ -76,23 +56,12 @@ class SkuGovernanceController extends Controller
         ]);
         $expectedVersion = $this->expectedVersion($request);
 
-        return $this->idempotent(
-            $request,
-            "sku_physical_code_assign_{$id}",
-            fn (): array => [
-                200,
-                $this->envelope(
-                    'Gán physical code thành công.',
-                    $this->service->addPhysicalCode(
-                        $id,
-                        $validated,
-                        $expectedVersion,
-                        $this->actorId(),
-                        $this->requestId($request)
-                    )
-                ),
-            ]
-        );
+        return $this->idempotent($request, "sku_physical_code_assign_{$id}", fn (): array => [
+            200,
+            $this->envelope('Gán physical code thành công.', $this->service->addPhysicalCode(
+                $id, $validated, $expectedVersion, $this->actorId(), $this->requestId($request)
+            )),
+        ]);
     }
 
     public function revokePhysicalCode(Request $request, string $id, string $physicalCodeId): JsonResponse
@@ -100,23 +69,12 @@ class SkuGovernanceController extends Controller
         $request->validate(['version' => ['sometimes', 'integer', 'min:1']]);
         $expectedVersion = $this->expectedVersion($request);
 
-        return $this->idempotent(
-            $request,
-            "sku_physical_code_revoke_{$id}_{$physicalCodeId}",
-            fn (): array => [
-                200,
-                $this->envelope(
-                    'Thu hồi physical code thành công.',
-                    $this->service->revokePhysicalCode(
-                        $id,
-                        $physicalCodeId,
-                        $expectedVersion,
-                        $this->actorId(),
-                        $this->requestId($request)
-                    )
-                ),
-            ]
-        );
+        return $this->idempotent($request, "sku_physical_code_revoke_{$id}_{$physicalCodeId}", fn (): array => [
+            200,
+            $this->envelope('Thu hồi physical code thành công.', $this->service->revokePhysicalCode(
+                $id, $physicalCodeId, $expectedVersion, $this->actorId(), $this->requestId($request)
+            )),
+        ]);
     }
 
     private function skuRules(bool $create): array
@@ -150,13 +108,7 @@ class SkuGovernanceController extends Controller
 
     private function idempotent(Request $request, string $operation, callable $callback): JsonResponse
     {
-        $key = trim((string) $request->header('Idempotency-Key'));
-        if ($key === '') {
-            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Header Idempotency-Key là bắt buộc.');
-        }
-        if (mb_strlen($key) > 128) {
-            ApiError::abort(422, 'INVALID_IDEMPOTENCY_KEY', 'Idempotency-Key tối đa 128 ký tự.');
-        }
+        $key = IdempotencyKeyGuard::require($request);
 
         [$code, $body, $replay] = IdempotencyStore::handle(
             $key,

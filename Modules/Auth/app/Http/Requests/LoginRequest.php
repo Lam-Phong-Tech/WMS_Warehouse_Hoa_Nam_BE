@@ -12,21 +12,21 @@ class LoginRequest extends FormRequest
         return true;
     }
 
-    /**
-     * username lưu xuống app_user đã chuẩn hoá lowercase/trim (ERD) — chuẩn hoá tại đây
-     * để đăng nhập không phân biệt hoa/thường/khoảng trắng thừa.
-     */
     protected function prepareForValidation(): void
     {
         if ($this->has('username')) {
             $this->merge(['username' => Str::lower(trim((string) $this->input('username')))]);
+        }
+        if ($this->has('email')) {
+            $this->merge(['email' => Str::lower(trim((string) $this->input('email')))]);
         }
     }
 
     public function rules(): array
     {
         return [
-            'email' => ['required', 'email'],
+            'email' => ['nullable', 'required_without:username', 'email'],
+            'username' => ['nullable', 'required_without:email', 'string', 'max:100'],
             'password' => ['required', 'string'],
         ];
     }
@@ -35,6 +35,7 @@ class LoginRequest extends FormRequest
     {
         return [
             'email' => 'email',
+            'username' => 'tên đăng nhập',
             'password' => 'mật khẩu',
         ];
     }
