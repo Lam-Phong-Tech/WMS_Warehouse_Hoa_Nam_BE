@@ -43,12 +43,12 @@ env:
   IMAGE_TAR: hoa-nam-backend-backend.tar
   CI_APP_URL: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
   CI_DB_HOST: ${{ vars.CI_DB_HOST || '127.0.0.1' }}
-  CI_DB_PORT: ${{ vars.CI_DB_PORT || '5432' }}
+  CI_DB_PORT: ${{ vars.CI_DB_PORT || '55432' }}
   CI_DB_DATABASE: ${{ vars.CI_DB_DATABASE || 'wms_hoanam' }}
   CI_DB_USERNAME: ${{ vars.CI_DB_USERNAME || 'postgres' }}
   CI_DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
   CI_REDIS_HOST: ${{ vars.CI_REDIS_HOST || '127.0.0.1' }}
-  CI_REDIS_PORT: ${{ vars.CI_REDIS_PORT || '6379' }}
+  CI_REDIS_PORT: ${{ vars.CI_REDIS_PORT || '56379' }}
   CI_SERVER_HOST: ${{ vars.CI_SERVER_HOST || '127.0.0.1' }}
   CI_SERVER_PORT: ${{ vars.CI_SERVER_PORT || '8000' }}
 
@@ -63,7 +63,7 @@ jobs:
           POSTGRES_USER: ${{ vars.CI_DB_USERNAME || 'postgres' }}
           POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
         ports:
-          - 5432:5432
+          - 55432:5432
         options: >-
           --health-cmd "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
           --health-interval 10s
@@ -72,7 +72,7 @@ jobs:
       valkey:
         image: valkey/valkey:8-alpine
         ports:
-          - 6379:6379
+          - 56379:6379
 
     env:
       APP_ENV: testing
@@ -80,7 +80,7 @@ jobs:
       APP_URL: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
       DB_CONNECTION: pgsql
       DB_HOST: ${{ vars.CI_DB_HOST || '127.0.0.1' }}
-      DB_PORT: ${{ vars.CI_DB_PORT || '5432' }}
+      DB_PORT: ${{ vars.CI_DB_PORT || '55432' }}
       DB_DATABASE: ${{ vars.CI_DB_DATABASE || 'wms_hoanam' }}
       DB_USERNAME: ${{ vars.CI_DB_USERNAME || 'postgres' }}
       DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
@@ -89,7 +89,7 @@ jobs:
       SESSION_DRIVER: redis
       REDIS_CLIENT: predis
       REDIS_HOST: ${{ vars.CI_REDIS_HOST || '127.0.0.1' }}
-      REDIS_PORT: ${{ vars.CI_REDIS_PORT || '6379' }}
+      REDIS_PORT: ${{ vars.CI_REDIS_PORT || '56379' }}
       L5_SWAGGER_CONST_HOST: ${{ vars.CI_APP_URL || 'http://127.0.0.1:8000' }}
 
     steps:
