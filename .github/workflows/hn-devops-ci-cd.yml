@@ -95,55 +95,117 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.3"
-          extensions: pdo_pgsql, pgsql, bcmath, zip, intl, opcache, gd
-          coverage: none
+      - name: Build PHP runtime image
+        run: docker build -f docker/php/Dockerfile -t "$IMAGE_NAME:${GITHUB_SHA}" .
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          {
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=false"
+            echo "APP_URL=$CI_APP_URL"
+            echo "DB_CONNECTION=pgsql"
+            echo "DB_HOST=127.0.0.1"
+            echo "DB_PORT=$CI_DB_PORT"
+            echo "DB_DATABASE=$CI_DB_DATABASE"
+            echo "DB_USERNAME=$CI_DB_USERNAME"
+            echo "DB_PASSWORD=$CI_DB_PASSWORD"
+            echo "CACHE_STORE=redis"
+            echo "QUEUE_CONNECTION=redis"
+            echo "SESSION_DRIVER=redis"
+            echo "REDIS_CLIENT=predis"
+            echo "REDIS_HOST=127.0.0.1"
+            echo "REDIS_PORT=$CI_REDIS_PORT"
+            echo "L5_SWAGGER_CONST_HOST=$CI_APP_URL"
+          } >> .env
 
       - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -e COMPOSER_HOME=/tmp/composer \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'composer install --no-interaction --prefer-dist --optimize-autoloader'
 
       - name: Install Node dependencies
-        run: npm ci --ignore-scripts
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            node:22-alpine \
+            sh -lc 'npm ci --ignore-scripts'
 
       - name: Build frontend assets
-        run: npm run build
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            node:22-alpine \
+            sh -lc 'npm run build'
 
       - name: Offline npm audit
-        run: npm audit --offline --json
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            node:22-alpine \
+            sh -lc 'npm audit --offline --json'
 
       - name: Prepare Laravel runtime secrets
         run: |
-          cp .env.example .env
-          php artisan key:generate --force
-          php artisan jwt:secret --force
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan key:generate --force && php artisan jwt:secret --force'
 
       - name: Prepare Laravel database and OpenAPI
         run: |
-          php artisan optimize:clear
-          php artisan migrate --force
-          php artisan db:seed --force
-          php artisan l5-swagger:generate
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan optimize:clear && php artisan migrate --force && php artisan db:seed --force && php artisan l5-swagger:generate'
 
       - name: Run tests
-        run: php artisan test
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan test'
 
       - name: Run local smoke
         run: |
-          php artisan migrate:fresh --seed --force
-          php artisan serve --host="$CI_SERVER_HOST" --port="$CI_SERVER_PORT" > /tmp/laravel.log 2>&1 &
-          sleep 5
-          curl --fail-with-body "$CI_APP_URL/api/health"
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            -e CI_SERVER_HOST="$CI_SERVER_HOST" \
+            -e CI_SERVER_PORT="$CI_SERVER_PORT" \
+            -e CI_APP_URL="$CI_APP_URL" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan migrate:fresh --seed --force && php artisan serve --host="$CI_SERVER_HOST" --port="$CI_SERVER_PORT" > /tmp/laravel.log 2>&1 & sleep 5 && php -r '\''$body = file_get_contents(getenv("CI_APP_URL")."/api/health"); if ($body === false || strpos($body, "\"success\":true") === false) { fwrite(STDERR, $body ?: "health failed"); exit(1); } echo $body.PHP_EOL;'\'''
 
       - name: Build immutable Docker artifact
         run: |
-          docker build -f docker/php/Dockerfile -t "$IMAGE_NAME:${GITHUB_SHA}" .
           docker save "$IMAGE_NAME:${GITHUB_SHA}" -o "$IMAGE_TAR"
           sha256sum "$IMAGE_TAR" > "$IMAGE_TAR.sha256"
           docker image inspect "$IMAGE_NAME:${GITHUB_SHA}" > image-inspect.json

@@ -85,23 +85,6 @@ class WmsContractController extends Controller
         ]);
     }
 
-    #[OA\Get(
-        path: '/api/v1/physical-codes',
-        operationId: 'wms_physical_codes',
-        summary: 'List physical barcode/serial code records',
-        security: [['bearerAuth' => []]],
-        tags: ['07. Inventory'],
-        parameters: [
-            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
-            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Paginated physical codes'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing inventory.view permission'),
-        ]
-    )]
     public function physicalCodes(Request $request)
     {
         $query = DB::table('physical_code')->orderByDesc('created_at');

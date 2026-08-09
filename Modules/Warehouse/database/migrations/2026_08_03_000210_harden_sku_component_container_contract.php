@@ -9,11 +9,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $skuTable = $this->skuTable();
+        $skuKey = $this->skuKey();
+
         if (! Schema::hasTable('sku_component')) {
-            Schema::create('sku_component', function (Blueprint $table) {
+            Schema::create('sku_component', function (Blueprint $table) use ($skuTable, $skuKey) {
                 $table->uuid('sku_component_id')->primary();
-                $table->foreignUuid('parent_product_id')->constrained('products')->cascadeOnDelete();
-                $table->foreignUuid('component_product_id')->constrained('products')->restrictOnDelete();
+                $table->foreignUuid('parent_product_id')->constrained($skuTable, $skuKey)->cascadeOnDelete();
+                $table->foreignUuid('component_product_id')->constrained($skuTable, $skuKey)->restrictOnDelete();
                 $table->decimal('quantity', 18, 3);
                 $table->string('status', 20)->default('ACTIVE')->index();
                 $table->unsignedInteger('version')->default(1);
@@ -24,12 +27,12 @@ return new class extends Migration
         }
 
         if (Schema::hasTable('physical_code')) {
-            Schema::table('physical_code', function (Blueprint $table) {
+            Schema::table('physical_code', function (Blueprint $table) use ($skuTable, $skuKey) {
                 if (! Schema::hasColumn('physical_code', 'product_id')) {
                     $table->foreignUuid('product_id')
                         ->nullable()
                         ->after('physical_code_id')
-                        ->constrained('products')
+                        ->constrained($skuTable, $skuKey)
                         ->nullOnDelete();
                 }
                 if (! Schema::hasColumn('physical_code', 'version')) {
@@ -174,5 +177,15 @@ return new class extends Migration
         } catch (Throwable) {
             return false;
         }
+    }
+
+    private function skuTable(): string
+    {
+        return Schema::hasTable('sku') ? 'sku' : 'products';
+    }
+
+    private function skuKey(): string
+    {
+        return $this->skuTable() === 'sku' ? 'sku_id' : 'id';
     }
 };
