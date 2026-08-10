@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\AgencyController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\ContainerController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineMasterController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineStockController;
 use Modules\Warehouse\Http\Controllers\DefectCatalogController;
@@ -104,16 +105,16 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('item-instances/{id}', [ItemInstanceController::class, 'update'])->middleware('permission:item_instance.manage');
         Route::get('item-instances/{id}/trace', [ItemInstanceController::class, 'trace'])->middleware('permission:inventory.trace');
 
-        Route::get('brands', [CanonicalMvpController::class, 'listBrands'])->middleware('permission:catalog.view');
-        Route::post('brands', [CanonicalMvpController::class, 'storeBrand'])->middleware('permission:catalog.manage');
-        Route::get('product-categories', [CanonicalMvpController::class, 'listProductCategories'])->middleware('permission:catalog.view');
-        Route::post('product-categories', [CanonicalMvpController::class, 'storeProductCategory'])->middleware('permission:catalog.manage');
-        Route::get('power-sources', [CanonicalMvpController::class, 'listPowerSources'])->middleware('permission:catalog.view');
-        Route::post('power-sources', [CanonicalMvpController::class, 'storePowerSource'])->middleware('permission:catalog.manage');
-        Route::get('product-models', [CanonicalMvpController::class, 'listProductModels'])->middleware('permission:catalog.view');
-        Route::post('product-models', [CanonicalMvpController::class, 'storeProductModel'])->middleware('permission:catalog.manage');
-        Route::get('package-variants', [CanonicalMvpController::class, 'listPackageVariants'])->middleware('permission:catalog.view');
-        Route::post('package-variants', [CanonicalMvpController::class, 'storePackageVariant'])->middleware('permission:catalog.manage');
+        Route::get('brands', [CurrentBaselineMasterController::class, 'listBrands'])->middleware('permission:catalog.view');
+        Route::post('brands', [CurrentBaselineMasterController::class, 'storeBrand'])->middleware('permission:catalog.manage');
+        Route::get('product-categories', [CurrentBaselineMasterController::class, 'listProductCategories'])->middleware('permission:catalog.view');
+        Route::post('product-categories', [CurrentBaselineMasterController::class, 'storeProductCategory'])->middleware('permission:catalog.manage');
+        Route::get('power-sources', [CurrentBaselineMasterController::class, 'listPowerSources'])->middleware('permission:catalog.view');
+        Route::post('power-sources', [CurrentBaselineMasterController::class, 'storePowerSource'])->middleware('permission:catalog.manage');
+        Route::get('product-models', [CurrentBaselineMasterController::class, 'listProductModels'])->middleware('permission:catalog.view');
+        Route::post('product-models', [CurrentBaselineMasterController::class, 'storeProductModel'])->middleware('permission:catalog.manage');
+        Route::get('package-variants', [CurrentBaselineMasterController::class, 'listPackageVariants'])->middleware('permission:catalog.view');
+        Route::post('package-variants', [CurrentBaselineMasterController::class, 'storePackageVariant'])->middleware('permission:catalog.manage');
 
         Route::post('outbound-request-imports', [CurrentBaselineOperationsController::class, 'storeOutboundRequestImport'])->middleware('permission:outbound.import');
         Route::get('outbound-request-imports/{id}', [CurrentBaselineOperationsController::class, 'showOutboundRequestImport'])->middleware('permission:outbound.import');
