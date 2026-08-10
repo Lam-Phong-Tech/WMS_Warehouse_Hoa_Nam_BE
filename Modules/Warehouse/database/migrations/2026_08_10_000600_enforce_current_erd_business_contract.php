@@ -375,12 +375,12 @@ return new class extends Migration
         }
 
         foreach ([
-            "ALTER TABLE inventory_balances ADD CONSTRAINT chk_inventory_balance_non_negative CHECK (quantity >= 0 AND on_hand_qty >= 0 AND available_qty >= 0 AND reserved_qty >= 0)",
+            'ALTER TABLE inventory_balances ADD CONSTRAINT chk_inventory_balance_non_negative CHECK (quantity >= 0 AND on_hand_qty >= 0 AND available_qty >= 0 AND reserved_qty >= 0)',
             "ALTER TABLE component_issue_documents ADD CONSTRAINT chk_component_issue_purpose CHECK (purpose = 'WARRANTY')",
-            "ALTER TABLE component_issue_lines ADD CONSTRAINT chk_component_issue_exact_range CHECK (required_qty > 0 AND scanned_qty >= 0 AND scanned_qty <= required_qty)",
-            "ALTER TABLE inbound_scan_entries ADD CONSTRAINT chk_inbound_scan_quantity CHECK (quantity > 0)",
-            "ALTER TABLE outbound_item_matches ADD CONSTRAINT chk_outbound_match_quantity CHECK (quantity > 0)",
-            "ALTER TABLE component_issue_items ADD CONSTRAINT chk_component_issue_item_quantity CHECK (quantity > 0)",
+            'ALTER TABLE component_issue_lines ADD CONSTRAINT chk_component_issue_exact_range CHECK (required_qty > 0 AND scanned_qty >= 0 AND scanned_qty <= required_qty)',
+            'ALTER TABLE inbound_scan_entries ADD CONSTRAINT chk_inbound_scan_quantity CHECK (quantity > 0)',
+            'ALTER TABLE outbound_item_matches ADD CONSTRAINT chk_outbound_match_quantity CHECK (quantity > 0)',
+            'ALTER TABLE component_issue_items ADD CONSTRAINT chk_component_issue_item_quantity CHECK (quantity > 0)',
         ] as $statement) {
             try {
                 DB::statement($statement);

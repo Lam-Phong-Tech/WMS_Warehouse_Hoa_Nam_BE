@@ -4,7 +4,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -55,6 +54,7 @@ return new class extends Migration
             $legacy = DB::table('physical_code')->where('physical_code_id', $legacyId)->first();
             if ($legacy === null) {
                 DB::table('scan_event')->where('physical_code_id', $legacyId)->update(['physical_code_id' => null]);
+
                 continue;
             }
 
@@ -63,6 +63,7 @@ return new class extends Migration
                 DB::table('scan_event')
                     ->where('physical_code_id', $legacyId)
                     ->update(['physical_code_id' => $canonicalByValue->physical_code_id]);
+
                 continue;
             }
 

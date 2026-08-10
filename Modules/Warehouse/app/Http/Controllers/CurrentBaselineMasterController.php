@@ -14,11 +14,30 @@ class CurrentBaselineMasterController extends Controller
 {
     use ApiResponse;
 
-    public function listBrands(Request $request) { return $this->page($request, 'brands'); }
-    public function listProductCategories(Request $request) { return $this->page($request, 'product_categories'); }
-    public function listPowerSources(Request $request) { return $this->page($request, 'power_sources'); }
-    public function listProductModels(Request $request) { return $this->page($request, 'product_models'); }
-    public function listPackageVariants(Request $request) { return $this->page($request, 'package_variants'); }
+    public function listBrands(Request $request)
+    {
+        return $this->page($request, 'brands');
+    }
+
+    public function listProductCategories(Request $request)
+    {
+        return $this->page($request, 'product_categories');
+    }
+
+    public function listPowerSources(Request $request)
+    {
+        return $this->page($request, 'power_sources');
+    }
+
+    public function listProductModels(Request $request)
+    {
+        return $this->page($request, 'product_models');
+    }
+
+    public function listPackageVariants(Request $request)
+    {
+        return $this->page($request, 'package_variants');
+    }
 
     public function storeBrand(Request $request)
     {
@@ -123,6 +142,7 @@ class CurrentBaselineMasterController extends Controller
     private function actorId(): ?string
     {
         $id = auth('api')->id();
+
         return $id === null ? null : (string) $id;
     }
 }

@@ -48,6 +48,7 @@ class CurrentBaselineImportReadController extends Controller
             ->get()
             ->flatMap(function (object $row): array {
                 $decoded = json_decode((string) $row->validation_errors, true) ?: [];
+
                 return array_map(function (array $error) use ($row): array {
                     return [
                         'row' => (int) ($error['row'] ?? $row->row_no),

@@ -198,6 +198,7 @@ class CurrentBaselineComponentIssueController extends Controller
     private function actorId(): ?string
     {
         $id = auth('api')->id();
+
         return $id === null ? null : (string) $id;
     }
 }

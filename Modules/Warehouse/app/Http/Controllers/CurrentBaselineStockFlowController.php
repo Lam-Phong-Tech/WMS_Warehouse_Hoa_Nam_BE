@@ -29,6 +29,7 @@ class CurrentBaselineStockFlowController extends Controller
         $payload = $this->scanPayload($request);
         $expectedVersion = $this->expectedVersion($request);
         $result = $this->versionedScan($id, 'receipt', $payload, $expectedVersion);
+
         return $this->respondSuccess($result, 'Inbound scan validated; stock_effect=NONE.');
     }
 
@@ -142,6 +143,7 @@ class CurrentBaselineStockFlowController extends Controller
 
                     $posted = $this->stock->postStockDocument($id, $type, $this->actorId(), $key, $hash);
                     $posted['version'] = $expectedVersion + 1;
+
                     return $posted;
                 }, 3);
 
@@ -177,6 +179,7 @@ class CurrentBaselineStockFlowController extends Controller
             $hash,
             function () use ($id, $type, $payload, $key, $hash, $expectedVersion): array {
                 $result = $this->reversal->execute($id, $type, $payload, $this->actorId(), $key, $hash, $expectedVersion);
+
                 return [200, $this->envelope('Reversal command processed; original document remains POSTED.', $result)];
             }
         );
@@ -345,6 +348,7 @@ class CurrentBaselineStockFlowController extends Controller
             return (string) $physical->assigned_object_id;
         }
         $itemId = DB::table('item_instances')->where('physical_code_id', $physical->physical_code_id)->value('item_id');
+
         return $itemId ? (string) $itemId : null;
     }
 
@@ -383,6 +387,7 @@ class CurrentBaselineStockFlowController extends Controller
             'printer_config_id' => ['nullable', 'uuid', 'exists:printer_configs,id'],
         ]);
         $validated['quantity'] = (int) ($request->input('quantity') ?? $request->input('qty'));
+
         return $validated;
     }
 
@@ -392,6 +397,7 @@ class CurrentBaselineStockFlowController extends Controller
         if ($document === null) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy stock document.');
         }
+
         return $document;
     }
 
@@ -406,6 +412,7 @@ class CurrentBaselineStockFlowController extends Controller
         if (! ctype_digit($header)) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
         }
+
         return (int) $header;
     }
 
@@ -435,6 +442,7 @@ class CurrentBaselineStockFlowController extends Controller
         if ($id === null) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
         }
+
         return (string) $id;
     }
 }

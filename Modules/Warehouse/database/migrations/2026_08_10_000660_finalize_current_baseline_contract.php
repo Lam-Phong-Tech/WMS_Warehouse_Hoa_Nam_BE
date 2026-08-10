@@ -207,10 +207,10 @@ return new class extends Migration
         SQL);
 
         foreach ([
-            "ALTER TABLE stock_documents ADD CONSTRAINT chk_stock_documents_version CHECK (version >= 0)",
+            'ALTER TABLE stock_documents ADD CONSTRAINT chk_stock_documents_version CHECK (version >= 0)',
             "ALTER TABLE reversal_document ADD CONSTRAINT chk_reversal_document_status_current CHECK (status IN ('DRAFT','POSTED','CANCELLED'))",
             "ALTER TABLE reversal_document ADD CONSTRAINT chk_reversal_physical_return_status CHECK (physical_return_status IS NULL OR physical_return_status IN ('PENDING_RETURN','CONFIRMED'))",
-            "ALTER TABLE reversal_line ADD CONSTRAINT chk_reversal_quantity_current CHECK (quantity_to_reverse IS NULL OR quantity_to_reverse > 0)",
+            'ALTER TABLE reversal_line ADD CONSTRAINT chk_reversal_quantity_current CHECK (quantity_to_reverse IS NULL OR quantity_to_reverse > 0)',
             "ALTER TABLE reversal_line ADD CONSTRAINT chk_reversal_return_condition CHECK (return_condition IS NULL OR return_condition IN ('SELLABLE','DEFECTIVE','NON_SELLABLE'))",
         ] as $statement) {
             $this->statementIgnoreDuplicateConstraint($statement);

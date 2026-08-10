@@ -187,6 +187,7 @@ class CurrentBaselineSkuController extends Controller
         if (! ctype_digit($header) || (int) $header < 1) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên dương.');
         }
+
         return (int) $header;
     }
 
@@ -207,12 +208,14 @@ class CurrentBaselineSkuController extends Controller
     private function actorId(): ?string
     {
         $id = auth('api')->id();
+
         return $id === null ? null : (string) $id;
     }
 
     private function requestId(): ?string
     {
         $id = request()?->attributes->get('request_id');
+
         return is_string($id) ? $id : null;
     }
 

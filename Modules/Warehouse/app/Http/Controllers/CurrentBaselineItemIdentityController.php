@@ -185,6 +185,7 @@ class CurrentBaselineItemIdentityController extends Controller
         if (! ctype_digit($header)) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
         }
+
         return (int) $header;
     }
 
@@ -207,6 +208,7 @@ class CurrentBaselineItemIdentityController extends Controller
         if ($id === null) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
         }
+
         return (string) $id;
     }
 }

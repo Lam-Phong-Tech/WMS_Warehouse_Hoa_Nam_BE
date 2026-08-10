@@ -229,24 +229,24 @@ return new class extends Migration
     private function addPostgresConstraints(): void
     {
         foreach ([
-            "ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_target_xor CHECK ((item_id IS NOT NULL)::int + (container_id IS NOT NULL)::int = 1)",
+            'ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_target_xor CHECK ((item_id IS NOT NULL)::int + (container_id IS NOT NULL)::int = 1)',
             "ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_status_current CHECK (status IN ('ACTIVE','INACTIVE','LOST','DAMAGED'))",
             "ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_carrier_current CHECK (carrier_type IN ('BARCODE','QR','RFID','NFC','MANUAL'))",
             "ALTER TABLE containers ADD CONSTRAINT chk_containers_status_current CHECK (status IN ('EMPTY','IN_STOCK','PARTIAL','ISSUED','RECEIVED_PENDING_PUTAWAY','STORED','CLOSED'))",
             "ALTER TABLE containers ADD CONSTRAINT chk_containers_type_current CHECK (container_type IN ('CARTON','BOX','TRAY'))",
-            "ALTER TABLE container_items ADD CONSTRAINT chk_container_items_target_xor CHECK ((item_id IS NOT NULL AND sku_id IS NULL AND (quantity IS NULL OR quantity IN (0,1))) OR (item_id IS NULL AND sku_id IS NOT NULL AND quantity > 0))",
+            'ALTER TABLE container_items ADD CONSTRAINT chk_container_items_target_xor CHECK ((item_id IS NOT NULL AND sku_id IS NULL AND (quantity IS NULL OR quantity IN (0,1))) OR (item_id IS NULL AND sku_id IS NOT NULL AND quantity > 0))',
             "ALTER TABLE inbound_scan_entries ADD CONSTRAINT chk_inbound_scan_status_current CHECK (status IN ('ACTIVE','REMOVED'))",
-            "ALTER TABLE inbound_scan_entries ADD CONSTRAINT chk_inbound_scan_quantity_current CHECK (quantity > 0)",
+            'ALTER TABLE inbound_scan_entries ADD CONSTRAINT chk_inbound_scan_quantity_current CHECK (quantity > 0)',
             "ALTER TABLE outbound_item_matches ADD CONSTRAINT chk_outbound_match_status_current CHECK (status IN ('ACTIVE','REMOVED','POSTED'))",
-            "ALTER TABLE outbound_item_matches ADD CONSTRAINT chk_outbound_match_quantity_current CHECK (quantity > 0)",
-            "ALTER TABLE component_issue_items ADD CONSTRAINT chk_component_issue_item_target_xor CHECK ((item_id IS NOT NULL)::int + (container_id IS NOT NULL)::int = 1 AND quantity > 0)",
+            'ALTER TABLE outbound_item_matches ADD CONSTRAINT chk_outbound_match_quantity_current CHECK (quantity > 0)',
+            'ALTER TABLE component_issue_items ADD CONSTRAINT chk_component_issue_item_target_xor CHECK ((item_id IS NOT NULL)::int + (container_id IS NOT NULL)::int = 1 AND quantity > 0)',
         ] as $statement) {
             $this->statementIgnoreDuplicateConstraint($statement);
         }
 
         DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS uk_physical_codes_primary_item_carrier ON physical_codes(item_id, carrier_type) WHERE item_id IS NOT NULL AND is_primary = TRUE AND status = 'ACTIVE'");
         DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS uk_physical_codes_primary_container_carrier ON physical_codes(container_id, carrier_type) WHERE container_id IS NOT NULL AND is_primary = TRUE AND status = 'ACTIVE'");
-        DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS uk_container_items_one_active_item ON container_items(item_id) WHERE item_id IS NOT NULL AND is_active = TRUE");
+        DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS uk_container_items_one_active_item ON container_items(item_id) WHERE item_id IS NOT NULL AND is_active = TRUE');
         DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS uk_inbound_scan_active_item ON inbound_scan_entries(item_id) WHERE item_id IS NOT NULL AND status = 'ACTIVE'");
         DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS uk_outbound_match_active_item ON outbound_item_matches(item_id) WHERE item_id IS NOT NULL AND status = 'ACTIVE'");
     }

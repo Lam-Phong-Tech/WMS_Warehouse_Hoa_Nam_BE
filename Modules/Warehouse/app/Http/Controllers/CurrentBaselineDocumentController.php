@@ -107,6 +107,7 @@ class CurrentBaselineDocumentController extends Controller
 
         if ($key === '') {
             $document = $this->createDocument($type, $validated, $actorId);
+
             return $this->respondCreated($document, $type === 'receipt' ? 'Tạo phiếu nhập kho thành công.' : 'Tạo phiếu xuất kho thành công.');
         }
 
@@ -117,6 +118,7 @@ class CurrentBaselineDocumentController extends Controller
             $hash,
             function () use ($type, $validated, $actorId): array {
                 $document = $this->createDocument($type, $validated, $actorId);
+
                 return [201, $this->envelope('Document created.', $document)];
             }
         );
@@ -339,6 +341,7 @@ class CurrentBaselineDocumentController extends Controller
     {
         $table = $type === 'receipt' ? 'inbound_scan_entries' : 'outbound_item_matches';
         $lineColumn = $type === 'receipt' ? 'inbound_line_id' : 'outbound_line_id';
+
         return DB::table("{$table} as e")
             ->join('stock_document_lines as l', 'l.id', '=', "e.{$lineColumn}")
             ->where('l.stock_document_id', $documentId)
@@ -351,6 +354,7 @@ class CurrentBaselineDocumentController extends Controller
         if ($document === null) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy chứng từ.');
         }
+
         return $document;
     }
 
@@ -373,6 +377,7 @@ class CurrentBaselineDocumentController extends Controller
         if (! ctype_digit($header)) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
         }
+
         return (int) $header;
     }
 
@@ -389,6 +394,7 @@ class CurrentBaselineDocumentController extends Controller
     private function documentPayload(string $id): array
     {
         $document = DB::table('stock_documents')->where('id', $id)->first();
+
         return [
             ...(array) $document,
             'lines' => DB::table('stock_document_lines')->where('stock_document_id', $id)->orderBy('line_no')->get()->map(fn (object $row): array => (array) $row)->all(),
@@ -411,6 +417,7 @@ class CurrentBaselineDocumentController extends Controller
         if ($id === null) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
         }
+
         return (string) $id;
     }
 }

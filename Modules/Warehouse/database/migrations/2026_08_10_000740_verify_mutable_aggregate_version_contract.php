@@ -4,6 +4,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Modules\Auth\Models\Role;
+use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Agency;
+use Modules\Warehouse\Models\DefectCatalog;
+use Modules\Warehouse\Models\ImportBatch;
+use Modules\Warehouse\Models\ItemInstance;
+use Modules\Warehouse\Models\ProductMaster;
+use Modules\Warehouse\Models\Warehouse;
 
 return new class extends Migration
 {
@@ -33,14 +41,14 @@ return new class extends Migration
     private function models(): array
     {
         return [
-            \Modules\Warehouse\Models\Warehouse::class,
-            \Modules\Warehouse\Models\Agency::class,
-            \Modules\Warehouse\Models\DefectCatalog::class,
-            \Modules\Warehouse\Models\ProductMaster::class,
-            \Modules\Warehouse\Models\ImportBatch::class,
-            \Modules\Warehouse\Models\ItemInstance::class,
-            \Modules\Auth\Models\User::class,
-            \Modules\Auth\Models\Role::class,
+            Warehouse::class,
+            Agency::class,
+            DefectCatalog::class,
+            ProductMaster::class,
+            ImportBatch::class,
+            ItemInstance::class,
+            User::class,
+            Role::class,
         ];
     }
 };

@@ -67,10 +67,10 @@ return new class extends Migration
         foreach ([
             "ALTER TABLE component_issue_documents ADD CONSTRAINT chk_component_issue_status_current CHECK (status IN ('DRAFT','SCANNING','POSTED','CANCELLED'))",
             "ALTER TABLE component_issue_documents ADD CONSTRAINT chk_component_issue_purpose_current CHECK (purpose = 'WARRANTY')",
-            "ALTER TABLE component_issue_lines ADD CONSTRAINT chk_component_issue_required_qty CHECK (required_qty > 0)",
-            "ALTER TABLE component_issue_lines ADD CONSTRAINT chk_component_issue_scanned_qty CHECK (scanned_qty >= 0 AND scanned_qty <= required_qty)",
+            'ALTER TABLE component_issue_lines ADD CONSTRAINT chk_component_issue_required_qty CHECK (required_qty > 0)',
+            'ALTER TABLE component_issue_lines ADD CONSTRAINT chk_component_issue_scanned_qty CHECK (scanned_qty >= 0 AND scanned_qty <= required_qty)',
             "ALTER TABLE component_issue_items ADD CONSTRAINT chk_component_issue_item_status_current CHECK (status IN ('ACTIVE','REMOVED','POSTED'))",
-            "ALTER TABLE component_issue_items ADD CONSTRAINT chk_component_issue_item_qty_current CHECK (quantity > 0)",
+            'ALTER TABLE component_issue_items ADD CONSTRAINT chk_component_issue_item_qty_current CHECK (quantity > 0)',
         ] as $statement) {
             try {
                 DB::statement($statement);

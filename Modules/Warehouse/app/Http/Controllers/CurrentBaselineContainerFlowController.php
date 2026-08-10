@@ -109,6 +109,7 @@ class CurrentBaselineContainerFlowController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: (array) $container,
             );
+
             return $container;
         }, 3);
 
@@ -182,6 +183,7 @@ class CurrentBaselineContainerFlowController extends Controller
                 beforeData: (array) $container,
                 afterData: (array) $after,
             );
+
             return ['container' => $after, 'putaway_confirmed' => $putawayChanged && $newParent !== null, 'stock_effect' => 'NONE'];
         }, 3);
 
@@ -272,6 +274,7 @@ class CurrentBaselineContainerFlowController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: (array) $created,
             );
+
             return $created;
         }, 3);
 
@@ -324,6 +327,7 @@ class CurrentBaselineContainerFlowController extends Controller
                 beforeData: (array) $mapping,
                 afterData: ['status' => 'REMOVED', 'is_active' => false],
             );
+
             return ['container_item_id' => $containerItemId, 'status' => 'REMOVED', 'container_status' => $remaining ? 'PARTIAL' : 'EMPTY', 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'];
         }, 3);
 
@@ -391,6 +395,7 @@ class CurrentBaselineContainerFlowController extends Controller
         if (! ctype_digit($header)) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
         }
+
         return (int) $header;
     }
 
@@ -410,6 +415,7 @@ class CurrentBaselineContainerFlowController extends Controller
         if ($id === null) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
         }
+
         return (string) $id;
     }
 }

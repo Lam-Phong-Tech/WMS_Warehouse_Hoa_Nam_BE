@@ -242,6 +242,7 @@ class CurrentBaselineReversalService
         ]);
 
         $reversal->version = $expectedVersion + 1;
+
         return $this->postDraft($reversalId, $document, $documentType, $actorId, $idempotencyKey, $requestHash);
     }
 
@@ -488,6 +489,7 @@ class CurrentBaselineReversalService
         if (! in_array($condition, ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], true)) {
             ApiError::abort(422, 'RETURN_CONDITION_REQUIRED', 'Reverse Issue bắt buộc condition_status SELLABLE/DEFECTIVE/NON_SELLABLE.');
         }
+
         return $condition;
     }
 
@@ -510,6 +512,7 @@ class CurrentBaselineReversalService
         if ($document === null) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy original document.');
         }
+
         return $document;
     }
 

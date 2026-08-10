@@ -61,6 +61,7 @@ class ComponentContainerSubledgerService
         foreach ($rows as $row) {
             if ($row->item_id !== null) {
                 $this->consumeSerialItem((string) $row->item_id, (string) $row->sku_id);
+
                 continue;
             }
             if ($row->container_id === null) {
@@ -150,6 +151,7 @@ class ComponentContainerSubledgerService
     private function actorId(): ?string
     {
         $id = auth('api')->id();
+
         return $id === null ? null : (string) $id;
     }
 }

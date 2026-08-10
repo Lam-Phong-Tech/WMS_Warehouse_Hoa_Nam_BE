@@ -80,6 +80,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: ['target_type' => $targetType, 'target_id' => $targetId, 'carrier_type' => $validated['carrier_type']],
             );
+
             return $physicalCodeId;
         }, 3);
 
@@ -128,6 +129,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 beforeData: ['status' => $code->status, 'version' => $code->version ?? 0],
                 afterData: ['status' => $after->status, 'version' => $after->version],
             );
+
             return $after;
         }, 3);
 
@@ -145,6 +147,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
         if (! ctype_digit($header)) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
         }
+
         return (int) $header;
     }
 
@@ -154,6 +157,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
         if ($id === null) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
         }
+
         return (string) $id;
     }
 }

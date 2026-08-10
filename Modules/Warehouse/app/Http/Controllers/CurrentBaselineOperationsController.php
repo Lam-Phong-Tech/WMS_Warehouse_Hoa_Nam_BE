@@ -108,6 +108,7 @@ class CurrentBaselineOperationsController extends Controller
     public function showOutboundRequestImport(string $id)
     {
         $payload = $this->importPayload($id);
+
         return $payload ? $this->respondSuccess($payload) : $this->respondNotFound('Import not found.');
     }
 
@@ -655,6 +656,7 @@ class CurrentBaselineOperationsController extends Controller
                 return true;
             }
         }
+
         return false;
     }
 
@@ -688,6 +690,7 @@ class CurrentBaselineOperationsController extends Controller
     private function actorId(): ?string
     {
         $id = auth('api')->id();
+
         return $id === null ? null : (string) $id;
     }
 

@@ -79,9 +79,9 @@ return new class extends Migration
         foreach ([
             "ALTER TABLE stock_documents ADD CONSTRAINT chk_stock_documents_current_status CHECK (status IN ('DRAFT','SCANNING','POSTED','CANCELLED'))",
             "ALTER TABLE stock_documents ADD CONSTRAINT chk_stock_documents_current_type CHECK (doc_type IN ('receipt','issue'))",
-            "ALTER TABLE stock_document_lines ADD CONSTRAINT chk_stock_document_line_integer_positive CHECK (qty_planned > 0 AND qty_actual > 0 AND scanned_qty >= 0 AND scanned_qty <= qty_planned)",
+            'ALTER TABLE stock_document_lines ADD CONSTRAINT chk_stock_document_line_integer_positive CHECK (qty_planned > 0 AND qty_actual > 0 AND scanned_qty >= 0 AND scanned_qty <= qty_planned)',
             "ALTER TABLE stock_movements ADD CONSTRAINT chk_stock_movement_type_current CHECK (movement_type IN ('OPENING','RECEIPT','ISSUE','COMPONENT_ISSUE','REVERSAL'))",
-            "ALTER TABLE stock_movements ADD CONSTRAINT chk_stock_movement_positive_quantity CHECK (quantity > 0)",
+            'ALTER TABLE stock_movements ADD CONSTRAINT chk_stock_movement_positive_quantity CHECK (quantity > 0)',
             "ALTER TABLE stock_movements ADD CONSTRAINT chk_stock_movement_stock_status CHECK (stock_status IN ('AVAILABLE','NON_SELLABLE','DEFECTIVE','QUARANTINE'))",
             "ALTER TABLE item_instances ADD CONSTRAINT chk_item_instance_current_status CHECK (item_status IN ('NEW','IN_STOCK','ISSUED','IN_WARRANTY','RETURNED_TO_CUSTOMER','LOST','ADJUSTED_OUT'))",
             "ALTER TABLE component_issue_documents ADD CONSTRAINT chk_component_issue_current_status CHECK (status IN ('DRAFT','SCANNING','POSTED','CANCELLED'))",
@@ -137,7 +137,7 @@ return new class extends Migration
                 $$ LANGUAGE plpgsql
             SQL);
             DB::statement('DROP TRIGGER IF EXISTS trg_stock_documents_posted_immutable ON stock_documents');
-            DB::statement("CREATE TRIGGER trg_stock_documents_posted_immutable BEFORE UPDATE OR DELETE ON stock_documents FOR EACH ROW EXECUTE FUNCTION hn_reject_posted_document_change()");
+            DB::statement('CREATE TRIGGER trg_stock_documents_posted_immutable BEFORE UPDATE OR DELETE ON stock_documents FOR EACH ROW EXECUTE FUNCTION hn_reject_posted_document_change()');
         }
 
         foreach (['reversal_document', 'component_issue_documents'] as $table) {

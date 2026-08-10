@@ -252,6 +252,7 @@ class CurrentBaselineComponentFlowController extends Controller
                 beforeData: ['status' => $document->status, 'version' => $expectedVersion],
                 afterData: ['status' => 'CANCELLED', 'version' => $expectedVersion + 1],
             );
+
             return ['component_issue_document_id' => $id, 'status' => 'CANCELLED', 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'];
         }, 3);
 
@@ -305,8 +306,10 @@ class CurrentBaselineComponentFlowController extends Controller
                         ]);
                     }
                     $posted['version'] = $expectedVersion + 1;
+
                     return $posted;
                 }, 3);
+
                 return [200, $this->envelope('Component Issue posted.', $result)];
             }
         );
@@ -340,6 +343,7 @@ class CurrentBaselineComponentFlowController extends Controller
             $itemId = $resolvedItem ?? $itemId;
             $containerId = $resolvedContainer ?? $containerId;
         }
+
         return [$itemId ? (string) $itemId : null, $containerId ? (string) $containerId : null, $physicalCodeId];
     }
 
@@ -369,12 +373,14 @@ class CurrentBaselineComponentFlowController extends Controller
             'message' => 'Component Issue scan validated',
             'created_at' => now(),
         ]);
+
         return $eventId;
     }
 
     private function payload(string $id): array
     {
         $lines = DB::table('component_issue_lines')->where('component_issue_document_id', $id)->orderBy('line_no')->get();
+
         return [
             'document' => DB::table('component_issue_documents')->where('id', $id)->first(),
             'lines' => $lines->map(fn (object $line): array => [
@@ -395,6 +401,7 @@ class CurrentBaselineComponentFlowController extends Controller
         if (! ctype_digit($header)) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
         }
+
         return (int) $header;
     }
 
@@ -424,6 +431,7 @@ class CurrentBaselineComponentFlowController extends Controller
         if ($id === null) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
         }
+
         return (string) $id;
     }
 }
