@@ -65,8 +65,13 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                 }
                 if ($errors !== []) {
                     $invalid++;
+                    $firstError = $errors[0] ?? [];
                     DB::table('outbound_request_import_rows')->where('id', $row->id)->update([
-                        'validation_status' => 'INVALID',
+                        'validation_status' => 'ERROR',
+                        'error_field' => $firstError['field'] ?? null,
+                        'error_code' => $firstError['error_code'] ?? 'ROW_VALIDATION_ERROR',
+                        'error_message' => $firstError['message'] ?? 'Row validation failed.',
+                        'errors' => json_encode($errors, JSON_UNESCAPED_UNICODE),
                         'validation_errors' => json_encode($errors, JSON_UNESCAPED_UNICODE),
                     ]);
                 }
@@ -77,6 +82,13 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                     'status' => 'REJECTED',
                     'valid_rows' => count($rows) - $invalid,
                     'error_rows' => $invalid,
+                    'validated_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } else {
+                DB::table('outbound_request_imports')->where('id', $importId)->update([
+                    'status' => 'VALIDATED',
+                    'validated_at' => now(),
                     'updated_at' => now(),
                 ]);
             }
@@ -134,16 +146,26 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                             }
                         }
 
+                        $customerName = (string) ($first['customer_name'] ?? $first['recipient_name'] ?? '');
+                        $customerAddress = (string) ($first['customer_address'] ?? $first['recipient_address'] ?? '');
+                        if ($customerName === '' || $customerAddress === '') {
+                            ApiError::abort(422, 'OUTBOUND_RECIPIENT_REQUIRED', 'customer_name và customer_address bắt buộc trước khi consume toa xuất.');
+                        }
+
                         $requestId = (string) Str::uuid();
                         DB::table('outbound_requests')->insert([
                             'id' => $requestId,
                             'request_no' => (string) $requestNo,
                             'import_id' => $id,
                             'agency_id' => $first['agency_id'] ?? null,
-                            'recipient_name' => (string) $first['recipient_name'],
-                            'recipient_address' => (string) $first['recipient_address'],
+                            'customer_name' => $customerName,
+                            'customer_address' => $customerAddress,
+                            // Compatibility fields remain populated while legacy readers are phased out.
+                            'recipient_name' => $customerName,
+                            'recipient_address' => $customerAddress,
                             'request_date' => now()->toDateString(),
-                            'status' => 'DRAFT',
+                            'status' => 'OPEN',
+                            'source_checksum' => (string) $import->source_checksum,
                             'created_at' => now(),
                             'created_by' => $this->actorIdCurrent(),
                             'updated_at' => now(),
@@ -160,6 +182,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                                 'line_no' => $index + 1,
                                 'sku_id' => $row['sku_id'],
                                 'required_qty' => (int) $row['required_qty'],
+                                'note' => $row['note'] ?? null,
                                 'created_at' => now(),
                                 'created_by' => $this->actorIdCurrent(),
                                 'updated_at' => now(),
@@ -180,8 +203,8 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                             'dst_warehouse_id' => null,
                             'outbound_request_id' => $requestId,
                             'agency_id' => $first['agency_id'] ?? null,
-                            'recipient_name' => (string) $first['recipient_name'],
-                            'recipient_address' => (string) $first['recipient_address'],
+                            'recipient_name' => $customerName,
+                            'recipient_address' => $customerAddress,
                             'version' => 1,
                             'created_by' => $this->actorIdCurrent(),
                             'updated_by' => $this->actorIdCurrent(),
@@ -199,6 +222,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                                 'qty_planned' => (int) $row['required_qty'],
                                 'qty_actual' => (int) $row['required_qty'],
                                 'scanned_qty' => 0,
+                                'note' => $row['note'] ?? null,
                                 'version' => 1,
                                 'created_at' => now(),
                                 'updated_at' => now(),
@@ -211,6 +235,8 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
 
                     DB::table('outbound_request_imports')->where('id', $id)->update([
                         'status' => 'CONSUMED',
+                        'consumed_at' => now(),
+                        'consumed_by' => $this->actorIdCurrent(),
                         'updated_at' => now(),
                         'updated_by' => $this->actorIdCurrent(),
                     ]);
@@ -232,7 +258,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                     ];
                 }, 3);
 
-                return [200, $this->envelopeCurrent('Outbound import consumed; DRAFT outbound documents created.', $result)];
+                return [200, $this->envelopeCurrent('Outbound import consumed; OPEN outbound requests and DRAFT outbound documents created.', $result)];
             }
         );
 
