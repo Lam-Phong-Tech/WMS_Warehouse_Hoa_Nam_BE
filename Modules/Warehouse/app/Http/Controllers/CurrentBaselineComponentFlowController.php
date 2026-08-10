@@ -31,9 +31,11 @@ class CurrentBaselineComponentFlowController extends Controller
             'warranty_case_id' => ['required', 'uuid', 'exists:warranty_case,warranty_case_id'],
             'document_date' => ['required', 'date'],
             'purpose' => ['nullable', 'in:WARRANTY'],
+            'note' => ['nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.sku_id' => ['required', 'uuid', 'exists:sku,sku_id'],
             'lines.*.required_qty' => ['required', 'integer', 'min:1'],
+            'lines.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $id = DB::transaction(function () use ($validated, $request): string {
@@ -55,6 +57,7 @@ class CurrentBaselineComponentFlowController extends Controller
                 'document_date' => $validated['document_date'],
                 'purpose' => 'WARRANTY',
                 'status' => 'DRAFT',
+                'note' => $validated['note'] ?? null,
                 'created_at' => now(),
                 'created_by' => $this->actorId(),
                 'updated_at' => now(),
@@ -74,6 +77,7 @@ class CurrentBaselineComponentFlowController extends Controller
                     'sku_id' => $line['sku_id'],
                     'required_qty' => (int) $line['required_qty'],
                     'scanned_qty' => 0,
+                    'note' => $line['note'] ?? null,
                     'created_at' => now(),
                     'created_by' => $this->actorId(),
                     'updated_at' => now(),
@@ -101,6 +105,7 @@ class CurrentBaselineComponentFlowController extends Controller
     {
         $validated = $request->validate([
             'line_id' => ['required', 'uuid'],
+            'code_value' => ['nullable', 'string', 'max:200'],
             'item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
             'container_id' => ['nullable', 'uuid', 'exists:containers,container_id'],
             'quantity' => ['required', 'integer', 'min:1'],
@@ -130,42 +135,48 @@ class CurrentBaselineComponentFlowController extends Controller
                 ApiError::abort(422, 'COMPONENT_SKU_REQUIRED', 'Line phải là COMPONENT ACTIVE.');
             }
 
-            $hasItem = ! empty($validated['item_id']);
-            $hasContainer = ! empty($validated['container_id']);
-            if ($hasItem === $hasContainer) {
-                ApiError::abort(422, 'COMPONENT_TARGET_XOR', 'Mỗi scan chọn đúng một item_id hoặc container_id.');
+            [$itemId, $containerId, $physicalCodeId] = $this->resolveTarget($validated);
+            if (($itemId !== null) === ($containerId !== null)) {
+                ApiError::abort(422, 'COMPONENT_TARGET_XOR', 'Mỗi scan phải resolve đúng một item hoặc BOX container.');
             }
+
             $quantity = (int) $validated['quantity'];
             $after = (int) $line->scanned_qty + $quantity;
             if ($after > (int) $line->required_qty) {
                 ApiError::abort(422, 'SCAN_EXCEEDS_REQUIRED', 'Component scan vượt required_qty.');
             }
 
-            if ($hasItem) {
+            if ($itemId !== null) {
                 if ($quantity !== 1) {
                     ApiError::abort(422, 'SERIAL_QUANTITY_MUST_BE_ONE', 'Serial component quantity phải = 1.');
                 }
-                $item = DB::table('item_instances')->where('item_id', $validated['item_id'])->lockForUpdate()->first();
+                $item = DB::table('item_instances')->where('item_id', $itemId)->lockForUpdate()->first();
                 if ($item === null || (string) $item->sku_id !== (string) $line->sku_id || $item->item_status !== 'IN_STOCK') {
                     ApiError::abort(422, 'COMPONENT_ITEM_NOT_AVAILABLE', 'Component item sai SKU hoặc không IN_STOCK.');
                 }
                 if (DB::table('component_issue_items as ci')
                     ->join('component_issue_lines as cl', 'cl.id', '=', 'ci.component_issue_line_id')
                     ->where('cl.component_issue_document_id', $id)
-                    ->where('ci.item_id', $validated['item_id'])
+                    ->where('ci.item_id', $itemId)
+                    ->where('ci.status', 'ACTIVE')
                     ->exists()) {
-                    ApiError::abort(409, 'DUPLICATE_COMPONENT_ITEM', 'Item đã được scan trong Component Issue này.');
+                    ApiError::abort(409, 'DUPLICATE_COMPONENT_ITEM', 'Item đã được scan ACTIVE trong Component Issue này.');
                 }
             } else {
-                $this->containers->assertContainerAvailable((string) $validated['container_id'], (string) $line->sku_id, $quantity);
+                $this->containers->assertContainerAvailable((string) $containerId, (string) $line->sku_id, $quantity);
             }
 
+            $scanEventId = $this->recordScanEvent($document, $physicalCodeId, $itemId, $containerId, $validated['code_value'] ?? null);
             DB::table('component_issue_items')->insert([
                 'id' => (string) Str::uuid(),
                 'component_issue_line_id' => $line->id,
-                'item_id' => $validated['item_id'] ?? null,
-                'container_id' => $validated['container_id'] ?? null,
+                'scan_event_id' => $scanEventId,
+                'item_id' => $itemId,
+                'container_id' => $containerId,
                 'quantity' => $quantity,
+                'status' => 'ACTIVE',
+                'selected_at' => now(),
+                'selected_by' => $this->actorId(),
                 'created_at' => now(),
                 'created_by' => $this->actorId(),
                 'updated_at' => now(),
@@ -188,6 +199,9 @@ class CurrentBaselineComponentFlowController extends Controller
             return [
                 'component_issue_document_id' => $id,
                 'line_id' => (string) $line->id,
+                'scan_event_id' => $scanEventId,
+                'item_id' => $itemId,
+                'container_id' => $containerId,
                 'required_qty' => (int) $line->required_qty,
                 'scanned_qty' => $after,
                 'status' => 'SCANNING',
@@ -212,8 +226,18 @@ class CurrentBaselineComponentFlowController extends Controller
             if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được Cancel.');
             }
+            $lineIds = DB::table('component_issue_lines')->where('component_issue_document_id', $id)->pluck('id');
+            if ($lineIds->isNotEmpty()) {
+                DB::table('component_issue_items')->whereIn('component_issue_line_id', $lineIds)->where('status', 'ACTIVE')->update([
+                    'status' => 'REMOVED',
+                    'updated_at' => now(),
+                    'updated_by' => $this->actorId(),
+                ]);
+            }
             DB::table('component_issue_documents')->where('id', $id)->update([
                 'status' => 'CANCELLED',
+                'cancelled_at' => now(),
+                'cancel_reason' => $validated['reason'],
                 'version' => $expectedVersion + 1,
                 'updated_at' => now(),
                 'updated_by' => $this->actorId(),
@@ -265,9 +289,6 @@ class CurrentBaselineComponentFlowController extends Controller
                     }
 
                     $this->containers->consumeDocument($id);
-                    // CurrentBaselineStockService re-validates all stock invariants and
-                    // expects DRAFT. The temporary DRAFT write is private to this outer
-                    // transaction; external state remains SCANNING until final POSTED.
                     DB::table('component_issue_documents')->where('id', $id)->update([
                         'status' => 'DRAFT',
                         'version' => $expectedVersion + 1,
@@ -275,6 +296,14 @@ class CurrentBaselineComponentFlowController extends Controller
                         'updated_by' => $this->actorId(),
                     ]);
                     $posted = $this->stock->postComponentIssue($id, $this->actorId(), $key, $hash);
+                    $lineIds = DB::table('component_issue_lines')->where('component_issue_document_id', $id)->pluck('id');
+                    if ($lineIds->isNotEmpty()) {
+                        DB::table('component_issue_items')->whereIn('component_issue_line_id', $lineIds)->where('status', 'ACTIVE')->update([
+                            'status' => 'POSTED',
+                            'updated_at' => now(),
+                            'updated_by' => $this->actorId(),
+                        ]);
+                    }
                     $posted['version'] = $expectedVersion + 1;
                     return $posted;
                 }, 3);
@@ -283,6 +312,64 @@ class CurrentBaselineComponentFlowController extends Controller
         );
 
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    private function resolveTarget(array $validated): array
+    {
+        $itemId = $validated['item_id'] ?? null;
+        $containerId = $validated['container_id'] ?? null;
+        $physicalCodeId = null;
+        if (! empty($validated['code_value'])) {
+            $physical = DB::table('physical_codes')
+                ->where('code_value', strtoupper(trim((string) $validated['code_value'])))
+                ->where('status', 'ACTIVE')
+                ->lockForUpdate()
+                ->first();
+            if ($physical === null) {
+                ApiError::abort(422, 'PHYSICAL_CODE_NOT_FOUND', 'Barcode/QR/RFID không tồn tại hoặc không ACTIVE.');
+            }
+            $physicalCodeId = (string) $physical->physical_code_id;
+            $resolvedItem = $physical->item_id ?? (($physical->assigned_object_type ?? null) === 'ITEM' ? $physical->assigned_object_id : null);
+            $resolvedContainer = $physical->container_id ?? (($physical->assigned_object_type ?? null) === 'CONTAINER' ? $physical->assigned_object_id : null);
+            if ($itemId !== null && $resolvedItem !== null && strtolower((string) $itemId) !== strtolower((string) $resolvedItem)) {
+                ApiError::abort(422, 'PHYSICAL_CODE_TARGET_MISMATCH', 'code_value và item_id không cùng target.');
+            }
+            if ($containerId !== null && $resolvedContainer !== null && strtolower((string) $containerId) !== strtolower((string) $resolvedContainer)) {
+                ApiError::abort(422, 'PHYSICAL_CODE_TARGET_MISMATCH', 'code_value và container_id không cùng target.');
+            }
+            $itemId = $resolvedItem ?? $itemId;
+            $containerId = $resolvedContainer ?? $containerId;
+        }
+        return [$itemId ? (string) $itemId : null, $containerId ? (string) $containerId : null, $physicalCodeId];
+    }
+
+    private function recordScanEvent(object $document, ?string $physicalCodeId, ?string $itemId, ?string $containerId, ?string $rawCode): ?string
+    {
+        if ($rawCode === null || ! DB::getSchemaBuilder()->hasTable('scan_batch') || ! DB::getSchemaBuilder()->hasTable('scan_event')) {
+            return null;
+        }
+        $batchId = (string) Str::uuid();
+        DB::table('scan_batch')->insert([
+            'scan_batch_id' => $batchId,
+            'source_type' => 'COMPONENT_ISSUE_DOCUMENT',
+            'source_id' => $document->id,
+            'warehouse_id' => $document->warehouse_id,
+            'created_by' => $this->actorId(),
+            'created_at' => now(),
+        ]);
+        $eventId = (string) Str::uuid();
+        DB::table('scan_event')->insert([
+            'scan_event_id' => $eventId,
+            'scan_batch_id' => $batchId,
+            'raw_code' => $rawCode,
+            'physical_code_id' => $physicalCodeId,
+            'resolved_object_type' => $itemId !== null ? 'ITEM' : 'CONTAINER',
+            'resolved_object_id' => $itemId ?? $containerId,
+            'result_status' => 'VALID',
+            'message' => 'Component Issue scan validated',
+            'created_at' => now(),
+        ]);
+        return $eventId;
     }
 
     private function payload(string $id): array
