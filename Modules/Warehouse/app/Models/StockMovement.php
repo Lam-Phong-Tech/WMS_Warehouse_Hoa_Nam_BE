@@ -6,67 +6,47 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** Append-only ledger — chặn update/delete ở tầng Eloquent, không chỉ ở DB. */
 class StockMovement extends Model
 {
     use HasUuids;
 
     public const OPENING = 'OPENING';
-
     public const RECEIPT_POSTED = 'RECEIPT';
-
     public const RECEIPT_IN = self::RECEIPT_POSTED;
-
     public const ISSUE_POSTED = 'ISSUE';
-
     public const ISSUE_OUT = self::ISSUE_POSTED;
-
-    public const ADJUST_IN = 'REVERSAL';
-
-    public const ADJUST_OUT = 'REVERSAL';
-
-    public const RECEIPT_REVERSED = 'REVERSAL';
-
-    public const ISSUE_REVERSED = 'REVERSAL';
-
-    public const TRANSFER_OUT = 'TRANSFER_OUT';
-
-    public const TRANSFER_IN = 'TRANSFER_IN';
-
-    public const TRANSFER_RETURN = 'TRANSFER_RETURN';
+    public const COMPONENT_ISSUE = 'COMPONENT_ISSUE';
+    public const REVERSAL = 'REVERSAL';
+    public const RECEIPT_REVERSED = self::REVERSAL;
+    public const ISSUE_REVERSED = self::REVERSAL;
 
     protected $table = 'stock_movements';
-
     public $incrementing = false;
-
     protected $keyType = 'string';
-
     public $timestamps = false;
 
     protected $fillable = [
         'movement_no', 'business_key', 'movement_type', 'warehouse_id', 'product_id', 'sku_id', 'stock_status',
-        'quantity', 'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'stock_document_line_id',
-        'original_movement_id', 'created_by', 'request_id', 'occurred_at',
-        'created_at',
+        'quantity', 'qty_before', 'qty_delta', 'qty_after',
+        'stock_document_id', 'stock_document_line_id',
+        'source_type', 'source_id', 'source_line_id', 'item_id', 'container_id',
+        'original_movement_id', 'correction_chain_id', 'idempotency_record_id',
+        'created_by', 'request_id', 'occurred_at', 'created_at',
     ];
 
     protected $casts = [
-        'qty_before' => 'decimal:3',
-        'qty_delta' => 'decimal:3',
-        'qty_after' => 'decimal:3',
+        'quantity' => 'integer',
+        'qty_before' => 'integer',
+        'qty_delta' => 'integer',
+        'qty_after' => 'integer',
         'occurred_at' => 'datetime',
         'created_at' => 'datetime',
     ];
 
     protected static function booted(): void
     {
-        static::updating(function () {
-            throw new \LogicException('stock_movements là append-only ledger, không được update.');
-        });
-
-        static::deleting(function () {
-            throw new \LogicException('stock_movements là append-only ledger, không được xoá.');
-        });
+        static::updating(fn () => throw new \LogicException('stock_movements is append-only and cannot be updated.'));
+        static::deleting(fn () => throw new \LogicException('stock_movements is append-only and cannot be deleted.'));
     }
 
     public function warehouse(): BelongsTo
@@ -84,4 +64,8 @@ class StockMovement extends Model
         return $this->belongsTo(StockDocument::class, 'stock_document_id');
     }
 
+    public function originalMovement(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'original_movement_id');
+    }
 }
