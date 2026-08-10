@@ -1,5 +1,5 @@
 {
-  "schema_version": "3.0.0",
+  "schema_version": "4.0.0",
   "baseline_date": "2026-08-04",
   "technical_alignment_date": "2026-08-10",
   "sources": [
@@ -129,5 +129,5 @@
     ["component_issue_lines", "required_qty"], ["component_issue_lines", "scanned_qty"], ["component_issue_items", "quantity"],
     ["reversal_line", "reversal_qty"], ["reversal_line", "quantity_to_reverse"]
   ],
-  "append_only_storage": ["stock_movements", "audit_log", "putaway_events"]
+  "append_only_storage": ["inventory_movements", "audit_logs", "warranty_events"]
 }
