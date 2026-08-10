@@ -1,12 +1,12 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineItemIdentityController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineSkuController;
 use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductStatusCompatibilityController;
 use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\ScanController;
-use Modules\Warehouse\Http\Controllers\SkuGovernanceController;
 use Modules\Warehouse\Http\Controllers\WarrantyController;
 
 Route::prefix('v1')->middleware('auth:api')->group(function (): void {
@@ -25,10 +25,10 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
     Route::patch('skus/{id}', [CurrentBaselineSkuController::class, 'update'])
         ->whereUuid('id')
         ->middleware('permission:sku.manage');
-    Route::post('skus/{id}/physical-codes', [SkuGovernanceController::class, 'addPhysicalCode'])
+    Route::post('skus/{id}/physical-codes', [CurrentBaselineItemIdentityController::class, 'assign'])
         ->whereUuid('id')
         ->middleware('permission:physical_code.assign_rfid');
-    Route::delete('skus/{id}/physical-codes/{physicalCodeId}', [SkuGovernanceController::class, 'revokePhysicalCode'])
+    Route::delete('skus/{id}/physical-codes/{physicalCodeId}', [CurrentBaselineItemIdentityController::class, 'revoke'])
         ->whereUuid('id')
         ->whereUuid('physicalCodeId')
         ->middleware('permission:physical_code.assign_rfid');
