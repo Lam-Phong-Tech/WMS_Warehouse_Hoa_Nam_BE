@@ -49,6 +49,8 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'success' => false,
                 'message' => 'Chưa xác thực',
+                'error_code' => 'UNAUTHENTICATED',
+                'errors' => [],
                 'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
             ], 401);
         });
@@ -57,6 +59,8 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'success' => false,
                 'message' => 'Chưa xác thực',
+                'error_code' => 'UNAUTHENTICATED',
+                'errors' => [],
                 'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
             ], 401);
         });
@@ -65,6 +69,8 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'success' => false,
                 'message' => 'Chưa xác thực',
+                'error_code' => 'UNAUTHENTICATED',
+                'errors' => [],
                 'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
             ], 401);
         });
@@ -73,6 +79,8 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'success' => false,
                 'message' => 'Phương thức HTTP không được hỗ trợ cho endpoint này.',
+                'error_code' => 'METHOD_NOT_ALLOWED',
+                'errors' => [],
                 'error' => ['code' => 'METHOD_NOT_ALLOWED', 'details' => []],
             ], 405);
         });
@@ -85,6 +93,8 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy tài nguyên hoặc đường dẫn yêu cầu.',
+                'error_code' => 'RESOURCE_NOT_FOUND',
+                'errors' => [],
                 'error' => ['code' => 'RESOURCE_NOT_FOUND', 'details' => []],
             ], 404);
         });
@@ -104,6 +114,8 @@ return Application::configure(basePath: dirname(__DIR__))
             $payload = [
                 'success' => false,
                 'message' => 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.',
+                'error_code' => 'INTERNAL_SERVER_ERROR',
+                'errors' => [],
                 'error' => ['code' => 'INTERNAL_SERVER_ERROR', 'details' => []],
             ];
 

@@ -86,6 +86,26 @@ class PermissionAndValidationTest extends TestCase
         $response->assertStatus(403)->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
 
+    public function test_product_routes_use_product_permissions_not_sku_permissions(): void
+    {
+        $productHeaders = $this->authHeadersWithPermissions(['product.view'], 'product_view_only');
+        $skuHeaders = $this->authHeadersWithPermissions(['sku.manage'], 'sku_only');
+
+        Product::create(['code' => 'SP-PROD-PERM', 'name' => 'San pham product permission', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+
+        $this->getJson('/api/v1/products', $productHeaders)
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->getJson('/api/v1/products', $skuHeaders)
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+
+        $this->getJson('/api/v1/skus', $skuHeaders)
+            ->assertOk()
+            ->assertJsonPath('success', true);
+    }
+
     public function test_product_create_with_duplicate_code_returns_422(): void
     {
         $headers = $this->authHeadersWithPermissions(['product.manage'], 'product_manager');
@@ -105,6 +125,20 @@ class PermissionAndValidationTest extends TestCase
         $response = $this->getJson('/api/v1/products/'.Str::uuid(), $headers);
 
         $response->assertStatus(404)->assertJsonPath('error.code', 'RESOURCE_NOT_FOUND');
+    }
+
+    public function test_document_status_history_uses_stock_document_view_permission(): void
+    {
+        $stockDocumentHeaders = $this->authHeadersWithPermissions(['stock_document.view'], 'stock_doc_viewer');
+        $warehouseHeaders = $this->authHeadersWithPermissions(['warehouse.view'], 'warehouse_viewer');
+
+        $this->getJson('/api/v1/document-status-history', $stockDocumentHeaders)
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->getJson('/api/v1/document-status-history', $warehouseHeaders)
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
 
     public function test_inbound_document_create_without_lines_returns_422(): void

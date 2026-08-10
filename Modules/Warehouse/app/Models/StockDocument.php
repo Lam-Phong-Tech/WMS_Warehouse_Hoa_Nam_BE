@@ -21,17 +21,21 @@ class StockDocument extends Model
 
     public const STATUS_DRAFT = 'draft';
 
+    public const STATUS_SCANNING = 'scanning';
+
+    public const STATUS_PARTIALLY_POSTED = 'partially_posted';
+
+    public const STATUS_POSTED = 'posted';
+
+    public const STATUS_CLOSED = 'closed';
+
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_APPROVED = 'approved';
 
-    public const STATUS_PARTIALLY_POSTED = 'partially_posted';
-
     public const STATUS_RECEIVED = 'received';
 
     public const STATUS_ISSUED = 'issued';
-
-    public const STATUS_CLOSED = 'closed';
 
     public const STATUS_REVERSED = 'reversed';
 

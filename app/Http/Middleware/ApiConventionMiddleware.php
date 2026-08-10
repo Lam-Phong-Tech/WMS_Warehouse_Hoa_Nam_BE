@@ -28,12 +28,15 @@ class ApiConventionMiddleware
                 return response()->json([
                     'success' => false,
                     'message' => 'Dữ liệu JSON không hợp lệ hoặc sai định dạng request.',
+                    'error_code' => 'MALFORMED_JSON',
+                    'errors' => [],
                     'error' => [
                         'code' => 'MALFORMED_JSON',
                         'details' => [],
                     ],
                     'meta' => [
                         'request_id' => $requestId,
+                        'timestamp' => now()->toIso8601String(),
                     ],
                 ], 400)->header('X-Request-ID', $requestId);
             }
@@ -83,6 +86,7 @@ class ApiConventionMiddleware
                                 'from' => $paginator['from'] ?? null,
                                 'to' => $paginator['to'] ?? null,
                                 'request_id' => $requestId,
+                                'timestamp' => now()->toIso8601String(),
                             ], $extraMeta),
                             'links' => [
                                 'first' => $paginator['first_page_url'] ?? null,
@@ -108,12 +112,16 @@ class ApiConventionMiddleware
                             if (! isset($newBody['meta']['request_id'])) {
                                 $newBody['meta']['request_id'] = $requestId;
                             }
+                            if (! isset($newBody['meta']['timestamp'])) {
+                                $newBody['meta']['timestamp'] = now()->toIso8601String();
+                            }
                         } else {
                             $newBody = [
                                 'success' => true,
                                 'message' => $data['message'] ?? 'Thành công',
                                 'meta' => [
                                     'request_id' => $data['meta']['request_id'] ?? ($data['request_id'] ?? $requestId),
+                                    'timestamp' => $data['meta']['timestamp'] ?? now()->toIso8601String(),
                                 ],
                             ];
 
@@ -177,12 +185,15 @@ class ApiConventionMiddleware
                     $newBody = [
                         'success' => false,
                         'message' => $message,
+                        'error_code' => $data['error']['code'] ?? ($data['error_code'] ?? $defaultErrorCode),
+                        'errors' => $data['error']['details'] ?? ($data['errors'] ?? []),
                         'error' => [
                             'code' => $data['error']['code'] ?? ($data['error_code'] ?? $defaultErrorCode),
                             'details' => $data['error']['details'] ?? ($data['errors'] ?? []),
                         ],
                         'meta' => [
                             'request_id' => $data['meta']['request_id'] ?? $requestId,
+                            'timestamp' => $data['meta']['timestamp'] ?? now()->toIso8601String(),
                         ],
                     ];
 

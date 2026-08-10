@@ -21,6 +21,8 @@ class AuthDatabaseSeeder extends Seeder
         ['warehouse.manage', 'Tạo/sửa kho'],
         ['product.view', 'Xem sản phẩm'],
         ['product.manage', 'Tạo/sửa sản phẩm'],
+        ['sku.manage', 'Quản lý SKU'],
+        ['master.manage', 'Quản lý master data'],
         ['stock_document.view', 'Xem phiếu kho'],
         ['stock_document.create', 'Tạo phiếu kho'],
         ['stock_document.submit', 'Gửi duyệt phiếu kho'],
@@ -31,6 +33,8 @@ class AuthDatabaseSeeder extends Seeder
         ['safe_stock.view', 'Xem định mức/cảnh báo tồn kho an toàn'],
         ['safe_stock.manage', 'Cấu hình định mức tồn kho an toàn'],
         ['inventory.view', 'Xem tồn kho hiện tại và lịch sử biến động (stock-movements)'],
+        ['stocktake.adjust', 'Áp dụng điều chỉnh kiểm kê (apply-adjustment)'],
+        ['warranty.temp_only', 'Bảo hành nhận tạm (TEMP_ONLY)'],
         ['report.view', 'Xem báo cáo tồn kho'],
         ['audit_log.view', 'Xem nhật ký audit'],
         ['stock_request.view', 'Xem yêu cầu xuất/nhập/điều chuyển kho'],
@@ -123,17 +127,39 @@ class AuthDatabaseSeeder extends Seeder
                 'item_instance.view', 'item_instance.manage',
             ],
         ],
+        // Test users for authorization testing
+        'SKU_MANAGER' => [
+            'name' => 'Quản lý SKU (test)',
+            'permissions' => [
+                'sku.manage',
+            ],
+        ],
+        'MASTER_MANAGER' => [
+            'name' => 'Quản lý Master Data (test)',
+            'permissions' => [
+                'master.manage',
+            ],
+        ],
+        'NO_PERMISSION' => [
+            'name' => 'Không có quyền (test)',
+            'permissions' => [],
+        ],
     ];
 
     /**
-     * Tài khoản demo cho từng role, dùng chung mật khẩu Cntt@1234 để tiện test theo permission.
+     * Tài khoản demo cho từng role, dùng chung mật khẩu baseline để tiện test theo permission.
      */
     private const USERS = [
-        ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@wms-hoanam.local', 'role' => 'WAREHOUSE_STAFF'],
-        ['username' => 'approver01', 'display_name' => 'Người duyệt 01', 'email' => 'approver01@wms-hoanam.local', 'role' => 'WAREHOUSE_APPROVER'],
-        ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@wms-hoanam.local', 'role' => 'WAREHOUSE_KEEPER'],
-        ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@wms-hoanam.local', 'role' => 'VIEWER'],
-        ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@wms-hoanam.local', 'role' => 'WAREHOUSE_MANAGER'],
+        ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF'],
+        ['username' => 'approver01', 'display_name' => 'Người duyệt 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER'],
+        ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER'],
+        ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
+        ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER'],
+        // Test users for P0-1 authorization testing
+        ['username' => 'test-sku-manage', 'display_name' => 'Test SKU Manage', 'email' => 'test-sku-manage@hoanam.com', 'role' => 'SKU_MANAGER'],
+        ['username' => 'test-master-manage', 'display_name' => 'Test Master Manage', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
+        ['username' => 'test-no-permission', 'display_name' => 'Test No Permission', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
+        ['username' => 'test-super-admin', 'display_name' => 'Test Super Admin', 'email' => 'test-super-admin@hoanam.com', 'role' => 'SUPER_ADMIN'],
     ];
 
     private const DEFAULT_PASSWORD = 'Cntt@1234';
@@ -158,11 +184,11 @@ class AuthDatabaseSeeder extends Seeder
             ['role_name' => 'Quản trị hệ thống', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
         );
 
-        $adminUser = User::firstOrCreate(
+        $adminUser = User::updateOrCreate(
             ['username' => 'admin'],
             [
                 'display_name' => 'Administrator',
-                'email' => 'admin@wms-hoanam.local',
+                'email' => 'admin@gmail.com',
                 'password_hash' => Hash::make(self::DEFAULT_PASSWORD),
                 'status' => 'ACTIVE',
                 'version' => 1,
@@ -187,7 +213,7 @@ class AuthDatabaseSeeder extends Seeder
         }
 
         foreach (self::USERS as $u) {
-            $user = User::firstOrCreate(
+            $user = User::updateOrCreate(
                 ['username' => $u['username']],
                 [
                     'display_name' => $u['display_name'],

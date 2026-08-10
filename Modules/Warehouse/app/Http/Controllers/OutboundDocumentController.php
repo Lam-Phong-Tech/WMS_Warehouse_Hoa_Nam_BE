@@ -322,8 +322,9 @@ class OutboundDocumentController extends Controller
         $idemKey = $this->requireIdempotencyKey($request);
         $hash = IdempotencyStore::requestHash($request);
 
-        [$code, $body] = IdempotencyStore::handle($idemKey, "post_issue_{$doc->id}", $this->userId(), $hash, function () use ($doc) {
-            return [200, $this->envelope('Hạch toán xuất kho thành công', $this->documentService->postIssue($doc, $this->userId()))];
+        $operation = "post_issue_{$doc->id}";
+        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $this->userId(), $hash, function () use ($doc, $idemKey, $hash, $operation) {
+            return [200, $this->envelope('Hạch toán xuất kho thành công', $this->documentService->postIssue($doc, $this->userId(), $idemKey, $hash, $operation))];
         });
 
         return response()->json($body, $code);

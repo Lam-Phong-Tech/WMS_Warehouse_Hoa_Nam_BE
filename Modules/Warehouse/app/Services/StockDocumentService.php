@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Services;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Exceptions\WarehouseException;
 use Modules\Warehouse\Models\DocumentStatusHistory;
@@ -152,9 +153,9 @@ class StockDocumentService
     }
 
     /** Thực hiện Nhập kho toàn bộ trong 1 lần — chứng từ phải ở APPROVED. */
-    public function postReceipt(StockDocument $doc, string $userId): StockDocument
+    public function postReceipt(StockDocument $doc, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId) {
+        return DB::transaction(function () use ($doc, $userId, $idempotencyKey, $requestHash, $operation) {
             $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện nhập kho');
             $this->assertWarehouseActive($doc->dst_warehouse_id);
 
@@ -168,14 +169,17 @@ class StockDocumentService
             $this->logStatusHistory($doc, $from, StockDocument::STATUS_RECEIVED, 'post_receipt', $userId);
             AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => StockDocument::STATUS_RECEIVED]);
 
-            return $doc->fresh(['lines', 'movements']);
+            $fresh = $doc->fresh(['lines', 'movements']);
+            $this->recordPostingEvent($operation ?? "post_receipt_{$doc->id}", $idempotencyKey, $requestHash, $fresh, $userId);
+
+            return $fresh;
         });
     }
 
     /** Thực hiện Xuất kho toàn bộ trong 1 lần — chứng từ phải ở APPROVED. */
-    public function postIssue(StockDocument $doc, string $userId): StockDocument
+    public function postIssue(StockDocument $doc, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId) {
+        return DB::transaction(function () use ($doc, $userId, $idempotencyKey, $requestHash, $operation) {
             $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện xuất kho');
             $this->assertWarehouseActive($doc->src_warehouse_id);
 
@@ -189,7 +193,10 @@ class StockDocumentService
             $this->logStatusHistory($doc, $from, StockDocument::STATUS_ISSUED, 'post_issue', $userId);
             AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => StockDocument::STATUS_ISSUED]);
 
-            return $doc->fresh(['lines', 'movements']);
+            $fresh = $doc->fresh(['lines', 'movements']);
+            $this->recordPostingEvent($operation ?? "post_issue_{$doc->id}", $idempotencyKey, $requestHash, $fresh, $userId);
+
+            return $fresh;
         });
     }
 
@@ -197,9 +204,9 @@ class StockDocumentService
      * Scan (nhận/xuất từng phần theo dòng, có thể gọi nhiều lần cho tới khi đủ qty_planned).
      * Cho phép gọi khi phiếu đang approved hoặc đã partially_posted từ lần scan trước.
      */
-    public function scanLine(StockDocument $doc, string $lineId, string $qty, string $userId): StockDocument
+    public function scanLine(StockDocument $doc, string $lineId, string $qty, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
-        return DB::transaction(function () use ($doc, $lineId, $qty, $userId) {
+        return DB::transaction(function () use ($doc, $lineId, $qty, $userId, $idempotencyKey, $requestHash, $operation) {
             $this->assertStatus($doc, [StockDocument::STATUS_APPROVED, StockDocument::STATUS_PARTIALLY_POSTED], 'scan');
 
             $line = $doc->lines()->where('id', $lineId)->lockForUpdate()->firstOrFail();
@@ -239,7 +246,10 @@ class StockDocumentService
                 $this->logStatusHistory($doc, $from, StockDocument::STATUS_PARTIALLY_POSTED, 'scan', $userId);
             }
 
-            return $doc->fresh(['lines', 'movements']);
+            $fresh = $doc->fresh(['lines', 'movements']);
+            $this->recordPostingEvent($operation ?? "scan_stock_document_{$doc->id}_{$lineId}", $idempotencyKey, $requestHash, $fresh, $userId);
+
+            return $fresh;
         });
     }
 
@@ -273,9 +283,9 @@ class StockDocumentService
     }
 
     /** Đảo ngược toàn bộ movement đã ghi cho phiếu (reverse/correction). */
-    public function reverseDocument(StockDocument $doc, string $userId, ?string $reason): StockDocument
+    public function reverseDocument(StockDocument $doc, string $userId, ?string $reason, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId, $reason) {
+        return DB::transaction(function () use ($doc, $userId, $reason, $idempotencyKey, $requestHash, $operation) {
             $this->assertStatus($doc, [StockDocument::STATUS_RECEIVED, StockDocument::STATUS_ISSUED, StockDocument::STATUS_CLOSED], 'đảo ngược');
 
             $movements = StockMovement::where('stock_document_id', $doc->id)
@@ -295,7 +305,10 @@ class StockDocumentService
             $this->logStatusHistory($doc, $from, StockDocument::STATUS_REVERSED, 'reverse', $userId, $reason);
             AuditLogger::record('REVERSE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), reason: $reason);
 
-            return $doc->fresh(['lines', 'movements']);
+            $fresh = $doc->fresh(['lines', 'movements']);
+            $this->recordPostingEvent($operation ?? "reverse_stock_document_{$doc->id}", $idempotencyKey, $requestHash, $fresh, $userId);
+
+            return $fresh;
         });
     }
 
@@ -367,5 +380,30 @@ class StockDocumentService
         $count = StockDocument::where('doc_no', 'like', $prefixWithDate.'%')->count();
 
         return $prefixWithDate.sprintf('%04d', $count + 1);
+    }
+
+    private function recordPostingEvent(string $operation, ?string $idempotencyKey, ?string $requestHash, StockDocument $doc, string $userId): void
+    {
+        if ($idempotencyKey === null || $idempotencyKey === '') {
+            return;
+        }
+
+        DB::table('posting_event')->updateOrInsert(
+            ['operation' => $operation, 'idempotency_key' => $idempotencyKey],
+            [
+                'posting_event_id' => (string) Str::uuid(),
+                'request_hash' => $requestHash ?? sha1($operation.'|'.$idempotencyKey),
+                'status' => 'COMMITTED',
+                'document_id' => $doc->id,
+                'movement_id' => $doc->movements->last()?->id,
+                'response_snapshot' => json_encode([
+                    'document_id' => $doc->id,
+                    'status' => $doc->status,
+                    'movement_ids' => $doc->movements->pluck('id')->values()->all(),
+                ], JSON_UNESCAPED_UNICODE),
+                'created_by' => $userId,
+                'created_at' => now(),
+            ]
+        );
     }
 }

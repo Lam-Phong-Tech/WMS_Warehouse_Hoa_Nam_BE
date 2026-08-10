@@ -21,6 +21,7 @@ trait ApiResponse
         $payload['data'] = $data;
         $payload['meta'] = [
             'request_id' => $this->currentRequestId(),
+            'timestamp' => now()->toIso8601String(),
         ];
 
         return response()->json($payload, $code);
@@ -57,6 +58,7 @@ trait ApiResponse
             'from' => $paginator->firstItem(),
             'to' => $paginator->lastItem(),
             'request_id' => $this->currentRequestId(),
+            'timestamp' => now()->toIso8601String(),
         ];
         $payload['links'] = [
             'first' => $paginator->url(1),
@@ -85,12 +87,15 @@ trait ApiResponse
         $payload = [
             'success' => false,
             'message' => $message,
+            'error_code' => $codeStr,
+            'errors' => $errors,
             'error' => [
                 'code' => $codeStr,
                 'details' => $errors,
             ],
             'meta' => [
                 'request_id' => $this->currentRequestId(),
+                'timestamp' => now()->toIso8601String(),
             ],
         ];
 

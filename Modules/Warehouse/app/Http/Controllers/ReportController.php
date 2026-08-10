@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Models\StockMovement;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -105,10 +106,11 @@ class ReportController extends Controller
         $from = $request->input('from_date', now()->startOfMonth()->toDateString());
         $to = $request->input('to_date', now()->toDateString());
 
-        $movementSums = DB::table('stock_movements')
-            ->selectRaw("SUM(CASE WHEN movement_type = 'RECEIPT_IN' THEN qty_delta ELSE 0 END) as receipt_qty")
-            ->selectRaw("SUM(CASE WHEN movement_type = 'ISSUE_OUT' THEN -qty_delta ELSE 0 END) as issue_qty")
-            ->whereBetween('occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+        $movementSums = DB::table('stock_movements as m')
+            ->join('stock_documents as d', 'd.id', '=', 'm.stock_document_id')
+            ->selectRaw('SUM(CASE WHEN movement_type = ? THEN qty_delta ELSE 0 END) as receipt_qty', [StockMovement::RECEIPT_IN])
+            ->selectRaw('SUM(CASE WHEN movement_type = ? THEN -qty_delta ELSE 0 END) as issue_qty', [StockMovement::ISSUE_OUT])
+            ->whereBetween('d.doc_date', [$from, $to])
             ->first();
 
         $partialCounts = StockDocument::query()
@@ -149,11 +151,13 @@ class ReportController extends Controller
         $to = $request->input('to_date');
 
         $lines = DB::table('stock_movements as m')
+            ->join('stock_documents as d', 'd.id', '=', 'm.stock_document_id')
             ->join('products as p', 'p.id', '=', 'm.product_id')
             ->selectRaw('p.code as product_code, p.name as product_name,'
-                ."SUM(CASE WHEN m.movement_type = 'RECEIPT_IN' THEN m.qty_delta ELSE 0 END) as total_in,"
-                ."SUM(CASE WHEN m.movement_type = 'ISSUE_OUT' THEN -m.qty_delta ELSE 0 END) as total_out")
-            ->whereBetween('m.occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+                .'SUM(CASE WHEN m.movement_type = ? THEN m.qty_delta ELSE 0 END) as total_in,'
+                .'SUM(CASE WHEN m.movement_type = ? THEN -m.qty_delta ELSE 0 END) as total_out',
+                [StockMovement::RECEIPT_IN, StockMovement::ISSUE_OUT])
+            ->whereBetween('d.doc_date', [$from, $to])
             ->groupBy('p.code', 'p.name')
             ->orderBy('p.code')
             ->get();

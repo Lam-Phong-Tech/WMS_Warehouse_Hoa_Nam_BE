@@ -13,7 +13,6 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:api')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/me', [AuthController::class, 'me']);
-
         Route::get('users', [UserController::class, 'index'])->middleware('permission:user.view');
         Route::post('users', [UserController::class, 'store'])->middleware('permission:user.manage');
         Route::get('users/{id}', [UserController::class, 'show'])->middleware('permission:user.view');
@@ -30,5 +29,8 @@ Route::prefix('v1')->group(function () {
 
         Route::get('permissions', [PermissionController::class, 'index'])->middleware('permission:permission.view');
         Route::get('permissions/{id}', [PermissionController::class, 'show'])->middleware('permission:permission.view');
+
+        Route::post('auth/change-password', [AuthController::class, 'changePassword']);
+        Route::post('auth/switch-context', [AuthController::class, 'switchContext']);
     });
 });

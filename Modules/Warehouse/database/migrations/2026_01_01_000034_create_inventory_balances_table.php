@@ -19,10 +19,11 @@ return new class extends Migration
             $table->decimal('on_hand_qty', 18, 3)->default(0);
             $table->decimal('available_qty', 18, 3)->default(0);
             $table->decimal('reserved_qty', 18, 3)->default(0);
+            $table->string('stock_status', 30)->default('AVAILABLE')->index();
             $table->unsignedInteger('version')->default(1);
             $table->timestamps();
 
-            $table->unique(['warehouse_id', 'product_id'], 'uk_inventory_balances_wh_product');
+            $table->unique(['warehouse_id', 'product_id', 'stock_status'], 'uk_inventory_balances_wh_product_status');
         });
     }
 

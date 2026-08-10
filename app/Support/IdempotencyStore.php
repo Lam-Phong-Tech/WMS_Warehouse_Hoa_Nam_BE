@@ -180,6 +180,8 @@ class IdempotencyStore
         return [409, [
             'success' => false,
             'message' => $message,
+            'error_code' => 'IDEMPOTENCY_ERROR',
+            'errors' => [],
             'error' => ['code' => 'IDEMPOTENCY_ERROR', 'details' => []],
         ], false];
     }

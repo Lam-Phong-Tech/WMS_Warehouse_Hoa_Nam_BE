@@ -5,9 +5,11 @@ namespace Modules\Auth\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Modules\Auth\Http\Requests\LoginRequest;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
+use Modules\AuditLog\Services\AuditLogger;
 use OpenApi\Attributes as OA;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -15,20 +17,23 @@ class AuthController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly RefreshTokenService $refreshTokens) {}
+    public function __construct(
+        private readonly RefreshTokenService $refreshTokens,
+        private readonly AuditLogger $auditLogger,
+    ) {}
 
     #[OA\Post(
         path: '/api/v1/auth/login',
         operationId: 'auth_login',
-        summary: 'Đăng nhập bằng username/password, trả về JWT access token + refresh token',
+        summary: 'Đăng nhập bằng email/password, trả về JWT access token + refresh token',
         tags: ['01. Authentication'],
         security: [],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['username', 'password'],
+                required: ['email', 'password'],
                 properties: [
-                    new OA\Property(property: 'username', type: 'string', example: 'admin'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'admin@gmail.com'),
                     new OA\Property(property: 'password', type: 'string', format: 'password', example: 'Cntt@1234'),
                 ]
             )
@@ -41,10 +46,22 @@ class AuthController extends Controller
     )]
     public function login(LoginRequest $request)
     {
-        $credentials = $request->only('username', 'password');
+        $credentials = $request->only('email', 'password');
 
         if (! $accessToken = auth('api')->attempt($credentials)) {
-            return $this->respondError('Tên đăng nhập hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
+            $user = User::where('email', $credentials['email'] ?? null)->first();
+            $this->auditLogger->log(
+                'LOGIN_FAILED',
+                'app_user',
+                $user?->user_id,
+                $user?->user_id,
+                $this->currentRequestId(),
+                [],
+                ['email' => $credentials['email'] ?? null],
+                'Invalid email or password'
+            );
+
+            return $this->respondError('Email hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
         }
 
         /** @var User $user */
@@ -52,11 +69,22 @@ class AuthController extends Controller
 
         if ($user->status !== 'ACTIVE') {
             auth('api')->logout();
+            $this->auditLogger->log(
+                'LOGIN_DENIED',
+                'app_user',
+                $user->user_id,
+                $user->user_id,
+                $this->currentRequestId(),
+                [],
+                ['status' => $user->status],
+                'Inactive or locked account'
+            );
 
             return $this->respondError('Tài khoản đang bị khoá hoặc ngừng hoạt động.', [], 403, 'ACCESS_DENIED');
         }
 
         $refreshToken = $this->refreshTokens->issue($user, $request);
+        $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
 
         return $this->respondSuccess([
             'access_token' => $accessToken,
@@ -67,6 +95,17 @@ class AuthController extends Controller
                 'user_id' => $user->user_id,
                 'username' => $user->username,
                 'display_name' => $user->display_name,
+                'roles' => $user->roles()
+                    ->where('role.status', 'ACTIVE')
+                    ->orderBy('role_code')
+                    ->get(['role.role_id', 'role.role_code', 'role.role_name'])
+                    ->map(fn ($role) => [
+                        'role_id' => $role->role_id,
+                        'role_code' => $role->role_code,
+                        'role_name' => $role->role_name,
+                    ])
+                    ->values()
+                    ->all(),
                 'permissions' => $user->permissionCodes(),
             ],
         ], 'Đăng nhập thành công');
@@ -101,12 +140,15 @@ class AuthController extends Controller
         }
 
         $accessToken = JWTAuth::fromUser($rotated['user']);
+        $user = $rotated['user'];
+        $this->auditLogger->log('TOKEN_REFRESH', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
 
         return $this->respondSuccess([
             'access_token' => $accessToken,
             'refresh_token' => $rotated['raw'],
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
+            'user' => $this->userPayload($user),
         ], 'Làm mới token thành công');
     }
 
@@ -129,12 +171,15 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $request->validate(['refresh_token' => ['nullable', 'string']]);
+        /** @var User $user */
+        $user = auth('api')->user();
 
         if ($request->filled('refresh_token')) {
             $this->refreshTokens->revoke($request->input('refresh_token'));
         }
 
         auth('api')->logout();
+        $this->auditLogger->log('LOGOUT', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
 
         return $this->respondSuccess(null, 'Đăng xuất thành công');
     }
@@ -160,7 +205,131 @@ class AuthController extends Controller
             'username' => $user->username,
             'display_name' => $user->display_name,
             'email' => $user->email,
-            'permissions' => $user->permissionCodes(),
+            'status' => $user->status,
+            ...$this->userAuthorizationPayload($user),
         ]);
+    }
+
+    #[OA\Post(
+        path: '/api/v1/auth/change-password',
+        operationId: 'auth_change_password',
+        summary: 'Change password for current authenticated user',
+        security: [['bearerAuth' => []]],
+        tags: ['01. Authentication'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['current_password', 'new_password', 'new_password_confirmation'],
+                properties: [
+                    new OA\Property(property: 'current_password', type: 'string', format: 'password'),
+                    new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8),
+                    new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Password changed successfully'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 422, description: 'Invalid current password or validation error'),
+        ]
+    )]
+    public function changePassword(Request $request)
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        /** @var User $user */
+        $user = auth('api')->user();
+
+        if (! Hash::check($data['current_password'], $user->password_hash)) {
+            return $this->respondError('Mật khẩu hiện tại không đúng.', [
+                'current_password' => ['Mật khẩu hiện tại không đúng.'],
+            ], 422, 'VALIDATION_ERROR');
+        }
+
+        $user->forceFill([
+            'password_hash' => Hash::make($data['new_password']),
+            'version' => ((int) $user->version) + 1,
+        ])->save();
+
+        $this->auditLogger->log('CHANGE_PASSWORD', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
+
+        return $this->respondSuccess(null, 'Đổi mật khẩu thành công');
+    }
+
+    #[OA\Post(
+        path: '/api/v1/auth/switch-context',
+        operationId: 'auth_switch_context',
+        summary: 'Switch active working context and return a fresh access token',
+        security: [['bearerAuth' => []]],
+        tags: ['01. Authentication'],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'context_type', type: 'string', maxLength: 50, nullable: true, example: 'SYSTEM'),
+                new OA\Property(property: 'context_id', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'scope_ref', type: 'string', maxLength: 100, nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Context switched successfully'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 422, description: 'Validation error'),
+        ]
+    )]
+    public function switchContext(Request $request)
+    {
+        $request->validate([
+            'context_type' => ['nullable', 'string', 'max:50'],
+            'context_id' => ['nullable', 'string', 'max:100'],
+            'scope_ref' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        /** @var User $user */
+        $user = auth('api')->user();
+        $accessToken = JWTAuth::fromUser($user);
+
+        $this->auditLogger->log('SWITCH_CONTEXT', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), [], $request->only(['context_type', 'context_id', 'scope_ref']));
+
+        return $this->respondSuccess([
+            'access_token' => $accessToken,
+            'token_type' => 'bearer',
+            'expires_in' => auth('api')->factory()->getTTL() * 60,
+            'active_context' => [
+                'context_type' => $request->input('context_type', 'SYSTEM'),
+                'context_id' => $request->input('context_id') ?? $request->input('scope_ref'),
+                'scope_ref' => $request->input('scope_ref'),
+            ],
+            'user' => $this->userPayload($user),
+        ], 'Chuyển ngữ cảnh thành công');
+    }
+
+    private function userPayload(User $user): array
+    {
+        return [
+            'user_id' => $user->user_id,
+            'username' => $user->username,
+            'display_name' => $user->display_name,
+            ...$this->userAuthorizationPayload($user),
+        ];
+    }
+
+    private function userAuthorizationPayload(User $user): array
+    {
+        return [
+            'roles' => $user->roles()
+                ->where('role.status', 'ACTIVE')
+                ->orderBy('role_code')
+                ->get(['role.role_id', 'role.role_code', 'role.role_name'])
+                ->map(fn ($role) => [
+                    'role_id' => $role->role_id,
+                    'role_code' => $role->role_code,
+                    'role_name' => $role->role_name,
+                ])
+                ->values()
+                ->all(),
+            'permissions' => $user->permissionCodes(),
+        ];
     }
 }

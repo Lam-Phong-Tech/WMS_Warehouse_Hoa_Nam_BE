@@ -11,9 +11,15 @@ class StockMovement extends Model
 {
     use HasUuids;
 
-    public const RECEIPT_IN = 'RECEIPT_IN';
+    public const OPENING = 'OPENING';
 
-    public const ISSUE_OUT = 'ISSUE_OUT';
+    public const RECEIPT_POSTED = 'RECEIPT_POSTED';
+
+    public const RECEIPT_IN = self::RECEIPT_POSTED;
+
+    public const ISSUE_POSTED = 'ISSUE_POSTED';
+
+    public const ISSUE_OUT = self::ISSUE_POSTED;
 
     public const ADJUST_IN = 'ADJUST_IN';
 
@@ -38,7 +44,7 @@ class StockMovement extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'movement_no', 'business_key', 'movement_type', 'warehouse_id', 'product_id',
+        'movement_no', 'business_key', 'movement_type', 'warehouse_id', 'product_id', 'stock_status',
         'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'stock_document_line_id',
         'original_movement_id', 'created_by', 'request_id', 'occurred_at', 'created_at',
     ];
