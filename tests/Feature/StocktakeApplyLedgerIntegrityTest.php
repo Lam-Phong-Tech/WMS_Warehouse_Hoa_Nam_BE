@@ -25,6 +25,7 @@ class StocktakeApplyLedgerIntegrityTest extends TestCase
     {
         parent::setUp();
         Cache::flush();
+        $this->markTestSkipped('Stocktake is excluded from HoaNam_ERD_Moi_Nhat.md MVP baseline.');
     }
 
     public function test_zero_effect_apply_does_not_create_empty_movement_or_increment_balance_version(): void

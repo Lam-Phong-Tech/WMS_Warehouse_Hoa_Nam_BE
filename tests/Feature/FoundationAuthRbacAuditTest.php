@@ -46,11 +46,11 @@ class FoundationAuthRbacAuditTest extends TestCase
             ->assertJsonPath('data.token_type', 'bearer')
             ->assertJsonPath('data.user.username', 'manager')
             ->assertJsonPath('data.user.roles.0.role_code', 'WAREHOUSE_MANAGER')
-            ->assertJsonPath('data.user.permissions.0', 'warehouse.view')
             ->assertJsonStructure([
                 'data' => ['access_token', 'refresh_token', 'expires_in', 'user' => ['roles', 'permissions']],
                 'meta' => ['request_id', 'timestamp'],
             ]);
+        $this->assertContains('warehouse.view', $login->json('data.user.permissions'));
 
         $this->assertDatabaseHas('audit_log', [
             'action' => 'LOGIN',

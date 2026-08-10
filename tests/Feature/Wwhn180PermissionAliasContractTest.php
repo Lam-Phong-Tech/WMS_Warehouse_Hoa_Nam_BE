@@ -23,7 +23,6 @@ class Wwhn180PermissionAliasContractTest extends TestCase
         'scan.outbound',
         'scan.warranty',
         'inventory.trace',
-        'stocktake.count',
         'warranty.manage',
         'report.export',
     ];
@@ -59,10 +58,12 @@ class Wwhn180PermissionAliasContractTest extends TestCase
             $this->assertContains($key, $managerKeys);
         }
 
-        foreach (['scan.warranty', 'stocktake.count', 'warranty.manage', 'report.export'] as $key) {
+        foreach (['scan.warranty', 'warranty.manage', 'report.export'] as $key) {
             $this->assertContains($key, $managerKeys);
             $this->assertNotContains($key, $keeperKeys);
         }
+
+        $this->assertFalse(Permission::query()->where('permission_key', 'stocktake.count')->exists());
 
         foreach (self::ALIAS_KEYS as $key) {
             $this->assertNotContains($key, $noPermissionKeys);
@@ -93,11 +94,12 @@ class Wwhn180PermissionAliasContractTest extends TestCase
             'permission:stock_document.scan',
             'permission:scan.outbound'
         );
-        $this->assertCanonicalMiddleware(
-            Request::create("/api/v1/stocktake/sessions/{$id}/apply-adjustment", 'POST'),
-            'permission:stocktake.adjust',
-            'permission:stocktake.count'
-        );
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\NotFoundHttpException::class);
+        Route::getRoutes()->match(Request::create("/api/v1/stocktake/sessions/{$id}/apply-adjustment", 'POST'));
+    }
+
+    public function test_remaining_export_alias_does_not_replace_canonical_middleware(): void
+    {
         $this->assertCanonicalMiddleware(
             Request::create('/api/v1/reports/inventory-xnt/export-excel', 'GET'),
             'permission:report.view',

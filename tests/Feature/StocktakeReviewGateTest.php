@@ -27,6 +27,7 @@ class StocktakeReviewGateTest extends TestCase
     {
         parent::setUp();
         Cache::flush();
+        $this->markTestSkipped('Stocktake is excluded from HoaNam_ERD_Moi_Nhat.md MVP baseline.');
     }
 
     public function test_duplicate_variance_ids_are_rejected_by_http_and_service_without_writes(): void

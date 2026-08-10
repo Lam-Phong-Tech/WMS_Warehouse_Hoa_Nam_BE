@@ -25,6 +25,7 @@ class StocktakeThreeLayerContractTest extends TestCase
     {
         parent::setUp();
         Cache::flush();
+        $this->markTestSkipped('Stocktake is excluded from HoaNam_ERD_Moi_Nhat.md MVP baseline.');
     }
 
     public function test_create_is_draft_and_start_creates_snapshot_once_with_cas(): void

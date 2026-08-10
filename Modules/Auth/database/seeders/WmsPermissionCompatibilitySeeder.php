@@ -22,7 +22,6 @@ class WmsPermissionCompatibilitySeeder extends Seeder
         'scan.outbound' => 'FE alias cho stock_document.scan trong luồng xuất kho',
         'scan.warranty' => 'FE action guard cho scan trong ngữ cảnh bảo hành',
         'inventory.trace' => 'FE route-entry guard cho màn Scan/Trace',
-        'stocktake.count' => 'FE route-entry guard cho màn kiểm kê',
         'warranty.manage' => 'FE route-entry guard cho màn bảo hành',
         'report.export' => 'FE action guard cho xuất báo cáo',
     ];
@@ -33,7 +32,7 @@ class WmsPermissionCompatibilitySeeder extends Seeder
         ],
         'WAREHOUSE_MANAGER' => [
             'inbound.post', 'outbound.post', 'scan.inbound', 'scan.outbound', 'scan.warranty',
-            'inventory.trace', 'stocktake.count', 'warranty.manage', 'report.export',
+            'inventory.trace', 'warranty.manage', 'report.export',
         ],
     ];
 

@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\HealthController;
 use Illuminate\Support\Facades\Route;
-use Modules\Warehouse\Http\Controllers\ContainerController;
 use Modules\Warehouse\Http\Controllers\ImportController;
 use Modules\Warehouse\Http\Controllers\SkuGovernanceController;
 
@@ -21,15 +20,5 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('skus/{id}/physical-codes/{physicalCodeId}', [SkuGovernanceController::class, 'revokePhysicalCode'])
             ->middleware('permission:sku.manage');
 
-        Route::get('containers', [ContainerController::class, 'index'])
-            ->middleware('permission:inventory.view');
-        Route::get('containers/{id}', [ContainerController::class, 'show'])
-            ->middleware('permission:inventory.view');
-        Route::post('containers', [ContainerController::class, 'store'])
-            ->middleware('permission:warehouse.manage');
-        Route::patch('containers/{id}', [ContainerController::class, 'update'])
-            ->middleware('permission:warehouse.manage');
-        Route::post('containers/{id}/seal', [ContainerController::class, 'seal'])
-            ->middleware('permission:warehouse.manage');
     });
 });

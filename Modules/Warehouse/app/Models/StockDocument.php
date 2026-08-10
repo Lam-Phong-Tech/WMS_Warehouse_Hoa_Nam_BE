@@ -21,29 +21,29 @@ class StockDocument extends Model
 
     public const TYPE_TRANSFER = 'transfer';
 
-    public const STATUS_DRAFT = 'draft';
+    public const STATUS_DRAFT = 'DRAFT';
 
-    public const STATUS_SCANNING = 'scanning';
+    public const STATUS_SCANNING = 'SCANNING';
 
-    public const STATUS_PARTIALLY_POSTED = 'partially_posted';
+    public const STATUS_PARTIALLY_POSTED = 'PARTIALLY_POSTED';
 
-    public const STATUS_POSTED = 'posted';
+    public const STATUS_POSTED = 'POSTED';
 
-    public const STATUS_CLOSED = 'closed';
+    public const STATUS_CLOSED = 'CLOSED';
 
-    public const STATUS_PENDING = 'pending';
+    public const STATUS_PENDING = 'PENDING';
 
-    public const STATUS_APPROVED = 'approved';
+    public const STATUS_APPROVED = 'APPROVED';
 
-    public const STATUS_RECEIVED = 'received';
+    public const STATUS_RECEIVED = self::STATUS_POSTED;
 
-    public const STATUS_ISSUED = 'issued';
+    public const STATUS_ISSUED = self::STATUS_POSTED;
 
-    public const STATUS_REVERSED = 'reversed';
+    public const STATUS_REVERSED = 'REVERSED';
 
-    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_CANCELLED = 'CANCELLED';
 
-    public const STATUS_REJECTED = 'rejected';
+    public const STATUS_REJECTED = 'REJECTED';
 
     // Trạng thái riêng cho doc_type=transfer.
     public const STATUS_IN_TRANSIT = 'in_transit';

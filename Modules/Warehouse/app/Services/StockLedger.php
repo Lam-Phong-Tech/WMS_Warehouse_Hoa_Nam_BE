@@ -111,7 +111,9 @@ class StockLedger
                 'id' => (string) Str::uuid(),
                 'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
+                'sku_id' => $productId,
                 'stock_status' => $stockStatus,
+                'quantity' => 0,
                 'on_hand_qty' => 0,
                 'available_qty' => 0,
                 'reserved_qty' => 0,
@@ -142,6 +144,7 @@ class StockLedger
             ->where('version', $balance->version)
             ->update([
                 'on_hand_qty' => $qtyAfter,
+                'quantity' => $qtyAfter,
                 'available_qty' => $availableAfter,
                 'version' => $balance->version + 1,
                 'updated_at' => now(),
@@ -156,7 +159,9 @@ class StockLedger
             'movement_type' => $movementType,
             'warehouse_id' => $warehouseId,
             'product_id' => $productId,
+            'sku_id' => $productId,
             'stock_status' => $stockStatus,
+            'quantity' => $qty,
             'qty_before' => $qtyBefore,
             'qty_delta' => $sign === '+' ? $qty : bcmul($qty, '-1', self::SCALE),
             'qty_after' => $qtyAfter,
@@ -201,9 +206,9 @@ class StockLedger
             : StockDocument::TYPE_ISSUE;
 
         if ($currentDocument->doc_type !== $expectedType
-            || $currentDocument->status !== StockDocument::STATUS_APPROVED) {
+            || $currentDocument->status !== StockDocument::STATUS_SCANNING) {
             WarehouseException::invalidStatus(
-                "Chứng từ {$currentDocument->id} không còn ở trạng thái approved hợp lệ để hạch toán."
+                "Document {$currentDocument->id} is no longer in SCANNING status for posting."
             );
         }
 

@@ -81,7 +81,7 @@ class ProductController extends Controller
 
         AuditLogger::record(
             action: 'CREATE',
-            objectType: 'product',
+            objectType: 'sku',
             objectId: $product->sku_id,
             actorId: $request->user()?->user_id,
             requestId: $request->attributes->get('request_id'),
@@ -159,7 +159,7 @@ class ProductController extends Controller
 
         AuditLogger::record(
             action: 'UPDATE',
-            objectType: 'product',
+            objectType: 'sku',
             objectId: $id,
             actorId: $request->user()?->user_id,
             requestId: $request->attributes->get('request_id'),

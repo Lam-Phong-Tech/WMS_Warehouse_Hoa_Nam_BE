@@ -227,7 +227,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $this->assertSame(1, StockMovement::where('stock_document_id', $docId)->count());
     }
 
-    public function test_close_remainder_marks_shortage_on_unfulfilled_qty(): void
+    public function test_close_remainder_route_is_not_exposed_in_full_post_baseline(): void
     {
         $headers = $this->authHeaders();
         $warehouse = Warehouse::create(['code' => 'KHO-CLOSE', 'name' => 'Kho close', 'status' => 'ACTIVE']);
@@ -251,8 +251,8 @@ class StockDocumentIdempotencyTest extends TestCase
             'reason' => 'Nhà cung cấp thiếu hàng',
         ], $headers);
 
-        $closeResponse->assertOk()->assertJsonPath('data.status', 'closed');
-        $this->assertSame('shortage', $closeResponse->json('data.lines.0.completion_type'));
+        $closeResponse->assertNotFound();
+        $this->assertDatabaseHas('stock_documents', ['id' => $docId, 'status' => 'approved']);
         $this->assertSame(0, StockMovement::where('stock_document_id', $docId)->count());
     }
 

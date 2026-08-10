@@ -407,10 +407,10 @@ class WmsContractController extends Controller
 
     private function productMaster(Request $request, string $type)
     {
-        $query = DB::table('product_master')
+        $query = DB::table('product_masters')
             ->where('master_type', $type)
-            ->orderBy('master_name');
-        $this->keyword($query, $request, ['master_code', 'master_name', 'status']);
+            ->orderBy('name');
+        $this->keyword($query, $request, ['code', 'name', 'status']);
 
         return $this->respondPaginated($query->paginate($this->perPage($request)));
     }

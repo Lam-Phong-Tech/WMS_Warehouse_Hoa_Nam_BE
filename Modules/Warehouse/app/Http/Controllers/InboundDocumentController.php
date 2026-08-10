@@ -16,7 +16,7 @@ use OpenApi\Attributes as OA;
 /**
  * Phiếu nhập kho (doc_type=receipt).
  *
- * Logic của index/show/submit/approve/reject/cancel/scan/close-remainder/reverse nằm ở
+ *  * Logic: index/show/cancel/scan/post-receipt/reverse.
  * Concerns\InteractsWithStockDocuments (dùng chung với OutboundDocumentController) — annotation
  * Swagger cho các action đó được khai báo ở đây (class-level) vì path/tag riêng cho từng loại
  * chứng từ, trong khi PHP method vật lý nằm ở trait dùng chung.
@@ -30,7 +30,7 @@ use OpenApi\Attributes as OA;
     parameters: [
         new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
         new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-        new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['draft', 'pending', 'approved', 'partially_posted', 'received', 'closed', 'reversed', 'cancelled', 'rejected'])),
+        new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])),
     ],
     responses: [
         new OA\Response(response: 200, description: 'Danh sách phiếu nhập kho'),

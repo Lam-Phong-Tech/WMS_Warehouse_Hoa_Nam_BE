@@ -8,22 +8,12 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Exceptions\WarehouseException;
 use Modules\Warehouse\Models\DocumentStatusHistory;
 use Modules\Warehouse\Models\InventoryBalance;
+use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 
-/**
- * Điều phối vòng đời chứng từ Nhập/Xuất kho — port từ StockDocumentService của ERP-Backend M2,
- * giữ nguyên state machine và business rule, chỉ bỏ phần ERP-specific: multi-branch warehouse_type
- * check, EventOutbox, lot_no/expiry_date, WarehouseOutboxLogger, và toàn bộ doc_type điều chuyển
- * (Hoà Nam chỉ vận hành 1 kho tổng nên không cần transfer).
- *
- * draft → pending → approved → post-receipt|post-issue (received|issued, đổi tồn 1 lần cho toàn bộ)
- *                             → scan (validate/classify only, stock_effect=NONE, không ghi movement)
- *                → reverse (từ received|issued|closed → reversed, đảo ngược toàn bộ movement đã ghi)
- * cancelled: chỉ từ draft/pending/approved. rejected: chỉ từ pending.
- */
 class StockDocumentService
 {
     private const PREFIX = [
@@ -56,7 +46,6 @@ class StockDocumentService
             ]);
 
             $this->syncLines($doc, $data['lines']);
-
             $this->logStatusHistory($doc, null, StockDocument::STATUS_DRAFT, 'create', $userId);
             AuditLogger::record('CREATE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), afterData: ['doc_no' => $doc->doc_no, 'doc_type' => $doc->doc_type]);
 
@@ -64,18 +53,17 @@ class StockDocumentService
         });
     }
 
-    /** Chỉ cho phép sửa khi phiếu còn ở draft (chưa gửi duyệt). */
     public function update(StockDocument $doc, array $data, string $userId): StockDocument
     {
         return DB::transaction(function () use ($doc, $data, $userId) {
-            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT], 'sửa');
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT], 'update');
 
             $doc->update(array_filter([
                 'doc_no' => $data['doc_no'] ?? null,
                 'doc_date' => $data['doc_date'] ?? null,
                 'note' => $data['note'] ?? $doc->note,
                 'updated_by' => $userId,
-            ], fn ($v) => $v !== null));
+            ], fn ($value) => $value !== null));
 
             if (array_key_exists('lines', $data)) {
                 $doc->lines()->delete();
@@ -88,62 +76,31 @@ class StockDocumentService
 
     public function submit(StockDocument $doc, string $userId): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId) {
-            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT], 'gửi duyệt');
-            if ($doc->lines()->count() < 1) {
-                WarehouseException::invalidStatus('Phiếu phải có ít nhất 1 dòng sản phẩm.');
-            }
-
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_PENDING, 'submitted_by' => $userId, 'submitted_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_PENDING, 'submit', $userId);
-
-            return $doc->fresh('lines');
-        });
+        return $this->startScanning($doc, $userId, 'submit');
     }
 
     public function approve(StockDocument $doc, string $userId): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId) {
-            $this->assertStatus($doc, [StockDocument::STATUS_PENDING], 'duyệt');
-
-            if (in_array($doc->doc_type, [StockDocument::TYPE_ISSUE, StockDocument::TYPE_TRANSFER], true)) {
-                $this->assertWarehouseActive($doc->src_warehouse_id);
-                $this->precheckStock($doc, $doc->src_warehouse_id);
-            }
-            if (in_array($doc->doc_type, [StockDocument::TYPE_RECEIPT, StockDocument::TYPE_TRANSFER], true)) {
-                $this->assertWarehouseActive($doc->dst_warehouse_id);
-            }
-
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_APPROVED, 'approved_by' => $userId, 'approved_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_APPROVED, 'approve', $userId);
-            AuditLogger::record('APPROVE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'));
-
-            return $doc->fresh(['lines', 'srcWarehouse', 'dstWarehouse']);
-        });
+        return $this->startScanning($doc, $userId, 'approve');
     }
 
     public function reject(StockDocument $doc, ?string $reason, string $userId): StockDocument
     {
-        return DB::transaction(function () use ($doc, $reason, $userId) {
-            $this->assertStatus($doc, [StockDocument::STATUS_PENDING], 'từ chối duyệt');
-
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_REJECTED, 'reject_reason' => $reason, 'rejected_by' => $userId, 'rejected_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_REJECTED, 'reject', $userId, $reason);
-
-            return $doc->fresh('lines');
-        });
+        WarehouseException::invalidStatus('Reject approval is outside the latest MVP baseline.');
     }
 
     public function cancel(StockDocument $doc, string $userId, ?string $reason): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $reason) {
-            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_PENDING, StockDocument::STATUS_APPROVED], 'huỷ');
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], 'cancel');
 
             $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_CANCELLED, 'cancel_reason' => $reason, 'cancelled_by' => $userId, 'cancelled_at' => now()]);
+            $doc->update([
+                'status' => StockDocument::STATUS_CANCELLED,
+                'cancel_reason' => $reason,
+                'cancelled_by' => $userId,
+                'cancelled_at' => now(),
+            ]);
             $this->logStatusHistory($doc, $from, StockDocument::STATUS_CANCELLED, 'cancel', $userId, $reason);
             AuditLogger::record('CANCEL', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), reason: $reason);
 
@@ -151,86 +108,74 @@ class StockDocumentService
         });
     }
 
-    /** Thực hiện Nhập kho toàn bộ trong 1 lần — chứng từ phải ở APPROVED. */
     public function postReceipt(StockDocument $doc, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $idempotencyKey, $requestHash, $operation) {
             $doc = $this->lockDocumentForStockEffect($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện nhập kho');
+            $this->assertStatus($doc, [StockDocument::STATUS_SCANNING], 'post receipt');
             $this->assertWarehouseActive($doc->dst_warehouse_id);
+            $this->assertFullPostReady($doc);
 
             foreach ($doc->lines as $line) {
                 $this->ledger->inbound($doc, $line, $userId);
-                $line->update(['scanned_qty' => $line->qty_planned]);
             }
 
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_RECEIVED, 'posted_by' => $userId, 'posted_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_RECEIVED, 'post_receipt', $userId);
-            AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => StockDocument::STATUS_RECEIVED]);
-
-            $fresh = $doc->fresh(['lines', 'movements']);
+            $fresh = $this->markPosted($doc, $userId, 'post_receipt');
             $this->recordPostingEvent($operation ?? "post_receipt_{$doc->id}", $idempotencyKey, $requestHash, $fresh, $userId);
 
             return $fresh;
         });
     }
 
-    /** Thực hiện Xuất kho toàn bộ trong 1 lần — chứng từ phải ở APPROVED. */
     public function postIssue(StockDocument $doc, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $idempotencyKey, $requestHash, $operation) {
             $doc = $this->lockDocumentForStockEffect($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'thực hiện xuất kho');
+            $this->assertStatus($doc, [StockDocument::STATUS_SCANNING], 'post issue');
             $this->assertWarehouseActive($doc->src_warehouse_id);
+            $this->assertFullPostReady($doc);
+            $this->assertProductRfidsReady($doc);
 
             foreach ($doc->lines as $line) {
                 $this->ledger->outbound($doc, $line, $userId);
-                $line->update(['scanned_qty' => $line->qty_planned]);
             }
 
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_ISSUED, 'posted_by' => $userId, 'posted_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_ISSUED, 'post_issue', $userId);
-            AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => StockDocument::STATUS_ISSUED]);
-
-            $fresh = $doc->fresh(['lines', 'movements']);
+            $fresh = $this->markPosted($doc, $userId, 'post_issue');
             $this->recordPostingEvent($operation ?? "post_issue_{$doc->id}", $idempotencyKey, $requestHash, $fresh, $userId);
 
             return $fresh;
         });
     }
 
-    /**
-     * Validate scan theo dòng và ghi nhận scanned state trên line. Contract G1 khóa scan là classify/validate only:
-     * stock_effect=NONE, không ghi stock_movements, không đổi inventory_balances, không đổi trạng thái chứng từ.
-     */
     public function validateScanLine(StockDocument $doc, string $lineId, string $qty): array
     {
         return DB::transaction(function () use ($doc, $lineId, $qty) {
-            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED], 'scan');
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], 'scan');
+
+            if ($doc->status === StockDocument::STATUS_DRAFT) {
+                $this->startScanning($doc, (string) auth('api')->id(), 'scan_start');
+                $doc->refresh();
+            }
 
             $line = $doc->lines()->where('id', $lineId)->lockForUpdate()->firstOrFail();
-
             if (bccomp($qty, '0', 3) <= 0) {
-                WarehouseException::invalidStatus('Số lượng scan phải lớn hơn 0.');
+                WarehouseException::invalidStatus('Scan quantity must be greater than zero.');
             }
+
             $scannedBefore = (string) $line->scanned_qty;
             $scannedAfter = bcadd($scannedBefore, $qty, 3);
             $remainingBefore = bcsub((string) $line->qty_planned, $scannedBefore, 3);
-
             if (bccomp($qty, $remainingBefore, 3) > 0) {
-                WarehouseException::invalidStatus("Số lượng scan không được vượt quá phần còn lại của dòng {$line->line_no}.");
+                WarehouseException::invalidStatus("Scan quantity exceeds remaining quantity on line {$line->line_no}.");
             }
 
             if ($doc->doc_type === StockDocument::TYPE_RECEIPT) {
                 $this->assertWarehouseActive($doc->dst_warehouse_id);
             } else {
                 $this->assertWarehouseActive($doc->src_warehouse_id);
-                $available = (string) InventoryBalance::where('warehouse_id', $doc->src_warehouse_id)
+                $available = (string) (InventoryBalance::where('warehouse_id', $doc->src_warehouse_id)
                     ->where('product_id', $line->product_id)
-                    ->value('available_qty') ?? '0';
-
+                    ->value('available_qty') ?? '0');
                 if (bccomp($available, $qty, 3) < 0) {
                     WarehouseException::insufficientStock($line->product->code ?? (string) $line->product_id);
                 }
@@ -242,7 +187,7 @@ class StockDocumentService
                 'document_id' => $doc->id,
                 'line_id' => $line->id,
                 'doc_type' => $doc->doc_type,
-                'status' => $doc->status,
+                'status' => StockDocument::STATUS_SCANNING,
                 'product_id' => $line->product_id,
                 'qty' => (float) $qty,
                 'qty_planned' => (float) $line->qty_planned,
@@ -256,56 +201,35 @@ class StockDocumentService
         });
     }
 
-    /**
-     * Đóng phần còn lại chưa scan đủ — đánh dấu shortage trên từng dòng còn thiếu, chuyển
-     * phiếu sang closed. Chỉ áp dụng khi phiếu đang approved (chưa scan gì) hoặc partially_posted.
-     */
     public function closeRemainder(StockDocument $doc, string $userId, ?string $reason): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId, $reason) {
-            $this->assertStatus($doc, [StockDocument::STATUS_APPROVED, StockDocument::STATUS_PARTIALLY_POSTED], 'đóng phần còn thiếu');
-
-            foreach ($doc->lines as $line) {
-                $remaining = bcsub((string) $line->qty_planned, (string) $line->scanned_qty, 3);
-                if (bccomp($remaining, '0', 3) > 0) {
-                    $line->update([
-                        'qty_actual' => $line->scanned_qty,
-                        'completion_type' => 'shortage',
-                        'shortage_reason' => $reason,
-                    ]);
-                }
-            }
-
-            $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_CLOSED, 'closed_by' => $userId, 'closed_at' => now()]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_CLOSED, 'close_remainder', $userId, $reason);
-            AuditLogger::record('CLOSE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), reason: $reason);
-
-            return $doc->fresh('lines');
-        });
+        WarehouseException::invalidStatus('close_remainder is outside the latest MVP baseline.');
     }
 
-    /** Đảo ngược toàn bộ movement đã ghi cho phiếu (reverse/correction). */
     public function reverseDocument(StockDocument $doc, string $userId, ?string $reason, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
         return DB::transaction(function () use ($doc, $userId, $reason, $idempotencyKey, $requestHash, $operation) {
             $doc = $this->lockDocumentForStockEffect($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_RECEIVED, StockDocument::STATUS_ISSUED, StockDocument::STATUS_CLOSED], 'đảo ngược');
+            $this->assertStatus($doc, [StockDocument::STATUS_POSTED], 'reverse');
 
             $movements = StockMovement::where('stock_document_id', $doc->id)
                 ->whereNull('original_movement_id')
                 ->get();
 
             foreach ($movements as $movement) {
-                $alreadyReversed = StockMovement::where('original_movement_id', $movement->id)->exists();
-                if ($alreadyReversed) {
+                if (StockMovement::where('original_movement_id', $movement->id)->exists()) {
                     continue;
                 }
                 $this->ledger->reverse($movement, $userId);
             }
 
             $from = $doc->status;
-            $doc->update(['status' => StockDocument::STATUS_REVERSED, 'reversed_by' => $userId, 'reversed_at' => now(), 'reverse_reason' => $reason]);
+            $doc->update([
+                'status' => StockDocument::STATUS_REVERSED,
+                'reversed_by' => $userId,
+                'reversed_at' => now(),
+                'reverse_reason' => $reason,
+            ]);
             $this->logStatusHistory($doc, $from, StockDocument::STATUS_REVERSED, 'reverse', $userId, $reason);
             AuditLogger::record('REVERSE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), reason: $reason);
 
@@ -316,37 +240,92 @@ class StockDocumentService
         });
     }
 
-    /**
-     * Luôn khóa và đọc lại trạng thái chứng từ trong cùng transaction trước khi chạm ledger.
-     * Không sử dụng model route-bound có thể đã stale, vì request cạnh tranh có thể đã post/reverse.
-     */
+    private function startScanning(StockDocument $doc, string $userId, string $action): StockDocument
+    {
+        return DB::transaction(function () use ($doc, $userId, $action) {
+            $this->assertStatus($doc, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], $action);
+            if ($doc->lines()->count() < 1) {
+                WarehouseException::invalidStatus('Document must have at least one line.');
+            }
+
+            if ($doc->status !== StockDocument::STATUS_SCANNING) {
+                $from = $doc->status;
+                $doc->update(['status' => StockDocument::STATUS_SCANNING, 'submitted_by' => $userId, 'submitted_at' => now()]);
+                $this->logStatusHistory($doc, $from, StockDocument::STATUS_SCANNING, $action, $userId);
+            }
+
+            return $doc->fresh('lines');
+        });
+    }
+
+    private function markPosted(StockDocument $doc, string $userId, string $action): StockDocument
+    {
+        $from = $doc->status;
+        $doc->update(['status' => StockDocument::STATUS_POSTED, 'posted_by' => $userId, 'posted_at' => now()]);
+        $this->logStatusHistory($doc, $from, StockDocument::STATUS_POSTED, $action, $userId);
+        AuditLogger::record('POST', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), beforeData: ['status' => $from], afterData: ['status' => StockDocument::STATUS_POSTED]);
+
+        return $doc->fresh(['lines', 'movements']);
+    }
+
     private function lockDocumentForStockEffect(StockDocument $doc): StockDocument
     {
-        $locked = StockDocument::query()
+        return StockDocument::query()
             ->whereKey($doc->getKey())
             ->lockForUpdate()
-            ->firstOrFail();
-
-        return $locked->load(['lines.product', 'movements']);
+            ->firstOrFail()
+            ->load(['lines.product', 'movements']);
     }
 
     private function syncLines(StockDocument $doc, array $lines): void
     {
-        foreach (array_values($lines) as $index => $l) {
+        foreach (array_values($lines) as $index => $line) {
             StockDocumentLine::create([
                 'stock_document_id' => $doc->id,
                 'line_no' => $index + 1,
-                'product_id' => $l['product_id'],
-                'qty_planned' => $l['qty_planned'],
-                'qty_actual' => $l['qty_planned'],
+                'product_id' => $line['product_id'],
+                'qty_planned' => $line['qty_planned'],
+                'qty_actual' => $line['qty_planned'],
+                'scanned_qty' => 0,
             ]);
+        }
+    }
+
+    private function assertFullPostReady(StockDocument $doc): void
+    {
+        foreach ($doc->lines as $line) {
+            if (bccomp((string) $line->scanned_qty, (string) $line->qty_planned, 3) !== 0) {
+                WarehouseException::invalidStatus("Full-post guard failed on line {$line->line_no}: scanned_qty must equal planned quantity.");
+            }
+        }
+    }
+
+    private function assertProductRfidsReady(StockDocument $doc): void
+    {
+        foreach ($doc->lines as $line) {
+            $skuType = strtoupper((string) ($line->product?->sku_type ?? ''));
+            if ($skuType !== 'PRODUCT') {
+                continue;
+            }
+
+            $hasActiveRfid = PhysicalCode::query()
+                ->where('assigned_object_type', 'SKU')
+                ->where('assigned_object_id', $line->product_id)
+                ->where('carrier_type', 'RFID')
+                ->where('status', 'ACTIVE')
+                ->whereNotNull('hardware_uid')
+                ->exists();
+
+            if (! $hasActiveRfid) {
+                WarehouseException::invalidStatus("PRODUCT SKU {$line->product_id} requires active RFID before Post Issue.");
+            }
         }
     }
 
     private function assertStatus(StockDocument $doc, array $allowed, string $action): void
     {
         if (! in_array($doc->status, $allowed, true)) {
-            WarehouseException::invalidStatus("Không thể {$action} khi phiếu đang ở trạng thái \"{$doc->status}\".");
+            WarehouseException::invalidStatus("Cannot {$action} when document status is {$doc->status}.");
         }
     }
 
@@ -355,25 +334,10 @@ class StockDocumentService
         if ($warehouseId === null) {
             return;
         }
+
         $warehouse = Warehouse::find($warehouseId);
-        if (! $warehouse) {
-            WarehouseException::invalidStatus('Kho không tồn tại.');
-        }
-        if ($warehouse->status !== 'ACTIVE') {
-            WarehouseException::invalidStatus("Kho \"{$warehouse->name}\" đang ngừng hoạt động, không thể thực hiện nghiệp vụ.");
-        }
-    }
-
-    private function precheckStock(StockDocument $doc, string $warehouseId): void
-    {
-        foreach ($doc->lines as $line) {
-            $available = (string) InventoryBalance::where('warehouse_id', $warehouseId)
-                ->where('product_id', $line->product_id)
-                ->value('available_qty') ?? '0';
-
-            if (bccomp($available, (string) $line->qty_planned, 3) < 0) {
-                WarehouseException::insufficientStock($line->product->code ?? (string) $line->product_id);
-            }
+        if (! $warehouse || $warehouse->status !== 'ACTIVE') {
+            WarehouseException::invalidStatus('Warehouse is not active.');
         }
     }
 
@@ -394,7 +358,6 @@ class StockDocumentService
     {
         $prefix = self::PREFIX[$type] ?? 'PK';
         $prefixWithDate = $prefix.'-'.now()->format('Ymd').'-';
-
         $count = StockDocument::where('doc_no', 'like', $prefixWithDate.'%')->count();
 
         return $prefixWithDate.sprintf('%04d', $count + 1);

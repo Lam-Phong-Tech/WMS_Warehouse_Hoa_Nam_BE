@@ -132,7 +132,7 @@ class FoundationMasterDataEpicTest extends TestCase
         $this->assertDatabaseHas('audit_log', [
             'actor_id' => $creator->user_id,
             'action' => 'CREATE',
-            'object_type' => 'product',
+            'object_type' => 'sku',
             'object_id' => $product->json('data.id'),
             'request_id' => 'PL01-03-EVIDENCE-REQ-002',
         ]);

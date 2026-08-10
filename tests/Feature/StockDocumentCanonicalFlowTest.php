@@ -483,17 +483,14 @@ class StockDocumentCanonicalFlowTest extends TestCase
     // ========================================
 
     /**
-     * Test user without stocktake.adjust permission cannot apply adjustment
+     * Stocktake is outside the latest ERD MVP baseline, so the adjustment route is not exposed.
      */
-    public function test_stocktake_adjust_permission_required(): void
+    public function test_stocktake_adjustment_route_is_not_exposed_in_latest_erd_baseline(): void
     {
         $this->seedRoleWithPermissions('NO_ADJUST', ['inventory.view']);
-        $user = $this->createUser('no_adjust_user', 'NO_ADJUST');
+        $this->createUser('no_adjust_user', 'NO_ADJUST');
         $token = $this->getToken('no_adjust_user');
 
-        $warehouse = $this->createWarehouse();
-
-        // Try to apply adjustment without permission
         $response = $this->postJson('/api/v1/stocktake-sessions/00000000-0000-0000-0000-000000000000/apply-adjustment', [
             'reason' => 'Test',
             'lines' => [],
@@ -502,8 +499,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'Idempotency-Key' => 'test-no-perm',
         ]);
 
-        $response->assertStatus(403)
-            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+        $response->assertNotFound();
     }
 
     /**

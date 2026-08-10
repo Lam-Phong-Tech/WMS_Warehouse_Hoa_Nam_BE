@@ -13,7 +13,7 @@ use OpenApi\Attributes as OA;
 
 /**
  * Scan classify is a read-only boundary. It resolves and validates a code only;
- * inventory posting is owned by the dedicated inbound/outbound/stocktake actions.
+ * inventory posting is owned by the dedicated inbound/outbound actions.
  */
 #[OA\Schema(
     schema: 'Wwhn150ApiError',
@@ -58,7 +58,7 @@ use OpenApi\Attributes as OA;
             required: ['raw_code', 'context', 'warehouse_id'],
             properties: [
                 new OA\Property(property: 'raw_code', type: 'string', maxLength: 150, description: 'QR, barcode, serial, container code hoặc SKU code'),
-                new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'STOCKTAKE', 'WARRANTY_TEMP_ONLY']),
+                new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'WARRANTY_TEMP_ONLY']),
                 new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', description: 'Kho nằm trong data scope của người dùng'),
             ]
         )
@@ -78,7 +78,7 @@ use OpenApi\Attributes as OA;
                         'posting_event_created', 'idempotency_cache_written', 'current_location',
                     ], properties: [
                         new OA\Property(property: 'raw_code', type: 'string'),
-                        new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'STOCKTAKE', 'WARRANTY_TEMP_ONLY']),
+                        new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'WARRANTY_TEMP_ONLY']),
                         new OA\Property(property: 'classification', type: 'string', enum: ['ITEM', 'CONTAINER', 'SKU']),
                         new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
                         new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
@@ -123,7 +123,7 @@ class ScanController extends Controller
     {
         $validated = $request->validate([
             'raw_code' => ['required', 'string', 'max:150'],
-            'context' => ['required', 'string', 'in:INBOUND,OUTBOUND,STOCKTAKE,WARRANTY_TEMP_ONLY'],
+            'context' => ['required', 'string', 'in:INBOUND,OUTBOUND,WARRANTY_TEMP_ONLY'],
             'warehouse_id' => ['required', 'uuid'],
         ]);
 

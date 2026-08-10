@@ -48,8 +48,7 @@ return [
                  * Absolute paths to directory containing the swagger annotations are stored.
                  */
                 'annotations' => [
-                    base_path('app'),
-                    base_path('Modules'),
+                    base_path('app/Swagger'),
                 ],
             ],
         ],
@@ -162,6 +161,7 @@ return [
             'processors' => [
                 // \App\SwaggerProcessors\SchemaQueryParameter::class,
                 // ['class' => \App\SwaggerProcessors\Custom::class, 'after' => \OpenApi\Processors\AugmentSchemas::class],
+                ['class' => \App\Swagger\Processors\RouteSyncProcessor::class, 'after' => \OpenApi\Processors\BuildPaths::class],
             ],
 
             /**
@@ -176,7 +176,17 @@ return [
              * @note This option overwrites `paths.excludes`
              * @see \OpenApi\scan
              */
-            'exclude' => [],
+            'exclude' => [
+                base_path('Modules/Warehouse/app/Http/Controllers/DocumentStatusTransitionController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/InventoryReservationController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/InventorySnapshotController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/SafeStockAlertController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/SafeStockConfigController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/StockRequestController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/StocktakeController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/TransferController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/WmsContractController.php'),
+            ],
 
             /*
              * Allows to generate specs either for OpenAPI 3.0.0 or OpenAPI 3.1.0.

@@ -243,6 +243,10 @@ return new class extends Migration
 
     private function linkMovementToVariance(): void
     {
+        // Superseded by the 2026-08-04 MVP baseline: stocktake/variance is not
+        // an active ERD object, so new databases must not create this FK.
+        return;
+
         if (! Schema::hasColumn('stock_movements', 'stocktake_variance_id')) {
             Schema::table('stock_movements', function (Blueprint $table): void {
                 $table->foreignUuid('stocktake_variance_id')

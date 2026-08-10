@@ -13,21 +13,21 @@ class StockMovement extends Model
 
     public const OPENING = 'OPENING';
 
-    public const RECEIPT_POSTED = 'RECEIPT_POSTED';
+    public const RECEIPT_POSTED = 'RECEIPT';
 
     public const RECEIPT_IN = self::RECEIPT_POSTED;
 
-    public const ISSUE_POSTED = 'ISSUE_POSTED';
+    public const ISSUE_POSTED = 'ISSUE';
 
     public const ISSUE_OUT = self::ISSUE_POSTED;
 
-    public const ADJUST_IN = 'ADJUST_IN';
+    public const ADJUST_IN = 'REVERSAL';
 
-    public const ADJUST_OUT = 'ADJUST_OUT';
+    public const ADJUST_OUT = 'REVERSAL';
 
-    public const RECEIPT_REVERSED = 'RECEIPT_REVERSED';
+    public const RECEIPT_REVERSED = 'REVERSAL';
 
-    public const ISSUE_REVERSED = 'ISSUE_REVERSED';
+    public const ISSUE_REVERSED = 'REVERSAL';
 
     public const TRANSFER_OUT = 'TRANSFER_OUT';
 
@@ -44,9 +44,9 @@ class StockMovement extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'movement_no', 'business_key', 'movement_type', 'warehouse_id', 'product_id', 'stock_status',
-        'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'stock_document_line_id',
-        'stocktake_variance_id', 'original_movement_id', 'created_by', 'request_id', 'occurred_at',
+        'movement_no', 'business_key', 'movement_type', 'warehouse_id', 'product_id', 'sku_id', 'stock_status',
+        'quantity', 'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'stock_document_line_id',
+        'original_movement_id', 'created_by', 'request_id', 'occurred_at',
         'created_at',
     ];
 
@@ -84,8 +84,4 @@ class StockMovement extends Model
         return $this->belongsTo(StockDocument::class, 'stock_document_id');
     }
 
-    public function stocktakeVariance(): BelongsTo
-    {
-        return $this->belongsTo(StocktakeVariance::class, 'stocktake_variance_id');
-    }
 }
