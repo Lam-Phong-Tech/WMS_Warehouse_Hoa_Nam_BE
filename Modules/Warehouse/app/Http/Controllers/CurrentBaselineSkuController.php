@@ -77,15 +77,9 @@ class CurrentBaselineSkuController extends Controller
             'is_serial_tracked' => ['sometimes', 'boolean'],
             'warranty_applicable' => ['sometimes', 'boolean'],
             'specification' => ['sometimes', 'nullable', 'array'],
-            'version' => ['sometimes', 'integer', 'min:1'],
             'components' => ['sometimes', 'array', 'max:100'],
             'components.*.component_id' => ['required', 'uuid'],
             'components.*.quantity' => ['required', 'integer', 'min:1'],
-            'physical_codes' => ['sometimes', 'array', 'max:100'],
-            'physical_codes.*.code_value' => ['required', 'string', 'max:150'],
-            'physical_codes.*.code_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'SERIAL'])],
-            'physical_codes.*.carrier_type' => ['sometimes', Rule::in(['UNIT', 'PACKAGE', 'LABEL', 'TAG'])],
-            'physical_codes.*.status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE'])],
         ];
     }
 
@@ -185,19 +179,15 @@ class CurrentBaselineSkuController extends Controller
     private function expectedVersion(Request $request): int
     {
         $header = trim((string) $request->header('If-Match'));
-        if ($header !== '') {
-            $header = preg_replace('/^W\//', '', $header) ?? $header;
-            $header = trim($header, '" ');
-            if (ctype_digit($header) && (int) $header > 0) {
-                return (int) $header;
-            }
+        if ($header === '') {
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match là bắt buộc cho SKU update.');
+        }
+        $header = preg_replace('/^W\//', '', $header) ?? $header;
+        $header = trim($header, '" ');
+        if (! ctype_digit($header) || (int) $header < 1) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên dương.');
         }
-        $version = $request->input('version');
-        if (is_numeric($version) && (int) $version > 0) {
-            return (int) $version;
-        }
-        ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match hoặc field version là bắt buộc.');
+        return (int) $header;
     }
 
     private function idempotent(Request $request, string $operation, callable $callback): JsonResponse
