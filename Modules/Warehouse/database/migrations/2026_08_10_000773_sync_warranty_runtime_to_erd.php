@@ -89,8 +89,6 @@ return new class extends Migration
         // in a partially applied environment.
         DB::statement('DROP TRIGGER IF EXISTS trg_erd_mirror_warranty_cases_from_warranty_case ON warranty_case');
         DB::statement('CREATE TRIGGER trg_erd_mirror_warranty_cases_from_warranty_case AFTER INSERT OR UPDATE OR DELETE ON warranty_case FOR EACH STATEMENT EXECUTE FUNCTION hn_erd_mirror_warranty_cases()');
-
-        DB::statement('SELECT hn_erd_mirror_warranty_cases() WHERE false');
     }
 
     public function down(): void
