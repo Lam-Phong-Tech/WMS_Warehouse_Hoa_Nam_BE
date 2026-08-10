@@ -88,7 +88,7 @@ return new class extends Migration
         if (! Schema::hasTable('sku_alias')) {
             Schema::create('sku_alias', function (Blueprint $table) {
                 $table->uuid('alias_id')->primary();
-                $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
+                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->cascadeOnDelete();
                 $table->string('alias_code', 100)->unique();
                 $table->string('alias_type', 30)->nullable();
                 $table->timestamps();
@@ -141,7 +141,7 @@ return new class extends Migration
                 $table->string('container_type', 20)->index();
                 $table->uuid('parent_container_id')->nullable()->index();
                 $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
-                $table->foreignUuid('primary_product_id')->nullable()->constrained('products')->nullOnDelete();
+                $table->foreignUuid('primary_product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
                 $table->string('zone_code', 80)->nullable()->index();
                 $table->string('location_hint', 200)->nullable();
                 $table->string('status', 20)->default('ACTIVE')->index();
@@ -156,7 +156,7 @@ return new class extends Migration
                 $table->uuid('container_item_id')->primary();
                 $table->foreignUuid('container_id')->constrained('container', 'container_id')->cascadeOnDelete();
                 $table->foreignUuid('inventory_serial_id')->nullable()->constrained('inventory_serials')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('products')->cascadeOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->cascadeOnDelete();
                 $table->decimal('quantity', 18, 3)->nullable();
                 $table->string('status', 20)->default('ACTIVE')->index();
                 $table->timestamps();
@@ -228,7 +228,7 @@ return new class extends Migration
                 $table->uuid('putaway_task_line_id')->primary();
                 $table->foreignUuid('putaway_task_id')->constrained('putaway_task', 'putaway_task_id')->cascadeOnDelete();
                 $table->foreignUuid('container_id')->nullable()->constrained('container', 'container_id')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
                 $table->decimal('quantity', 18, 3)->nullable();
                 $table->foreignUuid('target_container_id')->nullable()->constrained('container', 'container_id')->nullOnDelete();
                 $table->string('target_location_hint', 200)->nullable();
@@ -261,7 +261,7 @@ return new class extends Migration
             Schema::create('stocktake_snapshot', function (Blueprint $table) {
                 $table->uuid('snapshot_id')->primary();
                 $table->foreignUuid('session_id')->constrained('stocktake_session', 'session_id')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
                 $table->string('stock_status', 30)->default('AVAILABLE');
                 $table->decimal('snapshot_qty', 18, 3)->default(0);
                 $table->timestamp('stocktake_started_at');
@@ -274,7 +274,7 @@ return new class extends Migration
             Schema::create('stocktake_count', function (Blueprint $table) {
                 $table->uuid('count_id')->primary();
                 $table->foreignUuid('session_id')->constrained('stocktake_session', 'session_id')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
                 $table->foreignUuid('inventory_serial_id')->nullable()->constrained('inventory_serials')->nullOnDelete();
                 $table->foreignUuid('container_id')->nullable()->constrained('container', 'container_id')->nullOnDelete();
                 $table->decimal('actual_qty', 18, 3)->default(0);
@@ -290,7 +290,7 @@ return new class extends Migration
             Schema::create('stocktake_variance', function (Blueprint $table) {
                 $table->uuid('variance_id')->primary();
                 $table->foreignUuid('session_id')->constrained('stocktake_session', 'session_id')->cascadeOnDelete();
-                $table->foreignUuid('product_id')->constrained('products')->restrictOnDelete();
+                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->restrictOnDelete();
                 $table->decimal('expected_qty', 18, 3)->default(0);
                 $table->decimal('expected_at_count', 18, 3)->default(0);
                 $table->decimal('actual_qty', 18, 3)->default(0);
@@ -340,7 +340,7 @@ return new class extends Migration
                 $table->uuid('warranty_case_id')->primary();
                 $table->string('warranty_case_code', 80)->unique();
                 $table->foreignUuid('inventory_serial_id')->nullable()->constrained('inventory_serials')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
                 $table->string('temporary_item_code', 150)->nullable();
                 $table->string('identification_status', 30)->default('IDENTIFIED')->index();
                 $table->string('missing_code_reason', 500)->nullable();
@@ -381,7 +381,7 @@ return new class extends Migration
         if (! Schema::hasTable('pv_product_profile')) {
             Schema::create('pv_product_profile', function (Blueprint $table) {
                 $table->uuid('profile_id')->primary();
-                $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
+                $table->foreignUuid('product_id')->constrained('sku', 'sku_id')->cascadeOnDelete();
                 $table->string('display_name', 255);
                 $table->text('description')->nullable();
                 $table->json('image_urls')->nullable();
@@ -443,7 +443,7 @@ return new class extends Migration
                 $table->foreignUuid('industry_id')->constrained('pv_industry', 'industry_id')->cascadeOnDelete();
                 $table->uuid('category_id')->nullable()->index();
                 $table->foreignUuid('tag_id')->nullable()->constrained('pv_filter_tag', 'tag_id')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
                 $table->unsignedInteger('priority');
                 $table->string('status', 20)->default('ACTIVE')->index();
                 $table->timestamps();
@@ -454,7 +454,7 @@ return new class extends Migration
         if (! Schema::hasTable('pv_view_event')) {
             Schema::create('pv_view_event', function (Blueprint $table) {
                 $table->uuid('view_event_id')->primary();
-                $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
                 $table->string('keyword', 255)->nullable()->index();
                 $table->foreignUuid('industry_id')->nullable()->constrained('pv_industry', 'industry_id')->nullOnDelete();
                 $table->string('event_type', 40)->index();
@@ -490,7 +490,7 @@ return new class extends Migration
                 $table->string('incident_no', 80)->unique();
                 $table->string('divergence_type', 40)->index();
                 $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->nullOnDelete();
-                $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
+                $table->foreignUuid('product_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
                 $table->json('detected_value')->nullable();
                 $table->string('status', 30)->default('OPEN')->index();
                 $table->string('resolution_ref', 500)->nullable();
