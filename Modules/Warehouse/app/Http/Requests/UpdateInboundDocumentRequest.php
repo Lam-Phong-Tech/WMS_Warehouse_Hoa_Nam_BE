@@ -20,7 +20,7 @@ class UpdateInboundDocumentRequest extends FormRequest
             'note' => ['nullable', 'string', 'max:1000'],
             'lines' => ['sometimes', 'array', 'min:1'],
             'lines.*.product_id' => ['required_with:lines', 'uuid', 'exists:sku,sku_id'],
-            'lines.*.qty_planned' => ['required_with:lines', 'numeric', 'gt:0'],
+            'lines.*.qty_planned' => ['required_with:lines', 'integer', 'min:1'],
         ];
     }
 }
