@@ -20,6 +20,7 @@ class PhysicalCode extends Model
 
     protected $fillable = [
         'code_value', 'code_type', 'carrier_type', 'hardware_uid',
+        'assigned_object_type', 'assigned_object_id',
         'encoded_payload_version', 'status', 'replaced_by_code_id',
     ];
 
