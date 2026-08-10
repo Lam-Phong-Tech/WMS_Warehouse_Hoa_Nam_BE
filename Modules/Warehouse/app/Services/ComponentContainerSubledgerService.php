@@ -49,8 +49,10 @@ class ComponentContainerSubledgerService
         $rows = DB::table('component_issue_items as ci')
             ->join('component_issue_lines as cl', 'cl.id', '=', 'ci.component_issue_line_id')
             ->where('cl.component_issue_document_id', $documentId)
+            ->where('ci.status', 'ACTIVE')
             ->orderBy('cl.line_no')
             ->orderBy('ci.created_at')
+            ->lockForUpdate()
             ->get([
                 'ci.id', 'ci.item_id', 'ci.container_id', 'ci.quantity',
                 'cl.sku_id', 'cl.id as line_id',
@@ -64,7 +66,6 @@ class ComponentContainerSubledgerService
             if ($row->container_id === null) {
                 ApiError::abort(422, 'COMPONENT_ITEM_TARGET_REQUIRED', 'Component Issue item thiếu item_id/container_id.');
             }
-
             $this->consumeContainerQuantity((string) $row->container_id, (string) $row->sku_id, (int) $row->quantity);
         }
     }
@@ -76,11 +77,7 @@ class ComponentContainerSubledgerService
             ApiError::abort(422, 'COMPONENT_ITEM_NOT_AVAILABLE', 'Serial component item không còn IN_STOCK hoặc sai SKU.');
         }
 
-        $mapping = DB::table('container_items')
-            ->where('item_id', $itemId)
-            ->where('is_active', true)
-            ->lockForUpdate()
-            ->first();
+        $mapping = DB::table('container_items')->where('item_id', $itemId)->where('is_active', true)->lockForUpdate()->first();
         if ($mapping !== null) {
             DB::table('container_items')->where('container_item_id', $mapping->container_item_id)->update([
                 'status' => 'REMOVED',
@@ -100,7 +97,6 @@ class ComponentContainerSubledgerService
     {
         $this->assertContainerAvailable($containerId, $skuId, $quantity);
         $remaining = $quantity;
-
         $mappings = DB::table('container_items')
             ->where('container_id', $containerId)
             ->where('sku_id', $skuId)
@@ -138,10 +134,7 @@ class ComponentContainerSubledgerService
 
     private function refreshContainerState(string $containerId): void
     {
-        $remaining = (int) DB::table('container_items')
-            ->where('container_id', $containerId)
-            ->where('is_active', true)
-            ->sum('quantity');
+        $remaining = (int) DB::table('container_items')->where('container_id', $containerId)->where('is_active', true)->sum('quantity');
         $container = DB::table('containers')->where('container_id', $containerId)->lockForUpdate()->first();
         if ($container === null || $container->status === 'CLOSED') {
             return;
