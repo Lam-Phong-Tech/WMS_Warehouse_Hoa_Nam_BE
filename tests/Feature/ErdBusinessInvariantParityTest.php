@@ -15,7 +15,9 @@ class ErdBusinessInvariantParityTest extends TestCase
         $this->requirePostgres();
 
         $required = [
+            'trg_erd_item_tracking_policy',
             'trg_erd_container_hierarchy',
+            'trg_erd_container_item_primary_sku',
             'trg_erd_putaway_types',
             'trg_putaway_events_history_guard',
             'trg_erd_inbound_full_post',
@@ -63,6 +65,7 @@ class ErdBusinessInvariantParityTest extends TestCase
         $required = [
             'ux_erd_warehouses_one_active',
             'ux_erd_inventory_balance_bucket',
+            'ux_erd_item_serial_per_sku',
             'ux_erd_physical_primary_item_carrier',
             'ux_erd_physical_primary_container_carrier',
             'ux_erd_container_active_item',
