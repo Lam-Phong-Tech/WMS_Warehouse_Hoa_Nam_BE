@@ -61,14 +61,15 @@ class DocumentationBaselineContractTest extends TestCase
             'PATCH api/v1/skus/{id}' => 'CurrentBaselineSkuController@update',
             'POST api/v1/skus/{id}/physical-codes' => 'CurrentBaselineItemIdentityController@assign',
             'DELETE api/v1/skus/{id}/physical-codes/{physicalCodeId}' => 'CurrentBaselineItemIdentityController@revoke',
+            'PATCH api/v1/containers/{id}' => 'CurrentBaselineContainerController@update',
             'POST api/v1/inbound-documents/{id}/scan' => 'CurrentBaselineStockController@inboundScan',
             'POST api/v1/inbound-documents/{id}/post-receipt' => 'CurrentBaselineStockController@postReceipt',
             'POST api/v1/outbound-documents/{id}/scan' => 'CurrentBaselineStockController@outboundScan',
             'POST api/v1/outbound-documents/{id}/post-issue' => 'CurrentBaselineStockController@postIssue',
             'POST api/v1/inbound-documents/{id}/reverse' => 'CurrentBaselineStockController@reverseInbound',
             'POST api/v1/outbound-documents/{id}/reverse' => 'CurrentBaselineStockController@reverseOutbound',
-            'POST api/v1/component-issue-documents' => 'CurrentBaselineStockController@storeComponentIssueDocument',
-            'POST api/v1/component-issue-documents/{id}/post' => 'CurrentBaselineStockController@postComponentIssueDocument',
+            'POST api/v1/component-issue-documents' => 'CurrentBaselineComponentIssueController@store',
+            'POST api/v1/component-issue-documents/{id}/post' => 'CurrentBaselineComponentIssueController@post',
             'POST api/v1/outbound-request-imports' => 'CurrentBaselineOperationsController@storeOutboundRequestImport',
             'POST api/v1/outbound-request-imports/{id}/consume' => 'CurrentBaselineOperationsController@consumeOutboundRequestImport',
             'POST api/v1/warranty-cases' => 'CurrentBaselineOperationsController@storeWarrantyCase',
@@ -135,6 +136,28 @@ class DocumentationBaselineContractTest extends TestCase
         foreach (['completion_type', 'shortage_reason', 'remaining_qty', 'cancelled_remainder_qty'] as $column) {
             $this->assertFalse(Schema::hasColumn('stock_document_lines', $column), "Superseded partial/shortage column [{$column}] must be absent.");
         }
+    }
+
+    public function test_putaway_events_is_a_physical_append_only_table(): void
+    {
+        if (DB::getDriverName() === 'sqlite') {
+            $type = DB::table('sqlite_master')->where('name', 'putaway_events')->value('type');
+            $this->assertSame('table', $type);
+            return;
+        }
+        if (DB::getDriverName() === 'pgsql') {
+            $kind = DB::table('pg_class as c')
+                ->join('pg_namespace as n', 'n.oid', '=', 'c.relnamespace')
+                ->where('n.nspname', DB::raw('current_schema()'))
+                ->where('c.relname', 'putaway_events')
+                ->value('c.relkind');
+            $this->assertContains($kind, ['r', 'p']);
+            return;
+        }
+
+        $rows = DB::select("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
+        $names = collect($rows)->map(fn (object $row): string => (string) array_values((array) $row)[0]);
+        $this->assertContains('putaway_events', $names->all());
     }
 
     public function test_reference_database_foreign_keys_match_documented_relationships(): void
