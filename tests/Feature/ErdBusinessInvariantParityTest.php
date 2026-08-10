@@ -22,8 +22,14 @@ class ErdBusinessInvariantParityTest extends TestCase
             'trg_putaway_events_history_guard',
             'trg_erd_inbound_full_post',
             'trg_erd_outbound_full_post',
+            'trg_erd_outbound_agency_active',
+            'trg_erd_outbound_item_exclusive',
+            'trg_erd_component_item_exclusive',
             'trg_erd_component_issue_line_sku',
             'trg_erd_component_issue_warranty',
+            'trg_erd_print_printer_active',
+            'trg_erd_pv_publish_active_sku',
+            'trg_erd_migration_commit_evidence',
             'trg_label_snapshot_payload_immutable',
             'trg_audit_logs_append_only',
             'trg_inventory_movements_append_only',
@@ -47,6 +53,8 @@ class ErdBusinessInvariantParityTest extends TestCase
             ['container_items', 'chk_erd_container_item_shape'],
             ['warranty_cases', 'chk_erd_warranty_purchase_date'],
             ['warranty_cases', 'chk_erd_warranty_identification_shape'],
+            ['pv_recommendation_rules', 'chk_erd_pv_recommendation_selector'],
+            ['pv_recommendation_rules', 'chk_erd_pv_recommendation_priority'],
         ];
 
         foreach ($required as [$table, $constraint]) {
@@ -73,6 +81,7 @@ class ErdBusinessInvariantParityTest extends TestCase
             'ux_erd_component_active_item',
             'ux_erd_pv_primary_image',
             'ux_erd_warranty_one_active_case_item',
+            'ux_erd_pv_recommendation_scope_priority',
         ];
 
         $actual = collect(DB::select(<<<'SQL'
