@@ -108,19 +108,29 @@ jobs:
             Modules/Warehouse/database/migrations/2026_08_10_000700_enforce_scan_evidence_storage_invariants.php
             Modules/Warehouse/database/migrations/2026_08_10_000710_enforce_cross_aggregate_business_guards.php
             Modules/Warehouse/database/migrations/2026_08_10_000720_enforce_all_documented_quantities_bigint.php
-            Modules/Warehouse/database/migrations/2026_08_10_000730_add_versions_to_legacy_mutable_aggregates.php
+            Modules/Warehouse/database/migrations/2026_08_10_000730_add_version_to_remaining_mutable_aggregates.php
             Modules/Warehouse/database/migrations/2026_08_10_000740_verify_mutable_aggregate_version_contract.php
             Modules/Warehouse/database/migrations/2026_08_10_000750_materialize_erd_1_0_physical_objects.php
             Modules/Warehouse/database/migrations/2026_08_10_000760_align_erd_1_0_fields_types_and_data.php
             Modules/Warehouse/database/migrations/2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync.php
             Modules/Warehouse/database/migrations/2026_08_10_000766_backfill_structured_erd_payload_columns.php
             Modules/Warehouse/database/migrations/2026_08_10_000767_complete_import_batch_runtime_compatibility.php
+            Modules/Warehouse/database/migrations/2026_08_10_0007675_prepare_defect_catalog_canonical_key.php
+            Modules/Warehouse/database/migrations/2026_08_10_000768_sync_defect_catalog_runtime_to_erd.php
             Modules/Warehouse/database/migrations/2026_08_10_000769_remove_superseded_label_print_event_status_guard.php
+            Modules/Warehouse/database/migrations/2026_08_10_0007695_prepare_all_canonical_erd_keys.php
+            Modules/Warehouse/database/migrations/2026_08_10_0007698_backfill_warranty_canonical_required_fields.php
             Modules/Warehouse/database/migrations/2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints.php
+            Modules/Warehouse/database/migrations/2026_08_10_000772_promote_documented_canonical_primary_keys.php
+            Modules/Warehouse/database/migrations/2026_08_10_000773_sync_warranty_runtime_to_erd.php
+            Modules/Warehouse/database/migrations/2026_08_10_000774_sync_iam_runtime_to_erd.php
+            Modules/Warehouse/database/migrations/2026_08_10_000780_enforce_cross_table_erd_business_invariants.php
             Modules/Warehouse/routes/api.php
             tests/Feature/DocumentationBaselineContractTest.php
             tests/Feature/CurrentBaselineFlowContractSourceTest.php
             tests/Feature/ErdPhysicalSchemaParityTest.php
+            tests/Feature/ErdRuntimeMirrorParityTest.php
+            tests/Feature/ErdBusinessInvariantParityTest.php
             tests/Feature/StockDocumentCanonicalFlowTest.php
             tests/Feature/StockDocumentIdempotencyTest.php
             tests/Feature/StockDocumentConcurrencyGuardTest.php
@@ -160,7 +170,7 @@ jobs:
           set -euo pipefail
           php artisan config:clear
           php artisan migrate:fresh --seed --force
-          php artisan test --filter '/(DocumentationBaselineContractTest|CurrentBaselineFlowContractSourceTest|ErdPhysicalSchemaParityTest|StockDocumentCanonicalFlowTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest|SwaggerRouteSyncTest|LatestErdBaselineSchemaTest)/'
+          php artisan test --filter '/(DocumentationBaselineContractTest|CurrentBaselineFlowContractSourceTest|ErdPhysicalSchemaParityTest|ErdRuntimeMirrorParityTest|ErdBusinessInvariantParityTest|StockDocumentCanonicalFlowTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest|SwaggerRouteSyncTest|LatestErdBaselineSchemaTest)/'
           php artisan l5-swagger:generate
 
       - name: Exact SHA summary
@@ -170,4 +180,4 @@ jobs:
           echo '## Hoa Nam three-doc exact-SHA baseline' >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
           echo '- Sources: HN-WMS-ERD-DD-001 / HN-BA-MASTER-DEVTEST-001 / HN-WMS-TECH-GUIDE-001' >> "$GITHUB_STEP_SUMMARY"
-          echo '- Gate: PHP lint + Pint + contract JSON + SQLite full PHPUnit + PostgreSQL 59-table physical ERD/FK/type/null/default/index/Swagger' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Gate: PHP lint + Pint + SQLite full PHPUnit + PostgreSQL 59-table physical ERD/type/null/default/PK/FK/unique/index + runtime mirror + business invariants + Swagger parity' >> "$GITHUB_STEP_SUMMARY"
