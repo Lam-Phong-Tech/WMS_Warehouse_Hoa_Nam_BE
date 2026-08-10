@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\ImportBatch;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
@@ -163,10 +164,31 @@ class ItemInstanceTest extends TestCase
     {
         $headers = $this->authHeaders();
         $sku = $this->nonSerialSku();
-        $item = ItemInstance::create(['sku_id' => $sku->sku_id, 'item_status' => 'IN_STOCK', 'item_condition' => 'NORMAL', 'version' => 1]);
+        $code = $this->chipCode('IT-TRACE-PHYSICAL');
+        $importBatch = ImportBatch::create(['import_batch_code' => 'IB-TRACE-BATCH', 'status' => 'ACTIVE']);
+        $container = Container::create(['container_code' => 'BOX-TRACE-CONTAINER', 'container_type' => 'BOX', 'physical_code_id' => $this->chipCode('CT-BOX-TRACE')->physical_code_id, 'primary_sku_id' => $sku->sku_id, 'status' => 'ACTIVE', 'version' => 1]);
+        
+        $item = ItemInstance::create([
+            'sku_id' => $sku->sku_id,
+            'physical_code_id' => $code->physical_code_id,
+            'container_id' => $container->container_id,
+            'import_batch_id' => $importBatch->import_batch_id,
+            'item_status' => 'IN_STOCK',
+            'item_condition' => 'NORMAL',
+            'version' => 1
+        ]);
 
         $warehouse = Warehouse::create(['code' => 'WH-TRACE', 'name' => 'Kho trace', 'status' => 'ACTIVE']);
         $creator = User::first();
+
+        $document = StockDocument::create([
+            'doc_type' => StockDocument::TYPE_RECEIPT,
+            'doc_no' => 'PN-TRACE-0001',
+            'doc_date' => now()->format('Y-m-d'),
+            'status' => StockDocument::STATUS_APPROVED,
+            'dst_warehouse_id' => $warehouse->id,
+            'created_by' => $creator->user_id,
+        ]);
 
         $movement = StockMovement::create([
             'movement_no' => 'SM-TRACE-0001',
@@ -177,6 +199,7 @@ class ItemInstanceTest extends TestCase
             'qty_before' => 0,
             'qty_delta' => 10,
             'qty_after' => 10,
+            'stock_document_id' => $document->id,
             'created_by' => $creator->user_id,
             'occurred_at' => now(),
             'created_at' => now(),
@@ -185,8 +208,13 @@ class ItemInstanceTest extends TestCase
         $response = $this->getJson("/api/v1/item-instances/{$item->item_id}/trace", $headers);
 
         $response->assertOk()
+            ->assertJsonPath('data.item.item_id', $item->item_id)
+            ->assertJsonPath('data.physical_code.code_value', 'IT-TRACE-PHYSICAL')
+            ->assertJsonPath('data.container.container_code', 'BOX-TRACE-CONTAINER')
+            ->assertJsonPath('data.import_batch.import_batch_code', 'IB-TRACE-BATCH')
             ->assertJsonCount(1, 'data.stock_movements')
             ->assertJsonPath('data.stock_movements.0.id', $movement->id)
+            ->assertJsonPath('data.stock_movements.0.stock_document_id', $document->id)
             ->assertJsonPath('data.stock_movements.0.movement_type', StockMovement::RECEIPT_IN);
     }
 
