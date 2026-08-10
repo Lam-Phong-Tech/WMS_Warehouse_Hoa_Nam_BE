@@ -54,6 +54,39 @@ class DocumentationBaselineContractTest extends TestCase
         }
     }
 
+    public function test_current_business_routes_are_bound_to_hardened_implementations(): void
+    {
+        $expected = [
+            'POST api/v1/skus' => 'CurrentBaselineSkuController@store',
+            'PATCH api/v1/skus/{id}' => 'CurrentBaselineSkuController@update',
+            'POST api/v1/skus/{id}/physical-codes' => 'CurrentBaselineItemIdentityController@assign',
+            'DELETE api/v1/skus/{id}/physical-codes/{physicalCodeId}' => 'CurrentBaselineItemIdentityController@revoke',
+            'POST api/v1/inbound-documents/{id}/scan' => 'CurrentBaselineStockController@inboundScan',
+            'POST api/v1/inbound-documents/{id}/post-receipt' => 'CurrentBaselineStockController@postReceipt',
+            'POST api/v1/outbound-documents/{id}/scan' => 'CurrentBaselineStockController@outboundScan',
+            'POST api/v1/outbound-documents/{id}/post-issue' => 'CurrentBaselineStockController@postIssue',
+            'POST api/v1/inbound-documents/{id}/reverse' => 'CurrentBaselineStockController@reverseInbound',
+            'POST api/v1/outbound-documents/{id}/reverse' => 'CurrentBaselineStockController@reverseOutbound',
+            'POST api/v1/component-issue-documents' => 'CurrentBaselineStockController@storeComponentIssueDocument',
+            'POST api/v1/component-issue-documents/{id}/post' => 'CurrentBaselineStockController@postComponentIssueDocument',
+            'POST api/v1/outbound-request-imports' => 'CurrentBaselineOperationsController@storeOutboundRequestImport',
+            'POST api/v1/outbound-request-imports/{id}/consume' => 'CurrentBaselineOperationsController@consumeOutboundRequestImport',
+            'POST api/v1/warranty-cases' => 'CurrentBaselineOperationsController@storeWarrantyCase',
+            'PATCH api/v1/warranty-cases/{id}' => 'CurrentBaselineOperationsController@updateWarrantyCase',
+            'POST api/v1/label-snapshots/{id}/print' => 'CurrentBaselineOperationsController@printLabelSnapshot',
+            'POST api/v1/label-snapshots/{id}/reprint' => 'CurrentBaselineOperationsController@reprintLabelSnapshot',
+            'GET api/v1/pv/catalog' => 'CurrentBaselineOperationsController@pvCatalog',
+            'GET api/v1/pv/recommendations' => 'CurrentBaselineOperationsController@pvRecommendations',
+        ];
+
+        foreach ($expected as $key => $actionSuffix) {
+            [$method, $uri] = explode(' ', $key, 2);
+            $route = $this->findRoute($method, $uri);
+            $this->assertNotNull($route, "Missing route [{$key}].");
+            $this->assertStringEndsWith($actionSuffix, $route->getActionName(), "Route [{$key}] is not using hardened current-baseline implementation.");
+        }
+    }
+
     public function test_canonical_route_permissions_are_used_for_core_mutations(): void
     {
         $expected = [
@@ -61,33 +94,67 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/users' => 'permission:iam.user.manage',
             'GET api/v1/skus' => 'permission:sku.view',
             'POST api/v1/skus' => 'permission:sku.manage',
+            'POST api/v1/skus/{id}/physical-codes' => 'permission:physical_code.assign_rfid',
             'POST api/v1/inbound-documents/{id}/scan' => 'permission:inbound.scan',
             'POST api/v1/inbound-documents/{id}/post-receipt' => 'permission:inbound.post',
             'POST api/v1/outbound-documents/{id}/scan' => 'permission:outbound.scan',
             'POST api/v1/outbound-documents/{id}/post-issue' => 'permission:outbound.post',
+            'POST api/v1/inbound-documents/{id}/reverse' => 'permission:inventory.reversal.post',
+            'POST api/v1/outbound-documents/{id}/reverse' => 'permission:inventory.reversal.post',
             'GET api/v1/stock-movements/{id}/trace-source' => 'permission:inventory.trace',
+            'POST api/v1/outbound-request-imports' => 'permission:outbound.import',
             'POST api/v1/warranty-cases' => 'permission:warranty.manage',
             'POST api/v1/component-issue-documents/{id}/post' => 'permission:warranty.component_issue',
+            'POST api/v1/label-snapshots/{id}/print' => 'permission:label.print',
+            'POST api/v1/label-snapshots/{id}/reprint' => 'permission:label.reprint',
         ];
 
         foreach ($expected as $key => $permission) {
             [$method, $uri] = explode(' ', $key, 2);
-            $route = collect(Route::getRoutes()->getRoutes())->first(fn ($route) => $route->uri() === $uri && in_array($method, $route->methods(), true));
+            $route = $this->findRoute($method, $uri);
             $this->assertNotNull($route, "Missing route [{$key}].");
             $this->assertContains($permission, $route->gatherMiddleware(), "Route [{$key}] must use [{$permission}].");
         }
     }
 
-    public function test_required_objects_and_critical_columns_exist(): void
+    public function test_required_objects_critical_columns_and_excluded_scope_match_contract(): void
     {
         $objects = $this->databaseObjects();
         foreach ($this->contract['required_objects'] as $object) {
             $this->assertContains($object, $objects, "Missing baseline DB object [{$object}].");
         }
+        foreach ($this->contract['excluded_tables'] as $table) {
+            $this->assertFalse(Schema::hasTable($table), "Superseded DB table [{$table}] must not exist.");
+        }
         foreach ($this->contract['critical_columns'] as $object => $columns) {
             foreach ($columns as $column) {
                 $this->assertTrue(Schema::hasColumn($object, $column), "{$object} missing documented column [{$column}].");
             }
+        }
+
+        foreach (['completion_type', 'shortage_reason', 'remaining_qty', 'cancelled_remainder_qty'] as $column) {
+            $this->assertFalse(Schema::hasColumn('stock_document_lines', $column), "Superseded partial/shortage column [{$column}] must be absent.");
+        }
+    }
+
+    public function test_reference_database_foreign_keys_match_documented_relationships(): void
+    {
+        if (DB::getDriverName() === 'sqlite') {
+            $this->markTestSkipped('SQLite compatibility gate does not add post-hoc FK constraints; PostgreSQL/MySQL reference gates enforce them.');
+        }
+
+        foreach ($this->contract['reference_db_relationships'] as [$table, $column, $foreignTable, $foreignColumn]) {
+            $foreignKeys = collect(Schema::getForeignKeys($table));
+            $matched = $foreignKeys->contains(function (array $fk) use ($column, $foreignTable, $foreignColumn): bool {
+                $columns = $fk['columns'] ?? [];
+                $foreignColumns = $fk['foreign_columns'] ?? $fk['foreignColumns'] ?? [];
+                $target = $fk['foreign_table'] ?? $fk['foreignTable'] ?? null;
+
+                return in_array($column, $columns, true)
+                    && $target === $foreignTable
+                    && in_array($foreignColumn, $foreignColumns, true);
+            });
+            $this->assertTrue($matched, "Missing FK {$table}.{$column} -> {$foreignTable}.{$foreignColumn}.");
         }
     }
 
@@ -123,15 +190,15 @@ class DocumentationBaselineContractTest extends TestCase
         $this->assertSame($this->contract['api']['operation_count'], $count);
     }
 
-    public function test_postgres_quantity_columns_are_bigint(): void
+    public function test_postgres_all_documented_stock_quantities_are_bigint_and_history_is_locked(): void
     {
         if (DB::getDriverName() !== 'pgsql') {
-            $this->markTestSkipped('PostgreSQL physical type gate.');
+            $this->markTestSkipped('PostgreSQL physical type/trigger gate.');
         }
 
-        foreach ([['inventory_balances', 'quantity'], ['stock_movements', 'quantity']] as [$table, $column]) {
+        foreach ($this->contract['postgres_bigint_columns'] as [$table, $column]) {
             if (! Schema::hasColumn($table, $column)) {
-                continue;
+                $this->fail("{$table}.{$column} is missing.");
             }
             $type = DB::table('information_schema.columns')
                 ->where('table_schema', DB::raw('current_schema()'))
@@ -140,6 +207,25 @@ class DocumentationBaselineContractTest extends TestCase
                 ->value('data_type');
             $this->assertSame('bigint', $type, "{$table}.{$column} must be BIGINT.");
         }
+
+        $triggerNames = collect(DB::select(<<<'SQL'
+            SELECT tgname
+            FROM pg_trigger
+            WHERE NOT tgisinternal
+        SQL))->pluck('tgname')->all();
+        foreach ($this->contract['append_only_storage'] as $table) {
+            $this->assertContains("trg_{$table}_append_only", $triggerNames, "{$table} must be protected by append-only DB trigger.");
+        }
+        $this->assertContains('trg_stock_documents_posted_immutable', $triggerNames);
+        $this->assertContains('trg_reversal_document_posted_immutable', $triggerNames);
+        $this->assertContains('trg_component_issue_documents_posted_immutable', $triggerNames);
+    }
+
+    private function findRoute(string $method, string $uri): mixed
+    {
+        return collect(Route::getRoutes()->getRoutes())->first(
+            fn ($route) => $route->uri() === $uri && in_array($method, $route->methods(), true)
+        );
     }
 
     /** @return array<int, string> */
