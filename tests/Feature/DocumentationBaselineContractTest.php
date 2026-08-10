@@ -13,6 +13,8 @@ class DocumentationBaselineContractTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected bool $seed = true;
+
     private array $contract;
 
     protected function setUp(): void
@@ -182,11 +184,11 @@ class DocumentationBaselineContractTest extends TestCase
 
     public function test_canonical_permissions_and_required_roles_are_seeded(): void
     {
-        $permissionCodes = DB::table('permission')->pluck('permission_key')->all();
+        $permissionCodes = DB::table('permissions')->pluck('permission_key')->all();
         foreach ($this->contract['permissions'] as $permission) {
             $this->assertContains($permission, $permissionCodes, "Missing canonical permission [{$permission}].");
         }
-        $roleCodes = DB::table('role')->pluck('role_code')->all();
+        $roleCodes = DB::table('roles')->pluck('role_code')->all();
         foreach ($this->contract['required_roles'] as $role) {
             $this->assertContains($role, $roleCodes, "Missing required role [{$role}].");
         }
