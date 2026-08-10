@@ -86,7 +86,7 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/component-issue-documents/{id}/cancel' => 'CurrentBaselineComponentFlowController@cancel',
             'POST api/v1/component-issue-documents/{id}/post' => 'CurrentBaselineComponentFlowController@post',
             'POST api/v1/warranty-cases' => 'CurrentBaselineOperationsController@storeWarrantyCase',
-            'PATCH api/v1/warranty-cases/{id}' => 'CurrentBaselineOperationsController@updateWarrantyCase',
+            'PATCH api/v1/warranty-cases/{id}' => 'CurrentBaselineWarrantyController@updateWarrantyCase',
             'POST api/v1/label-snapshots/{id}/print' => 'CurrentBaselineOperationsController@printLabelSnapshot',
             'POST api/v1/label-snapshots/{id}/reprint' => 'CurrentBaselineOperationsController@reprintLabelSnapshot',
             'GET api/v1/pv/catalog' => 'CurrentBaselineOperationsController@pvCatalog',
@@ -118,6 +118,7 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/outbound-request-imports' => 'permission:outbound.import',
             'POST api/v1/component-issue-documents/{id}/scan' => 'permission:warranty.component_issue',
             'POST api/v1/component-issue-documents/{id}/post' => 'permission:warranty.component_issue',
+            'PATCH api/v1/warranty-cases/{id}' => 'permission:warranty.manage',
             'POST api/v1/label-snapshots/{id}/print' => 'permission:label.print',
             'POST api/v1/label-snapshots/{id}/reprint' => 'permission:label.reprint',
         ];
