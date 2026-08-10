@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "baseline_date": "2026-08-04",
   "technical_alignment_date": "2026-08-10",
   "sources": [
@@ -21,6 +21,15 @@
     "warranty.manage", "warranty.component_issue", "pv.publish", "report.view", "report.export"
   ],
   "required_roles": ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "WARRANTY_STAFF", "LEADERSHIP"],
+  "document_statuses": ["DRAFT", "SCANNING", "POSTED", "CANCELLED"],
+  "movement_types": ["OPENING", "RECEIPT", "ISSUE", "COMPONENT_ISSUE", "REVERSAL"],
+  "stock_statuses": ["AVAILABLE", "NON_SELLABLE", "DEFECTIVE", "QUARANTINE"],
+  "warranty_statuses": ["RECEIVED", "CHECKING", "REPAIRING", "COMPLETED", "RETURNED", "CANCELLED"],
+  "excluded_tables": [
+    "stocktake_session", "stocktake_snapshot", "stocktake_count", "stocktake_variance",
+    "inventory_reservations", "inventory_report_snapshots", "safe_stock_configs", "safe_stock_alerts_history",
+    "stock_requests", "stock_request_lines", "in_transit_ledger"
+  ],
   "required_objects": [
     "app_users", "roles", "permissions", "user_roles", "role_permissions", "idempotency_records", "audit_logs", "warehouses", "agencies",
     "product_categories", "brands", "power_sources", "product_models", "package_variants", "defect_catalog", "skus", "sku_aliases", "sku_compatible_accessories",
@@ -33,8 +42,65 @@
   ],
   "critical_columns": {
     "package_variants": ["id", "package_code", "package_name", "description", "sort_order", "status", "created_at", "created_by", "updated_at", "updated_by", "version"],
+    "sku": ["sku_id", "sku_code", "sku_name", "sku_type", "brand_id", "category_id", "model_id", "power_source_id", "package_variant_id", "version"],
     "sku_compatible_accessories": ["sku_id", "accessory_sku_id", "note", "status", "created_at", "created_by"],
-    "inventory_balances": ["warehouse_id", "sku_id", "stock_status", "quantity"],
-    "inventory_movements": ["warehouse_id", "sku_id", "stock_status", "movement_type", "quantity"]
-  }
+    "physical_codes": ["physical_code_id", "code_value", "carrier_type", "hardware_uid", "assigned_object_type", "assigned_object_id", "status"],
+    "inbound_scan_entries": ["id", "inbound_line_id", "item_id", "container_id", "quantity"],
+    "outbound_item_matches": ["id", "outbound_line_id", "item_id", "container_id", "quantity"],
+    "inventory_balances": ["warehouse_id", "sku_id", "stock_status", "quantity", "on_hand_qty", "available_qty", "version"],
+    "stock_movements": ["warehouse_id", "sku_id", "stock_status", "movement_type", "quantity", "source_type", "source_id", "source_line_id", "original_movement_id", "correction_chain_id"],
+    "inventory_movements": ["warehouse_id", "sku_id", "stock_status", "movement_type", "quantity", "source_type", "source_id", "original_movement_id", "correction_chain_id"],
+    "reversal_document": ["reversal_document_id", "stock_document_id", "status", "correction_chain_id", "condition_status", "idempotency_key"],
+    "reversal_line": ["reversal_line_id", "reversal_document_id", "original_movement_id", "reversal_qty", "sku_id", "item_id", "stock_status"],
+    "component_issue_documents": ["id", "warehouse_id", "warranty_case_id", "purpose", "status", "idempotency_key"],
+    "component_issue_lines": ["id", "component_issue_document_id", "sku_id", "required_qty", "scanned_qty"],
+    "component_issue_items": ["id", "component_issue_line_id", "item_id", "container_id", "quantity"],
+    "warranty_case": ["warranty_case_id", "item_id", "customer_address", "purchase_date", "sales_trace_status", "status", "version"],
+    "printer_configs": ["id", "printer_code", "agent_endpoint", "status"],
+    "label_snapshots": ["id", "outbound_item_match_id", "sku_id", "item_id", "label_payload", "status"],
+    "outbound_request_imports": ["id", "source_checksum", "status", "total_rows", "valid_rows", "error_rows"],
+    "outbound_request_import_rows": ["id", "import_id", "row_no", "normalized_payload", "validation_status", "validation_errors"]
+  },
+  "reference_db_relationships": [
+    ["product_models", "brand_id", "brands", "id"],
+    ["sku_compatible_accessories", "sku_id", "sku", "sku_id"],
+    ["sku_compatible_accessories", "accessory_sku_id", "sku", "sku_id"],
+    ["inbound_scan_entries", "inbound_line_id", "stock_document_lines", "id"],
+    ["inbound_scan_entries", "item_id", "item_instances", "item_id"],
+    ["inbound_scan_entries", "container_id", "containers", "container_id"],
+    ["outbound_request_import_rows", "import_id", "outbound_request_imports", "id"],
+    ["outbound_requests", "import_id", "outbound_request_imports", "id"],
+    ["outbound_requests", "agency_id", "agencies", "agency_id"],
+    ["outbound_request_lines", "outbound_request_id", "outbound_requests", "id"],
+    ["outbound_request_lines", "sku_id", "sku", "sku_id"],
+    ["outbound_item_matches", "outbound_line_id", "stock_document_lines", "id"],
+    ["outbound_item_matches", "item_id", "item_instances", "item_id"],
+    ["outbound_item_matches", "container_id", "containers", "container_id"],
+    ["label_snapshots", "outbound_item_match_id", "outbound_item_matches", "id"],
+    ["label_snapshots", "sku_id", "sku", "sku_id"],
+    ["label_snapshots", "item_id", "item_instances", "item_id"],
+    ["label_print_events", "label_snapshot_id", "label_snapshots", "id"],
+    ["label_print_events", "printer_config_id", "printer_configs", "id"],
+    ["warranty_attachments", "warranty_case_id", "warranty_case", "warranty_case_id"],
+    ["component_issue_documents", "warehouse_id", "warehouses", "id"],
+    ["component_issue_documents", "warranty_case_id", "warranty_case", "warranty_case_id"],
+    ["component_issue_lines", "component_issue_document_id", "component_issue_documents", "id"],
+    ["component_issue_lines", "sku_id", "sku", "sku_id"],
+    ["component_issue_items", "component_issue_line_id", "component_issue_lines", "id"],
+    ["component_issue_items", "item_id", "item_instances", "item_id"],
+    ["component_issue_items", "container_id", "containers", "container_id"],
+    ["pv_product_images", "profile_id", "pv_product_profile", "profile_id"],
+    ["migration_errors", "migration_run_id", "migration_runs", "id"],
+    ["warranty_case", "item_id", "item_instances", "item_id"],
+    ["stock_movements", "original_movement_id", "stock_movements", "id"],
+    ["stock_movements", "item_id", "item_instances", "item_id"],
+    ["stock_movements", "container_id", "containers", "container_id"]
+  ],
+  "postgres_bigint_columns": [
+    ["inventory_balances", "quantity"], ["inventory_balances", "on_hand_qty"], ["inventory_balances", "available_qty"], ["inventory_balances", "reserved_qty"],
+    ["stock_movements", "quantity"], ["stock_movements", "qty_before"], ["stock_movements", "qty_delta"], ["stock_movements", "qty_after"],
+    ["stock_document_lines", "qty_planned"], ["stock_document_lines", "qty_actual"], ["stock_document_lines", "scanned_qty"],
+    ["reversal_line", "reversal_qty"]
+  ],
+  "append_only_storage": ["stock_movements", "audit_log"]
 }
