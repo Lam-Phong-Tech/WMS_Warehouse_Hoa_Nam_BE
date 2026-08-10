@@ -138,7 +138,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('component-issue-documents/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware('permission:warranty.component_issue');
 
         Route::get('warranty-cases', [CanonicalMvpController::class, 'listWarrantyCases'])->middleware('permission:warranty.manage');
-        Route::post('warranty-cases', [CurrentBaselineOperationsController::class, 'storeWarrantyCase'])->middleware('permission:warranty.manage');
+        Route::post('warranty-cases', [CurrentBaselineWarrantyController::class, 'storeWarrantyCase'])->middleware('permission:warranty.manage');
         Route::patch('warranty-cases/{id}', [CurrentBaselineWarrantyController::class, 'updateWarrantyCase'])->middleware('permission:warranty.manage');
         Route::get('warranty-cases/{id}/events', [CanonicalMvpController::class, 'listWarrantyEvents'])->middleware('permission:warranty.manage');
     });
