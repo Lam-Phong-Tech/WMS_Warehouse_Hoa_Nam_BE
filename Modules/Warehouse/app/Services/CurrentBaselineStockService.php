@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 
@@ -791,7 +792,7 @@ class CurrentBaselineStockService
             ApiError::abort(422, 'INSUFFICIENT_AVAILABLE_STOCK', 'Stock effect sẽ làm available_qty âm.');
         }
 
-        DB::table('inventory_balances')->where('id', $balance->id)->where('version', $balance->version)->update([
+        $updated = DB::table('inventory_balances')->where('id', $balance->id)->where('version', $balance->version)->update([
             'product_id' => $skuId,
             'sku_id' => $skuId,
             'quantity' => $after,
@@ -800,6 +801,9 @@ class CurrentBaselineStockService
             'version' => ((int) $balance->version) + 1,
             'updated_at' => now(),
         ]);
+        if ($updated !== 1) {
+            ApiError::abort(409, 'VERSION_CONFLICT', 'Inventory balance changed concurrently; retry against fresh state.');
+        }
 
         $movementId = (string) Str::uuid();
         DB::table('stock_movements')->insert([
