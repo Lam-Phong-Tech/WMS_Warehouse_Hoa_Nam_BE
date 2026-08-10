@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.0.0",
+  "schema_version": "2.1.0",
   "baseline_date": "2026-08-04",
   "technical_alignment_date": "2026-08-10",
   "sources": [
@@ -45,6 +45,10 @@
     "sku": ["sku_id", "sku_code", "sku_name", "sku_type", "brand_id", "category_id", "model_id", "power_source_id", "package_variant_id", "version"],
     "sku_compatible_accessories": ["sku_id", "accessory_sku_id", "note", "status", "created_at", "created_by"],
     "physical_codes": ["physical_code_id", "code_value", "carrier_type", "hardware_uid", "assigned_object_type", "assigned_object_id", "status"],
+    "scan_event": ["scan_event_id", "physical_code_id", "resolved_object_type", "resolved_object_id", "result_status"],
+    "containers": ["container_id", "container_type", "primary_sku_id", "parent_container_id", "location_hint", "status", "version"],
+    "container_items": ["container_item_id", "container_id", "item_id", "sku_id", "quantity", "status"],
+    "putaway_events": ["id", "container_id", "from_parent_container_id", "to_parent_container_id", "from_location_hint", "to_location_hint", "status", "confirmed_at", "created_by"],
     "inbound_scan_entries": ["id", "inbound_line_id", "item_id", "container_id", "quantity"],
     "outbound_item_matches": ["id", "outbound_line_id", "item_id", "container_id", "quantity"],
     "inventory_balances": ["warehouse_id", "sku_id", "stock_status", "quantity", "on_hand_qty", "available_qty", "version"],
@@ -65,6 +69,10 @@
     ["product_models", "brand_id", "brands", "id"],
     ["sku_compatible_accessories", "sku_id", "sku", "sku_id"],
     ["sku_compatible_accessories", "accessory_sku_id", "sku", "sku_id"],
+    ["scan_event", "physical_code_id", "physical_codes", "physical_code_id"],
+    ["putaway_events", "container_id", "containers", "container_id"],
+    ["putaway_events", "from_parent_container_id", "containers", "container_id"],
+    ["putaway_events", "to_parent_container_id", "containers", "container_id"],
     ["inbound_scan_entries", "inbound_line_id", "stock_document_lines", "id"],
     ["inbound_scan_entries", "item_id", "item_instances", "item_id"],
     ["inbound_scan_entries", "container_id", "containers", "container_id"],
@@ -100,7 +108,7 @@
     ["inventory_balances", "quantity"], ["inventory_balances", "on_hand_qty"], ["inventory_balances", "available_qty"], ["inventory_balances", "reserved_qty"],
     ["stock_movements", "quantity"], ["stock_movements", "qty_before"], ["stock_movements", "qty_delta"], ["stock_movements", "qty_after"],
     ["stock_document_lines", "qty_planned"], ["stock_document_lines", "qty_actual"], ["stock_document_lines", "scanned_qty"],
-    ["reversal_line", "reversal_qty"]
+    ["container_items", "quantity"], ["reversal_line", "reversal_qty"]
   ],
-  "append_only_storage": ["stock_movements", "audit_log"]
+  "append_only_storage": ["stock_movements", "audit_log", "putaway_events"]
 }
