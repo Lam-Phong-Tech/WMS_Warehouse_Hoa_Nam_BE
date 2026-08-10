@@ -85,7 +85,7 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/component-issue-documents/{id}/scan' => 'CurrentBaselineComponentFlowController@scan',
             'POST api/v1/component-issue-documents/{id}/cancel' => 'CurrentBaselineComponentFlowController@cancel',
             'POST api/v1/component-issue-documents/{id}/post' => 'CurrentBaselineComponentFlowController@post',
-            'POST api/v1/warranty-cases' => 'CurrentBaselineOperationsController@storeWarrantyCase',
+            'POST api/v1/warranty-cases' => 'CurrentBaselineWarrantyController@storeWarrantyCase',
             'PATCH api/v1/warranty-cases/{id}' => 'CurrentBaselineWarrantyController@updateWarrantyCase',
             'POST api/v1/label-snapshots/{id}/print' => 'CurrentBaselineOperationsController@printLabelSnapshot',
             'POST api/v1/label-snapshots/{id}/reprint' => 'CurrentBaselineOperationsController@reprintLabelSnapshot',
