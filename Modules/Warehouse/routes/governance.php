@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineSkuController;
 use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductStatusCompatibilityController;
 use Modules\Warehouse\Http\Controllers\ReportController;
@@ -19,9 +20,9 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
     Route::get('skus/{id}', [ProductController::class, 'show'])
         ->whereUuid('id')
         ->middleware('permission:sku.view');
-    Route::post('skus', [SkuGovernanceController::class, 'store'])
+    Route::post('skus', [CurrentBaselineSkuController::class, 'store'])
         ->middleware('permission:sku.manage');
-    Route::patch('skus/{id}', [SkuGovernanceController::class, 'update'])
+    Route::patch('skus/{id}', [CurrentBaselineSkuController::class, 'update'])
         ->whereUuid('id')
         ->middleware('permission:sku.manage');
     Route::post('skus/{id}/physical-codes', [SkuGovernanceController::class, 'addPhysicalCode'])
