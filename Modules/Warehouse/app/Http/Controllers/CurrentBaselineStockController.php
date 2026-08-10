@@ -171,7 +171,7 @@ class CurrentBaselineStockController extends Controller
                 objectType: 'component_issue_document',
                 objectId: $documentId,
                 actorId: $this->actorId(),
-                requestId: request()?->attributes->get('request_id'),
+                requestId: $request->attributes->get('request_id'),
                 afterData: ['status' => 'DRAFT', 'purpose' => 'WARRANTY'],
             );
 
@@ -210,10 +210,23 @@ class CurrentBaselineStockController extends Controller
         $payload = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
             'condition_status' => ['nullable', 'in:SELLABLE,DEFECTIVE,NON_SELLABLE'],
+            'physical_return_confirmed' => ['nullable', 'boolean'],
             'lines' => ['nullable', 'array'],
             'lines.*.movement_id' => ['required', 'uuid'],
             'lines.*.quantity' => ['required', 'integer', 'min:1'],
         ]);
+
+        // BP-WMS-10: Reverse Issue must never add stock merely because a correction
+        // request exists. Physical return is a mandatory precondition for the actual
+        // reversal stock effect. Until warehouse confirms receipt, the operation stays
+        // operationally PENDING_RETURN outside the stock ledger and available_qty is 0.
+        if ($type === 'issue' && ($payload['physical_return_confirmed'] ?? false) !== true) {
+            ApiError::abort(
+                409,
+                'PHYSICAL_RETURN_REQUIRED',
+                'Reverse Issue chỉ được Post sau khi xác nhận hàng đã về vật lý; trước đó phải giữ trạng thái PENDING_RETURN và không cộng tồn.'
+            );
+        }
 
         return $this->idempotent($request, "reverse_stock_document_{$id}", function (string $key, string $hash) use ($id, $type, $payload): array {
             return [200, $this->envelope(
