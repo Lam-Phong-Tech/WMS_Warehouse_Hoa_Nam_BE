@@ -95,16 +95,11 @@ return new class extends Migration
             $this->statementIgnoreDuplicateConstraint($statement);
         }
 
-        try {
-            DB::statement(<<<'SQL'
-                CREATE UNIQUE INDEX IF NOT EXISTS uk_warranty_case_one_active_item
-                ON warranty_case(item_id)
-                WHERE item_id IS NOT NULL AND status NOT IN ('RETURNED','CANCELLED')
-            SQL);
-        } catch (Throwable) {
-            // Existing conflicting data must already have been prevented by application locking;
-            // supported PostgreSQL versions accept IF NOT EXISTS.
-        }
+        DB::statement(<<<'SQL'
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_warranty_case_one_active_item
+            ON warranty_case(item_id)
+            WHERE item_id IS NOT NULL AND status NOT IN ('RETURNED','CANCELLED')
+        SQL);
     }
 
     private function addPostgresAppendOnlyGuards(): void
@@ -134,6 +129,9 @@ return new class extends Migration
                     IF OLD.status = 'POSTED' THEN
                         RAISE EXCEPTION 'POSTED stock document % is immutable; use reversal/correction', OLD.id;
                     END IF;
+                    IF TG_OP = 'DELETE' THEN
+                        RETURN OLD;
+                    END IF;
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql
@@ -142,10 +140,7 @@ return new class extends Migration
             DB::statement("CREATE TRIGGER trg_stock_documents_posted_immutable BEFORE UPDATE OR DELETE ON stock_documents FOR EACH ROW EXECUTE FUNCTION hn_reject_posted_document_change()");
         }
 
-        foreach ([
-            ['reversal_document', 'reversal_document_id'],
-            ['component_issue_documents', 'id'],
-        ] as [$table, $key]) {
+        foreach (['reversal_document', 'component_issue_documents'] as $table) {
             if (! Schema::hasTable($table)) {
                 continue;
             }
@@ -156,6 +151,9 @@ return new class extends Migration
                 BEGIN
                     IF OLD.status = 'POSTED' THEN
                         RAISE EXCEPTION 'POSTED {$table} is immutable; create a new correction chain';
+                    END IF;
+                    IF TG_OP = 'DELETE' THEN
+                        RETURN OLD;
                     END IF;
                     RETURN NEW;
                 END;
@@ -172,7 +170,7 @@ return new class extends Migration
             DB::statement($statement);
         } catch (Throwable $e) {
             $message = strtolower($e->getMessage());
-            if (! str_contains($message, 'already exists') && ! str_contains($message, 'duplicate')) {
+            if (! str_contains($message, 'already exists') && ! str_contains($message, 'duplicate object')) {
                 throw $e;
             }
         }
