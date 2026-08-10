@@ -17,6 +17,7 @@ class ErdBusinessInvariantParityTest extends TestCase
         $required = [
             'trg_erd_container_hierarchy',
             'trg_erd_putaway_types',
+            'trg_putaway_events_history_guard',
             'trg_erd_inbound_full_post',
             'trg_erd_outbound_full_post',
             'trg_erd_component_issue_line_sku',
