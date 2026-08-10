@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\AgencyController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\ContainerController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentIssueController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineContainerController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineMasterController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
@@ -129,8 +130,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('printer-configs', [CurrentBaselineOperationsController::class, 'storePrinterConfig'])->middleware('permission:label.print');
 
         Route::get('component-issue-documents', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
-        Route::post('component-issue-documents', [CurrentBaselineStockController::class, 'storeComponentIssueDocument'])->middleware('permission:warranty.component_issue');
-        Route::post('component-issue-documents/{id}/post', [CurrentBaselineStockController::class, 'postComponentIssueDocument'])->middleware('permission:warranty.component_issue');
+        Route::post('component-issue-documents', [CurrentBaselineComponentIssueController::class, 'store'])->middleware('permission:warranty.component_issue');
+        Route::post('component-issue-documents/{id}/post', [CurrentBaselineComponentIssueController::class, 'post'])->middleware('permission:warranty.component_issue');
 
         Route::get('warranty-cases', [CanonicalMvpController::class, 'listWarrantyCases'])->middleware('permission:warranty.manage');
         Route::post('warranty-cases', [CurrentBaselineOperationsController::class, 'storeWarrantyCase'])->middleware('permission:warranty.manage');
