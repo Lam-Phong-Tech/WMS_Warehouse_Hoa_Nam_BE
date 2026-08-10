@@ -17,8 +17,9 @@ class Sku extends Model
 
     protected $fillable = [
         'sku_code', 'sku_name', 'sku_type', 'unit', 'is_serial_tracked',
-        'brand_id', 'category_id', 'model_id', 'power_or_voltage', 'package_variant',
-        'version_code', 'warranty_applicable', 'specification', 'published_to_app', 'status',
+        'brand_id', 'category_id', 'model_id', 'power_source_id', 'package_variant_id',
+        'power_or_voltage', 'package_variant', 'version', 'version_code',
+        'warranty_applicable', 'specification', 'published_to_app', 'status',
     ];
 
     protected $casts = [
@@ -26,11 +27,10 @@ class Sku extends Model
         'warranty_applicable' => 'boolean',
         'published_to_app' => 'boolean',
         'specification' => 'array',
+        'version' => 'integer',
     ];
 
-    // /products is a legacy façade over this canonical aggregate. Exposing read-only
-    // aliases keeps old API/tests interoperable without creating legacy persistence.
-    protected $appends = ['id', 'code', 'name', 'version'];
+    protected $appends = ['id', 'code', 'name'];
 
     public function getIdAttribute(): ?string
     {
@@ -47,27 +47,28 @@ class Sku extends Model
         return $this->attributes['sku_name'] ?? null;
     }
 
-    public function getVersionAttribute(): int
-    {
-        $versionCode = strtoupper((string) ($this->attributes['version_code'] ?? 'V1'));
-
-        return preg_match('/^V(\d+)$/', $versionCode, $matches) === 1
-            ? max(1, (int) $matches[1])
-            : 1;
-    }
-
     public function brand(): BelongsTo
     {
-        return $this->belongsTo(ProductMaster::class, 'brand_id', 'master_id');
+        return $this->belongsTo(Brand::class, 'brand_id', 'id');
     }
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(ProductMaster::class, 'category_id', 'master_id');
+        return $this->belongsTo(ProductCategory::class, 'category_id', 'id');
     }
 
     public function model(): BelongsTo
     {
-        return $this->belongsTo(ProductMaster::class, 'model_id', 'master_id');
+        return $this->belongsTo(ProductModel::class, 'model_id', 'id');
+    }
+
+    public function powerSource(): BelongsTo
+    {
+        return $this->belongsTo(PowerSource::class, 'power_source_id', 'id');
+    }
+
+    public function packageVariant(): BelongsTo
+    {
+        return $this->belongsTo(PackageVariant::class, 'package_variant_id', 'id');
     }
 }
