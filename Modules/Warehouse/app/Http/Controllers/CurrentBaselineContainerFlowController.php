@@ -53,11 +53,7 @@ class CurrentBaselineContainerFlowController extends Controller
 
             $id = (string) Str::uuid();
             $physicalCodeId = $validated['physical_code_id'] ?? null;
-            if (DB::getDriverName() !== 'pgsql' && $physicalCodeId === null) {
-                // Compatibility storage in SQLite/MySQL still has the historical
-                // NOT NULL column. PostgreSQL reference schema has removed it.
-                ApiError::abort(422, 'PHYSICAL_CODE_REQUIRED_COMPAT', 'Compatibility DB requires physical_code_id when creating container.');
-            }
+            $code = null;
             if ($physicalCodeId !== null) {
                 $code = DB::table('physical_codes')->where('physical_code_id', $physicalCodeId)->lockForUpdate()->first();
                 if ($code === null || strtoupper((string) $code->status) !== 'ACTIVE') {
@@ -116,7 +112,7 @@ class CurrentBaselineContainerFlowController extends Controller
             return $container;
         }, 3);
 
-        return $this->respondCreated($result, 'Container created; stock_effect=NONE.');
+        return $this->respondCreated($result, 'Container created; assign physical code through physical_codes.container_id; stock_effect=NONE.');
     }
 
     public function update(Request $request, string $id)
