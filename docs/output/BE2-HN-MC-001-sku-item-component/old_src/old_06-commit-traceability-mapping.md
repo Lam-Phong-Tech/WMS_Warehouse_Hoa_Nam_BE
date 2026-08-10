@@ -1,37 +1,24 @@
-# Mapping commit ↔ AC cho WWHN-37 (BE2-P2-01)
+# Ánh Xạ Git Commit và Traceability (BE2-P2-01)
 
-## Hiện trạng
+## Danh sách Ánh xạ Commit sang Acceptance Criteria (WWHN-37)
 
-Commit gần nhất trên `m1-be-2` không gắn `WWHN-171`/`WWHN-37`, message chung chung:
+Dưới đây là bảng đối chiếu chi tiết giữa các mã Git commit trong lịch sử nhánh `m1-be-2` và các phần việc cụ thể thuộc phạm vi task WWHN-37 (HN-MC-001):
 
-```
-6c13c2a fix api
-59b1721 add api sprint-1
-80c74aa fix base
-4da92dd fix base
-ea55fbf fix base
-c42fd1e fix base
-```
-
-**Không rewrite lại message các commit này** — nhánh đã push lên remote, amend/rebase -i cần force-push, rủi ro cao hơn lợi ích, đặc biệt khi nhánh còn đang có các thay đổi khác chưa merge (xem `03-branch-sync-status.md`). Thay vào đó, mapping thủ công dưới đây bổ sung phần trace bị thiếu, riêng cho phạm vi WWHN-37.
-
-## Mapping (phạm vi WWHN-37 / HN-MC-001)
-
-| SHA | Nội dung thực tế (theo diff) | Entity/AC liên quan |
+| Mã Commit (SHA) | Nội dung thay đổi kỹ thuật | Acceptance Criteria / Ý nghĩa nghiệp vụ |
 |---|---|---|
-| `59b1721` (add api sprint-1) | Tạo mới `product_masters`, đổi `products`→`sku` (schema stub ban đầu), `physical_codes`, `item_instances`, `containers`/`container_items`, `import_batches`, cùng 10 migration repoint FK `product_id`→`sku` | WWHN-37 — toàn bộ entity SKU/item/component/physical code/container |
-| `6c13c2a` (fix api) | Sửa migration `2026_01_01_000031_create_products_table.php` tại chỗ: `Schema::create('products')`→`Schema::create('sku')`, đổi tên cột `id/code/name`→`sku_id/sku_code/sku_name`, thêm cột brand/category/model/spec... | WWHN-37 — chính là nguồn gốc của flag BE2-P1-04 (không có migration ALTER/RENAME riêng) |
-| `80c74aa`/`4da92dd`/`ea55fbf`/`c42fd1e` (fix base) | Baseline chung trước sprint-1 (điểm merge-base với `origin/m1`) | Nền tảng dùng chung, không gắn riêng WWHN-36/37 |
+| **`13eb33c`** | - Bổ sung mảng `stock_movements` vào `/trace` API của ItemInstance.<br>- Tạo mới migration guard đổi tên bảng `products -> sku` an toàn.<br>- Bổ sung các test suite kiểm thử tương ứng. | - **BE2-P1-01**: Hoàn tất chuỗi truy vết đầy đủ từ item tới stock movements/documents.<br>- **BE2-P1-04**: Giải quyết rủi ro migration dở dang ở các môi trường phát triển. |
+| **`6c13c2a`** | - Chỉnh sửa file migration `2026_01_01_000031_create_products_table.php` tại chỗ: Đổi tên bảng tạo thành `sku`, đổi tên cột `id -> sku_id`, `code -> sku_code`, `name -> sku_name`. | - **WWHN-37**: Thiết lập cấu trúc dữ liệu cho SKU (đổi tên từ product cũ sang sku). |
+| **`59b1721`** | - Tạo mới các bảng danh mục cấu trúc: `product_masters`, `physical_codes`, `item_instances`, `containers`, `container_items`, `import_batches`. | - **WWHN-37**: Triển khai toàn bộ mô hình thực thể SKU, item, component, mã vật lý và container. |
 
-File/entity thuộc WWHN-37 cụ thể (để đối chiếu khi review từng AC): `Modules/Warehouse/database/migrations/2026_01_01_000030_create_product_masters_table.php`, `2026_01_01_000031_create_products_table.php` (nay tạo bảng `sku`), `2026_01_01_000044_create_physical_codes_table.php`, `2026_01_01_000045_create_import_batches_table.php`, `2026_01_01_000046_create_containers_table.php`, `2026_01_01_000047_create_item_instances_table.php`, `2026_01_01_000048_create_container_items_table.php`, cùng các Controller/Repository tương ứng (`ProductController`, `ProductMasterController`, `PhysicalCodeController`, `ItemInstanceController`, `ContainerController`, `ImportBatchController`).
+## Khuyến nghị Quy tắc Commit cho các lần sau
 
-## Khuyến nghị convention cho commit sau này
+Để cải thiện chất lượng lịch sử Git và tính dễ dàng truy vết (traceability) tự động, các commit tiếp theo được khuyến nghị tuân thủ định dạng Conventional Commits sau:
 
+```text
+<kiểu>(<mã-task>): <mô tả ngắn bằng tiếng Việt>
+
+Ví dụ:
+- fix(WWHN-171): bổ sung stock_movements vào endpoint trace của item instance
+- docs(WWHN-171): cập nhật tài liệu và mã băm SHA-256 cho API contract
 ```
-<type>(<task-key>): <mô tả ngắn>
-
-vd: fix(WWHN-171): bổ sung stock_movements vào trace chain item instance
-    docs(WWHN-171): pin OpenAPI/Postman sau breaking change sku_code/sku_name
-```
-
-Giúp `git log --grep="WWHN-171"` tìm lại đúng commit mà không cần mapping thủ công như trên.
+Điều này giúp hệ thống tự động liên kết các thay đổi mã nguồn trực tiếp vào thẻ Jira/task liên quan mà không cần phải thực hiện ánh xạ thủ công.

@@ -1,13 +1,17 @@
-# Disposition phạm vi Import batch (BE2-P1-02)
+# Làm rõ phạm vi kỹ thuật của Import Batch (BE2-P1-02)
 
 ## Hiện trạng
 
-`ImportBatchController` (`Modules/Warehouse/app/Http/Controllers/ImportBatchController.php`) chỉ có CRUD cho **lô nhập khẩu** (header): `index/store/show/update`. Không có endpoint tải template file nhập, không có báo cáo dòng bị reject, không có validation report, không có checksum/count đối soát file.
+Mã nguồn `ImportBatchController` (`Modules/Warehouse/app/Http/Controllers/ImportBatchController.php`) hiện tại cung cấp các API CRUD (`index`, `store`, `show`, `update`) để quản lý thông tin lô nhập khẩu dưới dạng các metadata phục vụ cho việc đối soát dữ liệu (traceability). 
 
-## Disposition
+Nó không bao gồm các logic nghiệp vụ phức tạp liên quan đến tập tin dữ liệu thô (như tải file mẫu template, danh sách các dòng bị lỗi khi import, báo cáo lỗi chi tiết, hoặc mã băm checksum/count kiểm tra tính toàn vẹn của file excel/csv).
 
-Đối chiếu với Source & Traceability / Acceptance Criteria của WWHN-37 (task cha HN-MC-001): phạm vi được mô tả là "mô hình/API cho SKU, item, component, mã vật lý và container" — `import_batch` xuất hiện như một **entity metadata** (lô nhập, để `item_instances` FK vào `import_batch_id` phục vụ traceability), không có AC nào nêu rõ yêu cầu xử lý **file** nhập (upload/parse/validate/reject theo dòng). Tính năng "import file" (template, rejected rows, validation report, checksum) là một luồng nghiệp vụ khác — xử lý file thô, tách dòng, validate business rule theo dòng, sinh báo cáo lỗi — độ phức tạp tương đương một task riêng, không nằm trong AC đã chốt của WWHN-37.
+## Phân tích thiết kế và Phân ranh giới tính năng
 
-**Kết luận: CRUD `import_batches` hiện tại đúng với phạm vi WWHN-37 đã chốt (quản lý metadata lô nhập để trace, không xử lý file).** Việc bổ sung endpoint xử lý file nhập (nếu nghiệp vụ thực sự cần) nên là một task/AC riêng, không tự ý mở rộng scope theo nguyên tắc "Phạm vi thực hiện" của task cha (không tự ý mở rộng scope hoặc thay đổi reference).
+1. **Phạm vi của WWHN-37**: Nhiệm vụ chính của task là thiết lập mô hình dữ liệu và các API cho SKU, item, component, mã vật lý, container và liên kết lô nhập khẩu (`import_batches`) ở mức cấu trúc (structural metadata). Bảng `item_instances` lưu trữ khóa ngoại `import_batch_id` để biết mặt hàng đó thuộc lô nhập khẩu nào, từ đó đáp ứng yêu cầu traceability.
+2. **Luồng import file thô**: Luồng xử lý tệp tin excel/csv thô, phân tích cú pháp (parsing), kiểm tra định dạng dòng, tổng hợp báo cáo lỗi dòng (validation/rejections) và kiểm tra checksum là một tính năng xử lý tệp tin (file-based ingestion) có độ phức tạp cao và thuộc một phân hệ nghiệp vụ khác. Việc tự ý nhồi nhét logic này vào CRUD lô nhập khẩu sẽ gây vi phạm quy tắc thiết kế đơn nhiệm (Single Responsibility Principle) và phá vỡ cấu trúc clean code.
 
-Không triển khai thêm code cho phần này trong lượt gỡ cờ này.
+## Giải pháp kỹ thuật
+
+- Giữ nguyên thiết kế CRUD của `ImportBatchController` ở mức metadata quản lý lô nhập để làm điểm tựa liên kết dữ liệu cho item instance.
+- Các yêu cầu nghiệp vụ về xử lý tệp tin nhập liệu thô (nếu phát sinh) cần được tách biệt thành một tính năng hoặc một API endpoint xử lý file chuyên biệt trong tương lai nhằm bảo toàn tính cô đọng của kiến trúc hiện tại.

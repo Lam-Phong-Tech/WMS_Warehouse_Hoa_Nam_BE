@@ -2,17 +2,17 @@
 
 ## Kết quả đồng bộ nhánh và giải quyết xung đột
 
-Nhánh phát triển `m1-be-2` đã được thực hiện gộp (merge) nhánh chính `origin/m1` và giải quyết triệt để toàn bộ các xung đột về mã nguồn cũng như cấu trúc cơ sở dữ liệu (schema conflicts).
+Nhánh phát triển `m1-be-2` đã được thực hiện gộp (merge) nhánh chính `origin/m1` và giải quyết triệt để toàn bộ các xung đột về mã nguồn cũng như cấu trúc cơ sở dữ liệu (schema conflicts), sau đó đã được push thành công lên GitHub repository.
 
 ### Các bước đã triển khai:
 1. **Gộp nhánh và giải quyết xung đột**: 
-   - Đã tiến hành chạy gộp `origin/m1` vào nhánh `m1-be-2`.
-   - Giải quyết thủ công toàn bộ xung đột trên các file định nghĩa định tuyến (routes), controllers, form requests, migrations, database seeders và API docs.
+   - Đã tiến hành gộp nhánh `origin/m1` vào nhánh `m1-be-2`.
+   - Giải quyết thủ công toàn bộ xung đột trên các file định nghĩa định tuyến (routes), controllers, form requests, migrations, database seeders và đặc tả API.
 2. **Loại bỏ model Product cũ và đồng bộ sang Sku**:
    - Model `Product.php` cũ đã được xoá hoàn toàn khỏi hệ thống.
    - Toàn bộ cơ chế kiểm soát logic nghiệp vụ và lưu trữ dữ liệu đã được đồng bộ sang sử dụng model `Sku.php` và bảng `sku` theo đúng đặc tả của task WWHN-37.
 3. **Đồng bộ hóa các bảng mở rộng (Plural Schema Alignment)**:
-   - Các bảng mở rộng được gộp từ nhánh `m1` ban đầu sử dụng danh từ số ít đã được chuyển đổi/đối chiếu đồng bộ sang cấu trúc số nhiều hiện tại của hệ thống (như `agencies`, `product_masters`, `physical_codes`, `containers`, `container_items`, `import_batches`, `item_instances`, `defect_catalogs`) để đảm bảo không xảy ra hiện tượng chồng chéo hoặc sinh ra dữ liệu mồ côi.
+   - Các bảng mở rộng được gộp từ nhánh `m1` ban đầu sử dụng danh từ số ít đã được chuyển đổi/đối chiếu đồng bộ sang cấu trúc số nhiều của hệ thống (như `agencies`, `product_masters`, `physical_codes`, `containers`, `container_items`, `import_batches`, `item_instances`, `defect_catalogs`) để đảm bảo không xảy ra hiện tượng chồng chéo hoặc sinh ra dữ liệu mồ côi.
 
 ## Giải pháp tương thích ngược (Backward Compatibility)
 
@@ -23,6 +23,5 @@ Nhánh phát triển `m1-be-2` đã được thực hiện gộp (merge) nhánh 
 ## Kết quả xác minh hệ thống
 
 Sau khi thực hiện cấu hình đồng bộ và sửa đổi tương thích ngược:
-- **Database Migrations & Seed**: Chạy thành công lệnh `php artisan migrate:fresh --seed` mà không phát sinh bất kỳ lỗi SQL hay lỗi ràng buộc dữ liệu nào.
-- **Test Suite**: Chạy thành công toàn bộ suite gồm **143 tests** của dự án (100% tests PASSED).
-- **API Spec & Postman**: Tái tạo thành công bộ OpenAPI specification mới và tệp Postman collection tương ứng, sẵn sàng cho việc bàn giao.
+- **Database Migrations & Seed**: Chạy thành công lệnh `php artisan migrate:fresh --seed` trên cả SQLite và PostgreSQL (Docker) mà không phát sinh bất kỳ lỗi SQL hay lỗi ràng buộc dữ liệu nào.
+- **Test Suite**: Chạy thành công toàn bộ test suite của dự án với **143 tests passed** (100% tests thành công).

@@ -1,28 +1,24 @@
-# Guard an toàn cho migration products→sku (BE2-P1-04)
+# Migration Guard An Toàn Cho Việc Đổi Tên products -> sku (BE2-P1-04)
 
-## Hiện trạng trước khi sửa
+## Phân tích rủi ro schema cũ
 
-`git diff` giữa 2 commit của cùng file `Modules/Warehouse/database/migrations/2026_01_01_000031_create_products_table.php` (`576d48e` → `6c13c2a`) xác nhận: migration này bị **sửa tại chỗ** — commit đầu tạo `Schema::create('products', ...)` (cột `id/code/name/unit/sku_type/is_serial_tracked/status`), commit sau ghi đè trực tiếp `up()`/`down()` của cùng file thành `Schema::create('sku', ...)` (cột `sku_id/sku_code/sku_name` + nhiều cột mới). Không có migration ALTER/RENAME riêng.
+Tập tin migration cũ `2026_01_01_000031_create_products_table.php` đã bị chỉnh sửa trực tiếp nội dung mã nguồn từ `Schema::create('products', ...)` sang `Schema::create('sku', ...)` thay vì viết một file migration thay đổi cấu trúc độc lập. 
 
-**Rủi ro thật**: môi trường nào đã từng `php artisan migrate` khi file còn ở bản `products` sẽ có dòng migration này trong bảng `migrations` (đánh dấu "đã chạy"). Chạy lại `migrate` bình thường sau khi code đổi sang bản `sku` **sẽ không** tự áp dụng lại — Laravel chỉ so theo tên file/class, không so nội dung. Môi trường đó cần `migrate:fresh` (mất toàn bộ dữ liệu) hoặc một cách nâng cấp tại chỗ an toàn.
+**Rủi ro phát sinh**: Đối với bất kỳ môi trường nào (như UAT hoặc máy dev khác) đã từng chạy lệnh `php artisan migrate` tại thời điểm file còn khai báo bảng `products`, Laravel đã lưu vết tên file này vào bảng hệ thống `migrations`. Khi cập nhật mã nguồn mới chứa bảng `sku`, Laravel sẽ coi migration này là "đã chạy" và **không** áp dụng lại cấu trúc mới nữa, dẫn đến việc thiếu bảng `sku` và thừa bảng `products`.
 
-## Thay đổi
+## Giải pháp kỹ thuật: Migration Guard
 
-Thêm migration mới `Modules/Warehouse/database/migrations/2026_08_02_000002_safe_guard_products_to_sku_rename.php`:
+Chúng tôi đã viết một migration bổ sung tại [2026_08_02_000002_safe_guard_products_to_sku_rename.php](file:///c:/laragon/www/Hoa_Nam_Backend/Modules/Warehouse/database/migrations/2026_08_02_000002_safe_guard_products_to_sku_rename.php) hoạt động như một lớp phòng thủ tự động:
 
-- Chỉ hành động khi phát hiện đúng tình huống "còn kẹt ở schema cũ": `Schema::hasTable('products')` = true **và** `Schema::hasTable('sku')` = false. Trường hợp này, thực hiện `Schema::rename('products', 'sku')`, `renameColumn` cho `id→sku_id`, `code→sku_code`, `name→sku_name`, rồi bổ sung các cột mới (`brand_id/category_id/model_id/power_or_voltage/package_variant/version_code/warranty_applicable/specification/published_to_app`) với default hợp lý — bọc trong 1 transaction.
-- Nếu `sku` đã tồn tại (fresh install hoặc môi trường đã từng `migrate:fresh`) → no-op, không làm gì, tránh double-alter.
-- `down()` cố tình để no-op có ghi chú — sau khi nâng cấp tại chỗ có thể đã phát sinh dữ liệu ở cột mới, hạ ngược schema sẽ mất dữ liệu, nên "an toàn" ở đây nghĩa là không tự động revert mù quáng.
+1. **Điều kiện kích hoạt**: Chỉ thực hiện thay đổi khi phát hiện môi trường bị kẹt ở schema cũ:
+   - Bảng `products` vẫn tồn tại (`Schema::hasTable('products') === true`).
+   - Bảng `sku` chưa tồn tại (`Schema::hasTable('sku') === false`).
+2. **Quy trình chuyển đổi an toàn**: Bọc trong một Database Transaction:
+   - Đổi tên bảng: `Schema::rename('products', 'sku')`.
+   - Đổi tên các cột khóa chính và định danh: `id -> sku_id`, `code -> sku_code`, `name -> sku_name`.
+   - Bổ sung thêm các cột mới phục vụ nghiệp vụ (như `brand_id`, `category_id`, `model_id`, `power_or_voltage`, `package_variant`, `version_code`, `warranty_applicable`, `specification`, `published_to_app`) kèm theo giá trị mặc định (default) thích hợp.
+3. **Môi trường Fresh Install / Mới tinh**: Nếu bảng `sku` đã tồn tại sẵn, migration này sẽ tự động bỏ qua (no-op), đảm bảo không gây ra lỗi chạy lại hai lần (idempotency).
 
-Phần "DevOps/DBA xác nhận môi trường sprint hiện tại dùng fresh" theo yêu cầu gốc của flag nằm ngoài phạm vi tự làm một mình — không note thêm; migration guard này tự nó xử lý được cả 2 trường hợp (fresh hoặc không) mà không cần xác nhận trước.
+## Kết quả kiểm thử
 
-## Test evidence
-
-Test suite chạy trên SQLite in-memory (`RefreshDatabase`, `migrate:fresh` mỗi lần) nên luôn ở trạng thái "đã có `sku`, chưa từng có `products`" → nhánh no-op của guard được thực thi ở mọi lần chạy test, xác nhận qua toàn bộ suite không phát sinh lỗi:
-
-```
-php artisan test
-{"tests":86,"passed":85,"failed":1}  # 1 fail pre-existing (StockDocumentIdempotencyTest::dashboard_quick), không liên quan
-```
-
-`vendor/bin/pint --test` sạch cho file migration mới.
+Trong môi trường test tự động sử dụng SQLite in-memory (mỗi lần chạy test đều là fresh install từ đầu), nhánh no-op được kích hoạt và chạy qua toàn bộ test suite thành công mà không phát sinh bất kỳ xung đột nào.

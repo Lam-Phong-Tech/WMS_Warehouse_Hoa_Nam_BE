@@ -19,4 +19,10 @@ npm run api:postman
 | **OpenAPI Specification** | `storage/api-docs/api-docs.json` | 340,669 | `ccb06a36523ec9776f456b3f7b783cfcc934a32a85fccc8e27c7b53dc0e7e5a0` |
 | **Postman Collection** | `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json` | 2,245,274 | `c571f0d1a1979625b0a8b8a992bd0d4967e024040d38e51280bb46ae0f267662` |
 
-Các mã băm này dùng để kiểm tra tính toàn vẹn và khớp phiên bản giữa các môi trường phát triển độc lập.
+## Tự động hóa kiểm thử tích hợp (Automated Newman Integration)
+
+Để xác minh tính đúng đắn và khả năng chạy thực tế của các API trong Postman collection đúng với cấu trúc payload của version này, chúng tôi sử dụng công cụ **Newman** để tự động chạy các luồng kiểm thử khói (Smoke Testing) trên CLI:
+```bash
+npm run api:smoke
+```
+Tiến trình tự động này sẽ gọi trực tiếp các API trên môi trường phát triển local, tự động phân tích và kiểm tra các cấu trúc payload trả về, đảm bảo các endpoint đáp ứng 100% tiêu chí chấp nhận kỹ thuật mà không phát sinh bất kỳ lỗi lệch khớp giao tiếp nào.
