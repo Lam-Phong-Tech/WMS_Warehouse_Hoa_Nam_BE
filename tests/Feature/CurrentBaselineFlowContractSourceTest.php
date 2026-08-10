@@ -52,11 +52,13 @@ class CurrentBaselineFlowContractSourceTest extends TestCase
     public function test_warranty_label_and_pv_rules_are_pinned(): void
     {
         $operations = $this->source('Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php');
+        $warranty = $this->source('Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php');
 
         $this->assertStringContainsString('WARRANTY_TRANSITIONS', $operations);
         $this->assertStringContainsString('ACTIVE_WARRANTY_EXISTS', $operations);
         $this->assertStringContainsString('TEMP_ONLY_EVIDENCE_REQUIRED', $operations);
-        $this->assertStringContainsString('PRECONDITION_REQUIRED', $operations);
+        $this->assertStringContainsString('If-Match', $warranty);
+        $this->assertStringContainsString('PRECONDITION_REQUIRED', $warranty);
         $this->assertStringContainsString('PRECONDITION_FAILED', $operations);
 
         $this->assertStringContainsString('LABEL_PII_FORBIDDEN', $operations);
@@ -102,6 +104,21 @@ class CurrentBaselineFlowContractSourceTest extends TestCase
         $this->assertStringContainsString("'item_id' =>", $identity);
         $this->assertStringContainsString("'container_id' =>", $identity);
         $this->assertStringContainsString('If-Match', $identity);
+    }
+
+    public function test_documented_quantities_are_fail_closed_to_bigint_on_postgres(): void
+    {
+        $migration = $this->source('Modules/Warehouse/database/migrations/2026_08_10_000720_enforce_all_documented_quantities_bigint.php');
+
+        foreach ([
+            'inventory_balances', 'stock_movements', 'stock_document_lines', 'container_items',
+            'inbound_scan_entries', 'outbound_item_matches', 'component_issue_lines',
+            'component_issue_items', 'reversal_line',
+        ] as $table) {
+            $this->assertStringContainsString($table, $migration);
+        }
+        $this->assertStringContainsString('fractional legacy values must be reconciled first', $migration);
+        $this->assertStringContainsString('TYPE BIGINT', $migration);
     }
 
     private function source(string $path): string
