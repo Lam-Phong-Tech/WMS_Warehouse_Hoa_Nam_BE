@@ -7,14 +7,21 @@ use Illuminate\Support\Facades\DB;
 
 class ComponentContainerSubledgerService
 {
+    private const STOCK_BEARING_BOX_STATUSES = [
+        'IN_STOCK',
+        'PARTIAL',
+        'RECEIVED_PENDING_PUTAWAY',
+        'STORED',
+    ];
+
     public function assertContainerAvailable(string $containerId, string $skuId, int $quantity): void
     {
         $container = DB::table('containers')->where('container_id', $containerId)->lockForUpdate()->first();
         if ($container === null
-            || strtoupper((string) $container->status) !== 'ACTIVE'
+            || ! in_array(strtoupper((string) $container->status), self::STOCK_BEARING_BOX_STATUSES, true)
             || strtoupper((string) $container->container_type) !== 'BOX'
             || (string) $container->primary_sku_id !== $skuId) {
-            ApiError::abort(422, 'COMPONENT_BOX_INVALID', 'Container component phải là BOX ACTIVE và primary_sku_id khớp dòng.');
+            ApiError::abort(422, 'COMPONENT_BOX_INVALID', 'Container component phải là BOX còn stock, đúng primary_sku_id và chưa CLOSED/ISSUED.');
         }
 
         $sku = DB::table('sku')->where('sku_id', $skuId)->first();
@@ -25,7 +32,7 @@ class ComponentContainerSubledgerService
         $available = (int) DB::table('container_items')
             ->where('container_id', $containerId)
             ->where('sku_id', $skuId)
-            ->where('status', 'ACTIVE')
+            ->where('is_active', true)
             ->sum('quantity');
         if ($available < $quantity) {
             ApiError::abort(422, 'COMPONENT_BOX_INSUFFICIENT', 'BOX không đủ quantity component yêu cầu.', [
@@ -71,15 +78,21 @@ class ComponentContainerSubledgerService
 
         $mapping = DB::table('container_items')
             ->where('item_id', $itemId)
-            ->where('status', 'ACTIVE')
+            ->where('is_active', true)
             ->lockForUpdate()
             ->first();
         if ($mapping !== null) {
             DB::table('container_items')->where('container_item_id', $mapping->container_item_id)->update([
                 'status' => 'REMOVED',
+                'is_active' => false,
                 'quantity' => 0,
+                'removed_at' => now(),
+                'removed_by' => $this->actorId(),
+                'version' => ((int) ($mapping->version ?? 0)) + 1,
+                'updated_by' => $this->actorId(),
                 'updated_at' => now(),
             ]);
+            $this->refreshContainerState((string) $mapping->container_id);
         }
     }
 
@@ -91,7 +104,7 @@ class ComponentContainerSubledgerService
         $mappings = DB::table('container_items')
             ->where('container_id', $containerId)
             ->where('sku_id', $skuId)
-            ->where('status', 'ACTIVE')
+            ->where('is_active', true)
             ->where('quantity', '>', 0)
             ->orderBy('created_at')
             ->lockForUpdate()
@@ -107,6 +120,11 @@ class ComponentContainerSubledgerService
             DB::table('container_items')->where('container_item_id', $mapping->container_item_id)->update([
                 'quantity' => $after,
                 'status' => $after === 0 ? 'REMOVED' : 'ACTIVE',
+                'is_active' => $after > 0,
+                'removed_at' => $after === 0 ? now() : $mapping->removed_at,
+                'removed_by' => $after === 0 ? $this->actorId() : $mapping->removed_by,
+                'version' => ((int) ($mapping->version ?? 0)) + 1,
+                'updated_by' => $this->actorId(),
                 'updated_at' => now(),
             ]);
             $remaining -= $take;
@@ -115,5 +133,30 @@ class ComponentContainerSubledgerService
         if ($remaining !== 0) {
             ApiError::abort(409, 'CONTAINER_SUBLEDGER_CHANGED', 'Container subledger thay đổi đồng thời; không thể hoàn tất Component Issue.');
         }
+        $this->refreshContainerState($containerId);
+    }
+
+    private function refreshContainerState(string $containerId): void
+    {
+        $remaining = (int) DB::table('container_items')
+            ->where('container_id', $containerId)
+            ->where('is_active', true)
+            ->sum('quantity');
+        $container = DB::table('containers')->where('container_id', $containerId)->lockForUpdate()->first();
+        if ($container === null || $container->status === 'CLOSED') {
+            return;
+        }
+        DB::table('containers')->where('container_id', $containerId)->update([
+            'status' => $remaining > 0 ? 'PARTIAL' : 'EMPTY',
+            'version' => ((int) $container->version) + 1,
+            'updated_by' => $this->actorId(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function actorId(): ?string
+    {
+        $id = auth('api')->id();
+        return $id === null ? null : (string) $id;
     }
 }
