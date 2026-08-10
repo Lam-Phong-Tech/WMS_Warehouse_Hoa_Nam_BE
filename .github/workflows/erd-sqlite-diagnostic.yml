@@ -48,22 +48,22 @@ jobs:
           if php artisan migrate:fresh --seed --force 2>&1 | tee /tmp/erd-migrate.log; then
             exit 0
           fi
-          msg="$(tail -n 80 /tmp/erd-migrate.log)"
+          msg="$(tail -n 100 /tmp/erd-migrate.log)"
           msg="${msg//'%'/'%25'}"
           msg="${msg//$'\n'/'%0A'}"
           msg="${msg//$'\r'/'%0D'}"
           echo "::error title=SQLite migrate fresh seed failed::$msg"
           exit 1
-      - name: Isolate canonical permission and role seed contract
+      - name: SQLite full focused ERD contracts with exact annotation
         shell: bash
         run: |
           set -o pipefail
-          if php artisan test --filter 'DocumentationBaselineContractTest::test_canonical_permissions_and_required_roles_are_seeded' 2>&1 | tee /tmp/erd-seed-test.log; then
+          if php artisan test --filter '/(DocumentationBaselineContractTest|CurrentBaselineFlowContractSourceTest|StockDocumentCanonicalFlowTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest|SwaggerRouteSyncTest|LatestErdBaselineSchemaTest|ErdCompilerSourcePinTest)/' 2>&1 | tee /tmp/erd-tests.log; then
             exit 0
           fi
-          msg="$(tail -n 200 /tmp/erd-seed-test.log)"
+          msg="$(tail -n 200 /tmp/erd-tests.log)"
           msg="${msg//'%'/'%25'}"
           msg="${msg//$'\n'/'%0A'}"
           msg="${msg//$'\r'/'%0D'}"
-          echo "::error title=Canonical permission role seed contract failed::$msg"
+          echo "::error title=SQLite focused ERD contracts failed::$msg"
           exit 1
