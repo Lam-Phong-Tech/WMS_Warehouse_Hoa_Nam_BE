@@ -14,5 +14,6 @@ class ErdCompilerSourcePinTest extends TestCase
         $this->assertCount(HoaNamErdSchema::TABLE_COUNT, $schema);
         $this->assertSame(59, HoaNamErdSchema::TABLE_COUNT);
         $this->assertSame('HN-WMS-ERD-DD-001', HoaNamErdSchema::DOCUMENT_ID);
+        $this->assertSame('docs/HoaNam_ERD_Moi_Nhat.md', HoaNamErdSchema::DOCUMENT_PATH);
     }
 }
