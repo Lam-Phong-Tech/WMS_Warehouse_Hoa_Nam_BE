@@ -1,0 +1,68 @@
+name: Hoa Nam ERD SQLite Diagnostic
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/erd-sqlite-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_NO_PERMISSION_PASSWORD: Baseline-CI-Only-2026
+      JWT_SECRET: Baseline-CI-JWT-Only-2026-Exact-SHA
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/hoanam-erd-diagnostic.sqlite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: |
+          cp .env.example .env
+          php artisan key:generate
+          rm -f "$DB_DATABASE"
+          touch "$DB_DATABASE"
+          php artisan config:clear
+      - name: SQLite migrate fresh and seed with exact annotation
+        shell: bash
+        run: |
+          set -o pipefail
+          if php artisan migrate:fresh --seed --force 2>&1 | tee /tmp/erd-migrate.log; then
+            exit 0
+          fi
+          msg="$(tail -n 50 /tmp/erd-migrate.log)"
+          msg="${msg//'%'/'%25'}"
+          msg="${msg//$'\n'/'%0A'}"
+          msg="${msg//$'\r'/'%0D'}"
+          echo "::error title=SQLite migrate fresh seed failed::$msg"
+          exit 1
+      - name: SQLite focused ERD tests with exact annotation
+        shell: bash
+        run: |
+          set -o pipefail
+          if php artisan test --filter '/(DocumentationBaselineContractTest|CurrentBaselineFlowContractSourceTest|StockDocumentCanonicalFlowTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest|SwaggerRouteSyncTest|LatestErdBaselineSchemaTest|ErdCompilerSourcePinTest)/' 2>&1 | tee /tmp/erd-tests.log; then
+            exit 0
+          fi
+          msg="$(tail -n 80 /tmp/erd-tests.log)"
+          msg="${msg//'%'/'%25'}"
+          msg="${msg//$'\n'/'%0A'}"
+          msg="${msg//$'\r'/'%0D'}"
+          echo "::error title=SQLite focused ERD tests failed::$msg"
+          exit 1
