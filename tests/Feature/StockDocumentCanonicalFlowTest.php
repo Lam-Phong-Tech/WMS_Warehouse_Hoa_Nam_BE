@@ -17,7 +17,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
         $this->assertStringContainsString('CurrentBaselineStockFlowController', $routes);
         $this->assertStringContainsString("'status' => 'DRAFT'", $document);
         $this->assertStringContainsString("['DRAFT', 'SCANNING']", $document);
-        $this->assertStringContainsString("$document->status !== 'SCANNING'", $stock);
+        $this->assertStringContainsString("status !== 'SCANNING'", $stock);
         $this->assertStringContainsString("'status' => 'POSTED'", $service);
         $this->assertStringContainsString("'status' => 'CANCELLED'", $document);
 
