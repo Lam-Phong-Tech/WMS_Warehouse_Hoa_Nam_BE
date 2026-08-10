@@ -79,8 +79,8 @@ class ErdPhysicalSchemaParityTest extends TestCase
 
             if ($pkFields !== []) {
                 $this->assertTrue(
-                    $this->hasPrimaryOrCompatibilityUniqueKey($table, $pkFields),
-                    'Missing canonical key semantics for '.$table.'('.implode(',', $pkFields).').',
+                    $this->hasPrimaryKey($table, $pkFields),
+                    'Physical PK must exactly match '.$table.'('.implode(',', $pkFields).').',
                 );
             }
 
@@ -88,7 +88,7 @@ class ErdPhysicalSchemaParityTest extends TestCase
                 foreach ($matches[1] as $raw) {
                     $fields = $this->parseColumns($raw);
                     if ($fields !== []) {
-                        $this->assertTrue($this->hasPrimaryOrCompatibilityUniqueKey($table, $fields), 'Missing documented PK semantics '.$table.'('.implode(',', $fields).').');
+                        $this->assertTrue($this->hasPrimaryKey($table, $fields), 'Physical PK must exactly match '.$table.'('.implode(',', $fields).').');
                     }
                 }
             }
@@ -148,9 +148,9 @@ class ErdPhysicalSchemaParityTest extends TestCase
     }
 
     /** @param array<int,string> $fields */
-    private function hasPrimaryOrCompatibilityUniqueKey(string $table, array $fields): bool
+    private function hasPrimaryKey(string $table, array $fields): bool
     {
-        $primary = collect(DB::select(<<<'SQL'
+        return collect(DB::select(<<<'SQL'
             SELECT array_agg(a.attname ORDER BY x.ordinality) AS columns
             FROM pg_constraint c
             JOIN unnest(c.conkey) WITH ORDINALITY AS x(attnum, ordinality) ON true
@@ -158,8 +158,6 @@ class ErdPhysicalSchemaParityTest extends TestCase
             WHERE c.conrelid=?::regclass AND c.contype='p'
             GROUP BY c.oid
         SQL, [$table]))->contains(fn (object $row): bool => $this->pgArray($row->columns) === $fields);
-
-        return $primary || $this->hasUniqueKey($table, $fields);
     }
 
     /** @param array<int,string> $fields */
