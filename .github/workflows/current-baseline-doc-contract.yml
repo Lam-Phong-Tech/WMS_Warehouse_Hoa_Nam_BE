@@ -119,12 +119,14 @@ jobs:
             Modules/Warehouse/database/migrations/2026_08_10_000768_sync_defect_catalog_runtime_to_erd.php
             Modules/Warehouse/database/migrations/2026_08_10_000769_remove_superseded_label_print_event_status_guard.php
             Modules/Warehouse/database/migrations/2026_08_10_0007695_prepare_all_canonical_erd_keys.php
+            Modules/Warehouse/database/migrations/2026_08_10_0007697_backfill_iam_canonical_required_fields.php
             Modules/Warehouse/database/migrations/2026_08_10_0007698_backfill_warranty_canonical_required_fields.php
             Modules/Warehouse/database/migrations/2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints.php
             Modules/Warehouse/database/migrations/2026_08_10_000772_promote_documented_canonical_primary_keys.php
             Modules/Warehouse/database/migrations/2026_08_10_000773_sync_warranty_runtime_to_erd.php
             Modules/Warehouse/database/migrations/2026_08_10_000774_sync_iam_runtime_to_erd.php
             Modules/Warehouse/database/migrations/2026_08_10_000780_enforce_cross_table_erd_business_invariants.php
+            Modules/Warehouse/database/migrations/2026_08_10_000781_enable_putaway_history_guard.php
             Modules/Warehouse/routes/api.php
             tests/Feature/DocumentationBaselineContractTest.php
             tests/Feature/CurrentBaselineFlowContractSourceTest.php
