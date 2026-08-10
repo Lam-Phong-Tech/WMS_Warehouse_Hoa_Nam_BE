@@ -46,10 +46,20 @@ class AuthController extends Controller
     )]
     public function login(LoginRequest $request)
     {
-        $credentials = $request->only('email', 'password');
+        if ($request->filled('username')) {
+            $credentials = ['username' => $request->input('username'), 'password' => $request->input('password')];
+        } else {
+            $credentials = ['email' => $request->input('email'), 'password' => $request->input('password')];
+        }
 
         if (! $accessToken = auth('api')->attempt($credentials)) {
-            $user = User::where('email', $credentials['email'] ?? null)->first();
+            $user = $request->filled('username')
+                ? User::where('username', $credentials['username'])->first()
+                : User::where('email', $credentials['email'] ?? null)->first();
+            
+            $logData = $credentials;
+            unset($logData['password']);
+
             $this->auditLogger->log(
                 'LOGIN_FAILED',
                 'app_user',
@@ -57,11 +67,11 @@ class AuthController extends Controller
                 $user?->user_id,
                 $this->currentRequestId(),
                 [],
-                ['email' => $credentials['email'] ?? null],
-                'Invalid email or password'
+                $logData,
+                'Invalid credentials'
             );
 
-            return $this->respondError('Email hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
+            return $this->respondError('Email, tài khoản hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
         }
 
         /** @var User $user */

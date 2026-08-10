@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Sku;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -25,6 +28,7 @@ class AuthorizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(\Modules\Auth\Database\Seeders\AuthDatabaseSeeder::class);
         Cache::flush();
     }
 
@@ -33,6 +37,15 @@ class AuthorizationTest extends TestCase
      */
     public function test_sku_manage_endpoints_with_different_users(): void
     {
+        DB::table('sku')->insert([
+            'sku_id' => '00000000-0000-0000-0000-000000000001',
+            'sku_code' => 'DUMMY-AUTH-SKU',
+            'sku_name' => 'Dummy Auth SKU',
+            'status' => 'ACTIVE',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         // Create test users
         $skuManager = $this->createTestUser('test-sku-manage', 'SKU_MANAGER');
         $masterManager = $this->createTestUser('test-master-manage', 'MASTER_MANAGER');
@@ -58,8 +71,8 @@ class AuthorizationTest extends TestCase
 
         foreach ($skuEndpoints as [$method, $url]) {
             // User with sku.manage should have access
-            $this->makeRequest($method, $url, $skuManagerToken)
-                ->assertStatus(200);
+            $response = $this->makeRequest($method, $url, $skuManagerToken);
+            $this->assertTrue(in_array($response->getStatusCode(), [200, 201], true), "Failed asserting that {$response->getStatusCode()} is identical to 200 or 201.");
 
             // User with master.manage should be denied (doesn't have sku.manage)
             $this->makeRequest($method, $url, $masterManagerToken)
@@ -72,8 +85,8 @@ class AuthorizationTest extends TestCase
                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
             // Super admin should have access (bypass)
-            $this->makeRequest($method, $url, $superAdminToken)
-                ->assertStatus(200);
+            $response = $this->makeRequest($method, $url, $superAdminToken);
+            $this->assertTrue(in_array($response->getStatusCode(), [200, 201], true), "Failed asserting that {$response->getStatusCode()} is identical to 200 or 201.");
         }
     }
 
@@ -197,7 +210,10 @@ class AuthorizationTest extends TestCase
         
         return match ($method) {
             'GET' => $this->getJson($url, $headers),
-            'POST' => $this->postJson($url, [], $headers),
+            'POST' => $this->postJson($url, [
+                'sku_code' => 'TEST-AUTH-POST-' . Str::random(5),
+                'sku_name' => 'Test Auth Product',
+            ], $headers),
             'PATCH' => $this->patchJson($url, [], $headers),
             default => $this->call($method, $url, [], [], [], $headers),
         };
@@ -208,21 +224,22 @@ class AuthorizationTest extends TestCase
      */
     private function createTestUser(string $username, string $roleCode): User
     {
-        $role = Role::firstOrCreate(
-            ['role_code' => $roleCode],
-            ['role_name' => $roleCode, 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
-        );
+        $role = Role::where('role_code', $roleCode)->firstOrFail();
 
-        $user = User::create([
-            'username' => $username,
-            'display_name' => ucwords(str_replace('-', ' ', $username)),
-            'email' => "{$username}@hoanam.com",
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('Cntt@1234'),
-            'status' => 'ACTIVE',
-            'version' => 1,
-        ]);
+        $user = User::where('username', $username)->first();
 
-        $user->roles()->attach($role->role_id, ['user_role_id' => (string) \Illuminate\Support\Str::uuid()]);
+        if (! $user) {
+            $user = User::create([
+                'username' => $username,
+                'display_name' => ucwords(str_replace('-', ' ', $username)),
+                'email' => "{$username}@hoanam.com",
+                'password_hash' => \Illuminate\Support\Facades\Hash::make('Cntt@1234'),
+                'status' => 'ACTIVE',
+                'version' => 1,
+            ]);
+
+            $user->roles()->attach($role->role_id, ['user_role_id' => (string) \Illuminate\Support\Str::uuid()]);
+        }
 
         return $user;
     }

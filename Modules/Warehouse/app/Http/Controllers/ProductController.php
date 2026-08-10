@@ -177,7 +177,6 @@ class ProductController extends Controller
     }
 
     #[OA\Patch(
-<<<<<<< HEAD
         path: '/api/v1/products/{id}',
         operationId: 'product_update',
         summary: 'Sửa SKU (brand/category/model/package/specification...)',

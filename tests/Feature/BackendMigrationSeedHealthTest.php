@@ -8,7 +8,7 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
@@ -23,8 +23,8 @@ class BackendMigrationSeedHealthTest extends TestCase
 
         $this->assertSame(1, User::where('username', 'admin')->count());
         $this->assertSame(1, Warehouse::where('code', 'KHO-TONG-HN')->count());
-        $this->assertSame(1, Product::where('code', 'HN-PV-BASE-001')->count());
-        $this->assertSame(1, Product::where('code', 'HN-COMP-BASE-001')->count());
+        $this->assertSame(1, Sku::where('sku_code', 'HN-PV-BASE-001')->count());
+        $this->assertSame(1, Sku::where('sku_code', 'HN-COMP-BASE-001')->count());
 
         $this->assertDatabaseHas('role', ['role_code' => 'SUPER_ADMIN', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('permission', ['permission_key' => 'stock_document.post', 'status' => 'ACTIVE']);
@@ -36,7 +36,7 @@ class BackendMigrationSeedHealthTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $this->assertTrue(DB::table('app_user')->where('username', 'admin')->exists());
         $this->assertTrue(DB::table('warehouses')->where('code', 'KHO-TONG-HN')->exists());
-        $this->assertTrue(DB::table('products')->where('code', 'HN-PV-BASE-001')->exists());
+        $this->assertTrue(DB::table('sku')->where('sku_code', 'HN-PV-BASE-001')->exists());
 
         $this->assertTrue(Route::has('api.health'));
     }
@@ -96,10 +96,10 @@ class BackendMigrationSeedHealthTest extends TestCase
 
         $this->assertDatabaseHas('app_user', ['username' => 'admin', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('warehouses', ['code' => 'KHO-TONG-HN', 'status' => 'ACTIVE']);
-        $this->assertDatabaseHas('products', ['code' => 'HN-PV-BASE-001', 'published_to_app' => true]);
+        $this->assertDatabaseHas('sku', ['sku_code' => 'HN-PV-BASE-001', 'published_to_app' => true]);
 
         $this->assertSame(1, User::where('username', 'admin')->count());
         $this->assertSame(1, Warehouse::where('code', 'KHO-TONG-HN')->count());
-        $this->assertSame(1, Product::where('code', 'HN-PV-BASE-001')->count());
+        $this->assertSame(1, Sku::where('sku_code', 'HN-PV-BASE-001')->count());
     }
 }

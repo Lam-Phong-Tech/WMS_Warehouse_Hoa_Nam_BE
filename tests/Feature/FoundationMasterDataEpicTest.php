@@ -31,11 +31,12 @@ class FoundationMasterDataEpicTest extends TestCase
             ->assertHeader('X-Request-ID')
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.user.roles.0.role_code', 'SUPER_ADMIN')
-            ->assertJsonPath('data.user.permissions.0', 'audit_log.view')
             ->assertJsonStructure([
                 'data' => ['access_token', 'refresh_token', 'expires_in', 'user' => ['roles', 'permissions']],
                 'meta' => ['request_id', 'timestamp'],
             ]);
+
+        $this->assertContains('audit_log.view', $login->json('data.user.permissions'));
 
         $headers = ['Authorization' => 'Bearer '.$login->json('data.access_token')];
 
@@ -132,7 +133,7 @@ class FoundationMasterDataEpicTest extends TestCase
         $this->assertDatabaseHas('audit_log', [
             'actor_id' => $creator->user_id,
             'action' => 'CREATE',
-            'object_type' => 'product',
+            'object_type' => 'sku',
             'object_id' => $product->json('data.id'),
             'request_id' => 'PL01-03-EVIDENCE-REQ-002',
         ]);

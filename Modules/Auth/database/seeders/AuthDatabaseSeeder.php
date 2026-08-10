@@ -132,6 +132,8 @@ class AuthDatabaseSeeder extends Seeder
             'name' => 'Quản lý SKU (test)',
             'permissions' => [
                 'sku.manage',
+                'product.view',
+                'product.manage',
             ],
         ],
         'MASTER_MANAGER' => [
@@ -196,7 +198,7 @@ class AuthDatabaseSeeder extends Seeder
         );
         $this->attachRole($adminUser, $superAdminRole);
 
-        $roleModels = [];
+        $roleModels = ['SUPER_ADMIN' => $superAdminRole];
         foreach (self::ROLES as $code => $def) {
             $role = Role::firstOrCreate(
                 ['role_code' => $code],
