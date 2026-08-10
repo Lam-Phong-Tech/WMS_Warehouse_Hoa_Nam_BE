@@ -127,6 +127,9 @@ jobs:
             Modules/Warehouse/database/migrations/2026_08_10_000774_sync_iam_runtime_to_erd.php
             Modules/Warehouse/database/migrations/2026_08_10_000780_enforce_cross_table_erd_business_invariants.php
             Modules/Warehouse/database/migrations/2026_08_10_000781_enable_putaway_history_guard.php
+            Modules/Warehouse/database/migrations/2026_08_10_000782_enforce_item_tracking_and_container_sku_rules.php
+            Modules/Warehouse/database/migrations/2026_08_10_000783_enforce_documented_nonpartial_unique_indexes.php
+            Modules/Warehouse/database/migrations/2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules.php
             Modules/Warehouse/routes/api.php
             tests/Feature/DocumentationBaselineContractTest.php
             tests/Feature/CurrentBaselineFlowContractSourceTest.php
