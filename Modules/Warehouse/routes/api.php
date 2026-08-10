@@ -12,6 +12,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineMasterController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselinePhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineStockFlowController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController;
 use Modules\Warehouse\Http\Controllers\DefectCatalogController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusHistoryController;
 use Modules\Warehouse\Http\Controllers\ImportBatchController;
@@ -37,8 +38,6 @@ Route::prefix('v1')->group(function (): void {
         Route::get('warehouses/{id}', [WarehouseController::class, 'show'])->middleware('permission:warehouse.view');
         Route::patch('warehouses/{id}', [WarehouseController::class, 'update'])->middleware('permission:warehouse.manage');
 
-        // Legacy /products read aliases are retained for FE compatibility only.
-        // Every catalog mutation is canonical /skus; duplicate product mutations were removed.
         Route::get('products', [ProductController::class, 'index'])->middleware('permission:sku.view');
         Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:sku.view');
 
@@ -140,7 +139,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('warranty-cases', [CanonicalMvpController::class, 'listWarrantyCases'])->middleware('permission:warranty.manage');
         Route::post('warranty-cases', [CurrentBaselineOperationsController::class, 'storeWarrantyCase'])->middleware('permission:warranty.manage');
-        Route::patch('warranty-cases/{id}', [CurrentBaselineOperationsController::class, 'updateWarrantyCase'])->middleware('permission:warranty.manage');
+        Route::patch('warranty-cases/{id}', [CurrentBaselineWarrantyController::class, 'updateWarrantyCase'])->middleware('permission:warranty.manage');
         Route::get('warranty-cases/{id}/events', [CanonicalMvpController::class, 'listWarrantyEvents'])->middleware('permission:warranty.manage');
     });
 });
