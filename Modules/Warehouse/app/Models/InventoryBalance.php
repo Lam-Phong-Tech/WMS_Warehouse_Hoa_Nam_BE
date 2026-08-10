@@ -16,7 +16,18 @@ class InventoryBalance extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['warehouse_id', 'product_id', 'sku_id', 'stock_status', 'quantity', 'on_hand_qty', 'available_qty', 'reserved_qty', 'version'];
+    protected $fillable = [
+        'warehouse_id', 'product_id', 'sku_id', 'stock_status',
+        'quantity', 'on_hand_qty', 'available_qty', 'reserved_qty', 'version',
+    ];
+
+    protected $casts = [
+        'quantity' => 'integer',
+        'on_hand_qty' => 'integer',
+        'available_qty' => 'integer',
+        'reserved_qty' => 'integer',
+        'version' => 'integer',
+    ];
 
     public function warehouse(): BelongsTo
     {
