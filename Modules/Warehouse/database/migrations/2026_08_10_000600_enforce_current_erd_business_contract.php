@@ -319,7 +319,7 @@ return new class extends Migration
                    warehouse_id,
                    COALESCE(sku_id, product_id) AS sku_id,
                    stock_status,
-                   CAST(quantity AS BIGINT) AS quantity,
+                   quantity AS quantity,
                    item_id,
                    container_id,
                    COALESCE(source_type, 'STOCK_DOCUMENT') AS source_type,
