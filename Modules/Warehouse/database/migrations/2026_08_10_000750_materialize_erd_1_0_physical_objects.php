@@ -57,6 +57,7 @@ return new class extends Migration
 
         if ($kind === null) {
             DB::statement('CREATE TABLE '.HoaNamErdSchema::quote($table).' ()');
+
             return;
         }
 
@@ -78,6 +79,7 @@ return new class extends Migration
         // then unsafely cast UUID -> bigint.
         if ($table === 'audit_logs') {
             DB::statement('CREATE TABLE audit_logs (id bigserial PRIMARY KEY)');
+
             return;
         }
 

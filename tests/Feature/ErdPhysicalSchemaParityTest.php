@@ -143,6 +143,7 @@ class ErdPhysicalSchemaParityTest extends TestCase
             $columns = $fk['columns'] ?? [];
             $foreignColumns = $fk['foreign_columns'] ?? $fk['foreignColumns'] ?? [];
             $foreignTable = $fk['foreign_table'] ?? $fk['foreignTable'] ?? null;
+
             return $columns === [$field] && $foreignTable === $parent && $foreignColumns === [$parentField];
         });
     }
@@ -189,6 +190,7 @@ class ErdPhysicalSchemaParityTest extends TestCase
         if (is_array($value)) {
             return $value;
         }
+
         return collect(explode(',', trim((string) $value, '{}')))
             ->map(fn (string $item): string => trim($item, '"'))
             ->filter()->values()->all();

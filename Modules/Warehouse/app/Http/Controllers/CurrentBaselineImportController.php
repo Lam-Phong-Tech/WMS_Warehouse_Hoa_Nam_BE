@@ -271,6 +271,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
         if ($import === null) {
             return null;
         }
+
         return [
             'import' => $import,
             'rows' => DB::table('outbound_request_import_rows')->where('import_id', $id)->orderBy('row_no')->get(),
@@ -293,6 +294,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
         if ($id === null) {
             ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
         }
+
         return (string) $id;
     }
 }

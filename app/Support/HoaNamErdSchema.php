@@ -8,7 +8,9 @@ use RuntimeException;
 final class HoaNamErdSchema
 {
     public const DOCUMENT_PATH = 'docs/HoaNam_ERD_Moi_Nhat.md';
+
     public const DOCUMENT_ID = 'HN-WMS-ERD-DD-001';
+
     public const TABLE_COUNT = 59;
 
     /**

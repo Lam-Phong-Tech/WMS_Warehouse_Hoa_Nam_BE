@@ -269,6 +269,7 @@ return new class extends Migration
         if (! $hasPrimary) {
             $name = substr('pk_erd_'.$table, 0, 63);
             DB::statement('ALTER TABLE '.HoaNamErdSchema::quote($table).' ADD CONSTRAINT '.HoaNamErdSchema::quote($name).' PRIMARY KEY ('.implode(', ', array_map(HoaNamErdSchema::quote(...), $fields)).')');
+
             return;
         }
 
@@ -298,6 +299,7 @@ return new class extends Migration
             $columns = $fk['columns'] ?? [];
             $foreignColumns = $fk['foreign_columns'] ?? $fk['foreignColumns'] ?? [];
             $foreignTable = $fk['foreign_table'] ?? $fk['foreignTable'] ?? null;
+
             return $columns === [$field] && $foreignTable === $parent && $foreignColumns === [$parentField];
         });
         if ($exists) {

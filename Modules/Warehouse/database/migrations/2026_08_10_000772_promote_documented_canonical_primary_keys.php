@@ -138,6 +138,7 @@ return new class extends Migration
         if (is_array($value)) {
             return $value;
         }
+
         return collect(explode(',', trim((string) $value, '{}')))
             ->map(fn (string $item): string => trim($item, '"'))
             ->filter()->values()->all();

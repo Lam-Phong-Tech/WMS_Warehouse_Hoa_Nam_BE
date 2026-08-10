@@ -35,7 +35,7 @@ return new class extends Migration
                 (item_id IS NULL AND sku_id IS NOT NULL AND quantity > 0)
             )
         SQL);
-        DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS ux_erd_container_active_item ON container_items(item_id) WHERE is_active=TRUE AND item_id IS NOT NULL");
+        DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS ux_erd_container_active_item ON container_items(item_id) WHERE is_active=TRUE AND item_id IS NOT NULL');
 
         DB::statement(<<<'SQL'
             CREATE OR REPLACE FUNCTION hn_erd_guard_container_hierarchy()

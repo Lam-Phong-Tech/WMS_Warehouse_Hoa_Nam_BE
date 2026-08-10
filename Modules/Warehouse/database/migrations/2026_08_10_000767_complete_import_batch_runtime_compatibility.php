@@ -12,7 +12,7 @@ return new class extends Migration
             return;
         }
 
-        DB::statement("UPDATE import_batches SET received_date = COALESCE(received_date, created_at::date, CURRENT_DATE) WHERE received_date IS NULL");
+        DB::statement('UPDATE import_batches SET received_date = COALESCE(received_date, created_at::date, CURRENT_DATE) WHERE received_date IS NULL');
 
         DB::statement(<<<'SQL'
             CREATE OR REPLACE FUNCTION hn_erd_normalize_runtime_import_batches()

@@ -64,6 +64,7 @@ return new class extends Migration
         if (! $hasPrimary) {
             $name = substr('pk_erd_'.$table, 0, 63);
             DB::statement('ALTER TABLE '.HoaNamErdSchema::quote($table).' ADD CONSTRAINT '.HoaNamErdSchema::quote($name).' PRIMARY KEY ('.implode(', ', array_map(HoaNamErdSchema::quote(...), $fields)).')');
+
             return;
         }
 
