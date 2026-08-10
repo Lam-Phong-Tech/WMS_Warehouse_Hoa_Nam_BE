@@ -1,0 +1,52 @@
+name: Fix Contract Refresh Seed Once
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/fix-contract-refresh-seed-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch contract test lifecycle and canonical tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/Feature/DocumentationBaselineContractTest.php')
+          text = path.read_text()
+          text = text.replace(
+              '    private array $contract;\n',
+              '    protected bool $seed = true;\n\n    private array $contract;\n',
+              1,
+          )
+          text = text.replace("DB::table('permission')->pluck('permission_key')->all()", "DB::table('permissions')->pluck('permission_key')->all()", 1)
+          text = text.replace("DB::table('role')->pluck('role_code')->all()", "DB::table('roles')->pluck('role_code')->all()", 1)
+          path.write_text(text)
+          PY
+          git diff --check
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: ./vendor/bin/pint tests/Feature/DocumentationBaselineContractTest.php
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/Feature/DocumentationBaselineContractTest.php
+          git commit -m 'test: seed canonical contract under RefreshDatabase'
+          git push origin HEAD:m1
