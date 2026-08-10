@@ -4,7 +4,6 @@ use App\Support\HoaNamErdSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use RuntimeException;
 
 return new class extends Migration
 {
@@ -42,7 +41,7 @@ return new class extends Migration
             ->first(['data_type', 'character_maximum_length', 'numeric_precision', 'numeric_scale']);
 
         if ($actual === null) {
-            throw new RuntimeException("Missing ERD field {$table}.{$field} before type alignment.");
+            throw new \RuntimeException("Missing ERD field {$table}.{$field} before type alignment.");
         }
         if (HoaNamErdSchema::typeMatches($actual, $documentedType)) {
             return;

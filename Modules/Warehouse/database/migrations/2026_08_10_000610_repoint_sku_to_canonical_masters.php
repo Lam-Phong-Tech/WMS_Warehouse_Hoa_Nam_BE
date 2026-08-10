@@ -224,7 +224,7 @@ return new class extends Migration
             ->whereNull("p.{$parentColumn}")
             ->exists();
         if ($exists) {
-            throw new RuntimeException("Cannot repoint {$table}.{$column}; legacy value has no canonical master row.");
+            throw new \RuntimeException("Cannot repoint {$table}.{$column}; legacy value has no canonical master row.");
         }
     }
 
@@ -236,7 +236,7 @@ return new class extends Migration
                     Schema::table($table, fn (Blueprint $blueprint) => $blueprint->dropForeign($foreign['name']));
                 }
             }
-        } catch (Throwable) {
+        } catch (\Throwable) {
             // No introspectable FK on this driver/version.
         }
     }
@@ -245,7 +245,7 @@ return new class extends Migration
     {
         try {
             return collect(Schema::getForeignKeys($table))->contains(fn (array $foreign): bool => ($foreign['name'] ?? null) === $name);
-        } catch (Throwable) {
+        } catch (\Throwable) {
             return false;
         }
     }

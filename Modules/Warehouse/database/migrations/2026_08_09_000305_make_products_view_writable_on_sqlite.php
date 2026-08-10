@@ -18,12 +18,12 @@ return new class extends Migration
             return;
         }
         if (! Schema::hasTable('sku')) {
-            throw new RuntimeException('products compatibility requires canonical sku table.');
+            throw new \RuntimeException('products compatibility requires canonical sku table.');
         }
 
         $view = DB::selectOne("SELECT name FROM sqlite_master WHERE type = 'view' AND name = 'products' LIMIT 1");
         if ($view === null) {
-            throw new RuntimeException('products compatibility view is missing before writable-trigger migration.');
+            throw new \RuntimeException('products compatibility view is missing before writable-trigger migration.');
         }
 
         DB::unprepared('DROP TRIGGER IF EXISTS products_compat_insert');

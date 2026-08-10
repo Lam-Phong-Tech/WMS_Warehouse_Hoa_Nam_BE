@@ -74,7 +74,7 @@ return new class extends Migration
         ] as $statement) {
             try {
                 DB::statement($statement);
-            } catch (Throwable $e) {
+            } catch (\Throwable $e) {
                 $message = strtolower($e->getMessage());
                 if (! str_contains($message, 'already exists') && ! str_contains($message, 'duplicate object')) {
                     throw $e;
@@ -93,10 +93,10 @@ return new class extends Migration
             if (collect(Schema::getForeignKeys($table))->contains(fn (array $fk): bool => ($fk['name'] ?? null) === $name)) {
                 return;
             }
-        } catch (Throwable) {
+        } catch (\Throwable) {
         }
         if (DB::table("{$table} as c")->leftJoin("{$parent} as p", "p.{$parentColumn}", '=', "c.{$column}")->whereNotNull("c.{$column}")->whereNull("p.{$parentColumn}")->exists()) {
-            throw new RuntimeException("Cannot add {$table}.{$column} relationship: orphan rows exist.");
+            throw new \RuntimeException("Cannot add {$table}.{$column} relationship: orphan rows exist.");
         }
         Schema::table($table, function (Blueprint $blueprint) use ($column, $parent, $parentColumn, $name, $delete): void {
             $foreign = $blueprint->foreign($column, $name)->references($parentColumn)->on($parent);
@@ -114,7 +114,7 @@ return new class extends Migration
             if (collect(Schema::getIndexes($table))->contains(fn (array $index): bool => ($index['name'] ?? null) === $name)) {
                 return;
             }
-        } catch (Throwable) {
+        } catch (\Throwable) {
         }
         Schema::table($table, fn (Blueprint $blueprint) => $blueprint->index($columns, $name));
     }

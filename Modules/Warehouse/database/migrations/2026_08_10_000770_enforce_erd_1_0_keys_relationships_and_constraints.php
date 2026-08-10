@@ -4,8 +4,6 @@ use App\Support\HoaNamErdSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use RuntimeException;
-use Throwable;
 
 return new class extends Migration
 {
@@ -38,7 +36,7 @@ return new class extends Migration
                 }
 
                 if (DB::table($table)->whereNull($field)->exists()) {
-                    throw new RuntimeException("ERD NOT NULL alignment blocked by {$table}.{$field}; reconcile legacy rows before deployment.");
+                    throw new \RuntimeException("ERD NOT NULL alignment blocked by {$table}.{$field}; reconcile legacy rows before deployment.");
                 }
 
                 DB::statement(sprintf(
@@ -262,7 +260,7 @@ return new class extends Migration
     private function ensureCanonicalKey(string $table, array $fields): void
     {
         if (collect($fields)->contains(fn (string $field): bool => ! Schema::hasColumn($table, $field))) {
-            throw new RuntimeException('ERD key field missing on '.$table.': '.implode(',', $fields));
+            throw new \RuntimeException('ERD key field missing on '.$table.': '.implode(',', $fields));
         }
 
         $hasPrimary = DB::selectOne('SELECT 1 AS present FROM pg_constraint WHERE conrelid=?::regclass AND contype=\'p\' LIMIT 1', [$table]) !== null;
@@ -292,7 +290,7 @@ return new class extends Migration
     private function addForeignKey(string $table, string $field, string $parent, string $parentField): void
     {
         if (! Schema::hasColumn($table, $field) || ! Schema::hasColumn($parent, $parentField)) {
-            throw new RuntimeException("ERD FK target missing: {$table}.{$field} -> {$parent}.{$parentField}");
+            throw new \RuntimeException("ERD FK target missing: {$table}.{$field} -> {$parent}.{$parentField}");
         }
 
         $exists = collect(Schema::getForeignKeys($table))->contains(function (array $fk) use ($field, $parent, $parentField): bool {
@@ -311,13 +309,13 @@ return new class extends Migration
             ->whereNotNull("c.{$field}")
             ->whereNull("p.{$parentField}")
             ->exists()) {
-            throw new RuntimeException("ERD FK blocked by orphan rows: {$table}.{$field} -> {$parent}.{$parentField}");
+            throw new \RuntimeException("ERD FK blocked by orphan rows: {$table}.{$field} -> {$parent}.{$parentField}");
         }
 
         $name = substr('fk_erd_'.$table.'_'.$field, 0, 63);
         try {
             DB::statement('ALTER TABLE '.HoaNamErdSchema::quote($table).' ADD CONSTRAINT '.HoaNamErdSchema::quote($name).' FOREIGN KEY ('.HoaNamErdSchema::quote($field).') REFERENCES '.HoaNamErdSchema::quote($parent).'('.HoaNamErdSchema::quote($parentField).') ON DELETE RESTRICT');
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             if (! str_contains(strtolower($e->getMessage()), 'already exists')) {
                 throw $e;
             }

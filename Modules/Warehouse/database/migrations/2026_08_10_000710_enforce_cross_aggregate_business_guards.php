@@ -120,7 +120,7 @@ return new class extends Migration
     private function assertNoLegacyIssueWithoutRequest(): void
     {
         if (DB::table('stock_documents')->where('doc_type', 'issue')->whereNull('outbound_request_id')->exists()) {
-            throw new RuntimeException('Current baseline requires every outbound stock document to reference outbound_request_id; reconcile legacy issue documents before migration.');
+            throw new \RuntimeException('Current baseline requires every outbound stock document to reference outbound_request_id; reconcile legacy issue documents before migration.');
         }
     }
 
@@ -134,7 +134,7 @@ return new class extends Migration
             ->havingRaw('COUNT(*) > 1')
             ->first();
         if ($duplicate !== null) {
-            throw new RuntimeException('An item has more than one active warranty case; reconcile before enforcing current baseline.');
+            throw new \RuntimeException('An item has more than one active warranty case; reconcile before enforcing current baseline.');
         }
     }
 
@@ -142,7 +142,7 @@ return new class extends Migration
     {
         try {
             DB::statement($statement);
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             $message = strtolower($e->getMessage());
             if (! str_contains($message, 'already exists') && ! str_contains($message, 'duplicate object')) {
                 throw $e;

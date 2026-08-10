@@ -257,7 +257,7 @@ return new class extends Migration
             return;
         }
         if (DB::table("{$table} as c")->leftJoin("{$parent} as p", "p.{$parentColumn}", '=', "c.{$column}")->whereNotNull("c.{$column}")->whereNull("p.{$parentColumn}")->exists()) {
-            throw new RuntimeException("Cannot add {$table}.{$column} FK: orphan rows exist.");
+            throw new \RuntimeException("Cannot add {$table}.{$column} FK: orphan rows exist.");
         }
         Schema::table($table, function (Blueprint $blueprint) use ($column, $parent, $parentColumn, $name, $delete): void {
             $foreign = $blueprint->foreign($column, $name)->references($parentColumn)->on($parent);
@@ -283,7 +283,7 @@ return new class extends Migration
             return;
         }
         if (DB::table($table)->select($columns)->whereNotNull($columns[0])->groupBy($columns)->havingRaw('COUNT(*) > 1')->exists()) {
-            throw new RuntimeException("Cannot add {$name}: duplicate baseline data exists.");
+            throw new \RuntimeException("Cannot add {$name}: duplicate baseline data exists.");
         }
         Schema::table($table, fn (Blueprint $blueprint) => $blueprint->unique($columns, $name));
     }
@@ -292,7 +292,7 @@ return new class extends Migration
     {
         try {
             return collect(Schema::getIndexes($table))->contains(fn (array $index): bool => ($index['name'] ?? null) === $name);
-        } catch (Throwable) {
+        } catch (\Throwable) {
             return false;
         }
     }
@@ -301,7 +301,7 @@ return new class extends Migration
     {
         try {
             return collect(Schema::getForeignKeys($table))->contains(fn (array $foreign): bool => ($foreign['name'] ?? null) === $name);
-        } catch (Throwable) {
+        } catch (\Throwable) {
             return false;
         }
     }
@@ -310,7 +310,7 @@ return new class extends Migration
     {
         try {
             DB::statement($statement);
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             $message = strtolower($e->getMessage());
             if (! str_contains($message, 'already exists') && ! str_contains($message, 'duplicate object')) {
                 throw $e;

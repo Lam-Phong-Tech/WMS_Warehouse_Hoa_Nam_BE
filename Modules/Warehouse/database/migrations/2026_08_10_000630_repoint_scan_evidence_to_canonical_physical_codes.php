@@ -109,7 +109,7 @@ return new class extends Migration
             ->exists();
 
         if ($orphan) {
-            throw new RuntimeException('scan_event contains physical_code_id values that cannot be reconciled to canonical physical_codes.');
+            throw new \RuntimeException('scan_event contains physical_code_id values that cannot be reconciled to canonical physical_codes.');
         }
     }
 
@@ -121,7 +121,7 @@ return new class extends Migration
                     Schema::table($table, fn (Blueprint $blueprint) => $blueprint->dropForeign($foreign['name']));
                 }
             }
-        } catch (Throwable) {
+        } catch (\Throwable) {
             // Driver/version without FK introspection: the next add operation is fail-closed.
         }
     }

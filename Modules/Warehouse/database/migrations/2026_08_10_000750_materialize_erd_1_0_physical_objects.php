@@ -4,7 +4,6 @@ use App\Support\HoaNamErdSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use RuntimeException;
 
 return new class extends Migration
 {
@@ -38,7 +37,7 @@ return new class extends Migration
             ->values();
 
         if ($nonPhysical->isNotEmpty()) {
-            throw new RuntimeException('ERD physical materialization incomplete: '.$nonPhysical->implode(', '));
+            throw new \RuntimeException('ERD physical materialization incomplete: '.$nonPhysical->implode(', '));
         }
     }
 
@@ -62,12 +61,12 @@ return new class extends Migration
         }
 
         if ($kind !== 'v') {
-            throw new RuntimeException("Unsupported PostgreSQL relation kind {$kind} for ERD object {$table}.");
+            throw new \RuntimeException("Unsupported PostgreSQL relation kind {$kind} for ERD object {$table}.");
         }
 
         $projection = substr($table.'__legacy_projection', 0, 63);
         if (HoaNamErdSchema::relationKind($projection) !== null) {
-            throw new RuntimeException("Cannot materialize {$table}: helper relation {$projection} already exists.");
+            throw new \RuntimeException("Cannot materialize {$table}: helper relation {$projection} already exists.");
         }
 
         DB::statement(

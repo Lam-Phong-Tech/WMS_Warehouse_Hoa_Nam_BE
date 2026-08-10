@@ -47,7 +47,7 @@ return new class extends Migration
             ->count();
 
         if ($unresolved > 0) {
-            throw new RuntimeException("Cannot enforce physical_codes target XOR: {$unresolved} legacy physical code row(s) still have no item/container target.");
+            throw new \RuntimeException("Cannot enforce physical_codes target XOR: {$unresolved} legacy physical code row(s) still have no item/container target.");
         }
     }
 
