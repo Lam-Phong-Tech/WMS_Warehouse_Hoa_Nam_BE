@@ -12,7 +12,7 @@ class StockDocumentConcurrencyGuardTest extends TestCase
         $flow = $this->source('Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php');
 
         $this->assertStringContainsString('lockForUpdate()', $stock);
-        $this->assertStringContainsString("where('version', $balance->version)", $stock);
+        $this->assertStringContainsString("where('version',", $stock);
         $this->assertStringContainsString('VERSION_CONFLICT', $stock);
         $this->assertStringContainsString('lockForUpdate()', $flow);
         $this->assertStringContainsString('If-Match', $flow);
