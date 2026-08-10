@@ -14,6 +14,7 @@ return new class extends Migration
         }
 
         $schema = HoaNamErdSchema::parse();
+        $this->backfillRequiredCompatibilityFields();
         $this->enforceNullability($schema);
         $this->enforceKeysAndRelationships($schema);
         $this->enforceDocumentedIndexes($schema);
@@ -65,12 +66,14 @@ return new class extends Migration
                     $this->addForeignKey($table, $field, strtolower($fk[1]), strtolower($fk[2]));
                 }
             }
+            $compositeOverride = $this->canonicalCompositeKey($table);
+            $pk = $compositeOverride ?? $pk;
 
             if ($pk !== []) {
                 $this->ensureCanonicalKey($table, $pk);
             }
 
-            if (preg_match_all('/\bPK\(([^)]+)\)/i', $definition['section'], $matches)) {
+            if ($compositeOverride === null && preg_match_all('/\bPK\(([^)]+)\)/i', $definition['section'], $matches)) {
                 foreach ($matches[1] as $columns) {
                     $parsed = $this->parseColumns($columns);
                     if ($parsed !== []) {
@@ -87,6 +90,29 @@ return new class extends Migration
                 }
             }
         }
+    }
+
+    private function backfillRequiredCompatibilityFields(): void
+    {
+        if (Schema::hasTable('user_roles') && Schema::hasColumn('user_roles', 'assigned_at')) {
+            DB::statement('UPDATE user_roles SET assigned_at = COALESCE(assigned_at, CURRENT_TIMESTAMP) WHERE assigned_at IS NULL');
+        }
+
+        if (Schema::hasTable('role_permissions') && Schema::hasColumn('role_permissions', 'assigned_at')) {
+            DB::statement('UPDATE role_permissions SET assigned_at = COALESCE(assigned_at, CURRENT_TIMESTAMP) WHERE assigned_at IS NULL');
+        }
+    }
+
+    /** @return array<int,string>|null */
+    private function canonicalCompositeKey(string $table): ?array
+    {
+        return match ($table) {
+            'user_roles' => ['user_id', 'role_id'],
+            'role_permissions' => ['role_id', 'permission_id'],
+            'pv_product_industries' => ['profile_id', 'industry_id'],
+            'pv_product_tags' => ['profile_id', 'tag_id'],
+            default => null,
+        };
     }
 
     /** @param array<string,array{section:string,fields:array<string,array{type:string,nullable:bool,key:string}>}> $schema */

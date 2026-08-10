@@ -89,21 +89,29 @@ return new class extends Migration
                    customer_address = COALESCE(ls.customer_address, d.recipient_address, ls.label_payload::jsonb->>'customer_address'),
                    product_name = COALESCE(ls.product_name, s.sku_name, ls.label_payload::jsonb->>'product_name'),
                    sku_code = COALESCE(ls.sku_code, s.sku_code, ls.label_payload::jsonb->>'sku_code'),
-                   item_code_value = COALESCE(ls.item_code_value, pc.code_value, ii.item_code, ls.label_payload::jsonb->>'item_code_value'),
+                   item_code_value = COALESCE(
+                       ls.item_code_value,
+                       (
+                           SELECT p.code_value
+                             FROM physical_codes p
+                            WHERE p.item_id = ls.item_id AND p.status='ACTIVE'
+                            ORDER BY p.is_primary DESC NULLS LAST, p.assigned_at DESC NULLS LAST
+                            LIMIT 1
+                       ),
+                       (
+                           SELECT ii.item_code
+                             FROM item_instances ii
+                            WHERE ii.item_id = ls.item_id
+                            LIMIT 1
+                       ),
+                       ls.label_payload::jsonb->>'item_code_value'
+                   ),
                    outbound_no = COALESCE(ls.outbound_no, d.doc_no, ls.label_payload::jsonb->>'outbound_no'),
                    template_version = COALESCE(ls.template_version, ls.label_payload::jsonb->>'template_version', 'v1')
               FROM outbound_item_matches m
               JOIN stock_document_lines l ON l.id = m.outbound_line_id
               JOIN stock_documents d ON d.id = l.stock_document_id
-              JOIN sku s ON s.sku_id = ls.sku_id
-              LEFT JOIN item_instances ii ON ii.item_id = ls.item_id
-              LEFT JOIN LATERAL (
-                   SELECT p.code_value
-                     FROM physical_codes p
-                    WHERE p.item_id = ls.item_id AND p.status='ACTIVE'
-                    ORDER BY p.is_primary DESC NULLS LAST, p.assigned_at DESC NULLS LAST
-                    LIMIT 1
-              ) pc ON true
+              JOIN sku s ON s.sku_id = l.product_id
              WHERE m.id = ls.outbound_item_match_id
         SQL);
     }
@@ -114,21 +122,55 @@ return new class extends Migration
             return;
         }
 
-        DB::statement(<<<'SQL'
-            UPDATE printer_configs
-               SET printer_name = COALESCE(printer_name, name, printer_code),
-                   agent_endpoint = COALESCE(agent_endpoint, agent_code),
-                   dpi = COALESCE(dpi, 203),
-                   label_width_mm = COALESCE(
-                       label_width_mm,
-                       CASE WHEN label_size ~ '^[0-9]+(\.[0-9]+)?[xX][0-9]+(\.[0-9]+)?$'
-                            THEN split_part(lower(label_size), 'x', 1)::numeric END
-                   ),
-                   label_height_mm = COALESCE(
-                       label_height_mm,
-                       CASE WHEN label_size ~ '^[0-9]+(\.[0-9]+)?[xX][0-9]+(\.[0-9]+)?$'
-                            THEN split_part(lower(label_size), 'x', 2)::numeric END
-                   )
-        SQL);
+        $this->installPrinterConfigNormalizer();
+
+        $printerNameFallback = Schema::hasColumn('printer_configs', 'name')
+            ? 'name, printer_code'
+            : 'printer_code';
+        $agentEndpoint = Schema::hasColumn('printer_configs', 'agent_code')
+            ? 'COALESCE(agent_endpoint, agent_code)'
+            : 'agent_endpoint';
+        $labelWidth = Schema::hasColumn('printer_configs', 'label_size')
+            ? "COALESCE(label_width_mm, CASE WHEN label_size ~ '^[0-9]+(\\.[0-9]+)?[xX][0-9]+(\\.[0-9]+)?$' THEN split_part(lower(label_size), 'x', 1)::numeric END)"
+            : 'label_width_mm';
+        $labelHeight = Schema::hasColumn('printer_configs', 'label_size')
+            ? "COALESCE(label_height_mm, CASE WHEN label_size ~ '^[0-9]+(\\.[0-9]+)?[xX][0-9]+(\\.[0-9]+)?$' THEN split_part(lower(label_size), 'x', 2)::numeric END)"
+            : 'label_height_mm';
+
+        DB::statement(sprintf(
+            'UPDATE printer_configs SET printer_name = COALESCE(printer_name, %s), agent_endpoint = %s, dpi = COALESCE(dpi, 203), label_width_mm = %s, label_height_mm = %s',
+            $printerNameFallback,
+            $agentEndpoint,
+            $labelWidth,
+            $labelHeight,
+        ));
+    }
+
+    private function installPrinterConfigNormalizer(): void
+    {
+        $body = [
+            'NEW.printer_name := COALESCE(NEW.printer_name, NEW.printer_code);',
+            'NEW.dpi := COALESCE(NEW.dpi, 203);',
+        ];
+
+        if (Schema::hasColumn('printer_configs', 'agent_code')) {
+            $body[] = 'NEW.agent_endpoint := COALESCE(NEW.agent_endpoint, NEW.agent_code);';
+            $body[] = 'NEW.agent_code := COALESCE(NEW.agent_code, NEW.agent_endpoint);';
+        }
+
+        if (Schema::hasColumn('printer_configs', 'label_size')) {
+            $body[] = <<<'SQL'
+                IF NEW.label_width_mm IS NULL OR NEW.label_height_mm IS NULL THEN
+                    IF NEW.label_size ~ '^[0-9]+(\.[0-9]+)?[xX][0-9]+(\.[0-9]+)?$' THEN
+                        NEW.label_width_mm := COALESCE(NEW.label_width_mm, split_part(lower(NEW.label_size), 'x', 1)::numeric);
+                        NEW.label_height_mm := COALESCE(NEW.label_height_mm, split_part(lower(NEW.label_size), 'x', 2)::numeric);
+                    END IF;
+                END IF;
+            SQL;
+        }
+
+        DB::statement('CREATE OR REPLACE FUNCTION hn_erd_normalize_runtime_printer_configs() RETURNS trigger AS $$ BEGIN '.implode("\n", $body).' RETURN NEW; END; $$ LANGUAGE plpgsql');
+        DB::statement('DROP TRIGGER IF EXISTS trg_erd_normalize_runtime_printer_configs ON printer_configs');
+        DB::statement('CREATE TRIGGER trg_erd_normalize_runtime_printer_configs BEFORE INSERT OR UPDATE ON printer_configs FOR EACH ROW EXECUTE FUNCTION hn_erd_normalize_runtime_printer_configs()');
     }
 };

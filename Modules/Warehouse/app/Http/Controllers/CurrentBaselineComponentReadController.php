@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Support\Facades\DB;
 

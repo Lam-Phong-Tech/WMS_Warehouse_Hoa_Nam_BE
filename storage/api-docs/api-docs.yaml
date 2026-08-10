@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
   title: 'WMS_HoaNam API'
-  description: 'Base API cho hệ thống quản lý kho Hoa Nam Tools. Envelope chuẩn: {success, message, data, meta, links, error}. Xem docs/BRD_ERD_Upgrade_Guide.md để biết phạm vi base vs phần cần nâng cấp theo BRD/ERD.'
-  version: 1.0.0
+  description: 'OpenAPI route surface is generated from the real Laravel /api/v1 route list. Business semantics follow HN-BA-MASTER-DEVTEST-001 v1.0 and HN-WMS-ERD-DD-001 v1.0 (04/08/2026). MVP is full-post only, has no Stocktake scope, and uses inventory movements as the authoritative ledger. Envelope: {success, message, data, meta, links, error}.'
+  version: 2.0.0
 servers:
   -
     url: 'http://localhost:8080'
@@ -18,12 +18,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -33,15 +45,35 @@ paths:
       summary: 'POST /api/v1/agencies - Modules Warehouse Http Controllers AgencyController store'
       operationId: post_api_v1_agencies
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -61,12 +93,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -85,12 +129,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -106,15 +162,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -122,18 +198,42 @@ paths:
     get:
       tags:
         - '15. Audit Log'
-      summary: 'GET /api/v1/audit-logs - Modules AuditLog Http Controllers AuditLogController index'
-      operationId: get_api_v1_audit_logs
-      parameters: []
+      summary: 'Nhật ký thao tác hệ thống (chỉ đọc — ghi chỉ qua AuditLogger::record() nội bộ, không có endpoint ghi)'
+      operationId: audit_log_list
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
       responses:
         200:
-          description: OK
+          description: 'Danh sách audit log (actor_id/action/object_type/object_id/before_data/after_data/created_at)'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền audit_log.view'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -141,18 +241,50 @@ paths:
     post:
       tags:
         - '01. Authentication'
-      summary: 'POST /api/v1/auth/change-password - Modules Auth Http Controllers AuthController changePassword'
-      operationId: post_api_v1_auth_change_password
+      summary: 'Đổi mật khẩu tài khoản hiện tại (thu hồi toàn bộ refresh token)'
+      operationId: auth_change_password
       parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - current_password
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                new_password_confirmation:
+                  type: string
+                  format: password
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Đổi mật khẩu thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
+        422:
+          description: 'Mật khẩu hiện tại sai hoặc dữ liệu không hợp lệ'
+        400:
+          description: 'Malformed request'
         403:
           description: Forbidden
-        422:
-          description: 'Validation error'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -160,35 +292,90 @@ paths:
     post:
       tags:
         - '01. Authentication'
-      summary: 'POST /api/v1/auth/login - Modules Auth Http Controllers AuthController login'
-      operationId: post_api_v1_auth_login
+      summary: 'Đăng nhập bằng email hoặc username và password'
+      operationId: auth_login
       parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                  nullable: true
+                username:
+                  type: string
+                  example: warehouse01
+                  nullable: true
+                password:
+                  type: string
+                  format: password
+                  example: Cntt@1234
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Đăng nhập thành công'
         401:
-          description: Unauthenticated
+          description: 'Sai định danh hoặc mật khẩu'
         403:
-          description: Forbidden
+          description: 'Tài khoản bị khoá/ngừng hoạt động'
         422:
-          description: 'Validation error'
+          description: 'Dữ liệu không hợp lệ'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security: []
   /api/v1/auth/logout:
     post:
       tags:
         - '01. Authentication'
-      summary: 'POST /api/v1/auth/logout - Modules Auth Http Controllers AuthController logout'
-      operationId: post_api_v1_auth_logout
+      summary: 'Đăng xuất, thu hồi refresh token và huỷ access token hiện tại'
+      operationId: auth_logout
       parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                refresh_token:
+                  type: string
+                  nullable: true
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Đăng xuất thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
+        422:
+          description: 'refresh_token sai kiểu dữ liệu'
+        400:
+          description: 'Malformed request'
         403:
           description: Forbidden
-        422:
-          description: 'Validation error'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -196,18 +383,30 @@ paths:
     get:
       tags:
         - '01. Authentication'
-      summary: 'GET /api/v1/auth/me - Modules Auth Http Controllers AuthController me'
-      operationId: get_api_v1_auth_me
+      summary: 'Thông tin tài khoản, role, scope và permission hiện hành'
+      operationId: auth_me
       parameters: []
       responses:
         200:
-          description: OK
+          description: 'Thông tin tài khoản'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
+        400:
+          description: 'Malformed request'
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -215,117 +414,279 @@ paths:
     post:
       tags:
         - '01. Authentication'
-      summary: 'POST /api/v1/auth/refresh - Modules Auth Http Controllers AuthController refresh'
-      operationId: post_api_v1_auth_refresh
+      summary: 'Xoay vòng refresh token; token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên'
+      operationId: auth_refresh
       parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Làm mới token thành công'
         401:
-          description: Unauthenticated
+          description: 'Refresh token không hợp lệ, hết hạn hoặc bị replay'
+        422:
+          description: 'Thiếu refresh_token'
+        400:
+          description: 'Malformed request'
         403:
           description: Forbidden
-        422:
-          description: 'Validation error'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security: []
   /api/v1/auth/switch-context:
     post:
       tags:
         - '01. Authentication'
-      summary: 'POST /api/v1/auth/switch-context - Modules Auth Http Controllers AuthController switchContext'
-      operationId: post_api_v1_auth_switch_context
+      summary: 'Chuyển ngữ cảnh (warehouse scope) và cấp lại access token mới'
+      operationId: auth_switch_context
       parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                context_type:
+                  type: string
+                  nullable: true
+                  maxLength: 50
+                context_id:
+                  type: string
+                  nullable: true
+                  maxLength: 100
+                scope_ref:
+                  type: string
+                  nullable: true
+                  maxLength: 100
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Chuyển ngữ cảnh thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Ngữ cảnh kho nằm ngoài phạm vi được gán'
         422:
-          description: 'Validation error'
+          description: 'Dữ liệu không hợp lệ'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/brands:
     get:
       tags:
-        - '05. Product'
-      summary: 'GET /api/v1/brands - Modules Warehouse Http Controllers CanonicalMvpController listBrands'
+        - '08. Catalog Master'
+      summary: 'GET /api/v1/brands - Modules Warehouse Http Controllers CurrentBaselineMasterController listBrands'
       operationId: get_api_v1_brands
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '05. Product'
-      summary: 'POST /api/v1/brands - Modules Warehouse Http Controllers CanonicalMvpController storeBrand'
+        - '08. Catalog Master'
+      summary: 'POST /api/v1/brands - Modules Warehouse Http Controllers CurrentBaselineMasterController storeBrand'
       operationId: post_api_v1_brands
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/component-issue-documents:
     get:
       tags:
-        - '20. Warranty'
+        - '14. Component Issue'
       summary: 'GET /api/v1/component-issue-documents - Modules Warehouse Http Controllers CanonicalMvpController listComponentIssueDocuments'
       operationId: get_api_v1_component_issue_documents
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '20. Warranty'
-      summary: 'POST /api/v1/component-issue-documents - Modules Warehouse Http Controllers CanonicalMvpController storeComponentIssueDocument'
+        - '14. Component Issue'
+      summary: 'POST /api/v1/component-issue-documents - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController store'
       operationId: post_api_v1_component_issue_documents
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/component-issue-documents/{id}/cancel':
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'POST /api/v1/component-issue-documents/{id}/cancel - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController cancel'
+      operationId: post_api_v1_component_issue_documents_id_cancel
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: OK
+        400:
+          description: 'Malformed request'
+        401:
+          description: Unauthenticated
+        403:
+          description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        422:
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   '/api/v1/component-issue-documents/{id}/post':
     post:
       tags:
-        - '20. Warranty'
-      summary: 'POST /api/v1/component-issue-documents/{id}/post - Modules Warehouse Http Controllers CanonicalMvpController postComponentIssueDocument'
+        - '14. Component Issue'
+      summary: 'POST /api/v1/component-issue-documents/{id}/post - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController post'
       operationId: post_api_v1_component_issue_documents_id_post
       parameters:
         -
@@ -334,15 +695,80 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/component-issue-documents/{id}/scan':
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'POST /api/v1/component-issue-documents/{id}/scan - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController scan'
+      operationId: post_api_v1_component_issue_documents_id_scan
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: OK
+        400:
+          description: 'Malformed request'
+        401:
+          description: Unauthenticated
+        403:
+          description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        422:
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -356,30 +782,62 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '18. Physical Inventory'
-      summary: 'POST /api/v1/containers - Modules Warehouse Http Controllers ContainerController store'
+      summary: 'POST /api/v1/containers - Modules Warehouse Http Controllers CurrentBaselineContainerFlowController store'
       operationId: post_api_v1_containers
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -399,19 +857,31 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
         - '18. Physical Inventory'
-      summary: 'PATCH /api/v1/containers/{id} - Modules Warehouse Http Controllers ContainerController update'
+      summary: 'PATCH /api/v1/containers/{id} - Modules Warehouse Http Controllers CurrentBaselineContainerFlowController update'
       operationId: patch_api_v1_containers_id
       parameters:
         -
@@ -420,15 +890,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -436,7 +926,7 @@ paths:
     post:
       tags:
         - '18. Physical Inventory'
-      summary: 'POST /api/v1/containers/{id}/items - Modules Warehouse Http Controllers ContainerController addItem'
+      summary: 'POST /api/v1/containers/{id}/items - Modules Warehouse Http Controllers CurrentBaselineContainerFlowController addItem'
       operationId: post_api_v1_containers_id_items
       parameters:
         -
@@ -445,15 +935,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -461,7 +971,7 @@ paths:
     delete:
       tags:
         - '18. Physical Inventory'
-      summary: 'DELETE /api/v1/containers/{id}/items/{containerItemId} - Modules Warehouse Http Controllers ContainerController removeItem'
+      summary: 'DELETE /api/v1/containers/{id}/items/{containerItemId} - Modules Warehouse Http Controllers CurrentBaselineContainerFlowController removeItem'
       operationId: delete_api_v1_containers_id_items_containeritemid
       parameters:
         -
@@ -479,12 +989,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -498,12 +1020,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -513,15 +1047,35 @@ paths:
       summary: 'POST /api/v1/defect-catalogs - Modules Warehouse Http Controllers DefectCatalogController store'
       operationId: post_api_v1_defect_catalogs
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -541,12 +1095,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -565,12 +1131,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -586,15 +1164,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -608,12 +1206,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -621,18 +1231,32 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/health - App Http Controllers HealthController show'
-      operationId: get_api_v1_health
+      summary: 'Public readiness health check'
+      operationId: backend_health_v1
       parameters: []
       responses:
         200:
-          description: OK
+          description: Ready
+        503:
+          description: Degraded
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security: []
   /api/v1/import-batches:
     get:
@@ -644,12 +1268,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -659,15 +1295,35 @@ paths:
       summary: 'POST /api/v1/import-batches - Modules Warehouse Http Controllers ImportBatchController store'
       operationId: post_api_v1_import_batches
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -687,12 +1343,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -708,15 +1376,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -730,30 +1418,62 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'POST /api/v1/inbound-documents - Modules Warehouse Http Controllers InboundDocumentController store'
+      summary: 'POST /api/v1/inbound-documents - Modules Warehouse Http Controllers CurrentBaselineDocumentController storeInbound'
       operationId: post_api_v1_inbound_documents
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -773,19 +1493,31 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'PATCH /api/v1/inbound-documents/{id} - Modules Warehouse Http Controllers InboundDocumentController update'
+      summary: 'PATCH /api/v1/inbound-documents/{id} - Modules Warehouse Http Controllers CurrentBaselineDocumentController updateInbound'
       operationId: patch_api_v1_inbound_documents_id
       parameters:
         -
@@ -794,15 +1526,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -810,7 +1562,7 @@ paths:
     post:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'POST /api/v1/inbound-documents/{id}/cancel - Modules Warehouse Http Controllers InboundDocumentController cancel'
+      summary: 'POST /api/v1/inbound-documents/{id}/cancel - Modules Warehouse Http Controllers CurrentBaselineDocumentController cancelInbound'
       operationId: post_api_v1_inbound_documents_id_cancel
       parameters:
         -
@@ -819,15 +1571,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -835,7 +1607,7 @@ paths:
     post:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'POST /api/v1/inbound-documents/{id}/post-receipt - Modules Warehouse Http Controllers InboundDocumentController postReceipt'
+      summary: 'POST /api/v1/inbound-documents/{id}/post-receipt - Modules Warehouse Http Controllers CurrentBaselineStockFlowController postReceipt'
       operationId: post_api_v1_inbound_documents_id_post_receipt
       parameters:
         -
@@ -844,15 +1616,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -860,7 +1652,7 @@ paths:
     post:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'POST /api/v1/inbound-documents/{id}/reverse - Modules Warehouse Http Controllers InboundDocumentController reverse'
+      summary: 'POST /api/v1/inbound-documents/{id}/reverse - Modules Warehouse Http Controllers CurrentBaselineStockFlowController reverseInbound'
       operationId: post_api_v1_inbound_documents_id_reverse
       parameters:
         -
@@ -869,15 +1661,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -885,7 +1697,7 @@ paths:
     post:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'POST /api/v1/inbound-documents/{id}/scan - Modules Warehouse Http Controllers InboundDocumentController scan'
+      summary: 'POST /api/v1/inbound-documents/{id}/scan - Modules Warehouse Http Controllers CurrentBaselineStockFlowController inboundScan'
       operationId: post_api_v1_inbound_documents_id_scan
       parameters:
         -
@@ -894,15 +1706,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -916,12 +1748,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -935,12 +1779,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -950,15 +1806,35 @@ paths:
       summary: 'POST /api/v1/item-instances - Modules Warehouse Http Controllers ItemInstanceController store'
       operationId: post_api_v1_item_instances
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -978,12 +1854,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -999,15 +1887,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1027,12 +1935,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1046,30 +1966,62 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '19. Label / Printer'
-      summary: 'POST /api/v1/label-snapshots - Modules Warehouse Http Controllers CanonicalMvpController storeLabelSnapshot'
+      summary: 'POST /api/v1/label-snapshots - Modules Warehouse Http Controllers CurrentBaselineOperationsController storeLabelSnapshot'
       operationId: post_api_v1_label_snapshots
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1077,7 +2029,7 @@ paths:
     post:
       tags:
         - '19. Label / Printer'
-      summary: 'POST /api/v1/label-snapshots/{id}/print - Modules Warehouse Http Controllers CanonicalMvpController printLabelSnapshot'
+      summary: 'POST /api/v1/label-snapshots/{id}/print - Modules Warehouse Http Controllers CurrentBaselineOperationsController printLabelSnapshot'
       operationId: post_api_v1_label_snapshots_id_print
       parameters:
         -
@@ -1086,15 +2038,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1102,7 +2074,7 @@ paths:
     post:
       tags:
         - '19. Label / Printer'
-      summary: 'POST /api/v1/label-snapshots/{id}/reprint - Modules Warehouse Http Controllers CanonicalMvpController reprintLabelSnapshot'
+      summary: 'POST /api/v1/label-snapshots/{id}/reprint - Modules Warehouse Http Controllers CurrentBaselineOperationsController reprintLabelSnapshot'
       operationId: post_api_v1_label_snapshots_id_reprint
       parameters:
         -
@@ -1111,15 +2083,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1133,30 +2125,62 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'POST /api/v1/outbound-documents - Modules Warehouse Http Controllers OutboundDocumentController store'
+      summary: 'POST /api/v1/outbound-documents - Modules Warehouse Http Controllers CurrentBaselineDocumentController storeOutbound'
       operationId: post_api_v1_outbound_documents
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1176,19 +2200,31 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'PATCH /api/v1/outbound-documents/{id} - Modules Warehouse Http Controllers OutboundDocumentController update'
+      summary: 'PATCH /api/v1/outbound-documents/{id} - Modules Warehouse Http Controllers CurrentBaselineDocumentController updateOutbound'
       operationId: patch_api_v1_outbound_documents_id
       parameters:
         -
@@ -1197,15 +2233,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1213,7 +2269,7 @@ paths:
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'POST /api/v1/outbound-documents/{id}/cancel - Modules Warehouse Http Controllers OutboundDocumentController cancel'
+      summary: 'POST /api/v1/outbound-documents/{id}/cancel - Modules Warehouse Http Controllers CurrentBaselineDocumentController cancelOutbound'
       operationId: post_api_v1_outbound_documents_id_cancel
       parameters:
         -
@@ -1222,15 +2278,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1238,7 +2314,7 @@ paths:
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'POST /api/v1/outbound-documents/{id}/post-issue - Modules Warehouse Http Controllers OutboundDocumentController postIssue'
+      summary: 'POST /api/v1/outbound-documents/{id}/post-issue - Modules Warehouse Http Controllers CurrentBaselineStockFlowController postIssue'
       operationId: post_api_v1_outbound_documents_id_post_issue
       parameters:
         -
@@ -1247,15 +2323,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1263,7 +2359,7 @@ paths:
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'POST /api/v1/outbound-documents/{id}/reverse - Modules Warehouse Http Controllers OutboundDocumentController reverse'
+      summary: 'POST /api/v1/outbound-documents/{id}/reverse - Modules Warehouse Http Controllers CurrentBaselineStockFlowController reverseOutbound'
       operationId: post_api_v1_outbound_documents_id_reverse
       parameters:
         -
@@ -1272,15 +2368,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1288,7 +2404,7 @@ paths:
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'POST /api/v1/outbound-documents/{id}/scan - Modules Warehouse Http Controllers OutboundDocumentController scan'
+      summary: 'POST /api/v1/outbound-documents/{id}/scan - Modules Warehouse Http Controllers CurrentBaselineStockFlowController outboundScan'
       operationId: post_api_v1_outbound_documents_id_scan
       parameters:
         -
@@ -1297,15 +2413,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1313,18 +2449,38 @@ paths:
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'POST /api/v1/outbound-request-imports - Modules Warehouse Http Controllers CanonicalMvpController storeOutboundRequestImport'
+      summary: 'POST /api/v1/outbound-request-imports - Modules Warehouse Http Controllers CurrentBaselineImportController storeOutboundRequestImport'
       operationId: post_api_v1_outbound_request_imports
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1332,7 +2488,7 @@ paths:
     get:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'GET /api/v1/outbound-request-imports/{id} - Modules Warehouse Http Controllers CanonicalMvpController showOutboundRequestImport'
+      summary: 'GET /api/v1/outbound-request-imports/{id} - Modules Warehouse Http Controllers CurrentBaselineImportController showOutboundRequestImport'
       operationId: get_api_v1_outbound_request_imports_id
       parameters:
         -
@@ -1344,12 +2500,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1357,7 +2525,7 @@ paths:
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'POST /api/v1/outbound-request-imports/{id}/consume - Modules Warehouse Http Controllers CanonicalMvpController consumeOutboundRequestImport'
+      summary: 'POST /api/v1/outbound-request-imports/{id}/consume - Modules Warehouse Http Controllers CurrentBaselineImportController consumeOutboundRequestImport'
       operationId: post_api_v1_outbound_request_imports_id_consume
       parameters:
         -
@@ -1366,52 +2534,104 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/package-variants:
     get:
       tags:
-        - '05. Product'
-      summary: 'GET /api/v1/package-variants - Modules Warehouse Http Controllers CanonicalMvpController listPackageVariants'
+        - '08. Catalog Master'
+      summary: 'GET /api/v1/package-variants - Modules Warehouse Http Controllers CurrentBaselineMasterController listPackageVariants'
       operationId: get_api_v1_package_variants
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '05. Product'
-      summary: 'POST /api/v1/package-variants - Modules Warehouse Http Controllers CanonicalMvpController storePackageVariant'
+        - '08. Catalog Master'
+      summary: 'POST /api/v1/package-variants - Modules Warehouse Http Controllers CurrentBaselineMasterController storePackageVariant'
       operationId: post_api_v1_package_variants
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1419,18 +2639,47 @@ paths:
     get:
       tags:
         - '04. Permissions'
-      summary: 'GET /api/v1/permissions - Modules Auth Http Controllers PermissionController index'
-      operationId: get_api_v1_permissions
-      parameters: []
+      summary: 'Danh sách permission (phân trang, filter theo keyword/status/scope_type)'
+      operationId: permission_list
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: OK
+          description: 'Danh sách permission'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền permission.view'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1438,8 +2687,8 @@ paths:
     get:
       tags:
         - '04. Permissions'
-      summary: 'GET /api/v1/permissions/{id} - Modules Auth Http Controllers PermissionController show'
-      operationId: get_api_v1_permissions_id
+      summary: 'Chi tiết permission'
+      operationId: permission_detail
       parameters:
         -
           name: id
@@ -1447,15 +2696,28 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: OK
+          description: 'Chi tiết permission'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
+        404:
+          description: 'Không tìm thấy permission'
+        400:
+          description: 'Malformed request'
         403:
           description: Forbidden
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1469,30 +2731,62 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '18. Physical Inventory'
-      summary: 'POST /api/v1/physical-codes - Modules Warehouse Http Controllers PhysicalCodeController store'
+      summary: 'POST /api/v1/physical-codes - Modules Warehouse Http Controllers CurrentBaselinePhysicalCodeController store'
       operationId: post_api_v1_physical_codes
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1512,19 +2806,31 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
         - '18. Physical Inventory'
-      summary: 'PATCH /api/v1/physical-codes/{id} - Modules Warehouse Http Controllers PhysicalCodeController update'
+      summary: 'PATCH /api/v1/physical-codes/{id} - Modules Warehouse Http Controllers CurrentBaselinePhysicalCodeController update'
       operationId: patch_api_v1_physical_codes_id
       parameters:
         -
@@ -1533,52 +2839,104 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/power-sources:
     get:
       tags:
-        - '05. Product'
-      summary: 'GET /api/v1/power-sources - Modules Warehouse Http Controllers CanonicalMvpController listPowerSources'
+        - '08. Catalog Master'
+      summary: 'GET /api/v1/power-sources - Modules Warehouse Http Controllers CurrentBaselineMasterController listPowerSources'
       operationId: get_api_v1_power_sources
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '05. Product'
-      summary: 'POST /api/v1/power-sources - Modules Warehouse Http Controllers CanonicalMvpController storePowerSource'
+        - '08. Catalog Master'
+      summary: 'POST /api/v1/power-sources - Modules Warehouse Http Controllers CurrentBaselineMasterController storePowerSource'
       operationId: post_api_v1_power_sources
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1592,111 +2950,207 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '19. Label / Printer'
-      summary: 'POST /api/v1/printer-configs - Modules Warehouse Http Controllers CanonicalMvpController storePrinterConfig'
+      summary: 'POST /api/v1/printer-configs - Modules Warehouse Http Controllers CurrentBaselineOperationsController storePrinterConfig'
       operationId: post_api_v1_printer_configs
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/product-categories:
     get:
       tags:
-        - '05. Product'
-      summary: 'GET /api/v1/product-categories - Modules Warehouse Http Controllers CanonicalMvpController listProductCategories'
+        - '08. Catalog Master'
+      summary: 'GET /api/v1/product-categories - Modules Warehouse Http Controllers CurrentBaselineMasterController listProductCategories'
       operationId: get_api_v1_product_categories
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '05. Product'
-      summary: 'POST /api/v1/product-categories - Modules Warehouse Http Controllers CanonicalMvpController storeProductCategory'
+        - '08. Catalog Master'
+      summary: 'POST /api/v1/product-categories - Modules Warehouse Http Controllers CurrentBaselineMasterController storeProductCategory'
       operationId: post_api_v1_product_categories
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/product-masters:
     get:
       tags:
-        - '00. Platform'
+        - '05. Product'
       summary: 'GET /api/v1/product-masters - Modules Warehouse Http Controllers ProductMasterController index'
       operationId: get_api_v1_product_masters
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '00. Platform'
+        - '05. Product'
       summary: 'POST /api/v1/product-masters - Modules Warehouse Http Controllers ProductMasterController store'
       operationId: post_api_v1_product_masters
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   '/api/v1/product-masters/{id}':
     get:
       tags:
-        - '00. Platform'
+        - '05. Product'
       summary: 'GET /api/v1/product-masters/{id} - Modules Warehouse Http Controllers ProductMasterController show'
       operationId: get_api_v1_product_masters_id
       parameters:
@@ -1709,18 +3163,30 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
-        - '00. Platform'
+        - '05. Product'
       summary: 'PATCH /api/v1/product-masters/{id} - Modules Warehouse Http Controllers ProductMasterController update'
       operationId: patch_api_v1_product_masters_id
       parameters:
@@ -1730,52 +3196,104 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/product-models:
     get:
       tags:
-        - '05. Product'
-      summary: 'GET /api/v1/product-models - Modules Warehouse Http Controllers CanonicalMvpController listProductModels'
+        - '08. Catalog Master'
+      summary: 'GET /api/v1/product-models - Modules Warehouse Http Controllers CurrentBaselineMasterController listProductModels'
       operationId: get_api_v1_product_models
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '05. Product'
-      summary: 'POST /api/v1/product-models - Modules Warehouse Http Controllers CanonicalMvpController storeProductModel'
+        - '08. Catalog Master'
+      summary: 'POST /api/v1/product-models - Modules Warehouse Http Controllers CurrentBaselineMasterController storeProductModel'
       operationId: post_api_v1_product_models
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1789,30 +3307,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
-      security:
-        -
-          bearerAuth: []
-    post:
-      tags:
-        - '05. Product'
-      summary: 'POST /api/v1/products - Modules Warehouse Http Controllers ProductController store'
-      operationId: post_api_v1_products
-      parameters: []
-      responses:
-        200:
-          description: OK
-        401:
-          description: Unauthenticated
-        403:
-          description: Forbidden
-        422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1832,36 +3344,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
-      security:
-        -
-          bearerAuth: []
-    patch:
-      tags:
-        - '05. Product'
-      summary: 'PATCH /api/v1/products/{id} - Modules Warehouse Http Controllers ProductController update'
-      operationId: patch_api_v1_products_id
-      parameters:
-        -
-          name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          description: OK
-        401:
-          description: Unauthenticated
-        403:
-          description: Forbidden
-        422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1878,15 +3378,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1903,15 +3423,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -1919,18 +3459,30 @@ paths:
     get:
       tags:
         - '21. Public Catalog'
-      summary: 'GET /api/v1/pv/catalog - Modules Warehouse Http Controllers CanonicalMvpController pvCatalog'
+      summary: 'GET /api/v1/pv/catalog - Modules Warehouse Http Controllers CurrentBaselineOperationsController pvCatalog'
       operationId: get_api_v1_pv_catalog
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security: []
   /api/v1/pv/industries:
     get:
@@ -1942,29 +3494,53 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security: []
   /api/v1/pv/recommendations:
     get:
       tags:
         - '21. Public Catalog'
-      summary: 'GET /api/v1/pv/recommendations - Modules Warehouse Http Controllers CanonicalMvpController pvRecommendations'
+      summary: 'GET /api/v1/pv/recommendations - Modules Warehouse Http Controllers CurrentBaselineOperationsController pvRecommendations'
       operationId: get_api_v1_pv_recommendations
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security: []
   /api/v1/pv/tags:
     get:
@@ -1976,12 +3552,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security: []
   /api/v1/reports/dashboard-quick:
     get:
@@ -1993,12 +3581,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2012,12 +3612,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2031,12 +3643,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2050,12 +3674,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2063,36 +3699,116 @@ paths:
     get:
       tags:
         - '03. Roles'
-      summary: 'GET /api/v1/roles - Modules Auth Http Controllers RoleController index'
-      operationId: get_api_v1_roles
-      parameters: []
+      summary: 'Danh sách role (phân trang, filter theo keyword/status/scope_type)'
+      operationId: role_list
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
       responses:
         200:
-          description: OK
+          description: 'Danh sách role'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền role.view'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '03. Roles'
-      summary: 'POST /api/v1/roles - Modules Auth Http Controllers RoleController store'
-      operationId: post_api_v1_roles
+      summary: 'Tạo role mới'
+      operationId: role_create
       parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - role_code
+                - role_name
+              properties:
+                role_code:
+                  type: string
+                  maxLength: 100
+                role_name:
+                  type: string
+                  maxLength: 255
+                scope_type:
+                  type: string
+                  nullable: true
+                  enum:
+                    - SYSTEM
+                    - WAREHOUSE
+                    - FUNCTION
+                status:
+                  type: string
+                  nullable: true
+                  enum:
+                    - ACTIVE
+                    - INACTIVE
+              type: object
       responses:
+        201:
+          description: 'Tạo role thành công'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền role.manage'
+        422:
+          description: 'Dữ liệu không hợp lệ (vd: role_code đã tồn tại)'
         200:
           description: OK
-        401:
-          description: Unauthenticated
-        403:
-          description: Forbidden
-        422:
-          description: 'Validation error'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2100,8 +3816,8 @@ paths:
     get:
       tags:
         - '03. Roles'
-      summary: 'GET /api/v1/roles/{id} - Modules Auth Http Controllers RoleController show'
-      operationId: get_api_v1_roles_id
+      summary: 'Chi tiết role'
+      operationId: role_detail
       parameters:
         -
           name: id
@@ -2109,23 +3825,36 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: OK
+          description: 'Chi tiết role'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
+        404:
+          description: 'Không tìm thấy role'
+        400:
+          description: 'Malformed request'
         403:
           description: Forbidden
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     delete:
       tags:
         - '03. Roles'
-      summary: 'DELETE /api/v1/roles/{id} - Modules Auth Http Controllers RoleController destroy'
-      operationId: delete_api_v1_roles_id
+      summary: 'Xoá role (bị chặn nếu đang gán cho user)'
+      operationId: role_delete
       parameters:
         -
           name: id
@@ -2133,23 +3862,36 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: OK
+          description: 'Xoá thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền role.manage'
+        404:
+          description: 'Không tìm thấy role'
+        409:
+          description: 'Role đang được gán cho người dùng, không thể xoá'
+        400:
+          description: 'Malformed request'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
         - '03. Roles'
-      summary: 'PATCH /api/v1/roles/{id} - Modules Auth Http Controllers RoleController update'
-      operationId: patch_api_v1_roles_id
+      summary: 'Sửa role'
+      operationId: role_update
       parameters:
         -
           name: id
@@ -2157,15 +3899,53 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                role_code:
+                  type: string
+                  maxLength: 100
+                role_name:
+                  type: string
+                  maxLength: 255
+                scope_type:
+                  type: string
+                  nullable: true
+                  enum:
+                    - SYSTEM
+                    - WAREHOUSE
+                    - FUNCTION
+                status:
+                  type: string
+                  nullable: true
+                  enum:
+                    - ACTIVE
+                    - INACTIVE
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Cập nhật thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền role.manage'
+        404:
+          description: 'Không tìm thấy role'
         422:
-          description: 'Validation error'
+          description: 'Dữ liệu không hợp lệ'
+        400:
+          description: 'Malformed request'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2173,8 +3953,8 @@ paths:
     post:
       tags:
         - '03. Roles'
-      summary: 'POST /api/v1/roles/{id}/permissions - Modules Auth Http Controllers RoleController assignPermissions'
-      operationId: post_api_v1_roles_id_permissions
+      summary: 'Gán danh sách permission cho role (thay thế toàn bộ permission hiện có)'
+      operationId: role_assign_permissions
       parameters:
         -
           name: id
@@ -2182,34 +3962,81 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - permission_ids
+              properties:
+                permission_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Gán permission thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền role.manage'
+        404:
+          description: 'Không tìm thấy role'
         422:
-          description: 'Validation error'
+          description: 'permission_ids không hợp lệ'
+        400:
+          description: 'Malformed request'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/scan/classify:
     post:
       tags:
-        - '07. Inventory'
+        - '11. Scan'
       summary: 'POST /api/v1/scan/classify - Modules Warehouse Http Controllers ScanController classify'
       operationId: post_api_v1_scan_classify
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2223,30 +4050,62 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '05. Product'
-      summary: 'POST /api/v1/skus - Modules Warehouse Http Controllers SkuGovernanceController store'
+      summary: 'POST /api/v1/skus - Modules Warehouse Http Controllers CurrentBaselineSkuController store'
       operationId: post_api_v1_skus
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2257,15 +4116,35 @@ paths:
       summary: 'POST /api/v1/skus/import-excel - Modules Warehouse Http Controllers ImportController importExcel'
       operationId: post_api_v1_skus_import_excel
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2279,12 +4158,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2304,19 +4195,31 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
         - '05. Product'
-      summary: 'PATCH /api/v1/skus/{id} - Modules Warehouse Http Controllers SkuGovernanceController update'
+      summary: 'PATCH /api/v1/skus/{id} - Modules Warehouse Http Controllers CurrentBaselineSkuController update'
       operationId: patch_api_v1_skus_id
       parameters:
         -
@@ -2325,15 +4228,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2341,7 +4264,7 @@ paths:
     post:
       tags:
         - '05. Product'
-      summary: 'POST /api/v1/skus/{id}/physical-codes - Modules Warehouse Http Controllers SkuGovernanceController addPhysicalCode'
+      summary: 'POST /api/v1/skus/{id}/physical-codes - Modules Warehouse Http Controllers CurrentBaselineItemIdentityController assign'
       operationId: post_api_v1_skus_id_physical_codes
       parameters:
         -
@@ -2350,15 +4273,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2366,7 +4309,7 @@ paths:
     delete:
       tags:
         - '05. Product'
-      summary: 'DELETE /api/v1/skus/{id}/physical-codes/{physicalCodeId} - Modules Warehouse Http Controllers SkuGovernanceController revokePhysicalCode'
+      summary: 'DELETE /api/v1/skus/{id}/physical-codes/{physicalCodeId} - Modules Warehouse Http Controllers CurrentBaselineItemIdentityController revoke'
       operationId: delete_api_v1_skus_id_physical_codes_physicalcodeid
       parameters:
         -
@@ -2384,12 +4327,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2403,12 +4358,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2428,12 +4395,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2453,12 +4432,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2466,36 +4457,123 @@ paths:
     get:
       tags:
         - '02. Users'
-      summary: 'GET /api/v1/users - Modules Auth Http Controllers UserController index'
-      operationId: get_api_v1_users
-      parameters: []
+      summary: 'Danh sách người dùng (phân trang, filter theo keyword/status)'
+      operationId: user_list
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+              - LOCKED
       responses:
         200:
-          description: OK
+          description: 'Danh sách người dùng'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền user.view'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
         - '02. Users'
-      summary: 'POST /api/v1/users - Modules Auth Http Controllers UserController store'
-      operationId: post_api_v1_users
+      summary: 'Tạo người dùng mới'
+      operationId: user_create
       parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - username
+                - display_name
+                - password
+              properties:
+                username:
+                  type: string
+                  maxLength: 100
+                display_name:
+                  type: string
+                  maxLength: 255
+                email:
+                  type: string
+                  format: email
+                  nullable: true
+                phone:
+                  type: string
+                  nullable: true
+                  maxLength: 30
+                password:
+                  type: string
+                  minLength: 8
+                status:
+                  type: string
+                  nullable: true
+                  enum:
+                    - ACTIVE
+                    - INACTIVE
+                    - LOCKED
+              type: object
       responses:
+        201:
+          description: 'Tạo người dùng thành công'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền user.manage'
+        422:
+          description: 'Dữ liệu không hợp lệ (vd: username đã tồn tại)'
         200:
           description: OK
-        401:
-          description: Unauthenticated
-        403:
-          description: Forbidden
-        422:
-          description: 'Validation error'
+        400:
+          description: 'Malformed request'
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2503,8 +4581,8 @@ paths:
     get:
       tags:
         - '02. Users'
-      summary: 'GET /api/v1/users/{id} - Modules Auth Http Controllers UserController show'
-      operationId: get_api_v1_users_id
+      summary: 'Chi tiết người dùng'
+      operationId: user_detail
       parameters:
         -
           name: id
@@ -2512,23 +4590,36 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: OK
+          description: 'Chi tiết người dùng'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
+        404:
+          description: 'Không tìm thấy người dùng'
+        400:
+          description: 'Malformed request'
         403:
           description: Forbidden
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     delete:
       tags:
         - '02. Users'
-      summary: 'DELETE /api/v1/users/{id} - Modules Auth Http Controllers UserController destroy'
-      operationId: delete_api_v1_users_id
+      summary: 'Xoá người dùng (soft delete, bị chặn nếu đang được tham chiếu)'
+      operationId: user_delete
       parameters:
         -
           name: id
@@ -2536,23 +4627,36 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: OK
+          description: 'Xoá thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền user.manage'
+        404:
+          description: 'Không tìm thấy người dùng'
+        409:
+          description: 'Đang được tham chiếu, không thể xoá'
+        400:
+          description: 'Malformed request'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     patch:
       tags:
         - '02. Users'
-      summary: 'PATCH /api/v1/users/{id} - Modules Auth Http Controllers UserController update'
-      operationId: patch_api_v1_users_id
+      summary: 'Sửa người dùng'
+      operationId: user_update
       parameters:
         -
           name: id
@@ -2560,15 +4664,62 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                username:
+                  type: string
+                  maxLength: 100
+                display_name:
+                  type: string
+                  maxLength: 255
+                email:
+                  type: string
+                  format: email
+                  nullable: true
+                phone:
+                  type: string
+                  nullable: true
+                  maxLength: 30
+                password:
+                  type: string
+                  minLength: 8
+                status:
+                  type: string
+                  nullable: true
+                  enum:
+                    - ACTIVE
+                    - INACTIVE
+                    - LOCKED
+                version:
+                  description: 'Optimistic locking: gửi kèm version hiện tại để tránh ghi đè thay đổi song song'
+                  type: integer
+                  nullable: true
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Cập nhật thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền user.manage'
+        404:
+          description: 'Không tìm thấy người dùng'
+        409:
+          description: 'version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác'
         422:
-          description: 'Validation error'
+          description: 'Dữ liệu không hợp lệ'
+        400:
+          description: 'Malformed request'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2576,8 +4727,8 @@ paths:
     post:
       tags:
         - '02. Users'
-      summary: 'POST /api/v1/users/{id}/roles - Modules Auth Http Controllers UserController assignRoles'
-      operationId: post_api_v1_users_id_roles
+      summary: 'Gán danh sách role cho người dùng (thay thế toàn bộ role hiện có)'
+      operationId: user_assign_roles
       parameters:
         -
           name: id
@@ -2585,15 +4736,42 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - role_ids
+              properties:
+                role_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              type: object
       responses:
         200:
-          description: OK
+          description: 'Gán role thành công'
         401:
-          description: Unauthenticated
+          description: 'Chưa xác thực'
         403:
-          description: Forbidden
+          description: 'Không có quyền user.manage'
+        404:
+          description: 'Không tìm thấy người dùng'
         422:
-          description: 'Validation error'
+          description: 'role_ids không hợp lệ'
+        400:
+          description: 'Malformed request'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2607,12 +4785,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2632,12 +4822,24 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2653,60 +4855,112 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   /api/v1/warranty-cases:
     get:
       tags:
-        - '20. Warranty'
+        - '13. Warranty'
       summary: 'GET /api/v1/warranty-cases - Modules Warehouse Http Controllers CanonicalMvpController listWarrantyCases'
       operationId: get_api_v1_warranty_cases
       parameters: []
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
     post:
       tags:
-        - '20. Warranty'
-      summary: 'POST /api/v1/warranty-cases - Modules Warehouse Http Controllers CanonicalMvpController storeWarrantyCase'
+        - '13. Warranty'
+      summary: 'POST /api/v1/warranty-cases - Modules Warehouse Http Controllers CurrentBaselineWarrantyController storeWarrantyCase'
       operationId: post_api_v1_warranty_cases
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   '/api/v1/warranty-cases/{id}':
     patch:
       tags:
-        - '20. Warranty'
-      summary: 'PATCH /api/v1/warranty-cases/{id} - Modules Warehouse Http Controllers CanonicalMvpController updateWarrantyCase'
+        - '13. Warranty'
+      summary: 'PATCH /api/v1/warranty-cases/{id} - Modules Warehouse Http Controllers CurrentBaselineWarrantyController updateWarrantyCase'
       operationId: patch_api_v1_warranty_cases_id
       parameters:
         -
@@ -2715,22 +4969,42 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   '/api/v1/warranty-cases/{id}/events':
     get:
       tags:
-        - '20. Warranty'
+        - '13. Warranty'
       summary: 'GET /api/v1/warranty-cases/{id}/events - Modules Warehouse Http Controllers CanonicalMvpController listWarrantyEvents'
       operationId: get_api_v1_warranty_cases_id_events
       parameters:
@@ -2743,19 +5017,31 @@ paths:
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
   '/api/v1/warranty-cases/{id}/temp-only':
     post:
       tags:
-        - '20. Warranty'
+        - '13. Warranty'
       summary: 'POST /api/v1/warranty-cases/{id}/temp-only - Modules Warehouse Http Controllers WarrantyController tempOnly'
       operationId: post_api_v1_warranty_cases_id_temp_only
       parameters:
@@ -2765,15 +5051,35 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: OK
+        400:
+          description: 'Malformed request'
         401:
           description: Unauthenticated
         403:
           description: Forbidden
+        404:
+          description: 'Resource not found or outside scope'
+        409:
+          description: 'State, business, idempotency or concurrency conflict'
+        412:
+          description: 'If-Match precondition failed'
         422:
-          description: 'Validation error'
+          description: 'Validation or business-rule error'
+        428:
+          description: 'Required If-Match precondition missing'
+        500:
+          description: 'Unexpected server error; transaction rolled back'
       security:
         -
           bearerAuth: []
@@ -2783,3 +5089,70 @@ components:
       type: http
       bearerFormat: JWT
       scheme: bearer
+tags:
+  -
+    name: '00. Platform'
+    description: 'Health and platform-level endpoints.'
+  -
+    name: '01. Authentication'
+    description: 'JWT authentication and current-user context.'
+  -
+    name: '02. Users'
+    description: 'IAM user management.'
+  -
+    name: '03. Roles'
+    description: 'IAM role and role-permission management.'
+  -
+    name: '04. Permissions'
+    description: 'IAM permission catalog.'
+  -
+    name: '05. Product'
+    description: 'SKU and product endpoints.'
+  -
+    name: '06. Warehouse'
+    description: 'Hoa Nam single-warehouse master.'
+  -
+    name: '07. Inventory'
+    description: 'Inventory balance, movement trace and reconciliation.'
+  -
+    name: '08. Catalog Master'
+    description: 'Reference product masters.'
+  -
+    name: '09. Stock In (Inbound)'
+    description: 'Inbound full-post flow.'
+  -
+    name: '10. Stock Out (Outbound)'
+    description: 'Outbound import/match/full-post flow.'
+  -
+    name: '11. Scan'
+    description: 'Scan classification endpoints.'
+  -
+    name: '12. Dashboard / Report'
+    description: 'Inventory and dashboard reporting.'
+  -
+    name: '13. Warranty'
+    description: 'Warranty cases and warranty events.'
+  -
+    name: '14. Component Issue'
+    description: 'Warranty-only component issue documents.'
+  -
+    name: '15. Audit Log'
+    description: 'Append-only audit evidence.'
+  -
+    name: '16. Agency'
+    description: 'Recipient master endpoints.'
+  -
+    name: '17. Defect Catalog'
+    description: 'Warranty defect master.'
+  -
+    name: '18. Physical Inventory'
+    description: 'Item instances, physical codes, import batches and containers.'
+  -
+    name: '19. Label / Printer'
+    description: 'Label snapshots, printing and reprint evidence.'
+  -
+    name: '20. System Operation'
+    description: 'Reserved for operational administration endpoints.'
+  -
+    name: '21. Public Catalog'
+    description: 'Read-only PV catalog/recommendation endpoints.'

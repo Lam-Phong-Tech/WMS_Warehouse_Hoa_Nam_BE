@@ -20,6 +20,8 @@ if ! grep -q "^JWT_SECRET=.\+" .env; then
 fi
 
 php artisan migrate --force
-php artisan storage:link || true
+if [ ! -e public/storage ] && [ ! -L public/storage ]; then
+    php artisan storage:link
+fi
 
 exec "$@"

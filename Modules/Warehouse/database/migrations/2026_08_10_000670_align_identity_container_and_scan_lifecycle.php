@@ -67,6 +67,7 @@ return new class extends Migration
 
         DB::table('physical_codes')->where('assigned_object_type', 'ITEM')->whereNotNull('assigned_object_id')->update(['item_id' => DB::raw('assigned_object_id')]);
         DB::table('physical_codes')->where('assigned_object_type', 'CONTAINER')->whereNotNull('assigned_object_id')->update(['container_id' => DB::raw('assigned_object_id')]);
+        $this->backfillPhysicalCodeTargetsFromOwners();
         DB::table('physical_codes')->whereNull('assigned_at')->update(['assigned_at' => DB::raw('created_at')]);
 
         $this->addForeignKey('physical_codes', 'item_id', 'item_instances', 'item_id', 'fk_physical_codes_item', 'cascade');
@@ -76,6 +77,43 @@ return new class extends Migration
         $this->addForeignKey('physical_codes', 'updated_by', 'app_user', 'user_id', 'fk_physical_codes_updated_by', 'set null');
         $this->addIndex('physical_codes', ['item_id', 'status'], 'idx_physical_codes_item_status');
         $this->addIndex('physical_codes', ['container_id', 'status'], 'idx_physical_codes_container_status');
+    }
+
+    private function backfillPhysicalCodeTargetsFromOwners(): void
+    {
+        if (Schema::hasTable('item_instances') && Schema::hasColumn('item_instances', 'physical_code_id')) {
+            DB::table('item_instances')
+                ->whereNotNull('physical_code_id')
+                ->orderBy('item_id')
+                ->each(function (object $item): void {
+                    DB::table('physical_codes')
+                        ->where('physical_code_id', $item->physical_code_id)
+                        ->whereNull('item_id')
+                        ->whereNull('container_id')
+                        ->update([
+                            'assigned_object_type' => 'ITEM',
+                            'assigned_object_id' => $item->item_id,
+                            'item_id' => $item->item_id,
+                        ]);
+                });
+        }
+
+        if (Schema::hasTable('containers') && Schema::hasColumn('containers', 'physical_code_id')) {
+            DB::table('containers')
+                ->whereNotNull('physical_code_id')
+                ->orderBy('container_id')
+                ->each(function (object $container): void {
+                    DB::table('physical_codes')
+                        ->where('physical_code_id', $container->physical_code_id)
+                        ->whereNull('item_id')
+                        ->whereNull('container_id')
+                        ->update([
+                            'assigned_object_type' => 'CONTAINER',
+                            'assigned_object_id' => $container->container_id,
+                            'container_id' => $container->container_id,
+                        ]);
+                });
+        }
     }
 
     private function alignContainers(): void
@@ -94,6 +132,7 @@ return new class extends Migration
                 $table->uuid('updated_by')->nullable();
             }
         });
+        DB::table('containers')->where('status', 'ACTIVE')->update(['status' => 'IN_STOCK']);
         $this->addForeignKey('containers', 'migration_run_id', 'migration_runs', 'id', 'fk_containers_migration_run', 'set null');
         $this->addForeignKey('containers', 'created_by', 'app_user', 'user_id', 'fk_containers_created_by', 'set null');
         $this->addForeignKey('containers', 'updated_by', 'app_user', 'user_id', 'fk_containers_updated_by', 'set null');

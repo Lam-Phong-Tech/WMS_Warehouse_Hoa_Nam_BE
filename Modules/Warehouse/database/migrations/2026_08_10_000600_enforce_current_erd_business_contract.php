@@ -17,6 +17,7 @@ return new class extends Migration
         $this->alignComponentIssueContract();
         $this->alignPrinterContract();
         $this->enforceOperationalRelationships();
+        $this->dropQuantityDependentViewsOnPostgres();
         $this->enforceIntegerQuantitiesOnPostgres();
         $this->refreshCanonicalViews();
         $this->addPostgresChecks();
@@ -300,6 +301,17 @@ return new class extends Migration
             }
 
             DB::statement("ALTER TABLE {$table} ALTER COLUMN {$column} TYPE BIGINT USING {$column}::bigint");
+        }
+    }
+
+    private function dropQuantityDependentViewsOnPostgres(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        foreach (['inventory_movements', 'inbound_lines', 'outbound_lines', 'reversal_lines'] as $view) {
+            DB::statement("DROP VIEW IF EXISTS {$view}");
         }
     }
 

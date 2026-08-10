@@ -48,14 +48,50 @@ return new class extends Migration
         }
 
         $target = HoaNamErdSchema::postgresType($documentedType, true);
+        $using = $this->typeCastExpression($table, $field, $target, (string) $actual->data_type);
         DB::statement(sprintf(
-            'ALTER TABLE %s ALTER COLUMN %s TYPE %s USING %s::%s',
+            'ALTER TABLE %s ALTER COLUMN %s TYPE %s USING %s',
             HoaNamErdSchema::quote($table),
             HoaNamErdSchema::quote($field),
             $target,
-            HoaNamErdSchema::quote($field),
-            $target,
+            $using,
         ));
+    }
+
+    private function typeCastExpression(string $table, string $field, string $target, string $actualType): string
+    {
+        $quoted = HoaNamErdSchema::quote($field);
+
+        if ($target === 'uuid') {
+            if (in_array($actualType, ['character varying', 'character', 'text'], true)) {
+                return sprintf(
+                    "CASE WHEN %s ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN %s::uuid ELSE %s END",
+                    $quoted,
+                    $quoted,
+                    $this->legacyUuidExpression($quoted),
+                );
+            }
+
+            return $this->legacyUuidExpression($quoted);
+        }
+
+        if ($table === 'idempotency_records' && $field === 'request_hash' && $target === 'char(64)') {
+            return sprintf(
+                "CASE WHEN %s::text ~ '^v2:[a-f0-9]{64}' THEN substring(%s::text from 4 for 64) ELSE substring(%s::text from 1 for 64) END::char(64)",
+                $quoted,
+                $quoted,
+                $quoted,
+            );
+        }
+
+        return "{$quoted}::{$target}";
+    }
+
+    private function legacyUuidExpression(string $sqlExpression): string
+    {
+        $hash = "md5('hoa-nam-legacy-id:' || {$sqlExpression}::text)";
+
+        return "((substr({$hash}, 1, 8) || '-' || substr({$hash}, 9, 4) || '-' || substr({$hash}, 13, 4) || '-' || substr({$hash}, 17, 4) || '-' || substr({$hash}, 21, 12))::uuid)";
     }
 
     private function applyDefault(string $table, string $field, string $key): void
@@ -123,12 +159,13 @@ return new class extends Migration
             if (! Schema::hasColumn($table, $target) || ! Schema::hasColumn($table, $source)) {
                 continue;
             }
+            $sourceExpression = $this->coalesceSourceExpression($table, $target, $source);
             DB::statement(sprintf(
                 'UPDATE %s SET %s = COALESCE(%s, %s) WHERE %s IS NULL',
                 HoaNamErdSchema::quote($table),
                 HoaNamErdSchema::quote($target),
                 HoaNamErdSchema::quote($target),
-                HoaNamErdSchema::quote($source),
+                $sourceExpression,
                 HoaNamErdSchema::quote($target),
             ));
         }
@@ -168,10 +205,30 @@ return new class extends Migration
         }
     }
 
+    private function coalesceSourceExpression(string $table, string $target, string $source): string
+    {
+        $types = DB::table('information_schema.columns')
+            ->where('table_schema', DB::raw('current_schema()'))
+            ->where('table_name', $table)
+            ->whereIn('column_name', [$target, $source])
+            ->pluck('data_type', 'column_name');
+
+        $targetType = $types[$target] ?? null;
+        $sourceType = $types[$source] ?? null;
+        if ($targetType === 'jsonb' && $sourceType === 'json') {
+            return HoaNamErdSchema::quote($source).'::jsonb';
+        }
+        if ($targetType === 'json' && $sourceType === 'jsonb') {
+            return HoaNamErdSchema::quote($source).'::json';
+        }
+
+        return HoaNamErdSchema::quote($source);
+    }
+
     private function backfillMaterializedProjections(): void
     {
         if (Schema::hasTable('idempotency_records')) {
-            DB::statement("UPDATE idempotency_records SET scope = COALESCE(scope, operation, 'LEGACY'), response_status = COALESCE(response_status, response_code), resource_type = COALESCE(resource_type, operation), created_by = COALESCE(created_by, user_id) WHERE scope IS NULL OR resource_type IS NULL");
+            DB::statement("UPDATE idempotency_records SET scope = COALESCE(scope, operation, 'LEGACY'), response_status = COALESCE(response_status, response_code), resource_type = COALESCE(resource_type, operation), created_by = COALESCE(created_by, CASE WHEN user_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN user_id::uuid ELSE NULL END) WHERE scope IS NULL OR resource_type IS NULL OR created_by IS NULL");
         }
         if (Schema::hasTable('scan_events')) {
             DB::statement("UPDATE scan_events SET context_type = COALESCE(context_type, resolved_object_type, 'LEGACY_SCAN'), scan_source = COALESCE(scan_source, CASE WHEN physical_code_id IS NULL THEN 'MANUAL' ELSE 'HARDWARE' END), code_value = COALESCE(code_value, raw_code), classification = COALESCE(classification, CASE WHEN resolved_object_type IN ('ITEM','CARTON','BOX','TRAY') THEN resolved_object_type ELSE 'UNKNOWN' END), result = COALESCE(result, CASE WHEN result_status IN ('SUCCESS','DUPLICATE','UNKNOWN','INVALID','WRONG_SKU','WRONG_STATE','ERROR') THEN result_status WHEN result_status IN ('FOUND','OK') THEN 'SUCCESS' ELSE 'ERROR' END), scanned_at = COALESCE(scanned_at, created_at) WHERE context_type IS NULL OR scan_source IS NULL OR code_value IS NULL OR result IS NULL OR scanned_at IS NULL");

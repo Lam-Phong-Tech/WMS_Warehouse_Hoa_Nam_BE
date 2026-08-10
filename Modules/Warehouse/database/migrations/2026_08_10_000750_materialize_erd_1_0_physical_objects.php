@@ -82,8 +82,33 @@ return new class extends Migration
             return;
         }
 
+        if ($table === 'idempotency_records') {
+            DB::statement('CREATE TABLE idempotency_records AS SELECT '.
+                $this->legacyUuidExpression('id').' AS id, '.
+                "COALESCE(operation, 'LEGACY') AS scope, ".
+                'idempotency_key::varchar(200) AS idempotency_key, '.
+                "CASE WHEN request_hash::text ~ '^v2:[a-f0-9]{64}' THEN substring(request_hash::text from 4 for 64) ELSE substring(request_hash::text from 1 for 64) END::char(64) AS request_hash, ".
+                'response_code::integer AS response_status, '.
+                'response_body::jsonb AS response_body, '.
+                'operation::varchar(80) AS resource_type, '.
+                'NULL::uuid AS resource_id, '.
+                'locked_until AS expires_at, '.
+                'created_at, '.
+                'user_id, operation, business_key, status, response_code, locked_until, completed_at, updated_at '.
+                'FROM idempotency_records__legacy_projection');
+
+            return;
+        }
+
         DB::statement(
             'CREATE TABLE '.HoaNamErdSchema::quote($table).' AS SELECT * FROM '.HoaNamErdSchema::quote($projection)
         );
+    }
+
+    private function legacyUuidExpression(string $sqlExpression): string
+    {
+        $hash = "md5('hoa-nam-legacy-id:' || {$sqlExpression}::text)";
+
+        return "((substr({$hash}, 1, 8) || '-' || substr({$hash}, 9, 4) || '-' || substr({$hash}, 13, 4) || '-' || substr({$hash}, 17, 4) || '-' || substr({$hash}, 21, 12))::uuid)";
     }
 };

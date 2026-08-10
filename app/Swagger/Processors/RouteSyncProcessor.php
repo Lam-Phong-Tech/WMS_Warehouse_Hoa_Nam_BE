@@ -25,6 +25,31 @@ class RouteSyncProcessor
         500 => 'Unexpected server error; transaction rolled back',
     ];
 
+    private const TAGS = [
+        '00. Platform' => 'Health and platform-level endpoints.',
+        '01. Authentication' => 'JWT authentication and current-user context.',
+        '02. Users' => 'IAM user management.',
+        '03. Roles' => 'IAM role and role-permission management.',
+        '04. Permissions' => 'IAM permission catalog.',
+        '05. Product' => 'SKU and product endpoints.',
+        '06. Warehouse' => 'Hoa Nam single-warehouse master.',
+        '07. Inventory' => 'Inventory balance, movement trace and reconciliation.',
+        '08. Catalog Master' => 'Reference product masters.',
+        '09. Stock In (Inbound)' => 'Inbound full-post flow.',
+        '10. Stock Out (Outbound)' => 'Outbound import/match/full-post flow.',
+        '11. Scan' => 'Scan classification endpoints.',
+        '12. Dashboard / Report' => 'Inventory and dashboard reporting.',
+        '13. Warranty' => 'Warranty cases and warranty events.',
+        '14. Component Issue' => 'Warranty-only component issue documents.',
+        '15. Audit Log' => 'Append-only audit evidence.',
+        '16. Agency' => 'Recipient master endpoints.',
+        '17. Defect Catalog' => 'Warranty defect master.',
+        '18. Physical Inventory' => 'Item instances, physical codes, import batches and containers.',
+        '19. Label / Printer' => 'Label snapshots, printing and reprint evidence.',
+        '20. System Operation' => 'Reserved for operational administration endpoints.',
+        '21. Public Catalog' => 'Read-only PV catalog/recommendation endpoints.',
+    ];
+
     public function __invoke(Analysis $analysis): void
     {
         $openApi = $analysis->openapi;
@@ -69,11 +94,30 @@ class RouteSyncProcessor
 
             if (Undefined::isDefault($paths[$path]->{$method})) {
                 $paths[$path]->{$method} = $this->operation($route);
+            } else {
+                $this->hydrateOperation($paths[$path]->{$method}, $route);
             }
         }
 
         ksort($paths);
+        $openApi->tags = $this->tags();
         $openApi->paths = array_values($paths);
+    }
+
+    /** @return array<int, OA\Tag> */
+    private function tags(): array
+    {
+        $tags = [];
+
+        foreach (self::TAGS as $name => $description) {
+            $tags[] = new OA\Tag([
+                'name' => $name,
+                'description' => $description,
+                '_context' => $this->context(),
+            ]);
+        }
+
+        return $tags;
     }
 
     /**
@@ -148,7 +192,49 @@ class RouteSyncProcessor
             'tags' => [$this->tag($route['uri'])],
             'security' => $this->requiresAuth($route['middleware']) ? [['bearerAuth' => []]] : [],
             'parameters' => $this->pathParameters($route['path']),
+            'requestBody' => $this->requestBody($route['method']),
             'responses' => $responses,
+            '_context' => $this->context(),
+        ]);
+    }
+
+    /**
+     * Keep handwritten OpenAPI details such as requestBody/query schemas, while
+     * enforcing route-derived grouping/security and baseline error responses.
+     *
+     * @param array{method: string, path: string, uri: string, action: string, middleware: array<int, string>} $route
+     */
+    private function hydrateOperation(OA\Operation $operation, array $route): void
+    {
+        $operation->tags = [$this->tag($route['uri'])];
+        $operation->security = $this->requiresAuth($route['middleware']) ? [['bearerAuth' => []]] : [];
+        $operation->parameters = $this->mergePathParameters($operation->parameters, $route['path']);
+        if (Undefined::isDefault($operation->requestBody)) {
+            $operation->requestBody = $this->requestBody($route['method']);
+        }
+        $operation->responses = $this->mergeBaselineResponses($operation->responses);
+    }
+
+    private function requestBody(string $method): OA\RequestBody|string
+    {
+        if (! in_array($method, ['post', 'put', 'patch'], true)) {
+            return Undefined::UNDEFINED;
+        }
+
+        return new OA\RequestBody([
+            'required' => false,
+            'content' => [
+                new OA\MediaType([
+                    'mediaType' => 'application/json',
+                    'schema' => new OA\Schema([
+                        'type' => 'object',
+                        'additionalProperties' => true,
+                        'example' => new \stdClass(),
+                        '_context' => $this->context(),
+                    ]),
+                    '_context' => $this->context(),
+                ]),
+            ],
             '_context' => $this->context(),
         ]);
     }
@@ -168,6 +254,52 @@ class RouteSyncProcessor
             ]),
             '_context' => $this->context(),
         ]), $matches[1] ?? []);
+    }
+
+    /** @param mixed $parameters */
+    private function mergePathParameters(mixed $parameters, string $path): array
+    {
+        $merged = Undefined::isDefault($parameters) ? [] : (array) $parameters;
+        $existing = [];
+
+        foreach ($merged as $parameter) {
+            if ($parameter instanceof OA\Parameter && ! Undefined::isDefault($parameter->name) && ! Undefined::isDefault($parameter->in)) {
+                $existing[$parameter->in.':'.$parameter->name] = true;
+            }
+        }
+
+        foreach ($this->pathParameters($path) as $parameter) {
+            if (! isset($existing['path:'.$parameter->name])) {
+                $merged[] = $parameter;
+            }
+        }
+
+        return $merged;
+    }
+
+    /** @param mixed $responses */
+    private function mergeBaselineResponses(mixed $responses): array
+    {
+        $merged = Undefined::isDefault($responses) ? [] : (array) $responses;
+        $existing = [];
+
+        foreach ($merged as $response) {
+            if ($response instanceof OA\Response && ! Undefined::isDefault($response->response)) {
+                $existing[(string) $response->response] = true;
+            }
+        }
+
+        foreach ([200 => 'OK'] + self::ERROR_RESPONSES as $status => $description) {
+            if (! isset($existing[(string) $status])) {
+                $merged[] = new OA\Response([
+                    'response' => $status,
+                    'description' => $description,
+                    '_context' => $this->context(),
+                ]);
+            }
+        }
+
+        return $merged;
     }
 
     private function hasOperations(OA\PathItem $pathItem): bool
@@ -216,18 +348,21 @@ class RouteSyncProcessor
             'users' => '02. Users',
             'roles' => '03. Roles',
             'permissions' => '04. Permissions',
-            'products', 'skus', 'brands', 'product-categories', 'product-models', 'power-sources', 'package-variants' => '05. Product',
+            'products', 'skus', 'product-masters' => '05. Product',
             'warehouses' => '06. Warehouse',
-            'inventory', 'stock-movements', 'document-status-history', 'scan' => '07. Inventory',
+            'inventory', 'stock-movements', 'document-status-history' => '07. Inventory',
+            'brands', 'product-categories', 'product-models', 'power-sources', 'package-variants' => '08. Catalog Master',
             'inbound-documents' => '09. Stock In (Inbound)',
             'outbound-documents', 'outbound-request-imports' => '10. Stock Out (Outbound)',
+            'scan' => '11. Scan',
             'reports' => '12. Dashboard / Report',
+            'warranty-cases' => '13. Warranty',
+            'component-issue-documents' => '14. Component Issue',
             'audit-logs' => '15. Audit Log',
             'agencies' => '16. Agency',
             'defect-catalogs' => '17. Defect Catalog',
             'containers', 'item-instances', 'physical-codes', 'import-batches' => '18. Physical Inventory',
             'label-snapshots', 'printer-configs' => '19. Label / Printer',
-            'warranty-cases', 'component-issue-documents' => '20. Warranty',
             'pv' => '21. Public Catalog',
             default => '00. Platform',
         };

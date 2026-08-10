@@ -49,6 +49,9 @@ return [
                  */
                 'annotations' => [
                     base_path('app/Swagger'),
+                    base_path('app/Http/Controllers'),
+                    base_path('Modules/Auth/app/Http/Controllers'),
+                    base_path('Modules/AuditLog/app/Http/Controllers'),
                 ],
             ],
         ],
@@ -161,7 +164,7 @@ return [
             'processors' => [
                 // \App\SwaggerProcessors\SchemaQueryParameter::class,
                 // ['class' => \App\SwaggerProcessors\Custom::class, 'after' => \OpenApi\Processors\AugmentSchemas::class],
-                ['class' => \App\Swagger\Processors\RouteSyncProcessor::class, 'after' => \OpenApi\Processors\BuildPaths::class],
+                ['class' => \App\Swagger\Processors\RouteSyncProcessor::class, 'after' => \OpenApi\Processors\AugmentTags::class],
             ],
 
             /**
@@ -178,8 +181,10 @@ return [
              */
             'exclude' => [
                 base_path('Modules/Warehouse/app/Http/Controllers/DocumentStatusTransitionController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/InventoryReservationController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/InventorySnapshotController.php'),
+                base_path('Modules/Warehouse/app/Http/Controllers/OutboundDocumentController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/SafeStockAlertController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/SafeStockConfigController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/StockRequestController.php'),

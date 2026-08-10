@@ -23,12 +23,14 @@ return new class extends Migration
                     $this->unique($table, [$field], 'ux_erd_'.$table.'_'.$field);
                 }
             }
+            $compositeOverride = $this->canonicalCompositeKey($table);
+            $pk = $compositeOverride ?? $pk;
 
             if ($pk !== []) {
                 $this->canonicalKey($table, $pk);
             }
 
-            if (preg_match_all('/\bPK\(([^)]+)\)/i', $definition['section'], $matches)) {
+            if ($compositeOverride === null && preg_match_all('/\bPK\(([^)]+)\)/i', $definition['section'], $matches)) {
                 foreach ($matches[1] as $raw) {
                     $fields = $this->parseColumns($raw);
                     if ($fields !== []) {
@@ -52,6 +54,18 @@ return new class extends Migration
         // Fail-forward canonical key preparation.
     }
 
+    /** @return array<int,string>|null */
+    private function canonicalCompositeKey(string $table): ?array
+    {
+        return match ($table) {
+            'user_roles' => ['user_id', 'role_id'],
+            'role_permissions' => ['role_id', 'permission_id'],
+            'pv_product_industries' => ['profile_id', 'industry_id'],
+            'pv_product_tags' => ['profile_id', 'tag_id'],
+            default => null,
+        };
+    }
+
     /** @param array<int,string> $fields */
     private function canonicalKey(string $table, array $fields): void
     {
@@ -73,6 +87,10 @@ return new class extends Migration
     /** @param array<int,string> $fields */
     private function unique(string $table, array $fields, string $name): void
     {
+        if (collect($fields)->contains(fn (string $field): bool => ! Schema::hasColumn($table, $field))) {
+            return;
+        }
+
         $name = substr($name, 0, 63);
         DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS '.HoaNamErdSchema::quote($name).' ON '.HoaNamErdSchema::quote($table).' ('.implode(', ', array_map(HoaNamErdSchema::quote(...), $fields)).')');
     }

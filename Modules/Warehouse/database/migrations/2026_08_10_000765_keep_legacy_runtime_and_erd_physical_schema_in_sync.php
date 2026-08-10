@@ -15,6 +15,7 @@ return new class extends Migration
 
         $this->installSameTableCompatibilityTriggers();
         $this->installCanonicalNormalizerTriggers();
+        $this->installIdempotencyRecordMirror();
         $this->installProjectionMirrors();
         $this->installAuditMirror();
     }
@@ -101,10 +102,10 @@ return new class extends Migration
                 NEW.uploaded_by := COALESCE(NEW.uploaded_by, NEW.created_by);
             SQL,
             'outbound_request_import_rows' => <<<'SQL'
-                NEW.raw_data := COALESCE(NEW.raw_data, NEW.raw_payload);
-                NEW.raw_payload := COALESCE(NEW.raw_payload, NEW.raw_data);
-                NEW.errors := COALESCE(NEW.errors, NEW.validation_errors);
-                NEW.validation_errors := COALESCE(NEW.validation_errors, NEW.errors);
+                NEW.raw_data := COALESCE(NEW.raw_data, NEW.raw_payload::jsonb);
+                NEW.raw_payload := COALESCE(NEW.raw_payload, NEW.raw_data::json);
+                NEW.errors := COALESCE(NEW.errors, NEW.validation_errors::jsonb);
+                NEW.validation_errors := COALESCE(NEW.validation_errors, NEW.errors::json);
                 NEW.validation_status := CASE
                     WHEN NEW.validation_status IN ('VALID','ERROR','WARNING') THEN NEW.validation_status
                     WHEN NEW.validation_status IN ('PENDING','INVALID') THEN 'WARNING'
@@ -126,8 +127,8 @@ return new class extends Migration
                 END IF;
             SQL,
             'label_snapshots' => <<<'SQL'
-                NEW.payload := COALESCE(NEW.payload, NEW.label_payload, '{}'::jsonb);
-                NEW.label_payload := COALESCE(NEW.label_payload, NEW.payload);
+                NEW.payload := COALESCE(NEW.payload, NEW.label_payload::jsonb, '{}'::jsonb);
+                NEW.label_payload := COALESCE(NEW.label_payload, NEW.payload::json);
                 NEW.label_code := COALESCE(NEW.label_code, NEW.payload->>'label_code', 'LBL-' || NEW.id::text);
                 NEW.template_version := COALESCE(NEW.template_version, NEW.payload->>'template_version', 'v1');
                 SELECT COALESCE(NEW.outbound_document_id, l.stock_document_id),
@@ -150,8 +151,7 @@ return new class extends Migration
                  LIMIT 1;
             SQL,
             'printer_configs' => <<<'SQL'
-                NEW.printer_name := COALESCE(NEW.printer_name, NEW.name, NEW.printer_code);
-                NEW.name := COALESCE(NEW.name, NEW.printer_name);
+                NEW.printer_name := COALESCE(NEW.printer_name, NEW.printer_code);
                 NEW.agent_endpoint := COALESCE(NEW.agent_endpoint, NEW.agent_code);
                 NEW.agent_code := COALESCE(NEW.agent_code, NEW.agent_endpoint);
                 NEW.dpi := COALESCE(NEW.dpi, 203);
@@ -209,7 +209,7 @@ return new class extends Migration
                 NEW.scope := COALESCE(NEW.scope, NEW.operation, 'LEGACY');
                 NEW.response_status := COALESCE(NEW.response_status, NEW.response_code);
                 NEW.resource_type := COALESCE(NEW.resource_type, NEW.operation);
-                NEW.created_by := COALESCE(NEW.created_by, NEW.user_id);
+                NEW.created_by := COALESCE(NEW.created_by, CASE WHEN NEW.user_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN NEW.user_id::uuid ELSE NULL END);
             SQL,
             'scan_events' => <<<'SQL'
                 NEW.context_type := COALESCE(NEW.context_type, NEW.resolved_object_type, 'LEGACY_SCAN');
@@ -295,6 +295,60 @@ return new class extends Migration
         DB::statement('CREATE TRIGGER '.HoaNamErdSchema::quote($trigger).' BEFORE INSERT OR UPDATE ON '.HoaNamErdSchema::quote($table).' FOR EACH ROW EXECUTE FUNCTION '.HoaNamErdSchema::quote($function).'()');
     }
 
+    private function installIdempotencyRecordMirror(): void
+    {
+        if (HoaNamErdSchema::relationKind('idempotency_records') !== 'r'
+            || HoaNamErdSchema::relationKind('idempotency_records__legacy_projection') !== 'v'
+            || ! Schema::hasTable('idempotency_keys')) {
+            return;
+        }
+
+        $this->ensureUniqueKey('idempotency_records', ['id']);
+
+        DB::statement('CREATE OR REPLACE FUNCTION hn_erd_mirror_idempotency_records() RETURNS trigger AS $$ BEGIN
+            INSERT INTO idempotency_records (
+                id, scope, idempotency_key, request_hash, response_status, response_body,
+                resource_type, resource_id, expires_at, created_at, created_by,
+                user_id, operation, business_key, status, response_code, locked_until, completed_at, updated_at
+            )
+            SELECT '.
+                $this->legacyUuidExpression('p.id').' AS id,
+                COALESCE(p.operation, \'LEGACY\') AS scope,
+                p.idempotency_key::varchar(200),
+                CASE WHEN p.request_hash::text ~ \'^v2:[a-f0-9]{64}\' THEN substring(p.request_hash::text from 4 for 64) ELSE substring(p.request_hash::text from 1 for 64) END::char(64),
+                p.response_code::integer,
+                p.response_body::jsonb,
+                p.operation::varchar(80),
+                NULL::uuid,
+                p.locked_until,
+                p.created_at,
+                CASE WHEN p.user_id ~* \'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\' THEN p.user_id::uuid ELSE NULL END,
+                p.user_id, p.operation, p.business_key, p.status, p.response_code, p.locked_until, p.completed_at, p.updated_at
+            FROM idempotency_records__legacy_projection p
+            ON CONFLICT (id) DO UPDATE SET
+                scope = EXCLUDED.scope,
+                idempotency_key = EXCLUDED.idempotency_key,
+                request_hash = EXCLUDED.request_hash,
+                response_status = EXCLUDED.response_status,
+                response_body = EXCLUDED.response_body,
+                resource_type = EXCLUDED.resource_type,
+                expires_at = EXCLUDED.expires_at,
+                created_by = EXCLUDED.created_by,
+                user_id = EXCLUDED.user_id,
+                operation = EXCLUDED.operation,
+                business_key = EXCLUDED.business_key,
+                status = EXCLUDED.status,
+                response_code = EXCLUDED.response_code,
+                locked_until = EXCLUDED.locked_until,
+                completed_at = EXCLUDED.completed_at,
+                updated_at = EXCLUDED.updated_at;
+            RETURN NULL;
+        END; $$ LANGUAGE plpgsql');
+
+        DB::statement('DROP TRIGGER IF EXISTS trg_erd_mirror_idempotency_records_from_idempotency_keys ON idempotency_keys');
+        DB::statement('CREATE TRIGGER trg_erd_mirror_idempotency_records_from_idempotency_keys AFTER INSERT OR UPDATE OR DELETE ON idempotency_keys FOR EACH STATEMENT EXECUTE FUNCTION hn_erd_mirror_idempotency_records()');
+    }
+
     private function installProjectionMirrors(): void
     {
         $mappings = [
@@ -303,7 +357,6 @@ return new class extends Migration
             'permissions' => [['permission'], ['id']],
             'user_roles' => [['user_role'], ['user_id', 'role_id']],
             'role_permissions' => [['role_permission'], ['role_id', 'permission_id']],
-            'idempotency_records' => [['idempotency_keys'], ['id']],
             'skus' => [['sku'], ['id']],
             'sku_aliases' => [['sku_alias'], ['id']],
             'scan_events' => [['scan_event'], ['id']],
@@ -415,5 +468,12 @@ return new class extends Migration
         return collect($keys)
             ->map(fn (string $key): string => $left.'.'.HoaNamErdSchema::quote($key).' = '.$right.'.'.HoaNamErdSchema::quote($key))
             ->implode(' AND ');
+    }
+
+    private function legacyUuidExpression(string $sqlExpression): string
+    {
+        $hash = "md5('hoa-nam-legacy-id:' || {$sqlExpression}::text)";
+
+        return "((substr({$hash}, 1, 8) || '-' || substr({$hash}, 9, 4) || '-' || substr({$hash}, 13, 4) || '-' || substr({$hash}, 17, 4) || '-' || substr({$hash}, 21, 12))::uuid)";
     }
 };
