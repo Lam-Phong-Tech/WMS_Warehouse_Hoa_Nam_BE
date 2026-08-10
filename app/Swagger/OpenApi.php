@@ -41,4 +41,6 @@ use OpenApi\Attributes as OA;
         new OA\Tag(name: '21. Public Catalog', description: 'Read-only PV catalog/recommendation endpoints; no cart/order/payment/reservation.'),
     ]
 )]
-class OpenApi {}
+class OpenApi
+{
+}
