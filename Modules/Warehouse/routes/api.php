@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\AgencyController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\ContainerController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineContainerController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineMasterController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineStockController;
@@ -95,7 +96,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('containers', [ContainerController::class, 'index'])->middleware('permission:container.view');
         Route::post('containers', [ContainerController::class, 'store'])->middleware('permission:container.manage');
         Route::get('containers/{id}', [ContainerController::class, 'show'])->middleware('permission:container.view');
-        Route::patch('containers/{id}', [ContainerController::class, 'update'])->middleware('permission:container.manage');
+        Route::patch('containers/{id}', [CurrentBaselineContainerController::class, 'update'])->middleware('permission:container.manage');
         Route::post('containers/{id}/items', [ContainerController::class, 'addItem'])->middleware('permission:container.manage');
         Route::delete('containers/{id}/items/{containerItemId}', [ContainerController::class, 'removeItem'])->middleware('permission:container.manage');
 
