@@ -5,8 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Thùng CARTON, hộp linh kiện BOX và khay TRAY (ERD §5.2 container). Container/locator không
- * phải bucket tồn độc lập.
+ * Thùng CARTON, hộp linh kiện BOX và khay TRAY. `physical_code_id` chỉ là cột
+ * compatibility của schema cũ; canonical ERD map mã vật lý qua physical_codes.container_id.
  */
 return new class extends Migration
 {
@@ -16,7 +16,7 @@ return new class extends Migration
             $table->uuid('container_id')->primary();
             $table->string('container_code', 100)->unique();
             $table->string('container_type', 20); // CARTON | BOX | TRAY
-            $table->foreignUuid('physical_code_id')->unique()->constrained('physical_codes', 'physical_code_id')->restrictOnDelete();
+            $table->foreignUuid('physical_code_id')->nullable()->unique()->constrained('physical_codes', 'physical_code_id')->nullOnDelete();
             $table->foreignUuid('primary_sku_id')->nullable()->constrained('sku', 'sku_id')->nullOnDelete();
             $table->uuid('parent_container_id')->nullable();
             $table->string('zone_code', 50)->nullable();
@@ -29,7 +29,6 @@ return new class extends Migration
             $table->index('status', 'idx_containers_status');
         });
 
-        // FK tự tham chiếu thêm sau khi bảng đã tồn tại (Postgres cần PK đã commit trước).
         Schema::table('containers', function (Blueprint $table) {
             $table->foreign('parent_container_id')->references('container_id')->on('containers')->nullOnDelete();
         });
