@@ -22,6 +22,7 @@ class Sku extends Model
         'sku_code', 'sku_name', 'sku_type', 'unit', 'is_serial_tracked',
         'brand_id', 'category_id', 'model_id', 'power_or_voltage', 'package_variant',
         'version_code', 'warranty_applicable', 'specification', 'published_to_app', 'status',
+        'code', 'name',
     ];
 
     protected $casts = [
@@ -30,6 +31,38 @@ class Sku extends Model
         'published_to_app' => 'boolean',
         'specification' => 'array',
     ];
+
+    protected $appends = ['code', 'name', 'id'];
+
+    public function getCodeAttribute()
+    {
+        return $this->sku_code;
+    }
+
+    public function setCodeAttribute($value)
+    {
+        $this->attributes['sku_code'] = $value;
+    }
+
+    public function getNameAttribute()
+    {
+        return $this->sku_name;
+    }
+
+    public function setNameAttribute($value)
+    {
+        $this->attributes['sku_name'] = $value;
+    }
+
+    public function getIdAttribute()
+    {
+        return $this->sku_id;
+    }
+
+    public function setIdAttribute($value)
+    {
+        $this->sku_id = $value;
+    }
 
     public function brand(): BelongsTo
     {

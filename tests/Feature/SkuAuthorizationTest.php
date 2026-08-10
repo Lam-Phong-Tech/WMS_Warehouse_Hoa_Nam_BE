@@ -37,6 +37,7 @@ class SkuAuthorizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seed(\Modules\Auth\Database\Seeders\AuthDatabaseSeeder::class);
         Cache::flush();
     }
 
@@ -174,9 +175,9 @@ class SkuAuthorizationTest extends TestCase
     public function test_get_products_show_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
-            'code' => 'TEST-SHOW-001',
-            'name' => 'Test Show Product',
+        $product = \Modules\Warehouse\Models\Sku::create([
+            'sku_code' => 'TEST-SHOW-001',
+            'sku_name' => 'Test Show Product',
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -187,7 +188,7 @@ class SkuAuthorizationTest extends TestCase
         $this->getJson("/api/v1/products/{$product->id}", ['Authorization' => "Bearer {$tokenA}"])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.code', 'TEST-SHOW-001');
+            ->assertJsonPath('data.sku_code', 'TEST-SHOW-001');
 
         // User B (master.manage only) - should fail with 403
         $userB = $this->getMasterManageUser();
@@ -220,9 +221,9 @@ class SkuAuthorizationTest extends TestCase
     public function test_patch_products_enable_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
-            'code' => 'TEST-ENABLE-001',
-            'name' => 'Test Enable Product',
+        $product = \Modules\Warehouse\Models\Sku::create([
+            'sku_code' => 'TEST-ENABLE-001',
+            'sku_name' => 'Test Enable Product',
             'status' => 'INACTIVE',
             'version' => 1,
         ]);
@@ -266,9 +267,9 @@ class SkuAuthorizationTest extends TestCase
     public function test_patch_products_disable_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
-            'code' => 'TEST-DISABLE-001',
-            'name' => 'Test Disable Product',
+        $product = \Modules\Warehouse\Models\Sku::create([
+            'sku_code' => 'TEST-DISABLE-001',
+            'sku_name' => 'Test Disable Product',
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -398,7 +399,7 @@ class SkuAuthorizationTest extends TestCase
     public function test_get_skus_show_authorization(): void
     {
         // Create a product first
-        $product = \Modules\Warehouse\Models\Product::create([
+        $product = \Modules\Warehouse\Models\Sku::create([
             'code' => 'TEST-SKU-SHOW-001',
             'name' => 'Test SKU Show',
             'status' => 'ACTIVE',
@@ -411,7 +412,7 @@ class SkuAuthorizationTest extends TestCase
         $this->getJson("/api/v1/skus/{$product->id}", ['Authorization' => "Bearer {$tokenA}"])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.code', 'TEST-SKU-SHOW-001');
+            ->assertJsonPath('data.sku_code', 'TEST-SKU-SHOW-001');
 
         // User B (master.manage only) - should fail with 403
         $userB = $this->getMasterManageUser();

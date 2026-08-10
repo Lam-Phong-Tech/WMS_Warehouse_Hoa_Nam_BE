@@ -16,7 +16,7 @@ npm run api:postman
 
 | Tệp tin | Đường dẫn | Kích thước (Bytes) | Mã băm SHA-256 |
 |---|---|---|---|
-| **OpenAPI Specification** | `storage/api-docs/api-docs.json` | 285,244 | `fb279405024af882b6b9f59c13e1b53fe9acb2c6fd4700d8b9dded823babe085` |
-| **Postman Collection** | `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json` | 1,888,560 | `3024b6afaaacbcae90175c90ecfd9f5d02acba45181e9da3c5c2e1dbe21044e9` |
+| **OpenAPI Specification** | `storage/api-docs/api-docs.json` | 340,669 | `ccb06a36523ec9776f456b3f7b783cfcc934a32a85fccc8e27c7b53dc0e7e5a0` |
+| **Postman Collection** | `docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json` | 2,245,274 | `c571f0d1a1979625b0a8b8a992bd0d4967e024040d38e51280bb46ae0f267662` |
 
 Các mã băm này dùng để kiểm tra tính toàn vẹn và khớp phiên bản giữa các môi trường phát triển độc lập.

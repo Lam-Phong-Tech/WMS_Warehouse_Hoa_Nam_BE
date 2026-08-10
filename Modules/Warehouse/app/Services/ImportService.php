@@ -3,7 +3,7 @@
 namespace Modules\Warehouse\Services;
 
 use Illuminate\Support\Facades\DB;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;

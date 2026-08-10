@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="1050" viewBox="0 0 1600 1050" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333" />
+    </marker>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 34px; font-weight: 700; fill: #111827; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 18px; fill: #4b5563; }
+      .box-title { font-family: Arial, sans-serif; font-size: 19px; font-weight: 700; fill: #111827; }
+      .box-text { font-family: Arial, sans-serif; font-size: 15px; fill: #374151; }
+      .small { font-family: Arial, sans-serif; font-size: 14px; fill: #374151; }
+      .note { font-family: Arial, sans-serif; font-size: 16px; fill: #111827; font-weight: 600; }
+      .box { stroke:#1f2937; stroke-width:2; rx:18; ry:18; }
+      .arrow { stroke:#333; stroke-width:2.2; fill:none; marker-end:url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1050" fill="#f8fafc"/>
+  <text x="800" y="55" text-anchor="middle" class="title">LUỒNG ĐỒNG BỘ API CONTRACT: SWAGGER / OPENAPI → POSTMAN → FE / TESTER</text>
+  <text x="800" y="90" text-anchor="middle" class="subtitle">Mục tiêu: tránh Swagger một kiểu, Postman một kiểu, FE tích hợp một kiểu, Tester hiểu một kiểu</text>
+
+  <!-- Step boxes top row -->
+  <rect x="70" y="150" width="300" height="115" fill="#dbeafe" class="box"/>
+  <text x="220" y="185" text-anchor="middle" class="box-title">1. BA / Lead</text>
+  <text x="220" y="215" text-anchor="middle" class="box-text">Chốt nghiệp vụ</text>
+  <text x="220" y="238" text-anchor="middle" class="box-text">User Story + AC + Rule</text>
+
+  <rect x="460" y="150" width="300" height="115" fill="#dcfce7" class="box"/>
+  <text x="610" y="185" text-anchor="middle" class="box-title">2. Backend</text>
+  <text x="610" y="215" text-anchor="middle" class="box-text">Chuẩn hóa Swagger / OpenAPI</text>
+  <text x="610" y="238" text-anchor="middle" class="box-text">Endpoint + Request + Response</text>
+
+  <rect x="850" y="150" width="300" height="115" fill="#fef3c7" class="box"/>
+  <text x="1000" y="185" text-anchor="middle" class="box-title">3. Lead Review</text>
+  <text x="1000" y="215" text-anchor="middle" class="box-text">Kiểm tra API Contract</text>
+  <text x="1000" y="238" text-anchor="middle" class="box-text">Đúng nghiệp vụ + đúng chuẩn</text>
+
+  <rect x="1240" y="150" width="300" height="115" fill="#fce7f3" class="box"/>
+  <text x="1390" y="185" text-anchor="middle" class="box-title">4. Khóa OpenAPI</text>
+  <text x="1390" y="215" text-anchor="middle" class="box-text">Export/Public JSON/YAML</text>
+  <text x="1390" y="238" text-anchor="middle" class="box-text">Nguồn chuẩn duy nhất</text>
+
+  <!-- arrows top -->
+  <path d="M370 207 L460 207" class="arrow"/>
+  <path d="M760 207 L850 207" class="arrow"/>
+  <path d="M1150 207 L1240 207" class="arrow"/>
+
+  <!-- middle row -->
+  <rect x="1240" y="370" width="300" height="115" fill="#ede9fe" class="box"/>
+  <text x="1390" y="405" text-anchor="middle" class="box-title">5. Import Postman</text>
+  <text x="1390" y="435" text-anchor="middle" class="box-text">Generate Collection</text>
+  <text x="1390" y="458" text-anchor="middle" class="box-text">Folder theo module/tag</text>
+
+  <rect x="850" y="370" width="300" height="115" fill="#ccfbf1" class="box"/>
+  <text x="1000" y="405" text-anchor="middle" class="box-title">6. Tester</text>
+  <text x="1000" y="435" text-anchor="middle" class="box-text">Bổ sung Environment</text>
+  <text x="1000" y="458" text-anchor="middle" class="box-text">Test Script + Test Data</text>
+
+  <rect x="460" y="370" width="300" height="115" fill="#ffedd5" class="box"/>
+  <text x="610" y="405" text-anchor="middle" class="box-title">7. Frontend</text>
+  <text x="610" y="435" text-anchor="middle" class="box-text">Dùng cùng Collection</text>
+  <text x="610" y="458" text-anchor="middle" class="box-text">Đối chiếu request/response</text>
+
+  <rect x="70" y="370" width="300" height="115" fill="#e0f2fe" class="box"/>
+  <text x="220" y="405" text-anchor="middle" class="box-title">8. API Test</text>
+  <text x="220" y="435" text-anchor="middle" class="box-text">Tester chạy test/regression</text>
+  <text x="220" y="458" text-anchor="middle" class="box-text">Log bug nếu sai contract</text>
+
+  <!-- arrows middle -->
+  <path d="M1390 265 L1390 370" class="arrow"/>
+  <path d="M1240 427 L1150 427" class="arrow"/>
+  <path d="M850 427 L760 427" class="arrow"/>
+  <path d="M460 427 L370 427" class="arrow"/>
+
+  <!-- bottom row -->
+  <rect x="460" y="605" width="680" height="115" fill="#dcfce7" class="box"/>
+  <text x="800" y="640" text-anchor="middle" class="box-title">9. Lead nghiệm thu Swagger + Postman</text>
+  <text x="800" y="670" text-anchor="middle" class="box-text">Chỉ Done khi Swagger đúng chuẩn, Postman test được, FE/Tester xác nhận dùng được</text>
+  <text x="800" y="695" text-anchor="middle" class="box-text">Sau nghiệm thu: API Contract được khóa cho Sprint</text>
+
+  <path d="M220 485 C220 570, 460 570, 600 605" class="arrow"/>
+
+  <!-- Feedback loop -->
+  <path d="M850 605 C1320 575, 1320 300, 1000 265" class="arrow" stroke-dasharray="8,8"/>
+  <text x="1200" y="565" class="small">Nếu chưa đạt: trả về Backend sửa Swagger/OpenAPI trước</text>
+
+  <!-- principles -->
+  <rect x="120" y="800" width="1360" height="160" fill="#ffffff" stroke="#1f2937" stroke-width="2" rx="18" ry="18"/>
+  <text x="800" y="835" text-anchor="middle" class="note">NGUYÊN TẮC BẮT BUỘC</text>
+  <text x="170" y="875" class="box-text">• Swagger/OpenAPI là nguồn chuẩn gốc, không sửa riêng Postman/FE khi chưa cập nhật Swagger.</text>
+  <text x="170" y="905" class="box-text">• Postman Collection phải được import/update từ OpenAPI, dùng chung cho FE và Tester.</text>
+  <text x="170" y="935" class="box-text">• Mọi thay đổi API phải đi qua BA/Lead xác nhận → Backend sửa OpenAPI → Postman update → FE/Test dùng lại.</text>
+</svg>

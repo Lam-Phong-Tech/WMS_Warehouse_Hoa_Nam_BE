@@ -235,7 +235,7 @@ class WarehouseDatabaseSeeder extends Seeder
         ]);
 
         foreach (['BRAND' => ['HOA-NAM', 'Hoa Nam'], 'CATEGORY' => ['PV', 'Thiet bi PV'], 'CATEGORY2' => ['COMPONENT', 'Linh kien'], 'MODEL' => ['PV-220', 'Model PV 220V'], 'MODEL2' => ['PV-380', 'Model PV 380V']] as $type => [$code, $name]) {
-            DB::table('product_masters')->updateOrInsert(['master_type' => str_replace(['2'], '', $type), 'master_code' => $code], ['master_id' => (string) Str::uuid(), 'master_name' => $name, 'parent_id' => null, 'status' => 'ACTIVE', 'created_at' => $now, 'updated_at' => $now]);
+            DB::table('product_masters')->updateOrInsert(['master_type' => str_replace(['2'], '', $type), 'code' => $code], ['master_id' => (string) Str::uuid(), 'name' => $name, 'parent_master_id' => null, 'status' => 'ACTIVE', 'created_at' => $now, 'updated_at' => $now]);
         }
 
         $this->insertSimpleCodes('defect_catalogs', 'defect_code', 'defect_id', [

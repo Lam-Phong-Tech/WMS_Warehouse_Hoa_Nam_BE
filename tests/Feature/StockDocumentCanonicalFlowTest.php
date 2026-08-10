@@ -9,7 +9,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\InventoryBalance;
@@ -51,11 +51,11 @@ class StockDocumentCanonicalFlowTest extends TestCase
         ]);
     }
 
-    private function createProduct(string $code = 'HN-PV-BASE-001'): Product
+    private function createProduct(string $code = 'HN-PV-BASE-001'): Sku
     {
-        return Product::create([
-            'code' => $code,
-            'name' => 'San pham test',
+        return Sku::create([
+            'sku_code' => $code,
+            'sku_name' => 'San pham test',
             'status' => 'ACTIVE',
         ]);
     }
@@ -162,7 +162,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'dst_warehouse_id' => $warehouse->id,
             'note' => 'Test inbound',
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -202,7 +202,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             ->assertJsonPath('data.status', StockDocument::STATUS_RECEIVED);
 
         // Verify inventory balance increased
-        $balance = InventoryBalance::where('product_id', $product->id)
+        $balance = InventoryBalance::where('product_id', $product->sku_id)
             ->where('warehouse_id', $warehouse->id)
             ->first();
 
@@ -226,7 +226,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $warehouse = $this->createWarehouse();
         $product = $this->createProduct();
-        $this->createInventoryBalance($product->id, $warehouse->id, 100.0);
+        $this->createInventoryBalance($product->sku_id, $warehouse->id, 100.0);
 
         // Step 1: Create outbound document
         $createResponse = $this->postJson('/api/v1/outbound-documents', [
@@ -237,7 +237,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'receiver_name' => 'Dai ly test',
             'note' => 'Test outbound',
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -277,7 +277,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             ->assertJsonPath('data.status', StockDocument::STATUS_ISSUED);
 
         // Verify inventory balance decreased
-        $balance = InventoryBalance::where('product_id', $product->id)
+        $balance = InventoryBalance::where('product_id', $product->sku_id)
             ->where('warehouse_id', $warehouse->id)
             ->first();
 
@@ -301,7 +301,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $warehouse = $this->createWarehouse();
         $product = $this->createProduct();
-        $this->createInventoryBalance($product->id, $warehouse->id, 5.0); // Only 5 in stock
+        $this->createInventoryBalance($product->sku_id, $warehouse->id, 5.0); // Only 5 in stock
 
         // Create outbound document requesting 10
         $createResponse = $this->postJson('/api/v1/outbound-documents', [
@@ -309,7 +309,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'doc_date' => now()->format('Y-m-d'),
             'src_warehouse_id' => $warehouse->id,
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -346,7 +346,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'doc_date' => now()->format('Y-m-d'),
             'dst_warehouse_id' => $warehouse->id,
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -386,7 +386,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'doc_date' => now()->format('Y-m-d'),
             'dst_warehouse_id' => $warehouse->id,
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -433,7 +433,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'doc_date' => now()->format('Y-m-d'),
             'dst_warehouse_id' => $warehouse->id,
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -531,7 +531,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $warehouse = $this->createWarehouse();
         $product = $this->createProduct();
-        $initialBalance = $this->createInventoryBalance($product->id, $warehouse->id, 100.0);
+        $initialBalance = $this->createInventoryBalance($product->sku_id, $warehouse->id, 100.0);
 
         // Create and post inbound
         $createResponse = $this->postJson('/api/v1/inbound-documents', [
@@ -539,7 +539,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'doc_date' => now()->format('Y-m-d'),
             'dst_warehouse_id' => $warehouse->id,
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 15],
+                ['product_id' => $product->sku_id, 'qty_planned' => 15],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -553,7 +553,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
         ])->assertStatus(200);
 
         // Verify balance
-        $balance = InventoryBalance::where('product_id', $product->id)
+        $balance = InventoryBalance::where('product_id', $product->sku_id)
             ->where('warehouse_id', $warehouse->id)
             ->first();
 
@@ -590,7 +590,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'doc_date' => now()->format('Y-m-d'),
             'dst_warehouse_id' => $warehouse->id,
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -624,7 +624,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $warehouse = $this->createWarehouse();
         $product = $this->createProduct();
-        $this->createInventoryBalance($product->id, $warehouse->id, 100.0);
+        $this->createInventoryBalance($product->sku_id, $warehouse->id, 100.0);
 
         // Create and post inbound
         $createResponse = $this->postJson('/api/v1/inbound-documents', [
@@ -632,7 +632,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             'doc_date' => now()->format('Y-m-d'),
             'dst_warehouse_id' => $warehouse->id,
             'lines' => [
-                ['product_id' => $product->id, 'qty_planned' => 10],
+                ['product_id' => $product->sku_id, 'qty_planned' => 10],
             ],
         ], ['Authorization' => "Bearer {$token}"]);
 
@@ -646,7 +646,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
         ])->assertStatus(200);
 
         // Verify balance after post
-        $balanceAfterPost = InventoryBalance::where('product_id', $product->id)
+        $balanceAfterPost = InventoryBalance::where('product_id', $product->sku_id)
             ->where('warehouse_id', $warehouse->id)
             ->first();
         $this->assertEquals(110.0, (float) $balanceAfterPost->on_hand_qty);
@@ -663,7 +663,7 @@ class StockDocumentCanonicalFlowTest extends TestCase
             ->assertJsonPath('data.status', StockDocument::STATUS_REVERSED);
 
         // Verify balance after reverse
-        $balanceAfterReverse = InventoryBalance::where('product_id', $product->id)
+        $balanceAfterReverse = InventoryBalance::where('product_id', $product->sku_id)
             ->where('warehouse_id', $warehouse->id)
             ->first();
         $this->assertEquals(100.0, (float) $balanceAfterReverse->on_hand_qty);

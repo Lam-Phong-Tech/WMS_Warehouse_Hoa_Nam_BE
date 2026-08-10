@@ -19,26 +19,26 @@ Lượt gỡ cờ này chỉ tập trung xử lý các phần thuộc kỹ thu�
 |---|---|---|---|---|
 | **BE2-P1-01** | P1 | **Đã xử lý** | [01-trace-chain-extension.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/01-trace-chain-extension.md) | Mở rộng `/trace` sang `stock_movements` (theo `sku_id` phù hợp với thiết kế ERD), bổ sung test chứng minh chuỗi trace đầy đủ từ item/physical code đến document. |
 | **BE2-P1-02** | P1 | **Đã xử lý (phạm vi)** | [02-import-scope-disposition.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/02-import-scope-disposition.md) | CRUD `import_batches` hiện tại đáp ứng đúng và đủ thiết kế metadata phục vụ traceability của WWHN-37. Việc import file thô là luồng nghiệp vụ riêng biệt. |
-| **BE2-P1-03** | P1 | **Đã ghi nhận** | [03-branch-sync-status.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/03-branch-sync-status.md) | Phân tích lệch nhánh `m1-be-2` vs `m1` và sự khác biệt về schema của các bảng danh mục chính. |
+| **BE2-P1-03** | P1 | **Đã xử lý** | [03-branch-sync-status.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/03-branch-sync-status.md) | Gộp thành công nhánh `origin/m1` vào `m1-be-2`, đồng bộ schema (plural tables) và xây dựng lớp tương thích ngược (virtual attributes) giúp chạy tốt tất cả test. |
 | **BE2-P1-04** | P1 | **Đã xử lý** | [04-products-to-sku-migration-guard.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/04-products-to-sku-migration-guard.md) | Bổ sung migration safe-guard tự động nâng cấp schema `products` cũ lên bảng `sku` mới khi phát hiện môi trường chạy dở dang, đảm bảo an toàn dữ liệu. |
 | **BE2-P1-05** | P1 | **Đã xử lý** | [05-contract-pin-sku.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/05-contract-pin-sku.md) | Regenerate OpenAPI specification và Postman collection chính thức, thực hiện chốt mã băm SHA-256 để đối chiếu contract. |
 | **BE2-P2-01** | P2 | **Đã xử lý** | [06-commit-traceability-mapping.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/06-commit-traceability-mapping.md) | Cung cấp bảng ánh xạ (mapping) thủ công giữa các Git commit hiện tại và các Acceptane Criteria của WWHN-37 để đảm bảo traceability. |
 
 ## Kết quả kiểm thử tự động (Test Evidence)
 
-- Chạy test kiểm thử riêng cho Item Instance và chuỗi trace mở rộng:
+- **Chạy toàn bộ test suite của dự án**:
+  ```bash
+  php artisan test
+  ```
+  Kết quả: **143 passed / 0 failed / 911 assertions** (100% tests PASSED thành công rực rỡ).
+  
+- **Chạy test kiểm thử riêng cho Item Instance và chuỗi trace mở rộng**:
   ```bash
   php artisan test tests/Feature/ItemInstanceTest.php
   ```
   Kết quả: **8 passed / 32 assertions** (đã bao gồm các assertions mới chứng minh đúng liên kết item instance -> physical code -> container -> import batch -> stock movements -> stock documents).
-  
-- Chạy toàn bộ test suite của dự án:
-  ```bash
-  php artisan test
-  ```
-  Kết quả: **85 passed / 1 failed / 283 assertions** (Lỗi duy nhất xuất hiện tại `StockDocumentIdempotencyTest::test_dashboard_quick_reports_period_totals_and_partial_documents` là lỗi nền cũ từ trước, hoàn toàn không liên quan đến thay đổi trong lượt này).
 
-- Kiểm tra định dạng code bằng Laravel Pint:
+- **Kiểm tra định dạng code bằng Laravel Pint**:
   ```bash
   vendor/bin/pint --test
   ```
