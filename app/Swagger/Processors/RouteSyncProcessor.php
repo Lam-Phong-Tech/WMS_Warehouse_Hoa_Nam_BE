@@ -13,6 +13,18 @@ class RouteSyncProcessor
 {
     private const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'];
 
+    private const ERROR_RESPONSES = [
+        400 => 'Malformed request',
+        401 => 'Unauthenticated',
+        403 => 'Forbidden',
+        404 => 'Resource not found or outside scope',
+        409 => 'State, business, idempotency or concurrency conflict',
+        412 => 'If-Match precondition failed',
+        422 => 'Validation or business-rule error',
+        428 => 'Required If-Match precondition missing',
+        500 => 'Unexpected server error; transaction rolled back',
+    ];
+
     public function __invoke(Analysis $analysis): void
     {
         $openApi = $analysis->openapi;
@@ -114,6 +126,21 @@ class RouteSyncProcessor
             'trace' => OA\Trace::class,
         };
 
+        $responses = [
+            new OA\Response([
+                'response' => 200,
+                'description' => 'OK',
+                '_context' => $this->context(),
+            ]),
+        ];
+        foreach (self::ERROR_RESPONSES as $status => $description) {
+            $responses[] = new OA\Response([
+                'response' => $status,
+                'description' => $description,
+                '_context' => $this->context(),
+            ]);
+        }
+
         return new $class([
             'path' => $route['path'],
             'operationId' => $this->operationId($route),
@@ -121,35 +148,12 @@ class RouteSyncProcessor
             'tags' => [$this->tag($route['uri'])],
             'security' => $this->requiresAuth($route['middleware']) ? [['bearerAuth' => []]] : [],
             'parameters' => $this->pathParameters($route['path']),
-            'responses' => [
-                new OA\Response([
-                    'response' => 200,
-                    'description' => 'OK',
-                    '_context' => $this->context(),
-                ]),
-                new OA\Response([
-                    'response' => 401,
-                    'description' => 'Unauthenticated',
-                    '_context' => $this->context(),
-                ]),
-                new OA\Response([
-                    'response' => 403,
-                    'description' => 'Forbidden',
-                    '_context' => $this->context(),
-                ]),
-                new OA\Response([
-                    'response' => 422,
-                    'description' => 'Validation error',
-                    '_context' => $this->context(),
-                ]),
-            ],
+            'responses' => $responses,
             '_context' => $this->context(),
         ]);
     }
 
-    /**
-     * @return array<int, OA\Parameter>
-     */
+    /** @return array<int, OA\Parameter> */
     private function pathParameters(string $path): array
     {
         preg_match_all('/\{([^}]+)\}/', $path, $matches);
@@ -159,7 +163,7 @@ class RouteSyncProcessor
             'in' => 'path',
             'required' => true,
             'schema' => new OA\Schema([
-                'type' => str_ends_with(strtolower($name), 'id') || strtolower($name) === 'id' ? 'string' : 'string',
+                'type' => 'string',
                 '_context' => $this->context(),
             ]),
             '_context' => $this->context(),
@@ -184,9 +188,7 @@ class RouteSyncProcessor
         return $action === 'Closure' ? $route->uri() : $action;
     }
 
-    /**
-     * @param array{method: string, uri: string, action: string} $route
-     */
+    /** @param array{method: string, uri: string, action: string} $route */
     private function operationId(array $route): string
     {
         $base = strtolower($route['method'].'_'.$route['uri']);
@@ -195,9 +197,7 @@ class RouteSyncProcessor
         return trim($base, '_');
     }
 
-    /**
-     * @param array{method: string, uri: string, action: string} $route
-     */
+    /** @param array{method: string, uri: string, action: string} $route */
     private function summary(array $route): string
     {
         $action = str_replace(['\\', '@'], [' ', ' '], $route['action']);
@@ -233,9 +233,7 @@ class RouteSyncProcessor
         };
     }
 
-    /**
-     * @param array<int, string> $middleware
-     */
+    /** @param array<int, string> $middleware */
     private function requiresAuth(array $middleware): bool
     {
         return collect($middleware)->contains(fn (string $item): bool => str_starts_with($item, 'auth:'));

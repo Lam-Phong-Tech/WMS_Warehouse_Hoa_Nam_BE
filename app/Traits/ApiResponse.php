@@ -10,14 +10,10 @@ trait ApiResponse
 {
     protected function respondSuccess($data = null, ?string $message = null, int $code = 200): JsonResponse
     {
-        $payload = [
-            'success' => true,
-        ];
-
+        $payload = ['success' => true];
         if ($message !== null) {
             $payload['message'] = $message;
         }
-
         $payload['data'] = $data;
         $payload['meta'] = [
             'request_id' => $this->currentRequestId(),
@@ -41,14 +37,10 @@ trait ApiResponse
 
     protected function respondPaginated(LengthAwarePaginator $paginator, ?string $message = null): JsonResponse
     {
-        $payload = [
-            'success' => true,
-        ];
-
+        $payload = ['success' => true];
         if ($message !== null) {
             $payload['message'] = $message;
         }
-
         $payload['data'] = $paginator->items();
         $payload['meta'] = [
             'current_page' => $paginator->currentPage(),
@@ -78,21 +70,19 @@ trait ApiResponse
             403 => 'ACCESS_DENIED',
             404 => 'RESOURCE_NOT_FOUND',
             409 => 'STATE_CONFLICT',
+            412 => 'PRECONDITION_FAILED',
             422 => 'BUSINESS_RULE_ERROR',
+            428 => 'PRECONDITION_REQUIRED',
             500 => 'INTERNAL_SERVER_ERROR',
         ];
 
         $codeStr = $errorCode ?? ($defaultErrorCodes[$code] ?? 'ERROR');
-
         $payload = [
             'success' => false,
             'message' => $message,
             'error_code' => $codeStr,
             'errors' => $errors,
-            'error' => [
-                'code' => $codeStr,
-                'details' => $errors,
-            ],
+            'error' => ['code' => $codeStr, 'details' => $errors],
             'meta' => [
                 'request_id' => $this->currentRequestId(),
                 'timestamp' => now()->toIso8601String(),

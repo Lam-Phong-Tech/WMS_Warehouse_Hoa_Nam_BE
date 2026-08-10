@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "baseline_date": "2026-08-04",
+  "technical_alignment_date": "2026-08-10",
+  "sources": [
+    {"path": "docs/HoaNam_ERD_Moi_Nhat.md", "document_id": "HN-WMS-ERD-DD-001", "version": "1.0"},
+    {"path": "docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md", "document_id": "HN-BA-MASTER-DEVTEST-001", "version": "1.0"},
+    {"path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md", "document_id": "HN-WMS-TECH-GUIDE-001", "version": "2.0"}
+  ],
+  "api": {
+    "prefix": "/api/v1",
+    "operation_count": 129,
+    "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
+    "forbidden_path_fragments": ["stocktake", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"]
+  },
+  "permissions": [
+    "iam.user.view", "iam.user.manage", "iam.role.view", "iam.role.manage", "iam.permission.view",
+    "catalog.view", "catalog.manage", "sku.view", "sku.manage", "inbound.view", "inbound.create", "inbound.scan", "inbound.post", "inbound.cancel",
+    "outbound.view", "outbound.import", "outbound.create", "outbound.scan", "outbound.post", "outbound.cancel",
+    "inventory.view", "inventory.trace", "inventory.reversal.post", "physical_code.assign_rfid", "label.print", "label.reprint",
+    "warranty.manage", "warranty.component_issue", "pv.publish", "report.view", "report.export"
+  ],
+  "required_roles": ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "WARRANTY_STAFF", "LEADERSHIP"],
+  "required_objects": [
+    "app_users", "roles", "permissions", "user_roles", "role_permissions", "idempotency_records", "audit_logs", "warehouses", "agencies",
+    "product_categories", "brands", "power_sources", "product_models", "package_variants", "defect_catalog", "skus", "sku_aliases", "sku_compatible_accessories",
+    "import_batches", "item_instances", "physical_codes", "containers", "container_items", "putaway_events", "scan_events", "inbound_documents", "inbound_lines",
+    "inbound_scan_entries", "inventory_balances", "inventory_movements", "posting_events", "reconciliation_incidents", "reversal_documents", "reversal_lines",
+    "outbound_request_imports", "outbound_request_import_rows", "outbound_requests", "outbound_request_lines", "outbound_documents", "outbound_lines",
+    "outbound_item_matches", "label_snapshots", "printer_configs", "label_print_events", "warranty_cases", "warranty_events", "warranty_attachments",
+    "component_issue_documents", "component_issue_lines", "component_issue_items", "pv_product_profiles", "pv_product_images", "pv_industries", "pv_tags",
+    "pv_product_industries", "pv_product_tags", "pv_recommendation_rules", "migration_runs", "migration_errors"
+  ],
+  "critical_columns": {
+    "package_variants": ["id", "package_code", "package_name", "description", "sort_order", "status", "created_at", "created_by", "updated_at", "updated_by", "version"],
+    "sku_compatible_accessories": ["sku_id", "accessory_sku_id", "note", "status", "created_at", "created_by"],
+    "inventory_balances": ["warehouse_id", "sku_id", "stock_status", "quantity"],
+    "inventory_movements": ["warehouse_id", "sku_id", "stock_status", "movement_type", "quantity"]
+  }
+}

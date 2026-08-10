@@ -11,45 +11,76 @@ use Modules\Auth\Models\User;
 
 class AuthDatabaseSeeder extends Seeder
 {
+    /**
+     * Canonical permissions follow HN-BA-MASTER-DEVTEST-001 v1.0.
+     * Legacy keys remain additive for backward compatibility only.
+     */
     private const PERMISSIONS = [
+        ['iam.user.view', 'View IAM users'],
+        ['iam.user.manage', 'Manage IAM users and assignments'],
+        ['iam.role.view', 'View IAM roles'],
+        ['iam.role.manage', 'Manage IAM roles and permissions'],
+        ['iam.permission.view', 'View IAM permissions'],
+
         ['warehouse.view', 'View warehouses'],
         ['warehouse.manage', 'Manage warehouses'],
-        ['product.view', 'View SKUs/products'],
-        ['product.manage', 'Manage SKUs/products'],
-        ['master.manage', 'Manage master data'],
+        ['catalog.view', 'View canonical catalog masters'],
         ['catalog.manage', 'Manage canonical catalog masters'],
-        ['stock_document.view', 'View stock documents'],
-        ['stock_document.create', 'Create stock documents'],
-        ['stock_document.post', 'Post full stock documents'],
-        ['stock_document.scan', 'Scan stock documents'],
-        ['stock_document.cancel', 'Cancel stock documents'],
-        ['stock_document.reverse', 'Reverse posted stock documents'],
+        ['sku.view', 'View SKUs/products'],
+        ['sku.manage', 'Manage SKUs/products'],
+        ['agency.view', 'View agencies'],
+        ['agency.manage', 'Manage agencies'],
+        ['defect.view', 'View defect catalog'],
+        ['defect.manage', 'Manage defect catalog'],
+
+        ['inbound.view', 'View inbound documents'],
+        ['inbound.create', 'Create and edit inbound drafts'],
+        ['inbound.scan', 'Scan inbound documents'],
+        ['inbound.post', 'Post inbound receipt atomically'],
+        ['inbound.cancel', 'Cancel inbound drafts'],
+        ['outbound.view', 'View outbound documents'],
+        ['outbound.import', 'Import outbound requests from Excel'],
+        ['outbound.create', 'Create and edit outbound drafts'],
+        ['outbound.scan', 'Scan and match outbound items'],
+        ['outbound.post', 'Post outbound issue atomically'],
+        ['outbound.cancel', 'Cancel outbound drafts'],
+
         ['inventory.view', 'View inventory balances and movements'],
-        ['inventory.trace', 'Trace inventory movements'],
-        ['warranty.temp_only', 'Create temporary warranty intake'],
+        ['inventory.trace', 'Trace inventory movements and item history'],
+        ['inventory.reversal.post', 'Post controlled reversal/correction'],
+        ['physical_code.assign_rfid', 'Assign or revoke RFID physical code'],
+        ['label.print', 'Print labels'],
+        ['label.reprint', 'Reprint labels'],
         ['warranty.manage', 'Manage warranty cases and events'],
         ['warranty.component_issue', 'Issue components for active warranty cases'],
         ['warranty.pii.view', 'View warranty PII'],
         ['warranty.pii.export', 'Export warranty PII'],
         ['scan.classify', 'Classify scans without stock effect'],
+        ['pv.publish', 'Publish PV catalog'],
         ['report.view', 'View reports'],
         ['report.export', 'Export reports'],
-        ['outbound.import', 'Import outbound requests from Excel'],
-        ['label.print', 'Print labels'],
-        ['label.reprint', 'Reprint labels'],
-        ['pv.publish', 'Publish PV catalog'],
         ['audit_log.view', 'View audit logs'],
-        ['user.view', 'View users'],
-        ['user.manage', 'Manage users and roles'],
-        ['role.view', 'View roles'],
-        ['role.manage', 'Manage roles and permissions'],
-        ['permission.view', 'View permissions'],
-        ['agency.view', 'View agencies'],
-        ['agency.manage', 'Manage agencies'],
-        ['defect_catalog.view', 'View defect catalog'],
-        ['defect_catalog.manage', 'Manage defect catalog'],
-        ['product_master.view', 'View brand/category/model/package/power masters'],
-        ['product_master.manage', 'Manage brand/category/model/package/power masters'],
+
+        // Legacy compatibility permissions. Do not use these on new routes.
+        ['product.view', 'Legacy alias: view SKUs/products'],
+        ['product.manage', 'Legacy alias: manage SKUs/products'],
+        ['master.manage', 'Legacy alias: manage master data'],
+        ['stock_document.view', 'Legacy alias: view stock documents'],
+        ['stock_document.create', 'Legacy alias: create stock documents'],
+        ['stock_document.post', 'Legacy alias: post stock documents'],
+        ['stock_document.scan', 'Legacy alias: scan stock documents'],
+        ['stock_document.cancel', 'Legacy alias: cancel stock documents'],
+        ['stock_document.reverse', 'Legacy alias: reverse stock documents'],
+        ['warranty.temp_only', 'Legacy warranty temporary intake permission'],
+        ['user.view', 'Legacy IAM user view'],
+        ['user.manage', 'Legacy IAM user manage'],
+        ['role.view', 'Legacy IAM role view'],
+        ['role.manage', 'Legacy IAM role manage'],
+        ['permission.view', 'Legacy IAM permission view'],
+        ['defect_catalog.view', 'Legacy defect catalog view'],
+        ['defect_catalog.manage', 'Legacy defect catalog manage'],
+        ['product_master.view', 'Legacy catalog master view'],
+        ['product_master.manage', 'Legacy catalog master manage'],
         ['physical_code.view', 'View physical codes'],
         ['physical_code.manage', 'Manage physical codes'],
         ['import_batch.view', 'View import batches'],
@@ -61,71 +92,117 @@ class AuthDatabaseSeeder extends Seeder
     ];
 
     private const ROLES = [
+        'ADMIN' => [
+            'name' => 'Administrator',
+            'permissions' => [
+                'iam.user.view', 'iam.user.manage', 'iam.role.view', 'iam.role.manage', 'iam.permission.view',
+                'warehouse.view', 'warehouse.manage', 'catalog.view', 'catalog.manage', 'sku.view', 'sku.manage',
+                'agency.view', 'agency.manage', 'defect.view', 'defect.manage',
+                'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
+                'outbound.view', 'outbound.import', 'outbound.create', 'outbound.scan', 'outbound.post', 'outbound.cancel',
+                'inventory.view', 'inventory.trace', 'inventory.reversal.post',
+                'physical_code.assign_rfid', 'label.print', 'label.reprint',
+                'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
+                'scan.classify', 'pv.publish', 'report.view', 'report.export', 'audit_log.view',
+                'physical_code.view', 'physical_code.manage', 'import_batch.view', 'import_batch.manage',
+                'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
+            ],
+        ],
         'WAREHOUSE_STAFF' => [
             'name' => 'Warehouse Staff',
             'permissions' => [
-                'warehouse.view', 'product.view',
-                'stock_document.view', 'stock_document.create', 'stock_document.scan',
+                'warehouse.view', 'catalog.view', 'sku.view',
+                'inbound.view', 'inbound.create', 'inbound.scan',
+                'outbound.view', 'outbound.create', 'outbound.scan',
                 'inventory.view', 'report.view',
-                'product_master.view', 'physical_code.view', 'import_batch.view',
-                'container.view', 'item_instance.view',
+                'agency.view', 'defect.view',
+                'physical_code.view', 'import_batch.view', 'container.view', 'item_instance.view',
+                'product.view', 'stock_document.view', 'stock_document.create', 'stock_document.scan',
+                'product_master.view',
             ],
         ],
         'WAREHOUSE_APPROVER' => [
             'name' => 'Warehouse Approver',
             'permissions' => [
-                'warehouse.view', 'product.view',
-                'stock_document.view',
-                'inventory.view', 'report.view',
-                'product_master.view', 'physical_code.view', 'import_batch.view',
-                'container.view', 'item_instance.view',
+                'warehouse.view', 'catalog.view', 'sku.view',
+                'inbound.view', 'inbound.post', 'inbound.cancel',
+                'outbound.view', 'outbound.post', 'outbound.cancel',
+                'inventory.view', 'inventory.trace', 'report.view',
+                'agency.view', 'defect.view',
+                'physical_code.view', 'import_batch.view', 'container.view', 'item_instance.view',
+                'product.view', 'stock_document.view',
             ],
         ],
         'WAREHOUSE_KEEPER' => [
             'name' => 'Warehouse Keeper',
             'permissions' => [
-                'warehouse.view', 'product.view',
-                'stock_document.view', 'stock_document.post', 'stock_document.scan',
-                'stock_document.cancel', 'stock_document.reverse',
-                'inventory.view', 'inventory.trace', 'report.view', 'outbound.import',
-                'label.print', 'label.reprint', 'warranty.manage', 'warranty.component_issue',
-                'product_master.view', 'physical_code.view', 'physical_code.manage', 'import_batch.view',
+                'warehouse.view', 'catalog.view', 'sku.view',
+                'inbound.view', 'inbound.scan', 'inbound.post', 'inbound.cancel',
+                'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
+                'inventory.view', 'inventory.trace', 'inventory.reversal.post',
+                'physical_code.assign_rfid', 'label.print', 'label.reprint',
+                'warranty.manage', 'warranty.component_issue', 'report.view',
+                'physical_code.view', 'physical_code.manage', 'import_batch.view',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
+                'product.view', 'stock_document.view', 'stock_document.post', 'stock_document.scan',
+                'stock_document.cancel', 'stock_document.reverse', 'product_master.view',
+            ],
+        ],
+        'WARRANTY_STAFF' => [
+            'name' => 'Warranty Staff',
+            'permissions' => [
+                'warehouse.view', 'catalog.view', 'sku.view',
+                'inventory.view', 'inventory.trace',
+                'warranty.manage', 'warranty.component_issue',
+                'scan.classify', 'physical_code.view', 'item_instance.view',
+            ],
+        ],
+        'LEADERSHIP' => [
+            'name' => 'Leadership',
+            'permissions' => [
+                'warehouse.view', 'catalog.view', 'sku.view',
+                'inventory.view', 'inventory.trace', 'report.view',
+                'agency.view', 'defect.view', 'audit_log.view',
             ],
         ],
         'VIEWER' => [
             'name' => 'Viewer',
             'permissions' => [
-                'warehouse.view', 'product.view', 'stock_document.view',
-                'inventory.view', 'report.view', 'audit_log.view',
-                'product_master.view', 'physical_code.view', 'import_batch.view',
+                'warehouse.view', 'catalog.view', 'sku.view',
+                'inbound.view', 'outbound.view', 'inventory.view', 'report.view', 'audit_log.view',
+                'agency.view', 'defect.view', 'physical_code.view', 'import_batch.view',
                 'container.view', 'item_instance.view',
+                'product.view', 'stock_document.view', 'product_master.view',
             ],
         ],
         'WAREHOUSE_MANAGER' => [
             'name' => 'Warehouse Manager',
             'permissions' => [
-                'warehouse.view', 'warehouse.manage', 'product.view', 'product.manage',
+                'iam.user.view', 'iam.user.manage', 'iam.role.view', 'iam.role.manage', 'iam.permission.view',
+                'warehouse.view', 'warehouse.manage', 'catalog.view', 'catalog.manage', 'sku.view', 'sku.manage',
+                'agency.view', 'agency.manage', 'defect.view', 'defect.manage',
+                'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
+                'outbound.view', 'outbound.import', 'outbound.create', 'outbound.scan', 'outbound.post', 'outbound.cancel',
+                'inventory.view', 'inventory.trace', 'inventory.reversal.post',
+                'physical_code.assign_rfid', 'label.print', 'label.reprint', 'pv.publish',
+                'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
+                'scan.classify', 'report.view', 'report.export', 'audit_log.view',
+                'physical_code.view', 'physical_code.manage', 'import_batch.view', 'import_batch.manage',
+                'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
+                'product.view', 'product.manage', 'master.manage',
                 'stock_document.view', 'stock_document.create', 'stock_document.post',
                 'stock_document.scan', 'stock_document.cancel', 'stock_document.reverse',
-                'catalog.manage', 'inventory.view', 'inventory.trace', 'report.view', 'report.export',
-                'outbound.import', 'label.print', 'label.reprint', 'pv.publish', 'audit_log.view',
-                'warranty.temp_only', 'warranty.manage', 'warranty.component_issue',
-                'warranty.pii.view', 'warranty.pii.export', 'scan.classify',
-                'user.view', 'user.manage', 'role.view', 'role.manage', 'permission.view',
-                'agency.view', 'agency.manage', 'defect_catalog.view', 'defect_catalog.manage',
-                'product_master.view', 'product_master.manage', 'physical_code.view', 'physical_code.manage',
-                'import_batch.view', 'import_batch.manage', 'container.view', 'container.manage',
-                'item_instance.view', 'item_instance.manage',
+                'warranty.temp_only', 'user.view', 'user.manage', 'role.view', 'role.manage', 'permission.view',
+                'defect_catalog.view', 'defect_catalog.manage', 'product_master.view', 'product_master.manage',
             ],
         ],
         'SKU_MANAGER' => [
             'name' => 'SKU Manager Test',
-            'permissions' => ['product.view', 'product.manage'],
+            'permissions' => ['catalog.view', 'sku.view', 'sku.manage', 'product.view', 'product.manage'],
         ],
         'MASTER_MANAGER' => [
             'name' => 'Master Data Manager Test',
-            'permissions' => ['master.manage', 'catalog.manage'],
+            'permissions' => ['catalog.view', 'catalog.manage', 'master.manage', 'product_master.view', 'product_master.manage'],
         ],
         'NO_PERMISSION' => [
             'name' => 'No Permission Test',
@@ -151,7 +228,7 @@ class AuthDatabaseSeeder extends Seeder
     {
         $permissionsByKey = [];
         foreach (self::PERMISSIONS as [$key, $name]) {
-            $permissionsByKey[$key] = Permission::firstOrCreate(
+            $permissionsByKey[$key] = Permission::updateOrCreate(
                 ['permission_key' => $key],
                 ['permission_name' => $name, 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
             );
@@ -176,7 +253,7 @@ class AuthDatabaseSeeder extends Seeder
         $this->attachRole($adminUser, $superAdminRole);
 
         foreach (self::ROLES as $code => $def) {
-            $role = Role::firstOrCreate(
+            $role = Role::updateOrCreate(
                 ['role_code' => $code],
                 ['role_name' => $def['name'], 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
             );
