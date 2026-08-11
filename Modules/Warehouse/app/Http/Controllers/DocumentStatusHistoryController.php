@@ -21,6 +21,8 @@ class DocumentStatusHistoryController extends Controller
         tags: ['06. Warehouse'],
         parameters: [
             new OA\Parameter(name: 'stock_document_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
@@ -36,7 +38,11 @@ class DocumentStatusHistoryController extends Controller
         if ($request->filled('stock_document_id')) {
             $query->where('stock_document_id', $request->input('stock_document_id'));
         }
+        if ($request->filled('status')) {
+            $query->where('to_status', $request->input('status'));
+        }
+        $this->applyKeyword($query, $request, ['from_status', 'to_status', 'action', 'note']);
 
-        return $this->respondPaginated($query->orderByDesc('created_at')->paginate((int) $request->input('per_page', 15)));
+        return $this->respondPaginated($query->orderByDesc('created_at')->paginate($this->perPage($request)));
     }
 }

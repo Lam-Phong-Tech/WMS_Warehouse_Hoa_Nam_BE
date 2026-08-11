@@ -23,6 +23,8 @@ class StockMovementController extends Controller
             new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
         responses: [
@@ -44,8 +46,9 @@ class StockMovementController extends Controller
         if ($request->filled('movement_type')) {
             $query->where('movement_type', $request->input('movement_type'));
         }
+        $this->applyKeyword($query, $request, ['movement_no', 'business_key', 'source_type']);
 
-        return $this->respondPaginated($query->paginate(min((int) $request->input('per_page', 15), 100)));
+        return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
     #[OA\Get(

@@ -52,6 +52,7 @@ return [
                     base_path('app/Http/Controllers'),
                     base_path('Modules/Auth/app/Http/Controllers'),
                     base_path('Modules/AuditLog/app/Http/Controllers'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/WarehouseController.php'),
                 ],
             ],
         ],

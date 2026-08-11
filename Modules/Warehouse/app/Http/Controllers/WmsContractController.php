@@ -460,8 +460,8 @@ class WmsContractController extends Controller
         });
     }
 
-    private function perPage(Request $request): int
+    protected function perPage(Request $request, int $default = 15): int
     {
-        return min(100, max(1, (int) $request->input('per_page', $request->input('limit', 15))));
+        return min(100, max(1, (int) $request->input('per_page', $request->input('limit', $default))));
     }
 }

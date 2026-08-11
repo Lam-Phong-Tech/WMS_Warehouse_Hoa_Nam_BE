@@ -29,8 +29,9 @@ trait InteractsWithStockDocuments
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+        $this->applyKeyword($query, $request, ['doc_no', 'note']);
 
-        return $this->respondPaginated($query->orderByDesc('created_at')->paginate((int) $request->input('per_page', 15)));
+        return $this->respondPaginated($query->orderByDesc('created_at')->paginate($this->perPage($request)));
     }
 
     public function show(string $id)

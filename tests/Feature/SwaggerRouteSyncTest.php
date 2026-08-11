@@ -23,6 +23,29 @@ class SwaggerRouteSyncTest extends TestCase
         $this->assertSame($routeOperations, $swaggerOperations);
     }
 
+    public function test_generated_swagger_summaries_are_human_readable(): void
+    {
+        Artisan::call('l5-swagger:generate');
+
+        $swagger = json_decode((string) file_get_contents(storage_path('api-docs/api-docs.json')), true, flags: JSON_THROW_ON_ERROR);
+        $badSummaries = [];
+
+        foreach ($swagger['paths'] ?? [] as $path => $pathItem) {
+            foreach (['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'] as $method) {
+                if (! isset($pathItem[$method]['summary'])) {
+                    continue;
+                }
+
+                $summary = (string) $pathItem[$method]['summary'];
+                if (preg_match('/^[A-Z]+ \/api\/v1\/.* - /', $summary) || str_contains($summary, 'Http Controllers')) {
+                    $badSummaries[] = strtoupper($method).' '.$path.' => '.$summary;
+                }
+            }
+        }
+
+        $this->assertSame([], $badSummaries);
+    }
+
     /**
      * @return array<int, string>
      */

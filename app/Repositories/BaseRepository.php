@@ -57,7 +57,7 @@ abstract class BaseRepository implements RepositoryInterface
             $query = $scope($query);
         }
 
-        return $this->applyFilters($query, $filters)->paginate(min($perPage, 100));
+        return $this->applyFilters($query, $filters)->paginate(min(max($perPage, 1), 100));
     }
 
     public function trashed(array $filters = [], int $perPage = 15, ?\Closure $scope = null): LengthAwarePaginator
@@ -67,7 +67,7 @@ abstract class BaseRepository implements RepositoryInterface
             $query = $scope($query);
         }
 
-        return $this->applyFilters($query, $filters)->paginate(min($perPage, 100));
+        return $this->applyFilters($query, $filters)->paginate(min(max($perPage, 1), 100));
     }
 
     public function find(int|string $id): ?Model

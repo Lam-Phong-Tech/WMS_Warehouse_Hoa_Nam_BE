@@ -25,6 +25,7 @@ class InventorySnapshotController extends Controller
             new OA\Parameter(name: 'snapshot_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')),
             new OA\Parameter(name: 'period_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['daily', 'weekly', 'monthly'])),
             new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 50)),
         ],
@@ -53,12 +54,10 @@ class InventorySnapshotController extends Controller
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->input('product_id'));
         }
-
-        $perPage = (int) ($request->get('per_page', 50));
-        $perPage = max(1, min($perPage, 100));
+        $this->applyKeyword($query, $request, ['period_type']);
 
         return $this->respondPaginated(
-            $query->orderByDesc('snapshot_date')->orderBy('warehouse_id')->paginate($perPage)
+            $query->orderByDesc('snapshot_date')->orderBy('warehouse_id')->paginate($this->perPage($request, 50))
         );
     }
 

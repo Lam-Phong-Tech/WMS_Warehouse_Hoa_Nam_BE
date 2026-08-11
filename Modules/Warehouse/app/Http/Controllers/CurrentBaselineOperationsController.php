@@ -425,15 +425,16 @@ class CurrentBaselineOperationsController extends Controller
             ->selectRaw('p.profile_id, p.display_name, p.description, p.sort_order, p.last_inventory_sync_at, s.sku_id, s.sku_code, s.sku_name, COALESCE(SUM(b.quantity), 0) as available_qty')
             ->groupBy('p.profile_id', 'p.display_name', 'p.description', 'p.sort_order', 'p.last_inventory_sync_at', 's.sku_id', 's.sku_code', 's.sku_name')
             ->orderBy('p.sort_order');
+        $this->applyKeyword($query, $request, ['p.display_name', 'p.description', 's.sku_code', 's.sku_name']);
 
-        return $this->respondPaginated($query->paginate((int) $request->input('per_page', 15)));
+        return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
     public function pvRecommendations(Request $request)
     {
         $validated = $request->validate(['industry_id' => ['required', 'uuid']]);
 
-        return $this->respondSuccess(DB::table('pv_recommendation_rule as r')
+        return $this->respondPaginated(DB::table('pv_recommendation_rule as r')
             ->join('sku as s', 's.sku_id', '=', 'r.product_id')
             ->join('pv_product_profile as p', 'p.product_id', '=', 's.sku_id')
             ->where('r.industry_id', $validated['industry_id'])
@@ -441,7 +442,7 @@ class CurrentBaselineOperationsController extends Controller
             ->where('s.status', 'ACTIVE')
             ->where('p.published', true)
             ->orderBy('r.priority')
-            ->get(['r.*', 'p.profile_id', 'p.display_name']));
+            ->paginate($this->perPage($request), ['r.*', 'p.profile_id', 'p.display_name']));
     }
 
     private function readOutboundWorkbook(string $path, string $fileName): array

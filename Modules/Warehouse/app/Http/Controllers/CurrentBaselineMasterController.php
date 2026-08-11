@@ -135,8 +135,25 @@ class CurrentBaselineMasterController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+        $this->applyKeyword($query, $request, $this->keywordColumns($table));
 
-        return $this->respondPaginated($query->orderBy('sort_order')->orderBy('created_at')->paginate((int) $request->input('per_page', 50)));
+        return $this->respondPaginated($query->orderBy('sort_order')->orderBy('created_at')->paginate($this->perPage($request, 50)));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function keywordColumns(string $table): array
+    {
+        $candidates = [
+            'brands' => ['brand_code', 'brand_name'],
+            'product_categories' => ['category_code', 'category_name'],
+            'power_sources' => ['power_source_code', 'power_source_name'],
+            'product_models' => ['model_code', 'model_name'],
+            'package_variants' => ['package_code', 'package_name', 'variant_code', 'variant_name'],
+        ][$table] ?? [];
+
+        return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn($table, $column)));
     }
 
     private function actorId(): ?string

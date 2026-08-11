@@ -26,6 +26,7 @@ class InventoryReservationController extends Controller
             new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['active', 'completed', 'cancelled', 'released'])),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
@@ -48,9 +49,10 @@ class InventoryReservationController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+        $this->applyKeyword($query, $request, ['source_type', 'source_id']);
 
         return $this->respondPaginated(
-            $query->orderByDesc('created_at')->paginate((int) $request->input('per_page', 15))
+            $query->orderByDesc('created_at')->paginate($this->perPage($request))
         );
     }
 

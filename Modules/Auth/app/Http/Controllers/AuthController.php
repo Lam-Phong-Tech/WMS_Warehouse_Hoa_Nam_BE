@@ -24,12 +24,11 @@ class AuthController extends Controller
 
     #[OA\Post(
         path: '/api/v1/auth/login', operationId: 'auth_login',
-        summary: 'Đăng nhập bằng email hoặc username và password',
+        summary: 'Đăng nhập bằng email và password',
         tags: ['01. Authentication'], security: [],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
-            required: ['password'], properties: [
-                new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true, example: 'user@example.com'),
-                new OA\Property(property: 'username', type: 'string', nullable: true, example: 'warehouse01'),
+            required: ['email', 'password'], properties: [
+                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'admin@gmail.com'),
                 new OA\Property(property: 'password', type: 'string', format: 'password', example: 'Cntt@1234'),
             ]
         )),
@@ -42,22 +41,21 @@ class AuthController extends Controller
     )]
     public function login(LoginRequest $request)
     {
-        $identifierField = $request->filled('email') ? 'email' : 'username';
-        $identifier = (string) $request->input($identifierField);
+        $email = (string) $request->input('email');
         $credentials = [
-            $identifierField => $identifier,
+            'email' => $email,
             'password' => (string) $request->input('password'),
         ];
 
         if (! $accessToken = auth('api')->attempt($credentials)) {
-            $user = User::query()->where($identifierField, $identifier)->first();
+            $user = User::query()->where('email', $email)->first();
             $this->auditLogger->log(
                 'LOGIN_FAILED', 'app_user', $user?->user_id, $user?->user_id,
-                $this->currentRequestId(), [], [$identifierField => $identifier],
-                'Invalid identifier or password'
+                $this->currentRequestId(), [], ['email' => $email],
+                'Invalid email or password'
             );
 
-            return $this->respondError('Tên đăng nhập/email hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
+            return $this->respondError('Email hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
         }
 
         /** @var User $user */

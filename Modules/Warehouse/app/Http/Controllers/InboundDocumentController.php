@@ -30,6 +30,7 @@ use OpenApi\Attributes as OA;
     parameters: [
         new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
         new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
         new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])),
     ],
     responses: [

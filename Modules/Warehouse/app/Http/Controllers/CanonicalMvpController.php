@@ -8,6 +8,7 @@ use App\Support\IdempotencyKeyGuard;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class CanonicalMvpController extends Controller
@@ -376,9 +377,15 @@ class CanonicalMvpController extends Controller
         return $this->respondSuccess(DB::table('warranty_case')->where('warranty_case_id', $id)->first(), 'Warranty case updated.');
     }
 
-    public function listWarrantyEvents(string $id)
+    public function listWarrantyEvents(Request $request, string $id)
     {
-        return $this->respondSuccess(DB::table('warranty_event')->where('warranty_case_id', $id)->orderByDesc('event_at')->get());
+        $query = DB::table('warranty_event')
+            ->where('warranty_case_id', $id);
+        $this->applyKeyword($query, $request, ['event_type', 'from_status', 'to_status', 'note']);
+
+        return $this->respondPaginated(
+            $query->orderByDesc('event_at')->paginate($this->perPage($request))
+        );
     }
 
     public function pvCatalog(Request $request)
@@ -390,8 +397,9 @@ class CanonicalMvpController extends Controller
             ->selectRaw('p.profile_id, p.display_name, p.description, p.sort_order, p.last_inventory_sync_at, s.sku_id, s.sku_code, s.sku_name, COALESCE(SUM(b.available_qty), 0) as available_qty')
             ->groupBy('p.profile_id', 'p.display_name', 'p.description', 'p.sort_order', 'p.last_inventory_sync_at', 's.sku_id', 's.sku_code', 's.sku_name')
             ->orderBy('p.sort_order');
+        $this->applyKeyword($query, $request, ['p.display_name', 'p.description', 's.sku_code', 's.sku_name']);
 
-        return $this->respondPaginated($query->paginate((int) $request->input('per_page', 15)));
+        return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
     public function pvIndustries(Request $request)
@@ -408,11 +416,11 @@ class CanonicalMvpController extends Controller
     {
         $request->validate(['industry_id' => ['required', 'uuid']]);
 
-        return $this->respondSuccess(DB::table('pv_recommendation_rule')
+        return $this->respondPaginated(DB::table('pv_recommendation_rule')
             ->where('industry_id', $request->input('industry_id'))
             ->where('status', 'ACTIVE')
             ->orderBy('priority')
-            ->get());
+            ->paginate($this->perPage($request)));
     }
 
     private function storeMaster(Request $request, string $table)
@@ -434,8 +442,9 @@ class CanonicalMvpController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+        $this->applyKeyword($query, $request, $this->keywordColumns($table));
 
-        $page = $query->orderByDesc($orderBy)->paginate((int) $request->input('per_page', 15));
+        $page = $query->orderByDesc($orderBy)->paginate($this->perPage($request));
         if ($masked !== [] && ! $request->user()?->hasPermission('warranty.pii.view')) {
             $page->getCollection()->transform(function (object $row) use ($masked): object {
                 foreach ($masked as $field) {
@@ -525,10 +534,32 @@ class CanonicalMvpController extends Controller
 
     private function publicActivePage(Request $request, string $table, string $orderBy)
     {
-        return $this->respondPaginated(DB::table($table)
-            ->where('status', 'ACTIVE')
-            ->orderBy($orderBy)
-            ->paginate((int) $request->input('per_page', 50)));
+        $query = DB::table($table)->where('status', 'ACTIVE');
+        $this->applyKeyword($query, $request, $this->keywordColumns($table));
+
+        return $this->respondPaginated($query->orderBy($orderBy)->paginate($this->perPage($request, 50)));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function keywordColumns(string $table): array
+    {
+        $candidates = [
+            'brands' => ['brand_code', 'brand_name'],
+            'product_categories' => ['category_code', 'category_name'],
+            'power_sources' => ['power_source_code', 'power_source_name'],
+            'product_models' => ['model_code', 'model_name'],
+            'package_variants' => ['package_code', 'package_name', 'variant_code', 'variant_name'],
+            'label_snapshots' => ['status'],
+            'printer_configs' => ['printer_code', 'printer_name', 'agent_code', 'label_size'],
+            'component_issue_documents' => ['component_issue_no', 'status'],
+            'warranty_case' => ['warranty_case_code', 'customer_name', 'customer_phone', 'temporary_item_code', 'status'],
+            'pv_industry' => ['industry_code', 'industry_name', 'display_name'],
+            'pv_filter_tag' => ['tag_code', 'tag_name', 'display_name'],
+        ][$table] ?? [];
+
+        return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn($table, $column)));
     }
 
     private function timestamps(array $data): array

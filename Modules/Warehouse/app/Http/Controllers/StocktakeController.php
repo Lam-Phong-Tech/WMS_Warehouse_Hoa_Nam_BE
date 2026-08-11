@@ -32,6 +32,8 @@ class StocktakeController extends Controller
         parameters: [
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
         responses: [
@@ -56,8 +58,9 @@ class StocktakeController extends Controller
             }
             $query->where('warehouse_id', $warehouseId);
         }
+        $this->applyKeyword($query, $request, ['session_no']);
 
-        return $this->respondPaginated($query->paginate((int) $request->input('per_page', 15)));
+        return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
     #[OA\Get(
@@ -260,16 +263,24 @@ class StocktakeController extends Controller
         summary: 'Danh sách variance của đúng session và data scope',
         security: [['bearerAuth' => []]],
         tags: ['12. Stocktake'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
         responses: [new OA\Response(response: 200, description: 'Variance của session')]
     )]
-    public function variances(string $id)
+    public function variances(Request $request, string $id)
     {
         $session = $this->stocktakes->findScopedSession($id, $this->user());
 
-        return $this->respondSuccess(
-            StocktakeVariance::query()->where('session_id', $session->session_id)->orderBy('grain_type')->orderBy('grain_key')->get()
-        );
+        $query = StocktakeVariance::query()->where('session_id', $session->session_id);
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        return $this->respondPaginated($query->orderBy('grain_type')->orderBy('grain_key')->paginate($this->perPage($request)));
     }
 
     #[OA\Post(

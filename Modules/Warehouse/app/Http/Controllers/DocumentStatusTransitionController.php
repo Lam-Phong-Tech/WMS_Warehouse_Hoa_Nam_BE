@@ -22,6 +22,7 @@ class DocumentStatusTransitionController extends Controller
         parameters: [
             new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['receipt', 'issue', 'transfer'])),
             new OA\Parameter(name: 'is_active', in: 'query', schema: new OA\Schema(type: 'boolean')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
@@ -41,9 +42,10 @@ class DocumentStatusTransitionController extends Controller
         if ($request->has('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
         }
+        $this->applyKeyword($query, $request, ['from_status', 'to_status', 'action']);
 
         return $this->respondPaginated(
-            $query->orderBy('doc_type')->orderBy('from_status')->paginate((int) $request->input('per_page', 15))
+            $query->orderBy('doc_type')->orderBy('from_status')->paginate($this->perPage($request))
         );
     }
 

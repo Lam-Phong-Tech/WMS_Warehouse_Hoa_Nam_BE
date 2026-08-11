@@ -23,6 +23,7 @@ class SafeStockAlertController extends Controller
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['normal', 'low_stock', 'overflow'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Danh sách lịch sử cảnh báo'),
@@ -40,8 +41,11 @@ class SafeStockAlertController extends Controller
         if ($request->filled('warehouse_id')) {
             $query->where('warehouse_id', $request->input('warehouse_id'));
         }
+        if ($request->filled('status')) {
+            $query->where('new_status', $request->input('status'));
+        }
 
-        return $this->respondPaginated($query->orderByDesc('created_at')->paginate((int) $request->input('per_page', 15)));
+        return $this->respondPaginated($query->orderByDesc('created_at')->paginate($this->perPage($request)));
     }
 
     #[OA\Get(
@@ -55,6 +59,7 @@ class SafeStockAlertController extends Controller
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['normal', 'low_stock', 'overflow'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Danh sách lịch sử cảnh báo'),

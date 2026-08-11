@@ -27,6 +27,8 @@ class InventoryBalanceController extends Controller
         parameters: [
             new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['normal', 'low_stock', 'overflow'])),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
         responses: [
@@ -71,9 +73,16 @@ class InventoryBalanceController extends Controller
         if ($request->filled('status')) {
             $rows = $rows->where('status', $request->input('status'))->values();
         }
+        if ($request->filled('keyword')) {
+            $keyword = mb_strtolower(trim((string) $request->input('keyword')));
+            $rows = $rows->filter(function (array $row) use ($keyword): bool {
+                return str_contains(mb_strtolower((string) ($row['product_code'] ?? '')), $keyword)
+                    || str_contains(mb_strtolower((string) ($row['product_name'] ?? '')), $keyword);
+            })->values();
+        }
 
-        $perPage = min((int) $request->input('per_page', 15), 100);
-        $page = (int) $request->input('page', 1);
+        $perPage = $this->perPage($request);
+        $page = max(1, (int) $request->input('page', 1));
         $paginator = new LengthAwarePaginator(
             $rows->forPage($page, $perPage)->values(),
             $rows->count(),

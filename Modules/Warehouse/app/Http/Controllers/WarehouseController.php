@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
+use Illuminate\Http\Request;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Requests\UpdateWarehouseRequest;
@@ -27,13 +28,19 @@ class WarehouseController extends Controller
         summary: 'Danh sách kho theo data scope hiện hành',
         security: [['bearerAuth' => []]],
         tags: ['06. Warehouse'],
+        parameters: [
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
+        ],
         responses: [
             new OA\Response(response: 200, description: 'Danh sách kho trong data scope'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền warehouse.view'),
         ]
     )]
-    public function index()
+    public function index(Request $request)
     {
         $user = $this->authenticatedUser();
         $query = $this->warehouses->query();
@@ -42,8 +49,14 @@ class WarehouseController extends Controller
         if ($scopes !== null) {
             $query->whereIn('id', $scopes);
         }
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        $this->applyKeyword($query, $request, ['code', 'name']);
 
-        return $this->respondSuccess($query->get());
+        return $this->respondPaginated(
+            $query->orderBy('code')->paginate($this->perPage($request))
+        );
     }
 
     #[OA\Get(

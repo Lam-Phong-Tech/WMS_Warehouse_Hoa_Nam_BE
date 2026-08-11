@@ -158,10 +158,11 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseHas('app_user', ['username' => 'mixedcase']);
     }
 
-    public function test_login_is_case_insensitive_against_normalized_username(): void
+    public function test_login_requires_email_and_password_not_username(): void
     {
         User::create([
             'username' => 'normalized',
+            'email' => 'normalized@wms-hoanam.test',
             'display_name' => 'Normalized user',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
@@ -173,7 +174,8 @@ class UserManagementTest extends TestCase
             'password' => 'secret123',
         ]);
 
-        $response->assertOk();
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR');
     }
 
     public function test_user_create_and_update_write_audit_log(): void

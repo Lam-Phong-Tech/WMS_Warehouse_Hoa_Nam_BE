@@ -21,6 +21,7 @@ use OpenApi\Attributes as OA;
     parameters: [
         new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['draft', 'pending', 'approved', 'rejected', 'converted', 'cancelled'])),
         new OA\Parameter(name: 'request_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['receipt', 'issue', 'transfer'])),
+        new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
         new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
         new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
     ],
@@ -211,8 +212,9 @@ class StockRequestController extends Controller
         if ($request->filled('request_type')) {
             $query->where('request_type', $request->input('request_type'));
         }
+        $this->applyKeyword($query, $request, ['request_no', 'note']);
 
-        return $this->respondPaginated($query->orderByDesc('created_at')->paginate((int) $request->input('per_page', 15)));
+        return $this->respondPaginated($query->orderByDesc('created_at')->paginate($this->perPage($request)));
     }
 
     public function show(string $id)

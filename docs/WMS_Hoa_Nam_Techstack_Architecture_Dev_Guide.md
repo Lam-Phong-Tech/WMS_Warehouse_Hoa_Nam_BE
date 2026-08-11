@@ -1,92 +1,561 @@
-# WMS HOA NAM — TECHSTACK, ARCHITECTURE & DEV GUIDE
+# Hướng dẫn Kiến trúc & Phát triển WMS Hoa Nam
 
-**Document ID:** HN-WMS-TECH-GUIDE-001  
-**Version:** 2.0  
-**Technical alignment:** 10/08/2026  
-**Semantic baseline:** 04/08/2026  
-**Status:** Implementation baseline for DEV/QA/DevOps
+Phiên bản: v1.0
+Cập nhật: 2026-07-31
+Chủ sở hữu: FE1 / Tech Lead
 
-## 1. Source of truth and conflict rule
+## Giới thiệu
 
-This guide implements, and must not override, the approved business baseline. Priority is: approved contract/CR/decision → BRD v3.13 → SRS/FRD v1.6 → BPD v1.5 → ERD/OpenAPI/UI/test artifacts. The current physical/data baseline is `HoaNam_ERD_Moi_Nhat.md` (`HN-WMS-ERD-DD-001 v1.0`) and the consolidated business/API baseline is `HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md` (`HN-BA-MASTER-DEVTEST-001 v1.0`).
+Tài liệu này mô tả kiến trúc, quy ước đặt tên, cấu trúc module, hợp đồng API,
+RBAC, xử lý lỗi, tiêu chuẩn build/env/health và quy trình đóng góp cho
+frontend WMS Hoa Nam. Mọi đóng góp code phải tuân theo hướng dẫn này.
 
-The former Stocktake/Apply-Adjustment design and partial-posting design are **superseded**. MVP must not expose Stocktake sessions/snapshots/counts/variances/adjustments, `PARTIALLY_POSTED`, `remaining_qty`, `cancelled_remainder_qty`, `close-remainder`, stock reservations, safe-stock, transfer-orders, stock-requests, or agency stock ledgers.
+## Kiến trúc Tổng quan
 
-## 2. Runtime stack
+Frontend WMS là ứng dụng React/Vite/TypeScript SPA (Single Page Application)
+cho Web Admin. Nó không phải là Next.js app và không yêu cầu SSR/SSG.
 
-- PHP 8.3 / Laravel modular monolith.
-- PostgreSQL 14+ is the production reference DB. CI also runs SQLite/MySQL compatibility gates where applicable.
-- Redis/Valkey may be used for cache/queue/session; correctness must not depend on cache.
-- JWT authentication; action-level RBAC middleware.
-- L5-Swagger / swagger-php for OpenAPI generation.
-- Docker immutable build artifact; exact commit SHA is the deployment identity.
+### Nguyên tắc Chính
 
-## 3. Architecture boundaries
+1. **Module-based architecture**: Mỗi module nghiệp vụ độc lập trong `src/modules/<module>/`
+2. **Shared utilities**: Code dùng chung đặt trong `src/shared/`
+3. **API-first**: Tất cả communication với backend qua REST API với envelope chuẩn
+4. **RBAC**: Phân quyền chi tiết theo permission code, không phải role name
+5. **Type safety**: TypeScript strict mode, Zod validation
+6. **Testing**: Unit tests (Vitest) + E2E tests (Playwright)
 
-Modules remain `Auth`, `Warehouse`, and `AuditLog`. Controllers validate transport input and delegate transaction/business work; stock-changing use cases must execute inside a DB transaction, lock the affected aggregate/balance rows, enforce idempotency, write append-only movement/audit evidence, and update the balance projection atomically.
+## Cấu trúc Thư mục
 
-`inventory_movements` is authoritative history; `inventory_balances` is a projection/cache. Posted documents, movement rows, posting evidence and audit evidence are append-only. Correction is performed by controlled reversal, never by editing posted history.
+```
+src/
+├── app/                      # App shell, routing, providers
+│   ├── layouts/             # Shared layouts (MainLayout, SideNav, Header, Footer)
+│   ├── providers/           # AppProviders (Query, Theme, Auth, Toast)
+│   └── router/              # Route definitions, guards, access control
+├── modules/                  # Feature modules (business logic)
+│   ├── master-data/         # SKU, Item, Physical Code management
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   ├── schemas/
+│   │   └── types/
+│   ├── inbound/             # Inbound documents, receiving, putaway
+│   ├── outbound/            # Outbound documents, shipping, picking
+│   ├── inventory/           # Inventory balances, movements
+│   ├── scan/                # Scan operations, physical code classification
+│   ├── stocktake/           # Stocktake sessions, counts, adjustments
+│   ├── warranty/            # Warranty cases, events, defects
+│   ├── reverse/             # Reversal documents, adjustments
+│   ├── reports/             # Reports hub, exports
+│   ├── dashboard/           # Dashboard KPI, quick stats
+│   ├── audit-logs/          # Audit trail, system logs
+│   ├── roles/               # Role management, permission matrix
+│   ├── employees/           # Employee management, org chart
+│   ├── companies/           # Company management
+│   ├── departments/         # Department management
+│   ├── positions/           # Position management
+│   └── component-catalog/   # Component showcase for BA/QA
+├── shared/                   # Shared utilities (used by 2+ modules)
+│   ├── api/                 # HTTP client, endpoints, interceptors
+│   │   ├── http.ts          # Axios instance with interceptors
+│   │   ├── endpoints.ts     # API endpoint constants
+│   │   ├── api-error.ts     # Error handling utilities
+│   │   └── query-client.ts  # TanStack Query client config
+│   ├── components/          # Reusable UI components
+│   │   ├── layout/          # AppShell, MainLayout
+│   │   ├── forms/           # FormInput, FormSelect, ScanInput
+│   │   ├── data-display/    # TableContainer, DataTable, StatusTag
+│   │   ├── feedback/        # ApiErrorAlert, NoPermissionState, ConfirmDialog
+│   │   ├── permission/      # RequirePermission, PermissionGuard, ActionButton
+│   │   ├── navigation/      # SideNav, Breadcrumb
+│   │   └── ui-states/       # Loading, EmptyState, ErrorState
+│   ├── hooks/               # Custom React hooks
+│   │   ├── use-login.ts
+│   │   ├── use-auth.ts
+│   │   └── use-permissions.ts
+│   ├── utils/               # Utility functions
+│   │   ├── storage-url.ts
+│   │   ├── formatters.ts
+│   │   └── validators.ts
+│   ├── types/               # Shared TypeScript types
+│   │   ├── api-response.ts
+│   │   ├── pagination.ts
+│   │   └── common.ts
+│   ├── constants/           # Shared constants
+│   │   ├── permissions.ts   # PERMISSION_CATALOG
+│   │   └── app-config.ts
+│   └── store/               # Global state (Zustand)
+│       └── auth.store.ts
+├── assets/                   # Static assets (images, icons, fonts)
+├── lib/                      # Third-party library configs
+└── test/                     # Global test utilities
+```
 
-MVP has one active Hoa Nam warehouse. Agency is a recipient master only. Zone/rack/bin/tray are locators/container metadata, not independent stock buckets. PV is read-only/public catalog scope with no cart/order/reservation/payment semantics.
+## Quy ước Module
 
-## 4. Data conventions
+Mỗi module nghiệp vụ phải có cấu trúc:
 
-- UUID primary keys; `timestamptz`/UTC for time.
-- Inventory quantities are integer `BIGINT`. Fractional stock requires an approved CR before schema change.
-- Statuses are varchar + CHECK/validated allow-list, not PostgreSQL ENUM.
-- Mutable business aggregates use `version` and `If-Match`; missing precondition is HTTP 428, stale precondition is HTTP 412.
-- Product/stock/audit history is retained; no hard delete of posted transactional data.
-- Warranty PII is role-scoped and must not be written raw to application logs.
+```
+src/modules/<module>/
+├── components/              # Components specific to this module
+├── hooks/                   # Custom hooks for this module
+├── pages/                   # Page components
+├── services/                # API service functions
+├── schemas/                 # Zod validation schemas
+├── types/                   # TypeScript type definitions
+└── index.ts                 # Public exports (optional)
+```
 
-Canonical status values are those in `HN-WMS-ERD-DD-001`: document `DRAFT|SCANNING|POSTED|CANCELLED`; SKU `PRODUCT|COMPONENT`; tracking `SERIAL|QUANTITY`; movement `OPENING|RECEIPT|ISSUE|COMPONENT_ISSUE|REVERSAL`; stock `AVAILABLE|NON_SELLABLE|DEFECTIVE|QUARANTINE`; warranty `RECEIVED|CHECKING|REPAIRING|COMPLETED|RETURNED|CANCELLED`.
+### Quy tắc Đặt tên
 
-## 5. API contract
+- **Files**: camelCase cho hooks (`use-login.ts`), PascalCase cho components (`LoginPage.tsx`)
+- **Components**: PascalCase (`LoginForm`, `SkuTable`)
+- **Hooks**: camelCase với prefix `use-` (`use-login.ts`, `use-skus.ts`)
+- **Services**: camelCase (`authService.ts`, `skuService.ts`)
+- **Types/Interfaces**: PascalCase (`SkuPayload`, `LoginRequest`)
+- **Constants**: UPPER_SNAKE_CASE (`API_ENDPOINTS`, `PERMISSIONS`)
 
-All application API routes use `/api/v1/*`. Current baseline contains **129 unique method+path operations**. `app/Swagger/Processors/RouteSyncProcessor.php` is the route-parity processor: generation must remove stale paths and add real Laravel paths so Swagger method/path surface is exactly the runtime route surface. `SwaggerRouteSyncTest` fails on drift.
+## API Integration
 
-Route parity does not replace business schemas. Request/response payload schemas, validation, examples and business error codes remain explicit API contract responsibilities. The generic error envelope must cover HTTP `400, 401, 403, 404, 409, 412, 422, 428, 500`, with `request_id` returned for traceability.
+### HTTP Client
 
-## 6. Canonical permissions
+Tất cả API calls phải đi qua `src/shared/api/http.ts`:
 
-New routes must use the current namespace, not legacy aliases:
+```typescript
+// ✅ ĐÚNG - Sử dụng shared http client
+import { http } from '@/shared/api/http';
+import { DASHBOARD_KPI } from '@/shared/api/endpoints';
 
-- IAM: `iam.user.view/manage`, `iam.role.view/manage`, `iam.permission.view`.
-- Catalog/SKU: `catalog.view/manage`, `sku.view/manage`, `agency.view/manage`, `defect.view/manage`.
-- Inbound: `inbound.view/create/scan/post/cancel`.
-- Outbound: `outbound.view/import/create/scan/post/cancel`.
-- Inventory: `inventory.view`, `inventory.trace`, `inventory.reversal.post`.
-- Physical/label: `physical_code.assign_rfid`, `label.print`, `label.reprint`.
-- Warranty: `warranty.manage`, `warranty.component_issue`.
-- PV/report: `pv.publish`, `report.view`, `report.export`.
+const { data } = await http.get(DASHBOARD_KPI);
 
-Legacy permission keys may be seeded only as compatibility aliases for old clients/tests; they must not be used on new canonical routes.
+// ❌ SAI - Không gọi axios trực tiếp
+import axios from 'axios';
+const { data } = await axios.get('/api/dashboard');
+```
 
-Minimum business roles are `ADMIN`, `WAREHOUSE_MANAGER`, `WAREHOUSE_STAFF`, `WARRANTY_STAFF`, `LEADERSHIP`. `SUPER_ADMIN` remains a technical/bootstrap compatibility role.
+### API Envelope
 
-## 7. Transaction invariants
+Tất cả API responses follow envelope format:
 
-Inbound/outbound are full-post only. Before Post, every line must satisfy scanned/matched quantity = expected/required quantity. Product outbound requires the matched PRODUCT item to have an active RFID/hardware identity according to the approved rule. Components are issued only for active warranty cases. No balance may become negative. `inventory_balances` is unique by `(warehouse_id, sku_id, stock_status)`.
+**Success:**
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {},
+  "meta": {
+    "request_id": "uuid",
+    "timestamp": "2026-07-31T10:00:00+07:00"
+  }
+}
+```
 
-A repeated command with the same idempotency key must return the prior result or a deterministic conflict; it must not double-write movement/balance/audit. Concurrent stock mutation must serialize by DB transaction/row locking and preserve ledger-balance equality.
+**Error:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error_code": "VALIDATION_ERROR",
+  "errors": {
+    "field_name": ["Error message"]
+  },
+  "meta": {
+    "request_id": "uuid",
+    "timestamp": "2026-07-31T10:00:00+07:00"
+  }
+}
+```
 
-## 8. Development flow
+### Endpoint Constants
 
-1. Change business behavior only against the current source documents/approved CR.
-2. Add/update migration before model/service code when the physical contract changes.
-3. Add route with canonical permission.
-4. Implement validation + transaction + idempotency + audit/movement rules.
-5. Generate Swagger and run route-parity/contract tests.
-6. Run `migrate:fresh --seed`, full PHPUnit, static/style gates and DB-engine matrix.
-7. Build immutable Docker artifact and retain exact SHA + OpenAPI + hashes as evidence.
+Tất cả endpoints phải được định nghĩa trong `src/shared/api/endpoints.ts`:
 
-No change is complete if only Swagger or only tests were updated while runtime routes/schema still disagree with the source documents.
+```typescript
+export const ENDPOINTS = {
+  AUTH: {
+    LOGIN: '/auth/login',
+    LOGOUT: '/auth/logout',
+    ME: '/auth/me',
+    REFRESH: '/auth/refresh',
+  },
+  SKUS: {
+    LIST: '/skus',
+    CREATE: '/skus',
+    UPDATE: '/skus/:id',
+    IMPORT: '/skus/import-excel',
+  },
+} as const;
+```
 
-## 9. CI quality gate
+## State Management
 
-A releasable SHA must pass: syntax/style, Composer/npm/build/audit, migration + seed, current documentation contract test, Swagger route parity, ERD baseline tests, full PHPUnit, and exact-SHA evidence workflow. UAT deployment remains an explicit opt-in action after the test gate.
+### Server State (TanStack Query)
 
-The machine-readable baseline is `docs/contracts/HoaNam_Current_Baseline_Contract.json`. `tests/Feature/DocumentationBaselineContractTest.php` pins source document IDs, 129-operation API surface, forbidden scope, canonical route permissions, required DB objects/critical columns, required roles/permissions, Swagger error status coverage and PostgreSQL BIGINT quantity semantics.
+Sử dụng TanStack Query cho tất cả server state:
 
-## 10. Change control
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { skuService } from './services/skuService';
 
-When BA/PO approves a newer baseline, update the source document first, then the machine contract, migration/API implementation, tests and generated OpenAPI in the same change set. A downstream artifact must never silently redefine business semantics.
+// Query
+const { data, isLoading, error } = useQuery({
+  queryKey: ['skus', filters],
+  queryFn: () => skuService.getSkus(filters),
+});
+
+// Mutation
+const mutation = useMutation({
+  mutationFn: skuService.createSku,
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['skus'] });
+    toast.success('SKU created successfully');
+  },
+});
+```
+
+### Client State (Zustand)
+
+Sử dụng Zustand cho global client state (auth, UI preferences):
+
+```typescript
+import { useAuthStore } from '@/shared/store/auth.store';
+
+const { user, permissions, logout } = useAuthStore();
+```
+
+## RBAC & Permissions
+
+### Permission Codes
+
+Permission codes tuân theo catalog:
+
+```typescript
+// src/shared/constants/permissions.ts
+export const PERMISSION_CATALOG = {
+  // Master Data
+  SKU_MANAGE: 'sku.manage',
+  MASTER_MANAGE: 'master.manage',
+  
+  // Inbound
+  INBOUND_CREATE: 'inbound.create',
+  INBOUND_POST: 'inbound.post',
+  
+  // Outbound
+  OUTBOUND_CREATE: 'outbound.create',
+  OUTBOUND_POST: 'outbound.post',
+  
+  // Inventory
+  INVENTORY_VIEW: 'inventory.view',
+  
+  // Scan
+  SCAN_CLASSIFY: 'scan.classify',
+  INVENTORY_TRACE: 'inventory.trace',
+  
+  // Stocktake
+  STOCKTAKE_COUNT: 'stocktake.count',
+  
+  // Warranty
+  WARRANTY_MANAGE: 'warranty.manage',
+  
+  // Reverse
+  INVENTORY_REVERSAL_POST: 'inventory.reversal.post',
+  
+  // Reports
+  REPORT_VIEW: 'report.view',
+  
+  // Audit
+  AUDIT_LOG_VIEW: 'AUDIT_LOG_VIEW',
+} as const;
+```
+
+### Route Protection
+
+```typescript
+// src/app/router/access.ts
+export const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
+  '/master-data': ['sku.manage', 'master.manage'],
+  '/inbound': ['inbound.create', 'inbound.post'],
+  '/outbound': ['outbound.create', 'outbound.post'],
+  '/inventory': 'inventory.view',
+  '/scan': ['scan.classify', 'inventory.trace'],
+  '/stocktake': 'stocktake.count',
+  '/warranty': 'warranty.manage',
+  '/reverse': 'inventory.reversal.post',
+  '/reports': 'report.view',
+  '/audit-logs': 'AUDIT_LOG_VIEW',
+};
+```
+
+### Component-level Permission
+
+```typescript
+import { RequirePermission } from '@/shared/components/permission/RequirePermission';
+import { ActionButton } from '@/shared/components/permission/ActionButton';
+
+// Route guard
+<RequirePermission permission="sku.manage">
+  <SkuManagementPage />
+</RequirePermission>
+
+// Action guard
+<ActionButton 
+  permission="sku.delete" 
+  onConfirm={handleDelete}
+>
+  Delete
+</ActionButton>
+```
+
+## Error Handling
+
+### API Errors
+
+Tất cả API errors được xử lý qua `src/shared/api/api-error.ts`:
+
+```typescript
+import { getApiErrorMessage, extractFieldErrors } from '@/shared/api/api-error';
+
+try {
+  await skuService.createSku(data);
+} catch (error) {
+  const message = getApiErrorMessage(error);
+  toast.error(message);
+  
+  // Field-level errors for forms
+  const fieldErrors = extractFieldErrors(error);
+  if (fieldErrors) {
+    setErrors(fieldErrors);
+  }
+}
+```
+
+### Error Categories
+
+1. **401 Unauthorized**: Token expired → auto refresh → retry
+2. **403 Forbidden**: 
+   - `PASSWORD_CHANGE_REQUIRED` → redirect to `/change-password`
+   - Permission denied → show `NoPermissionState`
+3. **422 Validation**: Field errors → display in form
+4. **409 Conflict**: Duplicate/conflict → show error message
+5. **500 Server Error`: Generic error → show `ApiErrorAlert`
+
+## Forms & Validation
+
+### React Hook Form + Zod
+
+```typescript
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const skuSchema = z.object({
+  code: z.string().min(1, 'SKU code is required'),
+  name: z.string().min(1, 'Name is required'),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+});
+
+type SkuFormData = z.infer<typeof skuSchema>;
+
+const SkuForm = () => {
+  const { control, handleSubmit, formState: { errors } } = useForm<SkuFormData>({
+    resolver: zodResolver(skuSchema),
+  });
+  
+  // ...
+};
+```
+
+## Testing
+
+### Unit Tests (Vitest)
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { formatSkuCode } from '@/shared/utils/formatters';
+
+describe('formatSkuCode', () => {
+  it('should format SKU code correctly', () => {
+    expect(formatSkuCode('ABC123')).toBe('ABC-123');
+  });
+});
+```
+
+### E2E Tests (Playwright)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('login flow', async ({ page }) => {
+  await page.goto('/login');
+  await page.fill('[name="email"]', 'admin@hoanam.com');
+  await page.fill('[name="password"]', 'password');
+  await page.click('button[type="submit"]');
+  await expect(page).toHaveURL('/dashboard');
+});
+```
+
+## Build & Deployment
+
+### Build Commands
+
+```bash
+# Development
+yarn dev
+
+# Production build
+yarn build
+
+# Preview production build
+yarn preview
+
+# Type check
+yarn typecheck
+
+# Lint
+yarn lint
+
+# Format check
+yarn format:check
+
+# Tests
+yarn test
+yarn test:e2e
+```
+
+### Environment Variables
+
+| Variable | Description | Required | Default |
+| --- | --- | --- | --- |
+| `VITE_APP_ENV` | Environment name | Yes | `local` |
+| `VITE_API_BASE_URL` | API base URL | Yes | `http://localhost:8000/api/v1` |
+| `VITE_API_TIMEOUT_MS` | API timeout in ms | No | `10000` |
+| `VITE_API_WITH_CREDENTIALS` | Send credentials | No | `false` |
+| `VITE_STORAGE_URL` | Storage URL (optional) | No | - |
+| `VITE_API_HEALTH_PATH` | Health check path | No | `/health` |
+
+### Health Check
+
+Frontend build produces:
+- `dist/index.html` - Main entry point
+- `dist/health.json` - Health artifact for deployment verification
+
+```bash
+# Verify health artifact
+yarn health:check
+```
+
+## CI/CD Pipeline
+
+### Required Checks
+
+Mỗi PR phải vượt qua:
+
+1. **Lint**: `yarn lint` - ESLint checks
+2. **Format**: `yarn format:check` - Prettier checks
+3. **Type Check**: `yarn typecheck` - TypeScript compilation
+4. **Unit Tests**: `yarn test` - Vitest tests
+5. **Build**: `yarn build` - Production build
+6. **Health Check**: `yarn health:check` - Verify artifacts
+7. **API Mapping**: `yarn check:api-mapping` - Verify endpoint usage
+8. **E2E Tests**: `yarn test:e2e` - Playwright tests (if UI changes)
+
+### GitHub Actions
+
+CI workflow định kỳ chạy trên mỗi PR và push đến `main`/`m1`.
+
+## Performance
+
+### Code Splitting
+
+- Route-based splitting: Mỗi route được lazy load
+- Component-based splitting: Large components được split
+- Vendor splitting: React, Ant Design được split riêng
+
+### Optimization
+
+- TanStack Query caching giảm duplicate requests
+- Memoization cho expensive computations
+- Virtual scrolling cho large lists (Ant Design Table)
+- Image optimization qua `src/assets/`
+
+## Security
+
+### Authentication
+
+- Access token: Lưu trong memory only (không persist)
+- Refresh token: HttpOnly cookie (backend managed)
+- Session bootstrap: `bootstrapAuth()` trên app startup
+- Auto logout: Token expired → redirect to `/login`
+
+### Authorization
+
+- Route-level: `RequirePermission` component
+- Action-level: `ActionButton` component
+- API-level: Backend enforce tất cả permissions
+- FE chỉ là UX gate, không phải security boundary
+
+### XSS Prevention
+
+- React auto-escape JSX
+- Không sử dụng `dangerouslySetInnerHTML` trừ khi cần thiết
+- Sanitize user input trước khi render
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Module not found**: Kiểm tra import alias `@/` trỏ đến `src/`
+2. **API 401**: Token expired → check refresh token flow
+3. **API 403**: Check permission codes trong `ROUTE_PERMISSIONS`
+4. **Build fails**: Run `yarn install` và clear `node_modules/.vite`
+
+### Debug Mode
+
+```bash
+# Enable debug logs
+VITE_APP_ENV=development yarn dev
+```
+
+## Contributing
+
+### Workflow
+
+1. Tạo branch từ `main` hoặc `m1`
+2. Implement feature/fix với tests
+3. Đảm bảo tất cả checks pass
+4. Tạo PR với mô tả rõ ràng
+5. Code review bởi ít nhất 1 FE team member
+6. Merge sau khi approved
+
+### Commit Convention
+
+Sử dụng Conventional Commits:
+
+```
+feat: add SKU import functionality
+fix: resolve token refresh loop
+docs: update API documentation
+test: add unit tests for auth service
+refactor: simplify permission checking logic
+```
+
+## Tài liệu Liên quan
+
+- `docs/WMS_FRONTEND_STANDARDIZATION.md` - Frontend standards
+- `docs/design-system/DESIGN_TOKENS.md` - Design tokens
+- `docs/design-system/COMPONENT_INVENTORY.md` - Component catalog
+- `docs/evidence/` - Implementation evidence và acceptance criteria
+- `system-design.md` - System design rules cho code review
+
+## Liên hệ
+
+- **Tech Lead**: Quang Nguyen Thanh
+- **FE Team**: HN-FE-01, HN-FE-02
+- **Slack**: #wms-frontend
+
+---
+
+**Last Updated**: 2026-07-31
+**Maintained By**: FE1 Team
+**Review Cycle**: Mỗi sprint

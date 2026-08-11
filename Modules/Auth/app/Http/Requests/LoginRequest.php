@@ -3,7 +3,6 @@
 namespace Modules\Auth\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Str;
 
 class LoginRequest extends FormRequest
 {
@@ -14,19 +13,15 @@ class LoginRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if ($this->has('username')) {
-            $this->merge(['username' => Str::lower(trim((string) $this->input('username')))]);
-        }
         if ($this->has('email')) {
-            $this->merge(['email' => Str::lower(trim((string) $this->input('email')))]);
+            $this->merge(['email' => strtolower(trim((string) $this->input('email')))]);
         }
     }
 
     public function rules(): array
     {
         return [
-            'email' => ['nullable', 'required_without:username', 'email'],
-            'username' => ['nullable', 'required_without:email', 'string', 'max:100'],
+            'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ];
     }
@@ -35,7 +30,6 @@ class LoginRequest extends FormRequest
     {
         return [
             'email' => 'email',
-            'username' => 'tên đăng nhập',
             'password' => 'mật khẩu',
         ];
     }
