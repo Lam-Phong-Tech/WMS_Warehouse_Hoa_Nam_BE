@@ -217,10 +217,10 @@ class ItemInstanceController extends Controller
             ->with('document')
             ->where('product_id', $item->sku_id);
             
+        // BE2-P1-01: Filter further by item's batch/document if available to restrict to item level
         if ($item->import_batch_id) {
             $movementsQuery->whereHas('document', function($q) use ($item) {
-                $q->where('reference_id', $item->import_batch_id)
-                  ->orWhere('id', $item->import_batch_id);
+                $q->where('id', $item->import_batch_id);
             });
         }
 

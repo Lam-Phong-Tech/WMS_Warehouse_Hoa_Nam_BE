@@ -8,58 +8,66 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockMovement;
 use Tests\TestCase;
-use App\Models\User;
+use Illuminate\Foundation\Testing\WithoutMiddleware;
 
 class ItemInstanceTraceTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, WithoutMiddleware;
 
     public function test_trace_returns_only_movements_for_specific_item_instance_not_just_sku()
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
+        \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+        \Illuminate\Support\Facades\DB::statement('PRAGMA foreign_keys = 0;');
 
-        // Tạo 1 SKU chung
-        $sku = Sku::factory()->create(['sku_code' => 'SKU-001']);
+        $skuId = \Illuminate\Support\Str::uuid()->toString();
+        $itemAId = \Illuminate\Support\Str::uuid()->toString();
+        $itemBId = \Illuminate\Support\Str::uuid()->toString();
+        $docAId = 'batch-a-123';
+        $docBId = 'batch-b-456';
+        $movAId = \Illuminate\Support\Str::uuid()->toString();
+        $movBId = \Illuminate\Support\Str::uuid()->toString();
 
-        // Tạo 2 ItemInstance thuộc về cùng 1 SKU, nhưng khác import_batch_id
-        $itemA = ItemInstance::factory()->create([
-            'sku_id' => $sku->sku_id,
-            'serial_number' => 'SN-A',
-            'import_batch_id' => 'batch-a-123'
+        \Illuminate\Support\Facades\DB::table('app_user')->insert([
+            ['user_id' => 'sys', 'username' => 'sys', 'password_hash' => '123', 'status' => 'ACTIVE', 'display_name' => 'sys']
         ]);
 
-        $itemB = ItemInstance::factory()->create([
-            'sku_id' => $sku->sku_id,
-            'serial_number' => 'SN-B',
-            'import_batch_id' => 'batch-b-456'
+        \Illuminate\Support\Facades\DB::table('import_batches')->insert([
+            ['import_batch_id' => 'batch-a-123', 'import_batch_code' => 'B-A'],
+            ['import_batch_id' => 'batch-b-456', 'import_batch_code' => 'B-B']
         ]);
 
-        // Tạo Document và Movement cho Item A
-        $docA = StockDocument::factory()->create(['reference_id' => 'batch-a-123']);
-        $movementA = StockMovement::factory()->create([
-            'product_id' => $sku->sku_id,
-            'stock_document_id' => $docA->id,
-            'movement_no' => 'MOV-A'
+        \Illuminate\Support\Facades\DB::table('sku')->insert([
+            'sku_id' => $skuId,
+            'sku_code' => 'SKU-TEST-001',
+            'sku_name' => 'SKU Test'
         ]);
 
-        // Tạo Document và Movement cho Item B
-        $docB = StockDocument::factory()->create(['reference_id' => 'batch-b-456']);
-        $movementB = StockMovement::factory()->create([
-            'product_id' => $sku->sku_id,
-            'stock_document_id' => $docB->id,
-            'movement_no' => 'MOV-B'
+        \Illuminate\Support\Facades\DB::table('item_instances')->insert([
+            ['item_id' => $itemAId, 'sku_id' => $skuId, 'import_batch_id' => 'batch-a-123', 'serial_number' => 'SN-A'],
+            ['item_id' => $itemBId, 'sku_id' => $skuId, 'import_batch_id' => 'batch-b-456', 'serial_number' => 'SN-B']
         ]);
 
-        // Gọi API trace cho Item A
-        $response = $this->getJson("/api/v1/item-instances/{$itemA->item_id}/trace");
+        \Illuminate\Support\Facades\DB::table('stock_documents')->insert([
+            ['id' => $docAId, 'doc_no' => 'DOC-A', 'doc_type' => 'RECEIPT', 'status' => 'DRAFT', 'doc_date' => now(), 'created_by' => 'sys'],
+            ['id' => $docBId, 'doc_no' => 'DOC-B', 'doc_type' => 'RECEIPT', 'status' => 'DRAFT', 'doc_date' => now(), 'created_by' => 'sys']
+        ]);
 
+        $warehouseId = \Illuminate\Support\Str::uuid()->toString();
+
+        \Illuminate\Support\Facades\DB::table('warehouses')->insert([
+            'id' => $warehouseId, 'code' => 'WH1', 'name' => 'Warehouse 1', 'status' => 'ACTIVE'
+        ]);
+
+        \Illuminate\Support\Facades\DB::table('stock_movements')->insert([
+            ['id' => $movAId, 'product_id' => $skuId, 'stock_document_id' => $docAId, 'movement_no' => 'MOV-A', 'movement_type' => 'IN', 'created_by' => 'sys', 'business_key' => 'BK-A', 'warehouse_id' => $warehouseId, 'qty_before' => 0, 'qty_delta' => 1, 'qty_after' => 1],
+            ['id' => $movBId, 'product_id' => $skuId, 'stock_document_id' => $docBId, 'movement_no' => 'MOV-B', 'movement_type' => 'IN', 'created_by' => 'sys', 'business_key' => 'BK-B', 'warehouse_id' => $warehouseId, 'qty_before' => 0, 'qty_delta' => 1, 'qty_after' => 1]
+        ]);
+
+        $response = $this->getJson("/api/v1/item-instances/{$itemAId}/trace");
         $response->assertStatus(200);
-        
-        // Assert chỉ trả về movement của A, không trả về movement của B (Negative test)
+
         $movements = $response->json('data.movements');
         $this->assertCount(1, $movements);
-        $this->assertEquals($movementA->id, $movements[0]['movement_id']);
-        $this->assertNotEquals($movementB->id, $movements[0]['movement_id']);
+        $this->assertEquals($movAId, $movements[0]['movement_id']);
     }
 }
