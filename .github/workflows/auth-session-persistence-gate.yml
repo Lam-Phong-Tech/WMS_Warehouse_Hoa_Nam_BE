@@ -1,0 +1,91 @@
+name: Auth Session Persistence Gate
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Auth/**'
+      - 'config/refresh_token.php'
+      - 'config/cors.php'
+      - '.env.example'
+      - 'tests/Feature/AuthSessionPersistenceTest.php'
+      - 'tests/Feature/AuthRbacAuditHardeningTest.php'
+      - 'tests/Feature/CorsConfigurationTest.php'
+      - '.github/workflows/auth-session-persistence-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-session:
+    name: HttpOnly refresh cookie + F5 session contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/hoanam-auth-session.sqlite
+      JWT_SECRET: Auth-Session-CI-JWT-Only-2026-Exact-SHA
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      REFRESH_TOKEN_COOKIE_SAME_SITE: lax
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          rm -f "$DB_DATABASE"
+          touch "$DB_DATABASE"
+
+      - name: Auth syntax and formatting
+        run: |
+          php -l Modules/Auth/app/Http/Middleware/PersistRefreshTokenCookie.php
+          php -l Modules/Auth/routes/api.php
+          php -l config/refresh_token.php
+          php -l config/cors.php
+          php -l tests/Feature/AuthSessionPersistenceTest.php
+          php -l tests/Feature/CorsConfigurationTest.php
+          ./vendor/bin/pint --test \
+            Modules/Auth/app/Http/Middleware/PersistRefreshTokenCookie.php \
+            Modules/Auth/routes/api.php \
+            config/refresh_token.php \
+            config/cors.php \
+            tests/Feature/AuthSessionPersistenceTest.php \
+            tests/Feature/CorsConfigurationTest.php
+
+      - name: Cookie-only refresh and CORS regression suite
+        run: |
+          php artisan test \
+            tests/Feature/AuthSessionPersistenceTest.php \
+            tests/Feature/AuthRbacAuditHardeningTest.php \
+            tests/Feature/CorsConfigurationTest.php
+
+      - name: Exact SHA summary
+        if: always()
+        run: |
+          echo "### Auth session persistence" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Contract: access token memory-only; refresh token HttpOnly cookie + JSON backward compatibility" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Regression: browser refresh can rotate from cookie when JavaScript memory is empty" >> "$GITHUB_STEP_SUMMARY"
