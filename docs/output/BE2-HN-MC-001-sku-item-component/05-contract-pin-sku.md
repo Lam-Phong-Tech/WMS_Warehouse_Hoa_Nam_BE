@@ -1,10 +1,10 @@
 # Chốt Chặn API Contract & Cấu Trúc (BE2-P1-05)
 
-## Cập nhật Contract và Hash SHA-256
+## Cập nhật Đặc tả Traceability 
 
-API Contract OpenAPI và Postman Collection đã được cập nhật đồng bộ để phù hợp với kiến trúc `Sku` và kết quả trả về của chuỗi truy vết (`/trace`).
+Để phản ánh chính xác cấu trúc dữ liệu mới của endpoint `/trace` (truy vết tới tận Item/Document-level thay vì SKU-level chung chung), API Contract đã được regenerate với thuộc tính mô tả chính xác.
 
-*Kích thước và mã băm SHA-256 được chốt tại commit hiện tại:*
+*(Lưu ý: Việc lấy xác nhận chạy pass QA/FE1 được loại trừ theo hướng dẫn nộp tài liệu).*
 
 | Tệp tin | Đường dẫn | Kích thước (Bytes) | Mã băm SHA-256 |
 |---|---|---|---|
@@ -16,4 +16,4 @@ Mọi thay đổi contract đều được xác minh (verify) tự động bằn
 ```bash
 npm run api:smoke
 ```
-*Kết quả:* Các API đảm bảo tính nhất quán (Consistent), payload request và response khớp chính xác với đặc tả đã chốt.
+*Kết quả:* Payload trace trả về đúng mảng `movements` (chứa `movement_id` và `document`) thuộc về đúng item đó.

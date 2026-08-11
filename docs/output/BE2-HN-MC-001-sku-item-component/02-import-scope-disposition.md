@@ -1,35 +1,34 @@
-# Khắc phục lỗi Runtime và Cấu trúc Model trong ImportService (BE2-P1-02)
+# Kiến trúc Transaction All-or-Nothing và Chuẩn hóa Mapping (BE2-P1-02)
 
-## Vấn đề đã xử lý
-Nhận định từ quá trình review (BE2-P1-02) chỉ ra rằng `ImportService` vẫn sử dụng các phương thức của model `Product` cũ (`Product::where()`, `Product::create()`), trong khi model này đã bị loại bỏ và thay thế bằng `Sku`. Điều này gây ra nguy cơ lỗi runtime cao (Class 'App\Models\Product' not found) khi thực thi import hàng loạt.
+## Giải quyết triệt để sự cố Partial-Write và Mapping dữ liệu
 
-## Giải pháp kỹ thuật
+Phản hồi P1-02 chỉ ra rằng tiến trình import vẫn bị lưu thành công một phần (partial-write) nếu tệp trộn lẫn dữ liệu đúng và sai, đồng thời việc mapping giữa code của file và `sku_code` của Database bị lệch. Toàn bộ đã được khắc phục.
 
-1. **Refactor ImportService**:
-   - Xóa bỏ hoàn toàn mọi tham chiếu đến model `Product`.
-   - Cập nhật logic để sử dụng các model đúng chuẩn theo kiến trúc mới: `App\Models\Sku`, `App\Models\ItemInstance`, và `App\Models\PhysicalCode`.
-   
-2. **Cập nhật luồng xử lý (Data Flow)**:
-   - Thay vì gọi `Product::firstOrCreate(...)`, hệ thống hiện tại gọi `Sku::firstOrCreate(['sku_code' => $row['sku_code']], [...])`.
-   - Các bản ghi vật lý (Item) được tạo qua `ItemInstance::create()` và gán `sku_id` tương ứng, đảm bảo tính vẹn toàn dữ liệu.
+1. **Chuẩn hóa Mapping Dữ liệu Đầu vào**:
+   - Headers file nạp dữ liệu (CSV/Excel) được bắt buộc sử dụng định dạng tên cột chuẩn: `sku_code`, `sku_name` (thay vì `code`, `name` cũ của bảng Product).
+   - Tiến trình `parseRow()` đọc trực tiếp và ánh xạ chuẩn xác vào các field `sku_code`, `sku_name` khi insert, đảm bảo dữ liệu toàn vẹn ngay từ tầng Service.
 
-3. **Bổ sung Unit Test cho ImportService**:
-   - Bổ sung test case `test_import_service_uses_sku_model_successfully` để xác minh rằng tiến trình import không còn phụ thuộc vào `Product` và chạy ổn định với model `Sku`.
+2. **Cơ chế All-or-Nothing qua DB Transaction**:
+   - Toàn bộ tiến trình nạp (vòng lặp parse rows) được bao bọc trong `DB::beginTransaction()`.
+   - Nếu phát hiện **BẤT KỲ LỖI NÀO** (`$errorRows > 0`) ở bất kỳ dòng nào, hệ thống sẽ gọi `DB::rollBack()`.
+   - Các bản ghi (dù hợp lệ trước đó) cũng không được ghi vào database, đảm bảo dữ liệu ở trạng thái No-Side-Effect đúng với chuẩn QA2.
 
-## Evidence (Code Snippet)
+## Evidence (Code Snippet ImportService.php)
 ```php
-// Old Code (đã xóa)
-// $product = Product::where('code', $row['code'])->first();
-// if (!$product) { $product = Product::create([...]); }
+DB::beginTransaction();
+try {
+    foreach ($rows as $index => $row) {
+        // ... (xử lý validation và Sku::create)
+    }
 
-// New Code (đã áp dụng trong ImportService.php)
-$sku = Sku::where('sku_code', $row['sku_code'])->first();
-if (!$sku) {
-    $sku = Sku::create([
-        'sku_code' => $row['sku_code'],
-        'sku_name' => $row['name'],
-        // ...các trường khác
-    ]);
+    if ($errorRows > 0) {
+        DB::rollBack(); // Hủy toàn bộ thay đổi nếu có lỗi (All-or-Nothing)
+        $insertedRows = 0; $updatedRows = 0; $partialWrite = false;
+    } else {
+        DB::commit(); // Chỉ commit khi 100% hợp lệ
+    }
+} catch (\Exception $e) {
+    DB::rollBack();
+    throw $e;
 }
 ```
-*Ghi chú: Lỗi runtime đã được loại bỏ hoàn toàn, hệ thống nạp dữ liệu hàng loạt hoạt động trơn tru với kiến trúc mới.*

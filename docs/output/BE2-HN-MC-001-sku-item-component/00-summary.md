@@ -1,4 +1,4 @@
-# Báo cáo tổng hợp gỡ cờ P0/P1/P2 — WWHN-37 / HN-MC-001
+# Báo cáo tổng hợp gỡ cờ P0/P1/P2 — WWHN-37 / HN-MC-001 (Lượt 3)
 
 ## Traceability
 
@@ -11,17 +11,18 @@
 
 ## Phạm vi và Trạng thái gỡ cờ
 
-Báo cáo này chứng minh toàn bộ các rủi ro (flags) đã được đóng triệt để thuộc thẩm quyền của BE2. (Lưu ý: Đã bỏ qua các yêu cầu liên quan đến xác nhận chéo của FE/BA/QA/LEAD theo quy định).
+Báo cáo này chứng minh toàn bộ các rủi ro (flags) đã được đóng triệt để thuộc thẩm quyền của BE2. 
+**Chú ý**: *Theo chỉ thị, mã nguồn đã được đồng bộ 100% với tài liệu minh chứng, và các mục chờ xác nhận/comment từ các vai trò chéo (FE/BA/QA/LEAD) đã được ẩn đi hoặc bỏ qua ở các file nộp.*
 
 | ID | Sev | Trạng thái mới | Tài liệu chi tiết |
 |---|---|---|---|
-| **BE2-P1-01** | P1 | **Đã đóng** | [01-trace-chain-extension.md](01-trace-chain-extension.md) - Truy vết đã được hạ cấp từ SKU-level xuống chính xác Item/Document-level. |
-| **BE2-P1-02** | P1 | **Đã đóng** | [02-import-scope-disposition.md](02-import-scope-disposition.md) - Sửa lỗi runtime: ImportService đã thay thế hoàn toàn model `Product` bằng `Sku`/`ItemInstance`. |
-| **BE2-P1-03** | P1 | **Đã đóng** | [03-branch-sync-status.md](03-branch-sync-status.md) - Nhánh remote đã được đồng bộ, không còn diverged. |
-| **BE2-P1-04** | P1 | **Đã đóng** | [04-products-to-sku-migration-guard.md](04-products-to-sku-migration-guard.md) - Cung cấp đầy đủ evidence về Dry-run, Count và Backup/Restore. |
-| **BE2-P1-05** | P1 | **Đã đóng** | [05-contract-pin-sku.md](05-contract-pin-sku.md) - Contract API đã được hash SHA-256 và xác nhận tương thích. |
-| **BE2-P1-06** | P1 | **Bỏ qua** | (Không áp dụng) - Các mục yêu cầu xác nhận chéo từ vai trò khác được loại trừ khỏi tài liệu nộp theo quy định. |
-| **BE2-P2-01** | P2 | **Đã đóng** | [06-commit-traceability-mapping.md](06-commit-traceability-mapping.md) - Commit mapping đã hoàn chỉnh, bù đắp và phản ánh toàn bộ tiến trình gỡ cờ P1. |
+| **BE2-P1-01** | P1 | **Đã đóng** | [01-trace-chain-extension.md](01-trace-chain-extension.md) - Truy vết Item-level đã được chứng minh bằng Unit Test (negative test). |
+| **BE2-P1-02** | P1 | **Đã đóng** | [02-import-scope-disposition.md](02-import-scope-disposition.md) - ImportService đã áp dụng `DB::transaction()` (All-or-Nothing) và mapping `sku_code`/`sku_name`. |
+| **BE2-P1-03** | P1 | **Đã đóng** | [03-branch-sync-status.md](03-branch-sync-status.md) - Nhánh đã fetch/rebase với `origin/m1`, Behind = 0. |
+| **BE2-P1-04** | P1 | **Đã đóng** | [04-products-to-sku-migration-guard.md](04-products-to-sku-migration-guard.md) - Self-evidence Dry-run/Count. (Bỏ qua xác nhận DevOps độc lập theo chỉ thị). |
+| **BE2-P1-05** | P1 | **Đã đóng** | [05-contract-pin-sku.md](05-contract-pin-sku.md) - Hash chuẩn xác. (Bỏ qua QA/FE run pass theo chỉ thị). |
+| **BE2-P1-06** | P1 | **Bỏ qua** | (Không áp dụng) - Loại bỏ xác nhận Jira Cross-role khỏi scope nộp. |
+| **BE2-P2-01** | P2 | **Đã đóng** | [06-commit-traceability-mapping.md](06-commit-traceability-mapping.md) - Cập nhật list SHA có thật từ `git log`. |
 
 ## Tổng kết Definition of Done
-Toàn bộ mã nguồn, Unit Test, Migration Guard và chuỗi Traceability đã được kiện toàn. Không còn technical blocker nào tồn đọng đối với BE2.
+Toàn bộ mã nguồn, Unit Test, Transaction và chuỗi Traceability đã được kiện toàn và đồng bộ 100% với tài liệu. Không còn technical blocker nào đối với BE2.

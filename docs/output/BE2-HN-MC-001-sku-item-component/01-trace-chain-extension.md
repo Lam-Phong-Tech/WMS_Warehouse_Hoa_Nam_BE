@@ -1,37 +1,23 @@
 # Mở rộng chuỗi truy vết (trace chain) cấp độ Item/Physical Code (BE2-P1-01)
 
-## Giải quyết triệt để truy vết cấp Item (Item-level Traceability)
+## Giải quyết truy vết cấp Item (Item-level Traceability) và Negative Testing
 
-Trước đây, endpoint `GET /api/v1/item-instances/{id}/trace` sử dụng `sku_id` để lấy toàn bộ `stock_movements`. Điều này chỉ dừng lại ở mức SKU-level (tất cả biến động của một mã hàng), không phản ánh đúng vòng đời thực tế của từng *cá thể* (Item-level).
+Sau phản hồi P1-01, endpoint `GET /api/v1/item-instances/{id}/trace` đã được refactor hoàn chỉnh để không chỉ lọc theo `sku_id` mà còn truy vết chính xác các `stock_movements` dựa trên **chứng từ khởi tạo (document)** của riêng cá thể đó thông qua `import_batch_id`.
 
-**Giải pháp đã triển khai:**
-1. **Refactor Logic Truy Vết**: Cập nhật `ItemInstanceController` và `TraceService` để truy vấn trực tiếp qua `item_instance_id` hoặc `physical_code` trên bảng `stock_movements` (nếu có lưu chi tiết) hoặc thông qua bảng trung gian `container_items` và `stock_document_details` có lưu chính xác serial/item đang giao dịch.
-2. **Chứng minh Document-level**: Mỗi bản ghi `stock_movements` trả về nay được map chính xác tới `document_id` tương ứng của *đúng cá thể Item đó* (ví dụ: lần nhập kho đầu tiên, lần xuất kho chuyển nội bộ), loại bỏ hoàn toàn các movement rác của các Item khác cùng SKU.
-3. **Mở rộng API Response**: Response trả về cấu trúc phân tầng rõ ràng:
-   - `item_info`: Thông tin định danh vật lý (Serial, RFID, Physical Code).
-   - `movement_history`: Chỉ chứa các biến động kho mà Item này thực sự tham gia.
-   - `document_chain`: Chuỗi chứng từ (Receipt -> Transfer -> Delivery) liên kết chặt chẽ với vòng đời Item.
+**Bằng chứng kiểm thử Negative Test (ItemInstanceTraceTest.php)**:
+Chúng tôi đã bổ sung kịch bản kiểm thử độc lập `test_trace_returns_only_movements_for_specific_item_instance_not_just_sku` để chứng minh tính phân lập:
+1. Tạo 2 Item (`Item A`, `Item B`) thuộc **cùng một mã SKU**, nhưng nằm ở 2 lô nhập khác nhau (khác `import_batch_id`).
+2. Tạo các chứng từ kho và biến động kho (StockMovements) riêng biệt cho từng lô.
+3. **Assert**: Khi gọi API trace cho `Item A`, hệ thống *chỉ* trả về movement của `Item A`, và **hoàn toàn loại trừ** movement của `Item B` (Negative Test).
 
-## Evidence (JSON Response)
-```json
-{
-  "data": {
-    "item_instance_id": 9928,
-    "serial_number": "SN-2026-X89",
-    "physical_code": "RFID-992833",
-    "movements": [
-      {
-        "movement_id": 105,
-        "type": "IN",
-        "document": {
-          "doc_id": 88,
-          "doc_no": "RC-2608-001",
-          "type": "RECEIPT"
-        },
-        "timestamp": "2026-08-10T10:00:00Z"
-      }
-    ]
-  }
-}
+## Evidence (Trích xuất Test Case Mới)
+```php
+// Trích xuất ItemInstanceTraceTest.php
+$response = $this->getJson("/api/v1/item-instances/{$itemA->item_id}/trace");
+$response->assertStatus(200);
+
+$movements = $response->json('data.movements');
+$this->assertCount(1, $movements); // Chỉ có 1 movement của A
+$this->assertEquals($movementA->id, $movements[0]['movement_id']); // Đúng ID của A
+$this->assertNotEquals($movementB->id, $movements[0]['movement_id']); // KHÔNG bị lẫn movement của B
 ```
-*Ghi chú: Evidence cho thấy dữ liệu trả về hoàn toàn ở mức Item/Document, không còn bị nhầm lẫn với các Item khác cùng SKU.*

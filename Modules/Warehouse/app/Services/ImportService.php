@@ -5,10 +5,6 @@ namespace Modules\Warehouse\Services;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\Sku;
 use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Reader\Csv;
-use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
-use PhpOffice\PhpSpreadsheet\Reader\Xls;
 
 class ImportService
 {
@@ -18,15 +14,10 @@ class ImportService
 
     public function import(string $filePath, bool $updateExisting = false): array
     {
-        // Validate file
         $this->validateFile($filePath);
-
-        // Load spreadsheet
         $spreadsheet = IOFactory::load($filePath);
         $worksheet = $spreadsheet->getActiveSheet();
         $rows = $worksheet->toArray();
-
-        // Remove header row
         $header = array_shift($rows);
         $totalRows = count($rows);
 
@@ -38,13 +29,9 @@ class ImportService
             throw new \InvalidArgumentException("File contains more than " . self::MAX_ROWS . " rows");
         }
 
-        // Validate headers
         $this->validateHeaders($header);
 
-        // Process rows
-        $result = $this->processRows($rows, $updateExisting);
-
-        return $result;
+        return $this->processRows($rows, $updateExisting);
     }
 
     private function validateFile(string $filePath): void
@@ -66,13 +53,13 @@ class ImportService
 
     private function validateHeaders(array $headers): void
     {
-        $requiredHeaders = ['code', 'name'];
+        $requiredHeaders = ['sku_code', 'sku_name'];
         $normalizedHeaders = array_map(function ($header) {
             return strtolower(trim($header));
         }, $headers);
 
         foreach ($requiredHeaders as $required) {
-            if (!in_array($required, $normalizedHeaders)) {
+            if (!in_array($required, $normalizedHeaders) && !in_array(str_replace('sku_', '', $required), $normalizedHeaders)) {
                 throw new \InvalidArgumentException("Missing required column: {$required}");
             }
         }
@@ -88,53 +75,62 @@ class ImportService
         $validRows = 0;
         $errorRows = 0;
 
-        foreach ($rows as $index => $row) {
-            $rowNumber = $index + 2; // 1-based + header
-            $rowData = $this->parseRow($row);
+        DB::beginTransaction();
 
-            // Skip empty rows
-            if (empty($rowData['code']) && empty($rowData['name'])) {
-                continue;
-            }
+        try {
+            foreach ($rows as $index => $row) {
+                $rowNumber = $index + 2;
+                $rowData = $this->parseRow($row);
 
-            // Validate row
-            $validationError = $this->validateRow($rowData, $rowNumber, $seenCodes);
-            if ($validationError) {
-                $rowErrors[] = $validationError;
-                $errorRows++;
-                continue;
-            }
-
-            $validRows++;
-
-            // Check if code exists in database
-            $existing = Sku::where('sku_code', $rowData['code'])->first();
-
-            if ($existing) {
-                if ($updateExisting) {
-                    // Update mode
-                    $existing->update($rowData);
-                    $updatedRows++;
-                } else {
-                    // Skip duplicate
-                    $rowErrors[] = [
-                        'row' => $rowNumber,
-                        'code' => 'DUPLICATE_CODE',
-                        'field' => 'code',
-                        'message' => "Product code '{$rowData['code']}' already exists",
-                        'value' => $rowData['code'],
-                    ];
-                    $skippedRows++;
-                    $errorRows++;
+                if (empty($rowData['sku_code']) && empty($rowData['sku_name'])) {
+                    continue;
                 }
-            } else {
-                // Insert new
-                Sku::create($rowData);
-                $insertedRows++;
-            }
-        }
 
-        $partialWrite = ($insertedRows + $updatedRows) > 0 && $errorRows > 0;
+                $validationError = $this->validateRow($rowData, $rowNumber, $seenCodes);
+                if ($validationError) {
+                    $rowErrors[] = $validationError;
+                    $errorRows++;
+                    continue;
+                }
+
+                $validRows++;
+
+                $existing = Sku::where('sku_code', $rowData['sku_code'])->first();
+
+                if ($existing) {
+                    if ($updateExisting) {
+                        $existing->update($rowData);
+                        $updatedRows++;
+                    } else {
+                        $rowErrors[] = [
+                            'row' => $rowNumber,
+                            'code' => 'DUPLICATE_CODE',
+                            'field' => 'sku_code',
+                            'message' => "Sku code '{$rowData['sku_code']}' already exists",
+                            'value' => $rowData['sku_code'],
+                        ];
+                        $skippedRows++;
+                        $errorRows++;
+                    }
+                } else {
+                    Sku::create($rowData);
+                    $insertedRows++;
+                }
+            }
+
+            if ($errorRows > 0) {
+                DB::rollBack();
+                $insertedRows = 0;
+                $updatedRows = 0;
+                $partialWrite = false;
+            } else {
+                DB::commit();
+                $partialWrite = false;
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
 
         return $this->buildResult(
             $validRows + $errorRows,
@@ -151,19 +147,18 @@ class ImportService
     private function parseRow(array $row): array
     {
         return [
-            'code' => $this->parseCode($row[0] ?? null),
-            'sku_code' => $this->parseString($row[1] ?? null),
-            'name' => $this->parseString($row[2] ?? null),
-            'unit' => $this->parseString($row[3] ?? null) ?: 'cái',
-            'sku_type' => $this->parseSkuType($row[4] ?? null),
-            'brand_code' => $this->parseString($row[5] ?? null),
-            'category_code' => $this->parseString($row[6] ?? null),
-            'model_code' => $this->parseString($row[7] ?? null),
-            'power_or_voltage' => $this->parseString($row[8] ?? null),
-            'package_variant' => $this->parsePackageVariant($row[9] ?? null),
-            'published_to_app' => $this->parseBoolean($row[10] ?? null),
-            'is_serial_tracked' => $this->parseBoolean($row[11] ?? null),
-            'status' => $this->parseStatus($row[12] ?? null),
+            'sku_code' => $this->parseCode($row[0] ?? null),
+            'sku_name' => $this->parseString($row[1] ?? null),
+            'unit' => $this->parseString($row[2] ?? null) ?: 'cái',
+            'sku_type' => $this->parseSkuType($row[3] ?? null),
+            'brand_code' => $this->parseString($row[4] ?? null),
+            'category_code' => $this->parseString($row[5] ?? null),
+            'model_code' => $this->parseString($row[6] ?? null),
+            'power_or_voltage' => $this->parseString($row[7] ?? null),
+            'package_variant' => $this->parsePackageVariant($row[8] ?? null),
+            'published_to_app' => $this->parseBoolean($row[9] ?? null),
+            'is_serial_tracked' => $this->parseBoolean($row[10] ?? null),
+            'status' => $this->parseStatus($row[11] ?? null),
         ];
     }
 
@@ -221,81 +216,77 @@ class ImportService
 
     private function validateRow(array $rowData, int $rowNumber, array &$seenCodes): ?array
     {
-        // Check required fields
-        if (empty($rowData['code']) && empty($rowData['name'])) {
+        if (empty($rowData['sku_code']) && empty($rowData['sku_name'])) {
             return [
                 'row' => $rowNumber,
                 'code' => 'MISSING_REQUIRED_FIELDS',
-                'field' => 'code,name',
-                'message' => 'Code and name are required',
+                'field' => 'sku_code,sku_name',
+                'message' => 'Sku code and name are required',
                 'value' => '',
             ];
         }
 
-        if (empty($rowData['code'])) {
+        if (empty($rowData['sku_code'])) {
             return [
                 'row' => $rowNumber,
                 'code' => 'MISSING_CODE',
-                'field' => 'code',
-                'message' => 'Code field is required',
+                'field' => 'sku_code',
+                'message' => 'Sku code field is required',
                 'value' => '',
             ];
         }
 
-        if (empty($rowData['name'])) {
+        if (empty($rowData['sku_name'])) {
             return [
                 'row' => $rowNumber,
                 'code' => 'MISSING_NAME',
-                'field' => 'name',
-                'message' => 'Name field is required',
+                'field' => 'sku_name',
+                'message' => 'Sku name field is required',
                 'value' => '',
             ];
         }
 
-        // Check code format
-        if (!preg_match('/^[A-Z0-9][A-Z0-9\-]*[A-Z0-9]$/', $rowData['code'])) {
+        if (!preg_match('/^[A-Z0-9][A-Z0-9\-]*[A-Z0-9]$/', $rowData['sku_code'])) {
             return [
                 'row' => $rowNumber,
                 'code' => 'INVALID_CODE_FORMAT',
-                'field' => 'code',
-                'message' => "Invalid code format '{$rowData['code']}'. Must be uppercase alphanumeric with hyphens",
-                'value' => $rowData['code'],
+                'field' => 'sku_code',
+                'message' => "Invalid code format '{$rowData['sku_code']}'. Must be uppercase alphanumeric with hyphens",
+                'value' => $rowData['sku_code'],
             ];
         }
 
-        if (strlen($rowData['code']) > 100) {
+        if (strlen($rowData['sku_code']) > 100) {
             return [
                 'row' => $rowNumber,
                 'code' => 'CODE_TOO_LONG',
-                'field' => 'code',
+                'field' => 'sku_code',
                 'message' => "Code exceeds 100 characters",
-                'value' => $rowData['code'],
+                'value' => $rowData['sku_code'],
             ];
         }
 
-        // Check name length
-        if (strlen($rowData['name']) > 255) {
+        if (strlen($rowData['sku_name']) > 255) {
             return [
                 'row' => $rowNumber,
                 'code' => 'NAME_TOO_LONG',
-                'field' => 'name',
+                'field' => 'sku_name',
                 'message' => "Name exceeds 255 characters",
-                'value' => $rowData['name'],
+                'value' => $rowData['sku_name'],
             ];
         }
 
-        // Check duplicate in file
-        if (isset($seenCodes[$rowData['code']])) {
+        if (isset($seenCodes[$rowData['sku_code']])) {
             return [
                 'row' => $rowNumber,
                 'code' => 'DUPLICATE_CODE_IN_FILE',
-                'field' => 'code',
-                'message' => "Code '{$rowData['code']}' already exists in file (row {$seenCodes[$rowData['code']]})",
-                'value' => $rowData['code'],
+                'field' => 'sku_code',
+                'message' => "Code '{$rowData['sku_code']}' already exists in file (row {$seenCodes[$rowData['sku_code']]})",
+                'value' => $rowData['sku_code'],
             ];
         }
 
-        $seenCodes[$rowData['code']] = $rowNumber;
+        $seenCodes[$rowData['sku_code']] = $rowNumber;
 
         return null;
     }
