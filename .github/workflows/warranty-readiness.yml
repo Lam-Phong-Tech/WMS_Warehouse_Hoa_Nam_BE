@@ -1,0 +1,123 @@
+name: Warranty Readiness
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CanonicalMvpController.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'tests/Feature/WarrantyReadinessTest.php'
+      - '.github/workflows/warranty-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warranty-readiness:
+    name: Warranty lifecycle, locking and OpenAPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/hoa-nam-warranty.sqlite
+      JWT_SECRET: ci-warranty-readiness-jwt-secret-20260811
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare isolated SQLite runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          rm -f "$DB_DATABASE"
+          touch "$DB_DATABASE"
+          {
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=false"
+            echo "DB_CONNECTION=sqlite"
+            echo "DB_DATABASE=$DB_DATABASE"
+            echo "CACHE_STORE=array"
+            echo "SESSION_DRIVER=array"
+            echo "QUEUE_CONNECTION=sync"
+            echo "JWT_SECRET=$JWT_SECRET"
+          } >> .env
+
+      - name: Lint warranty scope
+        run: |
+          php -l Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php
+          php -l Modules/Warehouse/routes/api.php
+          php -l tests/Feature/WarrantyReadinessTest.php
+          ./vendor/bin/pint --test \
+            Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php \
+            Modules/Warehouse/routes/api.php \
+            tests/Feature/WarrantyReadinessTest.php
+
+      - name: Run executable warranty integration tests
+        run: php artisan test tests/Feature/WarrantyReadinessTest.php
+
+      - name: Verify runtime routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan route:list --path=api/v1/warranty-cases | tee /tmp/warranty-routes.txt
+          php artisan route:list --path=api/v1/component-issue-documents | tee /tmp/component-routes.txt
+          grep -F 'GET' /tmp/warranty-routes.txt
+          grep -F 'POST' /tmp/warranty-routes.txt
+          grep -F 'PATCH' /tmp/warranty-routes.txt
+          grep -F 'warranty-cases/{id}/events' /tmp/warranty-routes.txt
+          grep -F 'GET' /tmp/component-routes.txt
+          grep -F 'POST' /tmp/component-routes.txt
+          grep -F 'scan' /tmp/component-routes.txt
+          grep -F 'cancel' /tmp/component-routes.txt
+          grep -F 'post' /tmp/component-routes.txt
+
+      - name: Generate and verify OpenAPI route-sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan l5-swagger:generate
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path('storage/api-docs/api-docs.json').read_text(encoding='utf-8'))
+          paths = data.get('paths', {})
+          required = {
+              '/api/v1/warranty-cases': {'get', 'post'},
+              '/api/v1/warranty-cases/{id}': {'get', 'patch'},
+              '/api/v1/warranty-cases/{id}/events': {'get'},
+              '/api/v1/component-issue-documents': {'get', 'post'},
+              '/api/v1/component-issue-documents/{id}/scan': {'post'},
+              '/api/v1/component-issue-documents/{id}/cancel': {'post'},
+              '/api/v1/component-issue-documents/{id}/post': {'post'},
+          }
+          missing = []
+          for route, methods in required.items():
+              actual = {method.lower() for method in paths.get(route, {}).keys()}
+              for method in methods:
+                  if method not in actual:
+                      missing.append(f'{method.upper()} {route}')
+          if missing:
+              raise SystemExit('Missing OpenAPI operations: ' + ', '.join(missing))
+          print('Warranty OpenAPI route-sync PASS')
+          PY
