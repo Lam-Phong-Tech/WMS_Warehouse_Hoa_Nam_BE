@@ -8,6 +8,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineContainerFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineDocumentController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineImportController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineInboundBoxController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineMasterController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselinePhysicalCodeController;
@@ -50,7 +51,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('inbound-documents/{id}', [InboundDocumentController::class, 'show'])->middleware('permission:inbound.view');
         Route::patch('inbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateInbound'])->middleware('permission:inbound.create');
         Route::post('inbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelInbound'])->middleware('permission:inbound.cancel');
-        Route::post('inbound-documents/{id}/boxes', [PutawayController::class, 'registerInboundBox'])->middleware('permission:inbound.scan');
+        Route::post('inbound-documents/{id}/boxes', [CurrentBaselineInboundBoxController::class, 'store'])->middleware('permission:inbound.scan');
         Route::post('inbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'inboundScan'])
             ->middleware(['permission:inbound.scan', EnsureInboundComponentBox::class]);
         Route::post('inbound-documents/{id}/post-receipt', [CurrentBaselineStockFlowController::class, 'postReceipt'])->middleware('permission:inbound.post');
