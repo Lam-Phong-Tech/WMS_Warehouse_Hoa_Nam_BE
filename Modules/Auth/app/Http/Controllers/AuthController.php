@@ -86,15 +86,21 @@ class AuthController extends Controller
 
     #[OA\Post(
         path: '/api/v1/auth/refresh', operationId: 'auth_refresh',
-        summary: 'Xoay vòng refresh token; token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên',
+        summary: 'Xoay vòng refresh token từ JSON hoặc HttpOnly browser cookie',
+        description: 'Browser có thể bỏ trống body sau F5; server dùng HttpOnly refresh cookie. Swagger/Postman/non-browser client vẫn có thể gửi refresh_token trong JSON body. Token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên.',
         tags: ['01. Authentication'], security: [],
-        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
-            required: ['refresh_token'], properties: [new OA\Property(property: 'refresh_token', type: 'string')]
+        requestBody: new OA\RequestBody(required: false, content: new OA\JsonContent(
+            properties: [new OA\Property(
+                property: 'refresh_token',
+                type: 'string',
+                nullable: true,
+                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie; bắt buộc nếu client không dùng cookie.'
+            )]
         )),
         responses: [
             new OA\Response(response: 200, description: 'Làm mới token thành công'),
             new OA\Response(response: 401, description: 'Refresh token không hợp lệ, hết hạn hoặc bị replay'),
-            new OA\Response(response: 422, description: 'Thiếu refresh_token'),
+            new OA\Response(response: 422, description: 'Không có refresh token trong JSON body hoặc browser cookie'),
         ]
     )]
     public function refresh(Request $request)
@@ -131,7 +137,12 @@ class AuthController extends Controller
         summary: 'Đăng xuất, thu hồi refresh token và huỷ access token hiện tại',
         security: [['bearerAuth' => []]], tags: ['01. Authentication'],
         requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
-            new OA\Property(property: 'refresh_token', type: 'string', nullable: true),
+            new OA\Property(
+                property: 'refresh_token',
+                type: 'string',
+                nullable: true,
+                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie.'
+            ),
         ])),
         responses: [
             new OA\Response(response: 200, description: 'Đăng xuất thành công'),
