@@ -265,6 +265,7 @@ class UserController extends Controller
         }
 
         $beforeRoleIds = $user->roles()->pluck('role.role_id')->all();
+        $beforeVersion = (int) $user->version;
 
         $pivotData = [];
         foreach ($request->validated()['role_ids'] as $roleId) {
@@ -272,14 +273,19 @@ class UserController extends Controller
         }
         $user->roles()->sync($pivotData);
 
+        // Permission/scope caches are keyed by user version. Bump it whenever
+        // role membership changes so the very next request resolves fresh RBAC.
+        $user->version = $beforeVersion + 1;
+        $user->save();
+
         AuditLogger::record(
             action: 'ASSIGN_ROLES',
             objectType: 'user',
             objectId: $id,
             actorId: $request->user()?->user_id,
             requestId: $request->attributes->get('request_id'),
-            beforeData: ['role_ids' => $beforeRoleIds],
-            afterData: ['role_ids' => array_keys($pivotData)],
+            beforeData: ['role_ids' => $beforeRoleIds, 'version' => $beforeVersion],
+            afterData: ['role_ids' => array_keys($pivotData), 'version' => (int) $user->version],
         );
 
         return $this->respondSuccess($user->load('roles'), 'Gán role cho người dùng thành công');
