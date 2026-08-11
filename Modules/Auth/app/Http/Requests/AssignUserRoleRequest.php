@@ -16,7 +16,6 @@ class AssignUserRoleRequest extends FormRequest
         return [
             'role_ids' => ['required', 'array'],
             'role_ids.*' => ['uuid', 'exists:role,role_id'],
-            'scope_ref' => ['nullable', 'string', 'max:100'],
         ];
     }
 }
