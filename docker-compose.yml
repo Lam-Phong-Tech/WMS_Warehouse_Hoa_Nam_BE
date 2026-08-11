@@ -18,6 +18,7 @@ services:
       dockerfile: docker/php/Dockerfile
     volumes:
       - .:/var/www/html:delegated
+      - wms_vendor:/var/www/html/vendor
     environment:
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
@@ -55,7 +56,9 @@ services:
     command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=90"]
     volumes:
       - .:/var/www/html:delegated
+      - wms_vendor:/var/www/html/vendor
     environment:
+      - AUTO_MIGRATE=false
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -136,3 +139,4 @@ volumes:
   wms_postgres_data:
   wms_valkey_data:
   wms_minio_data:
+  wms_vendor:

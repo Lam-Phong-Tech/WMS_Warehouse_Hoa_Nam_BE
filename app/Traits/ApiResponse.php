@@ -10,6 +10,13 @@ trait ApiResponse
 {
     protected function respondSuccess($data = null, ?string $message = null, int $code = 200): JsonResponse
     {
+        // A few legacy callers may pass a paginator through respondSuccess().
+        // Normalize it here so the convention middleware does not need a second
+        // JSON decode/encode pass merely to discover pagination metadata.
+        if ($data instanceof LengthAwarePaginator) {
+            return $this->respondPaginated($data, $message);
+        }
+
         $payload = ['success' => true];
         if ($message !== null) {
             $payload['message'] = $message;
@@ -20,7 +27,7 @@ trait ApiResponse
             'timestamp' => now()->toIso8601String(),
         ];
 
-        return response()->json($payload, $code);
+        return $this->standardJsonResponse($payload, $code);
     }
 
     protected function currentRequestId(): string
@@ -59,7 +66,7 @@ trait ApiResponse
             'next' => $paginator->nextPageUrl(),
         ];
 
-        return response()->json($payload, 200);
+        return $this->standardJsonResponse($payload, 200);
     }
 
     protected function respondError(?string $message = null, $errors = [], int $code = 400, ?string $errorCode = null, array $extra = []): JsonResponse
@@ -89,7 +96,7 @@ trait ApiResponse
             ],
         ];
 
-        return response()->json(array_merge($payload, $extra), $code);
+        return $this->standardJsonResponse(array_merge($payload, $extra), $code);
     }
 
     protected function respondNotFound(?string $message = null): JsonResponse
@@ -100,5 +107,18 @@ trait ApiResponse
     protected function respondConflict(?string $message = null, $errors = [], ?string $errorCode = null, array $extra = []): JsonResponse
     {
         return $this->respondError($message, $errors, 409, $errorCode ?? 'STATE_CONFLICT', $extra);
+    }
+
+    /**
+     * Mark envelopes already produced by this trait. ApiConventionMiddleware
+     * consumes and removes this private transport marker so it can skip an
+     * otherwise redundant json_decode() + json_encode() cycle.
+     */
+    private function standardJsonResponse(array $payload, int $code): JsonResponse
+    {
+        $response = response()->json($payload, $code);
+        $response->headers->set('X-WMS-Envelope-Ready', '1');
+
+        return $response;
     }
 }
