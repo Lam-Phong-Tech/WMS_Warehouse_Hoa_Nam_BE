@@ -1,15 +1,21 @@
 <?php
 
-$allowedOrigins = array_values(array_filter(
+$rawAllowedOrigins = trim((string) env('CORS_ALLOWED_ORIGINS', ''));
+$appEnv = strtolower(trim((string) env('APP_ENV', 'production')));
+
+// Existing developer .env files may already contain CORS_ALLOWED_ORIGINS= blank.
+// Local/testing must remain usable after pull without weakening deployed environments.
+if ($rawAllowedOrigins === '' && in_array($appEnv, ['local', 'testing'], true)) {
+    $rawAllowedOrigins = 'http://localhost:5173,http://127.0.0.1:5173';
+}
+
+$allowedOrigins = array_values(array_unique(array_filter(
     array_map(
-        static fn (string $origin): string => trim($origin),
-        explode(',', (string) env(
-            'CORS_ALLOWED_ORIGINS',
-            'http://localhost:5173,http://127.0.0.1:5173'
-        ))
+        static fn (string $origin): string => rtrim(trim($origin), '/'),
+        explode(',', $rawAllowedOrigins)
     ),
     static fn (string $origin): bool => $origin !== ''
-));
+)));
 
 return [
     // All HTTP APIs, including auth preflight requests, are handled by Laravel CORS.
