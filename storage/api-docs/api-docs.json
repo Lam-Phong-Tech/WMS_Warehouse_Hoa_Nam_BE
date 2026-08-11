@@ -8540,91 +8540,91 @@
     "tags": [
         {
             "name": "00. Platform",
-            "description": "Health and platform-level endpoints."
+            "description": "Các endpoint kiểm tra sức khỏe hệ thống và cấp nền tảng."
         },
         {
             "name": "01. Authentication",
-            "description": "JWT authentication and current-user context."
+            "description": "Xác thực JWT và ngữ cảnh người dùng hiện tại."
         },
         {
             "name": "02. Users",
-            "description": "IAM user management."
+            "description": "Quản lý người dùng IAM."
         },
         {
             "name": "03. Roles",
-            "description": "IAM role and role-permission management."
+            "description": "Quản lý vai trò IAM và phân quyền theo vai trò."
         },
         {
             "name": "04. Permissions",
-            "description": "IAM permission catalog."
+            "description": "Danh mục quyền IAM."
         },
         {
             "name": "05. Product",
-            "description": "SKU and product endpoints."
+            "description": "Các endpoint SKU và sản phẩm."
         },
         {
             "name": "06. Warehouse",
-            "description": "Hoa Nam single-warehouse master."
+            "description": "Thông tin master một kho Hoa Nam."
         },
         {
             "name": "07. Inventory",
-            "description": "Inventory balance, movement trace and reconciliation."
+            "description": "Số dư tồn kho, truy vết biến động và đối soát."
         },
         {
             "name": "08. Catalog Master",
-            "description": "Reference product masters."
+            "description": "Dữ liệu master tham chiếu của sản phẩm."
         },
         {
             "name": "09. Stock In (Inbound)",
-            "description": "Inbound full-post flow."
+            "description": "Luồng nhập kho đầy đủ đến bước ghi nhận."
         },
         {
             "name": "10. Stock Out (Outbound)",
-            "description": "Outbound import/match/full-post flow."
+            "description": "Luồng xuất kho gồm import, khớp dữ liệu và ghi nhận đầy đủ."
         },
         {
             "name": "11. Scan",
-            "description": "Scan classification endpoints."
+            "description": "Các endpoint phân loại mã quét."
         },
         {
             "name": "12. Dashboard / Report",
-            "description": "Inventory and dashboard reporting."
+            "description": "Báo cáo tồn kho và dữ liệu dashboard."
         },
         {
             "name": "13. Warranty",
-            "description": "Warranty cases and warranty events."
+            "description": "Hồ sơ bảo hành và sự kiện bảo hành."
         },
         {
             "name": "14. Component Issue",
-            "description": "Warranty-only component issue documents."
+            "description": "Chứng từ xuất linh kiện chỉ dùng cho bảo hành."
         },
         {
             "name": "15. Audit Log",
-            "description": "Append-only audit evidence."
+            "description": "Bằng chứng audit dạng chỉ ghi thêm."
         },
         {
             "name": "16. Agency",
-            "description": "Recipient master endpoints."
+            "description": "Các endpoint master bên nhận."
         },
         {
             "name": "17. Defect Catalog",
-            "description": "Warranty defect master."
+            "description": "Danh mục lỗi bảo hành."
         },
         {
             "name": "18. Physical Inventory",
-            "description": "Item instances, physical codes, import batches and containers."
+            "description": "Đối tượng hàng hóa, mã vật lý, lô import và container."
         },
         {
             "name": "19. Label / Printer",
-            "description": "Label snapshots, printing and reprint evidence."
+            "description": "Ảnh chụp nhãn, in nhãn và bằng chứng in lại."
         },
         {
             "name": "20. System Operation",
-            "description": "Reserved for operational administration endpoints."
+            "description": "Dự phòng cho các endpoint quản trị vận hành hệ thống."
         },
         {
             "name": "21. Public Catalog",
-            "description": "Read-only PV catalog/recommendation endpoints."
+            "description": "Các endpoint danh mục và gợi ý PV chỉ đọc."
         }
     ]
 }
