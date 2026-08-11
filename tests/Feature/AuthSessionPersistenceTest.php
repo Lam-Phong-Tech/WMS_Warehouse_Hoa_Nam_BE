@@ -51,10 +51,12 @@ class AuthSessionPersistenceTest extends TestCase
         ])->assertOk();
         $oldRefreshToken = (string) $login->json('data.refresh_token');
 
-        $response = $this->withHeader(
-            'Cookie',
-            $cookieName.'='.rawurlencode($oldRefreshToken)
-        )->postJson('/api/v1/auth/refresh', [])->assertOk();
+        // API routes intentionally use a plain opaque HttpOnly cookie rather than a
+        // Laravel-encrypted cookie. Exercise the same request-cookie bag a browser
+        // produces instead of injecting a raw Cookie header into the test server.
+        $response = $this->withUnencryptedCookie($cookieName, $oldRefreshToken)
+            ->postJson('/api/v1/auth/refresh', [])
+            ->assertOk();
 
         $newRefreshToken = (string) $response->json('data.refresh_token');
         $this->assertNotSame('', $newRefreshToken);
@@ -85,10 +87,9 @@ class AuthSessionPersistenceTest extends TestCase
     {
         $cookieName = (string) config('refresh_token.cookie.name');
 
-        $response = $this->withHeader(
-            'Cookie',
-            $cookieName.'='.rawurlencode('invalid-refresh-token')
-        )->postJson('/api/v1/auth/refresh', [])->assertStatus(401);
+        $response = $this->withUnencryptedCookie($cookieName, 'invalid-refresh-token')
+            ->postJson('/api/v1/auth/refresh', [])
+            ->assertStatus(401);
 
         $expiredCookie = collect($response->headers->getCookies())
             ->first(fn ($candidate) => $candidate->getName() === $cookieName);
@@ -109,10 +110,10 @@ class AuthSessionPersistenceTest extends TestCase
         $accessToken = (string) $login->json('data.access_token');
         $refreshToken = (string) $login->json('data.refresh_token');
 
-        $response = $this->withHeaders([
-            'Authorization' => 'Bearer '.$accessToken,
-            'Cookie' => $cookieName.'='.rawurlencode($refreshToken),
-        ])->postJson('/api/v1/auth/logout', [])->assertOk();
+        $response = $this->withUnencryptedCookie($cookieName, $refreshToken)
+            ->withHeader('Authorization', 'Bearer '.$accessToken)
+            ->postJson('/api/v1/auth/logout', [])
+            ->assertOk();
 
         $this->assertFalse(
             RefreshToken::where('user_id', $user->user_id)->active()->exists()
