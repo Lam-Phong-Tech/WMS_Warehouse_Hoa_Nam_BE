@@ -23,6 +23,7 @@ use Modules\Warehouse\Http\Controllers\OutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductMasterController;
+use Modules\Warehouse\Http\Controllers\PutawayController;
 use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
@@ -39,16 +40,25 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('warehouses/{id}', [WarehouseController::class, 'update'])->middleware('permission:warehouse.manage');
 
         Route::get('products', [ProductController::class, 'index'])->middleware('permission:sku.view');
+        Route::post('products', [ProductController::class, 'store'])->middleware('permission:sku.manage');
         Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:sku.view');
+        Route::patch('products/{id}', [ProductController::class, 'update'])->middleware('permission:sku.manage');
 
         Route::get('inbound-documents', [InboundDocumentController::class, 'index'])->middleware('permission:inbound.view');
         Route::post('inbound-documents', [CurrentBaselineDocumentController::class, 'storeInbound'])->middleware('permission:inbound.create');
         Route::get('inbound-documents/{id}', [InboundDocumentController::class, 'show'])->middleware('permission:inbound.view');
         Route::patch('inbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateInbound'])->middleware('permission:inbound.create');
         Route::post('inbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelInbound'])->middleware('permission:inbound.cancel');
+        Route::post('inbound-documents/{id}/boxes', [PutawayController::class, 'registerInboundBox'])->middleware('permission:inbound.scan');
         Route::post('inbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'inboundScan'])->middleware('permission:inbound.scan');
         Route::post('inbound-documents/{id}/post-receipt', [CurrentBaselineStockFlowController::class, 'postReceipt'])->middleware('permission:inbound.post');
         Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])->middleware('permission:inventory.reversal.post');
+
+        Route::get('putaway/tasks', [PutawayController::class, 'tasks'])->middleware('permission:container.view');
+        Route::post('putaway/tasks', [PutawayController::class, 'storeTask'])->middleware('permission:container.manage');
+        Route::post('putaway/tasks/{id}/confirm', [PutawayController::class, 'confirm'])->middleware('permission:container.manage');
+        Route::post('putaway/tasks/{id}/cancel', [PutawayController::class, 'cancel'])->middleware('permission:container.manage');
+        Route::get('putaway/history', [PutawayController::class, 'history'])->middleware('permission:container.view');
 
         Route::get('outbound-documents', [OutboundDocumentController::class, 'index'])->middleware('permission:outbound.view');
         Route::post('outbound-documents', [CurrentBaselineDocumentController::class, 'storeOutbound'])->middleware('permission:outbound.create');
