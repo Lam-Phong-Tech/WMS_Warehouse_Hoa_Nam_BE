@@ -68,6 +68,7 @@ jobs:
           php -l Modules/Auth/app/Repositories/RoleRepository.php
           php -l Modules/Auth/routes/api.php
           php -l Modules/Warehouse/app/Http/Middleware/EnsureInboundComponentBox.php
+          php -l Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php
           php -l Modules/Warehouse/app/Http/Controllers/PutawayController.php
           php -l Modules/Warehouse/routes/api.php
           php -l Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php
@@ -78,6 +79,7 @@ jobs:
             Modules/Auth/app/Repositories/RoleRepository.php \
             Modules/Auth/routes/api.php \
             Modules/Warehouse/app/Http/Middleware/EnsureInboundComponentBox.php \
+            Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php \
             Modules/Warehouse/app/Http/Controllers/PutawayController.php \
             Modules/Warehouse/routes/api.php \
             Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php \
