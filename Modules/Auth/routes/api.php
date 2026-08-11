@@ -5,6 +5,7 @@ use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
 use Modules\Auth\Http\Controllers\UserController;
+use Modules\Auth\Http\Middleware\EnsureMutableRole;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login']);
@@ -26,9 +27,12 @@ Route::prefix('v1')->group(function (): void {
         Route::get('roles', [RoleController::class, 'index'])->middleware('permission:iam.role.view');
         Route::post('roles', [RoleController::class, 'store'])->middleware('permission:iam.role.manage');
         Route::get('roles/{id}', [RoleController::class, 'show'])->middleware('permission:iam.role.view');
-        Route::patch('roles/{id}', [RoleController::class, 'update'])->middleware('permission:iam.role.manage');
-        Route::delete('roles/{id}', [RoleController::class, 'destroy'])->middleware('permission:iam.role.manage');
-        Route::post('roles/{id}/permissions', [RoleController::class, 'assignPermissions'])->middleware('permission:iam.role.manage');
+        Route::patch('roles/{id}', [RoleController::class, 'update'])
+            ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
+        Route::delete('roles/{id}', [RoleController::class, 'destroy'])
+            ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
+        Route::post('roles/{id}/permissions', [RoleController::class, 'assignPermissions'])
+            ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
 
         Route::get('permissions', [PermissionController::class, 'index'])->middleware('permission:iam.permission.view');
         Route::get('permissions/{id}', [PermissionController::class, 'show'])->middleware('permission:iam.permission.view');
