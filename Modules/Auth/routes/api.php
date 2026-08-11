@@ -6,15 +6,20 @@ use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
 use Modules\Auth\Http\Controllers\UserController;
 use Modules\Auth\Http\Middleware\EnsureMutableRole;
+use Modules\Auth\Http\Middleware\PersistRefreshTokenCookie;
 
 Route::prefix('v1')->group(function (): void {
-    Route::post('auth/login', [AuthController::class, 'login']);
-    Route::post('auth/refresh', [AuthController::class, 'refresh']);
+    Route::post('auth/login', [AuthController::class, 'login'])
+        ->middleware(PersistRefreshTokenCookie::class);
+    Route::post('auth/refresh', [AuthController::class, 'refresh'])
+        ->middleware(PersistRefreshTokenCookie::class);
 
     Route::middleware('auth:api')->group(function (): void {
-        Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::post('auth/logout', [AuthController::class, 'logout'])
+            ->middleware(PersistRefreshTokenCookie::class);
         Route::get('auth/me', [AuthController::class, 'me']);
-        Route::post('auth/change-password', [AuthController::class, 'changePassword']);
+        Route::post('auth/change-password', [AuthController::class, 'changePassword'])
+            ->middleware(PersistRefreshTokenCookie::class);
         Route::post('auth/switch-context', [AuthController::class, 'switchContext']);
 
         Route::get('users', [UserController::class, 'index'])->middleware('permission:iam.user.view');
