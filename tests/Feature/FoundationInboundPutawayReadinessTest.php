@@ -10,6 +10,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
 class FoundationInboundPutawayReadinessTest extends TestCase
@@ -56,6 +57,135 @@ class FoundationInboundPutawayReadinessTest extends TestCase
         ], $headers)->assertOk()
             ->assertJsonPath('data.sku_name', 'Linh kien da cap nhat')
             ->assertJsonPath('data.status', 'INACTIVE');
+    }
+
+    public function test_component_receipt_requires_box_and_full_flow_preserves_stock_invariants(): void
+    {
+        $headers = $this->authHeaders();
+        $warehouse = Warehouse::create([
+            'code' => 'HN-COMP-01',
+            'name' => 'Kho linh kien integration',
+            'status' => 'ACTIVE',
+        ]);
+        $sku = Sku::create([
+            'sku_code' => 'COMP-E2E-001',
+            'sku_name' => 'Component E2E',
+            'sku_type' => 'COMPONENT',
+            'unit' => 'cai',
+            'is_serial_tracked' => false,
+            'status' => 'ACTIVE',
+        ]);
+        $tray = Container::create([
+            'container_code' => 'TRAY-E2E-001',
+            'container_type' => 'TRAY',
+            'status' => 'EMPTY',
+            'version' => 1,
+        ]);
+
+        $movementBefore = DB::table('stock_movements')->count();
+        $create = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'source_name' => 'Nha cung cap E2E',
+            'lines' => [[
+                'product_id' => $sku->sku_id,
+                'qty_planned' => 5,
+            ]],
+        ], $headers);
+        $create->assertCreated()
+            ->assertJsonPath('data.status', 'DRAFT')
+            ->assertJsonPath('data.version', 1);
+
+        $documentId = (string) $create->json('data.id');
+        $lineId = (string) $create->json('data.lines.0.id');
+
+        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
+            'line_id' => $lineId,
+            'quantity' => 5,
+        ], $headers + ['If-Match' => '1'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'COMPONENT_BOX_REQUIRED');
+        $this->assertSame($movementBefore, DB::table('stock_movements')->count());
+        $this->assertDatabaseHas('stock_documents', [
+            'id' => $documentId,
+            'status' => 'DRAFT',
+            'version' => 1,
+        ]);
+
+        $register = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
+            'line_id' => $lineId,
+            'box_code' => 'BOX-E2E-001',
+        ], $headers);
+        $register->assertCreated()
+            ->assertJsonPath('data.container_type', 'BOX')
+            ->assertJsonPath('data.status', 'EMPTY')
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false);
+        $boxId = (string) $register->json('data.container_id');
+
+        $scan = $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
+            'line_id' => $lineId,
+            'quantity' => 5,
+            'container_id' => $boxId,
+        ], $headers + ['If-Match' => '1']);
+        $scan->assertOk()
+            ->assertJsonPath('data.status', 'SCANNING')
+            ->assertJsonPath('data.scanned_quantity', 5)
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false)
+            ->assertJsonPath('data.version', 2);
+        $this->assertSame($movementBefore, DB::table('stock_movements')->count());
+
+        $postHeaders = $headers + [
+            'If-Match' => '2',
+            'Idempotency-Key' => 'receipt-component-e2e-001',
+        ];
+        $post = $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $postHeaders);
+        $post->assertOk()
+            ->assertHeader('Idempotent-Replay', 'false')
+            ->assertJsonPath('data.status', 'POSTED')
+            ->assertJsonPath('data.stock_effect', 'INCREASE')
+            ->assertJsonPath('data.version', 3);
+
+        $movementAfterPost = DB::table('stock_movements')->count();
+        $this->assertSame($movementBefore + 1, $movementAfterPost);
+        $this->assertDatabaseHas('containers', [
+            'container_id' => $boxId,
+            'primary_sku_id' => $sku->sku_id,
+            'status' => 'RECEIVED_PENDING_PUTAWAY',
+        ]);
+
+        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $postHeaders)
+            ->assertOk()
+            ->assertHeader('Idempotent-Replay', 'true')
+            ->assertJsonPath('data.status', 'POSTED');
+        $this->assertSame($movementAfterPost, DB::table('stock_movements')->count());
+
+        $putaway = $this->postJson('/api/v1/putaway/tasks', [
+            'box_container_id' => $boxId,
+            'to_tray_id' => $tray->container_id,
+            'location_hint' => 'A-E2E-01',
+            'note' => 'Component E2E putaway',
+        ], $headers);
+        $putaway->assertCreated()
+            ->assertJsonPath('data.status', 'DRAFT')
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false);
+
+        $putawayId = (string) $putaway->json('data.id');
+        $this->postJson("/api/v1/putaway/tasks/{$putawayId}/confirm", [], $headers + ['If-Match' => '1'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CONFIRMED')
+            ->assertJsonPath('data.box_status', 'STORED')
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false);
+
+        $this->assertSame($movementAfterPost, DB::table('stock_movements')->count());
+        $this->assertDatabaseHas('containers', [
+            'container_id' => $boxId,
+            'parent_container_id' => $tray->container_id,
+            'status' => 'STORED',
+            'location_hint' => 'A-E2E-01',
+        ]);
     }
 
     public function test_putaway_confirm_is_stock_neutral_and_updates_box_location(): void
