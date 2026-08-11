@@ -7,6 +7,7 @@ on:
       - 'Modules/Warehouse/**'
       - 'Modules/Auth/**'
       - 'tests/Feature/FoundationInboundPutawayReadinessTest.php'
+      - 'tests/Feature/IamRolePermissionReadinessTest.php'
       - '.github/workflows/foundation-inbound-readiness.yml'
   workflow_dispatch:
 
@@ -15,7 +16,7 @@ permissions:
 
 jobs:
   foundation-inbound-readiness:
-    name: products, inbound, putaway and OpenAPI
+    name: IAM, products, inbound, putaway and OpenAPI
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -63,23 +64,42 @@ jobs:
 
       - name: Lint changed backend scope
         run: |
+          php -l Modules/Auth/app/Http/Middleware/EnsureMutableRole.php
+          php -l Modules/Auth/app/Repositories/RoleRepository.php
+          php -l Modules/Auth/routes/api.php
           php -l Modules/Warehouse/app/Http/Controllers/PutawayController.php
           php -l Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php
+          php -l tests/Feature/IamRolePermissionReadinessTest.php
           php -l tests/Feature/FoundationInboundPutawayReadinessTest.php
-          ./vendor/bin/pint --test Modules/Warehouse/app/Http/Controllers/PutawayController.php Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php tests/Feature/FoundationInboundPutawayReadinessTest.php
+          ./vendor/bin/pint --test \
+            Modules/Auth/app/Http/Middleware/EnsureMutableRole.php \
+            Modules/Auth/app/Repositories/RoleRepository.php \
+            Modules/Auth/routes/api.php \
+            Modules/Warehouse/app/Http/Controllers/PutawayController.php \
+            Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php \
+            tests/Feature/IamRolePermissionReadinessTest.php \
+            tests/Feature/FoundationInboundPutawayReadinessTest.php
 
       - name: Run focused executable integration tests
-        run: php artisan test tests/Feature/FoundationInboundPutawayReadinessTest.php
+        run: php artisan test tests/Feature/IamRolePermissionReadinessTest.php tests/Feature/FoundationInboundPutawayReadinessTest.php
 
       - name: Verify runtime routes
         shell: bash
         run: |
           set -euo pipefail
+          php artisan route:list --path=api/v1/users | tee /tmp/users-routes.txt
+          php artisan route:list --path=api/v1/roles | tee /tmp/roles-routes.txt
+          php artisan route:list --path=api/v1/permissions | tee /tmp/permissions-routes.txt
           php artisan route:list --path=api/v1/products | tee /tmp/products-routes.txt
           php artisan route:list --path=api/v1/inbound-documents | tee /tmp/inbound-routes.txt
           php artisan route:list --path=api/v1/putaway | tee /tmp/putaway-routes.txt
+          grep -F 'POST' /tmp/roles-routes.txt
+          grep -F 'PATCH' /tmp/roles-routes.txt
+          grep -F 'permissions' /tmp/roles-routes.txt
+          grep -F 'GET' /tmp/permissions-routes.txt
           grep -F 'POST' /tmp/products-routes.txt
           grep -F 'PATCH' /tmp/products-routes.txt
+          grep -F 'post-receipt' /tmp/inbound-routes.txt
           grep -F 'putaway/tasks' /tmp/putaway-routes.txt
           grep -F 'putaway/history' /tmp/putaway-routes.txt
 
@@ -98,9 +118,15 @@ jobs:
           data = json.loads(path.read_text(encoding='utf-8'))
           paths = data.get('paths', {})
           required = {
+              '/api/v1/users': {'get', 'post'},
+              '/api/v1/roles': {'get', 'post'},
+              '/api/v1/roles/{id}': {'get', 'patch', 'delete'},
+              '/api/v1/roles/{id}/permissions': {'post'},
+              '/api/v1/permissions': {'get'},
               '/api/v1/products': {'get', 'post'},
               '/api/v1/products/{id}': {'get', 'patch'},
               '/api/v1/inbound-documents/{id}/boxes': {'post'},
+              '/api/v1/inbound-documents/{id}/post-receipt': {'post'},
               '/api/v1/putaway/tasks': {'get', 'post'},
               '/api/v1/putaway/tasks/{id}/confirm': {'post'},
               '/api/v1/putaway/tasks/{id}/cancel': {'post'},
@@ -114,5 +140,5 @@ jobs:
                       missing.append(f'{method.upper()} {route}')
           if missing:
               raise SystemExit('Missing OpenAPI operations: ' + ', '.join(missing))
-          print('OpenAPI foundation/inbound/putaway contract PASS')
+          print('OpenAPI IAM/foundation/inbound/putaway contract PASS')
           PY
