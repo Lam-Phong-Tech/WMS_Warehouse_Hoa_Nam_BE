@@ -34,6 +34,10 @@ return [
 
     'max_age' => 3600,
 
-    // Authentication uses Bearer JWT + refresh token in JSON, not cross-site cookies.
-    'supports_credentials' => false,
+    // Required for the HttpOnly refresh-token cookie. Never combine this with a
+    // wildcard allowed origin; CORS_ALLOWED_ORIGINS remains an exact allow-list.
+    'supports_credentials' => filter_var(
+        env('CORS_SUPPORTS_CREDENTIALS', true),
+        FILTER_VALIDATE_BOOL
+    ),
 ];
