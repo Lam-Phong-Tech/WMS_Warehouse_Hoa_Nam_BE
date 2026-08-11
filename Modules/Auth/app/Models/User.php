@@ -4,6 +4,7 @@ namespace Modules\Auth\Models;
 
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -16,8 +17,11 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     use Authenticatable, HasUuids, SoftDeletes;
 
     protected $table = 'app_user';
+
     protected $primaryKey = 'user_id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -25,6 +29,16 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     ];
 
     protected $hidden = ['password_hash'];
+
+    /**
+     * Active roles are immutable for the lifetime of one HTTP request. Keeping
+     * the collection in memory prevents /auth/me, permission and warehouse-scope
+     * resolution from executing the same user_role/role query repeatedly.
+     *
+     * This is deliberately request-local rather than a cross-request cache, so
+     * RBAC changes remain visible on the next request without invalidation risk.
+     */
+    private ?EloquentCollection $activeRolesMemo = null;
 
     public function getAuthPassword(): string
     {
@@ -51,9 +65,27 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             });
     }
 
+    /**
+     * @return EloquentCollection<int, Role>
+     */
+    public function activeRoleModels(): EloquentCollection
+    {
+        if ($this->activeRolesMemo !== null) {
+            return $this->activeRolesMemo;
+        }
+
+        $this->activeRolesMemo = $this->activeRoles()
+            ->orderBy('role_code')
+            ->get();
+
+        return $this->activeRolesMemo;
+    }
+
     public function isSuperAdmin(): bool
     {
-        return $this->activeRoles()->where('role_code', 'SUPER_ADMIN')->exists();
+        return $this->activeRoleModels()->contains(
+            static fn (Role $role): bool => $role->role_code === 'SUPER_ADMIN'
+        );
     }
 
     /** @return array<int, string> */
@@ -72,9 +104,12 @@ class User extends Model implements AuthenticatableContract, JWTSubject
         }
 
         return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:permissions", 300, function () {
-            return $this->activeRoles()
-                ->with(['permissions' => fn ($q) => $q->where('permission.status', 'ACTIVE')])
-                ->get()
+            $roles = $this->activeRoleModels();
+            $roles->loadMissing([
+                'permissions' => fn ($query) => $query->where('permission.status', 'ACTIVE'),
+            ]);
+
+            return $roles
                 ->pluck('permissions')
                 ->flatten()
                 ->pluck('permission_key')
@@ -103,7 +138,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
         }
 
         return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:warehouse-scopes", 300, function () {
-            $roles = $this->activeRoles()->get();
+            $roles = $this->activeRoleModels();
 
             if ($roles->contains(fn (Role $role) => $role->pivot->scope_ref === null || $role->pivot->scope_ref === '')) {
                 return null;
