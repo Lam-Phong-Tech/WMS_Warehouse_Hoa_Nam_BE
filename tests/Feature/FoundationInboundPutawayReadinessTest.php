@@ -92,7 +92,8 @@ class FoundationInboundPutawayReadinessTest extends TestCase
         ], $headers);
         $create->assertCreated()
             ->assertJsonPath('data.status', 'DRAFT')
-            ->assertJsonPath('data.stock_effect', 'NONE');
+            ->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('data.movement_created', false);
 
         $eventId = $create->json('data.id');
         $this->postJson("/api/v1/putaway/tasks/{$eventId}/confirm", [], $headers + ['If-Match' => '1'])
@@ -113,6 +114,7 @@ class FoundationInboundPutawayReadinessTest extends TestCase
         $this->getJson('/api/v1/putaway/history', $headers)
             ->assertOk()
             ->assertJsonPath('data.0.box_code', 'BOX-PUT-001')
-            ->assertJsonPath('data.0.new_tray_code', 'TRAY-PUT-001');
+            ->assertJsonPath('data.0.new_tray_code', 'TRAY-PUT-001')
+            ->assertJsonPath('data.0.stock_effect', 'NONE');
     }
 }

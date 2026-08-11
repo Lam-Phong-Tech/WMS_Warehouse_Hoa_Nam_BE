@@ -1,0 +1,118 @@
+name: Foundation Inbound Readiness
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'tests/Feature/FoundationInboundPutawayReadinessTest.php'
+      - '.github/workflows/foundation-inbound-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation-inbound-readiness:
+    name: products, inbound, putaway and OpenAPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/hoa-nam-foundation-inbound.sqlite
+      JWT_SECRET: ci-foundation-inbound-readiness-jwt-secret-20260811
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare isolated SQLite runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          rm -f "$DB_DATABASE"
+          touch "$DB_DATABASE"
+          {
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=false"
+            echo "DB_CONNECTION=sqlite"
+            echo "DB_DATABASE=$DB_DATABASE"
+            echo "CACHE_STORE=array"
+            echo "SESSION_DRIVER=array"
+            echo "QUEUE_CONNECTION=sync"
+            echo "JWT_SECRET=$JWT_SECRET"
+          } >> .env
+
+      - name: Lint changed backend scope
+        run: |
+          php -l Modules/Warehouse/app/Http/Controllers/PutawayController.php
+          php -l Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php
+          php -l tests/Feature/FoundationInboundPutawayReadinessTest.php
+          ./vendor/bin/pint --test Modules/Warehouse/app/Http/Controllers/PutawayController.php Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php tests/Feature/FoundationInboundPutawayReadinessTest.php
+
+      - name: Run focused executable integration tests
+        run: php artisan test tests/Feature/FoundationInboundPutawayReadinessTest.php
+
+      - name: Verify runtime routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan route:list --path=api/v1/products | tee /tmp/products-routes.txt
+          php artisan route:list --path=api/v1/inbound-documents | tee /tmp/inbound-routes.txt
+          php artisan route:list --path=api/v1/putaway | tee /tmp/putaway-routes.txt
+          grep -F 'POST' /tmp/products-routes.txt
+          grep -F 'PATCH' /tmp/products-routes.txt
+          grep -F 'putaway/tasks' /tmp/putaway-routes.txt
+          grep -F 'putaway/history' /tmp/putaway-routes.txt
+
+      - name: Generate and verify OpenAPI
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan l5-swagger:generate
+          OPENAPI="storage/api-docs/api-docs.json"
+          test -s "$OPENAPI"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('storage/api-docs/api-docs.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          paths = data.get('paths', {})
+          required = {
+              '/api/v1/products': {'get', 'post'},
+              '/api/v1/products/{id}': {'get', 'patch'},
+              '/api/v1/inbound-documents/{id}/boxes': {'post'},
+              '/api/v1/putaway/tasks': {'get', 'post'},
+              '/api/v1/putaway/tasks/{id}/confirm': {'post'},
+              '/api/v1/putaway/tasks/{id}/cancel': {'post'},
+              '/api/v1/putaway/history': {'get'},
+          }
+          missing = []
+          for route, methods in required.items():
+              actual = {k.lower() for k in paths.get(route, {}).keys()}
+              for method in methods:
+                  if method not in actual:
+                      missing.append(f'{method.upper()} {route}')
+          if missing:
+              raise SystemExit('Missing OpenAPI operations: ' + ', '.join(missing))
+          print('OpenAPI foundation/inbound/putaway contract PASS')
+          PY

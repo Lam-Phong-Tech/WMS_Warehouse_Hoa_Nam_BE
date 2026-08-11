@@ -9,19 +9,34 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
-/**
- * BP-WMS-03 runtime contract.
- *
- * Putaway is location-only: it must never create stock movement or modify
- * inventory balance. A component BOX is registered while receiving, becomes
- * eligible only after its inbound document is POSTED, then moves to a TRAY via
- * a versioned DRAFT -> CONFIRMED putaway event.
- */
+#[OA\Tag(name: '24. Putaway', description: 'BP-WMS-03: component BOX -> TRAY, stock-neutral')]
 class PutawayController extends Controller
 {
     use ApiResponse;
 
+    #[OA\Post(
+        path: '/api/v1/inbound-documents/{id}/boxes',
+        operationId: 'inbound_register_component_box',
+        summary: 'Đăng ký BOX cho dòng nhập COMPONENT trước khi scan',
+        security: [['bearerAuth' => []]],
+        tags: ['24. Putaway'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['line_id', 'box_code'],
+            properties: [
+                new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'box_code', type: 'string', example: 'BOX-COMP-0001'),
+            ],
+        )),
+        responses: [
+            new OA\Response(response: 200, description: 'BOX đã tồn tại và hợp lệ'),
+            new OA\Response(response: 201, description: 'Đăng ký BOX thành công'),
+            new OA\Response(response: 409, description: 'BOX đang thuộc luồng khác hoặc state conflict'),
+            new OA\Response(response: 422, description: 'Dòng không phải COMPONENT / dữ liệu không hợp lệ'),
+        ],
+    )]
     public function registerInboundBox(Request $request, string $documentId)
     {
         $payload = $request->validate([
@@ -40,7 +55,7 @@ class PutawayController extends Controller
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nhập.');
             }
             if (! in_array((string) $document->status, ['DRAFT', 'SCANNING'], true)) {
-                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ phiếu DRAFT/SCANNING mới được đăng ký box nhận hàng.');
+                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ phiếu DRAFT/SCANNING mới được đăng ký BOX.');
             }
 
             $line = DB::table('stock_document_lines')
@@ -54,7 +69,7 @@ class PutawayController extends Controller
 
             $sku = DB::table('sku')->where('sku_id', $line->product_id)->first();
             if ($sku === null || strtoupper((string) $sku->sku_type) !== 'COMPONENT') {
-                ApiError::abort(422, 'COMPONENT_SKU_REQUIRED', 'Box putaway chỉ áp dụng cho SKU COMPONENT.');
+                ApiError::abort(422, 'COMPONENT_SKU_REQUIRED', 'BOX putaway chỉ áp dụng cho SKU COMPONENT.');
             }
             if (strtoupper((string) $sku->status) !== 'ACTIVE') {
                 ApiError::abort(422, 'SKU_NOT_ACTIVE', 'SKU COMPONENT phải ACTIVE.');
@@ -64,6 +79,7 @@ class PutawayController extends Controller
             $box = DB::table('containers')->where('container_code', $boxCode)->lockForUpdate()->first();
             if ($box !== null) {
                 $this->assertBoxReusable($box, (string) $line->product_id);
+                $this->assertBoxNotUsedByOtherActiveReceipt((string) $box->container_id, $documentId);
 
                 return $this->boxResponse($box, false);
             }
@@ -90,32 +106,40 @@ class PutawayController extends Controller
                 objectType: 'container',
                 objectId: $boxId,
                 actorId: $actorId,
-                requestId: request()?->attributes->get('request_id'),
+                requestId: $request->attributes->get('request_id'),
                 afterData: (array) $box,
             );
 
             return $this->boxResponse($box, true);
         }, 3);
 
-        return $this->respondSuccess($result, $result['created'] ? 'Đã đăng ký box cho dòng nhập kho.' : 'Box đã tồn tại và hợp lệ.');
+        return $result['created']
+            ? $this->respondCreated($result, 'Đã đăng ký BOX cho dòng nhập COMPONENT.')
+            : $this->respondSuccess($result, 'BOX đã tồn tại và hợp lệ.');
     }
 
+    #[OA\Get(
+        path: '/api/v1/putaway/tasks',
+        operationId: 'putaway_task_list',
+        summary: 'PTW-00 - Danh sách BOX chờ xếp khay và DRAFT đang xử lý',
+        security: [['bearerAuth' => []]],
+        tags: ['24. Putaway'],
+        parameters: [new OA\Parameter(name: 'search', in: 'query', schema: new OA\Schema(type: 'string'))],
+        responses: [new OA\Response(response: 200, description: 'Danh sách tác vụ putaway')],
+    )]
     public function tasks(Request $request)
     {
         $keyword = trim((string) $request->query('search', $request->query('keyword', '')));
         $boxes = DB::table('containers as c')
             ->leftJoin('sku as s', 's.sku_id', '=', 'c.primary_sku_id')
             ->where('c.container_type', 'BOX')
-            ->whereNotIn('c.status', ['CLOSED', 'ISSUED'])
             ->where(function ($query): void {
                 $query->where('c.status', 'RECEIVED_PENDING_PUTAWAY')
-                    ->orWhereExists(function ($receipt): void {
-                        $receipt->selectRaw('1')
-                            ->from('inbound_scan_entries as e')
-                            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-                            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-                            ->whereColumn('e.container_id', 'c.container_id')
-                            ->where('d.status', 'POSTED');
+                    ->orWhereExists(function ($draft): void {
+                        $draft->selectRaw('1')
+                            ->from('putaway_events as p')
+                            ->whereColumn('p.box_container_id', 'c.container_id')
+                            ->where('p.status', 'DRAFT');
                     });
             })
             ->when($keyword !== '', function ($query) use ($keyword): void {
@@ -133,13 +157,7 @@ class PutawayController extends Controller
             ]);
 
         $rows = $boxes->map(function ($box): array {
-            $receipt = DB::table('inbound_scan_entries as e')
-                ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-                ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-                ->where('e.container_id', $box->container_id)
-                ->where('d.status', 'POSTED')
-                ->orderByDesc('d.posted_at')
-                ->first(['d.id', 'd.doc_no', 'd.dst_warehouse_id']);
+            $receipt = $this->latestPostedReceipt((string) $box->container_id);
             $quantity = (int) DB::table('inbound_scan_entries as e')
                 ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
                 ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
@@ -166,7 +184,7 @@ class PutawayController extends Controller
                 'receipt_id' => $receipt?->id,
                 'receipt_code' => $receipt?->doc_no,
                 'warehouse_id' => $receipt?->dst_warehouse_id,
-                'status' => $box->parent_container_id ? 'STORED' : 'RECEIVED_PENDING_PUTAWAY',
+                'status' => (string) $box->status,
                 'location_hint' => $box->location_hint,
                 'container_version' => (int) $box->version,
                 'draft_id' => $draft?->id,
@@ -174,11 +192,32 @@ class PutawayController extends Controller
                 'to_tray_id' => $draft?->to_tray_id,
                 'to_tray_code' => $targetTray,
             ];
-        })->filter(fn (array $row): bool => $row['draft_id'] !== null || $row['status'] === 'RECEIVED_PENDING_PUTAWAY')->values();
+        })->values();
 
-        return $this->respondSuccess($rows, 'Danh sách box chờ xếp khay.');
+        return $this->respondSuccess($rows, 'Danh sách BOX chờ xếp khay.');
     }
 
+    #[OA\Post(
+        path: '/api/v1/putaway/tasks',
+        operationId: 'putaway_task_create',
+        summary: 'PTW-01 - Tạo putaway DRAFT từ BOX sang TRAY',
+        security: [['bearerAuth' => []]],
+        tags: ['24. Putaway'],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['box_container_id', 'to_tray_id'],
+            properties: [
+                new OA\Property(property: 'box_container_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'to_tray_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'location_hint', type: 'string', nullable: true),
+                new OA\Property(property: 'note', type: 'string', nullable: true),
+            ],
+        )),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo DRAFT thành công'),
+            new OA\Response(response: 409, description: 'BOX không ở trạng thái putaway hoặc đã có DRAFT'),
+            new OA\Response(response: 422, description: 'BOX/TRAY không hợp lệ hoặc tạo cycle'),
+        ],
+    )]
     public function storeTask(Request $request)
     {
         $payload = $request->validate([
@@ -202,31 +241,18 @@ class PutawayController extends Controller
                 ->lockForUpdate()
                 ->first();
             if ($existing !== null) {
-                ApiError::abort(409, 'PUTAWAY_DRAFT_EXISTS', 'Box đã có putaway DRAFT chưa xử lý.', [
+                ApiError::abort(409, 'PUTAWAY_DRAFT_EXISTS', 'BOX đã có putaway DRAFT chưa xử lý.', [
                     'putaway_event_id' => (string) $existing->id,
                     'version' => (int) $existing->version,
                 ]);
             }
 
-            if (! $this->hasPostedReceipt((string) $box->container_id) && (string) $box->status !== 'STORED') {
-                ApiError::abort(409, 'RECEIPT_NOT_POSTED', 'Box chỉ được putaway sau khi phiếu nhập đã POSTED.');
-            }
-
-            if ((string) $box->status !== 'STORED') {
-                DB::table('containers')->where('container_id', $box->container_id)->update([
-                    'status' => 'RECEIVED_PENDING_PUTAWAY',
-                    'version' => ((int) $box->version) + 1,
-                    'updated_at' => now(),
-                ]);
-                $box->status = 'RECEIVED_PENDING_PUTAWAY';
-                $box->version = ((int) $box->version) + 1;
-            }
-
             $eventId = (string) Str::uuid();
+            $receipt = $this->latestPostedReceipt((string) $box->container_id);
             DB::table('putaway_events')->insert([
                 'id' => $eventId,
-                'stock_document_id' => $this->latestPostedReceiptId((string) $box->container_id),
-                'warehouse_id' => $this->latestPostedWarehouseId((string) $box->container_id),
+                'stock_document_id' => $receipt?->id,
+                'warehouse_id' => $receipt?->dst_warehouse_id,
                 'container_id' => $box->container_id,
                 'box_container_id' => $box->container_id,
                 'from_parent_container_id' => $box->parent_container_id,
@@ -237,8 +263,6 @@ class PutawayController extends Controller
                 'to_location_hint' => $payload['location_hint'] ?? $tray->location_hint,
                 'location_hint' => $payload['location_hint'] ?? $tray->location_hint,
                 'status' => 'DRAFT',
-                // Historical schema keeps this column non-null. DRAFT is not history;
-                // the timestamp is replaced with the real confirmation time on confirm.
                 'confirmed_at' => now(),
                 'created_by' => $actorId,
                 'confirmed_by' => null,
@@ -264,6 +288,21 @@ class PutawayController extends Controller
         return $this->respondCreated($this->eventResponse($event), 'Đã tạo tác vụ putaway DRAFT.');
     }
 
+    #[OA\Post(
+        path: '/api/v1/putaway/tasks/{id}/confirm',
+        operationId: 'putaway_task_confirm',
+        summary: 'Xác nhận putaway; cập nhật BOX->TRAY, không tạo stock movement',
+        security: [['bearerAuth' => []]],
+        tags: ['24. Putaway'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'CONFIRMED, stock_effect=NONE'),
+            new OA\Response(response: 412, description: 'Version conflict'),
+        ],
+    )]
     public function confirm(Request $request, string $id)
     {
         $expectedVersion = $this->expectedVersion($request);
@@ -283,7 +322,7 @@ class PutawayController extends Controller
             $trayId = (string) ($event->to_tray_id ?: $event->to_parent_container_id);
             $box = DB::table('containers')->where('container_id', $boxId)->lockForUpdate()->first();
             $tray = DB::table('containers')->where('container_id', $trayId)->lockForUpdate()->first();
-            $this->assertBoxPutawayEligible($box);
+            $this->assertBoxPutawayEligible($box, true);
             $this->assertTrayUsable($tray);
             $this->assertNoCycle($boxId, $trayId);
 
@@ -330,9 +369,21 @@ class PutawayController extends Controller
             'box_version' => (int) $result['box']->version,
             'stock_effect' => 'NONE',
             'movement_created' => false,
-        ], 'Putaway đã CONFIRMED; không phát sinh biến động tồn.');
+        ], 'Putaway CONFIRMED; không phát sinh biến động tồn.');
     }
 
+    #[OA\Post(
+        path: '/api/v1/putaway/tasks/{id}/cancel',
+        operationId: 'putaway_task_cancel',
+        summary: 'Hủy putaway DRAFT',
+        security: [['bearerAuth' => []]],
+        tags: ['24. Putaway'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [new OA\Response(response: 200, description: 'CANCELLED, stock-neutral')],
+    )]
     public function cancel(Request $request, string $id)
     {
         $expectedVersion = $this->expectedVersion($request);
@@ -370,6 +421,14 @@ class PutawayController extends Controller
         return $this->respondSuccess($this->eventResponse($event), 'Đã hủy tác vụ putaway.');
     }
 
+    #[OA\Get(
+        path: '/api/v1/putaway/history',
+        operationId: 'putaway_history',
+        summary: 'Lịch sử putaway CONFIRMED',
+        security: [['bearerAuth' => []]],
+        tags: ['24. Putaway'],
+        responses: [new OA\Response(response: 200, description: 'Lịch sử putaway append-only')],
+    )]
     public function history(Request $request)
     {
         $keyword = trim((string) $request->query('search', $request->query('keyword', '')));
@@ -377,7 +436,7 @@ class PutawayController extends Controller
             ->leftJoin('containers as b', 'b.container_id', '=', 'p.box_container_id')
             ->leftJoin('containers as ft', 'ft.container_id', '=', 'p.from_tray_id')
             ->leftJoin('containers as tt', 'tt.container_id', '=', 'p.to_tray_id')
-            ->leftJoin('users as u', 'u.user_id', '=', 'p.confirmed_by')
+            ->leftJoin('app_user as u', 'u.user_id', '=', 'p.confirmed_by')
             ->where('p.status', 'CONFIRMED')
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($nested) use ($keyword): void {
@@ -421,17 +480,34 @@ class PutawayController extends Controller
             ApiError::abort(422, 'BOX_SKU_MISMATCH', 'Một BOX chỉ được chứa một SKU COMPONENT.');
         }
         if ($box->parent_container_id !== null || in_array((string) $box->status, ['CLOSED', 'ISSUED', 'STORED'], true)) {
-            ApiError::abort(409, 'BOX_NOT_RECEIVABLE', 'Box đã được lưu kho/đóng hoặc thuộc vị trí khác.');
+            ApiError::abort(409, 'BOX_NOT_RECEIVABLE', 'BOX đã được lưu kho/đóng hoặc thuộc vị trí khác.');
         }
     }
 
-    private function assertBoxPutawayEligible(?object $box): void
+    private function assertBoxNotUsedByOtherActiveReceipt(string $boxId, string $documentId): void
+    {
+        $conflict = DB::table('inbound_scan_entries as e')
+            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
+            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
+            ->where('e.container_id', $boxId)
+            ->where('d.id', '<>', $documentId)
+            ->whereIn('d.status', ['DRAFT', 'SCANNING'])
+            ->exists();
+        if ($conflict) {
+            ApiError::abort(409, 'BOX_IN_OTHER_ACTIVE_RECEIPT', 'BOX đang được dùng bởi một phiếu nhập khác chưa kết thúc.');
+        }
+    }
+
+    private function assertBoxPutawayEligible(?object $box, bool $allowDraftTarget = false): void
     {
         if ($box === null || (string) $box->container_type !== 'BOX') {
             ApiError::abort(422, 'BOX_REQUIRED', 'Putaway yêu cầu container BOX.');
         }
-        if (in_array((string) $box->status, ['CLOSED', 'ISSUED'], true)) {
-            ApiError::abort(409, 'BOX_NOT_PUTAWAY_ELIGIBLE', 'Box đã CLOSED/ISSUED.');
+        $allowed = $allowDraftTarget
+            ? ['RECEIVED_PENDING_PUTAWAY', 'STORED']
+            : ['RECEIVED_PENDING_PUTAWAY', 'STORED'];
+        if (! in_array((string) $box->status, $allowed, true)) {
+            ApiError::abort(409, 'BOX_NOT_PUTAWAY_ELIGIBLE', 'BOX chưa POST Receipt hoặc không ở trạng thái cho phép putaway.');
         }
     }
 
@@ -441,7 +517,7 @@ class PutawayController extends Controller
             ApiError::abort(422, 'TRAY_REQUIRED', 'Điểm đến putaway phải là TRAY.');
         }
         if (in_array((string) $tray->status, ['CLOSED', 'ISSUED'], true)) {
-            ApiError::abort(422, 'TRAY_NOT_USABLE', 'Tray đã đóng hoặc không còn khả dụng.');
+            ApiError::abort(422, 'TRAY_NOT_USABLE', 'TRAY đã đóng hoặc không còn khả dụng.');
         }
     }
 
@@ -459,40 +535,15 @@ class PutawayController extends Controller
         }
     }
 
-    private function hasPostedReceipt(string $boxId): bool
+    private function latestPostedReceipt(string $boxId): ?object
     {
         return DB::table('inbound_scan_entries as e')
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
             ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
             ->where('e.container_id', $boxId)
             ->where('d.status', 'POSTED')
-            ->exists();
-    }
-
-    private function latestPostedReceiptId(string $boxId): ?string
-    {
-        $value = DB::table('inbound_scan_entries as e')
-            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-            ->where('e.container_id', $boxId)
-            ->where('d.status', 'POSTED')
             ->orderByDesc('d.posted_at')
-            ->value('d.id');
-
-        return $value ? (string) $value : null;
-    }
-
-    private function latestPostedWarehouseId(string $boxId): ?string
-    {
-        $value = DB::table('inbound_scan_entries as e')
-            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-            ->where('e.container_id', $boxId)
-            ->where('d.status', 'POSTED')
-            ->orderByDesc('d.posted_at')
-            ->value('d.dst_warehouse_id');
-
-        return $value ? (string) $value : null;
+            ->first(['d.id', 'd.doc_no', 'd.dst_warehouse_id']);
     }
 
     private function eventResponse(object $event): array
