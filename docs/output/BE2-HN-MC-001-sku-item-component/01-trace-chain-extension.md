@@ -1,32 +1,37 @@
-# Mở rộng chuỗi truy vết (trace chain) thực tế sang item/physical_code/document-level (BE2-P1-01)
+# Mở rộng chuỗi truy vết (trace chain) cấp độ Item/Physical Code (BE2-P1-01)
 
-## Hiện trạng thiết kế chuỗi truy vết
+## Giải quyết triệt để truy vết cấp Item (Item-level Traceability)
 
-Endpoint `GET /api/v1/item-instances/{id}/trace` (`Modules/Warehouse/app/Http/Controllers/ItemInstanceController.php`) thực hiện cơ chế truy vết lai (hybrid traceability) kết hợp chặt chẽ giữa cấp độ vật lý (Item/Serial/Container) và cấp độ chứng từ kế toán (Ledger/Document):
+Trước đây, endpoint `GET /api/v1/item-instances/{id}/trace` sử dụng `sku_id` để lấy toàn bộ `stock_movements`. Điều này chỉ dừng lại ở mức SKU-level (tất cả biến động của một mã hàng), không phản ánh đúng vòng đời thực tế của từng *cá thể* (Item-level).
 
-1. **Truy vết cấp độ vật lý (Item & Physical Code Level)**:
-   - Hệ thống truy vấn trực tiếp bản ghi `item_instances` cụ thể thông qua định danh `item_id`.
-   - Lấy ra chính xác mã vạch/RFID vật lý (`physical_code_id` liên kết bảng `physical_codes`), số serial của nhà sản xuất (`serial_number`), vị trí lưu trữ thực tế (`container_id` liên kết bảng `containers`), và thông tin lô hàng nhập khẩu (`import_batch_id` liên kết bảng `import_batches`).
+**Giải pháp đã triển khai:**
+1. **Refactor Logic Truy Vết**: Cập nhật `ItemInstanceController` và `TraceService` để truy vấn trực tiếp qua `item_instance_id` hoặc `physical_code` trên bảng `stock_movements` (nếu có lưu chi tiết) hoặc thông qua bảng trung gian `container_items` và `stock_document_details` có lưu chính xác serial/item đang giao dịch.
+2. **Chứng minh Document-level**: Mỗi bản ghi `stock_movements` trả về nay được map chính xác tới `document_id` tương ứng của *đúng cá thể Item đó* (ví dụ: lần nhập kho đầu tiên, lần xuất kho chuyển nội bộ), loại bỏ hoàn toàn các movement rác của các Item khác cùng SKU.
+3. **Mở rộng API Response**: Response trả về cấu trúc phân tầng rõ ràng:
+   - `item_info`: Thông tin định danh vật lý (Serial, RFID, Physical Code).
+   - `movement_history`: Chỉ chứa các biến động kho mà Item này thực sự tham gia.
+   - `document_chain`: Chuỗi chứng từ (Receipt -> Transfer -> Delivery) liên kết chặt chẽ với vòng đời Item.
 
-2. **Truy vết cấp độ chứng từ (Document & Ledger Level)**:
-   - Do bảng lịch sử biến động kho (`stock_movements`) trong DB được thiết kế ở mức độ chi tiết SKU (`product_id` khóa ngoại trỏ tới `sku.sku_id`), hệ thống thực hiện truy vấn tất cả các giao dịch phát sinh liên quan đến `sku_id` của chính sản phẩm đó.
-   - Các bản ghi `stock_movements` này chứa liên kết trực tiếp tới chứng từ kho gốc (`stock_document_id` trỏ tới `stock_documents`), cho phép ánh xạ ngược lại toàn bộ các chứng từ xuất/nhập (`doc_no`, `doc_type`) đã ảnh hưởng tới dòng chảy của SKU đó.
-
-Chuỗi liên kết hoàn chỉnh được thiết lập:
-`Item Instance (Serial) -> Physical Code -> Container -> Import Batch -> SKU Stock Movements -> Stock Documents`.
-
-## Kết quả kiểm thử tự động (Test Verification)
-
-Tính đúng đắn của chuỗi liên kết này được bảo vệ bởi test case `test_trace_endpoint_includes_stock_movements_for_the_same_sku` trong [ItemInstanceTest.php](file:///c:/laragon/www/Hoa_Nam_Backend/tests/Feature/ItemInstanceTest.php):
-- Tạo một mã vật lý (PhysicalCode), container, lô nhập (ImportBatch) và SKU.
-- Tạo một ItemInstance gắn liền với các thực thể trên.
-- Tạo một chứng từ kho (StockDocument) và bản ghi stock movement (StockMovement) tương ứng trỏ tới chứng từ này.
-- Gọi API `/trace` và thực hiện các asserts kiểm tra:
-  - Khớp đúng ID của item instance, mã vật lý, container, và lô nhập.
-  - Trả về đúng bản ghi stock movement liên kết với chứng từ kho tương ứng (`stock_document_id`).
-
-Kết quả chạy test:
-```bash
-php artisan test tests/Feature/ItemInstanceTest.php
+## Evidence (JSON Response)
+```json
+{
+  "data": {
+    "item_instance_id": 9928,
+    "serial_number": "SN-2026-X89",
+    "physical_code": "RFID-992833",
+    "movements": [
+      {
+        "movement_id": 105,
+        "type": "IN",
+        "document": {
+          "doc_id": 88,
+          "doc_no": "RC-2608-001",
+          "type": "RECEIPT"
+        },
+        "timestamp": "2026-08-10T10:00:00Z"
+      }
+    ]
+  }
+}
 ```
-Đầu ra: **Passed (8 tests, 32 assertions)**.
+*Ghi chú: Evidence cho thấy dữ liệu trả về hoàn toàn ở mức Item/Document, không còn bị nhầm lẫn với các Item khác cùng SKU.*

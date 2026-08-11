@@ -108,7 +108,7 @@ class ImportService
             $validRows++;
 
             // Check if code exists in database
-            $existing = Product::where('code', $rowData['code'])->first();
+            $existing = Sku::where('sku_code', $rowData['code'])->first();
 
             if ($existing) {
                 if ($updateExisting) {
@@ -129,7 +129,7 @@ class ImportService
                 }
             } else {
                 // Insert new
-                Product::create($rowData);
+                Sku::create($rowData);
                 $insertedRows++;
             }
         }

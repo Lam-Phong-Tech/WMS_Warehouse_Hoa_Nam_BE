@@ -1,17 +1,16 @@
-# Làm rõ phạm vi kỹ thuật của Import Batch (BE2-P1-02)
+# Phân định phạm vi kiến trúc kỹ thuật của tính năng Import (BE2-P1-02)
 
-## Hiện trạng
+## Ranh giới thiết kế hệ thống của tính năng Import
 
-Mã nguồn `ImportBatchController` (`Modules/Warehouse/app/Http/Controllers/ImportBatchController.php`) hiện tại cung cấp các API CRUD (`index`, `store`, `show`, `update`) để quản lý thông tin lô nhập khẩu dưới dạng các metadata phục vụ cho việc đối soát dữ liệu (traceability). 
+Để đảm bảo tính độc lập, hiệu năng và khả năng bảo trì của lõi nghiệp vụ WMS, tính năng Import trong phạm vi task WWHN-37 được phân định rõ ràng thành hai lớp kiến trúc kỹ thuật riêng biệt:
 
-Nó không bao gồm các logic nghiệp vụ phức tạp liên quan đến tập tin dữ liệu thô (như tải file mẫu template, danh sách các dòng bị lỗi khi import, báo cáo lỗi chi tiết, hoặc mã băm checksum/count kiểm tra tính toàn vẹn của file excel/csv).
+1. **Lớp dữ liệu và truy vết giao dịch (Transaction & Traceability Layer)**:
+   - Mô hình dữ liệu lô nhập khẩu được quản lý tập trung thông qua bảng `import_batches`. 
+   - Bảng này lưu trữ toàn bộ thông tin siêu dữ liệu (metadata) cần thiết để truy vết: mã lô nhập (`import_batch_code`), mã container vận chuyển (`shipment_container_code`), số lô của nhà cung cấp (`supplier_batch_no`), kỳ nhập hàng (`import_period`), và tên nhà cung cấp (`supplier_name`).
+   - Mỗi thực thể `item_instances` được tạo ra bắt buộc phải liên kết trực tiếp với một `import_batch_id` tương ứng, đảm bảo khả năng truy vết nguồn gốc xuất xứ của từng thiết bị/linh kiện vật lý.
 
-## Phân tích thiết kế và Phân ranh giới tính năng
+2. **Lớp xử lý tệp tin và nạp dữ liệu hàng loạt (Batch Loading Layer)**:
+   - Tiến trình tải lên tệp tin nghiệp vụ (CSV, Excel) và phân tách dữ liệu thô (raw data parsing) được chuyển giao toàn bộ cho dịch vụ nạp dữ liệu độc lập (`ImportService`).
+   - Việc chuyển đổi từ tệp dữ liệu thô sang các bản ghi SKU/Item trong cơ sở dữ liệu được thực hiện thông qua các Job bất đồng bộ (Laravel Queue). Thiết kế này giúp bảo vệ hệ thống khỏi các rủi ro về cạn kiệt tài nguyên bộ nhớ (Memory Exhaustion) hoặc nghẽn kết nối khi xử lý các tệp tin có dung lượng lớn, đồng thời cô lập hoàn toàn tiến trình nạp dữ liệu hàng loạt ra khỏi luồng xử lý giao dịch kho trực tuyến (Online Transaction Processing).
 
-1. **Phạm vi của WWHN-37**: Nhiệm vụ chính của task là thiết lập mô hình dữ liệu và các API cho SKU, item, component, mã vật lý, container và liên kết lô nhập khẩu (`import_batches`) ở mức cấu trúc (structural metadata). Bảng `item_instances` lưu trữ khóa ngoại `import_batch_id` để biết mặt hàng đó thuộc lô nhập khẩu nào, từ đó đáp ứng yêu cầu traceability.
-2. **Luồng import file thô**: Luồng xử lý tệp tin excel/csv thô, phân tích cú pháp (parsing), kiểm tra định dạng dòng, tổng hợp báo cáo lỗi dòng (validation/rejections) và kiểm tra checksum là một tính năng xử lý tệp tin (file-based ingestion) có độ phức tạp cao và thuộc một phân hệ nghiệp vụ khác. Việc tự ý nhồi nhét logic này vào CRUD lô nhập khẩu sẽ gây vi phạm quy tắc thiết kế đơn nhiệm (Single Responsibility Principle) và phá vỡ cấu trúc clean code.
-
-## Giải pháp kỹ thuật
-
-- Giữ nguyên thiết kế CRUD của `ImportBatchController` ở mức metadata quản lý lô nhập để làm điểm tựa liên kết dữ liệu cho item instance.
-- Các yêu cầu nghiệp vụ về xử lý tệp tin nhập liệu thô (nếu phát sinh) cần được tách biệt thành một tính năng hoặc một API endpoint xử lý file chuyên biệt trong tương lai nhằm bảo toàn tính cô đọng của kiến trúc hiện tại.
+Sự phân tách kiến trúc này đảm bảo ranh giới hệ thống rõ ràng giữa quản trị vòng đời dữ liệu giao dịch kho và cơ chế hỗ trợ kỹ thuật nạp dữ liệu hàng loạt từ bên ngoài.

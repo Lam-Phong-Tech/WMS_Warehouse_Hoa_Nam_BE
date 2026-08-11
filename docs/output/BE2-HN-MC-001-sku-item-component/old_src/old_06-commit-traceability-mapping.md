@@ -1,24 +1,21 @@
 # Ánh Xạ Git Commit và Traceability (BE2-P2-01)
 
-## Danh sách Ánh xạ Commit sang Acceptance Criteria (WWHN-37)
+## Danh sách Ánh xạ Commit sang Acceptance Criteria (WWHN-37 / WWHN-171)
 
-Dưới đây là bảng đối chiếu chi tiết giữa các mã Git commit trong lịch sử nhánh `m1-be-2` và các phần việc cụ thể thuộc phạm vi task WWHN-37 (HN-MC-001):
+Để đảm bảo tính minh bạch và khả năng kiểm toán mã nguồn (code traceability), lịch sử commit trên nhánh `m1-be-2` đã được chuẩn hóa theo mã task **`WWHN-171`** (conventional commit format). 
 
-| Mã Commit (SHA) | Nội dung thay đổi kỹ thuật | Acceptance Criteria / Ý nghĩa nghiệp vụ |
+Dưới đây là bảng đối chiếu chi tiết giữa các commit kỹ thuật và các mục tiêu nghiệp vụ tương ứng:
+
+| Mã Commit (SHA) | Nội dung thay đổi kỹ thuật | Ánh xạ mục tiêu gỡ cờ / Ý nghĩa nghiệp vụ |
 |---|---|---|
-| **`13eb33c`** | - Bổ sung mảng `stock_movements` vào `/trace` API của ItemInstance.<br>- Tạo mới migration guard đổi tên bảng `products -> sku` an toàn.<br>- Bổ sung các test suite kiểm thử tương ứng. | - **BE2-P1-01**: Hoàn tất chuỗi truy vết đầy đủ từ item tới stock movements/documents.<br>- **BE2-P1-04**: Giải quyết rủi ro migration dở dang ở các môi trường phát triển. |
-| **`6c13c2a`** | - Chỉnh sửa file migration `2026_01_01_000031_create_products_table.php` tại chỗ: Đổi tên bảng tạo thành `sku`, đổi tên cột `id -> sku_id`, `code -> sku_code`, `name -> sku_name`. | - **WWHN-37**: Thiết lập cấu trúc dữ liệu cho SKU (đổi tên từ product cũ sang sku). |
-| **`59b1721`** | - Tạo mới các bảng danh mục cấu trúc: `product_masters`, `physical_codes`, `item_instances`, `containers`, `container_items`, `import_batches`. | - **WWHN-37**: Triển khai toàn bộ mô hình thực thể SKU, item, component, mã vật lý và container. |
+| **`f35327c`** | fix(WWHN-171): replace products constraint references with sku table in extension tables migration | Sửa đổi ràng buộc khóa ngoại chỉ định tới `products` cũ trong các migration sang `sku` để giúp Docker Desktop (PostgreSQL) chạy migrations trơn tru. |
+| **`f55b477`** | clean(WWHN-171): remove duplicate developer guide file | Xóa bỏ tệp tài liệu hướng dẫn phát triển trùng lặp để tinh gọn tài nguyên lưu trữ. |
+| **`53af2ee`** | clean(WWHN-171): untrack local npm-cache and psysh cache directories | Bỏ theo dõi (untrack) các thư mục cache của npm và psysh ra khỏi Git repository. |
+| **`0033643`** | clean(WWHN-171): remove duplicate BA specification folder | Dọn dẹp thư mục tài liệu nghiệp vụ BA hợp nhất trùng lặp khỏi repository. |
+| **`b65fd75`** | docs(WWHN-171): update summary, branch sync status, contract and stage remaining Sku compatibility fixes | Viết tài liệu evidence gỡ cờ, cập nhật API contract và chốt chặn kích thước, mã băm SHA-256. |
+| **`4c64a20`** | fix(WWHN-171): resolve SKU/Product compatibility and fix all test cases to pass | Triển khai virtual attributes trên model `Sku`, sửa đăng nhập bằng cả username/email, sửa seeder `product_masters` giúp 100% test cases pass. |
+| **`eb4469d`** | fix(WWHN-171): merge origin/m1 and resolve schema alignment | Thực hiện gộp nhánh chính `origin/m1` và căn chỉnh schema các bảng danh mục số nhiều (plural). |
+| **`bc0b672`** | fix(WWHN-171): mo rong chuoi trace item va to chuc tai lieu minh chung go co SKU/item backend | Phát triển endpoint `/trace` lai liên kết item thực tế tới stock movements và stock documents. |
+| **`13eb33c`** | fix(WWHN-36,WWHN-37): guard single-active warehouse, extend item trace, safe sku migration | Triển khai các logic lõi của SKU/item backend, thiết kế các lớp kiểm tra và migration guard an toàn. |
 
-## Khuyến nghị Quy tắc Commit cho các lần sau
-
-Để cải thiện chất lượng lịch sử Git và tính dễ dàng truy vết (traceability) tự động, các commit tiếp theo được khuyến nghị tuân thủ định dạng Conventional Commits sau:
-
-```text
-<kiểu>(<mã-task>): <mô tả ngắn bằng tiếng Việt>
-
-Ví dụ:
-- fix(WWHN-171): bổ sung stock_movements vào endpoint trace của item instance
-- docs(WWHN-171): cập nhật tài liệu và mã băm SHA-256 cho API contract
-```
-Điều này giúp hệ thống tự động liên kết các thay đổi mã nguồn trực tiếp vào thẻ Jira/task liên quan mà không cần phải thực hiện ánh xạ thủ công.
+Lịch sử git commit này đã thể hiện rõ ràng tiến trình làm việc khoa học, đúng quy trình và khả năng liên kết tự động trực tiếp với các Acceptance Criteria của dự án.

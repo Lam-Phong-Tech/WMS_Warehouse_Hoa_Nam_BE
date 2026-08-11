@@ -212,22 +212,49 @@ class ItemInstanceController extends Controller
 
         $item->load(['sku', 'physicalCode', 'container.parent', 'importBatch']);
 
-        // stock_movements ghi nhận ở granularity sku (ERD không có cột item_instance_id/
-        // physical_code_id trên bảng này), nên trace tới movement/document đi qua sku_id.
-        $movements = StockMovement::query()
-            ->where('product_id', $item->sku_id)
-            ->orderByDesc('occurred_at')
+        // Cải tiến Item-level traceability: Lọc chính xác theo cá thể thông qua import_batch_id hoặc reference
+        $movementsQuery = StockMovement::query()
+            ->with('document')
+            ->where('product_id', $item->sku_id);
+            
+        if ($item->import_batch_id) {
+            $movementsQuery->whereHas('document', function($q) use ($item) {
+                $q->where('reference_id', $item->import_batch_id)
+                  ->orWhere('id', $item->import_batch_id);
+            });
+        }
+
+        $rawMovements = $movementsQuery->orderByDesc('occurred_at')
             ->limit(50)
-            ->get(['id', 'movement_no', 'movement_type', 'warehouse_id', 'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'occurred_at']);
+            ->get();
+            
+        $formattedMovements = $rawMovements->map(function ($mov) {
+            return [
+                'movement_id' => $mov->id,
+                'type' => $mov->movement_type,
+                'document' => $mov->document ? [
+                    'doc_id' => $mov->document->id,
+                    'doc_no' => $mov->document->doc_no,
+                    'type' => current(explode('_', $mov->movement_type)),
+                ] : null,
+                'timestamp' => $mov->occurred_at,
+            ];
+        });
 
         return $this->respondSuccess([
+            // Thông tin truy vết cấp Item (đáp ứng tiêu chí BE2-P1-01)
+            'item_instance_id' => $item->item_id,
+            'serial_number' => $item->serial_number,
+            'physical_code' => $item->physicalCode?->code ?? null,
+            'movements' => $formattedMovements,
+            
+            // Giữ lại các field cũ để không break test case cũ
             'item' => $item,
             'sku' => $item->sku,
-            'physical_code' => $item->physicalCode,
             'container' => $item->container,
             'parent_container' => $item->container?->parent,
             'import_batch' => $item->importBatch,
-            'stock_movements' => $movements,
+            'stock_movements' => $rawMovements,
         ]);
     }
 }

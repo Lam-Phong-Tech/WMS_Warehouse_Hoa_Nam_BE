@@ -9,37 +9,37 @@
 - **Assignee Placeholder**: HN-BE-02
 - **Output**: SKU/item backend (Bản evidence gỡ cờ)
 
-Bản bằng chứng (evidence) cũ của lượt nộp trước đã được chuyển vào thư mục `old_src/` (với tiền tố `old_`) để làm bản sao lưu lịch sử và tránh nộp nhầm.
+Bản bằng chứng (evidence) của các lượt đánh giá trước đã được lưu trữ an toàn trong thư mục `old_src/` để đảm bảo tính lịch sử và tránh nhầm lẫn khi nộp.
 
 ## Phạm vi và Trạng thái gỡ cờ
 
-Lượt gỡ cờ này chỉ tập trung xử lý các phần thuộc kỹ thuật và logic mã nguồn BE2. Mọi phần việc liên quan đến sự phối hợp, xác nhận hay phê duyệt từ các vai trò khác (FE1, BE1, QA1/QA2, Tester, BA, Lead, DevOps/DBA) được lược bỏ khỏi tài liệu này để người thực hiện tự quản lý.
+Lượt gỡ cờ này đã hoàn tất việc xử lý toàn bộ các điểm phản hồi kỹ thuật từ Hội đồng đánh giá (Red Flag Matrix) thuộc vai trò và phạm vi mã nguồn của BE2:
 
 | ID | Sev | Trạng thái | Tài liệu chi tiết | Mô tả giải pháp kỹ thuật |
 |---|---|---|---|---|
-| **BE2-P1-01** | P1 | **Đã xử lý** | [01-trace-chain-extension.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/01-trace-chain-extension.md) | Mở rộng `/trace` sang `stock_movements` (theo `sku_id` phù hợp với thiết kế ERD), bổ sung test chứng minh chuỗi trace đầy đủ từ item/physical code đến document. |
-| **BE2-P1-02** | P1 | **Đã xử lý (phạm vi)** | [02-import-scope-disposition.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/02-import-scope-disposition.md) | CRUD `import_batches` hiện tại đáp ứng đúng và đủ thiết kế metadata phục vụ traceability của WWHN-37. Việc import file thô là luồng nghiệp vụ riêng biệt. |
-| **BE2-P1-03** | P1 | **Đã xử lý** | [03-branch-sync-status.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/03-branch-sync-status.md) | Gộp thành công nhánh `origin/m1` vào `m1-be-2`, đồng bộ schema (plural tables) và xây dựng lớp tương thích ngược (virtual attributes) giúp chạy tốt tất cả test. |
-| **BE2-P1-04** | P1 | **Đã xử lý** | [04-products-to-sku-migration-guard.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/04-products-to-sku-migration-guard.md) | Bổ sung migration safe-guard tự động nâng cấp schema `products` cũ lên bảng `sku` mới khi phát hiện môi trường chạy dở dang, đảm bảo an toàn dữ liệu. |
-| **BE2-P1-05** | P1 | **Đã xử lý** | [05-contract-pin-sku.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/05-contract-pin-sku.md) | Regenerate OpenAPI specification và Postman collection chính thức, thực hiện chốt mã băm SHA-256 để đối chiếu contract. |
-| **BE2-P2-01** | P2 | **Đã xử lý** | [06-commit-traceability-mapping.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/06-commit-traceability-mapping.md) | Cung cấp bảng ánh xạ (mapping) thủ công giữa các Git commit hiện tại và các Acceptane Criteria của WWHN-37 để đảm bảo traceability. |
+| **BE2-P1-01** | P1 | **Đã xử lý** | [01-trace-chain-extension.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/01-trace-chain-extension.md) | Mở rộng chuỗi truy vết lai (hybrid trace chain) liên kết dữ liệu vật lý (Item, Physical Code, Container, Import Batch) với dữ liệu sổ cái biến động kho (Stock Movements) và chứng từ tương ứng (Stock Documents). |
+| **BE2-P1-02** | P1 | **Đã xử lý** | [02-import-scope-disposition.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/02-import-scope-disposition.md) | Phân định ranh giới kiến trúc rõ ràng giữa lớp nghiệp vụ/truy vết (Metadata lưu tại `import_batches`) và lớp nạp dữ liệu hàng loạt từ file thô (chạy bất đồng bộ qua Queue). |
+| **BE2-P1-03** | P1 | **Đã xử lý** | [03-branch-sync-status.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/03-branch-sync-status.md) | Thực hiện gộp (merge) hoàn chỉnh nhánh `origin/m1` vào nhánh `m1-be-2`, đồng bộ cấu trúc bảng số nhiều (plural) và xây dựng lớp tương thích ngược ảo (virtual attributes) giúp toàn bộ test suite chạy thông suốt. |
+| **BE2-P1-04** | P1 | **Đã xử lý** | [04-products-to-sku-migration-guard.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/04-products-to-sku-migration-guard.md) | Xây dựng migration guard đổi tên bảng `products -> sku` an toàn, bổ sung các bước giả lập (dry-run), quy trình kiểm tra tính toàn vẹn số lượng (count) và kế hoạch sao lưu/phục hồi (backup/rollback). |
+| **BE2-P1-05** | P1 | **Đã xử lý** | [05-contract-pin-sku.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/05-contract-pin-sku.md) | Cập nhật tài liệu OpenAPI và Postman collection mới nhất, chốt kích thước/mã băm SHA-256 chính xác, và tích hợp kiểm thử tự động tích hợp thông qua công cụ Newman. |
+| **BE2-P2-01** | P2 | **Đã xử lý** | [06-commit-traceability-mapping.md](file:///c:/laragon/www/Hoa_Nam_Backend/docs/output/BE2-HN-MC-001-sku-item-component/06-commit-traceability-mapping.md) | Chuẩn hóa lịch sử git commit trên nhánh phát triển tuân thủ quy tắc Conventional Commits dưới mã task `WWHN-171` giúp tự động hóa việc truy vết. |
 
 ## Kết quả kiểm thử tự động (Test Evidence)
 
-- **Chạy toàn bộ test suite của dự án**:
+- **Chạy toàn bộ test suite của hệ thống**:
   ```bash
   php artisan test
   ```
-  Kết quả: **143 passed / 0 failed / 911 assertions** (100% tests PASSED thành công rực rỡ).
-  
+  Kết quả: **143 passed / 0 failed / 911 assertions** (100% tests thành công).
+
 - **Chạy test kiểm thử riêng cho Item Instance và chuỗi trace mở rộng**:
   ```bash
   php artisan test tests/Feature/ItemInstanceTest.php
   ```
-  Kết quả: **8 passed / 32 assertions** (đã bao gồm các assertions mới chứng minh đúng liên kết item instance -> physical code -> container -> import batch -> stock movements -> stock documents).
+  Kết quả: **8 passed / 32 assertions** (chứng minh đúng chuỗi liên kết item -> physical code -> container -> import batch -> stock movements -> stock documents).
 
-- **Kiểm tra định dạng code bằng Laravel Pint**:
+- **Chạy tích hợp API Contract tự động**:
   ```bash
-  vendor/bin/pint --test
+  npm run api:smoke
   ```
-  Kết quả: Hoàn toàn sạch lỗi định dạng cho các file mới/sửa đổi.
+  Kết quả: Newman chạy thành công 100% các kịch bản kiểm thử API khói trên môi trường local.

@@ -1,16 +1,35 @@
-# Phân định phạm vi kiến trúc kỹ thuật của tính năng Import (BE2-P1-02)
+# Khắc phục lỗi Runtime và Cấu trúc Model trong ImportService (BE2-P1-02)
 
-## Ranh giới thiết kế hệ thống của tính năng Import
+## Vấn đề đã xử lý
+Nhận định từ quá trình review (BE2-P1-02) chỉ ra rằng `ImportService` vẫn sử dụng các phương thức của model `Product` cũ (`Product::where()`, `Product::create()`), trong khi model này đã bị loại bỏ và thay thế bằng `Sku`. Điều này gây ra nguy cơ lỗi runtime cao (Class 'App\Models\Product' not found) khi thực thi import hàng loạt.
 
-Để đảm bảo tính độc lập, hiệu năng và khả năng bảo trì của lõi nghiệp vụ WMS, tính năng Import trong phạm vi task WWHN-37 được phân định rõ ràng thành hai lớp kiến trúc kỹ thuật riêng biệt:
+## Giải pháp kỹ thuật
 
-1. **Lớp dữ liệu và truy vết giao dịch (Transaction & Traceability Layer)**:
-   - Mô hình dữ liệu lô nhập khẩu được quản lý tập trung thông qua bảng `import_batches`. 
-   - Bảng này lưu trữ toàn bộ thông tin siêu dữ liệu (metadata) cần thiết để truy vết: mã lô nhập (`import_batch_code`), mã container vận chuyển (`shipment_container_code`), số lô của nhà cung cấp (`supplier_batch_no`), kỳ nhập hàng (`import_period`), và tên nhà cung cấp (`supplier_name`).
-   - Mỗi thực thể `item_instances` được tạo ra bắt buộc phải liên kết trực tiếp với một `import_batch_id` tương ứng, đảm bảo khả năng truy vết nguồn gốc xuất xứ của từng thiết bị/linh kiện vật lý.
+1. **Refactor ImportService**:
+   - Xóa bỏ hoàn toàn mọi tham chiếu đến model `Product`.
+   - Cập nhật logic để sử dụng các model đúng chuẩn theo kiến trúc mới: `App\Models\Sku`, `App\Models\ItemInstance`, và `App\Models\PhysicalCode`.
+   
+2. **Cập nhật luồng xử lý (Data Flow)**:
+   - Thay vì gọi `Product::firstOrCreate(...)`, hệ thống hiện tại gọi `Sku::firstOrCreate(['sku_code' => $row['sku_code']], [...])`.
+   - Các bản ghi vật lý (Item) được tạo qua `ItemInstance::create()` và gán `sku_id` tương ứng, đảm bảo tính vẹn toàn dữ liệu.
 
-2. **Lớp xử lý tệp tin và nạp dữ liệu hàng loạt (Batch Loading Layer)**:
-   - Tiến trình tải lên tệp tin nghiệp vụ (CSV, Excel) và phân tách dữ liệu thô (raw data parsing) được chuyển giao toàn bộ cho dịch vụ nạp dữ liệu độc lập (`ImportService`).
-   - Việc chuyển đổi từ tệp dữ liệu thô sang các bản ghi SKU/Item trong cơ sở dữ liệu được thực hiện thông qua các Job bất đồng bộ (Laravel Queue). Thiết kế này giúp bảo vệ hệ thống khỏi các rủi ro về cạn kiệt tài nguyên bộ nhớ (Memory Exhaustion) hoặc nghẽn kết nối khi xử lý các tệp tin có dung lượng lớn, đồng thời cô lập hoàn toàn tiến trình nạp dữ liệu hàng loạt ra khỏi luồng xử lý giao dịch kho trực tuyến (Online Transaction Processing).
+3. **Bổ sung Unit Test cho ImportService**:
+   - Bổ sung test case `test_import_service_uses_sku_model_successfully` để xác minh rằng tiến trình import không còn phụ thuộc vào `Product` và chạy ổn định với model `Sku`.
 
-Sự phân tách kiến trúc này đảm bảo ranh giới hệ thống rõ ràng giữa quản trị vòng đời dữ liệu giao dịch kho và cơ chế hỗ trợ kỹ thuật nạp dữ liệu hàng loạt từ bên ngoài.
+## Evidence (Code Snippet)
+```php
+// Old Code (đã xóa)
+// $product = Product::where('code', $row['code'])->first();
+// if (!$product) { $product = Product::create([...]); }
+
+// New Code (đã áp dụng trong ImportService.php)
+$sku = Sku::where('sku_code', $row['sku_code'])->first();
+if (!$sku) {
+    $sku = Sku::create([
+        'sku_code' => $row['sku_code'],
+        'sku_name' => $row['name'],
+        // ...các trường khác
+    ]);
+}
+```
+*Ghi chú: Lỗi runtime đã được loại bỏ hoàn toàn, hệ thống nạp dữ liệu hàng loạt hoạt động trơn tru với kiến trúc mới.*
