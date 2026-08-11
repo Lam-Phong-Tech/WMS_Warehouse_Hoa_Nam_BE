@@ -27,6 +27,7 @@ use Modules\Warehouse\Http\Controllers\PutawayController;
 use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
+use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 
 Route::prefix('v1')->group(function (): void {
     Route::get('pv/catalog', [CurrentBaselineOperationsController::class, 'pvCatalog']);
@@ -50,7 +51,8 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('inbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateInbound'])->middleware('permission:inbound.create');
         Route::post('inbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelInbound'])->middleware('permission:inbound.cancel');
         Route::post('inbound-documents/{id}/boxes', [PutawayController::class, 'registerInboundBox'])->middleware('permission:inbound.scan');
-        Route::post('inbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'inboundScan'])->middleware('permission:inbound.scan');
+        Route::post('inbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'inboundScan'])
+            ->middleware(['permission:inbound.scan', EnsureInboundComponentBox::class]);
         Route::post('inbound-documents/{id}/post-receipt', [CurrentBaselineStockFlowController::class, 'postReceipt'])->middleware('permission:inbound.post');
         Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])->middleware('permission:inventory.reversal.post');
 
