@@ -51,10 +51,10 @@ class AuthSessionPersistenceTest extends TestCase
         ])->assertOk();
         $oldRefreshToken = (string) $login->json('data.refresh_token');
 
-        // API routes intentionally use a plain opaque HttpOnly cookie rather than a
-        // Laravel-encrypted cookie. Exercise the same request-cookie bag a browser
-        // produces instead of injecting a raw Cookie header into the test server.
-        $response = $this->withUnencryptedCookie($cookieName, $oldRefreshToken)
+        // Laravel JSON requests omit cookies unless withCredentials() is enabled.
+        // This mirrors the FE axios/fetch credentials mode used by a real browser.
+        $response = $this->withCredentials()
+            ->withUnencryptedCookie($cookieName, $oldRefreshToken)
             ->postJson('/api/v1/auth/refresh', [])
             ->assertOk();
 
@@ -87,7 +87,8 @@ class AuthSessionPersistenceTest extends TestCase
     {
         $cookieName = (string) config('refresh_token.cookie.name');
 
-        $response = $this->withUnencryptedCookie($cookieName, 'invalid-refresh-token')
+        $response = $this->withCredentials()
+            ->withUnencryptedCookie($cookieName, 'invalid-refresh-token')
             ->postJson('/api/v1/auth/refresh', [])
             ->assertStatus(401);
 
@@ -110,7 +111,8 @@ class AuthSessionPersistenceTest extends TestCase
         $accessToken = (string) $login->json('data.access_token');
         $refreshToken = (string) $login->json('data.refresh_token');
 
-        $response = $this->withUnencryptedCookie($cookieName, $refreshToken)
+        $response = $this->withCredentials()
+            ->withUnencryptedCookie($cookieName, $refreshToken)
             ->withHeader('Authorization', 'Bearer '.$accessToken)
             ->postJson('/api/v1/auth/logout', [])
             ->assertOk();
