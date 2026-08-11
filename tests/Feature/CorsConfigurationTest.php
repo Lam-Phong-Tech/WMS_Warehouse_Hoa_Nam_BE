@@ -6,7 +6,7 @@ use Tests\TestCase;
 
 class CorsConfigurationTest extends TestCase
 {
-    public function test_local_vite_origin_can_preflight_auth_login(): void
+    public function test_local_vite_origin_can_preflight_auth_login_with_credentials(): void
     {
         $response = $this->withHeaders([
             'Origin' => 'http://localhost:5173',
@@ -16,6 +16,7 @@ class CorsConfigurationTest extends TestCase
 
         $response->assertNoContent();
         $response->assertHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+        $response->assertHeader('Access-Control-Allow-Credentials', 'true');
 
         $allowedMethods = (string) $response->headers->get('Access-Control-Allow-Methods');
         $allowedHeaders = strtolower((string) $response->headers->get('Access-Control-Allow-Headers'));
@@ -34,6 +35,7 @@ class CorsConfigurationTest extends TestCase
 
         $response->assertNoContent();
         $response->assertHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:5173');
+        $response->assertHeader('Access-Control-Allow-Credentials', 'true');
     }
 
     public function test_unknown_origin_is_not_granted_cors_access(): void
