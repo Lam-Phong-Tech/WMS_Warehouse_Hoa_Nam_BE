@@ -19,6 +19,7 @@ RUN apk add --no-cache \
         gd
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/zz-wms-opcache.ini
 
 WORKDIR /var/www/html
 

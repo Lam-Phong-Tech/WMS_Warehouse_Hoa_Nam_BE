@@ -22,29 +22,42 @@ class ApiConventionMiddleware
             Context::add('request_id', $requestId);
         }
 
-        if ($request->isJson() && trim($request->getContent()) !== '') {
-            json_decode($request->getContent(), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Dữ liệu JSON không hợp lệ hoặc sai định dạng request.',
-                    'error_code' => 'MALFORMED_JSON',
-                    'errors' => [],
-                    'error' => [
-                        'code' => 'MALFORMED_JSON',
-                        'details' => [],
-                    ],
-                    'meta' => [
-                        'request_id' => $requestId,
-                        'timestamp' => now()->toIso8601String(),
-                    ],
-                ], 400)->header('X-Request-ID', $requestId);
+        if ($request->isJson()) {
+            $requestContent = $request->getContent();
+            if (trim($requestContent) !== '') {
+                json_decode($requestContent, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Dữ liệu JSON không hợp lệ hoặc sai định dạng request.',
+                        'error_code' => 'MALFORMED_JSON',
+                        'errors' => [],
+                        'error' => [
+                            'code' => 'MALFORMED_JSON',
+                            'details' => [],
+                        ],
+                        'meta' => [
+                            'request_id' => $requestId,
+                            'timestamp' => now()->toIso8601String(),
+                        ],
+                    ], 400)->header('X-Request-ID', $requestId);
+                }
             }
         }
 
         $response = $next($request);
 
         if ($request->is('docs') || $request->is('docs/*') || $request->is('api/documentation')) {
+            return $response;
+        }
+
+        // Controllers using App\Traits\ApiResponse have already produced the
+        // canonical envelope with request_id/timestamp. Avoid decoding and
+        // re-encoding the entire JSON body a second time on the hottest path.
+        if ($response->headers->get('X-WMS-Envelope-Ready') === '1') {
+            $response->headers->remove('X-WMS-Envelope-Ready');
+            $response->headers->set('X-Request-ID', $requestId);
+
             return $response;
         }
 
