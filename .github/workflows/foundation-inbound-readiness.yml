@@ -67,7 +67,9 @@ jobs:
           php -l Modules/Auth/app/Http/Middleware/EnsureMutableRole.php
           php -l Modules/Auth/app/Repositories/RoleRepository.php
           php -l Modules/Auth/routes/api.php
+          php -l Modules/Warehouse/app/Http/Middleware/EnsureInboundComponentBox.php
           php -l Modules/Warehouse/app/Http/Controllers/PutawayController.php
+          php -l Modules/Warehouse/routes/api.php
           php -l Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php
           php -l tests/Feature/IamRolePermissionReadinessTest.php
           php -l tests/Feature/FoundationInboundPutawayReadinessTest.php
@@ -75,7 +77,9 @@ jobs:
             Modules/Auth/app/Http/Middleware/EnsureMutableRole.php \
             Modules/Auth/app/Repositories/RoleRepository.php \
             Modules/Auth/routes/api.php \
+            Modules/Warehouse/app/Http/Middleware/EnsureInboundComponentBox.php \
             Modules/Warehouse/app/Http/Controllers/PutawayController.php \
+            Modules/Warehouse/routes/api.php \
             Modules/Warehouse/database/migrations/2026_08_11_161500_materialize_receipt_putaway_status.php \
             tests/Feature/IamRolePermissionReadinessTest.php \
             tests/Feature/FoundationInboundPutawayReadinessTest.php
@@ -99,6 +103,7 @@ jobs:
           grep -F 'GET' /tmp/permissions-routes.txt
           grep -F 'POST' /tmp/products-routes.txt
           grep -F 'PATCH' /tmp/products-routes.txt
+          grep -F 'scan' /tmp/inbound-routes.txt
           grep -F 'post-receipt' /tmp/inbound-routes.txt
           grep -F 'putaway/tasks' /tmp/putaway-routes.txt
           grep -F 'putaway/history' /tmp/putaway-routes.txt
@@ -126,6 +131,7 @@ jobs:
               '/api/v1/products': {'get', 'post'},
               '/api/v1/products/{id}': {'get', 'patch'},
               '/api/v1/inbound-documents/{id}/boxes': {'post'},
+              '/api/v1/inbound-documents/{id}/scan': {'post'},
               '/api/v1/inbound-documents/{id}/post-receipt': {'post'},
               '/api/v1/putaway/tasks': {'get', 'post'},
               '/api/v1/putaway/tasks/{id}/confirm': {'post'},
