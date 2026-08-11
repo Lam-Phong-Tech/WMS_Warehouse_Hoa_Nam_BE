@@ -34,10 +34,9 @@ return [
 
     'max_age' => 3600,
 
-    // Required for the HttpOnly refresh-token cookie. Never combine this with a
-    // wildcard allowed origin; CORS_ALLOWED_ORIGINS remains an exact allow-list.
-    'supports_credentials' => filter_var(
-        env('CORS_SUPPORTS_CREDENTIALS', true),
-        FILTER_VALIDATE_BOOL
-    ),
+    // Auth persistence depends on an HttpOnly refresh cookie. This is therefore a
+    // protocol invariant rather than a deployment feature flag. Security remains
+    // bounded by the exact CORS_ALLOWED_ORIGINS allow-list above; wildcard origins
+    // are intentionally not used.
+    'supports_credentials' => true,
 ];
