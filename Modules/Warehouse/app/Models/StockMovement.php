@@ -79,4 +79,9 @@ class StockMovement extends Model
     {
         return $this->belongsTo(StockDocument::class, 'stock_document_id');
     }
+
+    public function documentLine(): BelongsTo
+    {
+        return $this->belongsTo(StockDocumentLine::class, 'stock_document_line_id');
+    }
 }

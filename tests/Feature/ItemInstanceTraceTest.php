@@ -24,6 +24,8 @@ class ItemInstanceTraceTest extends TestCase
         $itemBId = \Illuminate\Support\Str::uuid()->toString();
         $docAId = 'batch-a-123';
         $docBId = 'batch-b-456';
+        $lineAId = \Illuminate\Support\Str::uuid()->toString();
+        $lineBId = \Illuminate\Support\Str::uuid()->toString();
         $movAId = \Illuminate\Support\Str::uuid()->toString();
         $movBId = \Illuminate\Support\Str::uuid()->toString();
 
@@ -52,6 +54,11 @@ class ItemInstanceTraceTest extends TestCase
             ['id' => $docBId, 'doc_no' => 'DOC-B', 'doc_type' => 'RECEIPT', 'status' => 'DRAFT', 'doc_date' => now(), 'created_by' => 'sys']
         ]);
 
+        \Illuminate\Support\Facades\DB::table('stock_document_lines')->insert([
+            ['id' => $lineAId, 'stock_document_id' => $docAId, 'line_no' => 1, 'product_id' => $skuId, 'item_instance_id' => $itemAId, 'qty_planned' => 1, 'qty_actual' => 1],
+            ['id' => $lineBId, 'stock_document_id' => $docBId, 'line_no' => 1, 'product_id' => $skuId, 'item_instance_id' => $itemBId, 'qty_planned' => 1, 'qty_actual' => 1],
+        ]);
+
         $warehouseId = \Illuminate\Support\Str::uuid()->toString();
 
         \Illuminate\Support\Facades\DB::table('warehouses')->insert([
@@ -59,8 +66,8 @@ class ItemInstanceTraceTest extends TestCase
         ]);
 
         \Illuminate\Support\Facades\DB::table('stock_movements')->insert([
-            ['id' => $movAId, 'product_id' => $skuId, 'stock_document_id' => $docAId, 'movement_no' => 'MOV-A', 'movement_type' => 'IN', 'created_by' => 'sys', 'business_key' => 'BK-A', 'warehouse_id' => $warehouseId, 'qty_before' => 0, 'qty_delta' => 1, 'qty_after' => 1],
-            ['id' => $movBId, 'product_id' => $skuId, 'stock_document_id' => $docBId, 'movement_no' => 'MOV-B', 'movement_type' => 'IN', 'created_by' => 'sys', 'business_key' => 'BK-B', 'warehouse_id' => $warehouseId, 'qty_before' => 0, 'qty_delta' => 1, 'qty_after' => 1]
+            ['id' => $movAId, 'product_id' => $skuId, 'stock_document_id' => $docAId, 'stock_document_line_id' => $lineAId, 'movement_no' => 'MOV-A', 'movement_type' => 'IN', 'created_by' => 'sys', 'business_key' => 'BK-A', 'warehouse_id' => $warehouseId, 'qty_before' => 0, 'qty_delta' => 1, 'qty_after' => 1],
+            ['id' => $movBId, 'product_id' => $skuId, 'stock_document_id' => $docBId, 'stock_document_line_id' => $lineBId, 'movement_no' => 'MOV-B', 'movement_type' => 'IN', 'created_by' => 'sys', 'business_key' => 'BK-B', 'warehouse_id' => $warehouseId, 'qty_before' => 0, 'qty_delta' => 1, 'qty_after' => 1]
         ]);
 
         $response = $this->getJson("/api/v1/item-instances/{$itemAId}/trace");

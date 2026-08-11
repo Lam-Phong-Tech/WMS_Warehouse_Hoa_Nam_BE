@@ -319,6 +319,7 @@ class StockDocumentService
                 'stock_document_id' => $doc->id,
                 'line_no' => $index + 1,
                 'product_id' => $l['product_id'],
+                'item_instance_id' => $l['item_instance_id'] ?? null,
                 'qty_planned' => $l['qty_planned'],
                 'qty_actual' => $l['qty_planned'],
             ]);

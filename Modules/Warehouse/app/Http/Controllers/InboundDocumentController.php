@@ -60,6 +60,7 @@ use OpenApi\Attributes as OA;
                 new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
                     properties: [
                         new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
+                        new OA\Property(property: 'item_instance_id', type: 'string', format: 'uuid', nullable: true, description: 'Optional serialized item; must belong to product_id and is used for item-level traceability'),
                         new OA\Property(property: 'qty_planned', type: 'number', format: 'float', example: 10),
                     ]
                 )),
@@ -102,6 +103,7 @@ use OpenApi\Attributes as OA;
             new OA\Property(property: 'lines', type: 'array', nullable: true, items: new OA\Items(
                 properties: [
                     new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'item_instance_id', type: 'string', format: 'uuid', nullable: true, description: 'Optional serialized item; must belong to product_id and is used for item-level traceability'),
                     new OA\Property(property: 'qty_planned', type: 'number', format: 'float'),
                 ]
             )),

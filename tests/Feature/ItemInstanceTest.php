@@ -13,6 +13,7 @@ use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
@@ -189,6 +190,14 @@ class ItemInstanceTest extends TestCase
             'dst_warehouse_id' => $warehouse->id,
             'created_by' => $creator->user_id,
         ]);
+        $line = StockDocumentLine::create([
+            'stock_document_id' => $document->id,
+            'line_no' => 1,
+            'product_id' => $sku->sku_id,
+            'item_instance_id' => $item->item_id,
+            'qty_planned' => 10,
+            'qty_actual' => 10,
+        ]);
 
         $movement = StockMovement::create([
             'movement_no' => 'SM-TRACE-0001',
@@ -200,6 +209,7 @@ class ItemInstanceTest extends TestCase
             'qty_delta' => 10,
             'qty_after' => 10,
             'stock_document_id' => $document->id,
+            'stock_document_line_id' => $line->id,
             'created_by' => $creator->user_id,
             'occurred_at' => now(),
             'created_at' => now(),

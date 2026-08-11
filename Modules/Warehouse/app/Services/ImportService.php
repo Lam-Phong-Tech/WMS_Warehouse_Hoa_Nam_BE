@@ -93,6 +93,7 @@ class ImportService
                     continue;
                 }
 
+                unset($rowData['_raw']);
                 $validRows++;
 
                 $existing = Sku::where('sku_code', $rowData['sku_code'])->first();
@@ -159,6 +160,13 @@ class ImportService
             'published_to_app' => $this->parseBoolean($row[9] ?? null),
             'is_serial_tracked' => $this->parseBoolean($row[10] ?? null),
             'status' => $this->parseStatus($row[11] ?? null),
+            '_raw' => [
+                'sku_type' => $row[3] ?? null,
+                'package_variant' => $row[8] ?? null,
+                'published_to_app' => $row[9] ?? null,
+                'is_serial_tracked' => $row[10] ?? null,
+                'status' => $row[11] ?? null,
+            ],
         ];
     }
 
@@ -178,40 +186,44 @@ class ImportService
         return trim($value);
     }
 
-    private function parseSkuType(?string $value): string
+    private function parseSkuType(?string $value): ?string
     {
-        if (empty($value)) {
+        if ($this->isBlank($value)) {
             return 'PRODUCT';
         }
         $value = strtoupper(trim($value));
-        return in_array($value, ['PRODUCT', 'COMPONENT']) ? $value : 'PRODUCT';
+        return in_array($value, ['PRODUCT', 'COMPONENT'], true) ? $value : null;
     }
 
-    private function parseStatus(?string $value): string
+    private function parseStatus(?string $value): ?string
     {
-        if (empty($value)) {
+        if ($this->isBlank($value)) {
             return 'ACTIVE';
         }
         $value = strtoupper(trim($value));
-        return in_array($value, ['ACTIVE', 'INACTIVE', 'DRAFT']) ? $value : 'ACTIVE';
+        return in_array($value, ['ACTIVE', 'INACTIVE', 'DRAFT'], true) ? $value : null;
     }
 
     private function parsePackageVariant(?string $value): ?string
     {
-        if (empty($value)) {
+        if ($this->isBlank($value)) {
             return null;
         }
         $value = strtoupper(trim($value));
-        return in_array($value, ['STANDARD', 'TRAY', 'BOX', 'CARTON', 'PALLET', 'KIT']) ? $value : null;
+        return in_array($value, ['BARE', 'KIT', 'SET', 'BODY_ONLY'], true) ? $value : null;
     }
 
-    private function parseBoolean(?string $value): bool
+    private function parseBoolean(?string $value): ?bool
     {
-        if (empty($value)) {
+        if ($this->isBlank($value)) {
             return false;
         }
         $value = strtolower(trim($value));
-        return in_array($value, ['true', '1', 'yes', 'y']);
+        if (in_array($value, ['true', '1', 'yes', 'y'], true)) {
+            return true;
+        }
+
+        return in_array($value, ['false', '0', 'no', 'n'], true) ? false : null;
     }
 
     private function validateRow(array $rowData, int $rowNumber, array &$seenCodes): ?array
@@ -244,6 +256,18 @@ class ImportService
                 'message' => 'Sku name field is required',
                 'value' => '',
             ];
+        }
+
+        foreach (['sku_type', 'package_variant', 'published_to_app', 'is_serial_tracked', 'status'] as $field) {
+            if (! $this->isBlank($rowData['_raw'][$field]) && $rowData[$field] === null) {
+                return [
+                    'row' => $rowNumber,
+                    'code' => 'INVALID_'.strtoupper($field),
+                    'field' => $field,
+                    'message' => "Invalid {$field} value",
+                    'value' => (string) $rowData['_raw'][$field],
+                ];
+            }
         }
 
         if (!preg_match('/^[A-Z0-9][A-Z0-9\-]*[A-Z0-9]$/', $rowData['sku_code'])) {
@@ -289,6 +313,11 @@ class ImportService
         $seenCodes[$rowData['sku_code']] = $rowNumber;
 
         return null;
+    }
+
+    private function isBlank(?string $value): bool
+    {
+        return $value === null || trim($value) === '';
     }
 
     private function buildResult(

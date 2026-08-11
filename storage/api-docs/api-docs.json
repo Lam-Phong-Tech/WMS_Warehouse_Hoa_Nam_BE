@@ -2671,6 +2671,12 @@
                                                     "type": "string",
                                                     "format": "uuid"
                                                 },
+                                                "item_instance_id": {
+                                                    "description": "Optional serialized item; must belong to product_id and is used for item-level traceability",
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
                                                 "qty_planned": {
                                                     "type": "number",
                                                     "format": "float",
@@ -2789,6 +2795,12 @@
                                                 "product_id": {
                                                     "type": "string",
                                                     "format": "uuid"
+                                                },
+                                                "item_instance_id": {
+                                                    "description": "Optional serialized item; must belong to product_id and is used for item-level traceability",
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
                                                 },
                                                 "qty_planned": {
                                                     "type": "number",
@@ -3872,7 +3884,8 @@
                 "tags": [
                     "24. Item Instance"
                 ],
-                "summary": "Truy vết item: sku -> physical_code -> container (cha) -> import_batch -> stock_movements",
+                "summary": "Truy vết item qua stock document line tới stock movements",
+                "description": "Stock movements chỉ được chọn qua stock_document_lines.item_instance_id; sku và import batch chỉ là ngữ cảnh mô tả.",
                 "operationId": "item_instance_trace",
                 "parameters": [
                     {
@@ -3887,7 +3900,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Chuỗi truy vết của item, kèm lịch sử stock_movements của sku tương ứng"
+                        "description": "Chuỗi truy vết item, kèm stock movements liên kết qua stock document line của chính item"
                     },
                     "401": {
                         "description": "Chưa xác thực"
@@ -4018,6 +4031,12 @@
                                                     "type": "string",
                                                     "format": "uuid"
                                                 },
+                                                "item_instance_id": {
+                                                    "description": "Optional serialized item; must belong to product_id and is used for item-level traceability",
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
                                                 "qty_planned": {
                                                     "type": "number",
                                                     "format": "float",
@@ -4136,6 +4155,12 @@
                                                 "product_id": {
                                                     "type": "string",
                                                     "format": "uuid"
+                                                },
+                                                "item_instance_id": {
+                                                    "description": "Optional serialized item; must belong to product_id and is used for item-level traceability",
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
                                                 },
                                                 "qty_planned": {
                                                     "type": "number",

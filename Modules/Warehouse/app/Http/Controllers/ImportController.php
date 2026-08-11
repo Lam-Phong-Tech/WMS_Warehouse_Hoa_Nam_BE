@@ -92,21 +92,21 @@ class ImportController extends Controller
         try {
             $result = $this->importService->import($fullPath, $updateExisting);
 
-            // Log audit
-            AuditLogger::record(
-                'IMPORT',
-                'product',
-                null,
-                auth('api')->id(),
-                $request->attributes->get('request_id'),
-                metadata: [
-                    'file_name' => $file->getClientOriginalName(),
-                    'total_rows' => $result['total_rows'],
-                    'inserted_rows' => $result['inserted_rows'],
-                    'updated_rows' => $result['updated_rows'],
-                    'error_rows' => $result['error_rows'],
-                ]
-            );
+            if ($result['error_rows'] === 0) {
+                AuditLogger::record(
+                    'IMPORT',
+                    'product',
+                    null,
+                    auth('api')->id(),
+                    $request->attributes->get('request_id'),
+                    afterData: [
+                        'file_name' => $file->getClientOriginalName(),
+                        'total_rows' => $result['total_rows'],
+                        'inserted_rows' => $result['inserted_rows'],
+                        'updated_rows' => $result['updated_rows'],
+                    ]
+                );
+            }
 
             $message = $result['error_rows'] > 0
                 ? 'Import completed with errors'

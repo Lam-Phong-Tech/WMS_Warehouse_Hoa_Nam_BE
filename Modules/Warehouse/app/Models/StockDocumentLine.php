@@ -17,7 +17,7 @@ class StockDocumentLine extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'stock_document_id', 'line_no', 'product_id', 'qty_planned', 'qty_actual', 'scanned_qty',
+        'stock_document_id', 'line_no', 'product_id', 'item_instance_id', 'qty_planned', 'qty_actual', 'scanned_qty',
         'completion_type', 'shortage_reason',
     ];
 
@@ -29,5 +29,10 @@ class StockDocumentLine extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Sku::class, 'product_id', 'sku_id');
+    }
+
+    public function itemInstance(): BelongsTo
+    {
+        return $this->belongsTo(ItemInstance::class, 'item_instance_id', 'item_id');
     }
 }

@@ -192,12 +192,13 @@ class ItemInstanceController extends Controller
     #[OA\Get(
         path: '/api/v1/item-instances/{id}/trace',
         operationId: 'item_instance_trace',
-        summary: 'Truy vết item: sku -> physical_code -> container (cha) -> import_batch -> stock_movements',
+        summary: 'Truy vết item qua stock document line tới stock movements',
+        description: 'Stock movements chỉ được chọn qua stock_document_lines.item_instance_id; sku và import batch chỉ là ngữ cảnh mô tả.',
         security: [['bearerAuth' => []]],
         tags: ['24. Item Instance'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         responses: [
-            new OA\Response(response: 200, description: 'Chuỗi truy vết của item, kèm lịch sử stock_movements của sku tương ứng'),
+            new OA\Response(response: 200, description: 'Chuỗi truy vết item, kèm stock movements liên kết qua stock document line của chính item'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 404, description: 'Không tìm thấy item instance'),
         ]
@@ -212,18 +213,12 @@ class ItemInstanceController extends Controller
 
         $item->load(['sku', 'physicalCode', 'container.parent', 'importBatch']);
 
-        // Cải tiến Item-level traceability: Lọc chính xác theo cá thể thông qua import_batch_id hoặc reference
+        // SKU and import batch are descriptive context only. Movement traceability is
+        // anchored to the item recorded on the stock document line.
         $movementsQuery = StockMovement::query()
             ->with('document')
-            ->where('product_id', $item->sku_id);
+            ->whereHas('documentLine', fn ($query) => $query->where('item_instance_id', $item->item_id));
             
-        // BE2-P1-01: Filter further by item's batch/document if available to restrict to item level
-        if ($item->import_batch_id) {
-            $movementsQuery->whereHas('document', function($q) use ($item) {
-                $q->where('id', $item->import_batch_id);
-            });
-        }
-
         $rawMovements = $movementsQuery->orderByDesc('occurred_at')
             ->limit(50)
             ->get();
@@ -245,7 +240,7 @@ class ItemInstanceController extends Controller
             // Thông tin truy vết cấp Item (đáp ứng tiêu chí BE2-P1-01)
             'item_instance_id' => $item->item_id,
             'serial_number' => $item->serial_number,
-            'physical_code' => $item->physicalCode?->code ?? null,
+            'physical_code' => $item->physicalCode,
             'movements' => $formattedMovements,
             
             // Giữ lại các field cũ để không break test case cũ

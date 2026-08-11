@@ -36,6 +36,13 @@ Thumbs.db
 !docs/HN-BE-001_BACKEND_STANDARD.md
 !docs/HN-P1-001_BE_IMPLEMENTATION_EVIDENCE.md
 !docs/HN-P1-001_FINAL_SUMMARY.md
+!docs/output/
+!docs/output/BE2-HN-MC-001-sku-item-component/
+!docs/output/BE2-HN-MC-001-sku-item-component/00-summary.md
+!docs/output/BE2-HN-MC-001-sku-item-component/01-item-traceability.md
+!docs/output/BE2-HN-MC-001-sku-item-component/02-import-atomicity.md
+!docs/output/BE2-HN-MC-001-sku-item-component/03-api-and-migration.md
+!docs/output/BE2-HN-MC-001-sku-item-component/04-verification.md
 HN_BA_Master_WMS_PV_v1_0_MD/
 CLAUDE.md
 /.psysh
