@@ -1,0 +1,61 @@
+name: Verify full regression after locking cleanup
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/diagnose-full-suite-5.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_NO_PERMISSION_PASSWORD: Baseline-CI-Only-2026
+      JWT_SECRET: Baseline-CI-JWT-Only-2026-Exact-SHA
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /tmp/hoanam-baseline.sqlite
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: m1
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Run full suite fail-fast and capture result
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          rm -f /tmp/hoanam-baseline.sqlite
+          touch /tmp/hoanam-baseline.sqlite
+          php artisan config:clear
+          php artisan migrate:fresh --seed --force
+          mkdir -p .ci
+          set +e
+          php artisan test --stop-on-failure --testdox > .ci/full-suite-failure.txt 2>&1
+          status=$?
+          set -e
+          printf '\nEXIT_STATUS=%s\n' "$status" >> .ci/full-suite-failure.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -f .github/workflows/diagnose-full-suite-5.yml
+          git add .ci/full-suite-failure.txt
+          git commit -m 'chore(ci): capture post-locking full-suite result'
+          git push origin HEAD:m1
