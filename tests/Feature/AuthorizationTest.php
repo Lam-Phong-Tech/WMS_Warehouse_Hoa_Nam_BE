@@ -92,10 +92,15 @@ class AuthorizationTest extends TestCase
         $noPermissionToken = JWTAuth::fromUser($noPermission);
         $superAdminToken = JWTAuth::fromUser($superAdmin);
 
+        // Keep this list aligned with the active current-baseline master routes.
+        // UOM/supplier endpoints are superseded and must not be reintroduced to
+        // make a legacy authorization test pass.
         $masterEndpoints = [
+            ['GET', '/api/v1/brands'],
             ['GET', '/api/v1/product-categories'],
-            ['GET', '/api/v1/uoms'],
-            ['GET', '/api/v1/suppliers'],
+            ['GET', '/api/v1/power-sources'],
+            ['GET', '/api/v1/product-models'],
+            ['GET', '/api/v1/package-variants'],
         ];
 
         foreach ($masterEndpoints as [$method, $url]) {
@@ -158,10 +163,12 @@ class AuthorizationTest extends TestCase
 
         foreach ([
             '/api/v1/products',
-            '/api/v1/product-categories',
-            '/api/v1/uoms',
-            '/api/v1/suppliers',
             '/api/v1/skus',
+            '/api/v1/brands',
+            '/api/v1/product-categories',
+            '/api/v1/power-sources',
+            '/api/v1/product-models',
+            '/api/v1/package-variants',
         ] as $url) {
             $this->getJson($url, ['Authorization' => "Bearer {$token}"])
                 ->assertStatus(403)
