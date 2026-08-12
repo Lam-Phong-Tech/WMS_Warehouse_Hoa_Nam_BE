@@ -40,23 +40,11 @@ class FoundationInboundPutawayReadinessTest extends TestCase
 
     private function warehouse(string $code, string $name): Warehouse
     {
-        $warehouse = Warehouse::create([
+        return Warehouse::create([
             'code' => $code,
             'name' => $name,
             'status' => 'ACTIVE',
         ]);
-
-        // SQLite test/runtime compatibility does not have the PostgreSQL alias
-        // trigger, so seed both legacy and canonical physical columns explicitly.
-        DB::table('warehouses')
-            ->where('id', $warehouse->id)
-            ->update([
-                'warehouse_id' => $warehouse->id,
-                'warehouse_code' => $code,
-                'warehouse_name' => $name,
-            ]);
-
-        return $warehouse->refresh();
     }
 
     public function test_products_write_routes_are_reachable_on_canonical_products_contract(): void
