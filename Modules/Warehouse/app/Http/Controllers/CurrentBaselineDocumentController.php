@@ -61,6 +61,7 @@ class CurrentBaselineDocumentController extends Controller
             'source_name' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
             'lines' => ['sometimes', 'array', 'min:1'],
+            'lines.*.id' => ['nullable', 'uuid'],
             'lines.*.product_id' => ['required_with:lines', 'uuid', 'exists:sku,sku_id'],
             'lines.*.import_batch_id' => ['nullable', 'uuid', 'exists:import_batches,import_batch_id'],
             'lines.*.qty_planned' => ['required_with:lines', 'integer', 'min:1'],
@@ -205,30 +206,24 @@ class CurrentBaselineDocumentController extends Controller
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được cập nhật.');
             }
 
+            $lineUpdateMode = 'NONE';
             if (isset($validated['lines'])) {
                 if ($document->outbound_request_id !== null) {
                     ApiError::abort(409, 'SOURCE_REQUEST_IMMUTABLE', 'Outbound sinh từ toa Excel không được thay line nguồn; hãy Cancel và tạo request mới.');
                 }
-                if ($document->status === 'SCANNING' && $this->hasScanEvidence($id, $type)) {
-                    ApiError::abort(409, 'SCANNED_DOCUMENT_IMMUTABLE', 'Chứng từ đã có scan evidence; hãy Cancel và tạo lại để không xóa lịch sử scan.');
-                }
+
                 $this->assertLineSkus($type, $validated['lines']);
-                DB::table('stock_document_lines')->where('stock_document_id', $id)->delete();
-                foreach (array_values($validated['lines']) as $index => $line) {
-                    DB::table('stock_document_lines')->insert([
-                        'id' => (string) Str::uuid(),
-                        'stock_document_id' => $id,
-                        'line_no' => $index + 1,
-                        'product_id' => $line['product_id'],
-                        'import_batch_id' => $line['import_batch_id'] ?? null,
-                        'qty_planned' => (int) $line['qty_planned'],
-                        'qty_actual' => (int) $line['qty_planned'],
-                        'scanned_qty' => 0,
-                        'note' => $line['note'] ?? null,
-                        'version' => 1,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+                $hasScanEvidence = $document->status === 'SCANNING' && $this->hasScanEvidence($id, $type);
+
+                if ($hasScanEvidence && $type === 'receipt') {
+                    $this->updateScannedInboundLines($id, $validated['lines']);
+                    $lineUpdateMode = 'PRESERVE_SCAN_EVIDENCE';
+                } else {
+                    if ($hasScanEvidence) {
+                        ApiError::abort(409, 'SCANNED_DOCUMENT_IMMUTABLE', 'Chứng từ đã có scan evidence; hãy Cancel và tạo lại để không xóa lịch sử scan.');
+                    }
+                    $this->replaceDocumentLines($id, $validated['lines']);
+                    $lineUpdateMode = 'REPLACE_UNSCANNED_LINES';
                 }
             }
 
@@ -249,13 +244,101 @@ class CurrentBaselineDocumentController extends Controller
                 actorId: $this->actorId(),
                 requestId: request()?->attributes->get('request_id'),
                 beforeData: ['version' => $expectedVersion, 'status' => $document->status],
-                afterData: ['version' => $expectedVersion + 1, 'status' => $document->status],
+                afterData: [
+                    'version' => $expectedVersion + 1,
+                    'status' => $document->status,
+                    'line_update_mode' => $lineUpdateMode,
+                ],
             );
 
             return $this->documentPayload($id);
         }, 3);
 
         return $this->respondSuccess($payload, 'Cập nhật chứng từ thành công.');
+    }
+
+    private function replaceDocumentLines(string $documentId, array $lines): void
+    {
+        DB::table('stock_document_lines')->where('stock_document_id', $documentId)->delete();
+        foreach (array_values($lines) as $index => $line) {
+            DB::table('stock_document_lines')->insert([
+                'id' => (string) Str::uuid(),
+                'stock_document_id' => $documentId,
+                'line_no' => $index + 1,
+                'product_id' => $line['product_id'],
+                'import_batch_id' => $line['import_batch_id'] ?? null,
+                'qty_planned' => (int) $line['qty_planned'],
+                'qty_actual' => (int) $line['qty_planned'],
+                'scanned_qty' => 0,
+                'note' => $line['note'] ?? null,
+                'version' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    private function updateScannedInboundLines(string $documentId, array $lines): void
+    {
+        $existing = DB::table('stock_document_lines')
+            ->where('stock_document_id', $documentId)
+            ->orderBy('line_no')
+            ->lockForUpdate()
+            ->get();
+        $submitted = array_values($lines);
+
+        if ($existing->count() !== count($submitted)) {
+            ApiError::abort(
+                409,
+                'SCANNED_LINE_STRUCTURE_IMMUTABLE',
+                'Phiếu đã có scan evidence; không được thêm hoặc xóa dòng. Chỉ được sửa Expected qty/ghi chú trên đúng dòng hiện hữu.'
+            );
+        }
+
+        foreach ($submitted as $index => $line) {
+            $current = $existing[$index] ?? null;
+            $lineId = isset($line['id']) ? (string) $line['id'] : '';
+            if ($current === null || $lineId === '' || $lineId !== (string) $current->id) {
+                ApiError::abort(
+                    409,
+                    'SCANNED_LINE_STRUCTURE_IMMUTABLE',
+                    'Phiếu đã có scan evidence; thứ tự và định danh dòng phải được giữ nguyên.'
+                );
+            }
+            if ((string) $line['product_id'] !== (string) $current->product_id) {
+                ApiError::abort(
+                    409,
+                    'SCANNED_LINE_STRUCTURE_IMMUTABLE',
+                    'Phiếu đã có scan evidence; SKU của dòng đã quét không được thay đổi.'
+                );
+            }
+            if (array_key_exists('import_batch_id', $line)
+                && (string) ($line['import_batch_id'] ?? '') !== (string) ($current->import_batch_id ?? '')) {
+                ApiError::abort(
+                    409,
+                    'SCANNED_LINE_STRUCTURE_IMMUTABLE',
+                    'Phiếu đã có scan evidence; import batch của dòng đã quét không được thay đổi.'
+                );
+            }
+
+            $expectedQty = (int) $line['qty_planned'];
+            $scannedQty = (int) $current->scanned_qty;
+            if ($expectedQty < $scannedQty) {
+                ApiError::abort(422, 'EXPECTED_QTY_BELOW_SCANNED', 'Expected qty không được nhỏ hơn số lượng đã scan.', [
+                    'line_id' => (string) $current->id,
+                    'expected_qty' => $expectedQty,
+                    'scanned_qty' => $scannedQty,
+                ]);
+            }
+
+            DB::table('stock_document_lines')->where('id', $current->id)->update([
+                'qty_planned' => $expectedQty,
+                'qty_actual' => $expectedQty,
+                'note' => $line['note'] ?? null,
+                'version' => ((int) ($current->version ?? 0)) + 1,
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     private function cancelDocument(Request $request, string $id, string $type)
