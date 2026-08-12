@@ -36,11 +36,11 @@ class EnsureCanonicalInboundWarehouse
         }
 
         $warehouse = DB::table('warehouses')
-            ->where('warehouse_id', $warehouseId)
-            ->first(['warehouse_id', 'warehouse_code', 'warehouse_name', 'status']);
+            ->where('id', $warehouseId)
+            ->first(['id', 'code', 'name', 'status']);
 
         if ($warehouse === null
-            || strtoupper(trim((string) $warehouse->warehouse_code)) !== self::CANONICAL_WAREHOUSE_CODE
+            || strtoupper(trim((string) $warehouse->code)) !== self::CANONICAL_WAREHOUSE_CODE
             || strtoupper(trim((string) $warehouse->status)) !== 'ACTIVE') {
             ApiError::abort(
                 422,
