@@ -1,0 +1,127 @@
+name: Finalize inbound baseline alignment
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/finalize-inbound-baseline.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: m1
+          fetch-depth: 0
+
+      - name: Align current baseline metadata and OpenAPI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          # Machine contract: 129 was the pre-Putaway surface. Current canonical
+          # additions are Product create/update (+2), inbound BOX (+1), Putaway
+          # (+5), and warranty detail (+1) = 138 total operations.
+          contract_path = Path('docs/contracts/HoaNam_Current_Baseline_Contract.json')
+          contract = contract_path.read_text()
+          contract = contract.replace('"technical_alignment_date": "2026-08-10"', '"technical_alignment_date": "2026-08-12"')
+          contract = contract.replace(
+              '{"path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md", "document_id": "HN-WMS-TECH-GUIDE-001", "version": "2.0"}',
+              '{"path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md", "document_id": "HN-WMS-TECH-GUIDE-001", "version": "1.0"}',
+          )
+          contract = contract.replace('"operation_count": 129', '"operation_count": 138')
+          if '"operation_count": 138' not in contract:
+              raise SystemExit('Failed to align API operation count')
+          contract_path.write_text(contract)
+
+          guide_path = Path('docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md')
+          guide = guide_path.read_text()
+          if 'Document ID: HN-WMS-TECH-GUIDE-001' not in guide:
+              guide = guide.replace(
+                  '# Hướng dẫn Kiến trúc & Phát triển WMS Hoa Nam\n\n',
+                  '# Hướng dẫn Kiến trúc & Phát triển WMS Hoa Nam\n\nDocument ID: HN-WMS-TECH-GUIDE-001\n',
+                  1,
+              )
+          guide_path.write_text(guide)
+
+          inbound_path = Path('Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php')
+          inbound = inbound_path.read_text()
+          inbound = inbound.replace(
+              ' * Không tồn tại submit/approve/reject, partial post, PARTIALLY_POSTED hoặc close-remainder.\n',
+              ' * Không tồn tại approval workflow hoặc vòng đời nhận hàng một phần; chỉ dùng Full Post.\n',
+          )
+          for forbidden in ['/submit', '/approve', '/reject', 'close-remainder', 'PARTIALLY_POSTED']:
+              if forbidden in inbound:
+                  raise SystemExit(f'Inbound OpenAPI source still contains forbidden legacy token: {forbidden}')
+          inbound_path.write_text(inbound)
+
+          processor_path = Path('app/Swagger/Processors/RouteSyncProcessor.php')
+          processor = processor_path.read_text()
+          processor = processor.replace(
+              "        '21. Public Catalog' => 'Các endpoint danh mục và gợi ý PV chỉ đọc.',\n",
+              "        '21. Public Catalog' => 'Các endpoint danh mục và gợi ý PV chỉ đọc.',\n"
+              "        '24. Putaway' => 'Xếp BOX linh kiện đã nhận vào TRAY; toàn bộ thao tác stock-neutral.',\n",
+          )
+          processor = processor.replace(
+              "        'post api/v1/inbound-documents/{id}/reverse' => 'Hoàn tác nhập kho cho phiếu nhập',\n",
+              "        'post api/v1/inbound-documents/{id}/reverse' => 'Hoàn tác nhập kho cho phiếu nhập',\n"
+              "        'get api/v1/putaway/tasks' => 'Danh sách BOX chờ xếp khay',\n"
+              "        'post api/v1/putaway/tasks' => 'Tạo tác vụ xếp BOX vào TRAY',\n"
+              "        'post api/v1/putaway/tasks/{id}/confirm' => 'Xác nhận xếp BOX vào TRAY',\n"
+              "        'post api/v1/putaway/tasks/{id}/cancel' => 'Huỷ tác vụ xếp BOX vào TRAY',\n"
+              "        'get api/v1/putaway/history' => 'Lịch sử xếp BOX vào TRAY',\n",
+          )
+          processor = processor.replace(
+              "        'physical-codes' => 'mã vật lý',\n",
+              "        'physical-codes' => 'mã vật lý',\n        'putaway' => 'tác vụ putaway',\n",
+              1,
+          )
+          # COLLECTION_NOUNS has a second physical-codes entry later in the file.
+          first = processor.find("    private const COLLECTION_NOUNS = [")
+          if first >= 0:
+              pos = processor.find("        'physical-codes' => 'mã vật lý',\n", first)
+              if pos >= 0 and "        'putaway' => 'tác vụ putaway',\n" not in processor[pos:pos+150]:
+                  insert_at = pos + len("        'physical-codes' => 'mã vật lý',\n")
+                  processor = processor[:insert_at] + "        'putaway' => 'tác vụ putaway',\n" + processor[insert_at:]
+          processor = processor.replace(
+              "        'physical-codes' => ['page', 'per_page', 'keyword', 'code_type', 'carrier_type', 'status'],\n",
+              "        'physical-codes' => ['page', 'per_page', 'keyword', 'code_type', 'carrier_type', 'status'],\n"
+              "        'putaway' => ['search'],\n",
+          )
+          processor = processor.replace(
+              "            'pv' => '21. Public Catalog',\n",
+              "            'pv' => '21. Public Catalog',\n            'putaway' => '24. Putaway',\n",
+          )
+          required = [
+              "'24. Putaway'",
+              "'get api/v1/putaway/tasks'",
+              "'post api/v1/putaway/tasks/{id}/confirm'",
+              "'putaway' => ['search']",
+              "'putaway' => '24. Putaway'",
+          ]
+          for token in required:
+              if token not in processor:
+                  raise SystemExit(f'Missing RouteSync alignment: {token}')
+          processor_path.write_text(processor)
+          PY
+
+      - name: Remove one-off workflows and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f .github/workflows/auto-format-current-baseline.yml || true
+          git rm -f .github/workflows/finalize-inbound-baseline.yml || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/contracts/HoaNam_Current_Baseline_Contract.json \
+                  docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md \
+                  Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php \
+                  app/Swagger/Processors/RouteSyncProcessor.php
+          git commit -m 'fix(inbound): align final baseline contract and OpenAPI'
+          git push origin HEAD:m1
