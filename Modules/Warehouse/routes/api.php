@@ -12,6 +12,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineInboundBoxController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineMasterController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselinePhysicalCodeController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselinePutawayTaskController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineStockFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController;
 use Modules\Warehouse\Http\Controllers\DefectCatalogController;
@@ -28,6 +29,7 @@ use Modules\Warehouse\Http\Controllers\PutawayController;
 use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
+use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
 use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 
 Route::prefix('v1')->group(function (): void {
@@ -47,9 +49,11 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('products/{id}', [ProductController::class, 'update'])->middleware('permission:sku.manage');
 
         Route::get('inbound-documents', [InboundDocumentController::class, 'index'])->middleware('permission:inbound.view');
-        Route::post('inbound-documents', [CurrentBaselineDocumentController::class, 'storeInbound'])->middleware('permission:inbound.create');
+        Route::post('inbound-documents', [CurrentBaselineDocumentController::class, 'storeInbound'])
+            ->middleware(['permission:inbound.create', EnsureCanonicalInboundWarehouse::class]);
         Route::get('inbound-documents/{id}', [InboundDocumentController::class, 'show'])->middleware('permission:inbound.view');
-        Route::patch('inbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateInbound'])->middleware('permission:inbound.create');
+        Route::patch('inbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateInbound'])
+            ->middleware(['permission:inbound.create', EnsureCanonicalInboundWarehouse::class]);
         Route::post('inbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelInbound'])->middleware('permission:inbound.cancel');
         Route::post('inbound-documents/{id}/boxes', [CurrentBaselineInboundBoxController::class, 'store'])->middleware('permission:inbound.scan');
         Route::post('inbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'inboundScan'])
@@ -58,7 +62,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])->middleware('permission:inventory.reversal.post');
 
         Route::get('putaway/tasks', [PutawayController::class, 'tasks'])->middleware('permission:container.view');
-        Route::post('putaway/tasks', [PutawayController::class, 'storeTask'])->middleware('permission:container.manage');
+        Route::post('putaway/tasks', [CurrentBaselinePutawayTaskController::class, 'store'])->middleware('permission:container.manage');
         Route::post('putaway/tasks/{id}/confirm', [PutawayController::class, 'confirm'])->middleware('permission:container.manage');
         Route::post('putaway/tasks/{id}/cancel', [PutawayController::class, 'cancel'])->middleware('permission:container.manage');
         Route::get('putaway/history', [PutawayController::class, 'history'])->middleware('permission:container.view');
