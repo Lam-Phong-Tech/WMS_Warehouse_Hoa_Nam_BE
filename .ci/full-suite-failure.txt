@@ -1,0 +1,97 @@
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.33
+Configuration: /home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/phpunit.xml
+
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\ExampleTest[39m
+  [32;1m✓[39;22m[90m [39m[90mthat true is true[39m
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\AgencyTest[39m
+  [32;1m✓[39;22m[90m [39m[90magency can be created listed and updated[39m[90m                            [39m [90m1.28s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency code must be unique[39m[90m                                          [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency detail for unknown id returns 404[39m[90m                            [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency delete succeeds when not referenced[39m[90m                          [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency create writes audit log[39m[90m                                      [39m [90m0.03s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthRbacAuditHardeningTest[39m
+  [32;1m✓[39;22m[90m [39m[90mexpired access token is rejected with standard 401[39m[90m                  [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrefresh replay revokes token family and creates failure audit[39m[90m       [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mwarehouse scope filters list and denies detail and mutation outside[39m[90m…[39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90maudit logger redacts nested secrets[39m[90m                                 [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90maudit primary failure is persisted to outbox instead of silently lo[39m[90m…[39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mnegative api contract for malformed json and missing refresh token[39m[90m  [39m [90m0.02s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthSessionPersistenceTest[39m
+  [32;1m✓[39;22m[90m [39m[90mlogin sets httponly refresh cookie without changing json contract[39m[90m   [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrefresh works with cookie only and rotates cookie[39m[90m                   [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mjson body refresh remains supported[39m[90m                                 [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90minvalid cookie refresh expires cookie to break reload loop[39m[90m          [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlogout accepts cookie fallback revokes session and expires cookie[39m[90m   [39m [90m0.03s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\AuthorizationTest[39m
+  [32;1m✓[39;22m[90m [39m[90msku manage endpoints with different users[39m[90m                           [39m [90m0.17s[39m  
+  [31;1m⨯[39;22m[90m [39m[90mmaster manage endpoints with different users[39m[90m                        [39m [90m0.09s[39m  
+  [31m────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthorizationTest[22m [90m>[39m master manage endpoints with di…   
+[39;1m  Expected response status code [403] but received 200.
+Failed asserting that 200 is identical to 403.[39;22m
+
+  at [32mtests/Feature/AuthorizationTest.php[39m:[32m103[39m
+     99▕         ];
+    100▕ 
+    101▕         foreach ($masterEndpoints as [$method, $url]) {
+    102▕             $this->makeRequest($method, $url, $skuManagerToken)
+  ➜ 103▕                 ->assertStatus(403)
+    104▕                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
+    105▕ 
+    106▕             $this->makeRequest($method, $url, $masterManagerToken)
+    107▕                 ->assertStatus(200);
+
+
+  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m18 passed[39;22m[90m,[39m[39m [2m230 pending[22m[39m[90m (143 assertions)[39m
+  [90mDuration:[39m [39m2.04s[39m
+
+Time: 00:01.935, Memory: 75.00 MB
+
+[4mAgency (Tests\Feature\Agency)[0m
+[32m ✔ [0mAgency can be created listed and updated
+[32m ✔ [0mAgency code must be unique
+[32m ✔ [0mAgency detail for unknown id returns 404
+[32m ✔ [0mAgency delete succeeds when not referenced
+[32m ✔ [0mAgency create writes audit log
+
+[4mAuthorization (Tests\Feature\Authorization)[0m
+[32m ✔ [0mSku manage endpoints with different users
+[31m ✘ [0mMaster manage endpoints with different users
+   [31m┐[0m
+   [31m├[0m [41;37mExpected response status code [403] but received 200.[0m
+   [31m├[0m [41;37mFailed asserting that 200 is identical to 403.       [0m
+   [31m│[0m
+   [31m│[0m [2m/[22mhome[2m/[22mrunner[2m/[22mwork[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mvendor[2m/[22mlaravel[2m/[22mframework[2m/[22msrc[2m/[22mIlluminate[2m/[22mTesting[2m/[22mTestResponseAssert.php[2m:[22m[34m45[0m
+   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/vendor/laravel/framework/src/Illuminate/Testing/[22mTestResponse.php[2m:[22m[34m176[0m
+   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/[22mtests[2m/[22mFeature[2m/[22mAuthorizationTest.php[2m:[22m[34m103[0m
+   [31m┴[0m
+
+[4mAuth Rbac Audit Hardening (Tests\Feature\AuthRbacAuditHardening)[0m
+[32m ✔ [0mExpired access token is rejected with standard 401
+[32m ✔ [0mRefresh replay revokes token family and creates failure audit
+[32m ✔ [0mWarehouse scope filters list and denies detail and mutation outside scope
+[32m ✔ [0mAudit logger redacts nested secrets
+[32m ✔ [0mAudit primary failure is persisted to outbox instead of silently lost
+[32m ✔ [0mNegative api contract for malformed json and missing refresh token
+
+[4mAuth Session Persistence (Tests\Feature\AuthSessionPersistence)[0m
+[32m ✔ [0mLogin sets httponly refresh cookie without changing json contract
+[32m ✔ [0mRefresh works with cookie only and rotates cookie
+[32m ✔ [0mJson body refresh remains supported
+[32m ✔ [0mInvalid cookie refresh expires cookie to break reload loop
+[32m ✔ [0mLogout accepts cookie fallback revokes session and expires cookie
+
+[4mExample (Tests\Unit\Example)[0m
+[32m ✔ [0mThat true is true
+
+[37;41mFAILURES![0m
+[37;41mTests: 19[0m[37;41m, Assertions: 143[0m[37;41m, Failures: 1[0m[37;41m.[0m
+
+EXIT_STATUS=1
