@@ -70,7 +70,7 @@ return new class extends Migration
     private function canonicalKey(string $table, array $fields): void
     {
         if (collect($fields)->contains(fn (string $field): bool => ! Schema::hasColumn($table, $field))) {
-            throw new \RuntimeException('ERD key field missing on '.$table.': '.implode(',', $fields));
+            throw new RuntimeException('ERD key field missing on '.$table.': '.implode(',', $fields));
         }
 
         $hasPrimary = DB::selectOne('SELECT 1 AS present FROM pg_constraint WHERE conrelid=?::regclass AND contype=\'p\' LIMIT 1', [$table]) !== null;

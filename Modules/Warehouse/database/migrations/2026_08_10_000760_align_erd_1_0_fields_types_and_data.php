@@ -41,7 +41,7 @@ return new class extends Migration
             ->first(['data_type', 'character_maximum_length', 'numeric_precision', 'numeric_scale']);
 
         if ($actual === null) {
-            throw new \RuntimeException("Missing ERD field {$table}.{$field} before type alignment.");
+            throw new RuntimeException("Missing ERD field {$table}.{$field} before type alignment.");
         }
         if (HoaNamErdSchema::typeMatches($actual, $documentedType)) {
             return;

@@ -34,7 +34,7 @@ return new class extends Migration
 
             foreach ($documented as $field) {
                 if (! Schema::hasColumn($table, $field) || DB::table($table)->whereNull($field)->exists()) {
-                    throw new \RuntimeException("Cannot promote ERD primary key {$table}.{$field}: field missing or contains NULL.");
+                    throw new RuntimeException("Cannot promote ERD primary key {$table}.{$field}: field missing or contains NULL.");
                 }
             }
 

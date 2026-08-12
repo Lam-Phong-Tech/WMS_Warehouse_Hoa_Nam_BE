@@ -22,7 +22,7 @@ return new class extends Migration
             $model = new $modelClass;
             $tableName = $model->getTable();
             if (! Schema::hasTable($tableName)) {
-                throw new \RuntimeException("Mutable aggregate table {$tableName} is missing for {$modelClass}.");
+                throw new RuntimeException("Mutable aggregate table {$tableName} is missing for {$modelClass}.");
             }
             if (! Schema::hasColumn($tableName, 'version')) {
                 Schema::table($tableName, function (Blueprint $table): void {

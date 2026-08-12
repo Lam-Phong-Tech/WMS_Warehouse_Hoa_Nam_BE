@@ -64,7 +64,7 @@ return new class extends Migration
         }
 
         if (DB::table($table)->whereNotNull($column)->whereRaw("{$column} <> trunc({$column})")->exists()) {
-            throw new \RuntimeException("Current ERD requires BIGINT {$table}.{$column}; fractional legacy values must be reconciled first.");
+            throw new RuntimeException("Current ERD requires BIGINT {$table}.{$column}; fractional legacy values must be reconciled first.");
         }
 
         DB::statement("ALTER TABLE {$table} ALTER COLUMN {$column} TYPE BIGINT USING {$column}::bigint");
