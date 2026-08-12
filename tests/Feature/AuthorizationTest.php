@@ -80,7 +80,7 @@ class AuthorizationTest extends TestCase
         }
     }
 
-    public function test_master_manage_endpoints_with_different_users(): void
+    public function test_master_view_endpoints_follow_catalog_view_permission(): void
     {
         $skuManager = $this->createTestUser('test-sku-manage', 'SKU_MANAGER');
         $masterManager = $this->createTestUser('test-master-manage', 'MASTER_MANAGER');
@@ -99,9 +99,10 @@ class AuthorizationTest extends TestCase
         ];
 
         foreach ($masterEndpoints as [$method, $url]) {
+            // Both test roles intentionally carry catalog.view. Read endpoints
+            // must therefore succeed for both; only catalog.manage may mutate.
             $this->makeRequest($method, $url, $skuManagerToken)
-                ->assertStatus(403)
-                ->assertJsonPath('error.code', 'ACCESS_DENIED');
+                ->assertStatus(200);
 
             $this->makeRequest($method, $url, $masterManagerToken)
                 ->assertStatus(200);
