@@ -42,6 +42,19 @@ class StockDocumentCanonicalFlowTest extends TestCase
         $this->assertStringContainsString('LABEL_NOT_PRINTED', $stock);
     }
 
+    public function test_scanning_receipt_can_correct_expected_without_replacing_scan_evidence(): void
+    {
+        $document = $this->source('Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php');
+
+        $this->assertStringContainsString("'lines.*.id' => ['nullable', 'uuid']", $document);
+        $this->assertStringContainsString('updateScannedInboundLines', $document);
+        $this->assertStringContainsString('PRESERVE_SCAN_EVIDENCE', $document);
+        $this->assertStringContainsString('SCANNED_LINE_STRUCTURE_IMMUTABLE', $document);
+        $this->assertStringContainsString('EXPECTED_QTY_BELOW_SCANNED', $document);
+        $this->assertStringContainsString("'qty_planned' => \$expectedQty", $document);
+        $this->assertStringContainsString("'scanned_qty' => 0", $document);
+    }
+
     public function test_reversal_keeps_original_posted_and_uses_reversal_aggregate(): void
     {
         $service = $this->source('Modules/Warehouse/app/Services/CurrentBaselineReversalService.php');
