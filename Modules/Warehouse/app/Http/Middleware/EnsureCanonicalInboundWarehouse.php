@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Enforces the single canonical inbound warehouse at the HTTP boundary so
  * direct API calls cannot bypass the same MVP invariant applied by the FE.
+ * This boundary is the final fail-closed guard for the MVP inbound flow.
  */
 class EnsureCanonicalInboundWarehouse
 {
