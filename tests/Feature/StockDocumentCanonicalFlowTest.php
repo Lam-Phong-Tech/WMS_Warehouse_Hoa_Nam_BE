@@ -28,6 +28,20 @@ class StockDocumentCanonicalFlowTest extends TestCase
         $this->assertStringNotContainsString('/reject', $routes);
     }
 
+    public function test_inbound_openapi_source_has_no_legacy_partial_or_approval_flow(): void
+    {
+        $openApiSource = $this->source('Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php');
+
+        $this->assertStringContainsString('DRAFT -> SCANNING -> POSTED/CANCELLED', $openApiSource);
+        $this->assertStringContainsString('Full Post Receipt SCANNING -> POSTED', $openApiSource);
+        $this->assertStringContainsString('Sửa phiếu DRAFT/SCANNING và hiệu chỉnh Expected an toàn', $openApiSource);
+        $this->assertStringNotContainsString('/submit', $openApiSource);
+        $this->assertStringNotContainsString('/approve', $openApiSource);
+        $this->assertStringNotContainsString('/reject', $openApiSource);
+        $this->assertStringNotContainsString('close-remainder', $openApiSource);
+        $this->assertStringNotContainsString('PARTIALLY_POSTED', $openApiSource);
+    }
+
     public function test_scan_is_stock_neutral_and_full_post_is_exact(): void
     {
         $service = $this->source('Modules/Warehouse/app/Services/CurrentBaselineStockService.php');
