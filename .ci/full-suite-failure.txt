@@ -8,7 +8,7 @@ Configuration: /home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_
   [32;1m✓[39;22m[90m [39m[90mthat true is true[39m
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AgencyTest[39m
-  [32;1m✓[39;22m[90m [39m[90magency can be created listed and updated[39m[90m                            [39m [90m1.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency can be created listed and updated[39m[90m                            [39m [90m1.20s[39m  
   [32;1m✓[39;22m[90m [39m[90magency code must be unique[39m[90m                                          [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90magency detail for unknown id returns 404[39m[90m                            [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90magency delete succeeds when not referenced[39m[90m                          [39m [90m0.02s[39m  
@@ -20,79 +20,81 @@ Configuration: /home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_
   [32;1m✓[39;22m[90m [39m[90mwarehouse scope filters list and denies detail and mutation outside[39m[90m…[39m [90m0.03s[39m  
   [32;1m✓[39;22m[90m [39m[90maudit logger redacts nested secrets[39m[90m                                 [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90maudit primary failure is persisted to outbox instead of silently lo[39m[90m…[39m [90m0.03s[39m  
-  [32;1m✓[39;22m[90m [39m[90mnegative api contract for malformed json and missing refresh token[39m[90m  [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mnegative api contract for malformed json and missing refresh token[39m[90m  [39m [90m0.01s[39m  
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthSessionPersistenceTest[39m
   [32;1m✓[39;22m[90m [39m[90mlogin sets httponly refresh cookie without changing json contract[39m[90m   [39m [90m0.03s[39m  
-  [32;1m✓[39;22m[90m [39m[90mrefresh works with cookie only and rotates cookie[39m[90m                   [39m [90m0.03s[39m  
-  [32;1m✓[39;22m[90m [39m[90mjson body refresh remains supported[39m[90m                                 [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrefresh works with cookie only and rotates cookie[39m[90m                   [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mjson body refresh remains supported[39m[90m                                 [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90minvalid cookie refresh expires cookie to break reload loop[39m[90m          [39m [90m0.02s[39m  
-  [32;1m✓[39;22m[90m [39m[90mlogout accepts cookie fallback revokes session and expires cookie[39m[90m   [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlogout accepts cookie fallback revokes session and expires cookie[39m[90m   [39m [90m0.02s[39m  
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthorizationTest[39m
-  [32;1m✓[39;22m[90m [39m[90msku manage endpoints with different users[39m[90m                           [39m [90m0.17s[39m  
-  [32;1m✓[39;22m[90m [39m[90mmaster view endpoints follow catalog view permission[39m[90m                [39m [90m0.13s[39m  
-  [32;1m✓[39;22m[90m [39m[90m403 response format is correct[39m[90m                                      [39m [90m0.09s[39m  
-  [32;1m✓[39;22m[90m [39m[90msuper admin bypasses sku and master permissions[39m[90m                     [39m [90m0.09s[39m  
+  [32;1m✓[39;22m[90m [39m[90msku manage endpoints with different users[39m[90m                           [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mmaster view endpoints follow catalog view permission[39m[90m                [39m [90m0.12s[39m  
+  [32;1m✓[39;22m[90m [39m[90m403 response format is correct[39m[90m                                      [39m [90m0.08s[39m  
+  [32;1m✓[39;22m[90m [39m[90msuper admin bypasses sku and master permissions[39m[90m                     [39m [90m0.08s[39m  
   [32;1m✓[39;22m[90m [39m[90muser with no permission gets 403 on all endpoints[39m[90m                   [39m [90m0.09s[39m  
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\BackendMigrationSeedHealthTest[39m
   [32;1m✓[39;22m[90m [39m[90mmigrations and seed are idempotent and create required markers[39m[90m      [39m [90m0.14s[39m  
-  [32;1m✓[39;22m[90m [39m[90mversioned health endpoint returns 200 with canonical contract after[39m[90m…[39m [90m0.09s[39m  
+  [32;1m✓[39;22m[90m [39m[90mversioned health endpoint returns 200 with canonical contract after[39m[90m…[39m [90m0.08s[39m  
   [32;1m✓[39;22m[90m [39m[90mversioned health endpoint returns secret safe 503 when seed is miss[39m[90m…[39m [90m0.02s[39m  
-  [32;1m✓[39;22m[90m [39m[90minvalid request id is replaced and remains consistent[39m[90m               [39m [90m0.09s[39m  
+  [32;1m✓[39;22m[90m [39m[90minvalid request id is replaced and remains consistent[39m[90m               [39m [90m0.08s[39m  
   [32;1m✓[39;22m[90m [39m[90mlegacy unversioned health endpoint is not exposed[39m[90m                   [39m [90m0.02s[39m  
-  [32;1m✓[39;22m[90m [39m[90mhealth endpoint rejects mutating http methods[39m[90m                       [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mhealth endpoint rejects mutating http methods[39m[90m                       [39m [90m0.01s[39m  
   [32;1m✓[39;22m[90m [39m[90mseed markers are directly queryable for deployment evidence[39m[90m         [39m [90m0.08s[39m  
 
-  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\ContainerTest[39m
-  [31;1m⨯[39;22m[90m [39m[90mcarton and box require primary sku id but tray does not[39m[90m             [39m [90m0.03s[39m  
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\ContainerTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcarton and box require primary sku id but tray does not[39m[90m             [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mphysical code must be active to assign to container[39m[90m                 [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcontainer update uses if match and stale version returns 412[39m[90m        [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcontainer item xor rule rejects both and neither[39m[90m                    [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mremove item marks removed instead of deleting row[39m[90m                   [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcontainer create writes audit log[39m[90m                                   [39m [90m0.02s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\CorsConfigurationTest[39m
+  [32;1m✓[39;22m[90m [39m[90mlocal vite origin can preflight auth login with credentials[39m[90m         [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mloopback ip vite origin is allowed too[39m[90m                              [39m [90m0.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90munknown origin is not granted cors access[39m[90m                           [39m [90m0.01s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\CurrentBaselineFlowContractSourceTest[39m
+  [32;1m✓[39;22m[90m [39m[90mstock flow source pins current business invariants[39m[90m                  [39m [90m0.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90mexcel consume creates linked outbound drafts[39m[90m                        [39m [90m0.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90mwarranty label and pv rules are pinned[39m[90m                              [39m [90m0.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcomponent issue is warranty only scan first and atomic[39m[90m              [39m [90m0.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcontainer and physical identity follow current erd[39m[90m                  [39m [90m0.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdocumented quantities are fail closed to bigint on postgres[39m[90m         [39m [90m0.01s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\CurrentBaselineIfMatchContractTest[39m
+  [31;1m⨯[39;22m[90m [39m[90mlegacy mutable routes are covered by transactional if match guard[39m[90m   [39m [90m0.02s[39m  
   [31m────────────────────────────────────────────────────────────────────────────[39m  
-  [41;1m FAILED [49;22m [1mTests\Feature\ContainerTest[22m [90m>[39m carton and box require primary sku…    
-[39;1m  Expected response status code [201] but received 422.
-Failed asserting that 422 is identical to 201.
+  [41;1m FAILED [49;22m [1mTests\Feature\CurrentBaselineIfMatchContractTest[22m [90m>[39m legacy mutable…   
+[39;1m  Expected: [39;22m[31m<?php\n[39m[39;1m
+  [39;22m[31m\n[39m[39;1m
+  [39;22m[31mnamespace App\Http\Middleware;\n[39m[39;1m
+  [39;22m[90m... (68 more lines)[39m[39;1m
 
-The following errors occurred during the last request:
+  To contain: [39;22m[32mPATCH api/v1/warehouses/{id}[39m
 
-{
-    "success": false,
-    "message": "The selected status is invalid.",
-    "error_code": "BUSINESS_RULE_ERROR",
-    "errors": {
-        "status": [
-            "The selected status is invalid."
-        ]
-    },
-    "error": {
-        "code": "BUSINESS_RULE_ERROR",
-        "details": {
-            "status": [
-                "The selected status is invalid."
-            ]
-        }
-    },
-    "meta": {
-        "request_id": "8f68561d-2e1c-49f4-92d5-7694fb084e42",
-        "timestamp": "2026-08-12T11:05:38+07:00"
-    }
-}[39;22m
+  at [32mtests/Feature/CurrentBaselineIfMatchContractTest.php[39m:[32m31[39m
+     27▕             'PATCH api/v1/roles/{id}',
+     28▕             'DELETE api/v1/roles/{id}',
+     29▕             'PUT api/v1/roles/{id}/permissions',
+     30▕         ] as $route) {
+  ➜  31▕             $this->assertStringContainsString($route, $middleware, $route);
+     32▕         }
+     33▕ 
+     34▕         $this->assertStringContainsString('lockForUpdate()', $middleware);
+     35▕         $this->assertStringContainsString('PRECONDITION_REQUIRED', $middleware);
 
-  at [32mtests/Feature/ContainerTest.php[39m:[32m63[39m
-     59▕         $boxWithSku = $this->postJson('/api/v1/containers', [
-     60▕             'container_code' => 'BOX-OK', 'container_type' => 'BOX',
-     61▕             'physical_code_id' => $this->code('CT-2')->physical_code_id, 'primary_sku_id' => $sku->sku_id, 'status' => 'ACTIVE',
-     62▕         ], $headers);
-  ➜  63▕         $boxWithSku->assertCreated();
-     64▕ 
-     65▕         $tray = $this->postJson('/api/v1/containers', [
-     66▕             'container_code' => 'TRAY-OK', 'container_type' => 'TRAY',
-     67▕             'physical_code_id' => $this->code('CT-3', 'TRAY')->physical_code_id, 'status' => 'ACTIVE',
+  [33m1   [39m[39;1mtests/Feature/CurrentBaselineIfMatchContractTest.php[39;22m:[39;1m31[39;22m
 
 
-  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m29 passed[39;22m[90m,[39m[39m [2m219 pending[22m[39m[90m (294 assertions)[39m
-  [90mDuration:[39m [39m2.78s[39m
+  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m44 passed[39;22m[90m,[39m[39m [2m204 pending[22m[39m[90m (412 assertions)[39m
+  [90mDuration:[39m [39m2.92s[39m
 
-Time: 00:02.666, Memory: 75.00 MB
+Time: 00:02.821, Memory: 77.00 MB
 
 [4mAgency (Tests\Feature\Agency)[0m
 [32m ✔ [0mAgency can be created listed and updated
@@ -133,46 +135,109 @@ Time: 00:02.666, Memory: 75.00 MB
 [32m ✔ [0mSeed markers are directly queryable for deployment evidence
 
 [4mContainer (Tests\Feature\Container)[0m
-[31m ✘ [0mCarton and box require primary sku id but tray does not
+[32m ✔ [0mCarton and box require primary sku id but tray does not
+[32m ✔ [0mPhysical code must be active to assign to container
+[32m ✔ [0mContainer update uses if match and stale version returns 412
+[32m ✔ [0mContainer item xor rule rejects both and neither
+[32m ✔ [0mRemove item marks removed instead of deleting row
+[32m ✔ [0mContainer create writes audit log
+
+[4mCors Configuration (Tests\Feature\CorsConfiguration)[0m
+[32m ✔ [0mLocal vite origin can preflight auth login with credentials
+[32m ✔ [0mLoopback ip vite origin is allowed too
+[32m ✔ [0mUnknown origin is not granted cors access
+
+[4mCurrent Baseline Flow Contract Source (Tests\Feature\CurrentBaselineFlowContractSource)[0m
+[32m ✔ [0mStock flow source pins current business invariants
+[32m ✔ [0mExcel consume creates linked outbound drafts
+[32m ✔ [0mWarranty label and pv rules are pinned
+[32m ✔ [0mComponent issue is warranty only scan first and atomic
+[32m ✔ [0mContainer and physical identity follow current erd
+[32m ✔ [0mDocumented quantities are fail closed to bigint on postgres
+
+[4mCurrent Baseline If Match Contract (Tests\Feature\CurrentBaselineIfMatchContract)[0m
+[31m ✘ [0mLegacy mutable routes are covered by transactional if match guard
    [31m┐[0m
-   [31m├[0m [41;37mExpected response status code [201] but received 422.        [0m
-   [31m├[0m [41;37mFailed asserting that 422 is identical to 201.               [0m
-   [31m├[0m                                                              
-   [31m├[0m [41;37mThe following errors occurred during the last request:       [0m
-   [31m├[0m                                                              
-   [31m├[0m [41;37m{                                                            [0m
-   [31m├[0m [41;37m    "success": false,                                        [0m
-   [31m├[0m [41;37m    "message": "The selected status is invalid.",            [0m
-   [31m├[0m [41;37m    "error_code": "BUSINESS_RULE_ERROR",                     [0m
-   [31m├[0m [41;37m    "errors": {                                              [0m
-   [31m├[0m [41;37m        "status": [                                          [0m
-   [31m├[0m [41;37m            "The selected status is invalid."                [0m
-   [31m├[0m [41;37m        ]                                                    [0m
-   [31m├[0m [41;37m    },                                                       [0m
-   [31m├[0m [41;37m    "error": {                                               [0m
-   [31m├[0m [41;37m        "code": "BUSINESS_RULE_ERROR",                       [0m
-   [31m├[0m [41;37m        "details": {                                         [0m
-   [31m├[0m [41;37m            "status": [                                      [0m
-   [31m├[0m [41;37m                "The selected status is invalid."            [0m
-   [31m├[0m [41;37m            ]                                                [0m
-   [31m├[0m [41;37m        }                                                    [0m
-   [31m├[0m [41;37m    },                                                       [0m
-   [31m├[0m [41;37m    "meta": {                                                [0m
-   [31m├[0m [41;37m        "request_id": "8f68561d-2e1c-49f4-92d5-7694fb084e42",[0m
-   [31m├[0m [41;37m        "timestamp": "2026-08-12T11:05:38+07:00"             [0m
-   [31m├[0m [41;37m    }                                                        [0m
-   [31m├[0m [41;37m}                                                            [0m
+   [31m├[0m [41;37mPATCH api/v1/warehouses/{id}                                             [0m
+   [31m├[0m [41;37mFailed asserting that '<?php\n                                           [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37mnamespace App\Http\Middleware;\n                                         [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37muse App\Support\ApiError;\n                                              [0m
+   [31m├[0m [41;37muse Closure;\n                                                           [0m
+   [31m├[0m [41;37muse Illuminate\Http\Request;\n                                           [0m
+   [31m├[0m [41;37muse Illuminate\Support\Facades\DB;\n                                     [0m
+   [31m├[0m [41;37muse Illuminate\Support\Facades\Schema;\n                                 [0m
+   [31m├[0m [41;37muse Symfony\Component\HttpFoundation\Response;\n                         [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37mclass CurrentBaselineIfMatch\n                                           [0m
+   [31m├[0m [41;37m{\n                                                                      [0m
+   [31m├[0m [41;37m    public function handle(Request $request, Closure $next, string $table, string $primaryKey): Response\n[0m
+   [31m├[0m [41;37m    {\n                                                                  [0m
+   [31m├[0m [41;37m        $resourceId = $request->route('id');\n                           [0m
+   [31m├[0m [41;37m        if (! is_string($resourceId) || $resourceId === '') {\n          [0m
+   [31m├[0m [41;37m            ApiError::abort(422, 'RESOURCE_ID_REQUIRED', 'Không resolve được resource id cho optimistic locking.');\n[0m
+   [31m├[0m [41;37m        }\n                                                              [0m
+   [31m├[0m [41;37m        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'version')) {\n[0m
+   [31m├[0m [41;37m            ApiError::abort(500, 'VERSION_CONTRACT_MISSING', "{$table}.version chưa được migrate.");\n[0m
+   [31m├[0m [41;37m        }\n                                                              [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37m        $expected = $this->expectedVersion($request);\n                  [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37m        return DB::transaction(function () use ($request, $next, $table, $primaryKey, $resourceId, $expected): Response {\n[0m
+   [31m├[0m [41;37m            $row = DB::table($table)->where($primaryKey, $resourceId)->lockForUpdate()->first();\n[0m
+   [31m├[0m [41;37m            if ($row === null) {\n                                       [0m
+   [31m├[0m [41;37m                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy resource.');\n[0m
+   [31m├[0m [41;37m            }\n                                                          [0m
+   [31m├[0m [41;37m            $current = (int) ($row->version ?? 0);\n                     [0m
+   [31m├[0m [41;37m            if ($current !== $expected) {\n                              [0m
+   [31m├[0m [41;37m                ApiError::abort(412, 'PRECONDITION_FAILED', 'Resource version mismatch.', [\n[0m
+   [31m├[0m [41;37m                    'expected_version' => $expected,\n                   [0m
+   [31m├[0m [41;37m                    'current_version' => $current,\n                     [0m
+   [31m├[0m [41;37m                ]);\n                                                    [0m
+   [31m├[0m [41;37m            }\n                                                          [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37m            /** @var Response $response */\n                             [0m
+   [31m├[0m [41;37m            $response = $next($request);\n                               [0m
+   [31m├[0m [41;37m            if ($response->getStatusCode() >= 200 && $response->getStatusCode() < 300 && strtoupper($request->method()) !== 'DELETE') {\n[0m
+   [31m├[0m [41;37m                $stillExists = DB::table($table)->where($primaryKey, $resourceId)->exists();\n[0m
+   [31m├[0m [41;37m                if ($stillExists) {\n                                    [0m
+   [31m├[0m [41;37m                    DB::table($table)->where($primaryKey, $resourceId)->update([\n[0m
+   [31m├[0m [41;37m                        'version' => $current + 1,\n                     [0m
+   [31m├[0m [41;37m                        'updated_at' => Schema::hasColumn($table, 'updated_at') ? now() : DB::raw('updated_at'),\n[0m
+   [31m├[0m [41;37m                    ]);\n                                                [0m
+   [31m├[0m [41;37m                    $response->headers->set('ETag', '"'.($current + 1).'"');\n[0m
+   [31m├[0m [41;37m                }\n                                                      [0m
+   [31m├[0m [41;37m            }\n                                                          [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37m            return $response;\n                                          [0m
+   [31m├[0m [41;37m        }, 3);\n                                                         [0m
+   [31m├[0m [41;37m    }\n                                                                  [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37m    private function expectedVersion(Request $request): int\n            [0m
+   [31m├[0m [41;37m    {\n                                                                  [0m
+   [31m├[0m [41;37m        $header = trim((string) $request->header('If-Match'));\n         [0m
+   [31m├[0m [41;37m        if ($header === '') {\n                                          [0m
+   [31m├[0m [41;37m            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match là bắt buộc cho mutation trên aggregate hiện hữu.');\n[0m
+   [31m├[0m [41;37m        }\n                                                              [0m
+   [31m├[0m [41;37m        $header = preg_replace('/^W\//', '', $header) ?? $header;\n      [0m
+   [31m├[0m [41;37m        $header = trim($header, '" ');\n                                 [0m
+   [31m├[0m [41;37m        if (! ctype_digit($header) || (int) $header < 1) {\n             [0m
+   [31m├[0m [41;37m            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên dương.');\n[0m
+   [31m├[0m [41;37m        }\n                                                              [0m
+   [31m├[0m [41;37m\n                                                                       [0m
+   [31m├[0m [41;37m        return (int) $header;\n                                          [0m
+   [31m├[0m [41;37m    }\n                                                                  [0m
+   [31m├[0m [41;37m}\n                                                                      [0m
+   [31m├[0m [41;37m' [UTF-8](length: 2946) contains "PATCH api/v1/warehouses/{id}" [ASCII](length: 28).[0m
    [31m│[0m
-   [31m│[0m [2m/[22mhome[2m/[22mrunner[2m/[22mwork[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mvendor[2m/[22mlaravel[2m/[22mframework[2m/[22msrc[2m/[22mIlluminate[2m/[22mTesting[2m/[22mTestResponseAssert.php[2m:[22m[34m45[0m
-   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/vendor/laravel/framework/src/Illuminate/Testing/[22mTestResponse.php[2m:[22m[34m176[0m
-   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/vendor/laravel/framework/src/Illuminate/Testing/[22mConcerns[2m/[22mAssertsStatusCodes.php[2m:[22m[34m26[0m
-   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/[22mtests[2m/[22mFeature[2m/[22mContainerTest.php[2m:[22m[34m63[0m
+   [31m│[0m [2m/[22mhome[2m/[22mrunner[2m/[22mwork[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mtests[2m/[22mFeature[2m/[22mCurrentBaselineIfMatchContractTest.php[2m:[22m[34m31[0m
    [31m┴[0m
 
 [4mExample (Tests\Unit\Example)[0m
 [32m ✔ [0mThat true is true
 
 [37;41mFAILURES![0m
-[37;41mTests: 30[0m[37;41m, Assertions: 294[0m[37;41m, Failures: 1[0m[37;41m.[0m
+[37;41mTests: 45[0m[37;41m, Assertions: 412[0m[37;41m, Failures: 1[0m[37;41m.[0m
 
 EXIT_STATUS=1
