@@ -8,7 +8,7 @@ Configuration: /home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_
   [32;1m✓[39;22m[90m [39m[90mthat true is true[39m
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AgencyTest[39m
-  [32;1m✓[39;22m[90m [39m[90magency can be created listed and updated[39m[90m                            [39m [90m1.41s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency can be created listed and updated[39m[90m                            [39m [90m1.23s[39m  
   [32;1m✓[39;22m[90m [39m[90magency code must be unique[39m[90m                                          [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90magency detail for unknown id returns 404[39m[90m                            [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90magency delete succeeds when not referenced[39m[90m                          [39m [90m0.02s[39m  
@@ -24,52 +24,75 @@ Configuration: /home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthSessionPersistenceTest[39m
   [32;1m✓[39;22m[90m [39m[90mlogin sets httponly refresh cookie without changing json contract[39m[90m   [39m [90m0.03s[39m  
-  [32;1m✓[39;22m[90m [39m[90mrefresh works with cookie only and rotates cookie[39m[90m                   [39m [90m0.02s[39m  
-  [32;1m✓[39;22m[90m [39m[90mjson body refresh remains supported[39m[90m                                 [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrefresh works with cookie only and rotates cookie[39m[90m                   [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mjson body refresh remains supported[39m[90m                                 [39m [90m0.03s[39m  
   [32;1m✓[39;22m[90m [39m[90minvalid cookie refresh expires cookie to break reload loop[39m[90m          [39m [90m0.02s[39m  
-  [32;1m✓[39;22m[90m [39m[90mlogout accepts cookie fallback revokes session and expires cookie[39m[90m   [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlogout accepts cookie fallback revokes session and expires cookie[39m[90m   [39m [90m0.03s[39m  
 
-  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\AuthorizationTest[39m
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthorizationTest[39m
   [32;1m✓[39;22m[90m [39m[90msku manage endpoints with different users[39m[90m                           [39m [90m0.17s[39m  
-  [31;1m⨯[39;22m[90m [39m[90mmaster view endpoints follow catalog view permission[39m[90m                [39m [90m0.10s[39m  
+  [32;1m✓[39;22m[90m [39m[90mmaster view endpoints follow catalog view permission[39m[90m                [39m [90m0.13s[39m  
+  [32;1m✓[39;22m[90m [39m[90m403 response format is correct[39m[90m                                      [39m [90m0.09s[39m  
+  [32;1m✓[39;22m[90m [39m[90msuper admin bypasses sku and master permissions[39m[90m                     [39m [90m0.09s[39m  
+  [32;1m✓[39;22m[90m [39m[90muser with no permission gets 403 on all endpoints[39m[90m                   [39m [90m0.09s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\BackendMigrationSeedHealthTest[39m
+  [32;1m✓[39;22m[90m [39m[90mmigrations and seed are idempotent and create required markers[39m[90m      [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mversioned health endpoint returns 200 with canonical contract after[39m[90m…[39m [90m0.09s[39m  
+  [32;1m✓[39;22m[90m [39m[90mversioned health endpoint returns secret safe 503 when seed is miss[39m[90m…[39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90minvalid request id is replaced and remains consistent[39m[90m               [39m [90m0.09s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlegacy unversioned health endpoint is not exposed[39m[90m                   [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mhealth endpoint rejects mutating http methods[39m[90m                       [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mseed markers are directly queryable for deployment evidence[39m[90m         [39m [90m0.08s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\ContainerTest[39m
+  [31;1m⨯[39;22m[90m [39m[90mcarton and box require primary sku id but tray does not[39m[90m             [39m [90m0.03s[39m  
   [31m────────────────────────────────────────────────────────────────────────────[39m  
-  [41;1m FAILED [49;22m [1mTests\Feature\AuthorizationTest[22m [90m>[39m master view endpoints follow ca…   
-[39;1m  Expected response status code [200] but received 404.
-Failed asserting that 404 is identical to 200.
+  [41;1m FAILED [49;22m [1mTests\Feature\ContainerTest[22m [90m>[39m carton and box require primary sku…    
+[39;1m  Expected response status code [201] but received 422.
+Failed asserting that 422 is identical to 201.
 
 The following errors occurred during the last request:
 
 {
     "success": false,
-    "message": "Không tìm thấy tài nguyên hoặc đường dẫn yêu cầu.",
-    "error_code": "RESOURCE_NOT_FOUND",
-    "errors": [],
+    "message": "The selected status is invalid.",
+    "error_code": "BUSINESS_RULE_ERROR",
+    "errors": {
+        "status": [
+            "The selected status is invalid."
+        ]
+    },
     "error": {
-        "code": "RESOURCE_NOT_FOUND",
-        "details": []
+        "code": "BUSINESS_RULE_ERROR",
+        "details": {
+            "status": [
+                "The selected status is invalid."
+            ]
+        }
     },
     "meta": {
-        "request_id": "0932d901-329e-41bf-8f73-7c7ba6fe117c",
-        "timestamp": "2026-08-12T11:03:05+07:00"
+        "request_id": "8f68561d-2e1c-49f4-92d5-7694fb084e42",
+        "timestamp": "2026-08-12T11:05:38+07:00"
     }
 }[39;22m
 
-  at [32mtests/Feature/AuthorizationTest.php[39m:[32m105[39m
-    101▕         foreach ($masterEndpoints as [$method, $url]) {
-    102▕             // Both test roles intentionally carry catalog.view. Read endpoints
-    103▕             // must therefore succeed for both; only catalog.manage may mutate.
-    104▕             $this->makeRequest($method, $url, $skuManagerToken)
-  ➜ 105▕                 ->assertStatus(200);
-    106▕ 
-    107▕             $this->makeRequest($method, $url, $masterManagerToken)
-    108▕                 ->assertStatus(200);
-    109▕
+  at [32mtests/Feature/ContainerTest.php[39m:[32m63[39m
+     59▕         $boxWithSku = $this->postJson('/api/v1/containers', [
+     60▕             'container_code' => 'BOX-OK', 'container_type' => 'BOX',
+     61▕             'physical_code_id' => $this->code('CT-2')->physical_code_id, 'primary_sku_id' => $sku->sku_id, 'status' => 'ACTIVE',
+     62▕         ], $headers);
+  ➜  63▕         $boxWithSku->assertCreated();
+     64▕ 
+     65▕         $tray = $this->postJson('/api/v1/containers', [
+     66▕             'container_code' => 'TRAY-OK', 'container_type' => 'TRAY',
+     67▕             'physical_code_id' => $this->code('CT-3', 'TRAY')->physical_code_id, 'status' => 'ACTIVE',
 
 
-  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m18 passed[39;22m[90m,[39m[39m [2m230 pending[22m[39m[90m (148 assertions)[39m
-  [90mDuration:[39m [39m2.16s[39m
+  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m29 passed[39;22m[90m,[39m[39m [2m219 pending[22m[39m[90m (294 assertions)[39m
+  [90mDuration:[39m [39m2.78s[39m
 
-Time: 00:02.056, Memory: 75.00 MB
+Time: 00:02.666, Memory: 75.00 MB
 
 [4mAgency (Tests\Feature\Agency)[0m
 [32m ✔ [0mAgency can be created listed and updated
@@ -80,32 +103,10 @@ Time: 00:02.056, Memory: 75.00 MB
 
 [4mAuthorization (Tests\Feature\Authorization)[0m
 [32m ✔ [0mSku manage endpoints with different users
-[31m ✘ [0mMaster view endpoints follow catalog view permission
-   [31m┐[0m
-   [31m├[0m [41;37mExpected response status code [200] but received 404.                    [0m
-   [31m├[0m [41;37mFailed asserting that 404 is identical to 200.                           [0m
-   [31m├[0m                                                                          
-   [31m├[0m [41;37mThe following errors occurred during the last request:                   [0m
-   [31m├[0m                                                                          
-   [31m├[0m [41;37m{                                                                        [0m
-   [31m├[0m [41;37m    "success": false,                                                    [0m
-   [31m├[0m [41;37m    "message": "Không tìm thấy tài nguyên hoặc đường dẫn yêu cầu.",[0m
-   [31m├[0m [41;37m    "error_code": "RESOURCE_NOT_FOUND",                                  [0m
-   [31m├[0m [41;37m    "errors": [],                                                        [0m
-   [31m├[0m [41;37m    "error": {                                                           [0m
-   [31m├[0m [41;37m        "code": "RESOURCE_NOT_FOUND",                                    [0m
-   [31m├[0m [41;37m        "details": []                                                    [0m
-   [31m├[0m [41;37m    },                                                                   [0m
-   [31m├[0m [41;37m    "meta": {                                                            [0m
-   [31m├[0m [41;37m        "request_id": "0932d901-329e-41bf-8f73-7c7ba6fe117c",            [0m
-   [31m├[0m [41;37m        "timestamp": "2026-08-12T11:03:05+07:00"                         [0m
-   [31m├[0m [41;37m    }                                                                    [0m
-   [31m├[0m [41;37m}                                                                        [0m
-   [31m│[0m
-   [31m│[0m [2m/[22mhome[2m/[22mrunner[2m/[22mwork[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mvendor[2m/[22mlaravel[2m/[22mframework[2m/[22msrc[2m/[22mIlluminate[2m/[22mTesting[2m/[22mTestResponseAssert.php[2m:[22m[34m45[0m
-   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/vendor/laravel/framework/src/Illuminate/Testing/[22mTestResponse.php[2m:[22m[34m176[0m
-   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/[22mtests[2m/[22mFeature[2m/[22mAuthorizationTest.php[2m:[22m[34m105[0m
-   [31m┴[0m
+[32m ✔ [0mMaster view endpoints follow catalog view permission
+[32m ✔ [0m403 response format is correct
+[32m ✔ [0mSuper admin bypasses sku and master permissions
+[32m ✔ [0mUser with no permission gets 403 on all endpoints
 
 [4mAuth Rbac Audit Hardening (Tests\Feature\AuthRbacAuditHardening)[0m
 [32m ✔ [0mExpired access token is rejected with standard 401
@@ -122,10 +123,56 @@ Time: 00:02.056, Memory: 75.00 MB
 [32m ✔ [0mInvalid cookie refresh expires cookie to break reload loop
 [32m ✔ [0mLogout accepts cookie fallback revokes session and expires cookie
 
+[4mBackend Migration Seed Health (Tests\Feature\BackendMigrationSeedHealth)[0m
+[32m ✔ [0mMigrations and seed are idempotent and create required markers
+[32m ✔ [0mVersioned health endpoint returns 200 with canonical contract after seed
+[32m ✔ [0mVersioned health endpoint returns secret safe 503 when seed is missing
+[32m ✔ [0mInvalid request id is replaced and remains consistent
+[32m ✔ [0mLegacy unversioned health endpoint is not exposed
+[32m ✔ [0mHealth endpoint rejects mutating http methods
+[32m ✔ [0mSeed markers are directly queryable for deployment evidence
+
+[4mContainer (Tests\Feature\Container)[0m
+[31m ✘ [0mCarton and box require primary sku id but tray does not
+   [31m┐[0m
+   [31m├[0m [41;37mExpected response status code [201] but received 422.        [0m
+   [31m├[0m [41;37mFailed asserting that 422 is identical to 201.               [0m
+   [31m├[0m                                                              
+   [31m├[0m [41;37mThe following errors occurred during the last request:       [0m
+   [31m├[0m                                                              
+   [31m├[0m [41;37m{                                                            [0m
+   [31m├[0m [41;37m    "success": false,                                        [0m
+   [31m├[0m [41;37m    "message": "The selected status is invalid.",            [0m
+   [31m├[0m [41;37m    "error_code": "BUSINESS_RULE_ERROR",                     [0m
+   [31m├[0m [41;37m    "errors": {                                              [0m
+   [31m├[0m [41;37m        "status": [                                          [0m
+   [31m├[0m [41;37m            "The selected status is invalid."                [0m
+   [31m├[0m [41;37m        ]                                                    [0m
+   [31m├[0m [41;37m    },                                                       [0m
+   [31m├[0m [41;37m    "error": {                                               [0m
+   [31m├[0m [41;37m        "code": "BUSINESS_RULE_ERROR",                       [0m
+   [31m├[0m [41;37m        "details": {                                         [0m
+   [31m├[0m [41;37m            "status": [                                      [0m
+   [31m├[0m [41;37m                "The selected status is invalid."            [0m
+   [31m├[0m [41;37m            ]                                                [0m
+   [31m├[0m [41;37m        }                                                    [0m
+   [31m├[0m [41;37m    },                                                       [0m
+   [31m├[0m [41;37m    "meta": {                                                [0m
+   [31m├[0m [41;37m        "request_id": "8f68561d-2e1c-49f4-92d5-7694fb084e42",[0m
+   [31m├[0m [41;37m        "timestamp": "2026-08-12T11:05:38+07:00"             [0m
+   [31m├[0m [41;37m    }                                                        [0m
+   [31m├[0m [41;37m}                                                            [0m
+   [31m│[0m
+   [31m│[0m [2m/[22mhome[2m/[22mrunner[2m/[22mwork[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mvendor[2m/[22mlaravel[2m/[22mframework[2m/[22msrc[2m/[22mIlluminate[2m/[22mTesting[2m/[22mTestResponseAssert.php[2m:[22m[34m45[0m
+   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/vendor/laravel/framework/src/Illuminate/Testing/[22mTestResponse.php[2m:[22m[34m176[0m
+   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/vendor/laravel/framework/src/Illuminate/Testing/[22mConcerns[2m/[22mAssertsStatusCodes.php[2m:[22m[34m26[0m
+   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/[22mtests[2m/[22mFeature[2m/[22mContainerTest.php[2m:[22m[34m63[0m
+   [31m┴[0m
+
 [4mExample (Tests\Unit\Example)[0m
 [32m ✔ [0mThat true is true
 
 [37;41mFAILURES![0m
-[37;41mTests: 19[0m[37;41m, Assertions: 148[0m[37;41m, Failures: 1[0m[37;41m.[0m
+[37;41mTests: 30[0m[37;41m, Assertions: 294[0m[37;41m, Failures: 1[0m[37;41m.[0m
 
 EXIT_STATUS=1
