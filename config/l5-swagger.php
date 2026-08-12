@@ -1,7 +1,9 @@
 <?php
 
+use App\Swagger\Processors\RouteSyncProcessor;
 use L5Swagger\CustomGeneratorInterface;
 use L5Swagger\Generator;
+use OpenApi\Processors\AugmentTags;
 use OpenApi\scan;
 
 return [
@@ -165,7 +167,7 @@ return [
             'processors' => [
                 // \App\SwaggerProcessors\SchemaQueryParameter::class,
                 // ['class' => \App\SwaggerProcessors\Custom::class, 'after' => \OpenApi\Processors\AugmentSchemas::class],
-                ['class' => \App\Swagger\Processors\RouteSyncProcessor::class, 'after' => \OpenApi\Processors\AugmentTags::class],
+                ['class' => RouteSyncProcessor::class, 'after' => AugmentTags::class],
             ],
 
             /**

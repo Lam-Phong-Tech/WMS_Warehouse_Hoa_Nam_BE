@@ -92,7 +92,7 @@ return new class extends Migration
                     ->first();
 
                 if ($duplicate !== null) {
-                    throw new \RuntimeException(sprintf(
+                    throw new RuntimeException(sprintf(
                         'WWHN-172 migration blocked: duplicate container item key %s in container %s. Reconcile legacy rows before retrying.',
                         (string) $duplicate->item_key,
                         (string) $duplicate->container_id,
@@ -163,7 +163,7 @@ return new class extends Migration
         foreach ($statements as $statement) {
             try {
                 DB::statement($statement);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // Migration remains repeatable across engines/versions that already own the constraint.
             }
         }
@@ -174,7 +174,7 @@ return new class extends Migration
         try {
             return collect(Schema::getIndexes($table))
                 ->contains(fn (array $candidate): bool => ($candidate['name'] ?? null) === $index);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return false;
         }
     }

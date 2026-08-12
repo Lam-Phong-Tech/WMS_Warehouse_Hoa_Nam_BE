@@ -11,8 +11,11 @@ class Sku extends Model
     use HasUuids;
 
     protected $table = 'sku';
+
     protected $primaryKey = 'sku_id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [

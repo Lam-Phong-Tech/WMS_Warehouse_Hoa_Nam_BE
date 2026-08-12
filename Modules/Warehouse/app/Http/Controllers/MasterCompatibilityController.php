@@ -77,5 +77,4 @@ class MasterCompatibilityController extends Controller
             ],
         ]);
     }
-
 }

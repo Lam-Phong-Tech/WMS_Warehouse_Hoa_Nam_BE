@@ -10,7 +10,10 @@ class Brand extends Model
     use HasUuids;
 
     protected $table = 'brands';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     protected $guarded = [];
 }

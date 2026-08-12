@@ -297,7 +297,7 @@ return new class extends Migration
             }
 
             if (DB::table($table)->whereNotNull($column)->whereRaw("{$column} <> trunc({$column})")->exists()) {
-                throw new \RuntimeException("Current ERD requires integer quantity; fractional values exist in {$table}.{$column}.");
+                throw new RuntimeException("Current ERD requires integer quantity; fractional values exist in {$table}.{$column}.");
             }
 
             DB::statement("ALTER TABLE {$table} ALTER COLUMN {$column} TYPE BIGINT USING {$column}::bigint");
@@ -396,7 +396,7 @@ return new class extends Migration
         ] as $statement) {
             try {
                 DB::statement($statement);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // Constraint already exists on repeatable deployments.
             }
         }
@@ -437,7 +437,7 @@ return new class extends Migration
             ->exists();
 
         if ($exists) {
-            throw new \RuntimeException("Cannot add {$table}.{$column} relationship: orphan rows exist. Reconcile data before deployment.");
+            throw new RuntimeException("Cannot add {$table}.{$column} relationship: orphan rows exist. Reconcile data before deployment.");
         }
     }
 
@@ -468,7 +468,7 @@ return new class extends Migration
             ->havingRaw('COUNT(*) > 1')
             ->exists();
         if ($duplicates) {
-            throw new \RuntimeException("Cannot add unique index {$name}: duplicate baseline data exists.");
+            throw new RuntimeException("Cannot add unique index {$name}: duplicate baseline data exists.");
         }
 
         Schema::table($table, fn (Blueprint $blueprint) => $blueprint->unique($columns, $name));
@@ -478,7 +478,7 @@ return new class extends Migration
     {
         try {
             return collect(Schema::getIndexes($table))->contains(fn (array $index): bool => ($index['name'] ?? null) === $name);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return false;
         }
     }
@@ -487,7 +487,7 @@ return new class extends Migration
     {
         try {
             return collect(Schema::getForeignKeys($table))->contains(fn (array $foreign): bool => ($foreign['name'] ?? null) === $name);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return false;
         }
     }

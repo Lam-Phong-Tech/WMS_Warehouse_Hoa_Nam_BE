@@ -111,6 +111,7 @@ class WarehouseDatabaseSeeder extends Seeder
                     'status' => 'ACTIVE',
                     'updated_at' => now(),
                 ]);
+
                 continue;
             }
 

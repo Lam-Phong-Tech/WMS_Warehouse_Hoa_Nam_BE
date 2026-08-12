@@ -29,6 +29,7 @@ class StoreContainerItemRequest extends FormRequest
 
             if ($hasItem === $hasSku) {
                 $validator->errors()->add('item_id', 'Phải chọn đúng 1 trong 2: item_id (serial) hoặc sku_id+quantity (số lượng), không được cả hai hoặc không có gì.');
+
                 return;
             }
 

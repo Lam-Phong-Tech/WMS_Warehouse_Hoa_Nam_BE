@@ -302,7 +302,7 @@ class RouteSyncProcessor
     }
 
     /**
-     * @param array{method: string, path: string, uri: string, action: string, middleware: array<int, string>} $route
+     * @param  array{method: string, path: string, uri: string, action: string, middleware: array<int, string>}  $route
      */
     private function operation(array $route): OA\Operation
     {
@@ -349,7 +349,7 @@ class RouteSyncProcessor
      * Keep handwritten OpenAPI details such as requestBody/query schemas, while
      * enforcing route-derived grouping/security and baseline error responses.
      *
-     * @param array{method: string, path: string, uri: string, action: string, middleware: array<int, string>} $route
+     * @param  array{method: string, path: string, uri: string, action: string, middleware: array<int, string>}  $route
      */
     private function hydrateOperation(OA\Operation $operation, array $route): void
     {
@@ -376,7 +376,7 @@ class RouteSyncProcessor
                     'schema' => new OA\Schema([
                         'type' => 'object',
                         'additionalProperties' => true,
-                        'example' => new \stdClass(),
+                        'example' => new \stdClass,
                         '_context' => $this->context(),
                     ]),
                     '_context' => $this->context(),
@@ -404,7 +404,7 @@ class RouteSyncProcessor
     }
 
     /**
-     * @param array{method: string, path: string, uri: string, action: string, middleware: array<int, string>} $route
+     * @param  array{method: string, path: string, uri: string, action: string, middleware: array<int, string>}  $route
      * @return array<int, OA\Parameter>
      */
     private function routeParameters(array $route): array
@@ -413,7 +413,7 @@ class RouteSyncProcessor
     }
 
     /**
-     * @param array{method: string, uri: string} $route
+     * @param  array{method: string, uri: string}  $route
      * @return array<int, OA\Parameter>
      */
     private function collectionQueryParameters(array $route): array
@@ -439,7 +439,6 @@ class RouteSyncProcessor
         ]);
     }
 
-    /** @param mixed $parameters */
     private function mergeRouteParameters(mixed $parameters, array $route): array
     {
         $merged = Undefined::isDefault($parameters) ? [] : (array) $parameters;
@@ -460,7 +459,6 @@ class RouteSyncProcessor
         return $merged;
     }
 
-    /** @param mixed $responses */
     private function mergeBaselineResponses(mixed $responses): array
     {
         $merged = Undefined::isDefault($responses) ? [] : (array) $responses;

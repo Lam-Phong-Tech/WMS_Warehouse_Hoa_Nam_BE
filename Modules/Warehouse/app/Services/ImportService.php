@@ -249,6 +249,7 @@ class ImportService
 
             if ($rowErrors !== []) {
                 array_push($errors, ...$rowErrors);
+
                 continue;
             }
 
@@ -288,6 +289,7 @@ class ImportService
 
         if (! $master) {
             $errors[] = $this->error($row, 'UNKNOWN_MASTER_CODE', $field, "Không tìm thấy {$type} ACTIVE với code {$code}.", $code);
+
             return null;
         }
 
@@ -302,6 +304,7 @@ class ImportService
         }
         if (! in_array($value, $allowed, true)) {
             $errors[] = $this->error($row, 'INVALID_ENUM', $field, $field.' phải thuộc '.implode(', ', $allowed).'.', $value);
+
             return $default;
         }
 
@@ -316,6 +319,7 @@ class ImportService
         }
         if (! in_array($value, $allowed, true)) {
             $errors[] = $this->error($row, 'INVALID_ENUM', $field, $field.' phải thuộc '.implode(', ', $allowed).'.', $value);
+
             return null;
         }
 
@@ -339,12 +343,14 @@ class ImportService
     private function upper(mixed $value): ?string
     {
         $value = strtoupper(trim((string) $value));
+
         return $value === '' ? null : $value;
     }
 
     private function text(mixed $value): ?string
     {
         $value = trim((string) $value);
+
         return $value === '' ? null : $value;
     }
 

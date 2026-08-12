@@ -144,12 +144,14 @@ class SkuGovernanceController extends Controller
     private function actorId(): ?string
     {
         $id = auth('api')->id();
+
         return $id === null ? null : (string) $id;
     }
 
     private function requestId(Request $request): ?string
     {
         $id = $request->attributes->get('request_id');
+
         return is_string($id) ? $id : null;
     }
 

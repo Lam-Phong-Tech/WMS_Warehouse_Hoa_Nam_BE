@@ -19,7 +19,7 @@ return new class extends Migration
 
         $report = app(Wwhn172MigrationInspector::class)->inspect();
         if (($report['summary']['status'] ?? null) !== 'PASS') {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'WWHN-172 migration preflight BLOCKED: '.json_encode(
                     $report['checks'],
                     JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES

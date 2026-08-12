@@ -71,7 +71,7 @@ class SwaggerRouteSyncTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $swagger
+     * @param  array<string, mixed>  $swagger
      * @return array<int, string>
      */
     private function swaggerOperations(array $swagger): array

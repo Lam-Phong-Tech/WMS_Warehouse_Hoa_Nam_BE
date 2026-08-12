@@ -460,5 +460,4 @@ return new class extends Migration
         $trigger = substr('trg_'.$function, 0, 63);
         DB::statement('CREATE TRIGGER '.HoaNamErdSchema::quote($trigger).' INSTEAD OF '.$events.' ON '.HoaNamErdSchema::quote($view).' FOR EACH ROW EXECUTE FUNCTION '.HoaNamErdSchema::quote($function).'()');
     }
-
 };

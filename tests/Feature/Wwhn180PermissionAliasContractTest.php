@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
 class Wwhn180PermissionAliasContractTest extends TestCase
@@ -94,7 +95,7 @@ class Wwhn180PermissionAliasContractTest extends TestCase
             'permission:stock_document.scan',
             'permission:scan.outbound'
         );
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\NotFoundHttpException::class);
+        $this->expectException(NotFoundHttpException::class);
         Route::getRoutes()->match(Request::create("/api/v1/stocktake/sessions/{$id}/apply-adjustment", 'POST'));
     }
 

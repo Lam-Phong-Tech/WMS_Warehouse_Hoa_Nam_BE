@@ -11,18 +11,29 @@ class StockMovement extends Model
     use HasUuids;
 
     public const OPENING = 'OPENING';
+
     public const RECEIPT_POSTED = 'RECEIPT';
+
     public const RECEIPT_IN = self::RECEIPT_POSTED;
+
     public const ISSUE_POSTED = 'ISSUE';
+
     public const ISSUE_OUT = self::ISSUE_POSTED;
+
     public const COMPONENT_ISSUE = 'COMPONENT_ISSUE';
+
     public const REVERSAL = 'REVERSAL';
+
     public const RECEIPT_REVERSED = self::REVERSAL;
+
     public const ISSUE_REVERSED = self::REVERSAL;
 
     protected $table = 'stock_movements';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [

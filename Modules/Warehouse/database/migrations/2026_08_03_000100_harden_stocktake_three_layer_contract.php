@@ -88,7 +88,7 @@ return new class extends Migration
         });
 
         if (DB::table('stocktake_session')->whereNull('warehouse_id')->exists()) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'stocktake_session.warehouse_id còn NULL; DBA phải backfill kho đúng cho từng session trước khi áp NOT NULL/data scope.'
             );
         }
@@ -267,7 +267,7 @@ return new class extends Migration
             ->havingRaw('COUNT(*) > 1')
             ->exists();
         if ($duplicates) {
-            throw new \RuntimeException('posting_event có duplicate operation/idempotency_key; phải reconcile trước khi migrate.');
+            throw new RuntimeException('posting_event có duplicate operation/idempotency_key; phải reconcile trước khi migrate.');
         }
         if (! $this->hasIndex('posting_event', 'uk_posting_event_operation_idem')) {
             Schema::table('posting_event', function (Blueprint $table): void {
@@ -305,7 +305,7 @@ return new class extends Migration
                 ->havingRaw('COUNT(*) > 1')
                 ->first();
             if ($duplicate) {
-                throw new \RuntimeException(
+                throw new RuntimeException(
                     'Rollback stocktake bị chặn: dữ liệu hiện có trùng session/product/status; '
                     .'phải reconcile về legacy grain trước khi khôi phục unique constraint.'
                 );
@@ -377,7 +377,7 @@ return new class extends Migration
 
         foreach (['grain_type', 'grain_id', 'grain_key'] as $column) {
             if (! Schema::hasColumn($table, $column) || DB::table($table)->whereNull($column)->exists()) {
-                throw new \RuntimeException("{$table}.{$column} còn NULL; phải backfill/reconcile trước khi đặt NOT NULL.");
+                throw new RuntimeException("{$table}.{$column} còn NULL; phải backfill/reconcile trước khi đặt NOT NULL.");
             }
         }
     }
@@ -391,7 +391,7 @@ return new class extends Migration
             ->havingRaw('COUNT(*) > 1')
             ->first();
         if ($duplicate) {
-            throw new \RuntimeException("{$table} có duplicate session/grain_key; phải reconcile dữ liệu trước khi đặt unique constraint.");
+            throw new RuntimeException("{$table} có duplicate session/grain_key; phải reconcile dữ liệu trước khi đặt unique constraint.");
         }
     }
 

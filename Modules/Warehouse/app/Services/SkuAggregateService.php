@@ -25,6 +25,7 @@ class SkuAggregateService
     ];
 
     private const CODE_TYPES = ['BARCODE', 'QR', 'RFID', 'SERIAL'];
+
     private const CARRIER_TYPES = ['UNIT', 'PACKAGE', 'LABEL', 'TAG'];
 
     public function create(array $payload, ?string $actorId, ?string $requestId): array
@@ -156,6 +157,7 @@ class SkuAggregateService
             if ($failIfMissing) {
                 ApiError::abort(404, 'SKU_NOT_FOUND', 'Không tìm thấy SKU.');
             }
+
             return [];
         }
 
@@ -328,6 +330,7 @@ class SkuAggregateService
                 'version' => ((int) $existing->version) + 1,
                 'updated_at' => now(),
             ]);
+
             return;
         }
 
@@ -429,6 +432,7 @@ class SkuAggregateService
         if ($sku === null) {
             ApiError::abort(404, 'SKU_NOT_FOUND', 'Không tìm thấy SKU.');
         }
+
         return $sku;
     }
 
@@ -438,6 +442,7 @@ class SkuAggregateService
         if (preg_match('/^V?(\d+)$/', $raw, $matches) === 1) {
             return max(1, (int) $matches[1]);
         }
+
         return 1;
     }
 

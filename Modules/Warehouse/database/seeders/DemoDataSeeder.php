@@ -258,7 +258,7 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * @param array<string, ProductMaster> $master
+     * @param  array<string, ProductMaster>  $master
      * @return array<string, Sku> key = sku_code
      */
     private function seedSkus(array $master): array
@@ -351,8 +351,8 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * @param array<string, PhysicalCode> $codes
-     * @param array<string, Sku> $skuMap
+     * @param  array<string, PhysicalCode>  $codes
+     * @param  array<string, Sku>  $skuMap
      * @return array<string, Container> key = container_code
      */
     private function seedContainers(array $codes, array $skuMap): array
@@ -407,10 +407,10 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * @param array<string, Sku> $skuMap
-     * @param array<string, ImportBatch> $batchMap
-     * @param array<string, PhysicalCode> $codes
-     * @param array<string, Container> $containerMap
+     * @param  array<string, Sku>  $skuMap
+     * @param  array<string, ImportBatch>  $batchMap
+     * @param  array<string, PhysicalCode>  $codes
+     * @param  array<string, Container>  $containerMap
      * @return array{0: array<string, InventorySerial>, 1: array<string, ItemInstance>} key = sku_code
      */
     private function seedItemInstancesAndSerials(array $skuMap, array $batchMap, array $codes, array $containerMap, string $whId): array

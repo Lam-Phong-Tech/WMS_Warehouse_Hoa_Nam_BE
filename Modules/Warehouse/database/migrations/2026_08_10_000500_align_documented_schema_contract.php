@@ -114,14 +114,14 @@ return new class extends Migration
                 continue;
             }
             if (DB::table($table)->whereRaw("{$column} <> trunc({$column})")->exists()) {
-                throw new \RuntimeException("Cannot align {$table}.{$column} to BIGINT: fractional values exist.");
+                throw new RuntimeException("Cannot align {$table}.{$column} to BIGINT: fractional values exist.");
             }
             DB::statement("ALTER TABLE {$table} ALTER COLUMN {$column} TYPE BIGINT USING {$column}::bigint");
         }
 
         if (Schema::hasTable('stock_movements') && Schema::hasColumn('stock_movements', 'qty_delta')) {
             if (DB::table('stock_movements')->whereRaw('qty_delta <> trunc(qty_delta)')->exists()) {
-                throw new \RuntimeException('Cannot expose inventory_movements.quantity as BIGINT: fractional qty_delta values exist.');
+                throw new RuntimeException('Cannot expose inventory_movements.quantity as BIGINT: fractional qty_delta values exist.');
             }
         }
     }

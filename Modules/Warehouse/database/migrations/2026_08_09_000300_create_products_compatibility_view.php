@@ -16,7 +16,7 @@ return new class extends Migration
     public function up(): void
     {
         if (! Schema::hasTable('sku')) {
-            throw new \RuntimeException('Cannot create products compatibility view: canonical sku table is missing.');
+            throw new RuntimeException('Cannot create products compatibility view: canonical sku table is missing.');
         }
 
         $driver = DB::getDriverName();
@@ -32,7 +32,7 @@ return new class extends Migration
             SQL);
 
             if ($relation !== null && in_array($relation->relkind, ['r', 'p'], true)) {
-                throw new \RuntimeException(
+                throw new RuntimeException(
                     'Both canonical sku and a persisted products table exist. Refusing to create a compatibility view because that would hide a split source of truth.'
                 );
             }
@@ -42,7 +42,7 @@ return new class extends Migration
             }
         } elseif (Schema::hasTable('products')) {
             // Non-Postgres safety guard: never overwrite a persisted legacy table.
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Canonical sku exists together with persisted products. Resolve the legacy table before enabling the compatibility view.'
             );
         }

@@ -286,7 +286,7 @@ class CurrentBaselineStockService
                         'NON_SELLABLE' => 'NON_SELLABLE',
                         default => 'AVAILABLE',
                     }
-                    : (string) ($movement->stock_status ?: self::AVAILABLE);
+                : (string) ($movement->stock_status ?: self::AVAILABLE);
                 $sign = $documentType === 'receipt' ? -1 : 1;
 
                 $reversalLineId = (string) Str::uuid();

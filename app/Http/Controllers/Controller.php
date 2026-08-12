@@ -16,9 +16,7 @@ abstract class Controller
     /**
      * Apply the same `keyword` LIKE search contract used by repository-backed list APIs.
      *
-     * @param  EloquentBuilder|QueryBuilder  $query
      * @param  array<int, string>  $columns
-     * @return EloquentBuilder|QueryBuilder
      */
     protected function applyKeyword(EloquentBuilder|QueryBuilder $query, Request $request, array $columns): EloquentBuilder|QueryBuilder
     {

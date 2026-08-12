@@ -65,7 +65,7 @@ return new class extends Migration
             ->first(['id', 'doc_type', 'status']);
 
         if ($legacy !== null) {
-            throw new \RuntimeException(sprintf(
+            throw new RuntimeException(sprintf(
                 'Current baseline migration blocked by legacy stock document %s (%s/%s). Reconcile or archive the superseded transfer/partial workflow before deployment.',
                 (string) $legacy->id,
                 (string) $legacy->doc_type,
@@ -168,7 +168,7 @@ return new class extends Migration
     {
         try {
             DB::statement($statement);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $message = strtolower($e->getMessage());
             if (! str_contains($message, 'already exists') && ! str_contains($message, 'duplicate object')) {
                 throw $e;

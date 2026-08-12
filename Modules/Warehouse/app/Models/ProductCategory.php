@@ -10,7 +10,10 @@ class ProductCategory extends Model
     use HasUuids;
 
     protected $table = 'product_categories';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     protected $guarded = [];
 }
