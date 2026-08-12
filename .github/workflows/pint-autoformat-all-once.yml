@@ -1,4 +1,4 @@
-name: Hoa Nam ERD Pint Autoformat All Once
+name: Hoa Nam Backend Pint Autoformat All Once
 
 on:
   push:
@@ -22,23 +22,13 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Apply Pint to complete strict-gate scope
+      - name: Apply Pint to the exact strict-gate scope
         shell: bash
         run: |
           set -euo pipefail
-          ./vendor/bin/pint \
-            app/Support/HoaNamErdSchema.php \
-            Modules/Warehouse/app/Http/Controllers/CurrentBaseline*.php \
-            Modules/Warehouse/app/Services/CurrentBaselineReversalService.php \
-            Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php \
-            Modules/Warehouse/database/migrations/2026_08_10_000*.php \
-            Modules/Warehouse/routes/api.php \
-            tests/Feature/DocumentationBaselineContractTest.php \
-            tests/Feature/CurrentBaselineFlowContractSourceTest.php \
-            tests/Feature/Erd*.php \
-            tests/Feature/StockDocumentCanonicalFlowTest.php \
-            tests/Feature/StockDocumentIdempotencyTest.php \
-            tests/Feature/StockDocumentConcurrencyGuardTest.php
+          ./vendor/bin/pint app Modules tests config database routes
+          ./vendor/bin/pint --test app Modules tests config database routes
+          git diff --check
       - name: Commit formatter output
         shell: bash
         run: |
@@ -49,6 +39,6 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app Modules tests
-          git commit -m 'style: apply Pint to complete ERD gate scope'
+          git add app Modules tests config database routes
+          git commit -m 'style: chuẩn hóa Pint toàn bộ backend theo strict gate'
           git push origin HEAD:m1
