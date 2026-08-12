@@ -48,6 +48,7 @@ class RouteSyncProcessor
         '19. Label / Printer' => 'Ảnh chụp nhãn, in nhãn và bằng chứng in lại.',
         '20. System Operation' => 'Dự phòng cho các endpoint quản trị vận hành hệ thống.',
         '21. Public Catalog' => 'Các endpoint danh mục và gợi ý PV chỉ đọc.',
+        '24. Putaway' => 'Xếp BOX linh kiện đã nhận vào TRAY; toàn bộ thao tác stock-neutral.',
     ];
 
     private const ROUTE_SUMMARIES = [
@@ -58,6 +59,11 @@ class RouteSyncProcessor
         'post api/v1/inbound-documents/{id}/scan' => 'Quét hàng cho phiếu nhập',
         'post api/v1/inbound-documents/{id}/post-receipt' => 'Ghi nhận nhập kho cho phiếu nhập',
         'post api/v1/inbound-documents/{id}/reverse' => 'Hoàn tác nhập kho cho phiếu nhập',
+        'get api/v1/putaway/tasks' => 'Danh sách BOX chờ xếp khay',
+        'post api/v1/putaway/tasks' => 'Tạo tác vụ xếp BOX vào TRAY',
+        'post api/v1/putaway/tasks/{id}/confirm' => 'Xác nhận xếp BOX vào TRAY',
+        'post api/v1/putaway/tasks/{id}/cancel' => 'Huỷ tác vụ xếp BOX vào TRAY',
+        'get api/v1/putaway/history' => 'Lịch sử xếp BOX vào TRAY',
         'post api/v1/outbound-documents/{id}/scan' => 'Quét hàng cho phiếu xuất',
         'post api/v1/outbound-documents/{id}/post-issue' => 'Ghi nhận xuất kho cho phiếu xuất',
         'post api/v1/outbound-documents/{id}/reverse' => 'Hoàn tác xuất kho cho phiếu xuất',
@@ -105,6 +111,7 @@ class RouteSyncProcessor
         'outbound-request-imports' => 'import yêu cầu xuất',
         'package-variants' => 'quy cách đóng gói',
         'physical-codes' => 'mã vật lý',
+        'putaway' => 'tác vụ putaway',
         'power-sources' => 'nguồn điện',
         'printer-configs' => 'cấu hình máy in',
         'product-categories' => 'danh mục sản phẩm',
@@ -131,6 +138,7 @@ class RouteSyncProcessor
         'outbound-request-imports' => 'import yêu cầu xuất',
         'package-variants' => 'quy cách đóng gói',
         'physical-codes' => 'mã vật lý',
+        'putaway' => 'tác vụ putaway',
         'power-sources' => 'nguồn điện',
         'printer-configs' => 'cấu hình máy in',
         'product-categories' => 'danh mục sản phẩm',
@@ -156,6 +164,7 @@ class RouteSyncProcessor
         'outbound-documents' => ['page', 'per_page', 'keyword', 'status'],
         'package-variants' => ['page', 'per_page', 'keyword', 'status'],
         'physical-codes' => ['page', 'per_page', 'keyword', 'code_type', 'carrier_type', 'status'],
+        'putaway' => ['search'],
         'power-sources' => ['page', 'per_page', 'keyword', 'status'],
         'printer-configs' => ['page', 'per_page', 'keyword', 'status'],
         'product-categories' => ['page', 'per_page', 'keyword', 'status'],
@@ -588,6 +597,7 @@ class RouteSyncProcessor
             'containers', 'item-instances', 'physical-codes', 'import-batches' => '18. Physical Inventory',
             'label-snapshots', 'printer-configs' => '19. Label / Printer',
             'pv' => '21. Public Catalog',
+            'putaway' => '24. Putaway',
             default => '00. Platform',
         };
     }

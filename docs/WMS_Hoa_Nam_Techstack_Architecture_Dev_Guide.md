@@ -1,5 +1,6 @@
 # Hướng dẫn Kiến trúc & Phát triển WMS Hoa Nam
 
+Document ID: HN-WMS-TECH-GUIDE-001
 Phiên bản: v1.0
 Cập nhật: 2026-07-31
 Chủ sở hữu: FE1 / Tech Lead

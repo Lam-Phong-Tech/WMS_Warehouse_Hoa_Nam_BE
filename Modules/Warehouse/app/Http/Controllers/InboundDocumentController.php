@@ -13,7 +13,7 @@ use OpenApi\Attributes as OA;
  * Phiếu nhập kho (doc_type=receipt).
  *
  * Baseline hiện hành chỉ có state machine DRAFT -> SCANNING -> POSTED/CANCELLED.
- * Không tồn tại submit/approve/reject, partial post, PARTIALLY_POSTED hoặc close-remainder.
+ * Không tồn tại approval workflow hoặc vòng đời nhận hàng một phần; chỉ dùng Full Post.
  * Runtime write actions được route tới CurrentBaselineDocumentController /
  * CurrentBaselineStockFlowController; các annotation dưới đây chỉ mô tả contract thật
  * để RouteSyncProcessor giữ schema chi tiết khi đồng bộ OpenAPI theo Laravel route list.
