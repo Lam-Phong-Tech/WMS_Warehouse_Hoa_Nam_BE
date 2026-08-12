@@ -65,7 +65,11 @@ return new class extends Migration
         DB::table('putaway_events')->whereNull('from_tray_id')->whereNotNull('from_parent_container_id')->update(['from_tray_id' => DB::raw('from_parent_container_id')]);
         DB::table('putaway_events')->whereNull('to_tray_id')->whereNotNull('to_parent_container_id')->update(['to_tray_id' => DB::raw('to_parent_container_id')]);
         DB::table('putaway_events')->whereNull('location_hint')->whereNotNull('to_location_hint')->update(['location_hint' => DB::raw('to_location_hint')]);
-        DB::table('putaway_events')->whereNull('confirmed_by')->whereNotNull('created_by')->update(['confirmed_by' => DB::raw('created_by')]);
+        DB::table('putaway_events')
+            ->where('status', 'CONFIRMED')
+            ->whereNull('confirmed_by')
+            ->whereNotNull('created_by')
+            ->update(['confirmed_by' => DB::raw('created_by')]);
 
         $this->addForeignKey('putaway_events', 'box_container_id', 'containers', 'container_id', 'fk_putaway_box', 'restrict');
         $this->addForeignKey('putaway_events', 'from_tray_id', 'containers', 'container_id', 'fk_putaway_from_tray', 'set null');
