@@ -24,7 +24,9 @@ return new class extends Migration
             $table->string('from_location_hint', 255)->nullable();
             $table->string('to_location_hint', 255)->nullable();
             $table->string('status', 20)->default('CONFIRMED');
-            $table->timestamp('confirmed_at')->useCurrent();
+            // DRAFT/CANCELLED records are not confirmations. This column must stay
+            // nullable until the explicit confirm transition is committed.
+            $table->timestamp('confirmed_at')->nullable();
             $table->uuid('created_by')->nullable();
             $table->timestamp('created_at')->useCurrent();
             $table->index(['container_id', 'confirmed_at'], 'idx_putaway_events_container_time');
