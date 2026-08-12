@@ -8,11 +8,11 @@ Configuration: /home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_
   [32;1m✓[39;22m[90m [39m[90mthat true is true[39m
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AgencyTest[39m
-  [32;1m✓[39;22m[90m [39m[90magency can be created listed and updated[39m[90m                            [39m [90m1.28s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency can be created listed and updated[39m[90m                            [39m [90m1.41s[39m  
   [32;1m✓[39;22m[90m [39m[90magency code must be unique[39m[90m                                          [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90magency detail for unknown id returns 404[39m[90m                            [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90magency delete succeeds when not referenced[39m[90m                          [39m [90m0.02s[39m  
-  [32;1m✓[39;22m[90m [39m[90magency create writes audit log[39m[90m                                      [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90magency create writes audit log[39m[90m                                      [39m [90m0.02s[39m  
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthRbacAuditHardeningTest[39m
   [32;1m✓[39;22m[90m [39m[90mexpired access token is rejected with standard 401[39m[90m                  [39m [90m0.02s[39m  
@@ -24,35 +24,52 @@ Configuration: /home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_
 
   [30;42;1m PASS [39;49;22m[39m Tests\Feature\AuthSessionPersistenceTest[39m
   [32;1m✓[39;22m[90m [39m[90mlogin sets httponly refresh cookie without changing json contract[39m[90m   [39m [90m0.03s[39m  
-  [32;1m✓[39;22m[90m [39m[90mrefresh works with cookie only and rotates cookie[39m[90m                   [39m [90m0.03s[39m  
-  [32;1m✓[39;22m[90m [39m[90mjson body refresh remains supported[39m[90m                                 [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrefresh works with cookie only and rotates cookie[39m[90m                   [39m [90m0.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mjson body refresh remains supported[39m[90m                                 [39m [90m0.02s[39m  
   [32;1m✓[39;22m[90m [39m[90minvalid cookie refresh expires cookie to break reload loop[39m[90m          [39m [90m0.02s[39m  
-  [32;1m✓[39;22m[90m [39m[90mlogout accepts cookie fallback revokes session and expires cookie[39m[90m   [39m [90m0.03s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlogout accepts cookie fallback revokes session and expires cookie[39m[90m   [39m [90m0.02s[39m  
 
   [39;41;1m FAIL [39;49;22m[39m Tests\Feature\AuthorizationTest[39m
   [32;1m✓[39;22m[90m [39m[90msku manage endpoints with different users[39m[90m                           [39m [90m0.17s[39m  
-  [31;1m⨯[39;22m[90m [39m[90mmaster manage endpoints with different users[39m[90m                        [39m [90m0.09s[39m  
+  [31;1m⨯[39;22m[90m [39m[90mmaster view endpoints follow catalog view permission[39m[90m                [39m [90m0.10s[39m  
   [31m────────────────────────────────────────────────────────────────────────────[39m  
-  [41;1m FAILED [49;22m [1mTests\Feature\AuthorizationTest[22m [90m>[39m master manage endpoints with di…   
-[39;1m  Expected response status code [403] but received 200.
-Failed asserting that 200 is identical to 403.[39;22m
+  [41;1m FAILED [49;22m [1mTests\Feature\AuthorizationTest[22m [90m>[39m master view endpoints follow ca…   
+[39;1m  Expected response status code [200] but received 404.
+Failed asserting that 404 is identical to 200.
 
-  at [32mtests/Feature/AuthorizationTest.php[39m:[32m103[39m
-     99▕         ];
-    100▕ 
+The following errors occurred during the last request:
+
+{
+    "success": false,
+    "message": "Không tìm thấy tài nguyên hoặc đường dẫn yêu cầu.",
+    "error_code": "RESOURCE_NOT_FOUND",
+    "errors": [],
+    "error": {
+        "code": "RESOURCE_NOT_FOUND",
+        "details": []
+    },
+    "meta": {
+        "request_id": "0932d901-329e-41bf-8f73-7c7ba6fe117c",
+        "timestamp": "2026-08-12T11:03:05+07:00"
+    }
+}[39;22m
+
+  at [32mtests/Feature/AuthorizationTest.php[39m:[32m105[39m
     101▕         foreach ($masterEndpoints as [$method, $url]) {
-    102▕             $this->makeRequest($method, $url, $skuManagerToken)
-  ➜ 103▕                 ->assertStatus(403)
-    104▕                 ->assertJsonPath('error.code', 'ACCESS_DENIED');
-    105▕ 
-    106▕             $this->makeRequest($method, $url, $masterManagerToken)
-    107▕                 ->assertStatus(200);
+    102▕             // Both test roles intentionally carry catalog.view. Read endpoints
+    103▕             // must therefore succeed for both; only catalog.manage may mutate.
+    104▕             $this->makeRequest($method, $url, $skuManagerToken)
+  ➜ 105▕                 ->assertStatus(200);
+    106▕ 
+    107▕             $this->makeRequest($method, $url, $masterManagerToken)
+    108▕                 ->assertStatus(200);
+    109▕
 
 
-  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m18 passed[39;22m[90m,[39m[39m [2m230 pending[22m[39m[90m (143 assertions)[39m
-  [90mDuration:[39m [39m2.04s[39m
+  [90mTests:[39m    [31;1m1 failed[39;22m[90m,[39m[39m [39m[32;1m18 passed[39;22m[90m,[39m[39m [2m230 pending[22m[39m[90m (148 assertions)[39m
+  [90mDuration:[39m [39m2.16s[39m
 
-Time: 00:01.935, Memory: 75.00 MB
+Time: 00:02.056, Memory: 75.00 MB
 
 [4mAgency (Tests\Feature\Agency)[0m
 [32m ✔ [0mAgency can be created listed and updated
@@ -63,14 +80,31 @@ Time: 00:01.935, Memory: 75.00 MB
 
 [4mAuthorization (Tests\Feature\Authorization)[0m
 [32m ✔ [0mSku manage endpoints with different users
-[31m ✘ [0mMaster manage endpoints with different users
+[31m ✘ [0mMaster view endpoints follow catalog view permission
    [31m┐[0m
-   [31m├[0m [41;37mExpected response status code [403] but received 200.[0m
-   [31m├[0m [41;37mFailed asserting that 200 is identical to 403.       [0m
+   [31m├[0m [41;37mExpected response status code [200] but received 404.                    [0m
+   [31m├[0m [41;37mFailed asserting that 404 is identical to 200.                           [0m
+   [31m├[0m                                                                          
+   [31m├[0m [41;37mThe following errors occurred during the last request:                   [0m
+   [31m├[0m                                                                          
+   [31m├[0m [41;37m{                                                                        [0m
+   [31m├[0m [41;37m    "success": false,                                                    [0m
+   [31m├[0m [41;37m    "message": "Không tìm thấy tài nguyên hoặc đường dẫn yêu cầu.",[0m
+   [31m├[0m [41;37m    "error_code": "RESOURCE_NOT_FOUND",                                  [0m
+   [31m├[0m [41;37m    "errors": [],                                                        [0m
+   [31m├[0m [41;37m    "error": {                                                           [0m
+   [31m├[0m [41;37m        "code": "RESOURCE_NOT_FOUND",                                    [0m
+   [31m├[0m [41;37m        "details": []                                                    [0m
+   [31m├[0m [41;37m    },                                                                   [0m
+   [31m├[0m [41;37m    "meta": {                                                            [0m
+   [31m├[0m [41;37m        "request_id": "0932d901-329e-41bf-8f73-7c7ba6fe117c",            [0m
+   [31m├[0m [41;37m        "timestamp": "2026-08-12T11:03:05+07:00"                         [0m
+   [31m├[0m [41;37m    }                                                                    [0m
+   [31m├[0m [41;37m}                                                                        [0m
    [31m│[0m
    [31m│[0m [2m/[22mhome[2m/[22mrunner[2m/[22mwork[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mWMS_Warehouse_Hoa_Nam_BE[2m/[22mvendor[2m/[22mlaravel[2m/[22mframework[2m/[22msrc[2m/[22mIlluminate[2m/[22mTesting[2m/[22mTestResponseAssert.php[2m:[22m[34m45[0m
    [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/vendor/laravel/framework/src/Illuminate/Testing/[22mTestResponse.php[2m:[22m[34m176[0m
-   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/[22mtests[2m/[22mFeature[2m/[22mAuthorizationTest.php[2m:[22m[34m103[0m
+   [31m│[0m [2m/home/runner/work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/[22mtests[2m/[22mFeature[2m/[22mAuthorizationTest.php[2m:[22m[34m105[0m
    [31m┴[0m
 
 [4mAuth Rbac Audit Hardening (Tests\Feature\AuthRbacAuditHardening)[0m
@@ -92,6 +126,6 @@ Time: 00:01.935, Memory: 75.00 MB
 [32m ✔ [0mThat true is true
 
 [37;41mFAILURES![0m
-[37;41mTests: 19[0m[37;41m, Assertions: 143[0m[37;41m, Failures: 1[0m[37;41m.[0m
+[37;41mTests: 19[0m[37;41m, Assertions: 148[0m[37;41m, Failures: 1[0m[37;41m.[0m
 
 EXIT_STATUS=1
