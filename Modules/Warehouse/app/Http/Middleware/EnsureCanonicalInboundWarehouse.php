@@ -8,6 +8,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Enforces the single canonical inbound warehouse at the HTTP boundary so
+ * direct API calls cannot bypass the same MVP invariant applied by the FE.
+ */
 class EnsureCanonicalInboundWarehouse
 {
     public const CANONICAL_WAREHOUSE_CODE = 'KHO-TONG-HN';
