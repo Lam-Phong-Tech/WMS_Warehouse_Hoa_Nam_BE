@@ -59,12 +59,47 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             ->assertJsonPath('data.status', 'INACTIVE');
     }
 
+    public function test_direct_inbound_api_rejects_noncanonical_active_warehouse(): void
+    {
+        $headers = $this->authHeaders();
+        $warehouse = Warehouse::create([
+            'code' => 'KHO-KHAC',
+            'name' => 'Kho khong thuoc baseline',
+            'status' => 'ACTIVE',
+        ]);
+        $sku = Sku::create([
+            'sku_code' => 'COMP-WH-GUARD-001',
+            'sku_name' => 'Component warehouse guard',
+            'sku_type' => 'COMPONENT',
+            'unit' => 'cai',
+            'is_serial_tracked' => false,
+            'status' => 'ACTIVE',
+        ]);
+
+        $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'source_name' => 'Direct API bypass attempt',
+            'lines' => [[
+                'product_id' => $sku->sku_id,
+                'qty_planned' => 1,
+            ]],
+        ], $headers)
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'INBOUND_WAREHOUSE_NOT_CANONICAL')
+            ->assertJsonPath('error.details.required_warehouse_code', 'KHO-TONG-HN');
+
+        $this->assertDatabaseMissing('stock_documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'source_name' => 'Direct API bypass attempt',
+        ]);
+    }
+
     public function test_component_receipt_requires_box_and_full_flow_preserves_stock_invariants(): void
     {
         $headers = $this->authHeaders();
         $warehouse = Warehouse::create([
-            'code' => 'HN-COMP-01',
-            'name' => 'Kho linh kien integration',
+            'code' => 'KHO-TONG-HN',
+            'name' => 'Kho tổng Hòa Nam',
             'status' => 'ACTIVE',
         ]);
         $sku = Sku::create([
@@ -172,6 +207,13 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             ->assertJsonPath('data.movement_created', false);
 
         $putawayId = (string) $putaway->json('data.id');
+        $this->assertDatabaseHas('putaway_events', [
+            'id' => $putawayId,
+            'status' => 'DRAFT',
+            'confirmed_at' => null,
+            'confirmed_by' => null,
+        ]);
+
         $this->postJson("/api/v1/putaway/tasks/{$putawayId}/confirm", [], $headers + ['If-Match' => '1'])
             ->assertOk()
             ->assertJsonPath('data.status', 'CONFIRMED')
@@ -179,6 +221,9 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             ->assertJsonPath('data.stock_effect', 'NONE')
             ->assertJsonPath('data.movement_created', false);
 
+        $confirmedEvent = DB::table('putaway_events')->where('id', $putawayId)->first();
+        $this->assertNotNull($confirmedEvent?->confirmed_at);
+        $this->assertNotNull($confirmedEvent?->confirmed_by);
         $this->assertSame($movementAfterPost, DB::table('stock_movements')->count());
         $this->assertDatabaseHas('containers', [
             'container_id' => $boxId,
@@ -186,6 +231,15 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             'status' => 'STORED',
             'location_hint' => 'A-E2E-01',
         ]);
+
+        $this->postJson('/api/v1/putaway/tasks', [
+            'box_container_id' => $boxId,
+            'to_tray_id' => $tray->container_id,
+        ], $headers)
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'BOX_NOT_PUTAWAY_ELIGIBLE')
+            ->assertJsonPath('error.details.box_status', 'STORED');
+        $this->assertSame($movementAfterPost, DB::table('stock_movements')->count());
     }
 
     public function test_putaway_confirm_is_stock_neutral_and_updates_box_location(): void
@@ -225,7 +279,14 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             ->assertJsonPath('data.stock_effect', 'NONE')
             ->assertJsonPath('data.movement_created', false);
 
-        $eventId = $create->json('data.id');
+        $eventId = (string) $create->json('data.id');
+        $this->assertDatabaseHas('putaway_events', [
+            'id' => $eventId,
+            'status' => 'DRAFT',
+            'confirmed_at' => null,
+            'confirmed_by' => null,
+        ]);
+
         $this->postJson("/api/v1/putaway/tasks/{$eventId}/confirm", [], $headers + ['If-Match' => '1'])
             ->assertOk()
             ->assertJsonPath('data.status', 'CONFIRMED')
