@@ -17,14 +17,14 @@ class CurrentBaselineIfMatchContractTest extends TestCase
             'public function handle(Request $request, Closure $next, string $table, string $primaryKey)',
             $middleware
         );
-        $this->assertStringContainsString("$request->route('id')", $middleware);
-        $this->assertStringContainsString("Schema::hasColumn($table, 'version')", $middleware);
+        $this->assertStringContainsString("\$request->route('id')", $middleware);
+        $this->assertStringContainsString("Schema::hasColumn(\$table, 'version')", $middleware);
         $this->assertStringContainsString('DB::transaction(', $middleware);
         $this->assertStringContainsString('lockForUpdate()', $middleware);
         $this->assertStringContainsString('PRECONDITION_REQUIRED', $middleware);
         $this->assertStringContainsString('PRECONDITION_FAILED', $middleware);
         $this->assertStringContainsString("'ETag'", $middleware);
-        $this->assertStringContainsString("'version' => $current + 1", $middleware);
+        $this->assertStringContainsString("'version' => \$current + 1", $middleware);
     }
 
     public function test_remaining_mutable_storage_has_version_migration(): void
