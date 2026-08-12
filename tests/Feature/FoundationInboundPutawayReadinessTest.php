@@ -38,6 +38,27 @@ class FoundationInboundPutawayReadinessTest extends TestCase
         return ['Authorization' => "Bearer {$token}"];
     }
 
+    private function warehouse(string $code, string $name): Warehouse
+    {
+        $warehouse = Warehouse::create([
+            'code' => $code,
+            'name' => $name,
+            'status' => 'ACTIVE',
+        ]);
+
+        // SQLite test/runtime compatibility does not have the PostgreSQL alias
+        // trigger, so seed both legacy and canonical physical columns explicitly.
+        DB::table('warehouses')
+            ->where('id', $warehouse->id)
+            ->update([
+                'warehouse_id' => $warehouse->id,
+                'warehouse_code' => $code,
+                'warehouse_name' => $name,
+            ]);
+
+        return $warehouse->refresh();
+    }
+
     public function test_products_write_routes_are_reachable_on_canonical_products_contract(): void
     {
         $headers = $this->authHeaders();
@@ -62,11 +83,7 @@ class FoundationInboundPutawayReadinessTest extends TestCase
     public function test_direct_inbound_api_rejects_noncanonical_active_warehouse(): void
     {
         $headers = $this->authHeaders();
-        $warehouse = Warehouse::create([
-            'code' => 'KHO-KHAC',
-            'name' => 'Kho khong thuoc baseline',
-            'status' => 'ACTIVE',
-        ]);
+        $warehouse = $this->warehouse('KHO-KHAC', 'Kho khong thuoc baseline');
         $sku = Sku::create([
             'sku_code' => 'COMP-WH-GUARD-001',
             'sku_name' => 'Component warehouse guard',
@@ -97,11 +114,7 @@ class FoundationInboundPutawayReadinessTest extends TestCase
     public function test_component_receipt_requires_box_and_full_flow_preserves_stock_invariants(): void
     {
         $headers = $this->authHeaders();
-        $warehouse = Warehouse::create([
-            'code' => 'KHO-TONG-HN',
-            'name' => 'Kho tổng Hòa Nam',
-            'status' => 'ACTIVE',
-        ]);
+        $warehouse = $this->warehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
         $sku = Sku::create([
             'sku_code' => 'COMP-E2E-001',
             'sku_name' => 'Component E2E',
