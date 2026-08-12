@@ -1,44 +1,24 @@
 name: Hoa Nam Backend Pint Autoformat All Once
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/pint-autoformat-all-once.yml'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  format:
+  verify-only:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Apply Pint to the exact strict-gate scope
-        shell: bash
+      - name: Verify exact strict-gate scope
         run: |
           set -euo pipefail
-          ./vendor/bin/pint app Modules tests config database routes
           ./vendor/bin/pint --test app Modules tests config database routes
           git diff --check
-      - name: Commit formatter output
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet; then
-            echo 'No Pint changes required.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app Modules tests config database routes
-          git commit -m 'style: chuẩn hóa Pint toàn bộ backend theo strict gate'
-          git push origin HEAD:m1
