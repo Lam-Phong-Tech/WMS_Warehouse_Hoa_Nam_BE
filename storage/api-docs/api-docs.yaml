@@ -370,6 +370,7 @@ paths:
             schema:
               properties:
                 refresh_token:
+                  description: 'Tuỳ chọn với browser có HttpOnly refresh cookie.'
                   type: string
                   nullable: true
               type: object
@@ -432,19 +433,20 @@ paths:
     post:
       tags:
         - '01. Authentication'
-      summary: 'Xoay vòng refresh token; token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên'
+      summary: 'Xoay vòng refresh token từ JSON hoặc HttpOnly browser cookie'
+      description: 'Browser có thể bỏ trống body sau F5; server dùng HttpOnly refresh cookie. Swagger/Postman/non-browser client vẫn có thể gửi refresh_token trong JSON body. Token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên.'
       operationId: auth_refresh
       parameters: []
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              required:
-                - refresh_token
               properties:
                 refresh_token:
+                  description: 'Tuỳ chọn với browser có HttpOnly refresh cookie; bắt buộc nếu client không dùng cookie.'
                   type: string
+                  nullable: true
               type: object
       responses:
         200:
@@ -452,7 +454,7 @@ paths:
         401:
           description: 'Refresh token không hợp lệ, hết hạn hoặc bị replay'
         422:
-          description: 'Thiếu refresh_token'
+          description: 'Không có refresh token trong JSON body hoặc browser cookie'
         400:
           description: 'Yêu cầu không đúng định dạng'
         403:
@@ -1711,6 +1713,51 @@ paths:
         - '09. Stock In (Inbound)'
       summary: 'Cập nhật phiếu nhập'
       operationId: patch_api_v1_inbound_documents_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/inbound-documents/{id}/boxes':
+    post:
+      tags:
+        - '09. Stock In (Inbound)'
+      summary: 'Tạo phiếu nhập mới'
+      operationId: post_api_v1_inbound_documents_id_boxes
       parameters:
         -
           name: id
@@ -3808,6 +3855,44 @@ paths:
       security:
         -
           bearerAuth: []
+    post:
+      tags:
+        - '05. Product'
+      summary: 'Tạo sản phẩm/SKU mới'
+      operationId: post_api_v1_products
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/products/{id}':
     get:
       tags:
@@ -3821,6 +3906,50 @@ paths:
           required: true
           schema:
             type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+    patch:
+      tags:
+        - '05. Product'
+      summary: 'Cập nhật sản phẩm/SKU'
+      operationId: patch_api_v1_products_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
       responses:
         200:
           description: 'Thành công'
@@ -3896,6 +4025,206 @@ paths:
         - '05. Product'
       summary: 'Kích hoạt sản phẩm/SKU'
       operationId: patch_api_v1_products_id_enable
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/putaway/history:
+    get:
+      tags:
+        - '24. Putaway'
+      summary: 'Lịch sử xếp BOX vào TRAY'
+      operationId: get_api_v1_putaway_history
+      parameters:
+        -
+          name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/putaway/tasks:
+    get:
+      tags:
+        - '24. Putaway'
+      summary: 'Danh sách BOX chờ xếp khay'
+      operationId: get_api_v1_putaway_tasks
+      parameters:
+        -
+          name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+    post:
+      tags:
+        - '24. Putaway'
+      summary: 'Tạo tác vụ xếp BOX vào TRAY'
+      operationId: post_api_v1_putaway_tasks
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/putaway/tasks/{id}/cancel':
+    post:
+      tags:
+        - '24. Putaway'
+      summary: 'Huỷ tác vụ xếp BOX vào TRAY'
+      operationId: post_api_v1_putaway_tasks_id_cancel
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/putaway/tasks/{id}/confirm':
+    post:
+      tags:
+        - '24. Putaway'
+      summary: 'Xác nhận xếp BOX vào TRAY'
+      operationId: post_api_v1_putaway_tasks_id_confirm
       parameters:
         -
           name: id
@@ -5593,6 +5922,42 @@ paths:
         -
           bearerAuth: []
   '/api/v1/warranty-cases/{id}':
+    get:
+      tags:
+        - '13. Warranty'
+      summary: 'Chi tiết hồ sơ bảo hành'
+      operationId: get_api_v1_warranty_cases_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
     patch:
       tags:
         - '13. Warranty'
@@ -5792,3 +6157,6 @@ tags:
   -
     name: '21. Public Catalog'
     description: 'Các endpoint danh mục và gợi ý PV chỉ đọc.'
+  -
+    name: '24. Putaway'
+    description: 'Xếp BOX linh kiện đã nhận vào TRAY; toàn bộ thao tác stock-neutral.'
