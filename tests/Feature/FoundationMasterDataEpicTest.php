@@ -61,13 +61,13 @@ class FoundationMasterDataEpicTest extends TestCase
         $this->seedRoleWithPermissions('MASTER_DATA_CREATOR', [
             'warehouse.view',
             'warehouse.manage',
-            'product.view',
-            'product.manage',
+            'sku.view',
+            'sku.manage',
             'audit_log.view',
         ]);
         $this->seedRoleWithPermissions('MASTER_DATA_VIEWER', [
             'warehouse.view',
-            'product.view',
+            'sku.view',
         ]);
 
         $creator = $this->createUser('md-creator', 'MASTER_DATA_CREATOR');

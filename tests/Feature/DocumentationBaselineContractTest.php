@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -13,13 +14,15 @@ class DocumentationBaselineContractTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected bool $seed = true;
-
     private array $contract;
 
     protected function setUp(): void
     {
         parent::setUp();
+        // RefreshDatabase only runs migrate:fresh --seed once per process, decided by
+        // whichever test class triggers it first, so a $seed=true property here is not
+        // reliable. Seed explicitly instead (AuthDatabaseSeeder is idempotent).
+        $this->seed(DatabaseSeeder::class);
         $this->contract = json_decode(
             (string) file_get_contents(base_path('docs/contracts/HoaNam_Current_Baseline_Contract.json')),
             true,

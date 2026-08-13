@@ -40,7 +40,7 @@ return new class extends Migration
                 parent_sku uuid;
             BEGIN
                 IF NEW.item_id IS NULL AND NEW.sku_id IS NOT NULL THEN
-                    SELECT primary_sku_id INTO parent_sku FROM containers WHERE id=NEW.container_id;
+                    SELECT primary_sku_id INTO parent_sku FROM containers WHERE container_id=NEW.container_id;
                     IF parent_sku IS NULL THEN
                         RAISE EXCEPTION 'PRIMARY_SKU_REQUIRED: quantity container mapping requires containers.primary_sku_id';
                     END IF;

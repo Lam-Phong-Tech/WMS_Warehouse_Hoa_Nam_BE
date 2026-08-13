@@ -54,12 +54,12 @@ class Wwhn180PermissionAliasContractTest extends TestCase
         $managerKeys = $manager->permissions()->pluck('permission_key')->all();
         $noPermissionKeys = $noPermission->permissions()->pluck('permission_key')->all();
 
-        foreach (['inbound.post', 'outbound.post', 'scan.inbound', 'scan.outbound', 'inventory.trace'] as $key) {
+        foreach (['inbound.post', 'outbound.post', 'scan.inbound', 'scan.outbound', 'inventory.trace', 'warranty.manage'] as $key) {
             $this->assertContains($key, $keeperKeys);
             $this->assertContains($key, $managerKeys);
         }
 
-        foreach (['scan.warranty', 'warranty.manage', 'report.export'] as $key) {
+        foreach (['scan.warranty', 'report.export'] as $key) {
             $this->assertContains($key, $managerKeys);
             $this->assertNotContains($key, $keeperKeys);
         }
@@ -77,23 +77,23 @@ class Wwhn180PermissionAliasContractTest extends TestCase
 
         $this->assertCanonicalMiddleware(
             Request::create("/api/v1/inbound-documents/{$id}/post-receipt", 'POST'),
-            'permission:stock_document.post',
-            'permission:inbound.post'
+            'permission:inbound.post',
+            'permission:stock_document.post'
         );
         $this->assertCanonicalMiddleware(
             Request::create("/api/v1/outbound-documents/{$id}/post-issue", 'POST'),
-            'permission:stock_document.post',
-            'permission:outbound.post'
+            'permission:outbound.post',
+            'permission:stock_document.post'
         );
         $this->assertCanonicalMiddleware(
             Request::create("/api/v1/inbound-documents/{$id}/scan", 'POST'),
-            'permission:stock_document.scan',
-            'permission:scan.inbound'
+            'permission:inbound.scan',
+            'permission:stock_document.scan'
         );
         $this->assertCanonicalMiddleware(
             Request::create("/api/v1/outbound-documents/{$id}/scan", 'POST'),
-            'permission:stock_document.scan',
-            'permission:scan.outbound'
+            'permission:outbound.scan',
+            'permission:stock_document.scan'
         );
         $this->expectException(NotFoundHttpException::class);
         Route::getRoutes()->match(Request::create("/api/v1/stocktake/sessions/{$id}/apply-adjustment", 'POST'));

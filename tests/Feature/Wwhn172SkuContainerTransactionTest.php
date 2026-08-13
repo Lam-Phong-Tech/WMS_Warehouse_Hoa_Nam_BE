@@ -102,16 +102,14 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
         $b = $this->sku('SKU-B');
 
         $this->patchJson("/api/v1/skus/{$a->sku_id}", [
-            'version' => 1,
             'components' => [['component_id' => $b->sku_id, 'quantity' => 1]],
-        ], $this->headers('sku-a-add-b'))
+        ], $this->headers('sku-a-add-b') + ['If-Match' => '1'])
             ->assertOk()
             ->assertJsonPath('data.version', 2);
 
         $this->patchJson("/api/v1/skus/{$b->sku_id}", [
-            'version' => 1,
             'components' => [['component_id' => $a->sku_id, 'quantity' => 1]],
-        ], $this->headers('sku-b-add-a'))
+        ], $this->headers('sku-b-add-a') + ['If-Match' => '1'])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'SKU_COMPONENT_CYCLE');
 
@@ -128,16 +126,14 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
         $sku = $this->sku('SKU-VERSION');
 
         $this->patchJson("/api/v1/skus/{$sku->sku_id}", [
-            'version' => 1,
             'name' => 'Version 2 name',
-        ], $this->headers('sku-version-1'))
+        ], $this->headers('sku-version-1') + ['If-Match' => '1'])
             ->assertOk()
             ->assertJsonPath('data.version', 2);
 
         $this->patchJson("/api/v1/skus/{$sku->sku_id}", [
-            'version' => 1,
             'name' => 'Stale overwrite',
-        ], $this->headers('sku-version-stale'))
+        ], $this->headers('sku-version-stale') + ['If-Match' => '1'])
             ->assertConflict()
             ->assertJsonPath('error.code', 'SKU_VERSION_CONFLICT');
 
@@ -161,7 +157,6 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
             'container_type' => 'BOX',
             'physical_code_id' => $code->physical_code_id,
             'primary_sku_id' => $sku->sku_id,
-            'status' => 'ACTIVE',
         ], $this->authHeaders());
 
         $create->assertCreated()

@@ -56,7 +56,7 @@ class PhysicalCodeTest extends TestCase
         $response = $this->postJson('/api/v1/physical-codes', [
             'code_value' => 'PC-BAD',
             'code_type' => 'ITEM',
-            'carrier_type' => 'MANUAL_CODE',
+            'carrier_type' => 'MANUAL',
         ], $headers);
 
         $response->assertStatus(422)->assertJsonPath('error.details.carrier_type.0', 'Mã vật lý loại ITEM bắt buộc dùng carrier chip (QR/BARCODE/RFID/NFC).');

@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers\Concerns;
 
+use App\Support\ApiError;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
@@ -51,5 +52,18 @@ trait InteractsWithStockDocuments
         return $doc
             ? $this->respondSuccess($doc)
             : $this->respondNotFound('Không tìm thấy chứng từ.');
+    }
+
+    protected function requireIdempotencyKey(Request $request): string
+    {
+        $key = trim((string) $request->header('Idempotency-Key'));
+        if ($key === '') {
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Idempotency-Key là bắt buộc.');
+        }
+        if (strlen($key) < 8 || strlen($key) > 100) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'Idempotency-Key phải từ 8 đến 100 ký tự.');
+        }
+
+        return $key;
     }
 }

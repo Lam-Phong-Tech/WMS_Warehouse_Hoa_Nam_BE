@@ -19,6 +19,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
     {
         $validated = $request->validate([
             'code_value' => ['required', 'string', 'max:200', 'unique:physical_codes,code_value'],
+            'code_type' => ['nullable', Rule::in(['ITEM', 'CARTON', 'COMPONENT_SERIAL', 'BOX', 'TRAY', 'TEMP_WARRANTY', 'UNKNOWN'])],
             'carrier_type' => ['required', Rule::in(['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL'])],
             'hardware_uid' => ['nullable', 'string', 'max:200', 'unique:physical_codes,hardware_uid'],
             'item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
@@ -27,19 +28,24 @@ class CurrentBaselinePhysicalCodeController extends Controller
         ]);
         $hasItem = ! empty($validated['item_id']);
         $hasContainer = ! empty($validated['container_id']);
-        if ($hasItem === $hasContainer) {
+        if ($hasItem && $hasContainer) {
             ApiError::abort(422, 'PHYSICAL_CODE_TARGET_XOR', 'Physical code phải map đúng một item_id hoặc container_id.');
+        }
+        $targetType = $validated['code_type'] ?? ($hasItem ? 'ITEM' : ($hasContainer ? 'CONTAINER' : 'UNKNOWN'));
+        if ($targetType === 'ITEM' && ! in_array($validated['carrier_type'], ['QR', 'BARCODE', 'RFID', 'NFC'], true)) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu đầu vào không hợp lệ.', [
+                'carrier_type' => ['Mã vật lý loại ITEM bắt buộc dùng carrier chip (QR/BARCODE/RFID/NFC).'],
+            ]);
         }
         if ($validated['carrier_type'] === 'RFID' && empty($validated['hardware_uid'])) {
             ApiError::abort(422, 'RFID_HARDWARE_UID_REQUIRED', 'RFID bắt buộc hardware_uid.');
         }
 
-        $id = DB::transaction(function () use ($validated, $hasItem, $request): string {
-            $targetId = (string) ($hasItem ? $validated['item_id'] : $validated['container_id']);
-            $targetType = $hasItem ? 'ITEM' : 'CONTAINER';
+        $id = DB::transaction(function () use ($validated, $hasItem, $hasContainer, $targetType, $request): string {
+            $targetId = $hasItem ? (string) $validated['item_id'] : ($hasContainer ? (string) $validated['container_id'] : null);
             if ($hasItem) {
                 DB::table('item_instances')->where('item_id', $targetId)->lockForUpdate()->firstOrFail();
-            } else {
+            } elseif ($hasContainer) {
                 DB::table('containers')->where('container_id', $targetId)->lockForUpdate()->firstOrFail();
             }
 
@@ -51,11 +57,11 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 'carrier_type' => $validated['carrier_type'],
                 'hardware_uid' => $validated['hardware_uid'] ?? null,
                 'item_id' => $hasItem ? $targetId : null,
-                'container_id' => $hasItem ? null : $targetId,
-                'assigned_object_type' => $targetType,
+                'container_id' => $hasContainer ? $targetId : null,
+                'assigned_object_type' => $targetId !== null ? $targetType : null,
                 'assigned_object_id' => $targetId,
                 'is_primary' => (bool) ($validated['is_primary'] ?? false),
-                'assigned_at' => now(),
+                'assigned_at' => $targetId !== null ? now() : null,
                 'assigned_by' => $this->actorId(),
                 'status' => 'ACTIVE',
                 'version' => 1,
@@ -65,7 +71,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 'updated_at' => now(),
             ]);
 
-            if (! $hasItem && DB::getSchemaBuilder()->hasColumn('containers', 'physical_code_id')) {
+            if ($hasContainer && DB::getSchemaBuilder()->hasColumn('containers', 'physical_code_id')) {
                 $container = DB::table('containers')->where('container_id', $targetId)->first();
                 if ($container !== null && empty($container->physical_code_id)) {
                     DB::table('containers')->where('container_id', $targetId)->update(['physical_code_id' => $physicalCodeId, 'updated_at' => now()]);
@@ -73,7 +79,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
             }
 
             AuditLogger::record(
-                action: 'PHYSICAL_CODE_ASSIGN',
+                action: 'CREATE',
                 objectType: 'physical_code',
                 objectId: $physicalCodeId,
                 actorId: $this->actorId(),

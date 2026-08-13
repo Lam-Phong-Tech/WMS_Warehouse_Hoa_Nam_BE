@@ -164,7 +164,7 @@ return new class extends Migration
             'containers' => [
                 "container_type IN ('CARTON','BOX','TRAY')",
                 "status IN ('EMPTY','IN_STOCK','PARTIAL','ISSUED','RECEIVED_PENDING_PUTAWAY','STORED','CLOSED')",
-                'parent_container_id IS NULL OR parent_container_id <> id',
+                'parent_container_id IS NULL OR parent_container_id <> container_id',
             ],
             'container_items' => [
                 'quantity > 0',

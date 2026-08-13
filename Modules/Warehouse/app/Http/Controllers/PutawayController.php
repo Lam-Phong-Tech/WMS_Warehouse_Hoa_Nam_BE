@@ -86,7 +86,6 @@ class PutawayController extends Controller
 
             $boxId = (string) Str::uuid();
             DB::table('containers')->insert([
-                'id' => $boxId,
                 'container_id' => $boxId,
                 'container_code' => $boxCode,
                 'container_type' => 'BOX',

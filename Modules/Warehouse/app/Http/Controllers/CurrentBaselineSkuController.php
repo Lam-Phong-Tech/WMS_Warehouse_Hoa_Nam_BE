@@ -80,7 +80,12 @@ class CurrentBaselineSkuController extends Controller
             'specification' => ['sometimes', 'nullable', 'array'],
             'components' => ['sometimes', 'array', 'max:100'],
             'components.*.component_id' => ['required', 'uuid'],
-            'components.*.quantity' => ['required', 'integer', 'min:1'],
+            'components.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            'physical_codes' => ['sometimes', 'array', 'max:100'],
+            'physical_codes.*.code_value' => ['required', 'string', 'max:150'],
+            'physical_codes.*.code_type' => ['sometimes', 'nullable', 'string'],
+            'physical_codes.*.carrier_type' => ['sometimes', 'nullable', 'string'],
+            'physical_codes.*.status' => ['sometimes', 'nullable', 'string'],
         ];
     }
 

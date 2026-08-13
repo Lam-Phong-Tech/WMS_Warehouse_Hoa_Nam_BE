@@ -65,7 +65,6 @@ class CurrentBaselineContainerFlowController extends Controller
             }
 
             DB::table('containers')->insert([
-                'id' => $id,
                 'container_id' => $id,
                 'container_code' => $validated['container_code'],
                 'container_type' => $type,

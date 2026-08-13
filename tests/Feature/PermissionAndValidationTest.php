@@ -85,18 +85,18 @@ class PermissionAndValidationTest extends TestCase
             ->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
 
-    public function test_product_routes_use_product_permissions_not_sku_permissions(): void
+    public function test_product_and_sku_routes_share_canonical_sku_permission(): void
     {
-        $productHeaders = $this->authHeadersWithPermissions(['product.view'], 'product_view_only');
-        $skuHeaders = $this->authHeadersWithPermissions(['sku.manage'], 'sku_only');
+        $skuHeaders = $this->authHeadersWithPermissions(['sku.view'], 'sku_view_only');
+        $noSkuHeaders = $this->authHeadersWithPermissions(['warehouse.view'], 'no_sku_permission');
 
         Product::create(['code' => 'SP-PROD-PERM', 'name' => 'San pham product permission', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
-        $this->getJson('/api/v1/products', $productHeaders)
+        $this->getJson('/api/v1/products', $skuHeaders)
             ->assertOk()
             ->assertJsonPath('success', true);
 
-        $this->getJson('/api/v1/products', $skuHeaders)
+        $this->getJson('/api/v1/products', $noSkuHeaders)
             ->assertStatus(403)
             ->assertJsonPath('error.code', 'ACCESS_DENIED');
 
@@ -107,7 +107,7 @@ class PermissionAndValidationTest extends TestCase
 
     public function test_product_create_with_duplicate_code_returns_422(): void
     {
-        $headers = $this->authHeadersWithPermissions(['product.manage'], 'product_manager');
+        $headers = $this->authHeadersWithPermissions(['sku.manage'], 'product_manager');
         Sku::create(['sku_code' => 'SP-DUP', 'sku_name' => 'San pham goc', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
         $this->postJson('/api/v1/products', ['sku_code' => 'SP-DUP', 'sku_name' => 'San pham trung code'], $headers)
@@ -117,19 +117,19 @@ class PermissionAndValidationTest extends TestCase
 
     public function test_product_detail_for_unknown_id_returns_404(): void
     {
-        $headers = $this->authHeadersWithPermissions(['product.view'], 'product_viewer');
+        $headers = $this->authHeadersWithPermissions(['sku.view'], 'product_viewer');
 
         $this->getJson('/api/v1/products/'.Str::uuid(), $headers)
             ->assertStatus(404)
             ->assertJsonPath('error.code', 'RESOURCE_NOT_FOUND');
     }
 
-    public function test_document_status_history_uses_stock_document_view_permission(): void
+    public function test_document_status_history_uses_inventory_view_permission(): void
     {
-        $stockDocumentHeaders = $this->authHeadersWithPermissions(['stock_document.view'], 'stock_doc_viewer');
+        $inventoryHeaders = $this->authHeadersWithPermissions(['inventory.view'], 'inventory_viewer');
         $warehouseHeaders = $this->authHeadersWithPermissions(['warehouse.view'], 'warehouse_viewer');
 
-        $this->getJson('/api/v1/document-status-history', $stockDocumentHeaders)
+        $this->getJson('/api/v1/document-status-history', $inventoryHeaders)
             ->assertOk()
             ->assertJsonPath('success', true);
 
@@ -140,8 +140,8 @@ class PermissionAndValidationTest extends TestCase
 
     public function test_inbound_document_create_without_lines_returns_422(): void
     {
-        $headers = $this->authHeadersWithPermissions(['stock_document.create'], 'creator');
-        $warehouse = Warehouse::create(['code' => 'KHO-PERM3', 'name' => 'Kho perm 3', 'status' => 'ACTIVE']);
+        $headers = $this->authHeadersWithPermissions(['inbound.create'], 'creator');
+        $warehouse = Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tong Hoa Nam', 'status' => 'ACTIVE']);
 
         $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
@@ -153,8 +153,8 @@ class PermissionAndValidationTest extends TestCase
 
     public function test_inbound_document_create_is_idempotent_when_key_reused(): void
     {
-        $headers = $this->authHeadersWithPermissions(['stock_document.create'], 'creator2');
-        $warehouse = Warehouse::create(['code' => 'KHO-PERM4', 'name' => 'Kho perm 4', 'status' => 'ACTIVE']);
+        $headers = $this->authHeadersWithPermissions(['inbound.create'], 'creator2');
+        $warehouse = Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tong Hoa Nam', 'status' => 'ACTIVE']);
         $product = Sku::create(['sku_code' => 'SP-PERM4', 'sku_name' => 'San pham perm 4', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
         $payload = [
