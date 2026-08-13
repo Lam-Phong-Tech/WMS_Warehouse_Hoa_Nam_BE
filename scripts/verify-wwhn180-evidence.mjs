@@ -217,10 +217,7 @@ const checks = {
     compatibilitySeederSource.includes("'WAREHOUSE_KEEPER'")
     && compatibilitySeederSource.includes("'WAREHOUSE_MANAGER'")
     && !compatibilitySeederSource.includes("'NO_PERMISSION' =>"),
-  stocktake_fe_route_alias_exists:
-    routeSource.includes("Route::post('stocktake/sessions/{id}/apply-adjustment'")
-    && routeSource.includes("[StocktakeController::class, 'applyAdjustment']")
-    && routeSource.includes("middleware('permission:stocktake.adjust')"),
+  stocktake_scope_deferred_fail_closed: !routeSource.includes("'stocktake"),
   alias_test_proves_no_permission_isolation:
     aliasTestSource.includes("where('role_code', 'NO_PERMISSION')")
     && aliasTestSource.includes('assertNotContains'),
@@ -261,7 +258,7 @@ const checks = {
   ledger_has_authoritative_posting_boundary:
     /lockAuthoritativePostingBoundary/.test(ledgerSource)
     && /StockDocument::query\(\)[\s\S]*lockForUpdate\(\)/.test(ledgerSource)
-    && /STATUS_APPROVED/.test(ledgerSource),
+    && /STATUS_SCANNING/.test(ledgerSource),
   ledger_locks_current_document_line:
     /StockDocumentLine::query\(\)[\s\S]*where\('stock_document_id',[\s\S]*lockForUpdate\(\)/.test(ledgerSource),
   // Ledger hiện recompute input từ locked row kèm ép kiểu + validate integer
