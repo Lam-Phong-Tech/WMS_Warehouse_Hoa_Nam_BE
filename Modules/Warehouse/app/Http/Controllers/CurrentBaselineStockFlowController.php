@@ -30,7 +30,8 @@ class CurrentBaselineStockFlowController extends Controller
         $expectedVersion = $this->expectedVersion($request);
         $result = $this->versionedScan($id, 'receipt', $payload, $expectedVersion);
 
-        return $this->respondSuccess($result, 'Inbound scan validated; stock_effect=NONE.');
+        return $this->respondSuccess($result, 'Inbound scan validated; stock_effect=NONE.')
+            ->header('ETag', '"'.((int) $result['version']).'"');
     }
 
     public function outboundScan(Request $request, string $id)
@@ -43,7 +44,97 @@ class CurrentBaselineStockFlowController extends Controller
             $result += $this->createAndDispatchLabel($request, $id, (string) $result['line_id'], (string) $result['item_id']);
         }
 
-        return $this->respondSuccess($result, 'Outbound item matched; label result is included; stock_effect=NONE.');
+        return $this->respondSuccess($result, 'Outbound item matched; label result is included; stock_effect=NONE.')
+            ->header('ETag', '"'.((int) $result['version']).'"');
+    }
+
+    /**
+     * Gỡ một item đã match khỏi phiếu xuất trước khi Post (BR "Gỡ trước Post").
+     * Match chuyển ACTIVE -> REMOVED, line scanned_qty giảm tương ứng; hoàn toàn
+     * stock-neutral. Item sau đó có thể scan lại vào phiếu này hoặc phiếu khác.
+     */
+    public function outboundUnmatch(Request $request, string $id)
+    {
+        $payload = $request->validate([
+            'outbound_item_match_id' => ['required', 'uuid'],
+            'reason' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $expectedVersion = $this->expectedVersion($request);
+
+        $result = DB::transaction(function () use ($id, $payload, $expectedVersion): array {
+            $document = $this->lockDocument($id, 'issue');
+            $this->assertVersion($document, $expectedVersion);
+            if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
+                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được gỡ item đã match; sau Post phải dùng Reversal.');
+            }
+
+            $match = DB::table('outbound_item_matches')
+                ->where('id', $payload['outbound_item_match_id'])
+                ->lockForUpdate()
+                ->first();
+            if ($match === null) {
+                ApiError::abort(404, 'OUTBOUND_MATCH_NOT_FOUND', 'Không tìm thấy item match.');
+            }
+            $line = DB::table('stock_document_lines')
+                ->where('id', $match->outbound_line_id)
+                ->where('stock_document_id', $id)
+                ->lockForUpdate()
+                ->first();
+            if ($line === null) {
+                ApiError::abort(404, 'OUTBOUND_MATCH_NOT_FOUND', 'Match không thuộc phiếu xuất này.');
+            }
+            if ((string) ($match->status ?? 'ACTIVE') !== 'ACTIVE') {
+                ApiError::abort(409, 'MATCH_NOT_ACTIVE', 'Chỉ match ACTIVE mới được gỡ trước Post.');
+            }
+
+            $previousScanned = (int) $line->scanned_qty;
+            $newScanned = max(0, $previousScanned - (int) $match->quantity);
+            DB::table('outbound_item_matches')->where('id', $match->id)->update([
+                'status' => 'REMOVED',
+                'removed_at' => now(),
+                'removed_by' => $this->actorId(),
+                'version' => ((int) ($match->version ?? 0)) + 1,
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+            ]);
+            DB::table('stock_document_lines')->where('id', $line->id)->update([
+                'scanned_qty' => $newScanned,
+                'updated_at' => now(),
+            ]);
+            $newVersion = $expectedVersion + 1;
+            DB::table('stock_documents')->where('id', $id)->update([
+                'version' => $newVersion,
+                'updated_by' => $this->actorId(),
+                'updated_at' => now(),
+            ]);
+
+            AuditLogger::record(
+                action: 'OUTBOUND_UNMATCH',
+                objectType: 'outbound_item_match',
+                objectId: (string) $match->id,
+                actorId: $this->actorId(),
+                requestId: request()?->attributes->get('request_id'),
+                reason: $payload['reason'] ?? null,
+                beforeData: ['status' => 'ACTIVE', 'scanned_qty' => $previousScanned],
+                afterData: ['status' => 'REMOVED', 'scanned_qty' => $newScanned, 'item_id' => $match->item_id],
+            );
+
+            return [
+                'document_id' => $id,
+                'line_id' => (string) $line->id,
+                'outbound_item_match_id' => (string) $match->id,
+                'item_id' => $match->item_id !== null ? (string) $match->item_id : null,
+                'status' => 'REMOVED',
+                'required_quantity' => (int) $line->qty_planned,
+                'scanned_quantity' => $newScanned,
+                'stock_effect' => 'NONE',
+                'movement_created' => false,
+                'version' => $newVersion,
+            ];
+        }, 3);
+
+        return $this->respondSuccess($result, 'Outbound item match removed; stock_effect=NONE.')
+            ->header('ETag', '"'.((int) $result['version']).'"');
     }
 
     public function postReceipt(Request $request, string $id)
@@ -151,7 +242,13 @@ class CurrentBaselineStockFlowController extends Controller
             }
         );
 
-        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+        $response = response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+        $version = data_get($body, 'data.version');
+        if ($version !== null) {
+            $response->header('ETag', '"'.((int) $version).'"');
+        }
+
+        return $response;
     }
 
     private function reverse(Request $request, string $id, string $type)
@@ -306,6 +403,9 @@ class CurrentBaselineStockFlowController extends Controller
             ->where('l.stock_document_id', $documentId)
             ->where('s.sku_type', 'PRODUCT')
             ->whereNotNull('m.item_id')
+            ->where(function ($query): void {
+                $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+            })
             ->get(['m.id', 'm.item_id']);
 
         foreach ($matches as $match) {
@@ -323,11 +423,17 @@ class CurrentBaselineStockFlowController extends Controller
     {
         $table = $type === 'receipt' ? 'inbound_scan_entries' : 'outbound_item_matches';
         $lineColumn = $type === 'receipt' ? 'inbound_line_id' : 'outbound_line_id';
-        if (DB::table("{$table} as e")
+        $query = DB::table("{$table} as e")
             ->join('stock_document_lines as l', 'l.id', '=', "e.{$lineColumn}")
             ->where('l.stock_document_id', $documentId)
-            ->where('e.item_id', $itemId)
-            ->exists()) {
+            ->where('e.item_id', $itemId);
+        if ($type !== 'receipt') {
+            // Match đã REMOVED (gỡ trước Post) được phép scan lại vào cùng phiếu.
+            $query->where(function ($sub): void {
+                $sub->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED');
+            });
+        }
+        if ($query->exists()) {
             ApiError::abort(409, 'DUPLICATE_ITEM_IN_DOCUMENT', 'Một item chỉ được scan/match một lần trong cùng document.');
         }
     }

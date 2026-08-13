@@ -35,19 +35,19 @@ class CurrentBaselineDocumentController extends Controller
 
     public function storeOutbound(Request $request)
     {
+        // BP-WMS-04/05: mọi phiếu xuất đều sinh từ toa/request đã consume.
+        // Lines luôn hydrate từ outbound_request_lines; không nhận lines thủ công
+        // để không tạo "phiếu chết" (scan/post đều yêu cầu outbound_request_id).
         $validated = $request->validate([
             'doc_no' => ['nullable', 'string', 'max:80', 'unique:stock_documents,doc_no'],
             'doc_date' => ['nullable', 'date'],
             'src_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
-            'outbound_request_id' => ['nullable', 'uuid', 'exists:outbound_requests,id'],
+            'outbound_request_id' => ['required', 'uuid', 'exists:outbound_requests,id'],
             'agency_id' => ['nullable', 'uuid', 'exists:agencies,agency_id'],
             'recipient_name' => ['nullable', 'string', 'max:200'],
             'recipient_address' => ['nullable', 'string', 'max:2000'],
             'note' => ['nullable', 'string', 'max:2000'],
-            'lines' => ['nullable', 'required_without:outbound_request_id', 'array', 'min:1'],
-            'lines.*.product_id' => ['required_with:lines', 'uuid', 'exists:sku,sku_id'],
-            'lines.*.qty_planned' => ['required_with:lines', 'integer', 'min:1'],
-            'lines.*.note' => ['nullable', 'string', 'max:2000'],
+            'lines' => ['prohibited'],
         ]);
 
         return $this->createIdempotent($request, 'issue', $validated);
@@ -109,7 +109,8 @@ class CurrentBaselineDocumentController extends Controller
         if ($key === '') {
             $document = $this->createDocument($type, $validated, $actorId);
 
-            return $this->respondCreated($document, $type === 'receipt' ? 'Tạo phiếu nhập kho thành công.' : 'Tạo phiếu xuất kho thành công.');
+            return $this->respondCreated($document, $type === 'receipt' ? 'Tạo phiếu nhập kho thành công.' : 'Tạo phiếu xuất kho thành công.')
+                ->header('ETag', '"'.((int) ($document['version'] ?? 1)).'"');
         }
 
         [$code, $body, $replay] = IdempotencyStore::handle(
@@ -124,7 +125,13 @@ class CurrentBaselineDocumentController extends Controller
             }
         );
 
-        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+        $response = response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+        $version = data_get($body, 'data.version');
+        if ($version !== null) {
+            $response->header('ETag', '"'.((int) $version).'"');
+        }
+
+        return $response;
     }
 
     private function createDocument(string $type, array $validated, string $actorId): array
@@ -180,6 +187,16 @@ class CurrentBaselineDocumentController extends Controller
                     'version' => 1,
                     'created_at' => now(),
                     'updated_at' => now(),
+                ]);
+            }
+
+            if ($type === 'issue' && ! empty($validated['outbound_request_id'])) {
+                // ERD bảng 37: toa OPEN -> CONSUMED khi có phiếu xuất active gắn toa.
+                DB::table('outbound_requests')->where('id', $validated['outbound_request_id'])->update([
+                    'status' => 'CONSUMED',
+                    'version' => DB::raw('version + 1'),
+                    'updated_at' => now(),
+                    'updated_by' => $actorId,
                 ]);
             }
 
@@ -254,7 +271,8 @@ class CurrentBaselineDocumentController extends Controller
             return $this->documentPayload($id);
         }, 3);
 
-        return $this->respondSuccess($payload, 'Cập nhật chứng từ thành công.');
+        return $this->respondSuccess($payload, 'Cập nhật chứng từ thành công.')
+            ->header('ETag', '"'.((int) ($payload['version'] ?? 0)).'"');
     }
 
     private function replaceDocumentLines(string $documentId, array $lines): void
@@ -363,6 +381,27 @@ class CurrentBaselineDocumentController extends Controller
                 'updated_at' => now(),
             ]);
 
+            if ($type === 'issue' && $document->outbound_request_id !== null) {
+                // State model: CANCELLED là terminal, muốn xuất lại thì tạo phiếu mới
+                // từ cùng toa — trả toa CONSUMED -> OPEN nếu không còn phiếu active/POSTED.
+                $stillUsed = DB::table('stock_documents')
+                    ->where('outbound_request_id', $document->outbound_request_id)
+                    ->where('id', '!=', $id)
+                    ->whereIn('status', ['DRAFT', 'SCANNING', 'POSTED'])
+                    ->exists();
+                if (! $stillUsed) {
+                    DB::table('outbound_requests')
+                        ->where('id', $document->outbound_request_id)
+                        ->where('status', 'CONSUMED')
+                        ->update([
+                            'status' => 'OPEN',
+                            'version' => DB::raw('version + 1'),
+                            'updated_at' => now(),
+                            'updated_by' => $this->actorId(),
+                        ]);
+                }
+            }
+
             AuditLogger::record(
                 action: 'CANCEL_STOCK_DOCUMENT',
                 objectType: 'stock_document',
@@ -377,7 +416,8 @@ class CurrentBaselineDocumentController extends Controller
             return $this->documentPayload($id);
         }, 3);
 
-        return $this->respondSuccess($payload, 'Đã hủy chứng từ.');
+        return $this->respondSuccess($payload, 'Đã hủy chứng từ.')
+            ->header('ETag', '"'.((int) ($payload['version'] ?? 0)).'"');
     }
 
     private function hydrateOutboundRequest(array $validated): array

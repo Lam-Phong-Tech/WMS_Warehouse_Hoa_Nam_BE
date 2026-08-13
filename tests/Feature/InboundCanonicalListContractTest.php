@@ -12,7 +12,8 @@ class InboundCanonicalListContractTest extends TestCase
         $routes = (string) file_get_contents(base_path('Modules/Warehouse/routes/api.php'));
         $openApi = (string) file_get_contents(base_path('Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'));
 
-        $this->assertStringContainsString("['doc_no', 'source_name', 'note']", $concern);
+        $this->assertStringContainsString("['doc_no', 'note']", $concern);
+        $this->assertStringContainsString("\$keywordColumns[] = 'source_name';", $concern);
         $this->assertStringContainsString("name: 'keyword'", $openApi);
         $this->assertStringContainsString("name: 'page'", $openApi);
         $this->assertStringContainsString("name: 'per_page'", $openApi);
@@ -38,7 +39,7 @@ class InboundCanonicalListContractTest extends TestCase
         $guide = (string) file_get_contents(base_path('docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md'));
         $routeSync = (string) file_get_contents(base_path('app/Swagger/Processors/RouteSyncProcessor.php'));
 
-        $this->assertSame(138, $contract['api']['operation_count']);
+        $this->assertSame(139, $contract['api']['operation_count']);
         $this->assertStringContainsString('Document ID: HN-WMS-TECH-GUIDE-001', $guide);
         $this->assertStringContainsString("'24. Putaway'", $routeSync);
         $this->assertStringContainsString("'get api/v1/putaway/tasks'", $routeSync);

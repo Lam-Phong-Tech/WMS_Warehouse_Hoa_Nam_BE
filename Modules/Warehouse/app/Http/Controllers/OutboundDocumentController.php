@@ -3,28 +3,26 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Http\Controllers\Concerns\InteractsWithStockDocuments;
-use Modules\Warehouse\Http\Requests\StoreOutboundDocumentRequest;
-use Modules\Warehouse\Http\Requests\UpdateOutboundDocumentRequest;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
 use OpenApi\Attributes as OA;
 
 /**
- * Phiếu xuất kho (doc_type=issue).
+ * Phiếu xuất kho (doc_type=issue) — read side (index/show).
  *
- *  * Logic: index/show/cancel/scan/post-issue/reverse.
- * Concerns\InteractsWithStockDocuments (dùng chung với InboundDocumentController) — annotation
- * Swagger cho các action đó được khai báo ở đây (class-level) vì path/tag riêng cho từng loại
- * chứng từ, trong khi PHP method vật lý nằm ở trait dùng chung.
+ * Mutation (create/update/cancel/scan/unmatch/post-issue/reverse) đi qua
+ * CurrentBaselineDocumentController / CurrentBaselineStockFlowController để
+ * enforce baseline full-post; mọi transition duyệt/partial legacy đã bị
+ * supersede và không còn tồn tại (SCOPE LOCK 0.3).
  */
 #[OA\Get(
     path: '/api/v1/outbound-documents',
     operationId: 'stock_out_list',
-    summary: 'Danh sách phiếu xuất kho (phân trang, filter theo status)',
+    summary: 'Danh sách phiếu xuất kho (phân trang, filter status, kèm label/RFID progress)',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [
@@ -34,16 +32,16 @@ use OpenApi\Attributes as OA;
         new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])),
     ],
     responses: [
-        new OA\Response(response: 200, description: 'Danh sách phiếu xuất kho'),
+        new OA\Response(response: 200, description: 'Danh sách phiếu xuất kho; mỗi phần tử kèm matched_count, label_printed_count, rfid_mapped_count, required_total'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.view'),
+        new OA\Response(response: 403, description: 'Không có quyền outbound.view'),
     ]
 )]
 #[OA\Post(
     path: '/api/v1/outbound-documents',
     operationId: 'stock_out_create',
-    summary: 'Tạo phiếu xuất kho (trạng thái draft)',
-    description: 'Phiếu ở trạng thái draft chưa ảnh hưởng tồn kho. Header Idempotency-Key là tuỳ chọn ở action này (chỉ bắt buộc ở post-issue/reverse vì các action đó đổi tồn thật) — nếu có gửi, gọi lại đúng key sẽ trả về đúng chứng từ đã tạo thay vì tạo bản ghi mới.',
+    summary: 'Tạo phiếu xuất kho DRAFT từ toa yêu cầu xuất',
+    description: 'outbound_request_id là bắt buộc; lines được hydrate từ outbound_request_lines (BP-WMS-04). Không nhận lines thủ công. DRAFT chưa ảnh hưởng tồn kho. Idempotency-Key là tuỳ chọn ở action này.',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [
@@ -52,33 +50,31 @@ use OpenApi\Attributes as OA;
     requestBody: new OA\RequestBody(
         required: true,
         content: new OA\JsonContent(
-            required: ['src_warehouse_id', 'lines'],
+            required: ['src_warehouse_id', 'outbound_request_id'],
             properties: [
                 new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true),
                 new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
                 new OA\Property(property: 'src_warehouse_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
-                new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
-                    properties: [
-                        new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'qty_planned', type: 'number', format: 'float', example: 10),
-                    ]
-                )),
+                new OA\Property(property: 'outbound_request_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
+                new OA\Property(property: 'recipient_address', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
             ]
         )
     ),
     responses: [
-        new OA\Response(response: 201, description: 'Tạo phiếu xuất kho thành công'),
+        new OA\Response(response: 201, description: 'Tạo phiếu xuất kho thành công (ETag = version)'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.create'),
-        new OA\Response(response: 409, description: 'Idempotency-Key đã dùng với payload khác'),
-        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: kho không active, thiếu lines)'),
+        new OA\Response(response: 403, description: 'Không có quyền outbound.create'),
+        new OA\Response(response: 409, description: 'Toa đã có outbound document hoặc Idempotency-Key dùng với payload khác'),
+        new OA\Response(response: 422, description: 'Kho không ACTIVE, toa không hợp lệ hoặc gửi lines thủ công'),
     ]
 )]
 #[OA\Get(
     path: '/api/v1/outbound-documents/{id}',
     operationId: 'stock_out_detail',
-    summary: 'Chi tiết phiếu xuất kho (kèm lines, movements, status history)',
+    summary: 'Chi tiết phiếu xuất kho (kèm lines, movements, status history, item_matches)',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
@@ -91,163 +87,139 @@ use OpenApi\Attributes as OA;
 #[OA\Patch(
     path: '/api/v1/outbound-documents/{id}',
     operationId: 'stock_out_update',
-    summary: 'Sửa phiếu xuất kho (chỉ khi còn draft)',
+    summary: 'Sửa header phiếu xuất kho (DRAFT/SCANNING, bắt buộc If-Match)',
+    description: 'Phiếu sinh từ toa không được sửa lines (SOURCE_REQUEST_IMMUTABLE); phiếu đã có scan evidence không được thay cấu trúc dòng (SCANNED_DOCUMENT_IMMUTABLE).',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
-    parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+    parameters: [
+        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+    ],
     requestBody: new OA\RequestBody(
         content: new OA\JsonContent(properties: [
             new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true),
             new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
-            new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
-            new OA\Property(property: 'lines', type: 'array', nullable: true, items: new OA\Items(
-                properties: [
-                    new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'qty_planned', type: 'number', format: 'float'),
-                ]
-            )),
+            new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
+            new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
+            new OA\Property(property: 'recipient_address', type: 'string', maxLength: 2000, nullable: true),
+            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
         ])
     ),
     responses: [
-        new OA\Response(response: 200, description: 'Cập nhật phiếu xuất kho thành công'),
+        new OA\Response(response: 200, description: 'Cập nhật thành công (ETag = version mới)'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.create'),
+        new OA\Response(response: 403, description: 'Không có quyền outbound.create'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc phiếu không còn ở trạng thái draft'),
-    ]
-)]
-#[OA\Post(
-    path: '/api/v1/outbound-documents/{id}/submit',
-    operationId: 'stock_out_submit',
-    summary: 'Gửi duyệt phiếu xuất kho (draft → pending)',
-    security: [['bearerAuth' => []]],
-    tags: ['10. Stock Out (Outbound)'],
-    parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-    responses: [
-        new OA\Response(response: 200, description: 'Gửi duyệt thành công'),
-        new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.submit'),
-        new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại'),
-    ]
-)]
-#[OA\Post(
-    path: '/api/v1/outbound-documents/{id}/approve',
-    operationId: 'stock_out_approve',
-    summary: 'Duyệt phiếu xuất kho (pending → approved)',
-    security: [['bearerAuth' => []]],
-    tags: ['10. Stock Out (Outbound)'],
-    parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-    responses: [
-        new OA\Response(response: 200, description: 'Duyệt phiếu thành công'),
-        new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.approve'),
-        new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại'),
-    ]
-)]
-#[OA\Post(
-    path: '/api/v1/outbound-documents/{id}/reject',
-    operationId: 'stock_out_reject',
-    summary: 'Từ chối duyệt phiếu xuất kho (pending → rejected)',
-    security: [['bearerAuth' => []]],
-    tags: ['10. Stock Out (Outbound)'],
-    parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-    requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
-        new OA\Property(property: 'reason', type: 'string', nullable: true),
-    ])),
-    responses: [
-        new OA\Response(response: 200, description: 'Từ chối phiếu thành công'),
-        new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.approve'),
-        new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại'),
+        new OA\Response(response: 409, description: 'STATE_CONFLICT / SOURCE_REQUEST_IMMUTABLE / SCANNED_DOCUMENT_IMMUTABLE'),
+        new OA\Response(response: 412, description: 'If-Match version mismatch'),
+        new OA\Response(response: 428, description: 'Thiếu If-Match'),
     ]
 )]
 #[OA\Post(
     path: '/api/v1/outbound-documents/{id}/cancel',
     operationId: 'stock_out_cancel',
-    summary: 'Huỷ phiếu xuất kho (chỉ khi chưa hạch toán xong)',
-    security: [['bearerAuth' => []]],
-    tags: ['10. Stock Out (Outbound)'],
-    parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-    requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
-        new OA\Property(property: 'reason', type: 'string', nullable: true),
-    ])),
-    responses: [
-        new OA\Response(response: 200, description: 'Huỷ phiếu thành công'),
-        new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.cancel'),
-        new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại'),
-    ]
-)]
-#[OA\Post(
-    path: '/api/v1/outbound-documents/{id}/post-issue',
-    operationId: 'stock_out_post_issue',
-    summary: 'Hạch toán xuất kho toàn bộ trong 1 lần (approved → issued, giảm tồn thật)',
-    description: 'Đổi tồn kho thật qua StockLedger. Bắt buộc header Idempotency-Key.',
+    summary: 'Huỷ phiếu xuất kho (DRAFT/SCANNING; reason + If-Match bắt buộc)',
+    description: 'CANCELLED là terminal và stock-neutral; toa nguồn được trả về OPEN để tạo phiếu mới nếu không còn phiếu active/POSTED khác dùng toa.',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
     ],
+    requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+        required: ['reason'],
+        properties: [new OA\Property(property: 'reason', type: 'string', maxLength: 2000)]
+    )),
     responses: [
-        new OA\Response(response: 200, description: 'Hạch toán xuất kho thành công'),
+        new OA\Response(response: 200, description: 'Huỷ phiếu thành công'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.post'),
+        new OA\Response(response: 403, description: 'Không có quyền outbound.cancel'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 409, description: 'Idempotency-Key đã dùng với payload khác hoặc xung đột optimistic lock'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại hoặc không đủ tồn để xuất'),
-        new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key'),
+        new OA\Response(response: 409, description: 'Chỉ DRAFT/SCANNING mới được Cancel'),
+        new OA\Response(response: 412, description: 'If-Match version mismatch'),
+        new OA\Response(response: 428, description: 'Thiếu If-Match'),
     ]
 )]
 #[OA\Post(
     path: '/api/v1/outbound-documents/{id}/scan',
     operationId: 'stock_out_scan',
-    summary: 'Validate scan dòng phiếu xuất kho (stock_effect=NONE)',
-    description: 'Validate line_id/qty trên phiếu approved để FE xác nhận mã/dòng trước khi post-issue. Không ghi stock_movements, không đổi inventory_balances, không đổi trạng thái chứng từ.',
+    summary: 'Quét & match item vào dòng phiếu xuất; tự tạo label snapshot + direct print (stock_effect=NONE)',
+    description: 'Camera và nhập tay dùng chung endpoint/validation. Match hợp lệ tạo Label_Snapshot PENDING_PRINT và gửi lệnh in trực tiếp; kết quả PRINTED/PRINT_FAILED trả kèm response. Không ghi stock_movements, không đổi inventory_balances.',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
     ],
     requestBody: new OA\RequestBody(
         required: true,
         content: new OA\JsonContent(
-            required: ['line_id', 'qty'],
+            required: ['line_id', 'quantity'],
             properties: [
                 new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'qty', type: 'number', format: 'float', example: 5),
+                new OA\Property(property: 'quantity', type: 'integer', example: 1),
+                new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true),
+                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true),
             ]
         )
     ),
     responses: [
-        new OA\Response(response: 200, description: 'Validate scan thành công, stock_effect=NONE'),
+        new OA\Response(response: 200, description: 'Item matched; label result kèm theo; stock_effect=NONE'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.scan'),
+        new OA\Response(response: 403, description: 'Không có quyền outbound.scan'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ hoặc dòng'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại, qty vượt kế hoạch còn lại, hoặc không đủ tồn để xuất'),
+        new OA\Response(response: 409, description: 'Trùng item / item đang match phiếu khác / STATE_CONFLICT'),
+        new OA\Response(response: 422, description: 'Sai SKU, mã không tồn tại, item đã xuất, vượt required_qty hoặc thiếu tồn'),
+        new OA\Response(response: 428, description: 'Thiếu If-Match'),
     ]
 )]
 #[OA\Post(
-    path: '/api/v1/outbound-documents/{id}/close-remainder',
-    operationId: 'stock_out_close_remainder',
-    summary: 'Đóng phần còn thiếu (shortage) của phiếu đang partially_posted',
-    description: 'Không đổi tồn kho nên không bắt buộc Idempotency-Key. Đóng phiếu ở trạng thái issued/closed với phần chưa xuất đủ được ghi nhận là thiếu.',
+    path: '/api/v1/outbound-documents/{id}/unmatch',
+    operationId: 'stock_out_unmatch',
+    summary: 'Gỡ item đã match trước Post (match ACTIVE → REMOVED, stock_effect=NONE)',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
-    parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-    requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
-        new OA\Property(property: 'reason', type: 'string', nullable: true),
-    ])),
+    parameters: [
+        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+    ],
+    requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+        required: ['outbound_item_match_id'],
+        properties: [
+            new OA\Property(property: 'outbound_item_match_id', type: 'string', format: 'uuid'),
+            new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true),
+        ]
+    )),
     responses: [
-        new OA\Response(response: 200, description: 'Đóng phần còn thiếu thành công'),
+        new OA\Response(response: 200, description: 'Match REMOVED; scanned_qty giảm; item có thể quét lại'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.post'),
+        new OA\Response(response: 403, description: 'Không có quyền outbound.scan'),
+        new OA\Response(response: 404, description: 'Không tìm thấy match trong phiếu'),
+        new OA\Response(response: 409, description: 'Match không ACTIVE hoặc phiếu không còn DRAFT/SCANNING'),
+    ]
+)]
+#[OA\Post(
+    path: '/api/v1/outbound-documents/{id}/post-issue',
+    operationId: 'stock_out_post_issue',
+    summary: 'Full Post Issue (SCANNING → POSTED, giảm tồn atomic đúng một lần)',
+    description: 'Chỉ Post khi mọi line scanned_qty = required_qty, đủ tồn, mọi PRODUCT item có nhãn PRINTED và active RFID/hardware_uid. Bắt buộc Idempotency-Key + If-Match. Không có xuất một phần.',
+    security: [['bearerAuth' => []]],
+    tags: ['10. Stock Out (Outbound)'],
+    parameters: [
+        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+    ],
+    responses: [
+        new OA\Response(response: 200, description: 'Post Issue thành công; movement append-only, item → ISSUED'),
+        new OA\Response(response: 401, description: 'Chưa xác thực'),
+        new OA\Response(response: 403, description: 'Không có quyền outbound.post'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại'),
+        new OA\Response(response: 409, description: 'STATE_CONFLICT hoặc Idempotency-Key dùng với payload khác'),
+        new OA\Response(response: 412, description: 'If-Match version mismatch'),
+        new OA\Response(response: 422, description: 'FULL_POST_REQUIRED / LABEL_NOT_PRINTED / ITEM_RFID_REQUIRED / INSUFFICIENT_STOCK'),
+        new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match'),
     ]
 )]
 #[OA\Post(
@@ -267,7 +239,7 @@ use OpenApi\Attributes as OA;
     responses: [
         new OA\Response(response: 200, description: 'Đảo ngược chứng từ thành công'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền stock_document.reverse'),
+        new OA\Response(response: 403, description: 'Không có quyền inventory.reversal.post'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
         new OA\Response(response: 409, description: 'Idempotency-Key đã dùng với payload khác hoặc xung đột optimistic lock'),
         new OA\Response(response: 422, description: 'Chứng từ chưa hạch toán hoặc đã bị đảo ngược trước đó'),
@@ -291,40 +263,149 @@ class OutboundDocumentController extends Controller
         return $this->documentService;
     }
 
-    public function store(StoreOutboundDocumentRequest $request)
+    /**
+     * Danh sách phiếu xuất kèm tiến độ nhãn/RFID theo từng phiếu (SCR-OUT-01:
+     * cột Match / Nhãn / RFID) để FE không phải quét toàn bộ label-snapshots
+     * và physical-codes.
+     */
+    public function index(Request $request)
     {
-        $userId = $this->userId();
-        $idemKey = $request->header('Idempotency-Key');
-        $hash = IdempotencyStore::requestHash($request);
+        $query = StockDocument::query()
+            ->with('lines')
+            ->where('doc_type', $this->docType());
 
-        [$code, $body] = IdempotencyStore::handle($idemKey, 'create_outbound_document', $userId, $hash, function () use ($request, $userId) {
-            $doc = $this->documentService->create(StockDocument::TYPE_ISSUE, $request->validated(), $userId);
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        $this->applyKeyword($query, $request, ['doc_no', 'note']);
 
-            return [201, $this->envelope('Tạo phiếu xuất kho thành công', $doc)];
+        $paginator = $query->orderByDesc('created_at')->paginate($this->perPage($request));
+        $stats = $this->documentProgressStats(
+            collect($paginator->items())->map(fn (StockDocument $doc): string => (string) $doc->id)->all()
+        );
+
+        $paginator->getCollection()->transform(function (StockDocument $doc) use ($stats): array {
+            $stat = $stats[(string) $doc->id] ?? null;
+
+            return [
+                ...$doc->toArray(),
+                'required_total' => (int) $doc->lines->sum('qty_planned'),
+                'matched_count' => (int) ($stat->matched_count ?? 0),
+                'label_printed_count' => (int) ($stat->label_printed_count ?? 0),
+                'rfid_mapped_count' => (int) ($stat->rfid_mapped_count ?? 0),
+            ];
         });
 
-        return response()->json($body, $code);
+        return $this->respondPaginated($paginator);
     }
 
-    public function update(UpdateOutboundDocumentRequest $request, string $id)
+    /** @return array<string, object> keyed by document id */
+    private function documentProgressStats(array $documentIds): array
     {
-        $doc = $this->documentService->update($this->find($id), $request->validated(), $this->userId());
+        if ($documentIds === []) {
+            return [];
+        }
 
-        return $this->respondSuccess($doc, 'Cập nhật phiếu xuất kho thành công');
+        return DB::table('stock_document_lines as l')
+            ->leftJoin('outbound_item_matches as m', function ($join): void {
+                $join->on('m.outbound_line_id', '=', 'l.id')
+                    ->where(function ($query): void {
+                        $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+                    });
+            })
+            ->leftJoin('label_snapshots as ls', 'ls.outbound_item_match_id', '=', 'm.id')
+            ->leftJoin('physical_codes as pc', function ($join): void {
+                $join->on('pc.assigned_object_id', '=', 'm.item_id')
+                    ->where('pc.assigned_object_type', 'ITEM')
+                    ->where('pc.carrier_type', 'RFID')
+                    ->where('pc.status', 'ACTIVE')
+                    ->whereNotNull('pc.hardware_uid');
+            })
+            ->whereIn('l.stock_document_id', $documentIds)
+            ->groupBy('l.stock_document_id')
+            ->selectRaw('l.stock_document_id')
+            ->selectRaw('COUNT(DISTINCT m.id) AS matched_count')
+            ->selectRaw("COUNT(DISTINCT m.id) FILTER (WHERE ls.status = 'PRINTED') AS label_printed_count")
+            ->selectRaw('COUNT(DISTINCT m.id) FILTER (WHERE pc.physical_code_id IS NOT NULL) AS rfid_mapped_count')
+            ->get()
+            ->keyBy('stock_document_id')
+            ->all();
     }
 
-    /** Hạch toán toàn bộ trong 1 lần (approved → issued, đổi tồn thật). */
-    public function postIssue(Request $request, string $id)
+    /**
+     * Chi tiết phiếu xuất kèm item_matches (trạng thái match + nhãn + RFID theo
+     * từng item) để FE dựng màn OUT-03/LBL-01/RFID-01 mà không phải quét toàn
+     * bộ label-snapshots/physical-codes.
+     */
+    public function show(string $id)
     {
-        $doc = $this->find($id);
-        $idemKey = $this->requireIdempotencyKey($request);
-        $hash = IdempotencyStore::requestHash($request);
+        $doc = StockDocument::with(['lines', 'movements', 'statusHistory'])
+            ->where('doc_type', $this->docType())
+            ->find($id);
+        if ($doc === null) {
+            return $this->respondNotFound('Không tìm thấy chứng từ.');
+        }
 
-        $operation = "post_issue_{$doc->id}";
-        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $this->userId(), $hash, function () use ($doc, $idemKey, $hash, $operation) {
-            return [200, $this->envelope('Hạch toán xuất kho thành công', $this->documentService->postIssue($doc, $this->userId(), $idemKey, $hash, $operation))];
-        });
+        $payload = $doc->toArray();
+        $payload['item_matches'] = $this->outboundItemMatches($id);
 
-        return response()->json($body, $code);
+        return $this->respondSuccess($payload);
+    }
+
+    private function outboundItemMatches(string $documentId): array
+    {
+        $rows = DB::table('outbound_item_matches as m')
+            ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
+            ->leftJoin('label_snapshots as ls', 'ls.outbound_item_match_id', '=', 'm.id')
+            ->leftJoin('item_instances as i', 'i.item_id', '=', 'm.item_id')
+            ->where('l.stock_document_id', $documentId)
+            ->orderBy('m.created_at')
+            ->get([
+                'm.id',
+                'm.outbound_line_id as line_id',
+                'm.item_id',
+                'm.container_id',
+                'm.quantity',
+                'm.status',
+                'm.matched_at',
+                'm.removed_at',
+                'l.product_id as sku_id',
+                'i.item_code',
+                'i.serial_number',
+                'ls.id as label_snapshot_id',
+                'ls.status as label_status',
+            ]);
+
+        $itemIds = $rows->pluck('item_id')->filter()->unique()->values();
+        $rfidByItem = $itemIds->isEmpty()
+            ? collect()
+            : DB::table('physical_codes')
+                ->where('assigned_object_type', 'ITEM')
+                ->whereIn('assigned_object_id', $itemIds)
+                ->where('carrier_type', 'RFID')
+                ->where('status', 'ACTIVE')
+                ->whereNotNull('hardware_uid')
+                ->pluck('code_value', 'assigned_object_id');
+
+        return $rows->map(function (object $row) use ($rfidByItem): array {
+            $itemId = $row->item_id !== null ? (string) $row->item_id : null;
+
+            return [
+                'id' => (string) $row->id,
+                'line_id' => (string) $row->line_id,
+                'item_id' => $itemId,
+                'container_id' => $row->container_id !== null ? (string) $row->container_id : null,
+                'sku_id' => (string) $row->sku_id,
+                'item_code' => $row->item_code,
+                'serial_number' => $row->serial_number,
+                'quantity' => (int) $row->quantity,
+                'status' => (string) ($row->status ?? 'ACTIVE'),
+                'matched_at' => $row->matched_at,
+                'removed_at' => $row->removed_at,
+                'label_snapshot_id' => $row->label_snapshot_id !== null ? (string) $row->label_snapshot_id : null,
+                'label_status' => $row->label_status,
+                'rfid_code' => $itemId !== null ? ($rfidByItem[$itemId] ?? null) : null,
+            ];
+        })->values()->all();
     }
 }

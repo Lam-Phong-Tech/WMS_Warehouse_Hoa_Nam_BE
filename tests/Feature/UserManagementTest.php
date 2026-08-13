@@ -87,6 +87,31 @@ class UserManagementTest extends TestCase
         $this->assertTrue($target->fresh()->roles()->where('role.role_id', $targetRole->role_id)->exists());
     }
 
+    public function test_user_cannot_assign_roles_to_self(): void
+    {
+        $ownRole = Role::create(['role_code' => 'SUPER_ADMIN', 'role_name' => 'Admin', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']);
+        $actor = User::create([
+            'username' => 'self-escalator-'.Str::random(6),
+            'display_name' => 'Self escalator',
+            'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+        $actor->roles()->attach($ownRole->role_id, ['user_role_id' => (string) Str::uuid()]);
+        $token = auth('api')->login($actor);
+        $headers = ['Authorization' => "Bearer {$token}"];
+
+        $grantedRole = Role::create(['role_code' => 'SELF_ESCALATION_TEST', 'role_name' => 'Escalation target', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']);
+
+        $response = $this->postJson("/api/v1/users/{$actor->user_id}/roles", [
+            'role_ids' => [$grantedRole->role_id],
+        ], $headers);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'SELF_ESCALATION_DENIED');
+        $this->assertTrue($actor->fresh()->roles()->where('role.role_id', $ownRole->role_id)->exists());
+        $this->assertFalse($actor->fresh()->roles()->where('role.role_id', $grantedRole->role_id)->exists());
+    }
+
     public function test_user_delete_is_soft_delete(): void
     {
         $headers = $this->authHeaders();

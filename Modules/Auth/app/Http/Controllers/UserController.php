@@ -253,6 +253,7 @@ class UserController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền user.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy người dùng'),
+            new OA\Response(response: 409, description: 'Không được phép tự thay đổi vai trò của chính mình (SCR-IAM-01, no self-escalation)'),
             new OA\Response(response: 422, description: 'role_ids không hợp lệ'),
         ]
     )]

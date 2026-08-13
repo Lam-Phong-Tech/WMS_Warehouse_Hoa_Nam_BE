@@ -514,6 +514,9 @@ class CurrentBaselineStockService
             ->where('m.item_id', $item->item_id)
             ->where('d.id', '!=', $documentId)
             ->whereIn('d.status', self::ACTIVE_DOCUMENT_STATUSES)
+            ->where(function ($query): void {
+                $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+            })
             ->exists();
         if ($conflict) {
             ApiError::abort(409, 'ITEM_ALREADY_MATCHED', 'Item đang được match ở một outbound khác.');
@@ -571,7 +574,13 @@ class CurrentBaselineStockService
 
     private function recordOutboundMatch(string $lineId, ?object $item, array $payload, int $quantity, ?string $actorId): void
     {
-        if ($item !== null && DB::table('outbound_item_matches')->where('outbound_line_id', $lineId)->where('item_id', $item->item_id)->exists()) {
+        if ($item !== null && DB::table('outbound_item_matches')
+            ->where('outbound_line_id', $lineId)
+            ->where('item_id', $item->item_id)
+            ->where(function ($query): void {
+                $query->whereNull('status')->orWhere('status', '!=', 'REMOVED');
+            })
+            ->exists()) {
             ApiError::abort(409, 'DUPLICATE_ITEM_MATCH', 'Item đã được match vào dòng outbound này.');
         }
 
@@ -581,6 +590,9 @@ class CurrentBaselineStockService
             'item_id' => $item?->item_id,
             'container_id' => $payload['container_id'] ?? null,
             'quantity' => $quantity,
+            'status' => 'ACTIVE',
+            'matched_at' => now(),
+            'matched_by' => $actorId,
             'created_at' => now(),
             'created_by' => $actorId,
             'updated_at' => now(),
@@ -591,8 +603,27 @@ class CurrentBaselineStockService
 
     private function recordScanEvidence(object $document, object $line, ?object $item, array $payload, ?string $actorId): void
     {
-        if (! isset($payload['code_value']) || ! Schema::hasTable('scan_batch') || ! Schema::hasTable('scan_event')) {
+        if (! Schema::hasTable('scan_batch') || ! Schema::hasTable('scan_event')) {
             return;
+        }
+
+        // NFR-SRS-004: mọi scan (camera/nhập tay code_value lẫn chọn item_id trực
+        // tiếp) đều để lại scan_event; raw_code fallback về mã vật lý của item.
+        $rawCode = isset($payload['code_value']) ? strtoupper(trim((string) $payload['code_value'])) : null;
+        $physicalId = null;
+        if ($rawCode !== null && $rawCode !== '') {
+            $physicalId = DB::table('physical_codes')->where('code_value', $rawCode)->value('physical_code_id');
+        } elseif ($item !== null) {
+            $physical = DB::table('physical_codes')
+                ->where('assigned_object_type', 'ITEM')
+                ->where('assigned_object_id', $item->item_id)
+                ->where('status', 'ACTIVE')
+                ->orderBy('created_at')
+                ->first(['physical_code_id', 'code_value']);
+            $physicalId = $physical?->physical_code_id;
+            $rawCode = $physical?->code_value !== null ? (string) $physical->code_value : (string) $item->item_id;
+        } else {
+            $rawCode = (string) $line->product_id;
         }
 
         $batchId = (string) Str::uuid();
@@ -604,11 +635,10 @@ class CurrentBaselineStockService
             'created_by' => $actorId,
             'created_at' => now(),
         ]);
-        $physicalId = DB::table('physical_codes')->where('code_value', strtoupper(trim((string) $payload['code_value'])))->value('physical_code_id');
         DB::table('scan_event')->insert([
             'scan_event_id' => (string) Str::uuid(),
             'scan_batch_id' => $batchId,
-            'raw_code' => (string) $payload['code_value'],
+            'raw_code' => $rawCode,
             'physical_code_id' => $physicalId,
             'resolved_object_type' => $item ? 'ITEM' : 'SKU',
             'resolved_object_id' => $item?->item_id ?? $line->product_id,
@@ -626,7 +656,13 @@ class CurrentBaselineStockService
                 continue;
             }
 
-            $matches = DB::table('outbound_item_matches')->where('outbound_line_id', $line->id)->whereNotNull('item_id')->get();
+            $matches = DB::table('outbound_item_matches')
+                ->where('outbound_line_id', $line->id)
+                ->whereNotNull('item_id')
+                ->where(function ($query): void {
+                    $query->whereNull('status')->orWhere('status', '!=', 'REMOVED');
+                })
+                ->get();
             if ($matches->count() !== (int) $line->qty_planned) {
                 ApiError::abort(422, 'PRODUCT_ITEM_MATCH_REQUIRED', 'Mỗi PRODUCT unit phải được match bằng item cụ thể trước Post Issue.', [
                     'line_id' => (string) $line->id,
@@ -667,16 +703,28 @@ class CurrentBaselineStockService
 
     private function applyIssueSubledger(string $documentId): void
     {
-        $itemIds = DB::table('outbound_item_matches as m')
+        $activeMatches = DB::table('outbound_item_matches as m')
             ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
             ->where('l.stock_document_id', $documentId)
-            ->whereNotNull('m.item_id')
-            ->pluck('m.item_id');
+            ->where(function ($query): void {
+                $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+            })
+            ->get(['m.id', 'm.item_id']);
+
+        $itemIds = $activeMatches->pluck('item_id')->filter();
         if ($itemIds->isNotEmpty()) {
-            DB::table('item_instances')->whereIn('item_id', $itemIds)->update([
-                'item_status' => 'ISSUED',
-                'updated_at' => now(),
-            ]);
+            $update = ['item_status' => 'ISSUED', 'updated_at' => now()];
+            if (Schema::hasColumn('item_instances', 'issued_at')) {
+                $update['issued_at'] = now();
+            }
+            DB::table('item_instances')->whereIn('item_id', $itemIds)->update($update);
+        }
+
+        // ERD state machine: match ACTIVE -> POSTED tại Post Issue.
+        if ($activeMatches->isNotEmpty()) {
+            DB::table('outbound_item_matches')
+                ->whereIn('id', $activeMatches->pluck('id'))
+                ->update(['status' => 'POSTED', 'updated_at' => now()]);
         }
     }
 
@@ -686,16 +734,23 @@ class CurrentBaselineStockService
             ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
             ->where('l.stock_document_id', $documentId)
             ->whereNotNull('m.item_id')
+            ->where(function ($query): void {
+                $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+            })
             ->pluck('m.item_id');
         if ($itemIds->isEmpty()) {
             return;
         }
 
-        DB::table('item_instances')->whereIn('item_id', $itemIds)->update([
+        $update = [
             'item_status' => 'IN_STOCK',
             'item_condition' => $condition === 'SELLABLE' ? 'NORMAL' : $condition,
             'updated_at' => now(),
-        ]);
+        ];
+        if (Schema::hasColumn('item_instances', 'issued_at')) {
+            $update['issued_at'] = null;
+        }
+        DB::table('item_instances')->whereIn('item_id', $itemIds)->update($update);
     }
 
     private function applyReverseReceiptSubledger(string $documentId): void

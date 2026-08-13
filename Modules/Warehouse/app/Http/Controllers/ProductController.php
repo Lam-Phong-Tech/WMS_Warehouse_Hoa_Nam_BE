@@ -3,8 +3,11 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreProductRequest;
 use Modules\Warehouse\Http\Requests\UpdateProductRequest;
@@ -143,6 +146,7 @@ class ProductController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền product.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy SKU'),
+            new OA\Response(response: 409, description: 'sku_code/is_serial_tracked đã bị khoá vì SKU có stock/movement (BR-SKU-10)'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
         ]
     )]
@@ -154,8 +158,12 @@ class ProductController extends Controller
             return $this->respondNotFound('Không tìm thấy SKU.');
         }
 
+        $validated = $request->validated();
+        $this->assertImmutableAfterStock($id, $validated, $before);
+        $validated = $this->assertPublishRequiresActive($validated, $before);
+
         $beforeData = $before->toArray();
-        $product = $this->products->update($id, $request->validated());
+        $product = $this->products->update($id, $validated);
 
         AuditLogger::record(
             action: 'UPDATE',
@@ -168,5 +176,72 @@ class ProductController extends Controller
         );
 
         return $this->respondSuccess($product, 'Cập nhật SKU thành công');
+    }
+
+    /**
+     * BR-SKU-10: sku_code và is_serial_tracked bị khoá ngay khi SKU đã có ít nhất
+     * một stock movement (append-only, chỉ ghi khi document POSTED) hoặc tồn > 0
+     * trên inventory_balances. Chỉ chặn khi giá trị mới thực sự khác giá trị hiện tại,
+     * để các PATCH không đụng tới 2 field này (hoặc gửi lại đúng giá trị cũ) vẫn qua được.
+     */
+    private function assertImmutableAfterStock(string $skuId, array $payload, Model $current): void
+    {
+        if (! array_key_exists('sku_code', $payload) && ! array_key_exists('is_serial_tracked', $payload)) {
+            return;
+        }
+
+        $newCode = array_key_exists('sku_code', $payload) ? (string) $payload['sku_code'] : (string) $current->sku_code;
+        $newTracking = array_key_exists('is_serial_tracked', $payload) ? (bool) $payload['is_serial_tracked'] : (bool) $current->is_serial_tracked;
+
+        $unchanged = strtoupper(trim($newCode)) === strtoupper(trim((string) $current->sku_code))
+            && $newTracking === (bool) $current->is_serial_tracked;
+
+        if ($unchanged) {
+            return;
+        }
+
+        $hasMovement = DB::table('stock_movements')->where('product_id', $skuId)->exists();
+        $hasStock = DB::table('inventory_balances')
+            ->where('product_id', $skuId)
+            ->where('on_hand_qty', '>', 0)
+            ->exists();
+
+        if ($hasMovement || $hasStock) {
+            ApiError::abort(
+                409,
+                'SKU_IDENTITY_IMMUTABLE_AFTER_STOCK',
+                'Không được đổi sku_code/tracking mode sau khi SKU đã có stock hoặc movement.'
+            );
+        }
+    }
+
+    /**
+     * REQ-SRS-020 / AC-SRS-020: chỉ SKU active mới publish; inactive không được publish.
+     * Nếu request cố publish (published_to_app=true) trong khi trạng thái kết quả không
+     * phải ACTIVE, chặn 422. Nếu SKU chuyển sang/đang ở INACTIVE mà không tường minh yêu
+     * cầu publish, tự động ép published_to_app=false để không để lại SKU inactive nhưng
+     * vẫn publish (cascade unpublish khi deactivate thay vì chặn hẳn thao tác deactivate).
+     */
+    private function assertPublishRequiresActive(array $payload, Model $current): array
+    {
+        $resultingStatus = array_key_exists('status', $payload)
+            ? strtoupper((string) $payload['status'])
+            : strtoupper((string) $current->status);
+
+        if ($resultingStatus === 'ACTIVE') {
+            return $payload;
+        }
+
+        if (array_key_exists('published_to_app', $payload) && (bool) $payload['published_to_app']) {
+            ApiError::abort(
+                422,
+                'SKU_PUBLISH_REQUIRES_ACTIVE',
+                'Chỉ SKU đang ACTIVE mới được publish cho App PV.'
+            );
+        }
+
+        $payload['published_to_app'] = false;
+
+        return $payload;
     }
 }

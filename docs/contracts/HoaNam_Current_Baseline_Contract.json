@@ -9,7 +9,7 @@
   ],
   "api": {
     "prefix": "/api/v1",
-    "operation_count": 138,
+    "operation_count": 148,
     "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
     "forbidden_path_fragments": ["stocktake", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"]
   },

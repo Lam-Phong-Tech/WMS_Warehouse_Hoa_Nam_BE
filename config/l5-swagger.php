@@ -191,7 +191,6 @@ return [
                 base_path('Modules/Warehouse/app/Http/Controllers/SafeStockAlertController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/SafeStockConfigController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/StockRequestController.php'),
-                base_path('Modules/Warehouse/app/Http/Controllers/StocktakeController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/TransferController.php'),
                 base_path('Modules/Warehouse/app/Http/Controllers/WmsContractController.php'),
             ],

@@ -44,7 +44,7 @@ class CurrentBaselineImportReadController extends Controller
 
         $errors = DB::table('outbound_request_import_rows')
             ->where('import_id', $id)
-            ->where('validation_status', 'INVALID')
+            ->where('validation_status', '!=', 'VALID')
             ->orderBy('row_no')
             ->get()
             ->flatMap(function (object $row): array {

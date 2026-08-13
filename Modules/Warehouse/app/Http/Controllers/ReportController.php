@@ -7,7 +7,6 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\InventoryBalance;
-use Modules\Warehouse\Models\StockDocument;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -55,11 +54,8 @@ class ReportController extends Controller
             ->selectRaw('COALESCE(SUM(CASE WHEN qty_delta < 0 THEN -qty_delta ELSE 0 END), 0) AS issue_qty')
             ->whereBetween('occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->first();
-        $partialCounts = StockDocument::query()
-            ->where('status', StockDocument::STATUS_PARTIALLY_POSTED)
-            ->selectRaw('doc_type, count(*) as total')
-            ->groupBy('doc_type')
-            ->pluck('total', 'doc_type');
+        // SCOPE LOCK 0.3: không còn khái niệm PARTIALLY_POSTED/stocktake trong
+        // build hiện hành nên dashboard không expose các field đó.
         $reconciliationWarnings = $this->buildReconciliationRows(new Request(['only_mismatch' => true]));
 
         return $this->respondSuccess([
@@ -67,13 +63,6 @@ class ReportController extends Controller
             'available_qty' => (float) InventoryBalance::where('stock_status', 'AVAILABLE')->sum('available_qty'),
             'receipt_qty' => (float) ($movementSums->receipt_qty ?? 0),
             'issue_qty' => (float) ($movementSums->issue_qty ?? 0),
-            'adjustment_in' => 0,
-            'adjustment_out' => 0,
-            'stocktake_variance' => 0,
-            'documents_partial' => [
-                'inbound' => (int) ($partialCounts[StockDocument::TYPE_RECEIPT] ?? 0),
-                'outbound' => (int) ($partialCounts[StockDocument::TYPE_ISSUE] ?? 0),
-            ],
             'warranty_cases_by_status' => [],
             'reconciliation_warnings' => $reconciliationWarnings,
         ]);

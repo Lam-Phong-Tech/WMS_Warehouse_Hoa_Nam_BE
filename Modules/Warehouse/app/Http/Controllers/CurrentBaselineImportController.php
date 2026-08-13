@@ -12,6 +12,60 @@ use Modules\AuditLog\Services\AuditLogger;
 
 class CurrentBaselineImportController extends CurrentBaselineOperationsController
 {
+    /** Danh sách batch import toa xuất (phục vụ báo cáo Excel Import/Match mục 12). */
+    public function indexOutboundRequestImports(Request $request)
+    {
+        $request->validate([
+            'status' => ['nullable', 'in:UPLOADED,VALIDATED,REJECTED,CONSUMED'],
+            'keyword' => ['nullable', 'string', 'max:200'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = DB::table('outbound_request_imports')->orderByDesc('created_at');
+        if ($request->filled('status')) {
+            $query->where('status', strtoupper((string) $request->input('status')));
+        }
+        if ($request->filled('keyword')) {
+            $keyword = trim((string) $request->input('keyword'));
+            $query->where(function ($sub) use ($keyword): void {
+                $sub->where('import_no', 'ilike', "%{$keyword}%")
+                    ->orWhere('source_file_name', 'ilike', "%{$keyword}%")
+                    ->orWhere('source_key', 'ilike', "%{$keyword}%");
+            });
+        }
+
+        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 15)))));
+    }
+
+    /** Template Excel toa yêu cầu xuất — file mẫu bắt buộc cho Ready-for-UAT. */
+    public function downloadOutboundRequestTemplate()
+    {
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('outbound_request');
+        $sheet->fromArray(
+            ['request_no', 'sku_code', 'required_qty', 'recipient_name', 'recipient_address', 'note'],
+            null,
+            'A1'
+        );
+        $sheet->fromArray(
+            ['REQ-20260813-001', 'DCH-DRILL-DJZ10A-220V-V1', 2, 'Nguyễn Văn A', 'Số 12 Hoàng Quốc Việt, Hà Nội', ''],
+            null,
+            'A2'
+        );
+        foreach (range('A', 'F') as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+
+        return response()->streamDownload(
+            fn () => $writer->save('php://output'),
+            'toa-yeu-cau-xuat-template.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+        );
+    }
+
     public function storeOutboundRequestImport(Request $request)
     {
         $sourceKey = trim((string) ($request->input('source_key') ?? $request->header('X-Source-Key')));
@@ -229,6 +283,15 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                             ]);
                         }
 
+                        // ERD bảng 37: toa chuyển OPEN -> CONSUMED ngay khi phiếu xuất
+                        // được sinh từ toa; Cancel phiếu sẽ trả toa về OPEN.
+                        DB::table('outbound_requests')->where('id', $requestId)->update([
+                            'status' => 'CONSUMED',
+                            'version' => 2,
+                            'updated_at' => now(),
+                            'updated_by' => $this->actorIdCurrent(),
+                        ]);
+
                         $requestIds[] = $requestId;
                         $documentIds[] = $documentId;
                     }
@@ -258,7 +321,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                     ];
                 }, 3);
 
-                return [200, $this->envelopeCurrent('Outbound import consumed; OPEN outbound requests and DRAFT outbound documents created.', $result)];
+                return [200, $this->envelopeCurrent('Outbound import consumed; CONSUMED outbound requests and DRAFT outbound documents created.', $result)];
             }
         );
 

@@ -41,6 +41,7 @@ class CurrentBaselineSkuController extends Controller
         return $this->idempotent($request, "sku_update_{$id}", function () use ($id, $validated, $expectedVersion): array {
             $data = DB::transaction(function () use ($id, $validated, $expectedVersion): array {
                 $this->assertImmutableAfterStock($id, $validated);
+                $validated = $this->assertPublishRequiresActive($id, $validated);
                 $this->service->update($id, $validated, $expectedVersion, $this->actorId(), $this->requestId());
                 $this->applyCanonicalMasters($id, $validated, $expectedVersion + 1);
 
@@ -174,6 +175,35 @@ class CurrentBaselineSkuController extends Controller
                 ApiError::abort(409, 'SKU_IDENTITY_IMMUTABLE_AFTER_STOCK', 'Không được đổi sku_code/tracking mode sau khi SKU đã có stock hoặc movement.');
             }
         }
+    }
+
+    /**
+     * REQ-SRS-020 / AC-SRS-020: chỉ SKU active mới publish; inactive không được publish.
+     * Mirror của guard cùng tên trong ProductController (endpoint /products/{id}) để
+     * endpoint governance /skus/{id} không phải là cửa sau bỏ qua rule active-only.
+     */
+    private function assertPublishRequiresActive(string $skuId, array $payload): array
+    {
+        $current = DB::table('sku')->where('sku_id', $skuId)->first();
+        $resultingStatus = array_key_exists('status', $payload)
+            ? strtoupper((string) $payload['status'])
+            : strtoupper((string) ($current?->status ?? 'ACTIVE'));
+
+        if ($resultingStatus === 'ACTIVE') {
+            return $payload;
+        }
+
+        if (array_key_exists('published_to_app', $payload) && (bool) $payload['published_to_app']) {
+            ApiError::abort(
+                422,
+                'SKU_PUBLISH_REQUIRES_ACTIVE',
+                'Chỉ SKU đang ACTIVE mới được publish cho App PV.'
+            );
+        }
+
+        $payload['published_to_app'] = false;
+
+        return $payload;
     }
 
     private function expectedVersion(Request $request): int

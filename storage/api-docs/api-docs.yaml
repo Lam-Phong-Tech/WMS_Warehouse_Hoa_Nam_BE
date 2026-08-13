@@ -2234,6 +2234,60 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/label-print-events:
+    get:
+      tags:
+        - '00. Platform'
+      summary: 'Danh sách sự kiện in nhãn'
+      operationId: get_api_v1_label_print_events
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: label_snapshot_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
   /api/v1/label-snapshots:
     get:
       tags:
@@ -2301,6 +2355,43 @@ paths:
               type: object
               example: []
               additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/label-snapshots/{id}':
+    get:
+      tags:
+        - '19. Label / Printer'
+      summary: 'Chi tiết snapshot nhãn'
+      operationId: get_api_v1_label_snapshots_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         200:
           description: 'Thành công'
@@ -2767,7 +2858,82 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/outbound-documents/{id}/unmatch':
+    post:
+      tags:
+        - '10. Stock Out (Outbound)'
+      summary: 'Gỡ item đã match khỏi phiếu xuất'
+      operationId: post_api_v1_outbound_documents_id_unmatch
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
   /api/v1/outbound-request-imports:
+    get:
+      tags:
+        - '10. Stock Out (Outbound)'
+      summary: 'Danh sách import yêu cầu xuất'
+      operationId: get_api_v1_outbound_request_imports
+      parameters: []
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
     post:
       tags:
         - '10. Stock Out (Outbound)'
@@ -2782,6 +2948,37 @@ paths:
               type: object
               example: []
               additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/outbound-request-imports/template:
+    get:
+      tags:
+        - '10. Stock Out (Outbound)'
+      summary: 'Tải file mẫu Excel toa yêu cầu xuất'
+      operationId: get_api_v1_outbound_request_imports_template
+      parameters: []
       responses:
         200:
           description: 'Thành công'
@@ -2864,6 +3061,170 @@ paths:
               type: object
               example: []
               additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/outbound-request-imports/{id}/errors':
+    get:
+      tags:
+        - '10. Stock Out (Outbound)'
+      summary: 'Danh sách lỗi row/field của import yêu cầu xuất'
+      operationId: get_api_v1_outbound_request_imports_id_errors
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/outbound-request-imports/{id}/preview':
+    get:
+      tags:
+        - '10. Stock Out (Outbound)'
+      summary: 'Preview kết quả validate import yêu cầu xuất'
+      operationId: get_api_v1_outbound_request_imports_id_preview
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/outbound-requests:
+    get:
+      tags:
+        - '00. Platform'
+      summary: 'Danh sách toa yêu cầu xuất'
+      operationId: get_api_v1_outbound_requests
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/outbound-requests/{id}':
+    get:
+      tags:
+        - '00. Platform'
+      summary: 'Chi tiết toa yêu cầu xuất'
+      operationId: get_api_v1_outbound_requests_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         200:
           description: 'Thành công'
@@ -3397,6 +3758,51 @@ paths:
       summary: 'Tạo cấu hình máy in mới'
       operationId: post_api_v1_printer_configs
       parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/printer-configs/{id}':
+    patch:
+      tags:
+        - '19. Label / Printer'
+      summary: 'Cập nhật cấu hình máy in'
+      operationId: patch_api_v1_printer_configs_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: false
         content:
@@ -5663,12 +6069,12 @@ paths:
           description: 'Không có quyền user.manage'
         404:
           description: 'Không tìm thấy người dùng'
+        409:
+          description: 'Không được phép tự thay đổi vai trò của chính mình (SCR-IAM-01, no self-escalation)'
         422:
           description: 'role_ids không hợp lệ'
         400:
           description: 'Yêu cầu không đúng định dạng'
-        409:
-          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
         412:
           description: 'Điều kiện If-Match không đạt'
         428:

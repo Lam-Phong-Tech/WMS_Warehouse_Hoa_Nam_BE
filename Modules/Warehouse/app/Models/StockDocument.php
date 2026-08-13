@@ -25,8 +25,6 @@ class StockDocument extends Model
 
     public const STATUS_SCANNING = 'SCANNING';
 
-    public const STATUS_PARTIALLY_POSTED = 'PARTIALLY_POSTED';
-
     public const STATUS_POSTED = 'POSTED';
 
     public const STATUS_CLOSED = 'CLOSED';

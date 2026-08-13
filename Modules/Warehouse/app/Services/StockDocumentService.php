@@ -193,7 +193,6 @@ class StockDocumentService
                 'qty_planned' => (float) $line->qty_planned,
                 'scanned_qty_before' => (float) $scannedBefore,
                 'scanned_qty_after' => (float) $scannedAfter,
-                'remaining_qty' => (float) bcsub((string) $line->qty_planned, $scannedAfter, 3),
                 'stock_effect' => 'NONE',
                 'movement_created' => false,
                 'next_stock_action' => $doc->doc_type === StockDocument::TYPE_RECEIPT ? 'post-receipt' : 'post-issue',

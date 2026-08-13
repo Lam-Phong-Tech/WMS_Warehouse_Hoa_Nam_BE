@@ -7,6 +7,7 @@ use Modules\Auth\Http\Controllers\RoleController;
 use Modules\Auth\Http\Controllers\UserController;
 use Modules\Auth\Http\Middleware\EnsureMutableRole;
 use Modules\Auth\Http\Middleware\PersistRefreshTokenCookie;
+use Modules\Auth\Http\Middleware\PreventSelfRoleAssignment;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])
@@ -27,7 +28,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('users/{id}', [UserController::class, 'show'])->middleware('permission:iam.user.view');
         Route::patch('users/{id}', [UserController::class, 'update'])->middleware('permission:iam.user.manage');
         Route::delete('users/{id}', [UserController::class, 'destroy'])->middleware('permission:iam.user.manage');
-        Route::post('users/{id}/roles', [UserController::class, 'assignRoles'])->middleware('permission:iam.user.manage');
+        Route::post('users/{id}/roles', [UserController::class, 'assignRoles'])
+            ->middleware(['permission:iam.user.manage', PreventSelfRoleAssignment::class]);
 
         Route::get('roles', [RoleController::class, 'index'])->middleware('permission:iam.role.view');
         Route::post('roles', [RoleController::class, 'store'])->middleware('permission:iam.role.manage');

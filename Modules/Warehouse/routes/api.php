@@ -8,6 +8,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineContainerFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineDocumentController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineImportController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineImportReadController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineInboundBoxController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineMasterController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
@@ -22,6 +23,7 @@ use Modules\Warehouse\Http\Controllers\InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Http\Controllers\ItemInstanceController;
 use Modules\Warehouse\Http\Controllers\OutboundDocumentController;
+use Modules\Warehouse\Http\Controllers\OutboundRequestController;
 use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductMasterController;
@@ -73,6 +75,7 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('outbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateOutbound'])->middleware('permission:outbound.create');
         Route::post('outbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelOutbound'])->middleware('permission:outbound.cancel');
         Route::post('outbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'outboundScan'])->middleware('permission:outbound.scan');
+        Route::post('outbound-documents/{id}/unmatch', [CurrentBaselineStockFlowController::class, 'outboundUnmatch'])->middleware('permission:outbound.scan');
         Route::post('outbound-documents/{id}/post-issue', [CurrentBaselineStockFlowController::class, 'postIssue'])->middleware('permission:outbound.post');
         Route::post('outbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseOutbound'])->middleware('permission:inventory.reversal.post');
 
@@ -137,16 +140,27 @@ Route::prefix('v1')->group(function (): void {
         Route::get('package-variants', [CurrentBaselineMasterController::class, 'listPackageVariants'])->middleware('permission:catalog.view');
         Route::post('package-variants', [CurrentBaselineMasterController::class, 'storePackageVariant'])->middleware('permission:catalog.manage');
 
+        Route::get('outbound-requests', [OutboundRequestController::class, 'index'])->middleware('permission:outbound.view');
+        Route::get('outbound-requests/{id}', [OutboundRequestController::class, 'show'])->middleware('permission:outbound.view');
+
+        Route::get('outbound-request-imports', [CurrentBaselineImportController::class, 'indexOutboundRequestImports'])->middleware('permission:outbound.import');
         Route::post('outbound-request-imports', [CurrentBaselineImportController::class, 'storeOutboundRequestImport'])->middleware('permission:outbound.import');
+        // "template" phải đăng ký trước "{id}" để không bị route {id} nuốt.
+        Route::get('outbound-request-imports/template', [CurrentBaselineImportController::class, 'downloadOutboundRequestTemplate'])->middleware('permission:outbound.import');
         Route::get('outbound-request-imports/{id}', [CurrentBaselineImportController::class, 'showOutboundRequestImport'])->middleware('permission:outbound.import');
+        Route::get('outbound-request-imports/{id}/preview', [CurrentBaselineImportReadController::class, 'preview'])->middleware('permission:outbound.import');
+        Route::get('outbound-request-imports/{id}/errors', [CurrentBaselineImportReadController::class, 'errors'])->middleware('permission:outbound.import');
         Route::post('outbound-request-imports/{id}/consume', [CurrentBaselineImportController::class, 'consumeOutboundRequestImport'])->middleware('permission:outbound.import');
 
         Route::get('label-snapshots', [CanonicalMvpController::class, 'listLabelSnapshots'])->middleware('permission:label.print');
         Route::post('label-snapshots', [CurrentBaselineOperationsController::class, 'storeLabelSnapshot'])->middleware('permission:label.print');
+        Route::get('label-snapshots/{id}', [CurrentBaselineOperationsController::class, 'showLabelSnapshot'])->middleware('permission:label.print');
         Route::post('label-snapshots/{id}/print', [CurrentBaselineOperationsController::class, 'printLabelSnapshot'])->middleware('permission:label.print');
         Route::post('label-snapshots/{id}/reprint', [CurrentBaselineOperationsController::class, 'reprintLabelSnapshot'])->middleware('permission:label.reprint');
+        Route::get('label-print-events', [CurrentBaselineOperationsController::class, 'listLabelPrintEvents'])->middleware('permission:label.print');
         Route::get('printer-configs', [CanonicalMvpController::class, 'listPrinterConfigs'])->middleware('permission:label.print');
         Route::post('printer-configs', [CurrentBaselineOperationsController::class, 'storePrinterConfig'])->middleware('permission:label.print');
+        Route::patch('printer-configs/{id}', [CurrentBaselineOperationsController::class, 'updatePrinterConfig'])->middleware('permission:label.print');
 
         Route::get('component-issue-documents', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
         Route::post('component-issue-documents', [CurrentBaselineComponentFlowController::class, 'store'])->middleware('permission:warranty.component_issue');

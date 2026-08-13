@@ -9,6 +9,8 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ProductMaster;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\StockMovement;
+use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
 class SkuManagementTest extends TestCase
@@ -62,5 +64,72 @@ class SkuManagementTest extends TestCase
             'object_id' => $sku->sku_id,
             'action' => 'UPDATE',
         ]);
+    }
+
+    private function seedPostedMovement(Sku $sku): void
+    {
+        $warehouse = Warehouse::create(['code' => 'WH-BR10', 'name' => 'Kho BR-SKU-10', 'status' => 'ACTIVE']);
+        $actor = User::create([
+            'username' => 'ledger-'.Str::random(6),
+            'display_name' => 'Ledger actor',
+            'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+
+        StockMovement::create([
+            'movement_no' => 'MOV-'.Str::random(10),
+            'business_key' => 'BR-SKU-10-'.Str::random(10),
+            'movement_type' => StockMovement::RECEIPT_POSTED,
+            'warehouse_id' => $warehouse->id,
+            'product_id' => $sku->sku_id,
+            'qty_before' => 0,
+            'qty_delta' => 5,
+            'qty_after' => 5,
+            'created_by' => $actor->user_id,
+        ]);
+    }
+
+    public function test_sku_code_is_locked_after_stock_movement_exists(): void
+    {
+        $headers = $this->authHeaders();
+        $sku = Sku::create(['sku_code' => 'SKU-LOCK-CODE', 'sku_name' => 'SKU locked code', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $this->seedPostedMovement($sku);
+
+        $response = $this->patchJson("/api/v1/products/{$sku->sku_id}", [
+            'sku_code' => 'SKU-LOCK-CODE-RENAMED',
+        ], $headers);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'SKU_IDENTITY_IMMUTABLE_AFTER_STOCK');
+        $this->assertSame('SKU-LOCK-CODE', $sku->fresh()->sku_code);
+    }
+
+    public function test_is_serial_tracked_is_locked_after_stock_movement_exists(): void
+    {
+        $headers = $this->authHeaders();
+        $sku = Sku::create(['sku_code' => 'SKU-LOCK-TRACK', 'sku_name' => 'SKU locked tracking', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $this->seedPostedMovement($sku);
+
+        $response = $this->patchJson("/api/v1/products/{$sku->sku_id}", [
+            'is_serial_tracked' => true,
+        ], $headers);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'SKU_IDENTITY_IMMUTABLE_AFTER_STOCK');
+        $this->assertFalse((bool) $sku->fresh()->is_serial_tracked);
+    }
+
+    public function test_sku_update_of_unrelated_fields_still_succeeds_after_stock_movement_exists(): void
+    {
+        $headers = $this->authHeaders();
+        $sku = Sku::create(['sku_code' => 'SKU-LOCK-OTHER', 'sku_name' => 'SKU other', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $this->seedPostedMovement($sku);
+
+        $response = $this->patchJson("/api/v1/products/{$sku->sku_id}", [
+            'sku_name' => 'SKU other v2',
+            'sku_code' => 'SKU-LOCK-OTHER',
+            'is_serial_tracked' => false,
+        ], $headers);
+
+        $response->assertOk()->assertJsonPath('data.sku_name', 'SKU other v2');
     }
 }

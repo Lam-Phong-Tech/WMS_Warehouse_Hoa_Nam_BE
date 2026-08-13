@@ -107,6 +107,23 @@ class CurrentBaselinePhysicalCodeController extends Controller
             if ($validated['status'] !== 'ACTIVE' && empty($validated['deactivation_reason'])) {
                 ApiError::abort(422, 'DEACTIVATION_REASON_REQUIRED', 'LOST/DAMAGED/INACTIVE bắt buộc deactivation_reason.');
             }
+            if ($validated['status'] !== 'ACTIVE'
+                && ($code->assigned_object_type ?? null) === 'ITEM'
+                && ! empty($code->assigned_object_id)
+            ) {
+                $inOpenOutbound = DB::table('outbound_item_matches as m')
+                    ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
+                    ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
+                    ->where('m.item_id', $code->assigned_object_id)
+                    ->whereIn('d.status', ['DRAFT', 'SCANNING'])
+                    ->where(function ($query): void {
+                        $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+                    })
+                    ->exists();
+                if ($inOpenOutbound) {
+                    ApiError::abort(409, 'PHYSICAL_CODE_IN_OPEN_OUTBOUND', 'Mã đang gắn item thuộc phiếu xuất DRAFT/SCANNING; gỡ match hoặc hủy phiếu trước khi vô hiệu hóa.');
+                }
+            }
 
             DB::table('physical_codes')->where('physical_code_id', $id)->update([
                 'status' => $validated['status'],

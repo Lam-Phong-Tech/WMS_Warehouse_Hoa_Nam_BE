@@ -403,6 +403,84 @@ class CurrentBaselineOperationsController extends Controller
         return $this->respondCreated(DB::table('printer_configs')->where('id', $id)->first(), 'Printer config created.');
     }
 
+    /** SCR-LBL-01: cập nhật/vô hiệu hóa máy in (health/status quản lý qua API). */
+    public function updatePrinterConfig(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'printer_name' => ['sometimes', 'string', 'max:200'],
+            'agent_code' => ['nullable', 'string', 'max:120'],
+            'agent_endpoint' => ['sometimes', 'url', 'max:500'],
+            'label_size' => ['nullable', 'string', 'max:80'],
+            'status' => ['sometimes', 'in:ACTIVE,INACTIVE,UNHEALTHY'],
+        ]);
+        if ($validated === []) {
+            ApiError::abort(422, 'NO_UPDATABLE_FIELDS', 'Không có field hợp lệ để cập nhật printer config.');
+        }
+
+        $printer = DB::table('printer_configs')->where('id', $id)->first();
+        if ($printer === null) {
+            return $this->respondNotFound('Không tìm thấy printer config.');
+        }
+
+        DB::table('printer_configs')->where('id', $id)->update([
+            ...$validated,
+            'version' => ((int) ($printer->version ?? 0)) + 1,
+            'updated_at' => now(),
+            'updated_by' => $this->actorId(),
+        ]);
+
+        AuditLogger::record(
+            action: 'UPDATE_PRINTER_CONFIG',
+            objectType: 'printer_config',
+            objectId: $id,
+            actorId: $this->actorId(),
+            requestId: $request->attributes->get('request_id'),
+            beforeData: ['status' => $printer->status ?? null],
+            afterData: $validated,
+        );
+
+        return $this->respondSuccess(DB::table('printer_configs')->where('id', $id)->first(), 'Printer config updated.');
+    }
+
+    /** Chi tiết một label snapshot kèm toàn bộ print events (audit In/In lại). */
+    public function showLabelSnapshot(string $id)
+    {
+        $snapshot = DB::table('label_snapshots')->where('id', $id)->first();
+        if ($snapshot === null) {
+            return $this->respondNotFound('Không tìm thấy label snapshot.');
+        }
+
+        return $this->respondSuccess([
+            ...(array) $snapshot,
+            'print_events' => DB::table('label_print_events')
+                ->where('label_snapshot_id', $id)
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn (object $event): array => (array) $event)
+                ->all(),
+        ]);
+    }
+
+    /** Nhật ký in nhãn (báo cáo Label/Print mục 12: attempts, failure/reprint). */
+    public function listLabelPrintEvents(Request $request)
+    {
+        $request->validate([
+            'label_snapshot_id' => ['nullable', 'uuid'],
+            'status' => ['nullable', 'in:PENDING_PRINT,PRINTED,PRINT_FAILED'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = DB::table('label_print_events')->orderByDesc('created_at');
+        if ($request->filled('label_snapshot_id')) {
+            $query->where('label_snapshot_id', (string) $request->input('label_snapshot_id'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', strtoupper((string) $request->input('status')));
+        }
+
+        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 15)))));
+    }
+
     public function printLabelSnapshot(Request $request, string $id)
     {
         return $this->dispatchLabel($request, $id, false);
