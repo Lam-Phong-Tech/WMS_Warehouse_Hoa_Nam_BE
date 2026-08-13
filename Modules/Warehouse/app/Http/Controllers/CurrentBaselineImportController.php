@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class CurrentBaselineImportController extends CurrentBaselineOperationsController
 {
@@ -40,7 +42,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
     /** Template Excel toa yêu cầu xuất — file mẫu bắt buộc cho Ready-for-UAT. */
     public function downloadOutboundRequestTemplate()
     {
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('outbound_request');
         $sheet->fromArray(
@@ -57,7 +59,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer = new Xlsx($spreadsheet);
 
         return response()->streamDownload(
             fn () => $writer->save('php://output'),

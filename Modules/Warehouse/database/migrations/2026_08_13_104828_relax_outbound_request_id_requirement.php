@@ -1,8 +1,6 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -19,7 +17,7 @@ return new class extends Migration
         // Legacy issue documents tồn tại trước baseline có thể chưa gắn toa nên
         // constraint cứng ở DB được gỡ; baseline hiện hành enforce ở tầng app:
         // storeOutbound bắt buộc outbound_request_id (SOURCE: BP-WMS-04/05).
-        DB::statement("ALTER TABLE stock_documents DROP CONSTRAINT IF EXISTS chk_issue_requires_outbound_request");
+        DB::statement('ALTER TABLE stock_documents DROP CONSTRAINT IF EXISTS chk_issue_requires_outbound_request');
     }
 
     /**
