@@ -33,7 +33,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
         $before = $this->readOnlyFingerprint();
         $payload = [
             'raw_code' => $serial->serial_no,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ];
         $headers = $this->headers($token, 'WWHN-150-SAME-KEY-001');
@@ -101,7 +101,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
         $beforeScopeDenied = $this->readOnlyFingerprint();
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouseB->id,
         ], $this->headers($scopedToken))
             ->assertStatus(403)
@@ -110,7 +110,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => (string) Str::uuid(),
         ], $this->headers($scopedToken))
             ->assertStatus(403)
@@ -123,7 +123,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
         // existence oracle across warehouse boundaries.
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouseA->id,
         ], $this->headers($scopedToken))
             ->assertStatus(404)
@@ -136,7 +136,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
         $beforePermissionDenied = $this->readOnlyFingerprint();
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouseB->id,
         ], $this->headers($noPermissionToken))
             ->assertStatus(403);
@@ -162,7 +162,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $product->code,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ], $this->headers($token, 'WWHN-150-SKU-READONLY'))
             ->assertOk()
@@ -172,7 +172,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => 'CTN-WWHN-150-READONLY',
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ], $this->headers($token, 'WWHN-150-CONTAINER-READONLY'))
             ->assertOk()
@@ -200,12 +200,12 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ], $this->headers($token))->assertOk();
 
         $this->postJson('/api/v1/scan/classify', [
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ], $this->headers($token))->assertStatus(422);
 
@@ -219,7 +219,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => 'ANY-CODE',
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ])->assertStatus(401);
 
@@ -233,7 +233,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => 'UNKNOWN-WWHN-150',
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ], $this->headers($token))
             ->assertStatus(404)
@@ -252,7 +252,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
         $this->assertSame($afterFixtureChange, $this->readOnlyFingerprint());
 
         $this->postJson('/api/v1/scan/classify', [
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ], $this->headers($token))->assertStatus(422);
         $this->assertSame($afterFixtureChange, $this->readOnlyFingerprint());
@@ -261,7 +261,7 @@ class ScanClassifyReadOnlyContractTest extends TestCase
         $afterWarehouseChange = $this->readOnlyFingerprint();
         $this->postJson('/api/v1/scan/classify', [
             'raw_code' => $serial->serial_no,
-            'context' => 'STOCKTAKE',
+            'context' => 'INBOUND',
             'warehouse_id' => $warehouse->id,
         ], $this->headers($token))
             ->assertStatus(409)
