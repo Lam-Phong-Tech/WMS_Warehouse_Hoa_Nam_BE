@@ -4,7 +4,7 @@ set -euo pipefail
 ENGINE="${DB_CONNECTION:-sqlite}"
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/wwhn-172/$ENGINE}"
 BASE_URL="${WWHN172_BASE_URL:-http://127.0.0.1:8000}"
-TARGET_MIGRATION="2026_08_10_000500_align_documented_schema_contract"
+TARGET_MIGRATION="2026_08_13_104828_relax_outbound_request_id_requirement"
 mkdir -p "$EVIDENCE_DIR"
 
 capture() {

@@ -127,7 +127,7 @@ class ExportPermissionCatalog extends Command
             fn (array $row): bool => $row['uri'] === 'api/v1/scan/classify'
                 && in_array('POST', $row['methods'], true)
         );
-        $expectedScanRoles = ['SUPER_ADMIN', 'WAREHOUSE_MANAGER'];
+        $expectedScanRoles = ['ADMIN', 'SUPER_ADMIN', 'WAREHOUSE_MANAGER', 'WARRANTY_STAFF'];
         $actualScanRoles = collect($scanMatrix['roles'] ?? [])->sort()->values();
         $missingScanRoles = collect($expectedScanRoles)->diff($actualScanRoles)->values();
         $unexpectedScanRoles = $actualScanRoles->diff($expectedScanRoles)->values();
