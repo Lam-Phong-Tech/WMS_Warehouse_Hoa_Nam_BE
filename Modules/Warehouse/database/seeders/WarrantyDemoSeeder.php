@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ContainerItem;
@@ -272,10 +273,10 @@ class WarrantyDemoSeeder extends Seeder
             'occurred_at' => $occurredAt,
             'created_at' => $occurredAt,
         ];
-        if (\Illuminate\Support\Facades\Schema::hasColumn('stock_movements', 'stock_status')) {
+        if (Schema::hasColumn('stock_movements', 'stock_status')) {
             $payload['stock_status'] = 'AVAILABLE';
         }
-        if (\Illuminate\Support\Facades\Schema::hasColumn('stock_movements', 'quantity')) {
+        if (Schema::hasColumn('stock_movements', 'quantity')) {
             // ERD: quantity là độ lớn (>0); chiều tăng/giảm nằm ở qty_delta.
             $payload['quantity'] = abs($qtyDelta);
         }

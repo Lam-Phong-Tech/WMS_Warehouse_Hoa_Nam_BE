@@ -45,6 +45,12 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         return ['Authorization' => "Bearer {$token}"];
     }
 
+    /** Mỗi mutation warranty cần một Idempotency-Key riêng theo contract v1.7. */
+    private function idem(): array
+    {
+        return ['Idempotency-Key' => 'flow04-'.(string) Str::uuid()];
+    }
+
     private function createTempOnlyCase(array $headers): string
     {
         $create = $this->postJson('/api/v1/warranty-cases', [
@@ -53,7 +59,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             'description' => 'May khong len nguon',
             'missing_code_reason' => 'Mat tem ma',
             'manual_product_description' => 'May khoan mau xanh',
-        ], $headers);
+        ], $headers + $this->idem());
         $create->assertCreated();
 
         return (string) $create->json('data.id');
@@ -85,7 +91,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             'reported_defect' => 'Motor khong quay khi cap nguon',
             'accessories_received' => 'Pin 20V, sac, hop',
             'received_condition' => 'Tray xuoc nhe than may',
-        ], $headers);
+        ], $headers + $this->idem());
         $create->assertCreated()
             ->assertJsonPath('data.reported_defect', 'Motor khong quay khi cap nguon')
             ->assertJsonPath('data.accessories_received', 'Pin 20V, sac, hop')
@@ -97,7 +103,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         // Ghi chú chẩn đoán không đổi status -> version tăng + event NOTE.
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'confirmed_defect' => 'Chet mach cap nguon motor',
-        ], $headers + ['If-Match' => '1'])
+        ], $headers + $this->idem() + ['If-Match' => '1'])
             ->assertOk()
             ->assertJsonPath('data.confirmed_defect', 'Chet mach cap nguon motor')
             ->assertJsonPath('data.version', 2);
@@ -108,18 +114,18 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         // Hủy case bắt buộc lý do theo baseline.
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'CANCELLED',
-        ], $headers + ['If-Match' => '2'])
+        ], $headers + $this->idem() + ['If-Match' => '2'])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'CANCEL_REASON_REQUIRED');
 
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'CHECKING',
-        ], $headers + ['If-Match' => '2'])->assertOk();
+        ], $headers + $this->idem() + ['If-Match' => '2'])->assertOk();
 
         $cancel = $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'CANCELLED',
             'cancel_reason' => 'Khach tu choi sua, xin nhan lai may',
-        ], $headers + ['If-Match' => '3']);
+        ], $headers + $this->idem() + ['If-Match' => '3']);
         $cancel->assertOk()
             ->assertJsonPath('data.status', 'CANCELLED')
             ->assertJsonPath('data.cancel_reason', 'Khach tu choi sua, xin nhan lai may');
@@ -253,7 +259,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
 
         $update = $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'CHECKING',
-        ], $headers + ['If-Match' => '1']);
+        ], $headers + $this->idem() + ['If-Match' => '1']);
         $update->assertOk()->assertHeader('ETag', '"2"');
 
         $types = DB::table('warranty_event')

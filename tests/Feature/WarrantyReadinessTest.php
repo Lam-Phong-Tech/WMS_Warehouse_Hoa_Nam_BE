@@ -39,6 +39,12 @@ class WarrantyReadinessTest extends TestCase
         return ['Authorization' => "Bearer {$token}"];
     }
 
+    /** Mỗi mutation warranty cần một Idempotency-Key riêng theo contract v1.7. */
+    private function idem(): array
+    {
+        return ['Idempotency-Key' => 'warranty-'.(string) Str::uuid()];
+    }
+
     public function test_identified_warranty_case_resolves_physical_code_and_enforces_versioned_lifecycle(): void
     {
         $headers = $this->authHeaders();
@@ -78,7 +84,7 @@ class WarrantyReadinessTest extends TestCase
             'customer_name' => 'Nguyen Van A',
             'customer_phone' => '0901234567',
             'description' => 'May khong khoi dong',
-        ], $headers);
+        ], $headers + $this->idem());
         $create->assertCreated()
             ->assertJsonPath('data.status', 'RECEIVED')
             ->assertJsonPath('data.version', 1)
@@ -100,28 +106,35 @@ class WarrantyReadinessTest extends TestCase
             ->assertJsonPath('data.version', 1)
             ->assertJsonPath('data.stock_effect', 'NONE');
 
+        // Thiếu Idempotency-Key -> 428 trước mọi hiệu ứng ghi.
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'CHECKING',
-        ], $headers)->assertStatus(428)
+        ], $headers + ['If-Match' => '1'])->assertStatus(428)
+            ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
+
+        // Thiếu If-Match -> 428 (optimistic concurrency bắt buộc).
+        $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
+            'status' => 'CHECKING',
+        ], $headers + $this->idem())->assertStatus(428)
             ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
 
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'CHECKING',
             'description' => 'Dang kiem tra',
-        ], $headers + ['If-Match' => '1'])
+        ], $headers + $this->idem() + ['If-Match' => '1'])
             ->assertOk()
             ->assertJsonPath('data.status', 'CHECKING')
             ->assertJsonPath('data.version', 2);
 
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'REPAIRING',
-        ], $headers + ['If-Match' => '1'])
+        ], $headers + $this->idem() + ['If-Match' => '1'])
             ->assertStatus(412)
             ->assertJsonPath('error.code', 'PRECONDITION_FAILED');
 
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'COMPLETED',
-        ], $headers + ['If-Match' => '2'])
+        ], $headers + $this->idem() + ['If-Match' => '2'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'INVALID_WARRANTY_TRANSITION');
 
@@ -129,7 +142,7 @@ class WarrantyReadinessTest extends TestCase
         foreach (['REPAIRING', 'COMPLETED', 'RETURNED'] as $target) {
             $response = $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
                 'status' => $target,
-            ], $headers + ['If-Match' => (string) $version]);
+            ], $headers + $this->idem() + ['If-Match' => (string) $version]);
             $version++;
             $response->assertOk()
                 ->assertJsonPath('data.status', $target)
@@ -157,7 +170,7 @@ class WarrantyReadinessTest extends TestCase
             'customer_name' => 'Khach TEMP',
             'customer_phone' => '0911111111',
             'description' => 'Khong doc duoc ma san pham',
-        ], $headers)
+        ], $headers + $this->idem())
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'TEMP_ONLY_EVIDENCE_REQUIRED');
 
@@ -167,7 +180,7 @@ class WarrantyReadinessTest extends TestCase
             'description' => 'Khong doc duoc ma san pham',
             'missing_code_reason' => 'Tem bi mo va mat ma',
             'manual_product_description' => 'May bom mau xanh, than inox',
-        ], $headers);
+        ], $headers + $this->idem());
         $create->assertCreated()
             ->assertJsonPath('data.identification_status', 'TEMP_ONLY')
             ->assertJsonPath('data.item_id', null)
@@ -187,7 +200,7 @@ class WarrantyReadinessTest extends TestCase
             'customer_name' => 'Khach Hang',
             'customer_phone' => '0922222222',
             'description' => 'Bao hanh item khong ton tai',
-        ], $headers)
+        ], $headers + $this->idem())
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'WARRANTY_ITEM_NOT_FOUND');
 

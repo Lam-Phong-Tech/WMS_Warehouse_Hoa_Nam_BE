@@ -3,6 +3,8 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Support\ApiError;
+use App\Support\IdempotencyKeyGuard;
+use App\Support\IdempotencyStore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -31,6 +33,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
     public function storeWarrantyCase(Request $request)
     {
+        $idempotencyKey = IdempotencyKeyGuard::require($request);
         $validated = $request->validate([
             'warranty_case_code' => ['nullable', 'string', 'max:80'],
             'case_no' => ['nullable', 'string', 'max:80'],
@@ -50,7 +53,26 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'manual_product_description' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $caseId = DB::transaction(function () use ($validated, $request): string {
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $idempotencyKey,
+            'create_warranty_case',
+            $this->currentActorId(),
+            IdempotencyStore::requestHash($request),
+            function () use ($validated, $request): array {
+                $caseId = $this->createWarrantyCase($validated, $request);
+
+                return [201, $this->caseEnvelope($caseId, $request, 'Warranty case received; stock_effect=NONE.')];
+            }
+        );
+
+        return response()->json($body, $code)
+            ->header('Idempotent-Replay', $replay ? 'true' : 'false')
+            ->header('ETag', '"'.(int) ($body['data']['version'] ?? 1).'"');
+    }
+
+    private function createWarrantyCase(array $validated, Request $request): string
+    {
+        return DB::transaction(function () use ($validated, $request): string {
             $item = $this->resolveWarrantyItem($validated);
             $defect = $this->resolveDefect($validated);
 
@@ -146,9 +168,6 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
             return $caseId;
         }, 3);
-
-        return $this->respondCreated($this->casePayload($caseId, $request), 'Warranty case received; stock_effect=NONE.')
-            ->header('ETag', '"1"');
     }
 
     public function showWarrantyCase(Request $request, string $id)
@@ -163,6 +182,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
     public function updateWarrantyCase(Request $request, string $id)
     {
+        $idempotencyKey = IdempotencyKeyGuard::require($request);
         $validated = $request->validate([
             'status' => ['sometimes', 'in:RECEIVED,CHECKING,REPAIRING,COMPLETED,RETURNED,CANCELLED'],
             'condition_status' => ['nullable', 'string', 'max:30'],
@@ -177,6 +197,27 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         }
         $expectedVersion = $this->expectedVersion($request);
 
+        // Replay cùng key trả lại snapshot đã commit; version check (412) chỉ chạy
+        // cho lần thực thi đầu tiên nên retry sau khi thành công không bị 412 giả.
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $idempotencyKey,
+            "update_warranty_case_{$id}",
+            $this->currentActorId(),
+            IdempotencyStore::requestHash($request),
+            function () use ($id, $validated, $expectedVersion, $request): array {
+                $this->applyWarrantyCaseUpdate($id, $validated, $expectedVersion, $request);
+
+                return [200, $this->caseEnvelope($id, $request, 'Warranty case updated; stock_effect=NONE.')];
+            }
+        );
+
+        return response()->json($body, $code)
+            ->header('Idempotent-Replay', $replay ? 'true' : 'false')
+            ->header('ETag', '"'.(int) ($body['data']['version'] ?? 0).'"');
+    }
+
+    private function applyWarrantyCaseUpdate(string $id, array $validated, int $expectedVersion, Request $request): void
+    {
         DB::transaction(function () use ($id, $validated, $expectedVersion, $request): void {
             $case = DB::table('warranty_case')->where('warranty_case_id', $id)->lockForUpdate()->first();
             if ($case === null) {
@@ -255,11 +296,19 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 afterData: ['status' => $target, 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'],
             );
         }, 3);
+    }
 
-        $payload = $this->casePayload($id, $request);
-
-        return $this->respondSuccess($payload, 'Warranty case updated; stock_effect=NONE.')
-            ->header('ETag', '"'.$payload['version'].'"');
+    private function caseEnvelope(string $id, Request $request, string $message): array
+    {
+        return [
+            'success' => true,
+            'message' => $message,
+            'data' => $this->casePayload($id, $request),
+            'meta' => [
+                'request_id' => $request->attributes->get('request_id'),
+                'timestamp' => now()->toIso8601String(),
+            ],
+        ];
     }
 
     private function resolveWarrantyItem(array $validated): ?object

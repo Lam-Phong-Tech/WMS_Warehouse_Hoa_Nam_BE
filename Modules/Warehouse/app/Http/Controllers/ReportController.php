@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\InventoryBalance;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -127,7 +128,7 @@ class ReportController extends Controller
         $includePii = (bool) $request->user()?->hasPermission('warranty.pii.export');
         $report = $this->buildWarrantyReport($request, includePii: $includePii);
 
-        \Modules\AuditLog\Services\AuditLogger::record(
+        AuditLogger::record(
             action: 'WARRANTY_REPORT_EXPORTED',
             objectType: 'warranty_report',
             objectId: null,
