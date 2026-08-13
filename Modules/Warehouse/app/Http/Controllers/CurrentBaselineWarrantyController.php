@@ -19,6 +19,16 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         'CANCELLED' => [],
     ];
 
+    /** ERD §46: event_type RECEIVE/CHECK/REPAIR/COMPLETE/RETURN/CANCEL/NOTE. */
+    private const STATUS_EVENT_TYPES = [
+        'RECEIVED' => 'RECEIVE',
+        'CHECKING' => 'CHECK',
+        'REPAIRING' => 'REPAIR',
+        'COMPLETED' => 'COMPLETE',
+        'RETURNED' => 'RETURN',
+        'CANCELLED' => 'CANCEL',
+    ];
+
     public function storeWarrantyCase(Request $request)
     {
         $validated = $request->validate([
@@ -33,6 +43,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'customer_address' => ['nullable', 'string', 'max:1000'],
             'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
             'description' => ['required', 'string', 'max:2000'],
+            'reported_defect' => ['nullable', 'string', 'max:2000'],
+            'accessories_received' => ['nullable', 'string', 'max:1000'],
+            'received_condition' => ['nullable', 'string', 'max:500'],
             'missing_code_reason' => ['nullable', 'string', 'max:500'],
             'manual_product_description' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -86,6 +99,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'purchase_date' => $validated['purchase_date'] ?? null,
                 'status' => 'RECEIVED',
                 'description' => $validated['description'],
+                'reported_defect' => $validated['reported_defect'] ?? $validated['description'],
+                'accessories_received' => $validated['accessories_received'] ?? null,
+                'received_condition' => $validated['received_condition'] ?? null,
+                'received_at' => now(),
                 'created_by' => $this->currentActorId(),
                 'version' => 1,
                 'legal_hold_flag' => false,
@@ -103,7 +120,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             DB::table('warranty_event')->insert([
                 'warranty_event_id' => (string) Str::uuid(),
                 'warranty_case_id' => $caseId,
-                'event_type' => 'RECEIVED',
+                'event_type' => 'RECEIVE',
                 'from_status' => null,
                 'to_status' => 'RECEIVED',
                 'note' => $validated['description'],
@@ -130,7 +147,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             return $caseId;
         }, 3);
 
-        return $this->respondCreated($this->casePayload($caseId, $request), 'Warranty case received; stock_effect=NONE.');
+        return $this->respondCreated($this->casePayload($caseId, $request), 'Warranty case received; stock_effect=NONE.')
+            ->header('ETag', '"1"');
     }
 
     public function showWarrantyCase(Request $request, string $id)
@@ -140,7 +158,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Warranty case not found.');
         }
 
-        return $this->respondSuccess($payload);
+        return $this->respondSuccess($payload)->header('ETag', '"'.$payload['version'].'"');
     }
 
     public function updateWarrantyCase(Request $request, string $id)
@@ -149,6 +167,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'status' => ['sometimes', 'in:RECEIVED,CHECKING,REPAIRING,COMPLETED,RETURNED,CANCELLED'],
             'condition_status' => ['nullable', 'string', 'max:30'],
             'description' => ['nullable', 'string', 'max:2000'],
+            'confirmed_defect' => ['nullable', 'string', 'max:2000'],
+            'accessories_received' => ['nullable', 'string', 'max:1000'],
+            'received_condition' => ['nullable', 'string', 'max:500'],
+            'cancel_reason' => ['nullable', 'string', 'max:1000'],
         ]);
         if ($validated === []) {
             ApiError::abort(422, 'EMPTY_UPDATE', 'Phải gửi status hoặc description để cập nhật.');
@@ -172,10 +194,21 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ApiError::abort(409, 'INVALID_WARRANTY_TRANSITION', "Không cho phép {$case->status} -> {$target}.");
             }
 
+            $cancelReason = trim((string) ($validated['cancel_reason'] ?? $validated['description'] ?? ''));
+            if ($target === 'CANCELLED' && $case->status !== 'CANCELLED' && $cancelReason === '') {
+                ApiError::abort(422, 'CANCEL_REASON_REQUIRED', 'Hủy case bảo hành bắt buộc có lý do/bằng chứng.');
+            }
+
             DB::table('warranty_case')->where('warranty_case_id', $id)->update([
                 'status' => $target,
                 'condition_status' => $validated['condition_status'] ?? $case->condition_status,
                 'description' => $validated['description'] ?? $case->description,
+                'confirmed_defect' => $validated['confirmed_defect'] ?? ($case->confirmed_defect ?? null),
+                'accessories_received' => $validated['accessories_received'] ?? ($case->accessories_received ?? null),
+                'received_condition' => $validated['received_condition'] ?? ($case->received_condition ?? null),
+                'cancel_reason' => $target === 'CANCELLED' ? ($cancelReason ?: ($case->cancel_reason ?? null)) : ($case->cancel_reason ?? null),
+                'completed_at' => $target === 'COMPLETED' && $case->status !== 'COMPLETED' ? now() : ($case->completed_at ?? null),
+                'returned_at' => $target === 'RETURNED' && $case->status !== 'RETURNED' ? now() : ($case->returned_at ?? null),
                 'version' => $expectedVersion + 1,
                 'closed_at' => in_array($target, ['RETURNED', 'CANCELLED'], true) ? now() : $case->closed_at,
                 'updated_at' => now(),
@@ -185,10 +218,21 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 DB::table('warranty_event')->insert([
                     'warranty_event_id' => (string) Str::uuid(),
                     'warranty_case_id' => $id,
-                    'event_type' => 'STATUS_CHANGE',
+                    'event_type' => self::STATUS_EVENT_TYPES[$target] ?? 'STATUS_CHANGE',
                     'from_status' => $case->status,
                     'to_status' => $target,
-                    'note' => $validated['description'] ?? null,
+                    'note' => $validated['description'] ?? ($target === 'CANCELLED' ? $cancelReason : null),
+                    'created_by' => $this->currentActorId(),
+                    'event_at' => now(),
+                ]);
+            } elseif (($validated['description'] ?? $validated['confirmed_defect'] ?? null) !== null) {
+                DB::table('warranty_event')->insert([
+                    'warranty_event_id' => (string) Str::uuid(),
+                    'warranty_case_id' => $id,
+                    'event_type' => 'NOTE',
+                    'from_status' => $case->status,
+                    'to_status' => $case->status,
+                    'note' => $validated['description'] ?? $validated['confirmed_defect'],
                     'created_by' => $this->currentActorId(),
                     'event_at' => now(),
                 ]);
@@ -212,7 +256,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             );
         }, 3);
 
-        return $this->respondSuccess($this->casePayload($id, $request), 'Warranty case updated; stock_effect=NONE.');
+        $payload = $this->casePayload($id, $request);
+
+        return $this->respondSuccess($payload, 'Warranty case updated; stock_effect=NONE.')
+            ->header('ETag', '"'.$payload['version'].'"');
     }
 
     private function resolveWarrantyItem(array $validated): ?object
@@ -331,6 +378,14 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'status' => (string) $case->status,
             'condition_status' => $case->condition_status,
             'description' => $case->description,
+            'reported_defect' => $case->reported_defect ?? $case->description,
+            'confirmed_defect' => $case->confirmed_defect ?? null,
+            'accessories_received' => $case->accessories_received ?? null,
+            'received_condition' => $case->received_condition ?? $case->condition_status,
+            'received_at' => $case->received_at ?? $case->created_at,
+            'completed_at' => $case->completed_at ?? null,
+            'returned_at' => $case->returned_at ?? null,
+            'cancel_reason' => $case->cancel_reason ?? null,
             'version' => (int) $case->version,
             'legal_hold_flag' => (bool) $case->legal_hold_flag,
             'created_by' => $case->created_by,

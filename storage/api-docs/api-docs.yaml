@@ -639,6 +639,18 @@ paths:
           in: query
           schema:
             type: string
+        -
+          name: warranty_case_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
       responses:
         200:
           description: 'Thành công'
@@ -677,6 +689,43 @@ paths:
               type: object
               example: []
               additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/component-issue-documents/{id}':
+    get:
+      tags:
+        - '14. Component Issue'
+      summary: 'Chi tiết phiếu xuất linh kiện bảo hành'
+      operationId: get_api_v1_component_issue_documents_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         200:
           description: 'Thành công'
@@ -4910,6 +4959,68 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/reports/warranty-defects:
+    get:
+      tags:
+        - '12. Dashboard / Report'
+      summary: 'Báo cáo bảo hành & linh kiện'
+      operationId: get_api_v1_reports_warranty_defects
+      parameters: []
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/reports/warranty-defects/export-excel:
+    get:
+      tags:
+        - '12. Dashboard / Report'
+      summary: 'Xuất Excel báo cáo bảo hành & linh kiện'
+      operationId: get_api_v1_reports_warranty_defects_export_excel
+      parameters: []
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
   /api/v1/roles:
     get:
       tags:
@@ -6236,6 +6347,80 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/warranty-attachments/{attachmentId}':
+    delete:
+      tags:
+        - '13. Warranty'
+      summary: 'Xoá (logical) tệp đính kèm bảo hành'
+      operationId: delete_api_v1_warranty_attachments_attachmentid
+      parameters:
+        -
+          name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/warranty-attachments/{attachmentId}/download':
+    get:
+      tags:
+        - '13. Warranty'
+      summary: 'Tải xuống tệp đính kèm bảo hành'
+      operationId: get_api_v1_warranty_attachments_attachmentid_download
+      parameters:
+        -
+          name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
   /api/v1/warranty-cases:
     get:
       tags:
@@ -6265,6 +6450,20 @@ paths:
           in: query
           schema:
             type: string
+        -
+          name: identification_status
+          in: query
+          schema:
+            type: string
+            enum:
+              - IDENTIFIED
+              - TEMP_ONLY
+        -
+          name: defect_id
+          in: query
+          schema:
+            type: string
+            format: uuid
       responses:
         200:
           description: 'Thành công'
@@ -6369,6 +6568,87 @@ paths:
         - '13. Warranty'
       summary: 'Cập nhật hồ sơ bảo hành'
       operationId: patch_api_v1_warranty_cases_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/warranty-cases/{id}/attachments':
+    get:
+      tags:
+        - '13. Warranty'
+      summary: 'Danh sách tệp đính kèm của hồ sơ bảo hành'
+      operationId: get_api_v1_warranty_cases_id_attachments
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+    post:
+      tags:
+        - '13. Warranty'
+      summary: 'Tải lên tệp đính kèm cho hồ sơ bảo hành'
+      operationId: post_api_v1_warranty_cases_id_attachments
       parameters:
         -
           name: id

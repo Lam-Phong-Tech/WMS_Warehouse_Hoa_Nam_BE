@@ -113,6 +113,170 @@ class ReportController extends Controller
         ]);
     }
 
+    #[OA\Get(path: '/api/v1/reports/warranty-defects', operationId: 'report_warranty_defects', summary: 'Báo cáo bảo hành & linh kiện', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'identification_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['IDENTIFIED', 'TEMP_ONLY']))], responses: [new OA\Response(response: 200, description: 'Báo cáo bảo hành theo case + tổng hợp theo bệnh/lỗi; không chứa PII')])]
+    public function warrantyDefects(Request $request)
+    {
+        return $this->respondSuccess($this->buildWarrantyReport($request, includePii: false));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/warranty-defects/export-excel', operationId: 'report_warranty_defects_export_excel', summary: 'Xuất Excel báo cáo bảo hành & linh kiện', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'File XLSX; cột PII chỉ khi có warranty.pii.export và được audit')])]
+    public function warrantyDefectsExportExcel(Request $request)
+    {
+        // NFR-SRS-015: export mặc định masked; cột PII đầy đủ chỉ khi caller có
+        // warranty.pii.export và mọi lần export đều được audit.
+        $includePii = (bool) $request->user()?->hasPermission('warranty.pii.export');
+        $report = $this->buildWarrantyReport($request, includePii: $includePii);
+
+        \Modules\AuditLog\Services\AuditLogger::record(
+            action: 'WARRANTY_REPORT_EXPORTED',
+            objectType: 'warranty_report',
+            objectId: null,
+            actorId: auth('api')->id() !== null ? (string) auth('api')->id() : null,
+            requestId: $request->attributes->get('request_id'),
+            afterData: [
+                'pii_included' => $includePii,
+                'row_count' => count($report['rows']),
+                'period' => $report['period'],
+            ],
+        );
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Bao hanh');
+        $header = ['Case', 'Nhận diện', 'SKU/Model', 'Bệnh / lỗi', 'Linh kiện đã xuất', 'Trạng thái', 'Ngày nhận', 'Ngày cập nhật'];
+        if ($includePii) {
+            $header = array_merge($header, ['Khách hàng', 'SĐT', 'Địa chỉ']);
+        }
+        $sheet->fromArray($header, null, 'A1');
+        $rowIndex = 2;
+        foreach ($report['rows'] as $row) {
+            $line = [
+                $row['case_no'], $row['identification_status'], $row['model'], $row['defect'],
+                $row['components_issued'], $row['status'], $row['received_at'], $row['updated_at'],
+            ];
+            if ($includePii) {
+                $line = array_merge($line, [$row['customer_name'] ?? '', $row['customer_phone'] ?? '', $row['customer_address'] ?? '']);
+            }
+            $sheet->fromArray($line, null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "bao-cao-bao-hanh-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * BP-WMS-12 bước 05: bảo hành theo SKU/model/defect/status/date;
+     * TEMP_ONLY hiển thị UNKNOWN_MODEL; kèm trace linh kiện đã xuất (POSTED).
+     */
+    private function buildWarrantyReport(Request $request, bool $includePii): array
+    {
+        $validated = $request->validate([
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'status' => ['nullable', 'string', 'max:30'],
+            'defect_id' => ['nullable', 'uuid'],
+            'identification_status' => ['nullable', 'in:IDENTIFIED,TEMP_ONLY'],
+        ]);
+        $from = $validated['from_date'] ?? $validated['from'] ?? now()->subDays(30)->toDateString();
+        $to = $validated['to_date'] ?? $validated['to'] ?? now()->toDateString();
+
+        $query = DB::table('warranty_case as wc')
+            ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
+            ->leftJoin('defect_catalogs as d', 'd.defect_id', '=', 'wc.defect_id')
+            ->whereBetween('wc.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
+        foreach (['status', 'defect_id', 'identification_status'] as $filter) {
+            if (! empty($validated[$filter])) {
+                $query->where("wc.{$filter}", $validated[$filter]);
+            }
+        }
+        $cases = $query
+            ->orderByDesc('wc.created_at')
+            ->get([
+                'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status',
+                'wc.status', 'wc.created_at', 'wc.updated_at', 'wc.temporary_item_code',
+                'wc.customer_name', 'wc.customer_phone', 'wc.customer_address',
+                's.sku_code', 'd.defect_code', 'd.defect_name',
+            ]);
+
+        // Trace linh kiện đã xuất: chỉ phiếu POSTED mới trừ tồn (BP-WMS-06).
+        $issuedByCase = DB::table('component_issue_documents as cid')
+            ->join('component_issue_lines as cil', 'cil.component_issue_document_id', '=', 'cid.id')
+            ->join('sku as cs', 'cs.sku_id', '=', 'cil.sku_id')
+            ->where('cid.status', 'POSTED')
+            ->whereIn('cid.warranty_case_id', $cases->pluck('warranty_case_id')->all())
+            ->groupBy('cid.warranty_case_id', 'cs.sku_code')
+            ->selectRaw('cid.warranty_case_id, cs.sku_code, SUM(cil.scanned_qty) AS issued_qty')
+            ->get()
+            ->groupBy('warranty_case_id');
+
+        $activeStatuses = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED'];
+        $rows = $cases->map(function (object $case) use ($issuedByCase, $includePii): array {
+            $issued = collect($issuedByCase->get((string) $case->warranty_case_id) ?? [])
+                ->map(fn (object $item): string => "{$item->sku_code} × ".(int) $item->issued_qty)
+                ->implode('; ');
+            $model = $case->identification_status === 'TEMP_ONLY' && $case->sku_code === null
+                ? 'UNKNOWN_MODEL'
+                : ($case->sku_code ?? 'UNKNOWN_MODEL');
+            $row = [
+                'warranty_case_id' => (string) $case->warranty_case_id,
+                'case_no' => (string) $case->warranty_case_code,
+                'identification_status' => (string) $case->identification_status,
+                'temporary_item_code' => $case->temporary_item_code,
+                'model' => $model,
+                'defect' => $case->defect_code !== null
+                    ? trim("{$case->defect_code} · {$case->defect_name}")
+                    : 'Chưa phân loại',
+                'components_issued' => $issued !== '' ? $issued : 'Chưa xuất',
+                'status' => (string) $case->status,
+                'received_at' => (string) $case->created_at,
+                'updated_at' => (string) ($case->updated_at ?? $case->created_at),
+            ];
+            if ($includePii) {
+                $row['customer_name'] = $case->customer_name;
+                $row['customer_phone'] = $case->customer_phone;
+                $row['customer_address'] = $case->customer_address;
+            }
+
+            return $row;
+        })->values();
+
+        $byDefect = $cases
+            ->groupBy(fn (object $case): string => $case->defect_code !== null
+                ? trim("{$case->defect_code} · {$case->defect_name}")
+                : 'Chưa phân loại')
+            ->map(function ($group, string $defect) use ($activeStatuses): array {
+                return [
+                    'defect' => $defect,
+                    'total' => $group->count(),
+                    'processing' => $group->whereIn('status', $activeStatuses)->count(),
+                    'returned' => $group->where('status', 'RETURNED')->count(),
+                    'cancelled' => $group->where('status', 'CANCELLED')->count(),
+                    'temp_only' => $group->where('identification_status', 'TEMP_ONLY')->count(),
+                ];
+            })->values();
+
+        return [
+            'period' => ['from_date' => $from, 'to_date' => $to],
+            'summary' => [
+                'total' => $cases->count(),
+                'processing' => $cases->whereIn('status', $activeStatuses)->count(),
+                'returned' => $cases->where('status', 'RETURNED')->count(),
+                'cancelled' => $cases->where('status', 'CANCELLED')->count(),
+                'temp_only' => $cases->where('identification_status', 'TEMP_ONLY')->count(),
+            ],
+            'rows' => $rows->all(),
+            'by_defect' => $byDefect->all(),
+            'pii_included' => $includePii,
+        ];
+    }
+
     private function buildXntReport(Request $request): array
     {
         $validated = $request->validate([

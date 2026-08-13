@@ -73,6 +73,8 @@ class RouteSyncProcessor
         'get api/v1/reports/inventory-xnt' => 'Báo cáo nhập xuất tồn',
         'get api/v1/reports/inventory-xnt/export-excel' => 'Xuất Excel báo cáo nhập xuất tồn',
         'get api/v1/reports/dashboard-quick' => 'Số liệu nhanh cho dashboard',
+        'get api/v1/reports/warranty-defects' => 'Báo cáo bảo hành & linh kiện',
+        'get api/v1/reports/warranty-defects/export-excel' => 'Xuất Excel báo cáo bảo hành & linh kiện',
         'get api/v1/reports/inventory-reconciliation' => 'Đối soát tồn kho với sổ giao dịch',
         'post api/v1/containers/{id}/items' => 'Thêm hàng vào container',
         'delete api/v1/containers/{id}/items/{containerItemId}' => 'Xoá hàng khỏi container',
@@ -93,6 +95,10 @@ class RouteSyncProcessor
         'post api/v1/component-issue-documents/{id}/post' => 'Ghi nhận phiếu xuất linh kiện bảo hành',
         'get api/v1/warranty-cases/{id}/events' => 'Lịch sử sự kiện của hồ sơ bảo hành',
         'post api/v1/warranty-cases/{id}/temp-only' => 'Đánh dấu hồ sơ bảo hành chỉ xử lý tạm',
+        'get api/v1/warranty-cases/{id}/attachments' => 'Danh sách tệp đính kèm của hồ sơ bảo hành',
+        'post api/v1/warranty-cases/{id}/attachments' => 'Tải lên tệp đính kèm cho hồ sơ bảo hành',
+        'get api/v1/warranty-attachments/{attachmentid}/download' => 'Tải xuống tệp đính kèm bảo hành',
+        'delete api/v1/warranty-attachments/{attachmentid}' => 'Xoá (logical) tệp đính kèm bảo hành',
         'post api/v1/scan/classify' => 'Phân loại mã quét',
         'get api/v1/skus/import-template' => 'Tải file mẫu import SKU',
         'post api/v1/skus/import-excel' => 'Import SKU từ Excel',
@@ -127,6 +133,7 @@ class RouteSyncProcessor
         'skus' => 'SKU',
         'stock-movements' => 'giao dịch kho',
         'warranty-cases' => 'hồ sơ bảo hành',
+        'warranty-attachments' => 'tệp đính kèm bảo hành',
     ];
 
     private const COLLECTION_NOUNS = [
@@ -161,7 +168,7 @@ class RouteSyncProcessor
     private const COLLECTION_QUERY_PARAMETERS = [
         'agencies' => ['page', 'per_page', 'keyword', 'status'],
         'brands' => ['page', 'per_page', 'keyword', 'status'],
-        'component-issue-documents' => ['page', 'per_page', 'keyword', 'status'],
+        'component-issue-documents' => ['page', 'per_page', 'keyword', 'status', 'warranty_case_id', 'warehouse_id'],
         'containers' => ['page', 'per_page', 'keyword', 'container_type', 'status', 'zone_code'],
         'defect-catalogs' => ['page', 'per_page', 'keyword', 'status'],
         'document-status-history' => ['page', 'per_page', 'keyword', 'status', 'stock_document_id'],
@@ -183,7 +190,7 @@ class RouteSyncProcessor
         'products' => ['page', 'per_page', 'keyword', 'status', 'sku_type'],
         'skus' => ['page', 'per_page', 'keyword', 'status', 'sku_type'],
         'stock-movements' => ['page', 'per_page', 'keyword', 'warehouse_id', 'product_id', 'movement_type'],
-        'warranty-cases' => ['page', 'per_page', 'keyword', 'status'],
+        'warranty-cases' => ['page', 'per_page', 'keyword', 'status', 'identification_status', 'defect_id'],
     ];
 
     private const PARAMETER_SCHEMAS = [
@@ -206,6 +213,9 @@ class RouteSyncProcessor
         'item_status' => ['type' => 'string'],
         'item_condition' => ['type' => 'string'],
         'label_snapshot_id' => ['type' => 'string', 'format' => 'uuid'],
+        'warranty_case_id' => ['type' => 'string', 'format' => 'uuid'],
+        'identification_status' => ['type' => 'string', 'enum' => ['IDENTIFIED', 'TEMP_ONLY']],
+        'defect_id' => ['type' => 'string', 'format' => 'uuid'],
     ];
 
     public function __invoke(Analysis $analysis): void
@@ -598,7 +608,7 @@ class RouteSyncProcessor
             'outbound-documents', 'outbound-request-imports' => '10. Stock Out (Outbound)',
             'scan' => '11. Scan',
             'reports' => '12. Dashboard / Report',
-            'warranty-cases' => '13. Warranty',
+            'warranty-cases', 'warranty-attachments' => '13. Warranty',
             'component-issue-documents' => '14. Component Issue',
             'audit-logs' => '15. Audit Log',
             'agencies' => '16. Agency',

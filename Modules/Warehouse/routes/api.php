@@ -5,6 +5,8 @@ use Modules\Warehouse\Http\Controllers\AgencyController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\ContainerController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentIssueQueryController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyAttachmentController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineContainerFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineDocumentController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineImportController;
@@ -88,6 +90,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/inventory-xnt', [ReportController::class, 'inventoryXnt'])->middleware('permission:report.view');
         Route::get('reports/inventory-xnt/export-excel', [ReportController::class, 'exportExcel'])->middleware('permission:report.view');
         Route::get('reports/dashboard-quick', [ReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
+        Route::get('reports/warranty-defects', [ReportController::class, 'warrantyDefects'])->middleware('permission:report.view');
+        Route::get('reports/warranty-defects/export-excel', [ReportController::class, 'warrantyDefectsExportExcel'])->middleware('permission:report.view');
 
         Route::get('agencies', [AgencyController::class, 'index'])->middleware('permission:agency.view');
         Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
@@ -164,6 +168,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('component-issue-documents', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
         Route::post('component-issue-documents', [CurrentBaselineComponentFlowController::class, 'store'])->middleware('permission:warranty.component_issue');
+        Route::get('component-issue-documents/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware('permission:warranty.component_issue');
         Route::post('component-issue-documents/{id}/scan', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware('permission:warranty.component_issue');
         Route::post('component-issue-documents/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware('permission:warranty.component_issue');
         Route::post('component-issue-documents/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware('permission:warranty.component_issue');
@@ -173,5 +178,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('warranty-cases/{id}', [CurrentBaselineWarrantyController::class, 'showWarrantyCase'])->middleware('permission:warranty.manage');
         Route::patch('warranty-cases/{id}', [CurrentBaselineWarrantyController::class, 'updateWarrantyCase'])->middleware('permission:warranty.manage');
         Route::get('warranty-cases/{id}/events', [CanonicalMvpController::class, 'listWarrantyEvents'])->middleware('permission:warranty.manage');
+        Route::get('warranty-cases/{id}/attachments', [CurrentBaselineWarrantyAttachmentController::class, 'index'])->middleware('permission:warranty.manage');
+        Route::post('warranty-cases/{id}/attachments', [CurrentBaselineWarrantyAttachmentController::class, 'store'])->middleware('permission:warranty.manage');
+        Route::get('warranty-attachments/{attachmentId}/download', [CurrentBaselineWarrantyAttachmentController::class, 'download'])->middleware('permission:warranty.manage');
+        Route::delete('warranty-attachments/{attachmentId}', [CurrentBaselineWarrantyAttachmentController::class, 'destroy'])->middleware('permission:warranty.manage');
     });
 });

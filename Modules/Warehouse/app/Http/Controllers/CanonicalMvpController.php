@@ -233,7 +233,7 @@ class CanonicalMvpController extends Controller
 
     public function listComponentIssueDocuments(Request $request)
     {
-        return $this->tablePage($request, 'component_issue_documents');
+        return $this->tablePage($request, 'component_issue_documents', 'created_at', [], ['warranty_case_id', 'warehouse_id']);
     }
 
     public function storeComponentIssueDocument(Request $request)
@@ -309,7 +309,13 @@ class CanonicalMvpController extends Controller
 
     public function listWarrantyCases(Request $request)
     {
-        return $this->tablePage($request, 'warranty_case', 'created_at', ['customer_name', 'customer_phone']);
+        return $this->tablePage(
+            $request,
+            'warranty_case',
+            'created_at',
+            ['customer_name', 'customer_phone', 'customer_address'],
+            ['identification_status', 'defect_id'],
+        );
     }
 
     public function storeWarrantyCase(Request $request)
@@ -436,11 +442,16 @@ class CanonicalMvpController extends Controller
         return $this->insertAndReturn($table, $validated);
     }
 
-    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [])
+    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [])
     {
         $query = DB::table($table);
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
+        }
+        foreach ($filterColumns as $column) {
+            if ($request->filled($column) && Schema::hasColumn($table, $column)) {
+                $query->where($column, $request->input($column));
+            }
         }
         $this->applyKeyword($query, $request, $this->keywordColumns($table));
 

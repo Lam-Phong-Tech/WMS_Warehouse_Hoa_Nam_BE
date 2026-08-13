@@ -98,7 +98,8 @@ class CurrentBaselineComponentFlowController extends Controller
             return $documentId;
         }, 3);
 
-        return $this->respondCreated($this->payload($id), 'Component Issue DRAFT created; stock_effect=NONE.');
+        return $this->respondCreated($this->payload($id), 'Component Issue DRAFT created; stock_effect=NONE.')
+            ->header('ETag', '"1"');
     }
 
     public function scan(Request $request, string $id)
@@ -210,7 +211,8 @@ class CurrentBaselineComponentFlowController extends Controller
             ];
         }, 3);
 
-        return $this->respondSuccess($result, 'Component scan validated; stock_effect=NONE.');
+        return $this->respondSuccess($result, 'Component scan validated; stock_effect=NONE.')
+            ->header('ETag', '"'.$result['version'].'"');
     }
 
     public function cancel(Request $request, string $id)
@@ -256,7 +258,8 @@ class CurrentBaselineComponentFlowController extends Controller
             return ['component_issue_document_id' => $id, 'status' => 'CANCELLED', 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'];
         }, 3);
 
-        return $this->respondSuccess($result, 'Component Issue cancelled.');
+        return $this->respondSuccess($result, 'Component Issue cancelled.')
+            ->header('ETag', '"'.$result['version'].'"');
     }
 
     public function post(Request $request, string $id)
@@ -314,7 +317,10 @@ class CurrentBaselineComponentFlowController extends Controller
             }
         );
 
-        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+        $response = response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+        $version = is_array($body) ? ($body['data']['version'] ?? null) : null;
+
+        return $version !== null ? $response->header('ETag', '"'.$version.'"') : $response;
     }
 
     private function resolveTarget(array $validated): array
