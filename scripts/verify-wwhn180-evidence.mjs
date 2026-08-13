@@ -114,6 +114,9 @@ const criticalPermissionKeys = [
   'GET /api/v1/reports/inventory-reconciliation',
 ];
 
+// stocktake.count không còn trong danh sách alias bắt buộc: module stocktake
+// đã bị defer khỏi baseline hiện tại (PENDING_WWHN_180_WWHN_182) — không còn
+// route/permission canonical để alias trỏ tới.
 const requiredAliases = [
   'inbound.post',
   'outbound.post',
@@ -121,7 +124,6 @@ const requiredAliases = [
   'scan.outbound',
   'scan.warranty',
   'inventory.trace',
-  'stocktake.count',
   'warranty.manage',
   'report.export',
 ];
@@ -262,9 +264,11 @@ const checks = {
     && /STATUS_APPROVED/.test(ledgerSource),
   ledger_locks_current_document_line:
     /StockDocumentLine::query\(\)[\s\S]*where\('stock_document_id',[\s\S]*lockForUpdate\(\)/.test(ledgerSource),
+  // Ledger hiện recompute input từ locked row kèm ép kiểu + validate integer
+  // (integerQuantity) — chặt hơn phiên bản gán trực tiếp trước đây.
   ledger_recomputes_posting_inputs_from_locked_rows:
-    /\$productId\s*=\s*\$line->product_id/.test(ledgerSource)
-    && /\$qty\s*=\s*\$line->qty_actual/.test(ledgerSource)
+    /\$productId\s*=\s*\(string\)\s*\$line->product_id/.test(ledgerSource)
+    && /\$quantity\s*=\s*\$this->integerQuantity\(\$line->qty_actual\)/.test(ledgerSource)
     && /\$businessKey\s*=\s*\$this->businessKey/.test(ledgerSource),
 };
 

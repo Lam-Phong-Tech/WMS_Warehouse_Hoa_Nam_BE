@@ -50,7 +50,7 @@ php artisan test --do-not-cache-result --filter=ScanClassifyReadOnlyContractTest
   2>&1 | tee "$EVIDENCE_DIR/scan-readonly-phpunit.raw.log"
 
 php artisan test --do-not-cache-result \
-  --filter='StockDocumentConcurrencyGuardTest|StockDocumentIdempotencyTest|StocktakeApplyLedgerIntegrityTest|StocktakeThreeLayerContractTest|InventoryReconciliationIntegrityTest|InventoryReconciliationSignedStatusTest|WarrantyStatusOnlyContractTest|WarrantyIdempotencyKeyContractTest' \
+  --filter='StockDocumentConcurrencyGuardTest|StockDocumentIdempotencyTest|InventoryReconciliationIntegrityTest|InventoryReconciliationSignedStatusTest|WarrantyStatusOnlyContractTest|WarrantyIdempotencyKeyContractTest' \
   2>&1 | tee "$EVIDENCE_DIR/race-rollback-reconciliation-phpunit.raw.log"
 
 php artisan test --do-not-cache-result \
@@ -97,8 +97,6 @@ source_files=(
   "tests/Feature/BackendMigrationSeedHealthTest.php"
   "tests/Feature/StockDocumentConcurrencyGuardTest.php"
   "tests/Feature/StockDocumentIdempotencyTest.php"
-  "tests/Feature/StocktakeApplyLedgerIntegrityTest.php"
-  "tests/Feature/StocktakeThreeLayerContractTest.php"
   "tests/Feature/InventoryReconciliationIntegrityTest.php"
   "tests/Feature/InventoryReconciliationSignedStatusTest.php"
   "tests/Feature/WarrantyStatusOnlyContractTest.php"
