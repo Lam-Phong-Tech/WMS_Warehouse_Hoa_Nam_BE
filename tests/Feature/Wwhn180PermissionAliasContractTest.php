@@ -99,13 +99,13 @@ class Wwhn180PermissionAliasContractTest extends TestCase
         Route::getRoutes()->match(Request::create("/api/v1/stocktake/sessions/{$id}/apply-adjustment", 'POST'));
     }
 
-    public function test_remaining_export_alias_does_not_replace_canonical_middleware(): void
+    public function test_report_export_permission_is_authoritative_for_export_routes(): void
     {
-        $this->assertCanonicalMiddleware(
-            Request::create('/api/v1/reports/inventory-xnt/export-excel', 'GET'),
-            'permission:report.view',
-            'permission:report.export'
-        );
+        $route = Route::getRoutes()->match(Request::create('/api/v1/reports/inventory-xnt/export-excel', 'GET'));
+        $middleware = $route->gatherMiddleware();
+
+        $this->assertContains('permission:report.export', $middleware);
+        $this->assertNotContains('permission:report.view', $middleware);
     }
 
     private function assertCanonicalMiddleware(
