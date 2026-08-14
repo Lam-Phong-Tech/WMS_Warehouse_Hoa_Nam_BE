@@ -134,7 +134,13 @@ class ReportController extends Controller
                 'outbound' => (int) ($partialCounts[StockDocument::TYPE_ISSUE] ?? 0),
             ],
             // Chưa có module bảo hành (warranty_case) trong base.
-            'warranty_cases_by_status' => [],
+            'warranty_cases_by_status' => DB::table('warranty_case')
+                ->selectRaw('status, count(*) as total')
+                ->whereNull('deleted_at')
+                ->groupBy('status')
+                ->pluck('total', 'status')
+                ->map(fn ($total) => (int) $total)
+                ->all(),
             // Chưa có module đối soát (reconciliation) trong base.
             'reconciliation_warnings' => [],
         ]);
@@ -152,14 +158,14 @@ class ReportController extends Controller
 
         $lines = DB::table('stock_movements as m')
             ->join('stock_documents as d', 'd.id', '=', 'm.stock_document_id')
-            ->join('products as p', 'p.id', '=', 'm.product_id')
-            ->selectRaw('p.code as product_code, p.name as product_name,'
+            ->join('sku as p', 'p.sku_id', '=', 'm.product_id')
+            ->selectRaw('p.sku_code as product_code, p.sku_name as product_name,'
                 .'SUM(CASE WHEN m.movement_type = ? THEN m.qty_delta ELSE 0 END) as total_in,'
                 .'SUM(CASE WHEN m.movement_type = ? THEN -m.qty_delta ELSE 0 END) as total_out',
                 [StockMovement::RECEIPT_IN, StockMovement::ISSUE_OUT])
             ->whereBetween('d.doc_date', [$from, $to])
-            ->groupBy('p.code', 'p.name')
-            ->orderBy('p.code')
+            ->groupBy('p.sku_code', 'p.sku_name')
+            ->orderBy('p.sku_code')
             ->get();
 
         return [

@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Support\ApiError;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Exceptions\WarehouseException;
 use Modules\Warehouse\Models\DocumentStatusHistory;
@@ -11,6 +12,7 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\StockMovement;
+use Modules\Warehouse\Services\ScanResolver;
 use Modules\Warehouse\Models\Warehouse;
 
 /**
@@ -33,7 +35,7 @@ class StockDocumentService
         StockDocument::TYPE_TRANSFER => 'DC',
     ];
 
-    public function __construct(private readonly StockLedger $ledger) {}
+    public function __construct(private readonly StockLedger $ledger, private readonly ScanResolver $scanResolver) {}
 
     public function create(string $type, array $data, string $userId): StockDocument
     {
@@ -161,6 +163,7 @@ class StockDocumentService
 
             foreach ($doc->lines as $line) {
                 $this->ledger->inbound($doc, $line, $userId);
+                $this->markInboundItemReceived($line);
                 $line->update(['scanned_qty' => $line->qty_planned]);
             }
 
@@ -204,9 +207,9 @@ class StockDocumentService
      * Scan (nhận/xuất từng phần theo dòng, có thể gọi nhiều lần cho tới khi đủ qty_planned).
      * Cho phép gọi khi phiếu đang approved hoặc đã partially_posted từ lần scan trước.
      */
-    public function scanLine(StockDocument $doc, string $lineId, string $qty, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
+    public function scanLine(StockDocument $doc, string $lineId, string $qty, string $userId, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null, ?string $rawCode = null): StockDocument
     {
-        return DB::transaction(function () use ($doc, $lineId, $qty, $userId, $idempotencyKey, $requestHash, $operation) {
+        return DB::transaction(function () use ($doc, $lineId, $qty, $userId, $idempotencyKey, $requestHash, $operation, $rawCode) {
             $this->assertStatus($doc, [StockDocument::STATUS_APPROVED, StockDocument::STATUS_PARTIALLY_POSTED], 'scan');
 
             $line = $doc->lines()->where('id', $lineId)->lockForUpdate()->firstOrFail();
@@ -221,7 +224,10 @@ class StockDocumentService
 
             if ($doc->doc_type === StockDocument::TYPE_RECEIPT) {
                 $this->assertWarehouseActive($doc->dst_warehouse_id);
+                $this->validateInboundScan($line, $qty, $rawCode);
+                $this->recordInboundScanEvent($doc, $line, $rawCode, $userId);
                 $this->ledger->scanReceipt($doc, $line, $qty, $userId);
+                $this->markInboundItemReceived($line);
             } else {
                 $this->assertWarehouseActive($doc->src_warehouse_id);
                 $this->ledger->scanIssue($doc, $line, $qty, $userId);
@@ -248,6 +254,11 @@ class StockDocumentService
 
             $fresh = $doc->fresh(['lines', 'movements']);
             $this->recordPostingEvent($operation ?? "scan_stock_document_{$doc->id}_{$lineId}", $idempotencyKey, $requestHash, $fresh, $userId);
+            AuditLogger::record('SCAN', 'stock_document_line', $line->id, $userId, request()?->attributes->get('request_id'), afterData: [
+                'stock_document_id' => $doc->id,
+                'qty' => $qty,
+                'raw_code' => $rawCode,
+            ]);
 
             return $fresh;
         });
@@ -324,6 +335,83 @@ class StockDocumentService
                 'qty_actual' => $l['qty_planned'],
             ]);
         }
+    }
+
+    private function validateInboundScan(StockDocumentLine $line, string $qty, ?string $rawCode): void
+    {
+        if ($line->item_instance_id !== null) {
+            if ($rawCode === null || trim($rawCode) === '') {
+                ApiError::abort(422, 'SERIAL_SCAN_REQUIRED', 'Dòng item serial bắt buộc có raw_code khi scan.');
+            }
+            if (bccomp($qty, '1', 3) !== 0) {
+                ApiError::abort(422, 'SERIAL_SCAN_QUANTITY_INVALID', 'Dòng item serial chỉ được ghi nhận số lượng 1.');
+            }
+
+            $resolution = $this->scanResolver->resolveActive($rawCode);
+            if (! $resolution['item'] || $resolution['item']->item_id !== $line->item_instance_id) {
+                ApiError::abort(422, 'SCAN_ITEM_MISMATCH', 'Mã scan không thuộc item instance của dòng chứng từ.');
+            }
+            if ($resolution['item']->sku_id !== $line->product_id) {
+                ApiError::abort(422, 'SCAN_SKU_MISMATCH', 'Item scan không thuộc SKU của dòng chứng từ.');
+            }
+            if ($resolution['item']->item_status !== 'NEW') {
+                ApiError::abort(409, 'SCAN_ITEM_ALREADY_RECEIVED', 'Item scan đã được ghi nhận hoặc không ở trạng thái NEW.');
+            }
+
+            return;
+        }
+
+        if ($rawCode === null || trim($rawCode) === '') {
+            return;
+        }
+
+        $resolution = $this->scanResolver->resolveActive($rawCode);
+        if ($resolution['sku_id'] !== null && $resolution['sku_id'] !== $line->product_id) {
+            ApiError::abort(422, 'SCAN_SKU_MISMATCH', 'Mã scan không thuộc SKU của dòng chứng từ.');
+        }
+    }
+
+    private function markInboundItemReceived(StockDocumentLine $line): void
+    {
+        if ($line->item_instance_id === null) {
+            return;
+        }
+
+        $item = $line->itemInstance()->lockForUpdate()->first();
+        if (! $item || $item->item_status !== 'NEW') {
+            WarehouseException::invalidStatus('Item của dòng nhập không còn ở trạng thái NEW.');
+        }
+
+        $item->update(['item_status' => 'IN_STOCK', 'version' => $item->version + 1]);
+    }
+
+    private function recordInboundScanEvent(StockDocument $doc, StockDocumentLine $line, ?string $rawCode, string $userId): void
+    {
+        if ($rawCode === null || trim($rawCode) === '') {
+            return;
+        }
+
+        $resolution = $this->scanResolver->resolveActive($rawCode);
+        $batchId = (string) Str::uuid();
+        DB::table('scan_batches')->insert([
+            'scan_batch_id' => $batchId,
+            'source_type' => 'INBOUND',
+            'source_id' => $doc->id,
+            'warehouse_id' => $doc->dst_warehouse_id,
+            'created_by' => $userId,
+            'created_at' => now(),
+        ]);
+        DB::table('scan_events')->insert([
+            'scan_event_id' => (string) Str::uuid(),
+            'scan_batch_id' => $batchId,
+            'raw_code' => trim($rawCode),
+            'physical_code_id' => $resolution['physical_code']->physical_code_id,
+            'resolved_object_type' => $resolution['item'] ? 'ITEM_INSTANCE' : 'CONTAINER',
+            'resolved_object_id' => $resolution['item']?->item_id ?? $resolution['container']?->container_id,
+            'result_status' => 'ACCEPTED',
+            'message' => "Inbound document line {$line->line_no}",
+            'created_at' => now(),
+        ]);
     }
 
     private function assertStatus(StockDocument $doc, array $allowed, string $action): void

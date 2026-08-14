@@ -39,6 +39,9 @@ class UpdateInboundDocumentRequest extends FormRequest
                 if ($item && $item->sku_id !== $line['product_id']) {
                     $validator->errors()->add("lines.{$index}.item_instance_id", 'Item instance phải thuộc SKU của dòng chứng từ.');
                 }
+                if (isset($line['qty_planned']) && (float) $line['qty_planned'] !== 1.0) {
+                    $validator->errors()->add("lines.{$index}.qty_planned", 'Dòng item serial phải có qty_planned bằng 1.');
+                }
             }
         });
     }

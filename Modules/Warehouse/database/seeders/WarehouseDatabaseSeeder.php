@@ -270,9 +270,24 @@ class WarehouseDatabaseSeeder extends Seeder
         $warehouses = array_values($warehouseIds);
         $skus = array_values($skuIds);
         $products = Sku::query()->limit(5)->get();
-        $imports = DB::table('import_batches')->limit(5)->pluck('import_batch_id')->all();
-        $containers = DB::table('containers')->limit(5)->pluck('container_id')->all();
-        $physicalCodes = DB::table('physical_codes')->limit(5)->pluck('physical_code_id')->all();
+        $imports = DB::table('import_batches')
+            ->where('import_batch_code', 'like', 'IMP-2026-%')
+            ->orderBy('import_batch_code')
+            ->limit(5)
+            ->pluck('import_batch_id')
+            ->all();
+        $containers = DB::table('containers')
+            ->where('container_code', 'like', 'PALLET-HN-%')
+            ->orderBy('container_code')
+            ->limit(5)
+            ->pluck('container_id')
+            ->all();
+        $physicalCodes = DB::table('physical_codes')
+            ->where('code_value', 'like', 'QR-HN-2026-%')
+            ->orderBy('code_value')
+            ->limit(5)
+            ->pluck('physical_code_id')
+            ->all();
 
         for ($i = 1; $i <= 5; $i++) {
             $idx = $i - 1;

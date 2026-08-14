@@ -6,6 +6,7 @@ use App\Support\ApiError;
 use App\Support\IdempotencyStore;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Http\Requests\StoreStockDocumentScanRequest;
 use Modules\Warehouse\Services\StockDocumentService;
 
 /**
@@ -59,17 +60,19 @@ trait InteractsWithStockDocuments
     }
 
     /** Scan từng phần theo dòng — bắt buộc Idempotency-Key vì đổi tồn thật. */
-    public function scan(string $id, Request $request)
+    public function scan(string $id, StoreStockDocumentScanRequest $request)
     {
         $doc = $this->find($id);
         $idemKey = $this->requireIdempotencyKey($request);
         $hash = IdempotencyStore::requestHash($request);
-        $lineId = $request->input('line_id');
-        $qty = (string) $request->input('qty');
+        $data = $request->validated();
+        $lineId = $data['line_id'];
+        $qty = (string) $data['qty'];
+        $rawCode = $data['raw_code'] ?? null;
 
         $operation = "scan_stock_document_{$doc->id}_{$lineId}";
-        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $this->userId(), $hash, function () use ($doc, $lineId, $qty, $idemKey, $hash, $operation) {
-            return [200, $this->envelope('Ghi nhận scan thành công', $this->service()->scanLine($doc, $lineId, $qty, $this->userId(), $idemKey, $hash, $operation))];
+        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $this->userId(), $hash, function () use ($doc, $lineId, $qty, $rawCode, $idemKey, $hash, $operation) {
+            return [200, $this->envelope('Ghi nhận scan thành công', $this->service()->scanLine($doc, $lineId, $qty, $this->userId(), $idemKey, $hash, $operation, $rawCode))];
         });
 
         return response()->json($body, $code);

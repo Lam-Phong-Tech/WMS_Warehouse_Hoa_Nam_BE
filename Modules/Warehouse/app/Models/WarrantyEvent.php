@@ -21,9 +21,13 @@ class WarrantyEvent extends Model
 
     protected $table = 'warranty_event';
 
+    protected $primaryKey = 'warranty_event_id';
+
     public $incrementing = false;
 
     protected $keyType = 'string';
+
+    public $timestamps = false;
 
     protected $fillable = [
         'warranty_event_id',

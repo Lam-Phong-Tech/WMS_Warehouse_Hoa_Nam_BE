@@ -207,8 +207,8 @@ use OpenApi\Attributes as OA;
 #[OA\Post(
     path: '/api/v1/inbound-documents/{id}/scan',
     operationId: 'stock_in_scan',
-    summary: 'Ghi nhận nhập kho từng phần theo dòng (scan từng line qty)',
-    description: 'Cho phép hạch toán từng phần (partially_posted) trước khi đủ toàn bộ số lượng kế hoạch. Đổi tồn thật, bắt buộc header Idempotency-Key.',
+    summary: 'Ghi nhận nhập kho từng phần theo dòng',
+    description: 'Cho phép ghi nhận quantity hoặc serial. Dòng có item_instance_id bắt buộc raw_code khớp item, qty=1 và item ở trạng thái NEW. Đổi tồn thật, bắt buộc header Idempotency-Key.',
     security: [['bearerAuth' => []]],
     tags: ['09. Stock In (Inbound)'],
     parameters: [
@@ -222,6 +222,7 @@ use OpenApi\Attributes as OA;
             properties: [
                 new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
                 new OA\Property(property: 'qty', type: 'number', format: 'float', example: 5),
+                new OA\Property(property: 'raw_code', type: 'string', maxLength: 100, nullable: true, description: 'Bắt buộc với line có item_instance_id; mã vật lý phải ACTIVE và khớp item/SKU của line'),
             ]
         )
     ),
@@ -230,8 +231,8 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 401, description: 'Chưa xác thực'),
         new OA\Response(response: 403, description: 'Không có quyền stock_document.post'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ hoặc dòng'),
-        new OA\Response(response: 409, description: 'Idempotency-Key đã dùng với payload khác hoặc xung đột optimistic lock'),
-        new OA\Response(response: 422, description: 'Sai trạng thái hiện tại hoặc qty vượt số lượng kế hoạch còn lại'),
+        new OA\Response(response: 409, description: 'IDEMPOTENCY_ERROR hoặc SCAN_ITEM_ALREADY_RECEIVED'),
+        new OA\Response(response: 422, description: 'SERIAL_SCAN_REQUIRED, SERIAL_SCAN_QUANTITY_INVALID, SCAN_ITEM_MISMATCH, SCAN_SKU_MISMATCH, sai trạng thái hoặc qty vượt remaining'),
         new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key'),
     ]
 )]

@@ -3101,8 +3101,8 @@
                 "tags": [
                     "09. Stock In (Inbound)"
                 ],
-                "summary": "Ghi nhận nhập kho từng phần theo dòng (scan từng line qty)",
-                "description": "Cho phép hạch toán từng phần (partially_posted) trước khi đủ toàn bộ số lượng kế hoạch. Đổi tồn thật, bắt buộc header Idempotency-Key.",
+                "summary": "Ghi nhận nhập kho từng phần theo dòng",
+                "description": "Cho phép ghi nhận quantity hoặc serial. Dòng có item_instance_id bắt buộc raw_code khớp item, qty=1 và item ở trạng thái NEW. Đổi tồn thật, bắt buộc header Idempotency-Key.",
                 "operationId": "stock_in_scan",
                 "parameters": [
                     {
@@ -3141,6 +3141,12 @@
                                         "type": "number",
                                         "format": "float",
                                         "example": 5
+                                    },
+                                    "raw_code": {
+                                        "description": "Bắt buộc với line có item_instance_id; mã vật lý phải ACTIVE và khớp item/SKU của line",
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100
                                     }
                                 },
                                 "type": "object"
@@ -3162,10 +3168,10 @@
                         "description": "Không tìm thấy chứng từ hoặc dòng"
                     },
                     "409": {
-                        "description": "Idempotency-Key đã dùng với payload khác hoặc xung đột optimistic lock"
+                        "description": "IDEMPOTENCY_ERROR hoặc SCAN_ITEM_ALREADY_RECEIVED"
                     },
                     "422": {
-                        "description": "Sai trạng thái hiện tại hoặc qty vượt số lượng kế hoạch còn lại"
+                        "description": "SERIAL_SCAN_REQUIRED, SERIAL_SCAN_QUANTITY_INVALID, SCAN_ITEM_MISMATCH, SCAN_SKU_MISMATCH, sai trạng thái hoặc qty vượt remaining"
                     },
                     "428": {
                         "description": "Thiếu header Idempotency-Key"
@@ -6264,7 +6270,7 @@
                     "11. Scan"
                 ],
                 "summary": "Phân loại mã scan (QR/Barcode/Container/Item)",
-                "description": "Nhận raw_code và context, trả về classification cùng thông tin đối tượng tương ứng. Dùng để FE xác định loại mã trước khi xử lý nghiệp vụ.",
+                "description": "Nhận physical code thực, kiểm tra trạng thái ACTIVE, ghi scan batch/event idempotent và trả về item hoặc container đã phân giải.",
                 "operationId": "scan_classify",
                 "parameters": [
                     {
@@ -6290,7 +6296,7 @@
                                     "raw_code": {
                                         "description": "Mã QR/Barcode/Container/Item cần phân loại",
                                         "type": "string",
-                                        "maxLength": 120
+                                        "maxLength": 100
                                     },
                                     "context": {
                                         "description": "Ngữ cảnh sử dụng",
@@ -6327,10 +6333,10 @@
                         "description": "Không có quyền stock_document.post"
                     },
                     "404": {
-                        "description": "Không tìm thấy mã"
+                        "description": "SCAN_CODE_NOT_FOUND"
                     },
                     "409": {
-                        "description": "Trạng thái kho/mã không hợp lệ"
+                        "description": "SCAN_CODE_INACTIVE, SCAN_CONTAINER_INACTIVE hoặc SCAN_CODE_UNASSIGNED"
                     },
                     "428": {
                         "description": "Thiếu header Idempotency-Key"
@@ -7968,8 +7974,8 @@
                 "tags": [
                     "13. Warranty"
                 ],
-                "summary": "Nhận tạm bảo hành (TEMP_ONLY)",
-                "description": "Nhận tạm sản phẩm vào kho để kiểm tra bảo hành. TEMP_ONLY item không được bán và phải có thể truy vết/đảo ngược. Chỉ áp dụng khi case đang ở trạng thái RECEIVED hoặc WAITING_CHECK.",
+                "summary": "Record a temporary warranty receipt",
+                "description": "Moves a warranty case to TEMP_ONLY and records its event and trace movement atomically.",
                 "operationId": "warranty_temp_only",
                 "parameters": [
                     {
@@ -8001,18 +8007,17 @@
                                 ],
                                 "properties": {
                                     "item_id": {
-                                        "description": "ID item/serial number",
+                                        "description": "inventory_serials.id",
                                         "type": "string",
                                         "format": "uuid"
                                     },
                                     "defect_id": {
-                                        "description": "ID defect catalog",
+                                        "description": "defect_catalogs.defect_id",
                                         "type": "string",
                                         "format": "uuid",
                                         "nullable": true
                                     },
                                     "condition_status": {
-                                        "description": "Trạng thái kiểm tra",
                                         "type": "string",
                                         "enum": [
                                             "WAITING_CHECK",
@@ -8020,7 +8025,6 @@
                                         ]
                                     },
                                     "note": {
-                                        "description": "Ghi chú",
                                         "type": "string",
                                         "nullable": true,
                                         "maxLength": 1000
@@ -8033,25 +8037,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Nhận tạm thành công"
+                        "description": "Temporary warranty receipt recorded"
                     },
                     "401": {
-                        "description": "Chưa xác thực"
+                        "description": "Unauthenticated"
                     },
                     "403": {
-                        "description": "Không có quyền warranty.temp_only"
+                        "description": "Missing warranty.temp_only permission"
                     },
                     "404": {
-                        "description": "Không tìm thấy case"
+                        "description": "Warranty case not found"
                     },
                     "409": {
-                        "description": "Case đã ở trạng thái TEMP_ONLY hoặc đã đóng"
+                        "description": "STATE_CONFLICT or IDEMPOTENCY_ERROR"
                     },
                     "422": {
-                        "description": "Dữ liệu không hợp lệ"
+                        "description": "Validation failed or WARRANTY_ITEM_LOCATION_REQUIRED"
                     },
                     "428": {
-                        "description": "Thiếu header Idempotency-Key"
+                        "description": "PRECONDITION_REQUIRED"
                     }
                 },
                 "security": [
@@ -8413,13 +8417,6 @@
                             "type": "integer",
                             "default": 15
                         }
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
                     }
                 ],
                 "responses": {
@@ -8650,6 +8647,9 @@
                     "content": {
                         "application/json": {
                             "schema": {
+                                "required": [
+                                    "warehouse_id"
+                                ],
                                 "properties": {
                                     "source_type": {
                                         "type": "string",
@@ -8658,19 +8658,18 @@
                                     },
                                     "source_id": {
                                         "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 100
+                                        "format": "uuid",
+                                        "nullable": true
                                     },
                                     "warehouse_id": {
                                         "type": "string",
-                                        "format": "uuid",
-                                        "nullable": true
+                                        "format": "uuid"
                                     },
                                     "codes": {
                                         "type": "array",
                                         "items": {
                                             "type": "string",
-                                            "maxLength": 255
+                                            "maxLength": 100
                                         },
                                         "nullable": true
                                     }
@@ -8726,7 +8725,7 @@
                         }
                     },
                     {
-                        "name": "status",
+                        "name": "result_status",
                         "in": "query",
                         "schema": {
                             "type": "string"

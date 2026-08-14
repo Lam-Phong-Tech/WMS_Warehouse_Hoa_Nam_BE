@@ -238,7 +238,6 @@ class WmsContractController extends Controller
         parameters: [
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Paginated stocktake sessions'),
@@ -292,7 +291,7 @@ class WmsContractController extends Controller
     )]
     public function warrantyCases(Request $request)
     {
-        return $this->tablePage($request, 'warranty_cases', 'created_at');
+        return $this->tablePage($request, 'warranty_case', 'created_at');
     }
 
     #[OA\Get(
@@ -314,7 +313,7 @@ class WmsContractController extends Controller
     )]
     public function warrantyEvents(Request $request, string $caseId)
     {
-        $query = DB::table('warranty_events')
+        $query = DB::table('warranty_event')
             ->where('warranty_case_id', $caseId)
             ->orderByDesc('event_at');
 
@@ -340,7 +339,9 @@ class WmsContractController extends Controller
     )]
     public function scanBatches(Request $request)
     {
-        return $this->tablePage($request, 'scan_batches', 'created_at');
+        return $this->respondPaginated(
+            DB::table('scan_batches')->orderByDesc('created_at')->paginate($this->perPage($request))
+        );
     }
 
     #[OA\Get(
@@ -352,7 +353,7 @@ class WmsContractController extends Controller
         parameters: [
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'result_status', in: 'query', schema: new OA\Schema(type: 'string')),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Paginated scan events'),
@@ -362,7 +363,12 @@ class WmsContractController extends Controller
     )]
     public function scanEvents(Request $request)
     {
-        return $this->tablePage($request, 'scan_events', 'created_at');
+        $query = DB::table('scan_events')->orderByDesc('created_at');
+        if ($request->filled('result_status')) {
+            $query->where('result_status', $request->input('result_status'));
+        }
+
+        return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
     #[OA\Post(
@@ -372,11 +378,11 @@ class WmsContractController extends Controller
         security: [['bearerAuth' => []]],
         tags: ['07. Inventory'],
         requestBody: new OA\RequestBody(
-            content: new OA\JsonContent(properties: [
+            content: new OA\JsonContent(required: ['warehouse_id'], properties: [
                 new OA\Property(property: 'source_type', type: 'string', maxLength: 50, nullable: true),
-                new OA\Property(property: 'source_id', type: 'string', maxLength: 100, nullable: true),
-                new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'codes', type: 'array', nullable: true, items: new OA\Items(type: 'string', maxLength: 255)),
+                new OA\Property(property: 'source_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'codes', type: 'array', nullable: true, items: new OA\Items(type: 'string', maxLength: 100)),
             ])
         ),
         responses: [
@@ -390,16 +396,16 @@ class WmsContractController extends Controller
     {
         $data = $request->validate([
             'source_type' => ['nullable', 'string', 'max:50'],
-            'source_id' => ['nullable', 'string', 'max:100'],
-            'warehouse_id' => ['nullable', 'uuid', 'exists:warehouses,id'],
+            'source_id' => ['nullable', 'uuid'],
+            'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'codes' => ['nullable', 'array'],
-            'codes.*' => ['string', 'max:255'],
+            'codes.*' => ['string', 'max:100'],
         ]);
 
         $batchId = (string) Str::uuid();
         DB::table('scan_batches')->insert([
             'scan_batch_id' => $batchId,
-            'source_type' => $data['source_type'] ?? null,
+            'source_type' => $data['source_type'] ?? 'MANUAL',
             'source_id' => $data['source_id'] ?? null,
             'warehouse_id' => $data['warehouse_id'] ?? null,
             'created_by' => auth('api')->id(),

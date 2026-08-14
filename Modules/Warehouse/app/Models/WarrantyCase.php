@@ -28,6 +28,8 @@ class WarrantyCase extends Model
 
     protected $table = 'warranty_case';
 
+    protected $primaryKey = 'warranty_case_id';
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -35,7 +37,6 @@ class WarrantyCase extends Model
     protected $fillable = [
         'warranty_case_code',
         'inventory_serial_id',
-        'item_id',
         'defect_id',
         'customer_name',
         'customer_phone',

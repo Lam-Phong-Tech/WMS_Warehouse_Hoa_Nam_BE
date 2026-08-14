@@ -1,0 +1,103 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        $this->copyLegacyDefectsToCatalog();
+        $this->replaceWarrantyDefectForeignKey('defect_catalogs');
+
+        $duplicates = DB::table('pv_product_profile')
+            ->select('product_id')
+            ->groupBy('product_id')
+            ->havingRaw('count(*) > 1')
+            ->count();
+
+        if ($duplicates > 0) {
+            throw new \RuntimeException("Cannot add PV profile uniqueness: {$duplicates} SKU(s) have multiple profiles.");
+        }
+
+        Schema::table('pv_product_profile', function (Blueprint $table) {
+            $table->unique('product_id', 'uk_pv_product_profile_product');
+        });
+
+        Schema::table('warranty_case', function (Blueprint $table) {
+            $table->index(['product_id', 'status'], 'idx_warranty_case_product_status');
+        });
+    }
+
+    public function down(): void
+    {
+        $this->copyCatalogDefectsToLegacy();
+        $this->replaceWarrantyDefectForeignKey('defect_catalog');
+
+        Schema::table('warranty_case', function (Blueprint $table) {
+            $table->dropIndex('idx_warranty_case_product_status');
+        });
+
+        Schema::table('pv_product_profile', function (Blueprint $table) {
+            $table->dropUnique('uk_pv_product_profile_product');
+        });
+    }
+
+    private function copyLegacyDefectsToCatalog(): void
+    {
+        if (! Schema::hasTable('defect_catalog') || ! Schema::hasTable('defect_catalogs')) {
+            return;
+        }
+
+        DB::table('defect_catalog')->orderBy('defect_id')->each(function (object $defect): void {
+            DB::table('defect_catalogs')->insertOrIgnore([
+                'defect_id' => $defect->defect_id,
+                'defect_code' => $defect->defect_code,
+                'defect_name' => $defect->defect_name,
+                'description' => null,
+                'status' => $defect->status,
+                'created_at' => $defect->created_at,
+                'updated_at' => $defect->updated_at,
+            ]);
+        });
+    }
+
+    private function copyCatalogDefectsToLegacy(): void
+    {
+        if (! Schema::hasTable('defect_catalog') || ! Schema::hasTable('defect_catalogs')) {
+            return;
+        }
+
+        DB::table('defect_catalogs')->orderBy('defect_id')->each(function (object $defect): void {
+            DB::table('defect_catalog')->insertOrIgnore([
+                'defect_id' => $defect->defect_id,
+                'defect_code' => $defect->defect_code,
+                'defect_name' => $defect->defect_name,
+                'severity' => null,
+                'status' => $defect->status,
+                'created_at' => $defect->created_at,
+                'updated_at' => $defect->updated_at,
+            ]);
+        });
+    }
+
+    private function replaceWarrantyDefectForeignKey(string $targetTable): void
+    {
+        if (! Schema::hasTable('warranty_case')) {
+            return;
+        }
+
+        Schema::table('warranty_case', function (Blueprint $table) {
+            $table->dropForeign(['defect_id']);
+        });
+
+        Schema::table('warranty_case', function (Blueprint $table) use ($targetTable) {
+            $table->foreign('defect_id')
+                ->references('defect_id')
+                ->on($targetTable)
+                ->nullOnDelete();
+        });
+    }
+};

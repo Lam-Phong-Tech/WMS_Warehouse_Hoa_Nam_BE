@@ -6,21 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Http\Requests\StoreWarrantyTempOnlyRequest;
+use Modules\Warehouse\Models\InventorySerial;
+use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
-use Modules\Warehouse\Models\StockMovement;
 use OpenApi\Attributes as OA;
 
-/**
- * Warranty - Bảo hành.
- */
 #[OA\Post(
     path: '/api/v1/warranty-cases/{id}/temp-only',
     operationId: 'warranty_temp_only',
-    summary: 'Nhận tạm bảo hành (TEMP_ONLY)',
-    description: 'Nhận tạm sản phẩm vào kho để kiểm tra bảo hành. TEMP_ONLY item không được bán và phải có thể truy vết/đảo ngược. Chỉ áp dụng khi case đang ở trạng thái RECEIVED hoặc WAITING_CHECK.',
+    summary: 'Record a temporary warranty receipt',
+    description: 'Moves a warranty case to TEMP_ONLY and records its event and trace movement atomically.',
     security: [['bearerAuth' => []]],
     tags: ['13. Warranty'],
     parameters: [
@@ -32,117 +32,118 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['item_id', 'condition_status'],
             properties: [
-                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', description: 'ID item/serial number'),
-                new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true, description: 'ID defect catalog'),
-                new OA\Property(property: 'condition_status', type: 'string', enum: ['WAITING_CHECK', 'INSPECTING'], description: 'Trạng thái kiểm tra'),
-                new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true, description: 'Ghi chú'),
+                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', description: 'inventory_serials.id'),
+                new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true, description: 'defect_catalogs.defect_id'),
+                new OA\Property(property: 'condition_status', type: 'string', enum: ['WAITING_CHECK', 'INSPECTING']),
+                new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
             ]
         )
     ),
     responses: [
-        new OA\Response(response: 200, description: 'Nhận tạm thành công'),
-        new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền warranty.temp_only'),
-        new OA\Response(response: 404, description: 'Không tìm thấy case'),
-        new OA\Response(response: 409, description: 'Case đã ở trạng thái TEMP_ONLY hoặc đã đóng'),
-        new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
-        new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key'),
+        new OA\Response(response: 200, description: 'Temporary warranty receipt recorded'),
+        new OA\Response(response: 401, description: 'Unauthenticated'),
+        new OA\Response(response: 403, description: 'Missing warranty.temp_only permission'),
+        new OA\Response(response: 404, description: 'Warranty case not found'),
+        new OA\Response(response: 409, description: 'STATE_CONFLICT or IDEMPOTENCY_ERROR'),
+        new OA\Response(response: 422, description: 'Validation failed or WARRANTY_ITEM_LOCATION_REQUIRED'),
+        new OA\Response(response: 428, description: 'PRECONDITION_REQUIRED'),
     ]
 )]
 class WarrantyController extends Controller
 {
     use ApiResponse;
 
-    /**
-     * Nhận tạm bảo hành (TEMP_ONLY).
-     *
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
-     */
-    public function tempOnly(Request $request, string $id)
+    public function tempOnly(StoreWarrantyTempOnlyRequest $request, string $id)
     {
         $idemKey = $request->header('Idempotency-Key');
         if (! $idemKey) {
-            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Header Idempotency-Key là bắt buộc.');
-        }
-
-        $validated = $request->validate([
-            'item_id' => 'required|uuid|exists:inventory_serials,id',
-            'defect_id' => 'nullable|uuid|exists:defect_catalog,defect_id',
-            'condition_status' => 'required|string|in:WAITING_CHECK,INSPECTING',
-            'note' => 'nullable|string|max:1000',
-        ]);
-
-        $case = WarrantyCase::findOrFail($id);
-
-        // Validate case status
-        if (! in_array($case->status, [WarrantyCase::STATUS_RECEIVED, WarrantyCase::STATUS_WAITING_CHECK], true)) {
-            ApiError::abort(409, 'STATE_CONFLICT', 'Case bảo hành phải ở trạng thái RECEIVED hoặc WAITING_CHECK để nhận tạm.');
-        }
-
-        if ($case->status === WarrantyCase::STATUS_TEMP_ONLY) {
-            ApiError::abort(409, 'STATE_CONFLICT', 'Case đã ở trạng thái TEMP_ONLY rồi.');
-        }
-
-        if (in_array($case->status, [WarrantyCase::STATUS_CLOSED, WarrantyCase::STATUS_CANCELLED], true)) {
-            ApiError::abort(409, 'STATE_CONFLICT', 'Case đã đóng hoặc đã hủy, không thể nhận tạm.');
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Idempotency-Key header is required.');
         }
 
         $userId = (string) auth('api')->id();
+        $hash = IdempotencyStore::requestHash($request);
+        $operation = "warranty_temp_only_{$id}";
 
-        return DB::transaction(function () use ($validated, $case, $userId, $idemKey) {
-            $fromStatus = $case->status;
-            $toStatus = WarrantyCase::STATUS_TEMP_ONLY;
+        [$code, $body] = IdempotencyStore::handle($idemKey, $operation, $userId, $hash, function () use ($request, $id, $userId) {
+            $data = DB::transaction(function () use ($request, $id, $userId) {
+                $case = WarrantyCase::query()->lockForUpdate()->findOrFail($id);
+                if (! in_array($case->status, [WarrantyCase::STATUS_RECEIVED, WarrantyCase::STATUS_WAITING_CHECK], true)) {
+                    ApiError::abort(409, 'STATE_CONFLICT', 'Warranty case cannot be received temporarily from its current status.');
+                }
 
-            // Update case
-            $case->update([
-                'status' => $toStatus,
-                'condition_status' => $validated['condition_status'],
-                'item_id' => $validated['item_id'],
-                'defect_id' => $validated['defect_id'],
-                'version' => ($case->version ?? 1) + 1,
-            ]);
+                $data = $request->validated();
+                $serial = InventorySerial::query()->findOrFail($data['item_id']);
+                if (! $serial->warehouse_id || ! $serial->product_id) {
+                    ApiError::abort(422, 'WARRANTY_ITEM_LOCATION_REQUIRED', 'Warranty item requires both warehouse and SKU for traceability.');
+                }
 
-            // Create warranty event
-            WarrantyEvent::create([
-                'warranty_event_id' => (string) \Illuminate\Support\Str::uuid(),
-                'warranty_case_id' => $case->warranty_case_id,
-                'event_type' => WarrantyEvent::EVENT_TEMP_ONLY,
-                'from_status' => $fromStatus,
-                'to_status' => $toStatus,
-                'note' => $validated['note'] ?? 'Nhận tạm để kiểm tra bảo hành',
-                'created_by' => $userId,
-                'event_at' => now(),
-                'created_at' => now(),
-            ]);
+                $fromStatus = $case->status;
+                $case->update([
+                    'status' => WarrantyCase::STATUS_TEMP_ONLY,
+                    'condition_status' => $data['condition_status'],
+                    'inventory_serial_id' => $serial->id,
+                    'defect_id' => $data['defect_id'] ?? null,
+                    'version' => $case->version + 1,
+                ]);
 
-            // Create stock movement for traceability
-            // Note: TEMP_ONLY items should not be sellable stock
-            // This movement is for tracking only, not affecting available_qty
-            StockMovement::create([
-                'movement_no' => 'WRN-TEMP-' . now()->format('Ymd-His') . '-' . \Illuminate\Support\Str::random(4),
-                'business_key' => 'warranty-' . $case->warranty_case_id,
-                'movement_type' => 'WARRANTY_TEMP',
-                'warehouse_id' => null, // Will be set based on item location
-                'product_id' => null, // Will be set based on item
-                'stock_status' => 'WARRANTY_TEMP',
-                'qty_before' => 0,
-                'qty_delta' => 0,
-                'qty_after' => 0,
-                'stock_document_id' => null,
-                'created_by' => $userId,
-                'request_id' => $request->attributes->get('request_id'),
-                'occurred_at' => now(),
-                'created_at' => now(),
-            ]);
+                WarrantyEvent::create([
+                    'warranty_event_id' => (string) Str::uuid(),
+                    'warranty_case_id' => $case->warranty_case_id,
+                    'event_type' => WarrantyEvent::EVENT_TEMP_ONLY,
+                    'from_status' => $fromStatus,
+                    'to_status' => WarrantyCase::STATUS_TEMP_ONLY,
+                    'note' => $data['note'] ?? 'Temporary receipt for warranty inspection.',
+                    'created_by' => $userId,
+                    'event_at' => now(),
+                ]);
 
-            return $this->respondSuccess([
-                'warranty_case_id' => $case->warranty_case_id,
-                'status' => $toStatus,
-                'condition_status' => $validated['condition_status'],
-                'item_id' => $validated['item_id'],
-                'defect_id' => $validated['defect_id'],
-                'note' => $validated['note'] ?? null,
-            ], 'Nhận tạm bảo hành thành công');
+                StockMovement::create([
+                    'movement_no' => 'WRN-TEMP-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)),
+                    'business_key' => 'warranty-'.$case->warranty_case_id,
+                    'movement_type' => 'WARRANTY_TEMP',
+                    'warehouse_id' => $serial->warehouse_id,
+                    'product_id' => $serial->product_id,
+                    'stock_status' => 'WARRANTY_TEMP',
+                    'qty_before' => 0,
+                    'qty_delta' => 0,
+                    'qty_after' => 0,
+                    'created_by' => $userId,
+                    'request_id' => $request->attributes->get('request_id'),
+                    'occurred_at' => now(),
+                ]);
+
+                AuditLogger::record('WARRANTY_TEMP_ONLY', 'warranty_case', $case->warranty_case_id, $userId, $request->attributes->get('request_id'), afterData: [
+                    'inventory_serial_id' => $serial->id,
+                    'status' => WarrantyCase::STATUS_TEMP_ONLY,
+                    'defect_id' => $data['defect_id'] ?? null,
+                ]);
+
+                return [
+                    'warranty_case_id' => $case->warranty_case_id,
+                    'status' => WarrantyCase::STATUS_TEMP_ONLY,
+                    'condition_status' => $data['condition_status'],
+                    'item_id' => $serial->id,
+                    'defect_id' => $data['defect_id'] ?? null,
+                    'note' => $data['note'] ?? null,
+                ];
+            });
+
+            return [200, $this->successEnvelope('Temporary warranty receipt recorded.', $data)];
         });
+
+        return response()->json($body, $code);
+    }
+
+    private function successEnvelope(string $message, array $data): array
+    {
+        return [
+            'success' => true,
+            'message' => $message,
+            'data' => $data,
+            'meta' => [
+                'request_id' => $this->currentRequestId(),
+                'timestamp' => now()->toIso8601String(),
+            ],
+        ];
     }
 }

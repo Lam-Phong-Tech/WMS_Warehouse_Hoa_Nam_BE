@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\Warehouse\Console\SeedUatData;
 use Modules\Warehouse\Repositories\AgencyRepository;
 use Modules\Warehouse\Repositories\ContainerItemRepository;
 use Modules\Warehouse\Repositories\ContainerRepository;
@@ -44,7 +45,9 @@ class WarehouseServiceProvider extends ModuleServiceProvider
      *
      * @var string[]
      */
-    // protected array $commands = [];
+    protected array $commands = [
+        SeedUatData::class,
+    ];
 
     /**
      * Provider classes to register.
