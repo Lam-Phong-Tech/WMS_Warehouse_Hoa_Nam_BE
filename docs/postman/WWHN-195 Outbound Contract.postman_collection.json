@@ -1,0 +1,218 @@
+{
+  "info": {
+    "_postman_id": "b1f2e690-7f50-4e6d-9150-wwhn1950001",
+    "name": "WWHN-195 Outbound Contract",
+    "description": "Executable contract for outbound document/mode/status (BE1). Drives create-from-request -> scan (manual item_id + code_value scan mode) -> label PRINTED -> post-issue -> reverse end-to-end. Mirrors tests/Feature/OutboundDocumentFlowTest.php.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": { "major": 1, "minor": 0, "patch": 0 }
+  },
+  "item": [
+    {
+      "name": "01 Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }],
+        "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] },
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('login 200', () => pm.response.to.have.status(200));",
+        "const json = pm.response.json();",
+        "pm.environment.set('accessToken', json.data.access_token);"
+      ] } }]
+    },
+    {
+      "name": "02 Resolve warehouse",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+        "url": { "raw": "{{baseUrl}}/api/v1/warehouses", "host": ["{{baseUrl}}"], "path": ["api", "v1", "warehouses"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('warehouse list 200', () => pm.response.to.have.status(200));",
+        "const json = pm.response.json();",
+        "const warehouse = json.data.find((row) => row.status === 'ACTIVE');",
+        "pm.test('active warehouse exists', () => pm.expect(warehouse).to.be.an('object'));",
+        "pm.environment.set('warehouseId', warehouse.id);"
+      ] } }]
+    },
+    {
+      "name": "03 Create outbound document from request (POST prohibits manual lines)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents"] },
+        "body": { "mode": "raw", "raw": "{\n  \"src_warehouse_id\": \"{{warehouseId}}\",\n  \"outbound_request_id\": \"{{outboundRequestId}}\"\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 201', () => pm.response.to.have.status(201));",
+        "const json = pm.response.json();",
+        "pm.test('status DRAFT', () => pm.expect(json.data.status).to.eql('DRAFT'));",
+        "pm.environment.set('documentId', json.data.id);",
+        "pm.environment.set('lineId', json.data.lines[0].id);",
+        "pm.environment.set('documentVersion', String(json.data.version));"
+      ] } }]
+    },
+    {
+      "name": "04 Scan manual mode (item_id)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "If-Match", "value": "{{documentVersion}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents/{{documentId}}/scan", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents", "{{documentId}}", "scan"] },
+        "body": { "mode": "raw", "raw": "{\n  \"line_id\": \"{{lineId}}\",\n  \"quantity\": 1,\n  \"item_id\": \"{{manualItemId}}\"\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 200', () => pm.response.to.have.status(200));",
+        "const json = pm.response.json();",
+        "pm.test('stock_effect NONE', () => pm.expect(json.data.stock_effect).to.eql('NONE'));",
+        "pm.test('item matched', () => pm.expect(json.data.item_id).to.eql(pm.environment.get('manualItemId')));",
+        "pm.environment.set('documentVersion', String(json.data.version));"
+      ] } }]
+    },
+    {
+      "name": "05 Scan mode (code_value)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "If-Match", "value": "{{documentVersion}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents/{{documentId}}/scan", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents", "{{documentId}}", "scan"] },
+        "body": { "mode": "raw", "raw": "{\n  \"line_id\": \"{{lineId}}\",\n  \"quantity\": 1,\n  \"code_value\": \"{{scanCodeValue}}\"\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 200', () => pm.response.to.have.status(200));",
+        "const json = pm.response.json();",
+        "pm.test('resolved item from code_value', () => pm.expect(json.data.item_id).to.be.a('string').and.not.empty);",
+        "pm.environment.set('scannedItemId', json.data.item_id);",
+        "pm.environment.set('documentVersion', String(json.data.version));"
+      ] } }]
+    },
+    {
+      "name": "06 Post Issue blocked without printed labels",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "If-Match", "value": "{{documentVersion}}", "type": "text" },
+          { "key": "Idempotency-Key", "value": "WWHN-195-POST-ISSUE-{{$randomUUID}}", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents/{{documentId}}/post-issue", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents", "{{documentId}}", "post-issue"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 422', () => pm.response.to.have.status(422));",
+        "const json = pm.response.json();",
+        "pm.test('LABEL_NOT_PRINTED', () => pm.expect(json.error.code).to.eql('LABEL_NOT_PRINTED'));"
+      ] } }],
+      "description": "Chạy step này TRƯỚC khi in nhãn thủ công qua UI/label endpoint để chứng minh gate LABEL_NOT_PRINTED có hiệu lực."
+    },
+    {
+      "name": "07 Post Issue success (after labels printed)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "If-Match", "value": "{{documentVersion}}", "type": "text" },
+          { "key": "Idempotency-Key", "value": "{{postIssueIdempotencyKey}}", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents/{{documentId}}/post-issue", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents", "{{documentId}}", "post-issue"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 200', () => pm.response.to.have.status(200));",
+        "const json = pm.response.json();",
+        "pm.test('status POSTED', () => pm.expect(json.data.status).to.eql('POSTED'));",
+        "pm.test('stock_effect DECREASE', () => pm.expect(json.data.stock_effect).to.eql('DECREASE'));",
+        "pm.test('replay header false', () => pm.expect(pm.response.headers.get('Idempotent-Replay')).to.eql('false'));",
+        "pm.environment.set('documentVersion', String(json.data.version));",
+        "pm.environment.set('movementId', json.data.movement_ids[0]);"
+      ] } }]
+    },
+    {
+      "name": "08 Post Issue replay is idempotent",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "If-Match", "value": "{{documentVersion}}", "type": "text" },
+          { "key": "Idempotency-Key", "value": "{{postIssueIdempotencyKey}}", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents/{{documentId}}/post-issue", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents", "{{documentId}}", "post-issue"] }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 200', () => pm.response.to.have.status(200));",
+        "pm.test('replay header true', () => pm.expect(pm.response.headers.get('Idempotent-Replay')).to.eql('true'));"
+      ] } }]
+    },
+    {
+      "name": "09 Reverse (SELLABLE, physical_return_confirmed)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "If-Match", "value": "{{documentVersion}}", "type": "text" },
+          { "key": "Idempotency-Key", "value": "WWHN-195-REVERSE-{{$randomUUID}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents/{{documentId}}/reverse", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents", "{{documentId}}", "reverse"] },
+        "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Khach tra hang\",\n  \"condition_status\": \"SELLABLE\",\n  \"physical_return_confirmed\": true,\n  \"lines\": [\n    { \"movement_id\": \"{{movementId}}\", \"quantity\": 1, \"item_id\": \"{{manualItemId}}\" }\n  ]\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 200', () => pm.response.to.have.status(200));",
+        "const json = pm.response.json();",
+        "pm.test('original document remains POSTED', () => pm.expect(json.data.original_document_status).to.eql('POSTED'));"
+      ] } }]
+    },
+    {
+      "name": "10 RBAC — viewer cannot create outbound document",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{viewerAccessToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents"] },
+        "body": { "mode": "raw", "raw": "{\n  \"src_warehouse_id\": \"{{warehouseId}}\",\n  \"outbound_request_id\": \"{{outboundRequestId}}\"\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 403', () => pm.response.to.have.status(403));",
+        "const json = pm.response.json();",
+        "pm.test('ACCESS_DENIED', () => pm.expect(json.error.code).to.eql('ACCESS_DENIED'));",
+        "pm.test('no stack trace leaked', () => pm.expect(JSON.stringify(json)).to.not.include('.php'));"
+      ] } }]
+    },
+    {
+      "name": "11 Create rejects manual lines payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/outbound-documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "outbound-documents"] },
+        "body": { "mode": "raw", "raw": "{\n  \"src_warehouse_id\": \"{{warehouseId}}\",\n  \"outbound_request_id\": \"{{outboundRequestId}}\",\n  \"lines\": [{ \"product_id\": \"{{skuId}}\", \"qty_planned\": 1 }]\n}", "options": { "raw": { "language": "json" } } }
+      },
+      "response": [],
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 422', () => pm.response.to.have.status(422));"
+      ] } }]
+    }
+  ]
+}

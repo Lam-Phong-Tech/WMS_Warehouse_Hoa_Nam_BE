@@ -1,0 +1,59 @@
+{
+  "jira_key": "WWHN-195",
+  "version": "1.0.0",
+  "status": "PROPOSED",
+  "approval_status": "PENDING_BA_SIGN_OFF",
+  "note": "WWHN-195 gốc trên Jira trống nội dung tại thời điểm soạn tài liệu này (2026-08-15). Test case này được suy ra từ code baseline thực tế đã verify bằng HTTP integration test, không phải từ AC gốc trên Jira — cần BA đối chiếu lại.",
+  "cases": [
+    { "id": "W195-CREATE-001", "priority": "P0", "area": "create", "scenario": "tạo outbound document từ toa OPEN — lines hydrate tự động", "expected_http": 201, "expected": ["status=DRAFT", "lines khớp outbound_request_lines", "outbound_request chuyển CONSUMED"] },
+    { "id": "W195-CREATE-002", "priority": "P0", "area": "create", "scenario": "gửi lines thủ công trong payload", "expected_http": 422, "expected": ["validation error trên field lines (prohibited)"] },
+    { "id": "W195-CREATE-003", "priority": "P0", "area": "create", "scenario": "outbound_request đã CONSUMED bởi document khác", "expected_http": 409, "expected": ["OUTBOUND_REQUEST_ALREADY_USED"] },
+    { "id": "W195-CREATE-004", "priority": "P1", "area": "create", "scenario": "outbound_request CANCELLED hoặc không tồn tại", "expected_http": 422, "expected": ["OUTBOUND_REQUEST_NOT_ACTIVE"] },
+    { "id": "W195-SCAN-001", "priority": "P0", "area": "scan-mode", "scenario": "chế độ nhập tay — payload gửi item_id", "expected_http": 200, "expected": ["item_id trong response khớp item_id gửi lên", "stock_effect=NONE", "scanned_qty tăng"] },
+    { "id": "W195-SCAN-002", "priority": "P0", "area": "scan-mode", "scenario": "chế độ quét mã — payload gửi code_value", "expected_http": 200, "expected": ["server tự resolve item qua physical_codes", "stock_effect=NONE"] },
+    { "id": "W195-SCAN-003", "priority": "P1", "area": "scan-mode", "scenario": "gửi cả item_id và code_value không khớp cùng một item", "expected_http": 422, "expected": ["PHYSICAL_CODE_ITEM_MISMATCH"] },
+    { "id": "W195-SCAN-004", "priority": "P1", "area": "scan", "scenario": "scan vượt available stock", "expected_http": 422, "expected": ["INSUFFICIENT_STOCK", "không tạo match"] },
+    { "id": "W195-SCAN-005", "priority": "P1", "area": "scan", "scenario": "item đã match ở outbound document khác đang active", "expected_http": 409, "expected": ["ITEM_ALREADY_MATCHED"] },
+    { "id": "W195-UNMATCH-001", "priority": "P1", "area": "unmatch", "scenario": "gỡ match ACTIVE trước Post", "expected_http": 200, "expected": ["match status ACTIVE -> REMOVED", "scanned_qty giảm tương ứng", "stock_effect=NONE", "item vẫn IN_STOCK"] },
+    { "id": "W195-STATUS-001", "priority": "P0", "area": "status-lifecycle", "scenario": "DRAFT -> SCANNING khi scan đầu tiên thành công", "expected_http": 200, "expected": ["status chuyển SCANNING", "version tăng"] },
+    { "id": "W195-STATUS-002", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue khi chưa scan đủ (scanned_qty != qty_planned)", "expected_http": 422, "expected": ["FULL_POST_REQUIRED"] },
+    { "id": "W195-STATUS-003", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue khi PRODUCT item chưa có label PRINTED", "expected_http": 422, "expected": ["LABEL_NOT_PRINTED"] },
+    { "id": "W195-STATUS-004", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue khi PRODUCT item chưa có RFID active", "expected_http": 422, "expected": ["ITEM_RFID_REQUIRED"] },
+    { "id": "W195-STATUS-005", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue happy path", "expected_http": 200, "expected": ["status=POSTED", "stock_effect=DECREASE", "item_status=ISSUED", "match status=POSTED", "một posting_event COMMITTED"] },
+    { "id": "W195-STATUS-006", "priority": "P0", "area": "status-lifecycle", "scenario": "Cancel document DRAFT/SCANNING", "expected_http": 200, "expected": ["status=CANCELLED (terminal)", "outbound_request trả về OPEN nếu không còn phiếu active khác"] },
+    { "id": "W195-STATUS-007", "priority": "P1", "area": "status-lifecycle", "scenario": "Cancel/Update trên document đã POSTED hoặc CANCELLED", "expected_http": 409, "expected": ["STATE_CONFLICT"] },
+    { "id": "W195-RACE-001", "priority": "P0", "area": "concurrency", "scenario": "post-issue racer với If-Match cũ sau khi winner đã commit", "expected_http": 412, "expected": ["PRECONDITION_FAILED", "stock effect chỉ áp dụng đúng một lần"] },
+    { "id": "W195-RACE-002", "priority": "P0", "area": "concurrency", "scenario": "post-issue lần hai với If-Match hiện hành sau khi document đã POSTED", "expected_http": 409, "expected": ["STATE_CONFLICT", "không tạo thêm stock_movement"] },
+    { "id": "W195-RACE-003", "priority": "P1", "area": "concurrency", "scenario": "scan với If-Match cũ (stale) sau khi winner đã scan trước", "expected_http": 412, "expected": ["PRECONDITION_FAILED", "chỉ một match được tạo"] },
+    { "id": "W195-RACE-004", "priority": "P1", "area": "concurrency", "scenario": "business_key duy nhất theo document+line sau Post Issue", "expected_http": "N/A", "expected": ["sha1('ISSUE|doc_id|line_id') duy nhất trong stock_movements"] },
+    { "id": "W195-IDEM-001", "priority": "P0", "area": "idempotency", "scenario": "post-issue lặp lại cùng Idempotency-Key và payload", "expected_http": 200, "expected": ["Idempotent-Replay=true", "không double-apply stock effect", "không nhân đôi audit_log row"] },
+    { "id": "W195-IDEM-002", "priority": "P1", "area": "idempotency", "scenario": "post-issue thiếu header Idempotency-Key", "expected_http": 428, "expected": ["PRECONDITION_REQUIRED"] },
+    { "id": "W195-AUDIT-001", "priority": "P0", "area": "audit", "scenario": "tạo outbound document ghi audit_log CREATE_OUTBOUND", "expected_http": "N/A", "expected": ["audit_log row action=CREATE_OUTBOUND", "actor_id đúng", "after_data chứa outbound_request_id"] },
+    { "id": "W195-AUDIT-002", "priority": "P0", "area": "audit", "scenario": "post-issue ghi audit_log POST_ISSUE, replay không nhân đôi", "expected_http": "N/A", "expected": ["audit_log row action=POST_ISSUE duy nhất", "before_data.status=SCANNING", "after_data.status=POSTED"] },
+    { "id": "W195-AUDIT-003", "priority": "P1", "area": "audit", "scenario": "cancel document ghi audit_log CANCEL_STOCK_DOCUMENT kèm reason", "expected_http": "N/A", "expected": ["audit_log row action=CANCEL_STOCK_DOCUMENT", "reason đúng nội dung gửi lên"] },
+    { "id": "W195-RBAC-001", "priority": "P0", "area": "permission", "scenario": "chưa xác thực gọi bất kỳ endpoint outbound", "expected_http": 401, "expected": ["UNAUTHENTICATED"] },
+    { "id": "W195-RBAC-002", "priority": "P0", "area": "permission", "scenario": "role VIEWER (chỉ outbound.view) gọi create", "expected_http": 403, "expected": ["ACCESS_DENIED"] },
+    { "id": "W195-RBAC-003", "priority": "P1", "area": "permission", "scenario": "role WAREHOUSE_STAFF (create/scan, không post/cancel) gọi post-issue/cancel", "expected_http": 403, "expected": ["ACCESS_DENIED"] },
+    { "id": "W195-RBAC-004", "priority": "P1", "area": "permission", "scenario": "role WAREHOUSE_APPROVER (post/cancel, không create/scan) gọi create/scan", "expected_http": 403, "expected": ["ACCESS_DENIED"] },
+    { "id": "W195-RBAC-005", "priority": "P1", "area": "permission", "scenario": "SUPER_ADMIN bypass mọi permission outbound", "expected_http": 200, "expected": ["mọi endpoint outbound truy cập được"] },
+    { "id": "W195-RBAC-006", "priority": "P1", "area": "permission", "scenario": "403 response format không lộ stack trace/secret", "expected_http": 403, "expected": ["không có field trace/stack", "error.code=ACCESS_DENIED", "error.details=[]"] }
+  ],
+  "automation": {
+    "phpunit": [
+      "tests/Feature/OutboundDocumentFlowTest.php",
+      "tests/Feature/PostIssueConcurrencyBehaviorTest.php",
+      "tests/Feature/PostIssueAuditLogTest.php",
+      "tests/Feature/OutboundPermissionTest.php",
+      "tests/Feature/OutboundDocsAlignmentContractTest.php"
+    ],
+    "postman": "docs/postman/WWHN-195 Outbound Contract.postman_collection.json",
+    "openapi": [
+      "docs/api-contract/WWHN-195-outbound-openapi.yaml",
+      "docs/api-contract/WWHN-195-outbound-openapi.json"
+    ]
+  },
+  "known_gaps_for_ba_review": [
+    "Chế độ nhập tay/quét mã không phải một field enum tường minh trong request/response hay migration — được suy luận từ việc payload /scan có item_id (nhập tay) hay code_value (quét mã). Cần BA xác nhận cơ chế ngầm định này có đáp ứng đủ AC gốc của WWHN-195 hay cần thêm field input_mode tường minh.",
+    "Nội dung WWHN-195 gốc trên Jira, task cha WWHN-45, và dependency HN-PIN-06/HN-FND-001/HN-MC-001 không có trong repo tại thời điểm soạn tài liệu — cần đối chiếu lại với Jira để xác nhận scope/AC đầy đủ."
+  ]
+}
