@@ -116,6 +116,103 @@
       ]
     },
     {
+      "name": "SKU import (dry-run) — WWHN-224",
+      "item": [
+        {
+          "name": "Dry-run import valid file (no data written)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": "{{base_url}}/api/v1/skus/import-excel",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "WWHN-172-SKU-import-template-v1.1.0.xlsx"},
+                {"key": "dry_run", "value": "true", "type": "text"}
+              ]
+            }
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 dry-run valid', () => pm.response.to.have.status(200));",
+            "const j=pm.response.json();",
+            "pm.test('dry_run true and committed false', () => { pm.expect(j.data.dry_run).to.eql(true); pm.expect(j.data.committed).to.eql(false); });",
+            "pm.test('no business write, has report id', () => { pm.expect(j.data.inserted_rows).to.eql(0); pm.expect(j.data.import_report_id).to.be.ok; });",
+            "pm.collectionVariables.set('import_report_id', j.data.import_report_id);"
+          ]}}]
+        },
+        {
+          "name": "Dry-run import invalid file (rejected, no write)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": "{{base_url}}/api/v1/skus/import-excel",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "wwhn224-invalid-sample.xlsx"},
+                {"key": "dry_run", "value": "true", "type": "text"}
+              ]
+            }
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('422 dry-run rejected', () => pm.response.to.have.status(422));",
+            "const j=pm.response.json();",
+            "pm.test('error code and no side effect', () => { pm.expect(j.error.code).to.eql('SKU_IMPORT_DRY_RUN_REJECTED'); pm.expect(j.data.committed).to.eql(false); });"
+          ]}}]
+        },
+        {
+          "name": "Real import (dry_run=false) commits as before",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": "{{base_url}}/api/v1/skus/import-excel",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "WWHN-172-SKU-import-template-v1.1.0.xlsx"},
+                {"key": "dry_run", "value": "false", "type": "text"}
+              ]
+            }
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 committed', () => pm.response.to.have.status(200));",
+            "const j=pm.response.json();",
+            "pm.test('dry_run false and committed true', () => { pm.expect(j.data.dry_run).to.eql(false); pm.expect(j.data.committed).to.eql(true); });"
+          ]}}]
+        },
+        {
+          "name": "Get Import báo cáo detail",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-reports/{{import_report_id}}"
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 report detail', () => pm.response.to.have.status(200));",
+            "pm.test('matches report id', () => pm.expect(pm.response.json().data.import_report_id).to.eql(pm.collectionVariables.get('import_report_id')));"
+          ]}}]
+        },
+        {
+          "name": "List Import báo cáo (filter dry-run)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-reports?mode=DRY_RUN&per_page=10"
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 report list', () => pm.response.to.have.status(200));",
+            "pm.test('paginated payload', () => pm.expect(pm.response.json().success).to.eql(true));"
+          ]}}]
+        }
+      ]
+    },
+    {
       "name": "Container aggregate",
       "item": [
         {

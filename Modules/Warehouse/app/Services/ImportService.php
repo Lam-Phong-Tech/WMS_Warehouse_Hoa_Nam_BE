@@ -36,6 +36,7 @@ class ImportService
         ?string $actorId = null,
         ?string $requestId = null,
         ?string $originalName = null,
+        bool $dryRun = false,
     ): array {
         $this->assertFile($filePath);
         $checksum = hash_file('sha256', $filePath);
@@ -62,11 +63,11 @@ class ImportService
 
         [$records, $errors] = $this->validateRows($rows, $map);
         if ($errors !== []) {
-            return $this->result(count($rows), count($records), $errors, 0, 0, false, $checksum, $map);
+            return $this->result(count($rows), count($records), $errors, 0, 0, false, $checksum, $map, $dryRun);
         }
 
         return DB::transaction(function () use (
-            $records, $rows, $updateExisting, $actorId, $requestId, $originalName, $checksum, $map
+            $records, $rows, $updateExisting, $actorId, $requestId, $originalName, $checksum, $map, $dryRun
         ): array {
             $skuCodes = collect($records)->pluck('sku_code')->all();
             $existing = Sku::query()
@@ -102,7 +103,39 @@ class ImportService
             }
 
             if ($dbErrors !== []) {
-                return $this->result(count($rows), count($records) - count($dbErrors), $dbErrors, 0, 0, false, $checksum, $map);
+                return $this->result(count($rows), count($records) - count($dbErrors), $dbErrors, 0, 0, false, $checksum, $map, $dryRun);
+            }
+
+            $wouldInsert = 0;
+            $wouldUpdate = 0;
+            foreach ($records as $record) {
+                if ($bySku->get($record['sku_code'])) {
+                    $wouldUpdate++;
+                } else {
+                    $wouldInsert++;
+                }
+            }
+
+            if ($dryRun) {
+                AuditLogger::record(
+                    'SKU_IMPORT_DRY_RUN_CHECK',
+                    'sku_import',
+                    null,
+                    $actorId,
+                    $requestId,
+                    afterData: [
+                        'file_name' => $originalName,
+                        'file_sha256' => $checksum,
+                        'template_version' => self::TEMPLATE_VERSION,
+                        'update_existing' => $updateExisting,
+                        'would_insert_rows' => $wouldInsert,
+                        'would_update_rows' => $wouldUpdate,
+                        'transaction_mode' => 'DRY_RUN_NO_WRITE',
+                    ],
+                    reason: 'WWHN-224 dry-run check, no business row written',
+                );
+
+                return $this->result(count($rows), count($records), [], $wouldInsert, $wouldUpdate, false, $checksum, $map, true);
             }
 
             $inserted = 0;
@@ -156,7 +189,7 @@ class ImportService
                 reason: 'WWHN-172 import summary in same transaction',
             );
 
-            return $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map);
+            return $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map, false);
         }, 3);
     }
 
@@ -355,11 +388,12 @@ class ImportService
     }
 
     /** @return array<string, mixed> */
-    private function result(int $total, int $valid, array $errors, int $inserted, int $updated, bool $committed, string $checksum, array $map): array
+    private function result(int $total, int $valid, array $errors, int $inserted, int $updated, bool $committed, string $checksum, array $map, bool $dryRun): array
     {
         return [
             'template_version' => self::TEMPLATE_VERSION,
-            'transaction_mode' => 'ALL_OR_NOTHING',
+            'transaction_mode' => $dryRun ? 'DRY_RUN_NO_WRITE' : 'ALL_OR_NOTHING',
+            'dry_run' => $dryRun,
             'committed' => $committed,
             'partial_write' => false,
             'file_sha256' => $checksum,
@@ -367,8 +401,10 @@ class ImportService
             'total_rows' => $total,
             'valid_rows' => $valid,
             'error_rows' => count($errors),
-            'inserted_rows' => $inserted,
-            'updated_rows' => $updated,
+            'inserted_rows' => $dryRun ? 0 : $inserted,
+            'updated_rows' => $dryRun ? 0 : $updated,
+            'would_insert_rows' => $dryRun ? $inserted : 0,
+            'would_update_rows' => $dryRun ? $updated : 0,
             'skipped_rows' => count($errors),
             'row_errors' => $errors,
         ];

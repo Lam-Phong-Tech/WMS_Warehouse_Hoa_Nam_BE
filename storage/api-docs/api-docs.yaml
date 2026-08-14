@@ -6119,28 +6119,158 @@ paths:
     post:
       tags:
         - '05. Product'
-      summary: 'Import SKU từ Excel'
-      operationId: post_api_v1_skus_import_excel
+      summary: 'Import SKUs từ Excel theo cơ chế all-or-nothing, hỗ trợ dry-run'
+      description: 'Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại.'
+      operationId: sku_import_excel
       parameters: []
       requestBody:
-        required: false
+        required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                update_existing:
+                  type: boolean
+                  default: false
+                dry_run:
+                  description: 'true = chỉ kiểm tra thử, không ghi dữ liệu (WWHN-224)'
+                  type: boolean
+                  default: false
               type: object
-              example: []
-              additionalProperties: true
       responses:
         200:
-          description: 'Thành công'
+          description: 'Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true)'
+        401:
+          description: Unauthenticated
+        403:
+          description: 'Missing product.manage permission'
+        409:
+          description: 'Concurrent unique conflict; no partial write'
+        422:
+          description: 'File/row validation failed; no business side effect'
         400:
           description: 'Yêu cầu không đúng định dạng'
-        401:
-          description: 'Chưa xác thực'
-        403:
-          description: 'Không có quyền truy cập'
         404:
           description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/skus/import-reports:
+    get:
+      tags:
+        - '05. Product'
+      summary: 'Danh sách Import báo cáo SKU (dry-run và commit) — WWHN-224'
+      operationId: sku_import_report_list
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: mode
+          in: query
+          description: 'DRY_RUN hoặc COMMIT'
+          schema:
+            type: string
+            enum:
+              - DRY_RUN
+              - COMMIT
+        -
+          name: status
+          in: query
+          description: 'VALID | REJECTED | COMMITTED'
+          schema:
+            type: string
+            enum:
+              - VALID
+              - REJECTED
+              - COMMITTED
+        -
+          name: file_sha256
+          in: query
+          schema:
+            type: string
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: sku_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - PRODUCT
+              - COMPONENT
+      responses:
+        200:
+          description: 'Danh sách Import báo cáo, phân trang'
+        401:
+          description: Unauthenticated
+        403:
+          description: 'Missing sku.manage permission'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/skus/import-reports/{id}':
+    get:
+      tags:
+        - '05. Product'
+      summary: 'Chi tiết một Import báo cáo SKU — WWHN-224'
+      operationId: sku_import_report_detail
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: 'Chi tiết Import báo cáo'
+        401:
+          description: Unauthenticated
+        403:
+          description: 'Missing sku.manage permission'
+        404:
+          description: 'Không tìm thấy Import báo cáo'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
         409:
           description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
         412:
@@ -6158,8 +6288,8 @@ paths:
     get:
       tags:
         - '05. Product'
-      summary: 'Tải file mẫu import SKU'
-      operationId: get_api_v1_skus_import_template
+      summary: 'Tải template Excel SKU chuẩn WWHN-172'
+      operationId: sku_import_template
       parameters:
         -
           name: page
@@ -6193,13 +6323,13 @@ paths:
               - COMPONENT
       responses:
         200:
-          description: 'Thành công'
+          description: 'XLSX template'
+        401:
+          description: Unauthenticated
+        403:
+          description: 'Missing product.manage permission'
         400:
           description: 'Yêu cầu không đúng định dạng'
-        401:
-          description: 'Chưa xác thực'
-        403:
-          description: 'Không có quyền truy cập'
         404:
           description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
         409:
