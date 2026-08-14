@@ -39,7 +39,7 @@ class InboundCanonicalListContractTest extends TestCase
         $guide = (string) file_get_contents(base_path('docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md'));
         $routeSync = (string) file_get_contents(base_path('app/Swagger/Processors/RouteSyncProcessor.php'));
 
-        $this->assertSame(155, $contract['api']['operation_count']);
+        $this->assertSame(177, $contract['api']['operation_count']);
         $this->assertStringContainsString('Document ID: HN-WMS-TECH-GUIDE-001', $guide);
         $this->assertStringContainsString("'24. Putaway'", $routeSync);
         $this->assertStringContainsString("'get api/v1/putaway/tasks'", $routeSync);
