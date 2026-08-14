@@ -7,6 +7,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\SafeStockConfig;
 use Modules\Warehouse\Services\SafeStockAlertService;
@@ -58,15 +59,18 @@ class InventoryBalanceController extends Controller
         $subledgerCounts = $this->buildSubledgerCounts($balances->pluck('product_id')->unique()->all(), $balances->pluck('warehouse_id')->unique()->all());
         $incidentMap = $this->buildIncidentMap($balances->pluck('warehouse_id')->unique()->all(), $balances->pluck('product_id')->unique()->all());
         $dataAsOf = now()->toIso8601String();
+        $safeStockConfigTableExists = Schema::hasTable('safe_stock_configs');
 
-        $rows = $balances->map(function (InventoryBalance $balance) use ($ledgerTotals, $subledgerCounts, $incidentMap, $dataAsOf) {
-            $config = SafeStockConfig::query()
-                ->where('product_id', $balance->product_id)
-                ->where(function ($q) use ($balance) {
-                    $q->where('warehouse_id', $balance->warehouse_id)->orWhereNull('warehouse_id');
-                })
-                ->orderByRaw('warehouse_id IS NULL')
-                ->first();
+        $rows = $balances->map(function (InventoryBalance $balance) use ($ledgerTotals, $subledgerCounts, $incidentMap, $dataAsOf, $safeStockConfigTableExists) {
+            $config = $safeStockConfigTableExists
+                ? SafeStockConfig::query()
+                    ->where('product_id', $balance->product_id)
+                    ->where(function ($q) use ($balance) {
+                        $q->where('warehouse_id', $balance->warehouse_id)->orWhereNull('warehouse_id');
+                    })
+                    ->orderByRaw('warehouse_id IS NULL')
+                    ->first()
+                : null;
 
             $status = $config ? $this->safeStockAlerts->statusFor((float) $balance->available_qty, $config) : 'normal';
 
@@ -156,21 +160,20 @@ class InventoryBalanceController extends Controller
 
         $items = DB::table('item_instances')
             ->leftJoin('sku', 'item_instances.sku_id', '=', 'sku.sku_id')
-            ->leftJoin('physical_codes', 'physical_codes.item_id', '=', 'item_instances.item_id')
+            ->leftJoin('physical_codes', function ($join) {
+                $join->on('physical_codes.assigned_object_id', '=', 'item_instances.item_id')
+                    ->where('physical_codes.assigned_object_type', '=', 'ITEM');
+            })
             ->where('item_instances.sku_id', $balance->product_id)
-            ->whereIn('item_instances.status', ['IN_STOCK', 'NEW', 'RECEIVED', 'STORED'])
+            ->whereIn('item_instances.item_status', ['IN_STOCK', 'NEW'])
             ->orderByDesc('item_instances.created_at')
             ->limit(200)
             ->select([
                 'item_instances.item_id as id',
-                'item_instances.item_code',
                 'item_instances.serial_number',
-                'item_instances.status',
-                'item_instances.condition',
-                'item_instances.location_hint',
-                'item_instances.current_container_id',
-                'item_instances.received_at',
-                'item_instances.issued_at',
+                'item_instances.item_status as status',
+                'item_instances.item_condition as condition',
+                'item_instances.container_id as current_container_id',
                 'item_instances.created_at',
                 'sku.sku_code',
                 'sku.sku_name',
@@ -182,7 +185,7 @@ class InventoryBalanceController extends Controller
         $containers = DB::table('container_items')
             ->join('containers', 'container_items.container_id', '=', 'containers.container_id')
             ->where('container_items.sku_id', $balance->product_id)
-            ->where('container_items.is_active', true)
+            ->where('container_items.status', 'ACTIVE')
             ->orderByDesc('container_items.created_at')
             ->limit(200)
             ->select([

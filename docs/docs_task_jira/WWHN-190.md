@@ -18,7 +18,7 @@ Phối hợp với BE2 về ranh giới giao dịch, schema, truy vấn/báo cá
 
 Bàn giao cho FE1: API contract, endpoint, payload mẫu, validation/error code, permission và dữ liệu tích hợp.
 
-Bàn giao cho QA/BA: test evidence, migration/seed hoặc API/DB evidence; blocker  4phải có owner, ETA và ảnh hưởng.
+Bàn giao cho QA/BA: test evidence, migration/seed hoặc API/DB evidence; blocker  phải có owner, ETA và ảnh hưởng.
 
 Source & Traceability
 Parent Temp Key: HN-IN-003
