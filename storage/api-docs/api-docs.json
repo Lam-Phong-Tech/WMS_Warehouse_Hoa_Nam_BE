@@ -3079,21 +3079,22 @@
                 "tags": [
                     "07. Inventory"
                 ],
-                "summary": "GET /api/v1/inventory/balances/{id}/subledger - Modules Warehouse Http Controllers InventoryBalanceController subledger",
-                "operationId": "get_api_v1_inventory_balances_id_subledger",
+                "summary": "Chi tiết subledger item và container của một số dư tồn",
+                "operationId": "flow06_inventory_balance_subledger",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công"
+                        "description": "Subledger tồn kho"
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng"
@@ -7329,6 +7330,335 @@
                 ]
             }
         },
+        "/api/v1/reports/document-history": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Lịch sử phiếu nhập và phiếu xuất theo trạng thái",
+                "operationId": "flow06_document_history",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Lịch sử phiếu"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/document-history/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất Excel lịch sử phiếu nhập và phiếu xuất",
+                "operationId": "flow06_document_history_export",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/hub": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Danh mục tám báo cáo vận hành MVP",
+                "operationId": "flow06_report_hub",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Danh mục báo cáo"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/import-match": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Đối soát batch Excel yêu cầu xuất và kết quả match",
+                "operationId": "flow06_import_match",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Đối soát import"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/import-match/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất Excel đối soát import và match",
+                "operationId": "flow06_import_match_export",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/inventory-balance": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Báo cáo tồn kho hiện tại kèm đối soát ledger",
+                "operationId": "flow06_inventory_balance",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Báo cáo tồn kho"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/inventory-balance/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất Excel báo cáo tồn kho hiện tại",
+                "operationId": "flow06_inventory_balance_export",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/reports/inventory-reconciliation": {
             "get": {
                 "tags": [
@@ -7423,17 +7753,393 @@
                 ]
             }
         },
+        "/api/v1/reports/inventory-xnt-enhanced": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Báo cáo Nhập-Xuất-Tồn chi tiết theo movement type",
+                "operationId": "flow06_inventory_xnt_enhanced",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Báo cáo XNT chi tiết"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/inventory-xnt-enhanced/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất Excel báo cáo Nhập-Xuất-Tồn chi tiết",
+                "operationId": "flow06_inventory_xnt_enhanced_export",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/reports/inventory-xnt/export-excel": {
             "get": {
                 "tags": [
                     "12. Dashboard / Report"
                 ],
-                "summary": "Xuất Excel báo cáo nhập xuất tồn",
+                "summary": "Xuất Excel/PDF báo cáo nhập xuất tồn",
                 "operationId": "get_api_v1_reports_inventory_xnt_export_excel",
                 "parameters": [],
                 "responses": {
                     "200": {
                         "description": "Thành công"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/label-log": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Nhật ký in nhãn, lỗi in và in lại",
+                "operationId": "flow06_label_log",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Nhật ký nhãn"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/label-log/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất Excel nhật ký in nhãn và in lại",
+                "operationId": "flow06_label_log_export",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/movement-trace": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Truy vết movement, reversal và correction chain",
+                "operationId": "flow06_movement_trace",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Movement trace"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/movement-trace/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất Excel movement trace và correction chain",
+                "operationId": "flow06_movement_trace_export",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/outbound-by-agency": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Báo cáo xuất kho theo nơi nhận",
+                "operationId": "flow06_outbound_by_agency",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Xuất theo nơi nhận"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/outbound-by-agency/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất Excel báo cáo xuất kho theo nơi nhận",
+                "operationId": "flow06_outbound_by_agency_export",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX"
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng"
@@ -7522,7 +8228,7 @@
                 "tags": [
                     "12. Dashboard / Report"
                 ],
-                "summary": "Xuất Excel báo cáo bảo hành & linh kiện",
+                "summary": "Xuất Excel/PDF báo cáo bảo hành & linh kiện",
                 "operationId": "get_api_v1_reports_warranty_defects_export_excel",
                 "parameters": [],
                 "responses": {
@@ -7569,12 +8275,12 @@
                 "tags": [
                     "00. Platform"
                 ],
-                "summary": "GET /api/v1/reversal-documents - Modules Warehouse Http Controllers ReversalDocumentController index",
-                "operationId": "get_api_v1_reversal_documents",
+                "summary": "Danh sách phiếu reversal và correction",
+                "operationId": "flow06_reversal_list",
                 "parameters": [],
                 "responses": {
                     "200": {
-                        "description": "Thành công"
+                        "description": "Danh sách reversal"
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng"
@@ -7614,8 +8320,8 @@
                 "tags": [
                     "00. Platform"
                 ],
-                "summary": "POST /api/v1/reversal-documents - Modules Warehouse Http Controllers ReversalDocumentController store",
-                "operationId": "post_api_v1_reversal_documents",
+                "summary": "Tạo reversal append-only cho movement đã post",
+                "operationId": "flow06_reversal_create",
                 "parameters": [],
                 "requestBody": {
                     "required": false,
@@ -7630,6 +8336,9 @@
                     }
                 },
                 "responses": {
+                    "201": {
+                        "description": "Đã tạo reversal"
+                    },
                     "200": {
                         "description": "Thành công"
                     },
@@ -7673,21 +8382,22 @@
                 "tags": [
                     "00. Platform"
                 ],
-                "summary": "GET /api/v1/reversal-documents/{id} - Modules Warehouse Http Controllers ReversalDocumentController show",
-                "operationId": "get_api_v1_reversal_documents_id",
+                "summary": "Chi tiết phiếu reversal và correction chain",
+                "operationId": "flow06_reversal_detail",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công"
+                        "description": "Chi tiết reversal"
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng"
@@ -7729,21 +8439,22 @@
                 "tags": [
                     "00. Platform"
                 ],
-                "summary": "GET /api/v1/reversal-documents/{id}/lines - Modules Warehouse Http Controllers ReversalDocumentController lines",
-                "operationId": "get_api_v1_reversal_documents_id_lines",
+                "summary": "Danh sách dòng movement được reversal",
+                "operationId": "flow06_reversal_lines",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công"
+                        "description": "Dòng reversal"
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng"

@@ -10,6 +10,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\InventorySerial;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
@@ -102,6 +103,8 @@ class WarrantyController extends Controller
                     $this->assertLinkedSerialEligible($case);
 
                     $fromStatus = $case->status;
+                    $fromInventorySerialId = $case->inventory_serial_id;
+                    $fromProductId = $case->product_id;
                     $case->update([
                         'inventory_serial_id' => null,
                         'product_id' => null,
@@ -125,6 +128,16 @@ class WarrantyController extends Controller
                         'created_by' => $userId,
                         'event_at' => now(),
                     ]);
+
+                    AuditLogger::record(
+                        action: 'WARRANTY_TEMP_ONLY',
+                        objectType: 'warranty_case',
+                        objectId: $case->warranty_case_id,
+                        actorId: $userId,
+                        requestId: request()->attributes->get('request_id'),
+                        beforeData: ['status' => $fromStatus, 'inventory_serial_id' => $fromInventorySerialId, 'product_id' => $fromProductId],
+                        afterData: ['status' => WarrantyCase::STATUS_TEMP_ONLY, 'identification_status' => 'TEMP_ONLY', 'temporary_item_code' => $validated['temporary_item_code'], 'version' => $case->version],
+                    );
 
                     return [
                         'warranty_case_id' => $case->warranty_case_id,

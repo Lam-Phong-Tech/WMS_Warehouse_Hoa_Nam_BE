@@ -420,12 +420,23 @@ class OperationalReportController extends Controller
         $rows = $keys->map(function (string $key) use ($balances, $movements): array {
             $balance = $balances->get($key);
             $movement = $movements->get($key);
+            $balanceExists = $balance !== null;
             $onHand = (float) ($balance->on_hand_qty ?? $balance->quantity ?? 0);
             $ledger = (float) ($movement->ledger_qty ?? 0);
-            $variance = $onHand - $ledger;
+            $variance = bcsub((string) $onHand, (string) $ledger, 3);
+            $isMismatch = bccomp($variance, '0', 3) !== 0;
             $warehouseId = (string) ($balance->warehouse_id ?? $movement->warehouse_id ?? '');
             $productId = (string) ($balance->product_id ?? $movement->product_id ?? '');
             $status = (string) ($balance->stock_status ?? $movement->stock_status ?? 'AVAILABLE');
+
+            $mismatchReason = null;
+            if ($isMismatch) {
+                $mismatchReason = match (true) {
+                    ! $balanceExists => 'BALANCE_MISSING_FOR_LEDGER',
+                    $movement === null => 'LEDGER_MISSING_FOR_BALANCE',
+                    default => 'QUANTITY_MISMATCH',
+                };
+            }
 
             return [
                 'id' => $key,
@@ -439,8 +450,13 @@ class OperationalReportController extends Controller
                 'available_qty' => (float) ($balance->available_qty ?? ($status === 'AVAILABLE' ? $onHand : 0)),
                 'reserved_qty' => (float) ($balance->reserved_qty ?? 0),
                 'ledger_qty' => $ledger,
-                'variance' => $variance,
-                'reconciliation_status' => abs($variance) < 0.000001 ? 'MATCH' : 'MISMATCH',
+                'expected_qty' => $ledger,
+                'current_on_hand_qty' => $onHand,
+                'variance' => (float) $variance,
+                'delta_qty' => (float) $variance,
+                'balance_exists' => $balanceExists,
+                'mismatch_reason' => $mismatchReason,
+                'reconciliation_status' => $isMismatch ? 'MISMATCH' : 'MATCH',
                 'updated_at' => (string) ($balance->updated_at ?? $movement->movement_updated_at ?? ''),
             ];
         })->sortBy(['warehouse_code', 'product_code', 'stock_status'])->values();
