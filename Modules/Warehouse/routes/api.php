@@ -24,6 +24,7 @@ use Modules\Warehouse\Http\Controllers\ImportBatchController;
 use Modules\Warehouse\Http\Controllers\InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Http\Controllers\ItemInstanceController;
+use Modules\Warehouse\Http\Controllers\OperationalReportController;
 use Modules\Warehouse\Http\Controllers\OutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\OutboundRequestController;
 use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
@@ -97,11 +98,28 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:inventory.view');
 
-        Route::get('reports/inventory-xnt', [ReportController::class, 'inventoryXnt'])->middleware('permission:report.view');
-        Route::get('reports/inventory-xnt/export-excel', [ReportController::class, 'exportExcel'])->middleware('permission:report.view');
-        Route::get('reports/dashboard-quick', [ReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
+        // Flow 06 · Báo cáo: read và export là hai quyền độc lập, BE enforce authoritative.
+        Route::get('reports/hub', [OperationalReportController::class, 'hub'])->middleware('permission:report.view');
+        Route::get('reports/inventory-balance', [OperationalReportController::class, 'inventoryBalance'])->middleware('permission:report.view');
+        Route::get('reports/inventory-balance/export-excel', [OperationalReportController::class, 'inventoryBalanceExport'])->middleware('permission:report.export');
+        Route::get('reports/inventory-xnt', [OperationalReportController::class, 'inventoryXnt'])->middleware('permission:report.view');
+        Route::get('reports/inventory-xnt/export-excel', [OperationalReportController::class, 'inventoryXntExport'])->middleware('permission:report.export');
+        Route::get('reports/inventory-xnt-enhanced', [OperationalReportController::class, 'inventoryXntEnhanced'])->middleware('permission:report.view');
+        Route::get('reports/inventory-xnt-enhanced/export-excel', [OperationalReportController::class, 'inventoryXntEnhancedExport'])->middleware('permission:report.export');
+        Route::get('reports/document-history', [OperationalReportController::class, 'documentHistory'])->middleware('permission:report.view');
+        Route::get('reports/document-history/export-excel', [OperationalReportController::class, 'documentHistoryExport'])->middleware('permission:report.export');
+        Route::get('reports/movement-trace', [OperationalReportController::class, 'movementTrace'])->middleware('permission:report.view');
+        Route::get('reports/movement-trace/export-excel', [OperationalReportController::class, 'movementTraceExport'])->middleware('permission:report.export');
+        Route::get('reports/import-match', [OperationalReportController::class, 'importMatch'])->middleware('permission:report.view');
+        Route::get('reports/import-match/export-excel', [OperationalReportController::class, 'importMatchExport'])->middleware('permission:report.export');
+        Route::get('reports/label-log', [OperationalReportController::class, 'labelLog'])->middleware('permission:report.view');
+        Route::get('reports/label-log/export-excel', [OperationalReportController::class, 'labelLogExport'])->middleware('permission:report.export');
+        Route::get('reports/outbound-by-agency', [OperationalReportController::class, 'outboundByAgency'])->middleware('permission:report.view');
+        Route::get('reports/outbound-by-agency/export-excel', [OperationalReportController::class, 'outboundByAgencyExport'])->middleware('permission:report.export');
+        Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
+        Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
         Route::get('reports/warranty-defects', [ReportController::class, 'warrantyDefects'])->middleware('permission:report.view');
-        Route::get('reports/warranty-defects/export-excel', [ReportController::class, 'warrantyDefectsExportExcel'])->middleware('permission:report.view');
+        Route::get('reports/warranty-defects/export-excel', [ReportController::class, 'warrantyDefectsExportExcel'])->middleware('permission:report.export');
 
         Route::get('agencies', [AgencyController::class, 'index'])->middleware('permission:agency.view');
         Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
