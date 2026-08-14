@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -23,7 +24,10 @@ class OperationalReportController extends Controller
     use ApiResponse;
 
     private const STOCK_STATUSES = ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'];
+
     private const MOVEMENT_TYPES = ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'];
+
+    private const EXPORT_ROW_LIMIT = 10000;
 
     #[OA\Get(path: '/api/v1/reports/hub', operationId: 'report_hub', summary: 'Danh mục báo cáo vận hành Flow 06', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'Danh mục 8 báo cáo MVP')])]
     public function hub()
@@ -605,7 +609,11 @@ class OperationalReportController extends Controller
                 'sku_count' => $items->pluck('product_code')->unique()->count(),
             ];
         })->values()->all();
-        $publicRows = $collection->map(function (array $row): array { unset($row['_document_id']); return $row; })->all();
+        $publicRows = $collection->map(function (array $row): array {
+            unset($row['_document_id']);
+
+            return $row;
+        })->all();
 
         return [
             'period' => ['from_date' => $from, 'to_date' => $to],
@@ -703,6 +711,15 @@ class OperationalReportController extends Controller
 
     private function exportRows(Request $request, string $sheetTitle, array $headers, array $rows, string $fileName, string $reportKey)
     {
+        if (count($rows) > self::EXPORT_ROW_LIMIT) {
+            ApiError::abort(
+                422,
+                'REPORT_EXPORT_ROW_LIMIT_EXCEEDED',
+                'Mỗi file export tối đa 10.000 dòng; hãy thu hẹp bộ lọc.',
+                ['limit' => self::EXPORT_ROW_LIMIT, 'row_count' => count($rows)]
+            );
+        }
+
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
