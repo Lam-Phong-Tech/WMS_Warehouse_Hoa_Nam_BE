@@ -269,16 +269,16 @@ class StockMovementController extends Controller
                 'products.code as sku_code',
                 'products.name as sku_name',
                 'products.unit',
-                DB::raw("COALESCE(sku.is_serial_tracked, false) AS is_serial_tracked"),
+                DB::raw('COALESCE(sku.is_serial_tracked, false) AS is_serial_tracked'),
             ])
             ->orderByDesc('stock_movements.occurred_at');
 
         if ($request->filled('search')) {
-            $keyword = '%' . $request->input('search') . '%';
+            $keyword = '%'.$request->input('search').'%';
             $query->where(function ($q) use ($keyword) {
                 $q->whereRaw('CAST(stock_movements.movement_no AS TEXT) ILIKE ?', [$keyword])
-                  ->orWhereRaw('CAST(products.code AS TEXT) ILIKE ?', [$keyword])
-                  ->orWhereRaw('CAST(products.name AS TEXT) ILIKE ?', [$keyword]);
+                    ->orWhereRaw('CAST(products.code AS TEXT) ILIKE ?', [$keyword])
+                    ->orWhereRaw('CAST(products.name AS TEXT) ILIKE ?', [$keyword]);
             });
         }
 
