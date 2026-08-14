@@ -77,9 +77,9 @@ class InventoryBalanceController extends Controller
             $reconciliationStatus = bccomp($variance, '0', 3) === 0 ? 'MATCH' : 'MISMATCH';
             $mismatchReason = $reconciliationStatus === 'MATCH' ? null : 'BALANCE_NOT_EQUAL_SIGNED_LEDGER_SUM';
 
-            $subKey = $balance->warehouse_id . '|' . $balance->product_id;
+            $subKey = $balance->warehouse_id.'|'.$balance->product_id;
             $sub = $subledgerCounts[$subKey] ?? ['item_count' => 0, 'container_count' => 0];
-            $incKey = $balance->warehouse_id . '|' . $balance->product_id;
+            $incKey = $balance->warehouse_id.'|'.$balance->product_id;
             $incident = $incidentMap[$incKey] ?? null;
 
             return [
@@ -213,7 +213,7 @@ class InventoryBalanceController extends Controller
 
     private function dimensionKey(?string $warehouseId, ?string $productId, string $stockStatus): string
     {
-        return ($warehouseId ?? '') . '|' . ($productId ?? '') . '|' . $stockStatus;
+        return ($warehouseId ?? '').'|'.($productId ?? '').'|'.$stockStatus;
     }
 
     /** @param list<array{warehouse_id: ?string, product_id: ?string, stock_status: string}> $keys */
@@ -255,7 +255,7 @@ class InventoryBalanceController extends Controller
 
         foreach ($items as $item) {
             foreach ($warehouseIds as $whId) {
-                $key = $whId . '|' . $item->sku_id;
+                $key = $whId.'|'.$item->sku_id;
                 $map[$key] = $map[$key] ?? ['item_count' => 0, 'container_count' => 0];
                 $map[$key]['item_count'] = (int) $item->cnt;
             }
@@ -270,7 +270,7 @@ class InventoryBalanceController extends Controller
 
         foreach ($containers as $container) {
             foreach ($warehouseIds as $whId) {
-                $key = $whId . '|' . $container->sku_id;
+                $key = $whId.'|'.$container->sku_id;
                 $map[$key] = $map[$key] ?? ['item_count' => 0, 'container_count' => 0];
                 $map[$key]['container_count'] = (int) $container->cnt;
             }
@@ -295,7 +295,7 @@ class InventoryBalanceController extends Controller
 
         $map = [];
         foreach ($incidents as $inc) {
-            $key = $inc->warehouse_id . '|' . $inc->sku_id;
+            $key = $inc->warehouse_id.'|'.$inc->sku_id;
             if (! isset($map[$key])) {
                 $map[$key] = $inc;
             }
