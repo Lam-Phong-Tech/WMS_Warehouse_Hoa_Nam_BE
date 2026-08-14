@@ -8,14 +8,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\InventoryBalance;
+use Modules\Warehouse\Services\ReportService;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-/** Báo cáo XNT, dashboard và đối soát authoritative ledger. */
+/** Báo cáo XNT, dashboard, đối soát và các báo cáo vận hành BP-WMS-12. */
 class ReportController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(private readonly ReportService $reportService) {}
 
     #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt', summary: 'Báo cáo Xuất-Nhập-Tồn', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'Báo cáo XNT'), new OA\Response(response: 422, description: 'Khoảng ngày không hợp lệ')])]
     public function inventoryXnt(Request $request)
@@ -217,7 +220,7 @@ class ReportController extends Controller
             ->get()
             ->groupBy('warranty_case_id');
 
-        $activeStatuses = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED'];
+        $activeStatuses = ['RECEIVED', 'INSPECTING', 'WAITING_CHECK', 'REPAIRED'];
         $rows = $cases->map(function (object $case) use ($issuedByCase, $includePii): array {
             $issued = collect($issuedByCase->get((string) $case->warranty_case_id) ?? [])
                 ->map(fn (object $item): string => "{$item->sku_code} × ".(int) $item->issued_qty)
@@ -361,5 +364,202 @@ class ReportController extends Controller
         return $request->boolean('only_mismatch')
             ? $rows->where('status', 'MISMATCH')->values()
             : $rows->values();
+    }
+
+    // ──────────────────────────────────────────────────────────
+    //  BP-WMS-12: Các báo cáo vận hành bổ sung
+    // ──────────────────────────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'Tồn kho hiện tại — Balance projection + reconciliation warning', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại kèm đối soát')])]
+    public function inventoryBalance(Request $request)
+    {
+        return $this->respondSuccess($this->reportService->buildInventoryBalanceReport($request));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/inventory-balance/export-excel', operationId: 'report_inventory_balance_export_excel', summary: 'Xuất Excel tồn kho hiện tại', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX')])]
+    public function inventoryBalanceExportExcel(Request $request)
+    {
+        $report = $this->reportService->buildInventoryBalanceReport($request);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Ton kho');
+        $sheet->fromArray(['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái', 'Tồn kho', 'Khả dụng', 'Đã giữ', 'Đối soát'], null, 'A1');
+        $rowIndex = 2;
+        foreach ($report['rows'] as $row) {
+            $sheet->fromArray([
+                $row['warehouse_code'], $row['product_code'], $row['product_name'],
+                $row['stock_status'], $row['on_hand_qty'], $row['available_qty'],
+                $row['reserved_qty'], $row['reconciliation_status'],
+            ], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), 'bao-cao-ton-kho-hien-tai.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_inventory_xnt_enhanced', summary: 'XNT nâng cấp: Opening + Receipt - Issue - Component Issue + Reversal = Closing', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Báo cáo XNT nâng cấp')])]
+    public function inventoryXntEnhanced(Request $request)
+    {
+        return $this->respondSuccess($this->reportService->buildEnhancedXntReport($request));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced/export-excel', operationId: 'report_inventory_xnt_enhanced_export_excel', summary: 'Xuất Excel XNT nâng cấp', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'File XLSX')])]
+    public function inventoryXntEnhancedExportExcel(Request $request)
+    {
+        $report = $this->reportService->buildEnhancedXntReport($request);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('XNT chi tiet');
+        $sheet->fromArray(['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái', 'Đầu kỳ', 'Nhập', 'Xuất', 'Xuất LK', 'Hoàn đảo', 'Cuối kỳ'], null, 'A1');
+        $rowIndex = 2;
+        foreach ($report['lines'] as $line) {
+            $sheet->fromArray([
+                $line['warehouse_code'], $line['product_code'], $line['product_name'],
+                $line['stock_status'], $line['opening'], $line['receipt'],
+                $line['issue'], $line['component_issue'], $line['reversal_net'], $line['closing'],
+            ], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "bao-cao-xnt-chitiet-{$report['from_date']}-den-{$report['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    #[OA\Get(path: '/api/v1/reports/document-history', operationId: 'report_document_history', summary: 'Lịch sử phiếu nhập/xuất', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all'])), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Lịch sử phiếu')])]
+    public function documentHistory(Request $request)
+    {
+        return $this->respondSuccess($this->reportService->buildDocumentHistoryReport($request));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/document-history/export-excel', operationId: 'report_document_history_export_excel', summary: 'Xuất Excel lịch sử phiếu', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all']))], responses: [new OA\Response(response: 200, description: 'File XLSX')])]
+    public function documentHistoryExportExcel(Request $request)
+    {
+        $report = $this->reportService->buildDocumentHistoryReport($request);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Lich su phieu');
+        $sheet->fromArray(['Số phiếu', 'Loại', 'Kho', 'Đối tác', 'Ngày chứng từ', 'Trạng thái', 'Ngày post', 'Người tạo', 'Ghi chú'], null, 'A1');
+        $rowIndex = 2;
+        foreach ($report['rows'] as $row) {
+            $r = (object) $row;
+            $sheet->fromArray([
+                $r->document_no, $r->doc_type, $r->warehouse_code, $r->counterpart,
+                $r->document_date, $r->status, $r->posted_at, $r->created_by_name, $r->note,
+            ], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "lich-su-phieu-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    #[OA\Get(path: '/api/v1/reports/import-match', operationId: 'report_import_match', summary: 'Đối soát toa Excel — pass rate, error rows, matched qty', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Báo cáo đối soát toa')])]
+    public function importMatch(Request $request)
+    {
+        return $this->respondSuccess($this->reportService->buildImportMatchReport($request));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/import-match/export-excel', operationId: 'report_import_match_export_excel', summary: 'Xuất Excel đối soát toa', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'File XLSX')])]
+    public function importMatchExportExcel(Request $request)
+    {
+        $report = $this->reportService->buildImportMatchReport($request);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Doi soat toa');
+        $sheet->fromArray(['Mã batch', 'File', 'Trạng thái', 'Tổng dòng', 'Hợp lệ', 'Lỗi', 'Tỷ lệ (%)', 'SL khớp', 'Ngày upload', 'Người upload'], null, 'A1');
+        $rowIndex = 2;
+        foreach ($report['rows'] as $row) {
+            $sheet->fromArray([
+                $row['import_no'], $row['source_file_name'], $row['status'],
+                $row['total_rows'], $row['valid_rows'], $row['error_rows'],
+                $row['pass_rate'], $row['matched_qty'],
+                $row['uploaded_at'], $row['uploaded_by_name'],
+            ], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "doi-soat-toa-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'Nhật ký nhãn — snapshot, attempts, failure/reprint rate', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
+    public function labelLog(Request $request)
+    {
+        return $this->respondSuccess($this->reportService->buildLabelLogReport($request));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/label-log/export-excel', operationId: 'report_label_log_export_excel', summary: 'Xuất Excel nhật ký nhãn', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'File XLSX')])]
+    public function labelLogExportExcel(Request $request)
+    {
+        $report = $this->reportService->buildLabelLogReport($request);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Nhat ky nhan');
+        $sheet->fromArray(['Mã nhãn', 'Phiếu xuất', 'SKU', 'Sản phẩm', 'Mã vật lý', 'Trạng thái', 'In lại', 'Tổng attempt', 'Lỗi', 'Ngày tạo', 'Người tạo'], null, 'A1');
+        $rowIndex = 2;
+        foreach ($report['rows'] as $row) {
+            $sheet->fromArray([
+                $row['label_code'], $row['outbound_no'], $row['sku_code'], $row['product_name'],
+                $row['item_code_value'], $row['status'], $row['reprint_count'],
+                $row['total_attempts'], $row['failed_count'],
+                $row['created_at'], $row['created_by_name'],
+            ], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "nhat-ky-nhan-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    #[OA\Get(path: '/api/v1/reports/outbound-by-agency', operationId: 'report_outbound_by_agency', summary: 'Xuất theo nơi nhận — Agency là chiều báo cáo, không phải stock', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Báo cáo xuất theo nơi nhận')])]
+    public function outboundByAgency(Request $request)
+    {
+        return $this->respondSuccess($this->reportService->buildOutboundByAgencyReport($request));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/outbound-by-agency/export-excel', operationId: 'report_outbound_by_agency_export_excel', summary: 'Xuất Excel theo nơi nhận', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'File XLSX')])]
+    public function outboundByAgencyExportExcel(Request $request)
+    {
+        $report = $this->reportService->buildOutboundByAgencyReport($request);
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Xuat theo noi nhan');
+        $sheet->fromArray(['Mã đại lý', 'Tên nơi nhận', 'Mã SKU', 'Tên SP', 'Số phiếu', 'Ngày', 'Ngày post', 'SL yêu cầu', 'SL xuất'], null, 'A1');
+        $rowIndex = 2;
+        foreach ($report['rows'] as $row) {
+            $sheet->fromArray([
+                $row['agency_code'], $row['agency_name'], $row['product_code'], $row['product_name'],
+                $row['outbound_no'], $row['document_date'], $row['posted_at'],
+                $row['required_qty'], $row['scanned_qty'],
+            ], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "xuat-theo-noi-nhan-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 }
