@@ -59,14 +59,20 @@ class InventoryBalanceController extends Controller
             $status = $config ? $this->safeStockAlerts->statusFor((float) $balance->available_qty, $config) : 'normal';
 
             return [
+                'id' => $balance->id,
                 'warehouse_id' => $balance->warehouse_id,
+                'warehouse_name' => $balance->warehouse?->name,
+                'warehouse_code' => $balance->warehouse?->code,
                 'product_id' => $balance->product_id,
                 'product_code' => $balance->product?->code,
                 'product_name' => $balance->product?->name,
+                'unit' => $balance->product?->unit,
                 'on_hand_qty' => $balance->on_hand_qty,
                 'available_qty' => $balance->available_qty,
                 'reserved_qty' => $balance->reserved_qty,
+                'stock_status' => $balance->stock_status ?? 'AVAILABLE',
                 'status' => $status,
+                'updated_at' => $balance->updated_at,
             ];
         });
 

@@ -31,6 +31,7 @@ use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductMasterController;
 use Modules\Warehouse\Http\Controllers\PutawayController;
 use Modules\Warehouse\Http\Controllers\ReportController;
+use Modules\Warehouse\Http\Controllers\ReversalDocumentController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
@@ -83,8 +84,15 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('inventory/balances', [InventoryBalanceController::class, 'index'])->middleware('permission:inventory.view');
         Route::get('stock-movements', [StockMovementController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('stock-movements/reversible', [StockMovementController::class, 'reversible'])->middleware('permission:inventory.reversal.post');
         Route::get('stock-movements/{id}', [StockMovementController::class, 'show'])->middleware('permission:inventory.view');
         Route::get('stock-movements/{id}/trace-source', [StockMovementController::class, 'traceSource'])->middleware('permission:inventory.trace');
+
+        Route::get('reversal-documents', [ReversalDocumentController::class, 'index'])->middleware('permission:inventory.view');
+        Route::post('reversal-documents', [ReversalDocumentController::class, 'store'])->middleware('permission:inventory.reversal.post');
+        Route::get('reversal-documents/{id}', [ReversalDocumentController::class, 'show'])->middleware('permission:inventory.view');
+        Route::get('reversal-documents/{id}/lines', [ReversalDocumentController::class, 'lines'])->middleware('permission:inventory.view');
+
         Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:inventory.view');
 
         Route::get('reports/inventory-xnt', [ReportController::class, 'inventoryXnt'])->middleware('permission:report.view');

@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Modules\Auth\Models\User;
 
 class StockMovement extends Model
 {
@@ -78,5 +79,10 @@ class StockMovement extends Model
     public function originalMovement(): BelongsTo
     {
         return $this->belongsTo(self::class, 'original_movement_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by', 'user_id');
     }
 }
