@@ -1,7 +1,7 @@
 {
-  "schema_version": "4.0.0",
+  "schema_version": "4.1.0",
   "baseline_date": "2026-08-04",
-  "technical_alignment_date": "2026-08-12",
+  "technical_alignment_date": "2026-08-14",
   "sources": [
     {"path": "docs/HoaNam_ERD_Moi_Nhat.md", "document_id": "HN-WMS-ERD-DD-001", "version": "1.0"},
     {"path": "docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md", "document_id": "HN-BA-MASTER-DEVTEST-001", "version": "1.0"},
@@ -9,7 +9,7 @@
   ],
   "api": {
     "prefix": "/api/v1",
-    "operation_count": 155,
+    "operation_count": 177,
     "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
     "forbidden_path_fragments": ["stocktake", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"]
   },
