@@ -2057,6 +2057,43 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/inventory/balances/{id}/subledger':
+    get:
+      tags:
+        - '07. Inventory'
+      summary: 'GET /api/v1/inventory/balances/{id}/subledger - Modules Warehouse Http Controllers InventoryBalanceController subledger'
+      operationId: get_api_v1_inventory_balances_id_subledger
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
   /api/v1/item-instances:
     get:
       tags:
@@ -5021,6 +5058,149 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/reversal-documents:
+    get:
+      tags:
+        - '00. Platform'
+      summary: 'GET /api/v1/reversal-documents - Modules Warehouse Http Controllers ReversalDocumentController index'
+      operationId: get_api_v1_reversal_documents
+      parameters: []
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+    post:
+      tags:
+        - '00. Platform'
+      summary: 'POST /api/v1/reversal-documents - Modules Warehouse Http Controllers ReversalDocumentController store'
+      operationId: post_api_v1_reversal_documents
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/reversal-documents/{id}':
+    get:
+      tags:
+        - '00. Platform'
+      summary: 'GET /api/v1/reversal-documents/{id} - Modules Warehouse Http Controllers ReversalDocumentController show'
+      operationId: get_api_v1_reversal_documents_id
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/reversal-documents/{id}/lines':
+    get:
+      tags:
+        - '00. Platform'
+      summary: 'GET /api/v1/reversal-documents/{id}/lines - Modules Warehouse Http Controllers ReversalDocumentController lines'
+      operationId: get_api_v1_reversal_documents_id_lines
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
   /api/v1/roles:
     get:
       tags:
@@ -5740,6 +5920,136 @@ paths:
         - '07. Inventory'
       summary: 'Danh sách giao dịch kho'
       operationId: get_api_v1_stock_movements
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: movement_type
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/stock-movements/reversible:
+    get:
+      tags:
+        - '07. Inventory'
+      summary: 'Danh sách giao dịch kho'
+      operationId: get_api_v1_stock_movements_reversible
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: movement_type
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: 'Chưa xác thực'
+        403:
+          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/stock-movements/trace-by-code:
+    get:
+      tags:
+        - '07. Inventory'
+      summary: 'Danh sách giao dịch kho'
+      operationId: get_api_v1_stock_movements_trace_by_code
       parameters:
         -
           name: page
