@@ -18,6 +18,15 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
  *
  * Source of truth: signed stock_movements ledger. inventory_balances chỉ là
  * projection và mọi báo cáo tồn đều trả reconciliation evidence.
+ *
+ * Cải tiến v2:
+ *  - LIKE tương thích SQLite + PostgreSQL (thay ilike)
+ *  - by_agency đặt top-level response (khớp FE contract)
+ *  - Actor names join app_user
+ *  - Server-side pagination (page/per_page)
+ *  - PDF export
+ *  - Import/Match bổ sung filter baseline
+ *  - Warranty date params dùng from_date/to_date nhất quán (fallback from/to)
  */
 class OperationalReportController extends Controller
 {
@@ -28,6 +37,12 @@ class OperationalReportController extends Controller
     private const MOVEMENT_TYPES = ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'];
 
     private const EXPORT_ROW_LIMIT = 10000;
+
+    private const DEFAULT_PER_PAGE = 50;
+
+    private const MAX_PER_PAGE = 200;
+
+    // ── Hub ──────────────────────────────────────────────────
 
     #[OA\Get(path: '/api/v1/reports/hub', operationId: 'report_hub', summary: 'Danh mục báo cáo vận hành Flow 06', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'Danh mục 8 báo cáo MVP')])]
     public function hub()
@@ -44,12 +59,15 @@ class OperationalReportController extends Controller
         ]);
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'Báo cáo tồn kho hiện tại kèm đối soát ledger', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
+    // ── Inventory Balance ────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'Báo cáo tồn kho hiện tại kèm đối soát ledger', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
     public function inventoryBalance(Request $request)
     {
-        return $this->respondSuccess($this->buildInventoryBalance($request));
+        return $this->respondSuccess($this->paginateReport($this->buildInventoryBalance($request), $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/inventory-balance/export-excel', operationId: 'report_inventory_balance_export', summary: 'Xuất Excel/PDF tồn kho hiện tại', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF tồn kho')])]
     public function inventoryBalanceExport(Request $request)
     {
         $report = $this->buildInventoryBalance($request);
@@ -59,67 +77,98 @@ class OperationalReportController extends Controller
             $row['variance'], $row['reconciliation_status'], $row['updated_at'],
         ], $report['rows']);
 
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Tồn kho hiện tại', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Đã giữ', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'], $rows, 'bao-cao-ton-kho-hien-tai', 'inventory-balance', $request);
+        }
+
         return $this->exportRows($request, 'Ton kho', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Đã giữ', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'], $rows, 'bao-cao-ton-kho-hien-tai.xlsx', 'inventory-balance');
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt_current', summary: 'Báo cáo Nhập-Xuất-Tồn theo authoritative ledger', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'XNT')])]
+    // ── XNT ──────────────────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt_current', summary: 'Báo cáo Nhập-Xuất-Tồn theo authoritative ledger', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'XNT')])]
     public function inventoryXnt(Request $request)
     {
-        return $this->respondSuccess($this->buildXnt($request));
+        return $this->respondSuccess($this->paginateReport($this->buildXnt($request), $request, 'lines'));
     }
 
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt/export-excel', operationId: 'report_xnt_export', summary: 'Xuất Excel/PDF nhập xuất tồn', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
     public function inventoryXntExport(Request $request)
     {
         return $this->exportXnt($request, 'bao-cao-xnt');
     }
 
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_xnt_enhanced', summary: 'Báo cáo nhập xuất tồn chi tiết', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'XNT chi tiết')])]
     public function inventoryXntEnhanced(Request $request)
     {
-        return $this->respondSuccess($this->buildXnt($request));
+        return $this->respondSuccess($this->paginateReport($this->buildXnt($request), $request, 'lines'));
     }
 
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced/export-excel', operationId: 'report_xnt_enhanced_export', summary: 'Xuất Excel/PDF nhập xuất tồn chi tiết', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
     public function inventoryXntEnhancedExport(Request $request)
     {
         return $this->exportXnt($request, 'xnt-chitiet');
     }
 
+    // ── Document History ─────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/document-history', operationId: 'report_document_history', summary: 'Lịch sử phiếu nhập/xuất', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all'])), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Lịch sử phiếu')])]
     public function documentHistory(Request $request)
     {
-        return $this->respondSuccess($this->buildDocumentHistory($request));
+        return $this->respondSuccess($this->paginateReport($this->buildDocumentHistory($request), $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/document-history/export-excel', operationId: 'report_document_history_export', summary: 'Xuất Excel/PDF lịch sử phiếu', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
     public function documentHistoryExport(Request $request)
     {
         $report = $this->buildDocumentHistory($request);
         $rows = array_map(fn (array $row): array => [
             $row['document_no'], $row['doc_type'], $row['warehouse_code'], $row['counterpart'],
-            $row['document_date'], $row['status'], $row['posted_at'], $row['cancelled_at'], $row['note'],
+            $row['document_date'], $row['status'], $row['posted_at'], $row['cancelled_at'],
+            $row['created_by_name'], $row['posted_by_name'], $row['note'],
         ], $report['rows']);
 
-        return $this->exportRows($request, 'Lich su phieu', ['Mã phiếu', 'Loại', 'Kho', 'Đối tác/Nơi nhận', 'Ngày phiếu', 'Trạng thái', 'Posted at', 'Cancelled at', 'Ghi chú'], $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'document-history');
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Lịch sử phiếu', ['Mã phiếu', 'Loại', 'Kho', 'Đối tác/Nơi nhận', 'Ngày phiếu', 'Trạng thái', 'Posted at', 'Cancelled at', 'Người tạo', 'Người post', 'Ghi chú'], $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}", 'document-history', $request);
+        }
+
+        return $this->exportRows($request, 'Lich su phieu', ['Mã phiếu', 'Loại', 'Kho', 'Đối tác/Nơi nhận', 'Ngày phiếu', 'Trạng thái', 'Posted at', 'Cancelled at', 'Người tạo', 'Người post', 'Ghi chú'], $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'document-history');
     }
 
+    // ── Import Match ─────────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/import-match', operationId: 'report_import_match', summary: 'Đối soát import toa yêu cầu xuất', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['UPLOADED', 'VALIDATED', 'REJECTED', 'CONSUMED'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'error_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['has_errors', 'no_errors'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Đối soát import')])]
     public function importMatch(Request $request)
     {
-        return $this->respondSuccess($this->buildImportMatch($request));
+        return $this->respondSuccess($this->paginateReport($this->buildImportMatch($request), $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/import-match/export-excel', operationId: 'report_import_match_export', summary: 'Xuất Excel/PDF đối soát import', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
     public function importMatchExport(Request $request)
     {
         $report = $this->buildImportMatch($request);
         $rows = array_map(fn (array $row): array => [
             $row['import_no'], $row['source_file_name'], $row['status'], $row['total_rows'], $row['valid_rows'],
-            $row['error_rows'], $row['pass_rate'], $row['matched_qty'], $row['uploaded_at'], $row['validated_at'], $row['consumed_at'],
+            $row['error_rows'], $row['pass_rate'], $row['matched_qty'], $row['uploaded_at'],
+            $row['uploaded_by_name'], $row['validated_at'], $row['consumed_at'], $row['consumed_by_name'],
         ], $report['rows']);
 
-        return $this->exportRows($request, 'Import Match', ['Import', 'File nguồn', 'Trạng thái', 'Tổng dòng', 'Hợp lệ', 'Lỗi', 'Pass rate (%)', 'Matched qty', 'Uploaded at', 'Validated at', 'Consumed at'], $rows, "doi-soat-toa-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'import-match');
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Đối soát toa', ['Import', 'File nguồn', 'Trạng thái', 'Tổng dòng', 'Hợp lệ', 'Lỗi', 'Pass rate (%)', 'Matched qty', 'Uploaded at', 'Người upload', 'Validated at', 'Consumed at', 'Người consume'], $rows, "doi-soat-toa-{$report['period']['from_date']}-{$report['period']['to_date']}", 'import-match', $request);
+        }
+
+        return $this->exportRows($request, 'Import Match', ['Import', 'File nguồn', 'Trạng thái', 'Tổng dòng', 'Hợp lệ', 'Lỗi', 'Pass rate (%)', 'Matched qty', 'Uploaded at', 'Người upload', 'Validated at', 'Consumed at', 'Người consume'], $rows, "doi-soat-toa-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'import-match');
     }
 
+    // ── Label Log ────────────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'Nhật ký nhãn Packing Label', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
     public function labelLog(Request $request)
     {
-        return $this->respondSuccess($this->buildLabelLog($request));
+        return $this->respondSuccess($this->paginateReport($this->buildLabelLog($request), $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/label-log/export-excel', operationId: 'report_label_log_export', summary: 'Xuất Excel/PDF nhật ký nhãn', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
     public function labelLogExport(Request $request)
     {
         $report = $this->buildLabelLog($request);
@@ -128,14 +177,22 @@ class OperationalReportController extends Controller
             $row['sku_count'], $row['sku_summary'], $row['status'], $row['total_attempts'], $row['failed_count'], $row['reprint_count'], $row['created_at'],
         ], $report['rows']);
 
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Nhật ký nhãn', ['Phiếu xuất', 'Ngày phiếu', 'Nơi nhận', 'Số nhãn', 'Số item', 'Số SKU', 'Tóm tắt SKU', 'Trạng thái', 'Tổng lần in', 'Lỗi in', 'In lại', 'Tạo lúc'], $rows, "nhat-ky-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}", 'label-log', $request);
+        }
+
         return $this->exportRows($request, 'Packing Label', ['Phiếu xuất', 'Ngày phiếu', 'Nơi nhận', 'Số nhãn', 'Số item', 'Số SKU', 'Tóm tắt SKU', 'Trạng thái', 'Tổng lần in', 'Lỗi in', 'In lại', 'Tạo lúc'], $rows, "packing-label-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'label-log');
     }
 
+    // ── Outbound by Agency ───────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/outbound-by-agency', operationId: 'report_outbound_by_agency', summary: 'Báo cáo xuất theo nơi nhận', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Xuất theo nơi nhận')])]
     public function outboundByAgency(Request $request)
     {
-        return $this->respondSuccess($this->buildOutboundByAgency($request));
+        return $this->respondSuccess($this->paginateReport($this->buildOutboundByAgency($request), $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/outbound-by-agency/export-excel', operationId: 'report_outbound_by_agency_export', summary: 'Xuất Excel/PDF theo nơi nhận', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
     public function outboundByAgencyExport(Request $request)
     {
         $report = $this->buildOutboundByAgency($request);
@@ -144,14 +201,22 @@ class OperationalReportController extends Controller
             $row['document_date'], $row['posted_at'], $row['required_qty'], $row['scanned_qty'],
         ], $report['rows']);
 
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Xuất theo nơi nhận', ['Mã nơi nhận', 'Nơi nhận', 'Mã SKU', 'Tên SKU', 'Phiếu xuất', 'Ngày phiếu', 'Posted at', 'Yêu cầu', 'Đã xuất'], $rows, "xuat-theo-noi-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}", 'outbound-by-agency', $request);
+        }
+
         return $this->exportRows($request, 'Xuat noi nhan', ['Mã nơi nhận', 'Nơi nhận', 'Mã SKU', 'Tên SKU', 'Phiếu xuất', 'Ngày phiếu', 'Posted at', 'Yêu cầu', 'Đã xuất'], $rows, "xuat-theo-noi-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'outbound-by-agency');
     }
 
+    // ── Movement Trace ───────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/movement-trace', operationId: 'report_movement_trace', summary: 'Truy vết giao dịch kho', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Movement trace')])]
     public function movementTrace(Request $request)
     {
-        return $this->respondSuccess($this->buildMovementTrace($request));
+        return $this->respondSuccess($this->paginateReport($this->buildMovementTrace($request), $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/movement-trace/export-excel', operationId: 'report_movement_trace_export', summary: 'Xuất Excel/PDF movement trace', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
     public function movementTraceExport(Request $request)
     {
         $report = $this->buildMovementTrace($request);
@@ -161,9 +226,16 @@ class OperationalReportController extends Controller
             $row['source_type'], $row['source_id'], $row['original_movement_id'], $row['correction_chain_id'],
         ], $report['rows']);
 
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Movement Trace', ['Thời gian', 'Movement', 'Kho', 'Mã SKU', 'Tên SKU', 'Stock status', 'Qty delta', 'Item', 'Container', 'Physical code', 'Source type', 'Source id', 'Original movement', 'Correction chain'], $rows, "movement-trace-{$report['period']['from_date']}-{$report['period']['to_date']}", 'movement-trace', $request);
+        }
+
         return $this->exportRows($request, 'Movement Trace', ['Thời gian', 'Movement', 'Kho', 'Mã SKU', 'Tên SKU', 'Stock status', 'Qty delta', 'Item', 'Container', 'Physical code', 'Source type', 'Source id', 'Original movement', 'Correction chain'], $rows, "movement-trace-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'movement-trace');
     }
 
+    // ── Reconciliation ───────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/inventory-reconciliation', operationId: 'report_inventory_reconciliation', summary: 'Đối soát tồn kho với sổ giao dịch', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'only_mismatch', in: 'query', schema: new OA\Schema(type: 'boolean'))], responses: [new OA\Response(response: 200, description: 'Kết quả đối soát')])]
     public function inventoryReconciliation(Request $request)
     {
         $request->validate([
@@ -191,6 +263,9 @@ class OperationalReportController extends Controller
         ]);
     }
 
+    // ── Dashboard Quick ──────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/dashboard-quick', operationId: 'report_dashboard_quick', summary: 'Số liệu nhanh cho dashboard', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'Dashboard KPIs')])]
     public function dashboardQuick(Request $request)
     {
         [$from, $to] = $this->period($request);
@@ -218,6 +293,86 @@ class OperationalReportController extends Controller
             'reconciliation_warnings' => collect($reconciliation['rows'])->where('reconciliation_status', 'MISMATCH')->values()->all(),
         ]);
     }
+
+    // ── Warranty Defects ─────────────────────────────────────
+
+    #[OA\Get(path: '/api/v1/reports/warranty-defects', operationId: 'report_warranty_defects', summary: 'Báo cáo bảo hành & linh kiện', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Báo cáo bảo hành')])]
+    public function warrantyDefects(Request $request)
+    {
+        return $this->respondSuccess($this->paginateReport($this->buildWarrantyReport($request, includePii: false), $request));
+    }
+
+    #[OA\Get(path: '/api/v1/reports/warranty-defects/export-excel', operationId: 'report_warranty_defects_export', summary: 'Xuất Excel/PDF báo cáo bảo hành', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
+    public function warrantyDefectsExport(Request $request)
+    {
+        $includePii = (bool) $request->user()?->hasPermission('warranty.pii.export');
+        $report = $this->buildWarrantyReport($request, includePii: $includePii);
+
+        AuditLogger::record(
+            action: 'WARRANTY_REPORT_EXPORTED',
+            objectType: 'warranty_report',
+            objectId: null,
+            actorId: auth('api')->id() !== null ? (string) auth('api')->id() : null,
+            requestId: $request->attributes->get('request_id'),
+            afterData: [
+                'pii_included' => $includePii,
+                'row_count' => count($report['rows']),
+                'period' => $report['period'],
+            ],
+        );
+
+        $header = ['Case', 'Nhận diện', 'SKU/Model', 'Bệnh / lỗi', 'Linh kiện đã xuất', 'Trạng thái', 'Ngày nhận', 'Ngày cập nhật'];
+        if ($includePii) {
+            $header = array_merge($header, ['Khách hàng', 'SĐT', 'Địa chỉ']);
+        }
+        $rows = array_map(function (array $row) use ($includePii): array {
+            $line = [
+                $this->excelSafe($row['case_no']), $row['identification_status'], $this->excelSafe($row['model']),
+                $this->excelSafe($row['defect']), $this->excelSafe($row['components_issued']),
+                $row['status'], $row['received_at'], $row['updated_at'],
+            ];
+            if ($includePii) {
+                $line = array_merge($line, [
+                    $this->excelSafe($row['customer_name'] ?? ''),
+                    $this->excelSafe($row['customer_phone'] ?? ''),
+                    $this->excelSafe($row['customer_address'] ?? ''),
+                ]);
+            }
+
+            return $line;
+        }, $report['rows']);
+
+        if (count($rows) > self::EXPORT_ROW_LIMIT) {
+            ApiError::abort(422, 'REPORT_EXPORT_ROW_LIMIT_EXCEEDED', 'Mỗi file export tối đa 10.000 dòng; hãy thu hẹp bộ lọc.', ['limit' => self::EXPORT_ROW_LIMIT, 'row_count' => count($rows)]);
+        }
+
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Bảo hành', $header, $rows, "bao-cao-bao-hanh-{$report['period']['from_date']}-den-{$report['period']['to_date']}", 'warranty-defects', $request);
+        }
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Bao hanh');
+        $sheet->fromArray($header, null, 'A1');
+        $rowIndex = 2;
+        foreach ($rows as $row) {
+            $sheet->fromArray($row, null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+        foreach (range('A', $sheet->getHighestColumn()) as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "bao-cao-bao-hanh-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PRIVATE BUILDERS
+    // ══════════════════════════════════════════════════════════
 
     private function buildInventoryBalance(Request $request): array
     {
@@ -247,12 +402,14 @@ class OperationalReportController extends Controller
             }
         }
         if ($request->filled('keyword')) {
-            $keyword = trim((string) $request->input('keyword'));
+            $keyword = '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%';
             $balanceQuery->where(function ($q) use ($keyword): void {
-                $q->where('p.code', 'ilike', "%{$keyword}%")->orWhere('p.name', 'ilike', "%{$keyword}%");
+                $q->whereRaw('LOWER(p.code) LIKE ?', [$keyword])
+                    ->orWhereRaw('LOWER(p.name) LIKE ?', [$keyword]);
             });
             $movementQuery->where(function ($q) use ($keyword): void {
-                $q->where('p.code', 'ilike', "%{$keyword}%")->orWhere('p.name', 'ilike', "%{$keyword}%");
+                $q->whereRaw('LOWER(p.code) LIKE ?', [$keyword])
+                    ->orWhereRaw('LOWER(p.name) LIKE ?', [$keyword]);
             });
         }
 
@@ -329,10 +486,10 @@ class OperationalReportController extends Controller
             $query->where('m.product_id', $request->input('product_id'));
         }
         if ($request->filled('keyword')) {
-            $kw = (string) $request->input('keyword');
+            $kw = '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%';
             $query->where(function ($q) use ($kw): void {
-                $q->whereRaw('p.code ILIKE ?', ["%{$kw}%"])
-                    ->orWhereRaw('p.name ILIKE ?', ["%{$kw}%"]);
+                $q->whereRaw('LOWER(p.code) LIKE ?', [$kw])
+                    ->orWhereRaw('LOWER(p.name) LIKE ?', [$kw]);
             });
         }
 
@@ -373,6 +530,10 @@ class OperationalReportController extends Controller
             $row['receipt'], $row['issue'], $row['component_issue'], $row['reversal_net'], $row['closing'],
         ], $report['lines']);
 
+        if ($request->query('format') === 'pdf') {
+            return $this->exportPdf('Nhập-Xuất-Tồn', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Đầu kỳ', 'Nhập', 'Xuất', 'Xuất linh kiện', 'Hoàn đảo', 'Cuối kỳ'], $rows, "{$prefix}-{$report['from_date']}-{$report['to_date']}", 'inventory-xnt', $request);
+        }
+
         return $this->exportRows($request, 'XNT', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Đầu kỳ', 'Nhập', 'Xuất', 'Xuất linh kiện', 'Hoàn đảo', 'Cuối kỳ'], $rows, "{$prefix}-{$report['from_date']}-{$report['to_date']}.xlsx", 'inventory-xnt');
     }
 
@@ -390,9 +551,12 @@ class OperationalReportController extends Controller
             ->leftJoin('warehouses as sw', 'sw.id', '=', 'sd.src_warehouse_id')
             ->leftJoin('warehouses as dw', 'dw.id', '=', 'sd.dst_warehouse_id')
             ->leftJoin('agencies as a', 'a.agency_id', '=', 'sd.agency_id')
+            ->leftJoin('app_user as cu', 'cu.user_id', '=', 'sd.created_by')
+            ->leftJoin('app_user as pu', 'pu.user_id', '=', 'sd.posted_by')
             ->whereIn('sd.doc_type', ['receipt', 'issue'])
             ->whereBetween('sd.doc_date', [$from, $to])
-            ->select('sd.*', 'sw.code as src_warehouse_code', 'dw.code as dst_warehouse_code', 'a.agency_name');
+            ->select('sd.*', 'sw.code as src_warehouse_code', 'dw.code as dst_warehouse_code', 'a.agency_name',
+                'cu.display_name as creator_name', 'pu.display_name as poster_name');
         if ($docType !== 'all') {
             $query->where('sd.doc_type', $docType === 'inbound' ? 'receipt' : 'issue');
         }
@@ -400,12 +564,12 @@ class OperationalReportController extends Controller
             $query->where('sd.status', $validated['status']);
         }
         if (! empty($validated['keyword'])) {
-            $keyword = trim((string) $validated['keyword']);
+            $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
             $query->where(function ($q) use ($keyword): void {
-                $q->where('sd.doc_no', 'ilike', "%{$keyword}%")
-                    ->orWhere('sd.source_name', 'ilike', "%{$keyword}%")
-                    ->orWhere('sd.recipient_name', 'ilike', "%{$keyword}%")
-                    ->orWhere('a.agency_name', 'ilike', "%{$keyword}%");
+                $q->whereRaw('LOWER(sd.doc_no) LIKE ?', [$keyword])
+                    ->orWhereRaw("LOWER(COALESCE(sd.source_name, '')) LIKE ?", [$keyword])
+                    ->orWhereRaw("LOWER(COALESCE(sd.recipient_name, '')) LIKE ?", [$keyword])
+                    ->orWhereRaw("LOWER(COALESCE(a.agency_name, '')) LIKE ?", [$keyword]);
             });
         }
         if (! empty($validated['product_id'])) {
@@ -426,8 +590,8 @@ class OperationalReportController extends Controller
             'status' => strtoupper((string) $d->status),
             'posted_at' => $d->posted_at ?? null,
             'cancelled_at' => $d->cancelled_at ?? null,
-            'created_by_name' => null,
-            'posted_by_name' => null,
+            'created_by_name' => $d->creator_name ?? null,
+            'posted_by_name' => $d->poster_name ?? null,
             'note' => $d->note ?? null,
         ])->all();
         $statuses = collect($rows)->countBy('status');
@@ -449,19 +613,36 @@ class OperationalReportController extends Controller
         $validated = $request->validate([
             'status' => ['nullable', 'in:UPLOADED,VALIDATED,REJECTED,CONSUMED'],
             'keyword' => ['nullable', 'string', 'max:200'],
+            'batch_id' => ['nullable', 'uuid'],
+            'request_id' => ['nullable', 'uuid'],
+            'sku_code' => ['nullable', 'string', 'max:100'],
+            'error_status' => ['nullable', 'in:has_errors,no_errors'],
         ]);
-        $query = DB::table('outbound_request_imports')->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
+        $query = DB::table('outbound_request_imports as ori')
+            ->leftJoin('app_user as uu', 'uu.user_id', '=', 'ori.created_by')
+            ->leftJoin('app_user as cu', 'cu.user_id', '=', 'ori.consumed_by')
+            ->whereBetween('ori.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+            ->select('ori.*', 'uu.display_name as uploader_name', 'cu.display_name as consumer_name');
         if (! empty($validated['status'])) {
-            $query->where('status', $validated['status']);
+            $query->where('ori.status', $validated['status']);
         }
         if (! empty($validated['keyword'])) {
-            $kw = (string) $validated['keyword'];
+            $kw = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
             $query->where(function ($q) use ($kw): void {
-                $q->whereRaw("COALESCE(import_no, '') ILIKE ?", ["%{$kw}%"])
-                    ->orWhereRaw("COALESCE(source_file_name, '') ILIKE ?", ["%{$kw}%"]);
+                $q->whereRaw("LOWER(COALESCE(ori.import_no, '')) LIKE ?", [$kw])
+                    ->orWhereRaw("LOWER(COALESCE(ori.source_file_name, '')) LIKE ?", [$kw]);
             });
         }
-        $imports = $query->orderByDesc('created_at')->get();
+        if (! empty($validated['error_status'])) {
+            if ($validated['error_status'] === 'has_errors') {
+                $query->where('ori.error_rows', '>', 0);
+            } else {
+                $query->where(function ($q): void {
+                    $q->where('ori.error_rows', '=', 0)->orWhereNull('ori.error_rows');
+                });
+            }
+        }
+        $imports = $query->orderByDesc('ori.created_at')->get();
         $importIds = $imports->pluck('id')->all();
         $matched = collect();
         if ($importIds !== []) {
@@ -488,10 +669,10 @@ class OperationalReportController extends Controller
                 'pass_rate' => $total > 0 ? round($valid * 100 / $total, 2) : 0,
                 'matched_qty' => (float) ($matched[(string) $i->id] ?? 0),
                 'uploaded_at' => (string) $i->created_at,
-                'uploaded_by_name' => null,
+                'uploaded_by_name' => $i->uploader_name ?? null,
                 'validated_at' => $i->validated_at ?? null,
                 'consumed_at' => $i->consumed_at ?? ((string) $i->status === 'CONSUMED' ? ($i->updated_at ?? null) : null),
-                'consumed_by_name' => null,
+                'consumed_by_name' => $i->consumer_name ?? null,
             ];
         })->all();
         $collection = collect($rows);
@@ -526,13 +707,13 @@ class OperationalReportController extends Controller
             ->leftJoin('outbound_item_matches as oim', 'oim.id', '=', 'ls.outbound_item_match_id')
             ->leftJoin('stock_document_lines as l', 'l.id', '=', 'oim.outbound_line_id')
             ->leftJoin('stock_documents as sd', 'sd.id', '=', 'l.stock_document_id')
-            ->leftJoin('agencies as ag', 'ag.id', '=', 'sd.agency_id')
+            ->leftJoin('agencies as ag', 'ag.agency_id', '=', 'sd.agency_id')
             ->leftJoinSub($attempts, 'pa', 'pa.label_snapshot_id', '=', 'ls.id')
             ->whereBetween('ls.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->select('ls.id', 'ls.item_id', 'ls.sku_id', 'ls.status', 'ls.created_at',
                 'p.code as sku_code', 'sd.id as stock_document_id', 'sd.doc_no as outbound_no',
-                'sd.document_date as outbound_date',
-                DB::raw('COALESCE(ag.name, sd.recipient_name) as recipient'),
+                'sd.doc_date as outbound_date',
+                DB::raw("COALESCE(ag.agency_name, sd.recipient_name) as recipient"),
                 'pa.total_attempts', 'pa.failed_count');
         if (! empty($validated['status'])) {
             $query->where('ls.status', $validated['status']);
@@ -615,12 +796,12 @@ class OperationalReportController extends Controller
             $query->where('l.product_id', $validated['product_id']);
         }
         if (! empty($validated['keyword'])) {
-            $kw = (string) $validated['keyword'];
+            $kw = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
             $query->where(function ($q) use ($kw): void {
-                $q->whereRaw('p.code ILIKE ?', ["%{$kw}%"])
-                    ->orWhereRaw('p.name ILIKE ?', ["%{$kw}%"])
-                    ->orWhereRaw('a.agency_name ILIKE ?', ["%{$kw}%"])
-                    ->orWhereRaw('a.agency_code ILIKE ?', ["%{$kw}%"]);
+                $q->whereRaw('LOWER(p.code) LIKE ?', [$kw])
+                    ->orWhereRaw('LOWER(p.name) LIKE ?', [$kw])
+                    ->orWhereRaw("LOWER(COALESCE(a.agency_name, '')) LIKE ?", [$kw])
+                    ->orWhereRaw("LOWER(COALESCE(a.agency_code, '')) LIKE ?", [$kw]);
             });
         }
         $rows = $query->orderByDesc('sd.doc_date')->get()->map(fn ($r): array => [
@@ -659,8 +840,8 @@ class OperationalReportController extends Controller
                 'total_agencies' => count($byAgency),
                 'total_documents' => $collection->pluck('_document_id')->unique()->count(),
                 'total_issued_qty' => (float) $collection->sum('scanned_qty'),
-                'by_agency' => $byAgency,
             ],
+            'by_agency' => $byAgency,
             'rows' => $publicRows,
         ];
     }
@@ -727,74 +908,6 @@ class OperationalReportController extends Controller
             ],
             'rows' => $rows,
         ];
-    }
-
-    public function warrantyDefects(Request $request)
-    {
-        return $this->respondSuccess($this->buildWarrantyReport($request, includePii: false));
-    }
-
-    public function warrantyDefectsExport(Request $request)
-    {
-        $includePii = (bool) $request->user()?->hasPermission('warranty.pii.export');
-        $report = $this->buildWarrantyReport($request, includePii: $includePii);
-
-        AuditLogger::record(
-            action: 'WARRANTY_REPORT_EXPORTED',
-            objectType: 'warranty_report',
-            objectId: null,
-            actorId: auth('api')->id() !== null ? (string) auth('api')->id() : null,
-            requestId: $request->attributes->get('request_id'),
-            afterData: [
-                'pii_included' => $includePii,
-                'row_count' => count($report['rows']),
-                'period' => $report['period'],
-            ],
-        );
-
-        $header = ['Case', 'Nhận diện', 'SKU/Model', 'Bệnh / lỗi', 'Linh kiện đã xuất', 'Trạng thái', 'Ngày nhận', 'Ngày cập nhật'];
-        if ($includePii) {
-            $header = array_merge($header, ['Khách hàng', 'SĐT', 'Địa chỉ']);
-        }
-        $rows = array_map(function (array $row) use ($includePii): array {
-            $line = [
-                $this->excelSafe($row['case_no']), $row['identification_status'], $this->excelSafe($row['model']),
-                $this->excelSafe($row['defect']), $this->excelSafe($row['components_issued']),
-                $row['status'], $row['received_at'], $row['updated_at'],
-            ];
-            if ($includePii) {
-                $line = array_merge($line, [
-                    $this->excelSafe($row['customer_name'] ?? ''),
-                    $this->excelSafe($row['customer_phone'] ?? ''),
-                    $this->excelSafe($row['customer_address'] ?? ''),
-                ]);
-            }
-
-            return $line;
-        }, $report['rows']);
-
-        if (count($rows) > self::EXPORT_ROW_LIMIT) {
-            ApiError::abort(422, 'REPORT_EXPORT_ROW_LIMIT_EXCEEDED', 'Mỗi file export tối đa 10.000 dòng; hãy thu hẹp bộ lọc.', ['limit' => self::EXPORT_ROW_LIMIT, 'row_count' => count($rows)]);
-        }
-
-        $spreadsheet = new Spreadsheet;
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Bao hanh');
-        $sheet->fromArray($header, null, 'A1');
-        $rowIndex = 2;
-        foreach ($rows as $row) {
-            $sheet->fromArray($row, null, "A{$rowIndex}");
-            $rowIndex++;
-        }
-        foreach (range('A', $sheet->getHighestColumn()) as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-        }
-        $writer = new Xlsx($spreadsheet);
-        $fileName = "bao-cao-bao-hanh-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
-
-        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
     }
 
     private function buildWarrantyReport(Request $request, bool $includePii): array
@@ -893,6 +1006,10 @@ class OperationalReportController extends Controller
         ];
     }
 
+    // ══════════════════════════════════════════════════════════
+    //  UTILITIES
+    // ══════════════════════════════════════════════════════════
+
     private function period(Request $request, bool $required = false): array
     {
         $rules = [
@@ -900,10 +1017,31 @@ class OperationalReportController extends Controller
             'to_date' => [$required ? 'required' : 'nullable', 'date', 'after_or_equal:from_date'],
         ];
         $validated = $request->validate($rules);
-        $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
-        $to = (string) ($validated['to_date'] ?? now()->toDateString());
+        $from = (string) ($validated['from_date'] ?? $request->input('from') ?? now()->subDays(30)->toDateString());
+        $to = (string) ($validated['to_date'] ?? $request->input('to') ?? now()->toDateString());
 
         return [$from, $to];
+    }
+
+    private function paginateReport(array $report, Request $request, string $rowsKey = 'rows'): array
+    {
+        if (! $request->filled('per_page')) {
+            return $report;
+        }
+        $perPage = min(max(1, (int) $request->input('per_page', self::DEFAULT_PER_PAGE)), self::MAX_PER_PAGE);
+        $page = max(1, (int) $request->input('page', 1));
+        $allRows = collect($report[$rowsKey]);
+        $total = $allRows->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $report[$rowsKey] = $allRows->forPage($page, $perPage)->values()->all();
+        $report['pagination'] = [
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => $lastPage,
+        ];
+
+        return $report;
     }
 
     private function dimensionKey(mixed $warehouseId, mixed $productId, mixed $status): string
@@ -947,6 +1085,50 @@ class OperationalReportController extends Controller
 
         return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function exportPdf(string $title, array $headers, array $rows, string $filePrefix, string $reportKey, Request $request)
+    {
+        if (count($rows) > self::EXPORT_ROW_LIMIT) {
+            ApiError::abort(422, 'REPORT_EXPORT_ROW_LIMIT_EXCEEDED', 'Mỗi file export tối đa 10.000 dòng; hãy thu hẹp bộ lọc.', ['limit' => self::EXPORT_ROW_LIMIT, 'row_count' => count($rows)]);
+        }
+
+        AuditLogger::record(
+            action: 'REPORT_EXPORTED',
+            objectType: 'report',
+            objectId: null,
+            actorId: auth('api')->id() !== null ? (string) auth('api')->id() : null,
+            requestId: $request->attributes->get('request_id'),
+            afterData: ['report' => $reportKey, 'format' => 'pdf', 'row_count' => count($rows), 'filters' => $request->query()],
+        );
+
+        $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans,sans-serif;font-size:10px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #333;padding:4px 6px;text-align:left}th{background:#e0e0e0;font-weight:bold}h1{font-size:16px;margin:0 0 5px}p{margin:2px 0;font-size:9px;color:#666}</style></head><body>';
+        $html .= '<h1>'.htmlspecialchars($title).'</h1>';
+        $html .= '<p>Xuất lúc: '.now()->format('d/m/Y H:i:s').' · Tổng dòng: '.count($rows).'</p>';
+        $html .= '<table><thead><tr>';
+        foreach ($headers as $h) {
+            $html .= '<th>'.htmlspecialchars((string) $h).'</th>';
+        }
+        $html .= '</tr></thead><tbody>';
+        foreach ($rows as $row) {
+            $html .= '<tr>';
+            foreach ($row as $cell) {
+                $html .= '<td>'.htmlspecialchars((string) ($cell ?? '')).'</td>';
+            }
+            $html .= '</tr>';
+        }
+        $html .= '</tbody></table></body></html>';
+
+        $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => false, 'defaultFont' => 'DejaVu Sans']);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', count($headers) > 8 ? 'landscape' : 'portrait');
+        $dompdf->render();
+        $fileName = "{$filePrefix}.pdf";
+
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
         ]);
     }
 

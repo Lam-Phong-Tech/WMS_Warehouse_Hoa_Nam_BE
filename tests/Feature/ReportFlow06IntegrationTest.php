@@ -20,6 +20,9 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 /**
  * Flow 06 integration tests — real DB, real HTTP, no mocks.
  * Covers all 8 MVP reports + dashboard-quick + reconciliation.
+ *
+ * v2: actor names, RBAC 403, reconciliation evidence, by_agency contract,
+ *     label aggregate, filter parity, keyword LIKE compatibility.
  */
 class ReportFlow06IntegrationTest extends TestCase
 {
@@ -81,6 +84,18 @@ class ReportFlow06IntegrationTest extends TestCase
         $response->assertOk()->assertJsonPath('data.summary.total_rows', 1);
     }
 
+    public function test_inventory_balance_keyword_case_insensitive(): void
+    {
+        InventoryBalance::create([
+            'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
+            'stock_status' => 'AVAILABLE', 'on_hand_qty' => 5, 'available_qty' => 5,
+            'reserved_qty' => 0, 'version' => 1,
+        ]);
+
+        $response = $this->api('/api/v1/reports/inventory-balance?keyword=sp-rpt-a');
+        $response->assertOk()->assertJsonPath('data.summary.total_rows', 1);
+    }
+
     public function test_inventory_balance_export_returns_xlsx(): void
     {
         InventoryBalance::create([
@@ -124,6 +139,7 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->createMovement('RECEIPT', $this->productB, 5, $today);
 
         $response = $this->api("/api/v1/reports/inventory-xnt?from_date={$today}&to_date={$today}&keyword=RPT-A");
+        $response->assertOk();
         $lines = $response->json('data.lines');
         $this->assertCount(1, $lines);
         $this->assertEquals('SP-RPT-A', $lines[0]['product_code']);
@@ -174,6 +190,19 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->assertEquals('INBOUND', $response->json('data.rows.0.doc_type'));
     }
 
+    public function test_document_history_includes_actor_names(): void
+    {
+        $today = now()->toDateString();
+        $this->createStockDocument('receipt', 'POSTED', $today, 'IN-RPT-ACTOR');
+
+        $response = $this->api("/api/v1/reports/document-history?from_date={$today}&to_date={$today}");
+        $response->assertOk();
+        $row = $response->json('data.rows.0');
+        $this->assertArrayHasKey('created_by_name', $row);
+        $this->assertArrayHasKey('posted_by_name', $row);
+        $this->assertEquals('Report Admin', $row['created_by_name']);
+    }
+
     public function test_document_history_export_returns_xlsx(): void
     {
         $today = now()->toDateString();
@@ -213,10 +242,10 @@ class ReportFlow06IntegrationTest extends TestCase
 
     public function test_import_match_returns_batches_with_summary(): void
     {
-        $today = now()->toDateString();
         $this->createOutboundRequestImport('CONSUMED', 'batch-001.xlsx', 100, 95, 5);
         $this->createOutboundRequestImport('REJECTED', 'batch-002.xlsx', 50, 10, 40);
 
+        $today = now()->toDateString();
         $response = $this->api("/api/v1/reports/import-match?from_date={$today}&to_date={$today}");
         $response->assertOk()
             ->assertJsonPath('data.summary.total_batches', 2)
@@ -226,12 +255,34 @@ class ReportFlow06IntegrationTest extends TestCase
 
     public function test_import_match_keyword_filter(): void
     {
-        $today = now()->toDateString();
         $this->createOutboundRequestImport('CONSUMED', 'alpha-batch.xlsx', 10, 10, 0);
         $this->createOutboundRequestImport('CONSUMED', 'beta-batch.xlsx', 10, 10, 0);
 
+        $today = now()->toDateString();
         $response = $this->api("/api/v1/reports/import-match?from_date={$today}&to_date={$today}&keyword=alpha");
         $response->assertOk()->assertJsonPath('data.summary.total_batches', 1);
+    }
+
+    public function test_import_match_error_status_filter(): void
+    {
+        $this->createOutboundRequestImport('CONSUMED', 'clean.xlsx', 10, 10, 0);
+        $this->createOutboundRequestImport('VALIDATED', 'dirty.xlsx', 10, 5, 5);
+
+        $today = now()->toDateString();
+        $response = $this->api("/api/v1/reports/import-match?from_date={$today}&to_date={$today}&error_status=has_errors");
+        $response->assertOk()->assertJsonPath('data.summary.total_batches', 1);
+    }
+
+    public function test_import_match_includes_actor_names(): void
+    {
+        $this->createOutboundRequestImport('CONSUMED', 'actor-test.xlsx', 10, 10, 0);
+
+        $today = now()->toDateString();
+        $response = $this->api("/api/v1/reports/import-match?from_date={$today}&to_date={$today}");
+        $response->assertOk();
+        $row = $response->json('data.rows.0');
+        $this->assertArrayHasKey('uploaded_by_name', $row);
+        $this->assertArrayHasKey('consumed_by_name', $row);
     }
 
     // ── 6. Packing Label (Label Log) ─────────────────────────
@@ -253,9 +304,49 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->assertNotEmpty($data['rows']);
         $row = $data['rows'][0];
         $this->assertArrayHasKey('outbound_no', $row);
+        $this->assertArrayHasKey('outbound_date', $row);
+        $this->assertArrayHasKey('recipient', $row);
         $this->assertArrayHasKey('label_count', $row);
+        $this->assertArrayHasKey('item_count', $row);
         $this->assertArrayHasKey('sku_count', $row);
         $this->assertArrayHasKey('sku_summary', $row);
+        $this->assertArrayHasKey('status', $row);
+        $this->assertArrayHasKey('total_attempts', $row);
+        $this->assertArrayHasKey('failed_count', $row);
+        $this->assertArrayHasKey('reprint_count', $row);
+        $this->assertEquals('OUT-LABEL-001', $row['outbound_no']);
+    }
+
+    public function test_label_log_aggregates_by_outbound_document(): void
+    {
+        $today = now()->toDateString();
+        $docId = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-AGG-001');
+        $lineId = $this->createDocumentLine($docId, $this->productA->id, 5);
+        $match1 = $this->createOutboundItemMatch($lineId);
+        $match2 = $this->createOutboundItemMatch($lineId, true);
+
+        $this->createLabelSnapshot($this->productA->id, $match1);
+        $this->createLabelSnapshot($this->productB->id, $match2);
+
+        $response = $this->api("/api/v1/reports/label-log?from_date={$today}&to_date={$today}");
+        $response->assertOk();
+        $rows = $response->json('data.rows');
+        $docRows = collect($rows)->where('outbound_no', 'OUT-AGG-001');
+        $this->assertCount(1, $docRows);
+        $this->assertEquals(2, $docRows->first()['label_count']);
+    }
+
+    public function test_label_log_export_returns_xlsx(): void
+    {
+        $today = now()->toDateString();
+        $docId = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-LABEL-EXP');
+        $lineId = $this->createDocumentLine($docId, $this->productA->id, 1);
+        $matchId = $this->createOutboundItemMatch($lineId);
+        $this->createLabelSnapshot($this->productA->id, $matchId);
+
+        $this->api("/api/v1/reports/label-log/export-excel?from_date={$today}&to_date={$today}")
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
     // ── 7. Outbound by Agency ────────────────────────────────
@@ -274,6 +365,24 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertJsonPath('data.summary.total_agencies', 1)
             ->assertJsonPath('data.summary.total_documents', 1);
         $this->assertEquals('DL-RPT-01', $response->json('data.rows.0.agency_code'));
+    }
+
+    public function test_outbound_by_agency_by_agency_at_top_level(): void
+    {
+        $today = now()->toDateString();
+        $agency = Agency::create([
+            'agency_code' => 'DL-TOP', 'agency_name' => 'Top Level Test', 'status' => 'ACTIVE',
+        ]);
+        $docId = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-TOP-001', $agency->agency_id);
+        $this->createDocumentLine($docId, $this->productA->id, 5, 5);
+
+        $response = $this->api("/api/v1/reports/outbound-by-agency?from_date={$today}&to_date={$today}");
+        $response->assertOk();
+        $data = $response->json('data');
+        $this->assertArrayHasKey('by_agency', $data);
+        $this->assertArrayNotHasKey('by_agency', $data['summary']);
+        $this->assertCount(1, $data['by_agency']);
+        $this->assertEquals('DL-TOP', $data['by_agency'][0]['agency_code']);
     }
 
     public function test_outbound_by_agency_filters_by_agency(): void
@@ -349,7 +458,65 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
-    // ── Dashboard Quick ──────────────────────────────────────
+    // ── 9. Reconciliation Evidence ──────────────────────────
+
+    public function test_reconciliation_opening_plus_receipt_minus_issue_equals_closing(): void
+    {
+        $yesterday = now()->subDay()->toDateString();
+        $today = now()->toDateString();
+
+        $this->createMovement('OPENING', $this->productA, 100, $yesterday);
+        $this->createMovement('RECEIPT', $this->productA, 30, $today);
+        $this->createMovement('ISSUE', $this->productA, -20, $today);
+        $this->createMovement('COMPONENT_ISSUE', $this->productA, -5, $today);
+        $this->createMovement('REVERSAL', $this->productA, 10, $today);
+
+        $response = $this->api("/api/v1/reports/inventory-xnt?from_date={$today}&to_date={$today}");
+        $response->assertOk();
+        $line = $response->json('data.lines.0');
+
+        $this->assertEquals(100, $line['opening']);
+        $this->assertEquals(30, $line['receipt']);
+        $this->assertEquals(20, $line['issue']);
+        $this->assertEquals(5, $line['component_issue']);
+        $this->assertEquals(10, $line['reversal_net']);
+        $expected = 100 + 30 - 20 - 5 + 10;
+        $this->assertEquals($expected, $line['closing']);
+    }
+
+    public function test_reconciliation_balance_vs_ledger_match(): void
+    {
+        $this->createMovement('RECEIPT', $this->productA, 50);
+        $this->createMovement('ISSUE', $this->productA, -15);
+        InventoryBalance::create([
+            'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
+            'stock_status' => 'AVAILABLE', 'on_hand_qty' => 35, 'available_qty' => 35,
+            'reserved_qty' => 0, 'version' => 1,
+        ]);
+
+        $response = $this->api('/api/v1/reports/inventory-reconciliation');
+        $response->assertOk()
+            ->assertJsonPath('data.summary.status', 'PASS')
+            ->assertJsonPath('data.summary.mismatch_count', 0);
+    }
+
+    public function test_reconciliation_detects_mismatch(): void
+    {
+        $this->createMovement('RECEIPT', $this->productA, 50);
+        InventoryBalance::create([
+            'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
+            'stock_status' => 'AVAILABLE', 'on_hand_qty' => 99, 'available_qty' => 99,
+            'reserved_qty' => 0, 'version' => 1,
+        ]);
+
+        $response = $this->api('/api/v1/reports/inventory-reconciliation?only_mismatch=1');
+        $response->assertOk()
+            ->assertJsonPath('data.summary.status', 'FAIL')
+            ->assertJsonPath('data.summary.mismatch_count', 1);
+        $this->assertNotEmpty($response->json('data.mismatches'));
+    }
+
+    // ── 10. Dashboard Quick ──────────────────────────────────
 
     public function test_dashboard_quick_returns_aggregated_summary(): void
     {
@@ -369,7 +536,7 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertJsonPath('data.available_qty', 11);
     }
 
-    // ── Hub ──────────────────────────────────────────────────
+    // ── 11. Hub ──────────────────────────────────────────────
 
     public function test_hub_returns_eight_mvp_reports(): void
     {
@@ -386,12 +553,98 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->assertContains('outbound-by-agency', $keys);
     }
 
-    // ── Permission Guard ─────────────────────────────────────
+    // ── 12. Server-side Pagination ─────────────────────────
+
+    public function test_pagination_returns_subset_when_per_page_specified(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            InventoryBalance::create([
+                'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
+                'stock_status' => "STATUS_{$i}", 'on_hand_qty' => $i + 1, 'available_qty' => $i + 1,
+                'reserved_qty' => 0, 'version' => 1,
+            ]);
+        }
+
+        $response = $this->api('/api/v1/reports/inventory-balance?per_page=2&page=1');
+        $response->assertOk();
+        $data = $response->json('data');
+        $this->assertCount(2, $data['rows']);
+        $this->assertEquals(1, $data['pagination']['current_page']);
+        $this->assertEquals(2, $data['pagination']['per_page']);
+        $this->assertEquals(5, $data['pagination']['total']);
+        $this->assertEquals(3, $data['pagination']['last_page']);
+    }
+
+    public function test_pagination_page_2_returns_correct_slice(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            InventoryBalance::create([
+                'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
+                'stock_status' => "STATUS_{$i}", 'on_hand_qty' => $i + 1, 'available_qty' => $i + 1,
+                'reserved_qty' => 0, 'version' => 1,
+            ]);
+        }
+
+        $response = $this->api('/api/v1/reports/inventory-balance?per_page=2&page=3');
+        $response->assertOk();
+        $data = $response->json('data');
+        $this->assertCount(1, $data['rows']);
+        $this->assertEquals(3, $data['pagination']['current_page']);
+    }
+
+    public function test_no_pagination_when_per_page_not_sent(): void
+    {
+        for ($i = 0; $i < 3; $i++) {
+            InventoryBalance::create([
+                'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
+                'stock_status' => "STATUS_{$i}", 'on_hand_qty' => 1, 'available_qty' => 1,
+                'reserved_qty' => 0, 'version' => 1,
+            ]);
+        }
+
+        $response = $this->api('/api/v1/reports/inventory-balance');
+        $response->assertOk();
+        $data = $response->json('data');
+        $this->assertCount(3, $data['rows']);
+        $this->assertArrayNotHasKey('pagination', $data);
+    }
+
+    // ── 13. RBAC ─────────────────────────────────────────────
 
     public function test_reports_require_authentication(): void
     {
         $this->getJson('/api/v1/reports/hub')->assertUnauthorized();
         $this->getJson('/api/v1/reports/inventory-balance')->assertUnauthorized();
+    }
+
+    public function test_export_requires_report_export_permission(): void
+    {
+        $viewerRole = Role::create([
+            'role_code' => 'REPORT_VIEWER', 'role_name' => 'Chỉ xem báo cáo',
+            'scope_type' => 'SYSTEM', 'status' => 'ACTIVE',
+        ]);
+        $viewer = User::create([
+            'username' => 'viewer-only', 'display_name' => 'Viewer',
+            'email' => 'viewer@wms.test', 'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE', 'version' => 1,
+        ]);
+        $viewer->roles()->attach($viewerRole->role_id, ['user_role_id' => (string) Str::uuid()]);
+
+        if (DB::getSchemaBuilder()->hasTable('role_permission')) {
+            $viewPermission = DB::table('permission')->where('permission_key', 'report.view')->first();
+            if ($viewPermission) {
+                DB::table('role_permission')->insert([
+                    'role_permission_id' => (string) Str::uuid(),
+                    'role_id' => $viewerRole->role_id,
+                    'permission_id' => $viewPermission->permission_id,
+                ]);
+            }
+        }
+
+        $viewerToken = JWTAuth::fromUser($viewer);
+        $this->getJson('/api/v1/reports/inventory-balance/export-excel', [
+            'Authorization' => "Bearer {$viewerToken}",
+        ])->assertStatus(403);
     }
 
     // ── Helpers ──────────────────────────────────────────────
@@ -444,11 +697,12 @@ class ReportFlow06IntegrationTest extends TestCase
             'doc_type' => $docType,
             'doc_no' => $docNo,
             'doc_date' => $date,
-            'status' => strtolower($status),
+            'status' => $status,
             'src_warehouse_id' => $docType === 'issue' ? $this->warehouse->id : null,
             'dst_warehouse_id' => $docType === 'receipt' ? $this->warehouse->id : null,
             'agency_id' => $agencyId,
             'posted_at' => $status === 'POSTED' ? now() : null,
+            'posted_by' => $status === 'POSTED' ? $this->user->user_id : null,
             'created_by' => $this->user->user_id,
             'created_at' => now(),
             'updated_at' => now(),
@@ -475,14 +729,14 @@ class ReportFlow06IntegrationTest extends TestCase
         return $id;
     }
 
-    private function createOutboundItemMatch(string $lineId): string
+    private function createOutboundItemMatch(string $lineId, bool $newItem = false): string
     {
         $id = (string) Str::uuid();
         DB::table('outbound_item_matches')->insert([
             'id' => $id,
             'outbound_line_id' => $lineId,
             'item_id' => (string) Str::uuid(),
-            'scanned_at' => now(),
+            'quantity' => 1,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -498,6 +752,7 @@ class ReportFlow06IntegrationTest extends TestCase
             'sku_id' => $productId,
             'item_id' => (string) Str::uuid(),
             'outbound_item_match_id' => $matchId,
+            'label_payload' => json_encode(['sku_id' => $productId, 'test' => true]),
             'status' => 'PRINTED',
             'created_at' => now(),
             'updated_at' => now(),
@@ -522,10 +777,12 @@ class ReportFlow06IntegrationTest extends TestCase
             'id' => (string) Str::uuid(),
             'import_no' => 'IMP-'.Str::random(6),
             'source_file_name' => $fileName,
+            'source_checksum' => md5($fileName.Str::random(8)),
             'status' => $status,
             'total_rows' => $total,
             'valid_rows' => $valid,
             'error_rows' => $errors,
+            'created_by' => $this->user->user_id,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
