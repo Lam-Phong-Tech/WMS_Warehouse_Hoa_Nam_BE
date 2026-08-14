@@ -102,7 +102,7 @@ class InventoryBalanceController extends Controller
                 'variance' => (float) $variance,
                 'item_subledger_count' => (int) $sub['item_count'],
                 'container_subledger_count' => (int) $sub['container_count'],
-                'incident_id' => $incident?->incident_id ?? null,
+                'incident_id' => $incident?->id ?? null,
                 'incident_status' => $incident?->status ?? null,
                 'data_as_of' => $dataAsOf,
                 'updated_at' => $balance->updated_at,
@@ -131,6 +131,84 @@ class InventoryBalanceController extends Controller
         );
 
         return $this->respondPaginated($paginator);
+    }
+
+    #[OA\Get(
+        path: '/api/v1/inventory/balances/{id}/subledger',
+        operationId: 'inventory_balance_subledger',
+        summary: 'Subledger drill-down: item_instances + container_items cho một balance',
+        security: [['bearerAuth' => []]],
+        tags: ['07. Inventory'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Item/Container subledger lists'),
+            new OA\Response(response: 404, description: 'Balance not found'),
+        ]
+    )]
+    public function subledger(string $id)
+    {
+        $balance = InventoryBalance::find($id);
+        if (! $balance) {
+            return $this->respondNotFound('Không tìm thấy balance.');
+        }
+
+        $items = DB::table('item_instances')
+            ->leftJoin('sku', 'item_instances.sku_id', '=', 'sku.sku_id')
+            ->leftJoin('physical_codes', 'physical_codes.item_id', '=', 'item_instances.item_id')
+            ->where('item_instances.sku_id', $balance->product_id)
+            ->whereIn('item_instances.status', ['IN_STOCK', 'NEW', 'RECEIVED', 'STORED'])
+            ->orderByDesc('item_instances.created_at')
+            ->limit(200)
+            ->select([
+                'item_instances.item_id as id',
+                'item_instances.item_code',
+                'item_instances.serial_number',
+                'item_instances.status',
+                'item_instances.condition',
+                'item_instances.location_hint',
+                'item_instances.current_container_id',
+                'item_instances.received_at',
+                'item_instances.issued_at',
+                'item_instances.created_at',
+                'sku.sku_code',
+                'sku.sku_name',
+                'physical_codes.code_value as physical_code',
+                'physical_codes.carrier_type as code_carrier_type',
+            ])
+            ->get();
+
+        $containers = DB::table('container_items')
+            ->join('containers', 'container_items.container_id', '=', 'containers.container_id')
+            ->where('container_items.sku_id', $balance->product_id)
+            ->where('container_items.is_active', true)
+            ->orderByDesc('container_items.created_at')
+            ->limit(200)
+            ->select([
+                'container_items.container_item_id as id',
+                'container_items.container_id',
+                'container_items.item_id',
+                'container_items.quantity',
+                'container_items.status',
+                'container_items.created_at',
+                'containers.container_code',
+                'containers.container_type',
+                'containers.zone_code',
+                'containers.location_hint',
+                'containers.status as container_status',
+            ])
+            ->get();
+
+        return $this->respondSuccess([
+            'balance_id' => $id,
+            'product_id' => $balance->product_id,
+            'warehouse_id' => $balance->warehouse_id,
+            'items' => $items,
+            'containers' => $containers,
+            'item_count' => $items->count(),
+            'container_count' => $containers->count(),
+        ]);
     }
 
     private function dimensionKey(?string $warehouseId, ?string $productId, string $stockStatus): string
@@ -213,7 +291,7 @@ class InventoryBalanceController extends Controller
             ->whereIn('sku_id', $productIds)
             ->whereIn('status', ['OPEN', 'INVESTIGATING'])
             ->orderByDesc('created_at')
-            ->get(['incident_id', 'warehouse_id', 'sku_id', 'status', 'divergence_type']);
+            ->get(['id', 'warehouse_id', 'sku_id', 'status', 'divergence_type']);
 
         $map = [];
         foreach ($incidents as $inc) {

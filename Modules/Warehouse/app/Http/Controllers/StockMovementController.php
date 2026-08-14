@@ -134,75 +134,83 @@ class StockMovementController extends Controller
         }
 
         $resolvedObject = null;
-        $resolvedType = $physicalCode->assigned_object_type;
-        $resolvedId = $physicalCode->assigned_object_id;
+        $resolvedType = null;
+        $resolvedId = null;
 
-        if ($resolvedType === 'ITEM' && $resolvedId) {
+        if ($physicalCode->item_id) {
+            $resolvedType = 'ITEM';
+            $resolvedId = $physicalCode->item_id;
+        } elseif ($physicalCode->container_id) {
+            $resolvedType = 'CONTAINER';
+            $resolvedId = $physicalCode->container_id;
+        } elseif ($physicalCode->assigned_object_type && $physicalCode->assigned_object_id) {
+            $resolvedType = $physicalCode->assigned_object_type;
+            $resolvedId = $physicalCode->assigned_object_id;
+        }
+
+        if (! $resolvedType || ! $resolvedId) {
+            return $this->respondSuccess([
+                'physical_code' => $physicalCode,
+                'resolved_type' => null,
+                'resolved_id' => null,
+                'resolved_object' => null,
+                'movements' => [],
+                'container_items' => [],
+            ]);
+        }
+
+        if ($resolvedType === 'ITEM') {
             $resolvedObject = DB::table('item_instances')
                 ->leftJoin('sku', 'item_instances.sku_id', '=', 'sku.sku_id')
-                ->where('item_instances.id', $resolvedId)
+                ->where('item_instances.item_id', $resolvedId)
                 ->select('item_instances.*', 'sku.sku_code', 'sku.sku_name')
                 ->first();
-        } elseif ($resolvedType === 'CONTAINER' && $resolvedId) {
+        } elseif ($resolvedType === 'CONTAINER') {
             $resolvedObject = DB::table('containers')
-                ->where('id', $resolvedId)
+                ->where('container_id', $resolvedId)
                 ->first();
-        } elseif ($resolvedType === 'SKU' && $resolvedId) {
+        } elseif ($resolvedType === 'SKU') {
             $resolvedObject = DB::table('sku')
                 ->where('sku_id', $resolvedId)
                 ->first();
         }
 
+        $movementSelect = [
+            'stock_movements.*',
+            'sku.sku_code as product_code',
+            'sku.sku_name as product_name',
+            'warehouses.code as warehouse_code',
+            'warehouses.name as warehouse_name',
+            'stock_documents.doc_no',
+            'stock_documents.doc_type',
+        ];
+        $movementQuery = DB::table('stock_movements')
+            ->leftJoin('sku', 'stock_movements.product_id', '=', 'sku.sku_id')
+            ->leftJoin('warehouses', 'stock_movements.warehouse_id', '=', 'warehouses.id')
+            ->leftJoin('stock_documents', 'stock_movements.stock_document_id', '=', 'stock_documents.id')
+            ->orderByDesc('stock_movements.occurred_at')
+            ->limit(50);
+
         $movements = collect();
-        if ($resolvedType === 'ITEM' && $resolvedId) {
-            $movements = DB::table('stock_movements')
-                ->leftJoin('products', 'stock_movements.product_id', '=', 'products.id')
-                ->leftJoin('warehouses', 'stock_movements.warehouse_id', '=', 'warehouses.id')
-                ->leftJoin('stock_documents', 'stock_movements.stock_document_id', '=', 'stock_documents.id')
-                ->where('stock_movements.item_id', $resolvedId)
-                ->orderByDesc('stock_movements.occurred_at')
-                ->select([
-                    'stock_movements.*',
-                    'products.code as product_code',
-                    'products.name as product_name',
-                    'warehouses.code as warehouse_code',
-                    'warehouses.name as warehouse_name',
-                    'stock_documents.doc_no',
-                    'stock_documents.doc_type',
-                ])
-                ->limit(50)
-                ->get();
-        } elseif ($resolvedType === 'SKU' && $resolvedId) {
-            $movements = DB::table('stock_movements')
-                ->leftJoin('products', 'stock_movements.product_id', '=', 'products.id')
-                ->leftJoin('warehouses', 'stock_movements.warehouse_id', '=', 'warehouses.id')
-                ->leftJoin('stock_documents', 'stock_movements.stock_document_id', '=', 'stock_documents.id')
-                ->where('stock_movements.product_id', $resolvedId)
-                ->orderByDesc('stock_movements.occurred_at')
-                ->select([
-                    'stock_movements.*',
-                    'products.code as product_code',
-                    'products.name as product_name',
-                    'warehouses.code as warehouse_code',
-                    'warehouses.name as warehouse_name',
-                    'stock_documents.doc_no',
-                    'stock_documents.doc_type',
-                ])
-                ->limit(50)
-                ->get();
+        if ($resolvedType === 'ITEM') {
+            $movements = (clone $movementQuery)->where('stock_movements.item_id', $resolvedId)->select($movementSelect)->get();
+        } elseif ($resolvedType === 'SKU') {
+            $movements = (clone $movementQuery)->where('stock_movements.product_id', $resolvedId)->select($movementSelect)->get();
+        } elseif ($resolvedType === 'CONTAINER') {
+            $movements = (clone $movementQuery)->where('stock_movements.container_id', $resolvedId)->select($movementSelect)->get();
         }
 
         $containerItems = collect();
-        if ($resolvedType === 'ITEM' && $resolvedId) {
+        if ($resolvedType === 'ITEM') {
             $containerItems = DB::table('container_items')
-                ->leftJoin('containers', 'container_items.container_id', '=', 'containers.id')
+                ->leftJoin('containers', 'container_items.container_id', '=', 'containers.container_id')
                 ->where('container_items.item_id', $resolvedId)
                 ->where('container_items.is_active', true)
                 ->select('container_items.*', 'containers.container_code', 'containers.container_type')
                 ->get();
-        } elseif ($resolvedType === 'CONTAINER' && $resolvedId) {
+        } elseif ($resolvedType === 'CONTAINER') {
             $containerItems = DB::table('container_items')
-                ->leftJoin('containers', 'container_items.container_id', '=', 'containers.id')
+                ->leftJoin('containers', 'container_items.container_id', '=', 'containers.container_id')
                 ->where('container_items.container_id', $resolvedId)
                 ->where('container_items.is_active', true)
                 ->select('container_items.*', 'containers.container_code', 'containers.container_type')
@@ -358,18 +366,20 @@ class StockMovementController extends Controller
 
         $blockedByInbound = DB::table('item_instances')
             ->join('inbound_scan_entries', 'inbound_scan_entries.item_id', '=', 'item_instances.id')
-            ->whereIn('inbound_scan_entries.stock_document_id', $stockDocIds)
+            ->join('stock_document_lines', 'stock_document_lines.id', '=', 'inbound_scan_entries.inbound_line_id')
+            ->whereIn('stock_document_lines.stock_document_id', $stockDocIds)
             ->whereNotIn('item_instances.status', ['IN_STOCK', 'NEW', 'ADJUSTED_OUT'])
-            ->groupBy('inbound_scan_entries.stock_document_id')
-            ->select('inbound_scan_entries.stock_document_id', DB::raw("'ITEM_ALREADY_USED_BY_DOWNSTREAM' AS guard_reason"))
+            ->groupBy('stock_document_lines.stock_document_id')
+            ->select('stock_document_lines.stock_document_id', DB::raw("'ITEM_ALREADY_USED_BY_DOWNSTREAM' AS guard_reason"))
             ->get();
 
         $blockedByOutbound = DB::table('item_instances')
             ->join('outbound_item_matches', 'outbound_item_matches.item_id', '=', 'item_instances.id')
-            ->whereIn('outbound_item_matches.stock_document_id', $stockDocIds)
+            ->join('stock_document_lines', 'stock_document_lines.id', '=', 'outbound_item_matches.outbound_line_id')
+            ->whereIn('stock_document_lines.stock_document_id', $stockDocIds)
             ->whereNotIn('item_instances.status', ['ISSUED', 'RETURNED_TO_CUSTOMER'])
-            ->groupBy('outbound_item_matches.stock_document_id')
-            ->select('outbound_item_matches.stock_document_id', DB::raw("'ITEM_STATUS_NOT_REVERSIBLE' AS guard_reason"))
+            ->groupBy('stock_document_lines.stock_document_id')
+            ->select('stock_document_lines.stock_document_id', DB::raw("'ITEM_STATUS_NOT_REVERSIBLE' AS guard_reason"))
             ->get();
 
         $map = [];

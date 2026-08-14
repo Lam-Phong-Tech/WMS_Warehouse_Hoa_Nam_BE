@@ -83,6 +83,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('outbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseOutbound'])->middleware('permission:inventory.reversal.post');
 
         Route::get('inventory/balances', [InventoryBalanceController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('inventory/balances/{id}/subledger', [InventoryBalanceController::class, 'subledger'])->middleware('permission:inventory.view');
         Route::get('stock-movements', [StockMovementController::class, 'index'])->middleware('permission:inventory.view');
         Route::get('stock-movements/reversible', [StockMovementController::class, 'reversible'])->middleware('permission:inventory.reversal.post');
         Route::get('stock-movements/trace-by-code', [StockMovementController::class, 'traceByPhysicalCode'])->middleware('permission:inventory.trace');
