@@ -51,10 +51,10 @@ class ReversalDocumentController extends Controller
             $query->where('reversal_documents.status', $request->input('status'));
         }
         if ($request->filled('keyword')) {
-            $keyword = '%' . $request->input('keyword') . '%';
+            $keyword = '%'.$request->input('keyword').'%';
             $query->where(function ($q) use ($keyword) {
                 $q->whereRaw('CAST(reversal_documents.reversal_no AS TEXT) ILIKE ?', [$keyword])
-                  ->orWhereRaw('CAST(reversal_documents.reason_text AS TEXT) ILIKE ?', [$keyword]);
+                    ->orWhereRaw('CAST(reversal_documents.reason_text AS TEXT) ILIKE ?', [$keyword]);
             });
         }
 
@@ -158,8 +158,8 @@ class ReversalDocumentController extends Controller
             ->leftJoin('products', 'stock_movements.product_id', '=', 'products.id')
             ->where(function ($q) use ($refId) {
                 $q->where('stock_movements.stock_document_id', $refId)
-                  ->orWhere('stock_movements.source_id', $refId)
-                  ->orWhere('stock_movements.id', $refId);
+                    ->orWhere('stock_movements.source_id', $refId)
+                    ->orWhere('stock_movements.id', $refId);
             })
             ->whereIn('stock_movements.movement_type', ['RECEIPT', 'ISSUE'])
             ->select('stock_movements.*', 'products.code as product_code')
@@ -203,7 +203,7 @@ class ReversalDocumentController extends Controller
 
         $actorId = $this->actorId();
         $hash = IdempotencyStore::requestHash($request);
-        $operation = 'create_reversal_' . $stockDocId;
+        $operation = 'create_reversal_'.$stockDocId;
         $lineCount = count($reversalLines);
 
         [$code, $body, $replay] = IdempotencyStore::handle(
