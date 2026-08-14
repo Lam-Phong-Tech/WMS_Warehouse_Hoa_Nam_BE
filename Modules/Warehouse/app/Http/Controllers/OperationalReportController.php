@@ -38,7 +38,7 @@ class OperationalReportController extends Controller
             ['key' => 'document-history', 'name' => 'Lịch sử phiếu nhập/xuất'],
             ['key' => 'movement-trace', 'name' => 'Movement/Trace'],
             ['key' => 'import-match', 'name' => 'Excel Import/Match'],
-            ['key' => 'label-log', 'name' => 'Label/Print'],
+            ['key' => 'label-log', 'name' => 'Packing Label'],
             ['key' => 'warranty-defects', 'name' => 'Warranty/Component'],
             ['key' => 'outbound-by-agency', 'name' => 'Xuất theo nơi nhận'],
         ]);
@@ -124,11 +124,11 @@ class OperationalReportController extends Controller
     {
         $report = $this->buildLabelLog($request);
         $rows = array_map(fn (array $row): array => [
-            $row['label_code'], $row['outbound_no'], $row['sku_code'], $row['product_name'], $row['item_code_value'],
-            $row['status'], $row['reprint_count'], $row['total_attempts'], $row['failed_count'], $row['template_version'], $row['created_at'],
+            $row['outbound_no'], $row['outbound_date'], $row['recipient'], $row['label_count'], $row['item_count'],
+            $row['sku_count'], $row['sku_summary'], $row['status'], $row['total_attempts'], $row['failed_count'], $row['reprint_count'], $row['created_at'],
         ], $report['rows']);
 
-        return $this->exportRows($request, 'Label Print', ['Mã nhãn', 'Phiếu xuất', 'Mã SKU', 'Tên SKU', 'Mã item', 'Trạng thái', 'Số lần in lại', 'Tổng lần in', 'Lỗi in', 'Template', 'Tạo lúc'], $rows, "nhat-ky-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'label-log');
+        return $this->exportRows($request, 'Packing Label', ['Phiếu xuất', 'Ngày phiếu', 'Nơi nhận', 'Số nhãn', 'Số item', 'Số SKU', 'Tóm tắt SKU', 'Trạng thái', 'Tổng lần in', 'Lỗi in', 'In lại', 'Tạo lúc'], $rows, "packing-label-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'label-log');
     }
 
     public function outboundByAgency(Request $request)
@@ -306,6 +306,7 @@ class OperationalReportController extends Controller
         $request->validate([
             'warehouse_id' => ['nullable', 'uuid'],
             'product_id' => ['nullable', 'uuid'],
+            'keyword' => ['nullable', 'string', 'max:200'],
         ]);
         $fromTs = "{$from} 00:00:00";
         $toTs = "{$to} 23:59:59";
@@ -326,6 +327,13 @@ class OperationalReportController extends Controller
         }
         if ($request->filled('product_id')) {
             $query->where('m.product_id', $request->input('product_id'));
+        }
+        if ($request->filled('keyword')) {
+            $kw = (string) $request->input('keyword');
+            $query->where(function ($q) use ($kw): void {
+                $q->whereRaw('p.code ILIKE ?', ["%{$kw}%"])
+                    ->orWhereRaw('p.name ILIKE ?', ["%{$kw}%"]);
+            });
         }
 
         $lines = $query->get()->map(function ($row): array {
@@ -438,10 +446,20 @@ class OperationalReportController extends Controller
     private function buildImportMatch(Request $request): array
     {
         [$from, $to] = $this->period($request);
-        $validated = $request->validate(['status' => ['nullable', 'in:UPLOADED,VALIDATED,REJECTED,CONSUMED']]);
+        $validated = $request->validate([
+            'status' => ['nullable', 'in:UPLOADED,VALIDATED,REJECTED,CONSUMED'],
+            'keyword' => ['nullable', 'string', 'max:200'],
+        ]);
         $query = DB::table('outbound_request_imports')->whereBetween('created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
         if (! empty($validated['status'])) {
             $query->where('status', $validated['status']);
+        }
+        if (! empty($validated['keyword'])) {
+            $kw = (string) $validated['keyword'];
+            $query->where(function ($q) use ($kw): void {
+                $q->whereRaw("COALESCE(import_no, '') ILIKE ?", ["%{$kw}%"])
+                    ->orWhereRaw("COALESCE(source_file_name, '') ILIKE ?", ["%{$kw}%"]);
+            });
         }
         $imports = $query->orderByDesc('created_at')->get();
         $importIds = $imports->pluck('id')->all();
@@ -508,9 +526,14 @@ class OperationalReportController extends Controller
             ->leftJoin('outbound_item_matches as oim', 'oim.id', '=', 'ls.outbound_item_match_id')
             ->leftJoin('stock_document_lines as l', 'l.id', '=', 'oim.outbound_line_id')
             ->leftJoin('stock_documents as sd', 'sd.id', '=', 'l.stock_document_id')
+            ->leftJoin('agencies as ag', 'ag.id', '=', 'sd.agency_id')
             ->leftJoinSub($attempts, 'pa', 'pa.label_snapshot_id', '=', 'ls.id')
             ->whereBetween('ls.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->select('ls.*', 'p.code as sku_code', 'p.name as product_name', 'sd.doc_no as outbound_no', 'pa.total_attempts', 'pa.failed_count');
+            ->select('ls.id', 'ls.item_id', 'ls.sku_id', 'ls.status', 'ls.created_at',
+                'p.code as sku_code', 'sd.id as stock_document_id', 'sd.doc_no as outbound_no',
+                'sd.document_date as outbound_date',
+                DB::raw('COALESCE(ag.name, sd.recipient_name) as recipient'),
+                'pa.total_attempts', 'pa.failed_count');
         if (! empty($validated['status'])) {
             $query->where('ls.status', $validated['status']);
         }
@@ -523,37 +546,42 @@ class OperationalReportController extends Controller
             });
         }
         $snapshots = $query->orderByDesc('ls.created_at')->get();
-        $itemIds = $snapshots->pluck('item_id')->filter()->unique()->values()->all();
-        $codes = $itemIds === [] ? collect() : DB::table('physical_codes')
-            ->whereIn('assigned_object_id', $itemIds)->where('status', 'ACTIVE')->orderBy('created_at')
-            ->get(['assigned_object_id', 'code_value'])->groupBy('assigned_object_id')->map(fn ($rows) => (string) $rows->first()->code_value);
-        $rows = $snapshots->map(function ($s) use ($codes): array {
-            $payload = json_decode((string) ($s->label_payload ?? '{}'), true) ?: [];
-            $attemptCount = (int) ($s->total_attempts ?? 0);
+
+        $grouped = $snapshots->groupBy(fn ($s) => $s->stock_document_id !== null ? (string) $s->stock_document_id : 'UNL_'.$s->id);
+        $rows = $grouped->map(function (Collection $group): array {
+            $first = $group->first();
+            $linked = $first->stock_document_id !== null;
+            $attemptTotal = $group->sum(fn ($s) => (int) ($s->total_attempts ?? 0));
+            $failedTotal = $group->sum(fn ($s) => (int) ($s->failed_count ?? 0));
+            $reprintTotal = $group->sum(fn ($s) => max(0, (int) ($s->total_attempts ?? 0) - 1));
+            $skuCodes = $group->pluck('sku_code')->filter()->unique()->values();
+            $statuses = $group->pluck('status')->unique();
+            $aggStatus = $statuses->contains('PRINT_FAILED') ? 'PRINT_FAILED'
+                : ($statuses->contains('PENDING_PRINT') ? 'PENDING_PRINT' : 'PRINTED');
 
             return [
-                'id' => (string) $s->id,
-                'label_code' => (string) ($payload['label_code'] ?? $payload['label_no'] ?? $s->id),
-                'outbound_no' => $s->outbound_no ?? ($payload['outbound_no'] ?? null),
-                'sku_code' => (string) ($s->sku_code ?? $payload['sku_code'] ?? ''),
-                'product_name' => (string) ($s->product_name ?? $payload['product_name'] ?? ''),
-                'item_code_value' => (string) ($payload['item_code_value'] ?? $payload['item_code'] ?? ($codes[(string) ($s->item_id ?? '')] ?? '')),
-                'status' => (string) $s->status,
-                'reprint_count' => max(0, $attemptCount - 1),
-                'total_attempts' => $attemptCount,
-                'failed_count' => (int) ($s->failed_count ?? 0),
-                'template_version' => (string) ($payload['template_version'] ?? 'v1'),
-                'created_at' => (string) $s->created_at,
-                'created_by_name' => null,
+                'id' => $linked ? (string) $first->stock_document_id : (string) $first->id,
+                'outbound_no' => $first->outbound_no,
+                'outbound_date' => $first->outbound_date,
+                'recipient' => $first->recipient,
+                'label_count' => $group->count(),
+                'item_count' => $group->pluck('item_id')->filter()->unique()->count(),
+                'sku_count' => $skuCodes->count(),
+                'sku_summary' => $skuCodes->implode(', '),
+                'status' => $aggStatus,
+                'total_attempts' => $attemptTotal,
+                'failed_count' => $failedTotal,
+                'reprint_count' => $reprintTotal,
+                'created_at' => (string) $group->min('created_at'),
             ];
-        })->all();
+        })->values()->all();
         $collection = collect($rows);
         $total = count($rows);
 
         return [
             'period' => ['from_date' => $from, 'to_date' => $to],
             'summary' => [
-                'total_snapshots' => $total,
+                'total_labels' => $total,
                 'printed' => $collection->where('status', 'PRINTED')->count(),
                 'pending' => $collection->where('status', 'PENDING_PRINT')->count(),
                 'failed' => $collection->where('status', 'PRINT_FAILED')->count(),
@@ -571,6 +599,7 @@ class OperationalReportController extends Controller
         $validated = $request->validate([
             'agency_id' => ['nullable', 'uuid'],
             'product_id' => ['nullable', 'uuid'],
+            'keyword' => ['nullable', 'string', 'max:200'],
         ]);
         $query = DB::table('stock_documents as sd')
             ->join('stock_document_lines as l', 'l.stock_document_id', '=', 'sd.id')
@@ -584,6 +613,15 @@ class OperationalReportController extends Controller
         }
         if (! empty($validated['product_id'])) {
             $query->where('l.product_id', $validated['product_id']);
+        }
+        if (! empty($validated['keyword'])) {
+            $kw = (string) $validated['keyword'];
+            $query->where(function ($q) use ($kw): void {
+                $q->whereRaw('p.code ILIKE ?', ["%{$kw}%"])
+                    ->orWhereRaw('p.name ILIKE ?', ["%{$kw}%"])
+                    ->orWhereRaw('a.agency_name ILIKE ?', ["%{$kw}%"])
+                    ->orWhereRaw('a.agency_code ILIKE ?', ["%{$kw}%"]);
+            });
         }
         $rows = $query->orderByDesc('sd.doc_date')->get()->map(fn ($r): array => [
             'agency_code' => (string) ($r->agency_code ?? 'DIRECT'),
@@ -688,6 +726,170 @@ class OperationalReportController extends Controller
                 'reversal_count' => $collection->where('movement_type', 'REVERSAL')->count(),
             ],
             'rows' => $rows,
+        ];
+    }
+
+    public function warrantyDefects(Request $request)
+    {
+        return $this->respondSuccess($this->buildWarrantyReport($request, includePii: false));
+    }
+
+    public function warrantyDefectsExport(Request $request)
+    {
+        $includePii = (bool) $request->user()?->hasPermission('warranty.pii.export');
+        $report = $this->buildWarrantyReport($request, includePii: $includePii);
+
+        AuditLogger::record(
+            action: 'WARRANTY_REPORT_EXPORTED',
+            objectType: 'warranty_report',
+            objectId: null,
+            actorId: auth('api')->id() !== null ? (string) auth('api')->id() : null,
+            requestId: $request->attributes->get('request_id'),
+            afterData: [
+                'pii_included' => $includePii,
+                'row_count' => count($report['rows']),
+                'period' => $report['period'],
+            ],
+        );
+
+        $header = ['Case', 'Nhận diện', 'SKU/Model', 'Bệnh / lỗi', 'Linh kiện đã xuất', 'Trạng thái', 'Ngày nhận', 'Ngày cập nhật'];
+        if ($includePii) {
+            $header = array_merge($header, ['Khách hàng', 'SĐT', 'Địa chỉ']);
+        }
+        $rows = array_map(function (array $row) use ($includePii): array {
+            $line = [
+                $this->excelSafe($row['case_no']), $row['identification_status'], $this->excelSafe($row['model']),
+                $this->excelSafe($row['defect']), $this->excelSafe($row['components_issued']),
+                $row['status'], $row['received_at'], $row['updated_at'],
+            ];
+            if ($includePii) {
+                $line = array_merge($line, [
+                    $this->excelSafe($row['customer_name'] ?? ''),
+                    $this->excelSafe($row['customer_phone'] ?? ''),
+                    $this->excelSafe($row['customer_address'] ?? ''),
+                ]);
+            }
+
+            return $line;
+        }, $report['rows']);
+
+        if (count($rows) > self::EXPORT_ROW_LIMIT) {
+            ApiError::abort(422, 'REPORT_EXPORT_ROW_LIMIT_EXCEEDED', 'Mỗi file export tối đa 10.000 dòng; hãy thu hẹp bộ lọc.', ['limit' => self::EXPORT_ROW_LIMIT, 'row_count' => count($rows)]);
+        }
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Bao hanh');
+        $sheet->fromArray($header, null, 'A1');
+        $rowIndex = 2;
+        foreach ($rows as $row) {
+            $sheet->fromArray($row, null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+        foreach (range('A', $sheet->getHighestColumn()) as $column) {
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+        $writer = new Xlsx($spreadsheet);
+        $fileName = "bao-cao-bao-hanh-{$report['period']['from_date']}-den-{$report['period']['to_date']}.xlsx";
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function buildWarrantyReport(Request $request, bool $includePii): array
+    {
+        [$from, $to] = $this->period($request);
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', 'max:30'],
+            'defect_id' => ['nullable', 'uuid'],
+            'identification_status' => ['nullable', 'in:IDENTIFIED,TEMP_ONLY'],
+        ]);
+
+        $query = DB::table('warranty_case as wc')
+            ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
+            ->leftJoin('defect_catalogs as d', 'd.defect_id', '=', 'wc.defect_id')
+            ->whereBetween('wc.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
+        foreach (['status', 'defect_id', 'identification_status'] as $filter) {
+            if (! empty($validated[$filter])) {
+                $query->where("wc.{$filter}", $validated[$filter]);
+            }
+        }
+        $cases = $query->orderByDesc('wc.created_at')->get([
+            'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status',
+            'wc.status', 'wc.created_at', 'wc.updated_at', 'wc.temporary_item_code',
+            'wc.customer_name', 'wc.customer_phone', 'wc.customer_address',
+            's.sku_code', 'd.defect_code', 'd.defect_name',
+        ]);
+
+        $issuedByCase = DB::table('component_issue_documents as cid')
+            ->join('component_issue_lines as cil', 'cil.component_issue_document_id', '=', 'cid.id')
+            ->join('sku as cs', 'cs.sku_id', '=', 'cil.sku_id')
+            ->where('cid.status', 'POSTED')
+            ->whereIn('cid.warranty_case_id', $cases->pluck('warranty_case_id')->all())
+            ->groupBy('cid.warranty_case_id', 'cs.sku_code')
+            ->selectRaw('cid.warranty_case_id, cs.sku_code, SUM(cil.scanned_qty) AS issued_qty')
+            ->get()
+            ->groupBy('warranty_case_id');
+
+        $activeStatuses = ['RECEIVED', 'INSPECTING', 'WAITING_CHECK', 'REPAIRED'];
+        $rows = $cases->map(function (object $case) use ($issuedByCase, $includePii): array {
+            $issued = collect($issuedByCase->get((string) $case->warranty_case_id) ?? [])
+                ->map(fn (object $item): string => "{$item->sku_code} × ".(int) $item->issued_qty)
+                ->implode('; ');
+            $model = $case->identification_status === 'TEMP_ONLY' && $case->sku_code === null
+                ? 'UNKNOWN_MODEL'
+                : ($case->sku_code ?? 'UNKNOWN_MODEL');
+            $row = [
+                'warranty_case_id' => (string) $case->warranty_case_id,
+                'case_no' => (string) $case->warranty_case_code,
+                'identification_status' => (string) $case->identification_status,
+                'temporary_item_code' => $case->temporary_item_code,
+                'model' => $model,
+                'defect' => $case->defect_code !== null
+                    ? trim("{$case->defect_code} · {$case->defect_name}")
+                    : 'Chưa phân loại',
+                'components_issued' => $issued !== '' ? $issued : 'Chưa xuất',
+                'status' => (string) $case->status,
+                'received_at' => (string) $case->created_at,
+                'updated_at' => (string) ($case->updated_at ?? $case->created_at),
+            ];
+            if ($includePii) {
+                $row['customer_name'] = $case->customer_name;
+                $row['customer_phone'] = $case->customer_phone;
+                $row['customer_address'] = $case->customer_address;
+            }
+
+            return $row;
+        })->values();
+
+        $byDefect = $cases
+            ->groupBy(fn (object $case): string => $case->defect_code !== null
+                ? trim("{$case->defect_code} · {$case->defect_name}")
+                : 'Chưa phân loại')
+            ->map(function ($group, string $defect) use ($activeStatuses): array {
+                return [
+                    'defect' => $defect,
+                    'total' => $group->count(),
+                    'processing' => $group->whereIn('status', $activeStatuses)->count(),
+                    'returned' => $group->where('status', 'RETURNED')->count(),
+                    'cancelled' => $group->where('status', 'CANCELLED')->count(),
+                    'temp_only' => $group->where('identification_status', 'TEMP_ONLY')->count(),
+                ];
+            })->values();
+
+        return [
+            'period' => ['from_date' => $from, 'to_date' => $to],
+            'summary' => [
+                'total' => $cases->count(),
+                'processing' => $cases->whereIn('status', $activeStatuses)->count(),
+                'returned' => $cases->where('status', 'RETURNED')->count(),
+                'cancelled' => $cases->where('status', 'CANCELLED')->count(),
+                'temp_only' => $cases->where('identification_status', 'TEMP_ONLY')->count(),
+            ],
+            'rows' => $rows->all(),
+            'by_defect' => $byDefect->all(),
+            'pii_included' => $includePii,
         ];
     }
 

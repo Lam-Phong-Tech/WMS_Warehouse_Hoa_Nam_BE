@@ -5,7 +5,6 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineItemIdentityController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineSkuController;
 use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductStatusCompatibilityController;
-use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\ScanController;
 use Modules\Warehouse\Http\Controllers\WarrantyController;
 
@@ -35,9 +34,6 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
 
     Route::post('scan/classify', [ScanController::class, 'classify'])
         ->middleware('permission:scan.classify');
-
-    Route::get('reports/inventory-reconciliation', [ReportController::class, 'inventoryReconciliation'])
-        ->middleware('permission:inventory.trace');
 
     Route::post('warranty-cases/{id}/temp-only', [WarrantyController::class, 'tempOnly'])
         ->middleware('permission:warranty.manage');

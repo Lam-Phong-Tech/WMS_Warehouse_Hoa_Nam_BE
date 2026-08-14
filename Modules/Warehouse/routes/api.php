@@ -31,7 +31,6 @@ use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductMasterController;
 use Modules\Warehouse\Http\Controllers\PutawayController;
-use Modules\Warehouse\Http\Controllers\ReportController;
 use Modules\Warehouse\Http\Controllers\ReversalDocumentController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
@@ -118,8 +117,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/outbound-by-agency/export-excel', [OperationalReportController::class, 'outboundByAgencyExport'])->middleware('permission:report.export');
         Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
         Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
-        Route::get('reports/warranty-defects', [ReportController::class, 'warrantyDefects'])->middleware('permission:report.view');
-        Route::get('reports/warranty-defects/export-excel', [ReportController::class, 'warrantyDefectsExportExcel'])->middleware('permission:report.export');
+        Route::get('reports/warranty-defects', [OperationalReportController::class, 'warrantyDefects'])->middleware('permission:report.view');
+        Route::get('reports/warranty-defects/export-excel', [OperationalReportController::class, 'warrantyDefectsExport'])->middleware('permission:report.export');
 
         Route::get('agencies', [AgencyController::class, 'index'])->middleware('permission:agency.view');
         Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
