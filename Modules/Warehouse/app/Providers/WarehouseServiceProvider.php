@@ -31,31 +31,15 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
 
 class WarehouseServiceProvider extends ModuleServiceProvider
 {
-    /**
-     * The name of the module.
-     */
     protected string $name = 'Warehouse';
 
-    /**
-     * The lowercase version of the module name.
-     */
     protected string $nameLower = 'warehouse';
 
-    /**
-     * Command classes to register.
-     *
-     * @var string[]
-     */
-    // protected array $commands = [];
-
-    /**
-     * Provider classes to register.
-     *
-     * @var string[]
-     */
+    /** @var string[] */
     protected array $providers = [
         EventServiceProvider::class,
         RouteServiceProvider::class,
+        Flow06AlignmentServiceProvider::class,
     ];
 
     public function register(): void
@@ -80,11 +64,6 @@ class WarehouseServiceProvider extends ModuleServiceProvider
         $this->app->bind(ScanClassificationService::class, CanonicalScanClassificationService::class);
     }
 
-    /**
-     * Define module schedules.
-     *
-     * @param  $schedule
-     */
     // protected function configureSchedules(Schedule $schedule): void
     // {
     //     $schedule->command('inspire')->hourly();
