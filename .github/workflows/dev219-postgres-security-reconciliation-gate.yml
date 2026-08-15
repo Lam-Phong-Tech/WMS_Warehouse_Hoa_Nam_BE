@@ -21,6 +21,9 @@ on:
       - 'tests/Feature/SecurityRbacAuditNegativeTest.php'
       - 'tests/Feature/StockDocumentIdempotencyTest.php'
       - 'tests/Feature/StockDocumentConcurrencyGuardTest.php'
+      - 'tests/Feature/ErdPhysicalSchemaParityTest.php'
+      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
+      - 'tests/Feature/LatestErdBaselineSchemaTest.php'
       - 'docs/evidence/DEV219**'
       - 'docs/decision-records/DEV219**'
   push:
@@ -42,6 +45,9 @@ on:
       - 'tests/Feature/SecurityRbacAuditNegativeTest.php'
       - 'tests/Feature/StockDocumentIdempotencyTest.php'
       - 'tests/Feature/StockDocumentConcurrencyGuardTest.php'
+      - 'tests/Feature/ErdPhysicalSchemaParityTest.php'
+      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
+      - 'tests/Feature/LatestErdBaselineSchemaTest.php'
       - 'docs/evidence/DEV219**'
       - 'docs/decision-records/DEV219**'
 
@@ -126,6 +132,25 @@ jobs:
           php artisan migrate:fresh --seed --force 2>&1 | tee artifacts/dev219/postgres-migrate.log
           php artisan migrate:status 2>&1 | tee artifacts/dev219/migration-status.txt
 
+      - name: Assert PostgreSQL production-only schema controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          applied_migrations="$(psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -Atc "SELECT COUNT(*) FROM migrations;")"
+          check_constraints="$(psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -Atc "SELECT COUNT(*) FROM pg_constraint con JOIN pg_namespace n ON n.oid = con.connamespace WHERE n.nspname = 'public' AND con.contype = 'c';")"
+          unique_constraints="$(psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -Atc "SELECT COUNT(*) FROM pg_constraint con JOIN pg_namespace n ON n.oid = con.connamespace WHERE n.nspname = 'public' AND con.contype = 'u';")"
+          user_triggers="$(psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -Atc "SELECT COUNT(*) FROM information_schema.triggers WHERE event_object_schema = 'public';")"
+          {
+            echo "applied_migrations=$applied_migrations"
+            echo "check_constraints=$check_constraints"
+            echo "unique_constraints=$unique_constraints"
+            echo "user_triggers=$user_triggers"
+          } | tee artifacts/dev219/schema-control-summary.txt
+          test "$applied_migrations" -ge 31
+          test "$check_constraints" -gt 0
+          test "$unique_constraints" -gt 0
+          test "$user_triggers" -gt 0
+
       - name: Capture PostgreSQL constraints and triggers
         shell: bash
         run: |
@@ -166,7 +191,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          php artisan test --filter '/(Wwhn219AuditPolicySchedulerTest|Wwhn219InventoryReconcileCommandTest|Wwhn172AuditFailClosedTest|Wwhn172MigrationSafetyTest|SecurityRbacAuditNegativeTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest)/' 2>&1 | tee artifacts/dev219/test-report.txt
+          php artisan test --filter '/(Wwhn219AuditPolicySchedulerTest|Wwhn219InventoryReconcileCommandTest|Wwhn172AuditFailClosedTest|Wwhn172MigrationSafetyTest|SecurityRbacAuditNegativeTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest|ErdPhysicalSchemaParityTest|ErdBusinessInvariantParityTest|LatestErdBaselineSchemaTest)/' 2>&1 | tee artifacts/dev219/test-report.txt
 
       - name: DB snapshot after DEV219 tests
         if: always()
