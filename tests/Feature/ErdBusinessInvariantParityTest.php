@@ -55,6 +55,7 @@ class ErdBusinessInvariantParityTest extends TestCase
             ['warranty_cases', 'chk_erd_warranty_identification_shape'],
             ['pv_recommendation_rules', 'chk_erd_pv_recommendation_selector'],
             ['pv_recommendation_rules', 'chk_erd_pv_recommendation_priority'],
+            ['inventory_balances', 'chk_inventory_balance_non_negative'],
         ];
 
         foreach ($required as [$table, $constraint]) {
@@ -115,6 +116,17 @@ class ErdBusinessInvariantParityTest extends TestCase
             $this->assertStringContainsString('UPDATE', $normalized);
             $this->assertStringContainsString('DELETE', $normalized);
         }
+
+        // WWHN-205: inventory_movements is a compatibility view/materialized mirror over
+        // stock_movements (the table the application actually writes to via
+        // CurrentBaselineStockService/CurrentBaselineReversalService). Its append-only
+        // trigger guards the mirror, not the live table — assert stock_movements itself
+        // also carries a DB-level guard, not just the Eloquent booted() one.
+        $stockMovementsRow = $definitions->get('stock_movements|trg_stock_movements_append_only');
+        $this->assertNotNull($stockMovementsRow, 'stock_movements must be append-only at the DB level.');
+        $stockMovementsNormalized = strtoupper((string) $stockMovementsRow->definition);
+        $this->assertStringContainsString('UPDATE', $stockMovementsNormalized);
+        $this->assertStringContainsString('DELETE', $stockMovementsNormalized);
     }
 
     public function test_runtime_to_canonical_mirror_triggers_exist_for_critical_legacy_tables(): void

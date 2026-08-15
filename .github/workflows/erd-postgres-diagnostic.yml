@@ -5,6 +5,19 @@ on:
     branches: [m1]
     paths:
       - '.github/workflows/erd-postgres-diagnostic.yml'
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
+      - 'tests/Feature/ErdPhysicalSchemaParityTest.php'
+      - 'tests/Feature/ErdRuntimeMirrorParityTest.php'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
+      - 'tests/Feature/ErdPhysicalSchemaParityTest.php'
+      - 'tests/Feature/ErdRuntimeMirrorParityTest.php'
 
 permissions:
   contents: read

@@ -160,7 +160,11 @@ class CurrentBaselineStockService
                     $documentId,
                     (string) $line->id,
                     $actorId,
-                    sha1(($documentType === 'receipt' ? 'RECEIPT' : 'ISSUE').'|'.$documentId.'|'.$line->id)
+                    sha1(($documentType === 'receipt' ? 'RECEIPT' : 'ISSUE').'|'.$documentId.'|'.$line->id),
+                    self::AVAILABLE,
+                    null,
+                    null,
+                    $this->resolveLineItemId($documentType, (string) $line->id)
                 );
                 $movementIds[] = $movement['id'];
             }
@@ -407,6 +411,8 @@ class CurrentBaselineStockService
                     ApiError::abort(422, 'FULL_POST_REQUIRED', 'Component Issue chỉ Post khi scanned_qty = required_qty.');
                 }
 
+                $itemIds = DB::table('component_issue_items')->where('component_issue_line_id', $line->id)->whereNotNull('item_id')->pluck('item_id');
+
                 $movement = $this->mutateBalance(
                     (string) $document->warehouse_id,
                     (string) $line->sku_id,
@@ -417,11 +423,14 @@ class CurrentBaselineStockService
                     $documentId,
                     (string) $line->id,
                     $actorId,
-                    sha1('COMPONENT_ISSUE|'.$documentId.'|'.$line->id)
+                    sha1('COMPONENT_ISSUE|'.$documentId.'|'.$line->id),
+                    self::AVAILABLE,
+                    null,
+                    null,
+                    $itemIds->count() === 1 ? (string) $itemIds->first() : null
                 );
                 $movementIds[] = $movement['id'];
 
-                $itemIds = DB::table('component_issue_items')->where('component_issue_line_id', $line->id)->whereNotNull('item_id')->pluck('item_id');
                 if ($itemIds->isNotEmpty()) {
                     DB::table('item_instances')->whereIn('item_id', $itemIds)->update([
                         'item_status' => 'ISSUED',
@@ -795,7 +804,8 @@ class CurrentBaselineStockService
         string $businessKey,
         string $stockStatus = self::AVAILABLE,
         ?string $originalMovementId = null,
-        ?string $correctionChainId = null
+        ?string $correctionChainId = null,
+        ?string $itemId = null
     ): array {
         if ($quantity <= 0) {
             ApiError::abort(422, 'INVALID_QUANTITY', 'Stock quantity phải là số nguyên dương.');
@@ -879,6 +889,7 @@ class CurrentBaselineStockService
             'source_type' => $sourceType,
             'source_id' => $sourceId,
             'source_line_id' => $sourceLineId,
+            'item_id' => $itemId,
             'original_movement_id' => $originalMovementId,
             'correction_chain_id' => $correctionChainId,
             'created_by' => $actorId,
@@ -888,6 +899,29 @@ class CurrentBaselineStockService
         ]);
 
         return ['id' => $movementId, 'before' => $before, 'after' => $after];
+    }
+
+    /**
+     * Resolve the single item backing a stock_document_line's posted movement, when
+     * unambiguous. stock_movements.item_id is 1:1 (see CurrentBaselineReversalService,
+     * which always sets it per reversal_line); a document line can carry multiple scanned
+     * items when qty_planned > 1 for serial-tracked SKUs, and in that case the aggregate
+     * movement genuinely has no single item to attribute — item_id stays null, matching the
+     * documented read-side fallback in StockMovementController::traceByPhysicalCode().
+     */
+    private function resolveLineItemId(string $documentType, string $lineId): ?string
+    {
+        $itemIds = $documentType === 'receipt'
+            ? DB::table('inbound_scan_entries')->where('inbound_line_id', $lineId)->whereNotNull('item_id')->pluck('item_id')
+            : DB::table('outbound_item_matches')
+                ->where('outbound_line_id', $lineId)
+                ->whereNotNull('item_id')
+                ->where(function ($query): void {
+                    $query->whereNull('status')->orWhere('status', '!=', 'REMOVED');
+                })
+                ->pluck('item_id');
+
+        return $itemIds->count() === 1 ? (string) $itemIds->first() : null;
     }
 
     private function lockDocument(string $documentId, string $documentType): object

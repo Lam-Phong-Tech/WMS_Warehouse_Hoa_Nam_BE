@@ -251,7 +251,7 @@ class InventoryBalanceController extends Controller
 
         $items = DB::table('item_instances')
             ->whereIn('sku_id', $productIds)
-            ->whereIn('status', ['IN_STOCK', 'NEW'])
+            ->whereIn('item_status', ['IN_STOCK', 'NEW'])
             ->groupBy('sku_id')
             ->select('sku_id', DB::raw('COUNT(*) AS cnt'))
             ->get();

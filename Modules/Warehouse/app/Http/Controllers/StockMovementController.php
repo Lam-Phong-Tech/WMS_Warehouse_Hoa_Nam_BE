@@ -194,6 +194,18 @@ class StockMovementController extends Controller
         $movements = collect();
         if ($resolvedType === 'ITEM') {
             $movements = (clone $movementQuery)->where('stock_movements.item_id', $resolvedId)->select($movementSelect)->get();
+            if ($movements->isEmpty()) {
+                // stock_movements is posted per document-line (aggregate qty), not per item —
+                // mutateBalance() does not populate item_id on the movement row. Fall back to
+                // resolving the line(s) this item was actually scanned/matched into, then the
+                // movement(s) posted for those lines, so item-level trace-by-code still works.
+                $lineIds = DB::table('inbound_scan_entries')->where('item_id', $resolvedId)->pluck('inbound_line_id')
+                    ->merge(DB::table('outbound_item_matches')->where('item_id', $resolvedId)->pluck('outbound_line_id'))
+                    ->unique();
+                if ($lineIds->isNotEmpty()) {
+                    $movements = (clone $movementQuery)->whereIn('stock_movements.stock_document_line_id', $lineIds)->select($movementSelect)->get();
+                }
+            }
         } elseif ($resolvedType === 'SKU') {
             $movements = (clone $movementQuery)->where('stock_movements.product_id', $resolvedId)->select($movementSelect)->get();
         } elseif ($resolvedType === 'CONTAINER') {
@@ -275,10 +287,11 @@ class StockMovementController extends Controller
 
         if ($request->filled('search')) {
             $keyword = '%'.$request->input('search').'%';
-            $query->where(function ($q) use ($keyword) {
-                $q->whereRaw('CAST(stock_movements.movement_no AS TEXT) ILIKE ?', [$keyword])
-                    ->orWhereRaw('CAST(products.code AS TEXT) ILIKE ?', [$keyword])
-                    ->orWhereRaw('CAST(products.name AS TEXT) ILIKE ?', [$keyword]);
+            $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($q) use ($keyword, $operator) {
+                $q->where(DB::raw('CAST(stock_movements.movement_no AS TEXT)'), $operator, $keyword)
+                    ->orWhere(DB::raw('CAST(products.code AS TEXT)'), $operator, $keyword)
+                    ->orWhere(DB::raw('CAST(products.name AS TEXT)'), $operator, $keyword);
             });
         }
 
@@ -365,19 +378,19 @@ class StockMovementController extends Controller
         }
 
         $blockedByInbound = DB::table('item_instances')
-            ->join('inbound_scan_entries', 'inbound_scan_entries.item_id', '=', 'item_instances.id')
+            ->join('inbound_scan_entries', 'inbound_scan_entries.item_id', '=', 'item_instances.item_id')
             ->join('stock_document_lines', 'stock_document_lines.id', '=', 'inbound_scan_entries.inbound_line_id')
             ->whereIn('stock_document_lines.stock_document_id', $stockDocIds)
-            ->whereNotIn('item_instances.status', ['IN_STOCK', 'NEW', 'ADJUSTED_OUT'])
+            ->whereNotIn('item_instances.item_status', ['IN_STOCK', 'NEW', 'ADJUSTED_OUT'])
             ->groupBy('stock_document_lines.stock_document_id')
             ->select('stock_document_lines.stock_document_id', DB::raw("'ITEM_ALREADY_USED_BY_DOWNSTREAM' AS guard_reason"))
             ->get();
 
         $blockedByOutbound = DB::table('item_instances')
-            ->join('outbound_item_matches', 'outbound_item_matches.item_id', '=', 'item_instances.id')
+            ->join('outbound_item_matches', 'outbound_item_matches.item_id', '=', 'item_instances.item_id')
             ->join('stock_document_lines', 'stock_document_lines.id', '=', 'outbound_item_matches.outbound_line_id')
             ->whereIn('stock_document_lines.stock_document_id', $stockDocIds)
-            ->whereNotIn('item_instances.status', ['ISSUED', 'RETURNED_TO_CUSTOMER'])
+            ->whereNotIn('item_instances.item_status', ['ISSUED', 'RETURNED_TO_CUSTOMER'])
             ->groupBy('stock_document_lines.stock_document_id')
             ->select('stock_document_lines.stock_document_id', DB::raw("'ITEM_STATUS_NOT_REVERSIBLE' AS guard_reason"))
             ->get();
