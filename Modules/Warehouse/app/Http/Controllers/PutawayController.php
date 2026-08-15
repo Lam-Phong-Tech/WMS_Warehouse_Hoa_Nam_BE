@@ -308,7 +308,7 @@ class PutawayController extends Controller
         $expectedVersion = $this->expectedVersion($request);
         $actorId = $this->actorId();
 
-        $result = DB::transaction(function () use ($id, $expectedVersion, $actorId): array {
+        $result = DB::transaction(function () use ($id, $expectedVersion, $actorId, $request): array {
             $event = DB::table('putaway_events')->where('id', $id)->lockForUpdate()->first();
             if ($event === null) {
                 ApiError::abort(404, 'PUTAWAY_NOT_FOUND', 'Không tìm thấy tác vụ putaway.');
@@ -347,21 +347,24 @@ class PutawayController extends Controller
                 throw new \LogicException('Putaway invariant violated: stock movement count changed.');
             }
 
+            $updatedEvent = DB::table('putaway_events')->where('id', $id)->first();
+            $updatedBox = DB::table('containers')->where('container_id', $boxId)->first();
+
+            AuditLogger::record(
+                action: 'PUTAWAY_CONFIRM',
+                objectType: 'putaway_event',
+                objectId: $id,
+                actorId: $actorId,
+                requestId: $request->attributes->get('request_id'),
+                beforeData: ['status' => 'DRAFT', 'version' => $expectedVersion],
+                afterData: ['status' => 'CONFIRMED', 'version' => $expectedVersion + 1, 'box_container_id' => $updatedBox->container_id],
+            );
+
             return [
-                'event' => DB::table('putaway_events')->where('id', $id)->first(),
-                'box' => DB::table('containers')->where('container_id', $boxId)->first(),
+                'event' => $updatedEvent,
+                'box' => $updatedBox,
             ];
         }, 3);
-
-        AuditLogger::record(
-            action: 'PUTAWAY_CONFIRM',
-            objectType: 'putaway_event',
-            objectId: $id,
-            actorId: $actorId,
-            requestId: $request->attributes->get('request_id'),
-            beforeData: ['status' => 'DRAFT', 'version' => $expectedVersion],
-            afterData: ['status' => 'CONFIRMED', 'version' => $expectedVersion + 1, 'box_container_id' => $result['box']->container_id],
-        );
 
         return $this->respondSuccess([
             ...$this->eventResponse($result['event']),
@@ -389,7 +392,7 @@ class PutawayController extends Controller
         $expectedVersion = $this->expectedVersion($request);
         $actorId = $this->actorId();
 
-        $event = DB::transaction(function () use ($id, $expectedVersion, $actorId) {
+        $event = DB::transaction(function () use ($id, $expectedVersion, $actorId, $request) {
             $event = DB::table('putaway_events')->where('id', $id)->lockForUpdate()->first();
             if ($event === null) {
                 ApiError::abort(404, 'PUTAWAY_NOT_FOUND', 'Không tìm thấy tác vụ putaway.');
@@ -405,18 +408,20 @@ class PutawayController extends Controller
                 'updated_by' => $actorId,
             ]);
 
-            return DB::table('putaway_events')->where('id', $id)->first();
-        }, 3);
+            $updatedEvent = DB::table('putaway_events')->where('id', $id)->first();
 
-        AuditLogger::record(
-            action: 'PUTAWAY_CANCEL',
-            objectType: 'putaway_event',
-            objectId: $id,
-            actorId: $actorId,
-            requestId: $request->attributes->get('request_id'),
-            beforeData: ['status' => 'DRAFT', 'version' => $expectedVersion],
-            afterData: ['status' => 'CANCELLED', 'version' => $expectedVersion + 1],
-        );
+            AuditLogger::record(
+                action: 'PUTAWAY_CANCEL',
+                objectType: 'putaway_event',
+                objectId: $id,
+                actorId: $actorId,
+                requestId: $request->attributes->get('request_id'),
+                beforeData: ['status' => 'DRAFT', 'version' => $expectedVersion],
+                afterData: ['status' => 'CANCELLED', 'version' => $expectedVersion + 1],
+            );
+
+            return $updatedEvent;
+        }, 3);
 
         return $this->respondSuccess($this->eventResponse($event), 'Đã hủy tác vụ putaway.');
     }

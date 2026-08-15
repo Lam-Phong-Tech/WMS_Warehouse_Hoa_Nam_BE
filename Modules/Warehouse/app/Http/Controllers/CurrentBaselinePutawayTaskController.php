@@ -32,7 +32,7 @@ class CurrentBaselinePutawayTaskController extends Controller
         ]);
         $actorId = $this->actorId();
 
-        $event = DB::transaction(function () use ($payload, $actorId) {
+        $event = DB::transaction(function () use ($payload, $actorId, $request) {
             $box = DB::table('containers')
                 ->where('container_id', $payload['box_container_id'])
                 ->lockForUpdate()
@@ -87,17 +87,19 @@ class CurrentBaselinePutawayTaskController extends Controller
                 'updated_by' => $actorId,
             ]);
 
-            return DB::table('putaway_events')->where('id', $eventId)->first();
-        }, 3);
+            $event = DB::table('putaway_events')->where('id', $eventId)->first();
 
-        AuditLogger::record(
-            action: 'PUTAWAY_DRAFT_CREATE',
-            objectType: 'putaway_event',
-            objectId: (string) $event->id,
-            actorId: $actorId,
-            requestId: $request->attributes->get('request_id'),
-            afterData: (array) $event,
-        );
+            AuditLogger::record(
+                action: 'PUTAWAY_DRAFT_CREATE',
+                objectType: 'putaway_event',
+                objectId: (string) $event->id,
+                actorId: $actorId,
+                requestId: $request->attributes->get('request_id'),
+                afterData: (array) $event,
+            );
+
+            return $event;
+        }, 3);
 
         return $this->respondCreated($this->eventResponse($event), 'Đã tạo tác vụ putaway DRAFT.');
     }
