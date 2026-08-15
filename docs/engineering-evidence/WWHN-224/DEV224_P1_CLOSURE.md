@@ -1,7 +1,7 @@
 # WWHN-224 — DEV224 P1 Closure Register
 
-Version: 1.1.0  
-Target branch: `m1`  
+Version: 1.1.0
+Target branch: `m1`
 Scope owner: DEV (technical implementation); BA/PM/Data Owner approval remains recorded at WWHN-225 and QA2 independent execution at WWHN-226.
 
 ## 1. Scope disposition — DEV224-P1-01
