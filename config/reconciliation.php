@@ -13,6 +13,7 @@ return [
     |
     */
     'inventory' => [
+        'enabled' => filter_var(env('INVENTORY_RECONCILE_ENABLED', true), FILTER_VALIDATE_BOOL),
         'schedule' => env('INVENTORY_RECONCILE_CRON', '*/15 * * * *'),
         'overlap_lock_minutes' => (int) env('INVENTORY_RECONCILE_LOCK_MINUTES', 30),
     ],
