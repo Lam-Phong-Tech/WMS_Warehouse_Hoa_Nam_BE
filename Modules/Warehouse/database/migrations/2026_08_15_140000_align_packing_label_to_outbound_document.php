@@ -62,6 +62,15 @@ return new class extends Migration
             $table->index(['outbound_document_id', 'status'], 'idx_label_snapshots_outbound_status');
             $table->index(['applied_at'], 'idx_label_snapshots_applied_at');
         });
+
+        // reprint_count was a legacy snapshot projection. The canonical source is the
+        // append-only label_print_events ledger, so remove the temporary compatibility
+        // column (and its legacy CHECK constraint) after all old ERD migrations pass.
+        if (Schema::hasColumn('label_snapshots', 'reprint_count')) {
+            Schema::table('label_snapshots', function (Blueprint $table): void {
+                $table->dropColumn('reprint_count');
+            });
+        }
     }
 
     public function down(): void
