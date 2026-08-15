@@ -161,13 +161,13 @@ jobs:
             JOIN pg_class c ON c.oid = con.conrelid
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'public' AND con.contype IN ('c','u','p','f','x')
-            ORDER BY 1,2;
+            ORDER BY n.nspname, c.relname, con.conname;
           " | tee artifacts/dev219/postgres-constraints.txt
           psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -v ON_ERROR_STOP=1 -Atc "
             SELECT event_object_schema || '.' || event_object_table || '|' || trigger_name || '|' || action_timing || '|' || event_manipulation
             FROM information_schema.triggers
             WHERE event_object_schema = 'public'
-            ORDER BY 1,2,5;
+            ORDER BY event_object_schema, event_object_table, trigger_name, action_timing, event_manipulation;
           " | tee artifacts/dev219/postgres-triggers.txt
 
       - name: Verify scheduler registration
