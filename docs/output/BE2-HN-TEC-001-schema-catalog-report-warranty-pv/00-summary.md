@@ -18,4 +18,4 @@
 4. `pv_product_profile.product_id` is unique after migration `2026_08_14_000001_add_catalog_report_warranty_pv_integrity_indexes.php`; one SKU cannot acquire multiple PV profiles.
 5. The dashboard returns warranty case counts by status without writing data.
 
-Current evidence is in `01-schema-and-integrity.md`, `02-api-contract.md`, and `03-verification.md`.
+Current evidence is in `01-schema-and-integrity.md`, `02-api-contract.md`, `03-verification.md`, and `04-release-manifest.json`.
