@@ -9,6 +9,7 @@ on:
       - 'Modules/Warehouse/app/Services/Aligned*.php'
       - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
       - 'Modules/Warehouse/database/migrations/2026_08_10_000766_backfill_structured_erd_payload_columns.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_10_0007699_prepare_legacy_label_snapshot_check.php'
       - 'Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php'
       - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
       - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
@@ -26,6 +27,7 @@ on:
       - 'Modules/Warehouse/app/Services/Aligned*.php'
       - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
       - 'Modules/Warehouse/database/migrations/2026_08_10_000766_backfill_structured_erd_payload_columns.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_10_0007699_prepare_legacy_label_snapshot_check.php'
       - 'Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php'
       - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
       - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
@@ -95,6 +97,7 @@ jobs:
             Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php \
             Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php \
             Modules/Warehouse/database/migrations/2026_08_10_000766_backfill_structured_erd_payload_columns.php \
+            Modules/Warehouse/database/migrations/2026_08_10_0007699_prepare_legacy_label_snapshot_check.php \
             Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php \
             tests/Feature/Flow06PackingLabelAlignmentTest.php \
             tests/Feature/Flow06WarrantyReportAlignmentTest.php
