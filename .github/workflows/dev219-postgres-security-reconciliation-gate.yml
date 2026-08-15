@@ -156,7 +156,7 @@ jobs:
         run: |
           set -o pipefail
           psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -v ON_ERROR_STOP=1 -Atc "
-            SELECT n.nspname || '.' || c.relname || '|' || con.conname || '|' || con.contype || '|' || pg_get_constraintdef(con.oid)
+            SELECT n.nspname || '.' || c.relname || '|' || con.conname || '|' || con.contype::text || '|' || pg_get_constraintdef(con.oid)
             FROM pg_constraint con
             JOIN pg_class c ON c.oid = con.conrelid
             JOIN pg_namespace n ON n.oid = c.relnamespace
