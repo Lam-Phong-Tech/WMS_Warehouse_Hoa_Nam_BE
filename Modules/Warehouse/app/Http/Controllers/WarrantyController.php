@@ -11,7 +11,6 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreWarrantyTempOnlyRequest;
 use Modules\Warehouse\Models\InventorySerial;
-use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
 use OpenApi\Attributes as OA;
@@ -20,7 +19,7 @@ use OpenApi\Attributes as OA;
     path: '/api/v1/warranty-cases/{id}/temp-only',
     operationId: 'warranty_temp_only',
     summary: 'Record a temporary warranty receipt',
-    description: 'Moves a warranty case to TEMP_ONLY and records its event and trace movement atomically.',
+    description: 'Moves a warranty case to TEMP_ONLY and records its warranty event and audit atomically without changing the stock ledger.',
     security: [['bearerAuth' => []]],
     tags: ['13. Warranty'],
     parameters: [
@@ -45,7 +44,7 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 403, description: 'Missing warranty.temp_only permission'),
         new OA\Response(response: 404, description: 'Warranty case not found'),
         new OA\Response(response: 409, description: 'STATE_CONFLICT or IDEMPOTENCY_ERROR'),
-        new OA\Response(response: 422, description: 'Validation failed or WARRANTY_ITEM_LOCATION_REQUIRED'),
+        new OA\Response(response: 422, description: 'Validation failed'),
         new OA\Response(response: 428, description: 'PRECONDITION_REQUIRED'),
     ]
 )]
@@ -73,10 +72,6 @@ class WarrantyController extends Controller
 
                 $data = $request->validated();
                 $serial = InventorySerial::query()->findOrFail($data['item_id']);
-                if (! $serial->warehouse_id || ! $serial->product_id) {
-                    ApiError::abort(422, 'WARRANTY_ITEM_LOCATION_REQUIRED', 'Warranty item requires both warehouse and SKU for traceability.');
-                }
-
                 $fromStatus = $case->status;
                 $case->update([
                     'status' => WarrantyCase::STATUS_TEMP_ONLY,
@@ -95,21 +90,6 @@ class WarrantyController extends Controller
                     'note' => $data['note'] ?? 'Temporary receipt for warranty inspection.',
                     'created_by' => $userId,
                     'event_at' => now(),
-                ]);
-
-                StockMovement::create([
-                    'movement_no' => 'WRN-TEMP-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)),
-                    'business_key' => 'warranty-'.$case->warranty_case_id,
-                    'movement_type' => 'WARRANTY_TEMP',
-                    'warehouse_id' => $serial->warehouse_id,
-                    'product_id' => $serial->product_id,
-                    'stock_status' => 'WARRANTY_TEMP',
-                    'qty_before' => 0,
-                    'qty_delta' => 0,
-                    'qty_after' => 0,
-                    'created_by' => $userId,
-                    'request_id' => $request->attributes->get('request_id'),
-                    'occurred_at' => now(),
                 ]);
 
                 AuditLogger::record('WARRANTY_TEMP_ONLY', 'warranty_case', $case->warranty_case_id, $userId, $request->attributes->get('request_id'), afterData: [

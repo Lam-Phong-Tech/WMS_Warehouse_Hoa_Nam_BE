@@ -21,6 +21,6 @@
 }
 ```
 
-The operation accepts only `RECEIVED` or `WAITING_CHECK` cases. It returns `PRECONDITION_REQUIRED` (428), `STATE_CONFLICT` (409), `WARRANTY_ITEM_LOCATION_REQUIRED` (422), or standard validation/authorization errors without creating partial records.
+The operation accepts only `RECEIVED` or `WAITING_CHECK` cases. It returns `PRECONDITION_REQUIRED` (428), `STATE_CONFLICT` (409), or standard validation/authorization errors without creating partial records. TEMP_ONLY does not create a `stock_movements` row.
 
 PV has schema and integrity protection in this scope; no new PV endpoint is introduced.

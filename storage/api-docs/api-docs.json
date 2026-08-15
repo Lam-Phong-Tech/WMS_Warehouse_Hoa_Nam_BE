@@ -7975,7 +7975,7 @@
                     "13. Warranty"
                 ],
                 "summary": "Record a temporary warranty receipt",
-                "description": "Moves a warranty case to TEMP_ONLY and records its event and trace movement atomically.",
+                "description": "Moves a warranty case to TEMP_ONLY and records its warranty event and audit atomically without changing the stock ledger.",
                 "operationId": "warranty_temp_only",
                 "parameters": [
                     {
@@ -8052,7 +8052,7 @@
                         "description": "STATE_CONFLICT or IDEMPOTENCY_ERROR"
                     },
                     "422": {
-                        "description": "Validation failed or WARRANTY_ITEM_LOCATION_REQUIRED"
+                        "description": "Validation failed"
                     },
                     "428": {
                         "description": "PRECONDITION_REQUIRED"

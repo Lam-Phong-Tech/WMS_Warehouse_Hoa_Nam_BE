@@ -105,7 +105,7 @@ class SchemaApiModulesTest extends TestCase
 
         $this->assertDatabaseHas('warranty_case', ['warranty_case_id' => $caseId, 'inventory_serial_id' => $serialId, 'status' => 'TEMP_ONLY']);
         $this->assertDatabaseCount('warranty_event', 1);
-        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertDatabaseCount('stock_movements', 0);
         $this->assertDatabaseHas('audit_log', ['action' => 'WARRANTY_TEMP_ONLY', 'object_type' => 'warranty_case', 'object_id' => $caseId]);
         $this->getJson("/api/v1/warranty/cases/{$caseId}/events", $headers)
             ->assertOk()
@@ -130,6 +130,37 @@ class SchemaApiModulesTest extends TestCase
             'profile_id' => (string) Str::uuid(),
             'product_id' => $sku->sku_id,
             'display_name' => 'Duplicate PV Profile',
+            'published' => false,
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function test_schema_integrity_migration_rolls_back_and_reapplies_cleanly(): void
+    {
+        $migrationPath = base_path('Modules/Warehouse/database/migrations/2026_08_14_000001_add_catalog_report_warranty_pv_integrity_indexes.php');
+        $migration = require $migrationPath;
+
+        $migration->down();
+        $migration->up();
+
+        $sku = Sku::create(['sku_code' => 'SKU-PV-RB-'.Str::random(8), 'sku_name' => 'PV rollback SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
+        DB::table('pv_product_profile')->insert([
+            'profile_id' => (string) Str::uuid(),
+            'product_id' => $sku->sku_id,
+            'display_name' => 'PV profile after rollback',
+            'published' => false,
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+        DB::table('pv_product_profile')->insert([
+            'profile_id' => (string) Str::uuid(),
+            'product_id' => $sku->sku_id,
+            'display_name' => 'Duplicate after rollback',
             'published' => false,
             'version' => 1,
             'created_at' => now(),

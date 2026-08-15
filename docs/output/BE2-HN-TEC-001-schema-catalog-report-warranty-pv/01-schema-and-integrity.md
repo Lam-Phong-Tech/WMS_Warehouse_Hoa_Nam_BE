@@ -6,7 +6,7 @@
 |---|---|---|
 | Catalog | `product_masters`, `defect_catalogs`, `agencies` | unique business codes; SKU master references use `product_masters.master_id` |
 | Report | `stock_movements`, `stock_documents`, `inventory_balances`, `inventory_report_snapshots`, `sku` | report joins `stock_movements.product_id` to `sku.sku_id` |
-| Warranty | `warranty_case`, `warranty_event`, `inventory_serials`, `defect_catalogs` | case primary key is `warranty_case_id`; event belongs to the case; temporary movement has a real warehouse and SKU |
+| Warranty | `warranty_case`, `warranty_event`, `inventory_serials`, `defect_catalogs` | case primary key is `warranty_case_id`; TEMP_ONLY writes a warranty event and audit record, never a stock ledger movement |
 | PV | `pv_product_profile`, `pv_industry`, `pv_filter_tag`, mapping/rule/event tables | one `pv_product_profile` per SKU; mapping tables use composite primary keys |
 
 ## Migration gate
@@ -21,4 +21,4 @@ Before adding the PV unique key, the migration counts duplicate `product_id` val
 
 The migration copies any legacy singular defect rows to `defect_catalogs` before changing the warranty foreign key. Rollback copies catalog rows back before restoring the legacy key, preserving referenced defect IDs.
 
-The task-local prior evidence was moved to `old_src/` and is excluded from submission. The active evidence set contains four files.
+The task-local prior evidence was moved to `old_src/` and is excluded from submission. The active evidence set contains five files.

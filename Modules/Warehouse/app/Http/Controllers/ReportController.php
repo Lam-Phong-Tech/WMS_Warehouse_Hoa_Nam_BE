@@ -133,7 +133,6 @@ class ReportController extends Controller
                 'inbound' => (int) ($partialCounts[StockDocument::TYPE_RECEIPT] ?? 0),
                 'outbound' => (int) ($partialCounts[StockDocument::TYPE_ISSUE] ?? 0),
             ],
-            // Chưa có module bảo hành (warranty_case) trong base.
             'warranty_cases_by_status' => DB::table('warranty_case')
                 ->selectRaw('status, count(*) as total')
                 ->whereNull('deleted_at')
