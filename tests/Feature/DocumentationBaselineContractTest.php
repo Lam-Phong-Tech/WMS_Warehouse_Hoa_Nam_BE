@@ -19,9 +19,6 @@ class DocumentationBaselineContractTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        // RefreshDatabase only runs migrate:fresh --seed once per process, decided by
-        // whichever test class triggers it first, so a $seed=true property here is not
-        // reliable. Seed explicitly instead (AuthDatabaseSeeder is idempotent).
         $this->seed(DatabaseSeeder::class);
         $this->contract = json_decode(
             (string) file_get_contents(base_path('docs/contracts/HoaNam_Current_Baseline_Contract.json')),
@@ -36,6 +33,9 @@ class DocumentationBaselineContractTest extends TestCase
             $content = (string) file_get_contents(base_path($source['path']));
             $this->assertStringContainsString($source['document_id'], $content, $source['path']);
         }
+        $alignment = (string) file_get_contents(base_path('docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md'));
+        $this->assertStringContainsString('exactly 01 Packing Label', $alignment);
+        $this->assertStringContainsString('RFID is optional', $alignment);
     }
 
     public function test_api_surface_matches_current_baseline_and_forbidden_scope_is_absent(): void
@@ -52,7 +52,7 @@ class DocumentationBaselineContractTest extends TestCase
             }
         }
 
-        $this->assertCount($this->contract['api']['operation_count'], $operations);
+        $this->assertCount($this->expectedOperationCount(), $operations);
         $joined = strtolower(implode("\n", array_keys($operations)));
         foreach ($this->contract['api']['forbidden_path_fragments'] as $fragment) {
             $this->assertStringNotContainsString($fragment, $joined, "Forbidden API scope [{$fragment}] is exposed.");
@@ -75,8 +75,8 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/outbound-documents' => 'CurrentBaselineDocumentController@storeOutbound',
             'PATCH api/v1/outbound-documents/{id}' => 'CurrentBaselineDocumentController@updateOutbound',
             'POST api/v1/outbound-documents/{id}/cancel' => 'CurrentBaselineDocumentController@cancelOutbound',
-            'POST api/v1/outbound-documents/{id}/scan' => 'CurrentBaselineStockFlowController@outboundScan',
-            'POST api/v1/outbound-documents/{id}/post-issue' => 'CurrentBaselineStockFlowController@postIssue',
+            'POST api/v1/outbound-documents/{id}/scan' => 'AlignedOutboundFlowController@outboundScan',
+            'POST api/v1/outbound-documents/{id}/post-issue' => 'AlignedOutboundFlowController@postIssue',
             'POST api/v1/outbound-documents/{id}/reverse' => 'CurrentBaselineStockFlowController@reverseOutbound',
             'POST api/v1/containers' => 'CurrentBaselineContainerFlowController@store',
             'PATCH api/v1/containers/{id}' => 'CurrentBaselineContainerFlowController@update',
@@ -92,6 +92,8 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/component-issue-documents/{id}/post' => 'CurrentBaselineComponentFlowController@post',
             'POST api/v1/warranty-cases' => 'CurrentBaselineWarrantyController@storeWarrantyCase',
             'PATCH api/v1/warranty-cases/{id}' => 'CurrentBaselineWarrantyController@updateWarrantyCase',
+            'POST api/v1/label-snapshots' => 'AlignedOutboundFlowController@storePackingLabel',
+            'POST api/v1/label-snapshots/{id}/apply' => 'AlignedOutboundFlowController@applyPackingLabel',
             'POST api/v1/label-snapshots/{id}/print' => 'CurrentBaselineOperationsController@printLabelSnapshot',
             'POST api/v1/label-snapshots/{id}/reprint' => 'CurrentBaselineOperationsController@reprintLabelSnapshot',
             'GET api/v1/pv/catalog' => 'CurrentBaselineOperationsController@pvCatalog',
@@ -124,6 +126,8 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/component-issue-documents/{id}/scan' => 'permission:warranty.component_issue',
             'POST api/v1/component-issue-documents/{id}/post' => 'permission:warranty.component_issue',
             'PATCH api/v1/warranty-cases/{id}' => 'permission:warranty.manage',
+            'POST api/v1/label-snapshots' => 'permission:label.print',
+            'POST api/v1/label-snapshots/{id}/apply' => 'permission:label.print',
             'POST api/v1/label-snapshots/{id}/print' => 'permission:label.print',
             'POST api/v1/label-snapshots/{id}/reprint' => 'permission:label.reprint',
         ];
@@ -153,6 +157,9 @@ class DocumentationBaselineContractTest extends TestCase
         foreach (['completion_type', 'shortage_reason', 'remaining_qty', 'cancelled_remainder_qty'] as $column) {
             $this->assertFalse(Schema::hasColumn('stock_document_lines', $column), "Superseded partial field [{$column}] must be absent.");
         }
+        foreach (['outbound_document_id', 'applied_at', 'applied_by'] as $column) {
+            $this->assertTrue(Schema::hasColumn('label_snapshots', $column), "label_snapshots missing Flow 06 column [{$column}].");
+        }
     }
 
     public function test_mutable_operational_storage_is_physical(): void
@@ -178,7 +185,6 @@ class DocumentationBaselineContractTest extends TestCase
                 $columns = $fk['columns'] ?? [];
                 $foreignColumns = $fk['foreign_columns'] ?? $fk['foreignColumns'] ?? [];
                 $target = $fk['foreign_table'] ?? $fk['foreignTable'] ?? null;
-
                 return in_array($column, $columns, true) && $target === $foreignTable && in_array($foreignColumn, $foreignColumns, true);
             });
             $this->assertTrue($matched, "Missing FK {$table}.{$column} -> {$foreignTable}.{$foreignColumn}.");
@@ -204,16 +210,14 @@ class DocumentationBaselineContractTest extends TestCase
         $count = 0;
         foreach ($swagger['paths'] ?? [] as $path => $pathItem) {
             foreach (['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'] as $method) {
-                if (! isset($pathItem[$method])) {
-                    continue;
-                }
+                if (! isset($pathItem[$method])) continue;
                 $count++;
                 foreach ($this->contract['api']['http_error_statuses'] as $status) {
                     $this->assertArrayHasKey((string) $status, $pathItem[$method]['responses'] ?? [], "{$method} {$path} missing HTTP {$status}.");
                 }
             }
         }
-        $this->assertSame($this->contract['api']['operation_count'], $count);
+        $this->assertSame($this->expectedOperationCount(), $count);
     }
 
     public function test_postgres_types_single_warehouse_and_history_guards(): void
@@ -238,6 +242,14 @@ class DocumentationBaselineContractTest extends TestCase
         $this->assertContains('trg_reversal_document_posted_immutable', $triggerNames);
         $this->assertContains('trg_component_issue_documents_posted_immutable', $triggerNames);
         $this->assertSame(1, DB::table('warehouses')->where('status', 'ACTIVE')->count());
+    }
+
+    private function expectedOperationCount(): int
+    {
+        // Base manifest remains pinned to the approved source bundle. The project-owner
+        // Flow 06 alignment adds exactly one non-stock-changing action: confirm that the
+        // already printed document-level Packing Label has physically been applied.
+        return (int) $this->contract['api']['operation_count'] + 1;
     }
 
     private function findRoute(string $method, string $uri): mixed
