@@ -1,7 +1,7 @@
 # WWHN-224 — DEV224 P1 Closure Register
 
-Version: 1.0.0
-Target branch: `m1`
+Version: 1.1.0  
+Target branch: `m1`  
 Scope owner: DEV (technical implementation); BA/PM/Data Owner approval remains recorded at WWHN-225 and QA2 independent execution at WWHN-226.
 
 ## 1. Scope disposition — DEV224-P1-01
@@ -32,7 +32,7 @@ Canonical template version: `WWHN-172-SKU-IMPORT-v1.1.0`.
 | `model_code` | No | `sku.model_id` | Resolve ACTIVE Product Master type `MODEL`; unknown/inactive rejected |
 | `power_or_voltage` | No | `sku.power_or_voltage` | Text |
 | `package_variant` | No | `sku.package_variant` | `BARE`, `KIT`, `SET`, `BODY_ONLY` |
-| `version_code` / legacy `version` | No | `sku.version_code` | Max 30 |
+| `version_code` / legacy `version` | No | `sku.version_code` | Legacy/business text field, max 30; distinct from optimistic-lock `version` integer |
 | `published_to_app` | No | `sku.published_to_app` | strict boolean aliases only |
 | `is_serial_tracked` | No | `sku.is_serial_tracked` | strict boolean aliases only |
 | `status` | No | `sku.status` | `ACTIVE` or `INACTIVE`; default `ACTIVE` |
@@ -71,6 +71,27 @@ This closure is intentionally produced through a new PR from current `m1`, with 
 - route list;
 - generated Swagger JSON;
 - source/contract hashes (`SHA256SUMS`);
-- runtime versions and exact Git SHA.
+- PHP/Composer/DB runtime versions and exact Git SHA.
 
 The remediation PR/workflow run and merge SHA supersede the unresolvable historical review snapshot as reproducible closure evidence.
+
+## 7. PostgreSQL compatibility correction and DB acceptance scope
+
+HN-WMS-ERD-DD-001 defines PostgreSQL 14+ as the reference DBMS. The WWHN-224 exact-SHA acceptance workflow therefore gates:
+
+- PostgreSQL — canonical/reference runtime DB;
+- SQLite — deterministic lightweight test harness.
+
+MySQL is not used as a WWHN-224 acceptance gate because current baseline physical-ERD migrations contain PostgreSQL-specific SQL and the ticket does not authorize a cross-DB migration rewrite. Excluding MySQL from this focused workflow is a scope correction, not a claim that MySQL has passed.
+
+During exact-SHA PostgreSQL execution, WWHN-174 regression tests exposed a real compatibility defect introduced by the ERD cut-over migration: the retired legacy `sku` table became a view whose `version_code` projection was hard-coded to `V1`, while canonical `skus.version` is an integer optimistic-lock counter. This made valid imported values such as `V3`/`V4` appear as `V1` on PostgreSQL.
+
+The fail-forward migration `2026_08_15_193800_preserve_legacy_sku_version_code_on_postgres.php` corrects this without rewriting migration history or adding a non-ERD physical column:
+
+- `version_code` remains a legacy/business text value;
+- canonical `version` remains the integer concurrency counter;
+- legacy `version_code` is persisted losslessly as compatibility metadata inside `skus.specifications`;
+- the internal compatibility key is stripped from the public `specification` projection;
+- the legacy `sku` and `products` views read the preserved value instead of hard-coding `V1`.
+
+Existing WWHN-174 assertions remain unchanged so CI proves the defect is fixed rather than weakening the expected contract.
