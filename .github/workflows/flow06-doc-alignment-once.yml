@@ -1,0 +1,93 @@
+name: Flow 06 Docs Alignment Once
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/flow06-doc-alignment-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  align-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: m1
+      - name: Align current-baseline docs
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          master_path = Path('docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md')
+          erd_path = Path('docs/HoaNam_ERD_Moi_Nhat.md')
+          tech_path = Path('docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md')
+
+          master = master_path.read_text(encoding='utf-8')
+          replacements = {
+              '- Không dùng camera điện thoại để đọc RFID. RFID được gắn/map bằng thiết bị/cơ chế phù hợp trước Post Issue.':
+                  '- Không dùng camera điện thoại để đọc RFID. RFID/hardware_uid là **tùy chọn** cho PRODUCT outbound; nếu vận hành có tag thì map bằng thiết bị/cơ chế phù hợp. Thiếu RFID không được chặn Post Issue.',
+              '| **DEC-HN-20260804-04** | Excel request + match + nhãn từng item | Import, row-level validation, match SKU+qty; scan hợp lệ tạo/in 01 nhãn/item; hỗ trợ In lại.       |':
+                  '| **DEC-HN-20260804-04** | Excel request + match + Packing Label lô | Import, row-level validation, match đủ SKU+qty; sau khi scan đủ toàn phiếu tạo/in/dán đúng 01 Packing Label cho phiếu/lô; hỗ trợ In lại. |',
+              '| **DR-CARRIER-001**     | Barcode/QR inbound; RFID outbound      | RFID map vào cùng item; việc gắn mã không tạo item/SKU/movement.                                   |':
+                  '| **DR-CARRIER-001**     | Barcode/QR inbound; RFID optional outbound | Nếu có RFID thì map vào cùng item; RFID optional và việc gắn mã không tạo item/SKU/movement.                                |',
+              '| **REQ-SRS-003** | ITEM có Physical_Code duy nhất; dùng Barcode khi nhập kho và phải map RFID/hardware_uid trước Post Issue.                                                                                    | Must         | AC-SRS-003: Post Receipt chấp nhận Barcode với hardware_uid rỗng; trước Post Issue RFID phải được map vào cùng item/Physical_Code; gắn RFID không tạo movement. | TC-SRS-003 |':
+                  '| **REQ-SRS-003** | ITEM có Physical_Code duy nhất; dùng Barcode/QR khi nhập kho; RFID/hardware_uid là optional metadata cho PRODUCT outbound.                                                                   | Must         | AC-SRS-003: Post Receipt chấp nhận Barcode với hardware_uid rỗng; Post Issue không bị chặn khi thiếu RFID; nếu map RFID thì map đúng cùng item và không tạo movement. | TC-SRS-003 |',
+              '| **REQ-SRS-011** | Full Post Issue: Post một lần khi mọi line fully matched, đủ tồn và PRODUCT có RFID.                                                                                                         | Must         | AC-SRS-011: không PARTIALLY_POSTED/close remainder; không âm kho.                                                                                               | TC-SRS-011 |':
+                  '| **REQ-SRS-011** | Full Post Issue: Post một lần khi mọi line fully matched, đủ tồn và Packing Label duy nhất đã in/dán; RFID không phải gate.                                                                  | Must         | AC-SRS-011: không PARTIALLY_POSTED/close remainder; không âm kho; PRODUCT thiếu RFID vẫn Post được nếu các gate khác hợp lệ.                                    | TC-SRS-011 |',
+              '| **REQ-SRS-015** | Sau scan item hợp lệ, tạo label snapshot và direct-print 01 nhãn/item; hỗ trợ In lại.                                                                                                        | Must         | AC-SRS-015: không in SĐT; print/reprint stock-neutral; audit attempt/reprint_count.                                                                             | TC-SRS-015 |':
+                  '| **REQ-SRS-015** | Sau khi scan đủ toàn phiếu, tổng hợp và tạo/preview/direct-print đúng 01 Packing Label cho phiếu/lô; hỗ trợ In lại và xác nhận đã dán.                                                       | Must         | AC-SRS-015: Packing Label có SĐT khách hàng; create/print/reprint/apply stock-neutral; audit attempt/reprint_count; Post Issue mới trừ tồn.                    | TC-SRS-015 |',
+              '- ITEM nhận bằng Barcode/QR; PRODUCT bắt buộc active RFID trước Post Issue.':
+                  '- ITEM nhận bằng Barcode/QR; PRODUCT vẫn phải match concrete item nhưng active RFID là tùy chọn và không phải Post Issue gate.',
+          }
+          for old, new in replacements.items():
+              if old in master:
+                  master = master.replace(old, new)
+
+          marker = '## 0.4. Mục lục tĩnh'
+          note = '''## 0.3.1. FLOW 06 / PACKING LABEL ALIGNMENT — 15/08/2026\n\n- Effective implementation decision: `DR-HN-20260815` (`docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md`); formal BAS source incorporation tracked at WWHN-257.\n- Outbound sequence: **Scan đủ → tổng hợp → tạo/preview/in đúng 01 Packing Label cho phiếu/lô → xác nhận đã dán → Hoàn tất xuất/Post Issue**.\n- Packing Label có SĐT khách hàng và aggregate SKU/item; không tạo label per item trong current flow.\n- RFID là optional cho mọi PRODUCT outbound; COMPONENT warranty không áp dụng RFID gate.\n- Scan/label/print/reprint/apply/RFID mapping đều stock-neutral; chỉ Post Issue mới giảm tồn.\n- `report.view` là read gate; `report.export` là export gate; export XLSX/PDF giữ filter và audit.\n\n'''
+          if '## 0.3.1. FLOW 06 / PACKING LABEL ALIGNMENT' not in master:
+              master = master.replace(marker, note + marker)
+          master_path.write_text(master, encoding='utf-8')
+
+          erd = erd_path.read_text(encoding='utf-8')
+          erd = erd.replace(
+              'Một item chỉ active ở một outbound/component issue; availability/state checked khi match và commit. PRODUCT item cần RFID trước Post.',
+              'Một item chỉ active ở một outbound/component issue; availability/state checked khi match và commit. PRODUCT phải match concrete item; RFID optional và không phải Post gate.'
+          )
+          label_section = r'''### 42\. label_snapshots\n.*?(?=### 43\. printer_configs)'''
+          canonical_label_section = '''### 42. label_snapshots\n\nPacking Label snapshot bất biến theo **phiếu/lô xuất**; current flow tạo đúng 01 canonical snapshot/outbound document. Legacy item-level snapshot chỉ giữ để audit/history. **\\[BASELINE + TECH-PROPOSAL\\]**\n\n| **Field** | **PostgreSQL type** | **Null** | **Key / Default** | **Mô tả / Rule** |\n|---|---|---|---|---|\n| **id** | uuid | No | PK | Định danh snapshot. |\n| **outbound_document_id** | uuid | No | UNIQUE, FK outbound_documents.id | Đúng 01 Packing Label canonical / phiếu-lô xuất. |\n| **outbound_item_match_id** | uuid | Yes | FK outbound_item_matches.id | Legacy compatibility only; current write = NULL. |\n| **sku_id** | uuid | Yes | FK skus.id | Legacy compatibility only; current write = NULL. |\n| **item_id** | uuid | Yes | FK item_instances.id | Legacy compatibility only; current write = NULL. |\n| **label_payload** | jsonb | No |  | Immutable payload gồm label_code, outbound_no, recipient, customer_phone, item_count, sku_count, sku_summary. |\n| **status** | varchar(20) | No | CHECK PENDING_PRINT/PRINTED/PRINT_FAILED | Latest print status. |\n| **applied_at** | timestamptz | Yes |  | Thời điểm xác nhận đã dán Packing Label. |\n| **applied_by** | uuid | Yes | FK app_users.id | Actor xác nhận dán. |\n| **version** | integer | No | DEFAULT 1 | Optimistic/version tracking. |\n| **created_at** | timestamptz | No | DEFAULT now() | Tạo snapshot. |\n| **created_by** | uuid | Yes | FK app_users.id | Actor tạo. |\n| **updated_at** | timestamptz | No | DEFAULT now() | Chỉ metadata/status, không sửa immutable payload. |\n| **updated_by** | uuid | Yes | FK app_users.id | Actor cập nhật metadata/status. |\n\n**Constraint chính:** `UNIQUE(outbound_document_id)` cho current canonical flow; chỉ tạo sau full scan; payload không đổi sau tạo; payload **có customer_phone**; print/reprint/apply stock-neutral; Post Issue mới trừ tồn. Legacy `outbound_item_match_id/sku_id/item_id` nullable để bảo toàn history nhưng không dùng cho current write.\n\n**Index khuyến nghị:** `UX(outbound_document_id)`; `IDX(outbound_document_id,status)`; `IDX(applied_at)`; legacy index giữ khi cần migration/audit.\n\n'''
+          erd, count = re.subn(label_section, canonical_label_section, erd, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one label_snapshots section, found {count}')
+          erd_path.write_text(erd, encoding='utf-8')
+
+          tech = tech_path.read_text(encoding='utf-8')
+          tech = tech.replace('│   ├── stocktake/           # Stocktake sessions, counts, adjustments\n', '')
+          tech = tech.replace("  STOCKTAKE_COUNT: 'stocktake.count',\n  \n", '')
+          tech = tech.replace("  REPORT_VIEW: 'report.view',", "  REPORT_VIEW: 'report.view',\n  REPORT_EXPORT: 'report.export',")
+          tech = tech.replace("  '/stocktake': 'stocktake.count',\n", '')
+          tech_note = '''\n## Flow 06 — Current Report / Packing Label Baseline (2026-08-15)\n\n- Report groups: Inventory Balance, XNT, Document History, Movement/Trace, Import/Match, Packing Label/Print, Warranty/Component, Outbound by recipient/Agency.\n- Read API requires `report.view`; every XLSX/PDF export requires `report.export`. Warranty PII is added only by BE when caller also has `warranty.pii.export`.\n- Report list endpoints accept server pagination (`page`, `per_page`, max 100); export uses the same filters without pagination and is capped at 10,000 rows.\n- Packing Label current flow is document-level: full scan first, then exactly one immutable label snapshot per outbound document/lot. The label contains customer phone and aggregate SKU/item information.\n- RFID is optional for PRODUCT outbound and is never a Post Issue gate. Concrete PRODUCT item matching, full-post, available-stock, idempotency and concurrency guards remain mandatory.\n- Scan/label/print/reprint/apply/RFID are stock-neutral. Only successful Post Issue decrements stock.\n- No Stocktake/Variance/Adjustment active MVP module; reconciliation + append-only Reversal is the correction path.\n'''
+          if '## Flow 06 — Current Report / Packing Label Baseline (2026-08-15)' not in tech:
+              tech = tech.rstrip() + '\n' + tech_note
+          tech_path.write_text(tech, encoding='utf-8')
+          PY
+
+          git diff --check
+          git diff -- docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md docs/HoaNam_ERD_Moi_Nhat.md docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md
+      - name: Commit aligned docs
+        shell: bash
+        run: |
+          if git diff --quiet -- docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md docs/HoaNam_ERD_Moi_Nhat.md docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md; then
+            echo 'Docs already aligned.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md docs/HoaNam_ERD_Moi_Nhat.md docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md
+          git commit -m 'docs(flow06): đồng bộ Packing Label, RFID và report contract'
+          git push origin HEAD:m1
