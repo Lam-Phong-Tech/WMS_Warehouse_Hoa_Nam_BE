@@ -1,0 +1,194 @@
+name: DEV219 PostgreSQL Security Reconciliation Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [m1]
+    paths:
+      - '.github/workflows/dev219-postgres-security-reconciliation-gate.yml'
+      - '.env.example'
+      - 'app/Console/Commands/ReconcileAuditOutbox.php'
+      - 'app/Console/Commands/ReconcileInventoryBalances.php'
+      - 'Modules/AuditLog/**'
+      - 'Modules/Warehouse/**'
+      - 'config/audit.php'
+      - 'config/reconciliation.php'
+      - 'routes/console.php'
+      - 'database/migrations/**'
+      - 'tests/Feature/Wwhn219**'
+      - 'tests/Feature/Wwhn172AuditFailClosedTest.php'
+      - 'tests/Feature/Wwhn172MigrationSafetyTest.php'
+      - 'tests/Feature/SecurityRbacAuditNegativeTest.php'
+      - 'tests/Feature/StockDocumentIdempotencyTest.php'
+      - 'tests/Feature/StockDocumentConcurrencyGuardTest.php'
+      - 'docs/evidence/DEV219**'
+      - 'docs/decision-records/DEV219**'
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/dev219-postgres-security-reconciliation-gate.yml'
+      - '.env.example'
+      - 'app/Console/Commands/ReconcileAuditOutbox.php'
+      - 'app/Console/Commands/ReconcileInventoryBalances.php'
+      - 'Modules/AuditLog/**'
+      - 'Modules/Warehouse/**'
+      - 'config/audit.php'
+      - 'config/reconciliation.php'
+      - 'routes/console.php'
+      - 'database/migrations/**'
+      - 'tests/Feature/Wwhn219**'
+      - 'tests/Feature/Wwhn172AuditFailClosedTest.php'
+      - 'tests/Feature/Wwhn172MigrationSafetyTest.php'
+      - 'tests/Feature/SecurityRbacAuditNegativeTest.php'
+      - 'tests/Feature/StockDocumentIdempotencyTest.php'
+      - 'tests/Feature/StockDocumentConcurrencyGuardTest.php'
+      - 'docs/evidence/DEV219**'
+      - 'docs/decision-records/DEV219**'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-production-parity:
+    name: PostgreSQL 16 / migration + security + reconciliation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_dev219
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_dev219"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      AUDIT_RECONCILE_CRON: '*/5 * * * *'
+      INVENTORY_RECONCILE_CRON: '*/15 * * * *'
+      CI_DEMO_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_NO_PERMISSION_PASSWORD: Baseline-CI-Only-2026
+      JWT_SECRET: Baseline-CI-JWT-Only-2026-Exact-SHA
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_dev219
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Bootstrap application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+          mkdir -p artifacts/dev219
+          {
+            echo "repository=$GITHUB_REPOSITORY"
+            echo "ref=$GITHUB_REF"
+            echo "sha=$GITHUB_SHA"
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "postgres=16"
+            echo "php=$(php -r 'echo PHP_VERSION;')"
+            echo "migration_file_count=$(find database Modules -type f -path '*/database/migrations/*.php' | wc -l | tr -d ' ')"
+          } | tee artifacts/dev219/provenance.txt
+
+      - name: PostgreSQL migrate fresh + seed
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan migrate:fresh --seed --force 2>&1 | tee artifacts/dev219/postgres-migrate.log
+          php artisan migrate:status 2>&1 | tee artifacts/dev219/migration-status.txt
+
+      - name: Capture PostgreSQL constraints and triggers
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -v ON_ERROR_STOP=1 -Atc "
+            SELECT n.nspname || '.' || c.relname || '|' || con.conname || '|' || con.contype || '|' || pg_get_constraintdef(con.oid)
+            FROM pg_constraint con
+            JOIN pg_class c ON c.oid = con.conrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND con.contype IN ('c','u','p','f','x')
+            ORDER BY 1,2;
+          " | tee artifacts/dev219/postgres-constraints.txt
+          psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -v ON_ERROR_STOP=1 -Atc "
+            SELECT event_object_schema || '.' || event_object_table || '|' || trigger_name || '|' || action_timing || '|' || event_manipulation
+            FROM information_schema.triggers
+            WHERE event_object_schema = 'public'
+            ORDER BY 1,2,5;
+          " | tee artifacts/dev219/postgres-triggers.txt
+
+      - name: Verify scheduler registration
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan schedule:list 2>&1 | tee artifacts/dev219/schedule-list.txt
+          grep -q 'audit:reconcile' artifacts/dev219/schedule-list.txt
+          grep -q 'inventory:reconcile' artifacts/dev219/schedule-list.txt
+
+      - name: DB snapshot before DEV219 tests
+        shell: bash
+        run: |
+          psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -Atc "
+            SELECT 'audit_log=' || COUNT(*) FROM audit_log
+            UNION ALL SELECT 'audit_outbox=' || COUNT(*) FROM audit_outbox
+            UNION ALL SELECT 'reconciliation_incidents=' || COUNT(*) FROM reconciliation_incidents;
+          " | tee artifacts/dev219/db-before.txt
+
+      - name: DEV219 abuse RBAC replay race audit reconciliation regression
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test --filter '/(Wwhn219AuditPolicySchedulerTest|Wwhn219InventoryReconcileCommandTest|Wwhn172AuditFailClosedTest|Wwhn172MigrationSafetyTest|SecurityRbacAuditNegativeTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest)/' 2>&1 | tee artifacts/dev219/test-report.txt
+
+      - name: DB snapshot after DEV219 tests
+        if: always()
+        shell: bash
+        run: |
+          psql -h 127.0.0.1 -U postgres -d hoanam_dev219 -Atc "
+            SELECT 'audit_log=' || COUNT(*) FROM audit_log
+            UNION ALL SELECT 'audit_outbox=' || COUNT(*) FROM audit_outbox
+            UNION ALL SELECT 'reconciliation_incidents=' || COUNT(*) FROM reconciliation_incidents;
+          " | tee artifacts/dev219/db-after.txt || true
+
+      - name: Build evidence manifest
+        if: always()
+        shell: bash
+        run: |
+          sha256sum artifacts/dev219/* | sort | tee artifacts/dev219/SHA256SUMS.txt
+
+      - name: Upload exact-SHA DEV219 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev219-postgres-evidence-${{ github.sha }}
+          path: artifacts/dev219/
+          if-no-files-found: error
+          retention-days: 30
