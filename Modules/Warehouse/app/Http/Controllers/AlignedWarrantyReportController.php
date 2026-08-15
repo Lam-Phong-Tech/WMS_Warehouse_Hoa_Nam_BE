@@ -47,6 +47,7 @@ class AlignedWarrantyReportController extends Controller
                     $row['customer_name'] ?? '', $row['customer_phone'] ?? '', $row['customer_address'] ?? '',
                 ]);
             }
+
             return $result;
         }, $report['rows']);
 
@@ -123,6 +124,7 @@ class AlignedWarrantyReportController extends Controller
                 $row['customer_phone'] = $case->customer_phone;
                 $row['customer_address'] = $case->customer_address;
             }
+
             return $row;
         })->values();
 
@@ -155,7 +157,9 @@ class AlignedWarrantyReportController extends Controller
 
     private function paginate(array $report, Request $request): array
     {
-        if (! $request->filled('per_page')) return $report;
+        if (! $request->filled('per_page')) {
+            return $report;
+        }
         $page = max(1, (int) $request->input('page', 1));
         $perPage = min(100, max(1, (int) $request->input('per_page', 15)));
         $rows = collect($report['rows']);
@@ -167,6 +171,7 @@ class AlignedWarrantyReportController extends Controller
             'total' => $total,
             'last_page' => max(1, (int) ceil($total / $perPage)),
         ];
+
         return $report;
     }
 
@@ -195,8 +200,11 @@ class AlignedWarrantyReportController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Bao hanh');
         $sheet->fromArray($headers, null, 'A1');
-        foreach ($rows as $index => $row) $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, 'A'.($index + 2));
+        foreach ($rows as $index => $row) {
+            $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, 'A'.($index + 2));
+        }
         $writer = new Xlsx($spreadsheet);
+
         return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
@@ -209,24 +217,32 @@ class AlignedWarrantyReportController extends Controller
         $dompdf = new Dompdf($options);
         $e = static fn ($v): string => htmlspecialchars((string) ($v ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans;font-size:9px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px}</style></head><body><h2>Báo cáo bảo hành</h2><table><thead><tr>';
-        foreach ($headers as $header) $html .= '<th>'.$e($header).'</th>';
+        foreach ($headers as $header) {
+            $html .= '<th>'.$e($header).'</th>';
+        }
         $html .= '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $html .= '<tr>';
-            foreach ($row as $value) $html .= '<td>'.$e($value).'</td>';
+            foreach ($row as $value) {
+                $html .= '<td>'.$e($value).'</td>';
+            }
             $html .= '</tr>';
         }
         $html .= '</tbody></table></body></html>';
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
+
         return response($dompdf->output(), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'attachment; filename="'.$fileName.'"']);
     }
 
     private function excelSafe(mixed $value): mixed
     {
-        if (! is_string($value)) return $value;
+        if (! is_string($value)) {
+            return $value;
+        }
         $trimmed = ltrim($value);
+
         return $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true) ? "'".$value : $value;
     }
 }

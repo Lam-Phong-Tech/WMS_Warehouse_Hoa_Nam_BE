@@ -301,6 +301,7 @@ class AlignedOutboundFlowController extends Controller
     private function isFullScan(string $documentId): bool
     {
         $lines = DB::table('stock_document_lines')->where('stock_document_id', $documentId)->get(['qty_planned', 'scanned_qty']);
+
         return $lines->isNotEmpty() && $lines->every(fn (object $line): bool => (int) $line->qty_planned > 0 && (int) $line->qty_planned === (int) $line->scanned_qty);
     }
 

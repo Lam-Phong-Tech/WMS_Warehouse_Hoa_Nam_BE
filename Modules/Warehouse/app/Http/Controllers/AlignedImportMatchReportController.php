@@ -23,6 +23,7 @@ class AlignedImportMatchReportController extends Controller
     public function index(Request $request)
     {
         $report = $this->build($request);
+
         return $this->respondSuccess($this->paginate($report, $request));
     }
 
@@ -126,6 +127,7 @@ class AlignedImportMatchReportController extends Controller
         $rows = $imports->map(function (object $i) use ($matched): array {
             $total = (int) ($i->total_rows ?? 0);
             $valid = (int) ($i->valid_rows ?? 0);
+
             return [
                 'id' => (string) $i->id,
                 'import_no' => (string) ($i->import_no ?? $i->id),
@@ -174,6 +176,7 @@ class AlignedImportMatchReportController extends Controller
             'total' => $total,
             'last_page' => max(1, (int) ceil($total / $perPage)),
         ];
+
         return $report;
     }
 
@@ -183,6 +186,7 @@ class AlignedImportMatchReportController extends Controller
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
         ]);
+
         return [
             (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString()),
             (string) ($validated['to_date'] ?? now()->toDateString()),
@@ -201,6 +205,7 @@ class AlignedImportMatchReportController extends Controller
         }
         $this->auditExport($request, $reportKey, count($rows), 'xlsx');
         $writer = new Xlsx($spreadsheet);
+
         return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
@@ -215,11 +220,15 @@ class AlignedImportMatchReportController extends Controller
         $escape = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans;font-size:9px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px}th{background:#eee}</style></head><body>';
         $html .= '<h2>'.$escape($title).'</h2><table><thead><tr>';
-        foreach ($headers as $header) $html .= '<th>'.$escape($header).'</th>';
+        foreach ($headers as $header) {
+            $html .= '<th>'.$escape($header).'</th>';
+        }
         $html .= '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $html .= '<tr>';
-            foreach ($row as $value) $html .= '<td>'.$escape($value).'</td>';
+            foreach ($row as $value) {
+                $html .= '<td>'.$escape($value).'</td>';
+            }
             $html .= '</tr>';
         }
         $html .= '</tbody></table></body></html>';
@@ -227,6 +236,7 @@ class AlignedImportMatchReportController extends Controller
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
         $this->auditExport($request, $reportKey, count($rows), 'pdf');
+
         return response($dompdf->output(), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
@@ -257,8 +267,11 @@ class AlignedImportMatchReportController extends Controller
 
     private function excelSafe(mixed $value): mixed
     {
-        if (! is_string($value)) return $value;
+        if (! is_string($value)) {
+            return $value;
+        }
         $trimmed = ltrim($value);
+
         return $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true) ? "'".$value : $value;
     }
 }

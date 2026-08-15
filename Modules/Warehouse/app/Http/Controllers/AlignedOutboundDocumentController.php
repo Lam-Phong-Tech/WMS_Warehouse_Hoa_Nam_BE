@@ -26,6 +26,7 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
 
         $paginator->getCollection()->transform(function (StockDocument $doc) use ($stats): array {
             $stat = $stats[(string) $doc->id] ?? null;
+
             return [
                 ...$doc->toArray(),
                 'required_total' => (int) $doc->lines->sum('qty_planned'),
@@ -44,7 +45,9 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
     /** @return array<string, object> */
     private function alignedProgressStats(array $documentIds): array
     {
-        if ($documentIds === []) return [];
+        if ($documentIds === []) {
+            return [];
+        }
 
         $matches = DB::table('stock_document_lines as l')
             ->leftJoin('outbound_item_matches as m', function ($join): void {
@@ -88,6 +91,7 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
                 'packing_label_applied' => (int) ($l->packing_label_applied ?? 0),
             ];
         }
+
         return $result;
     }
 }

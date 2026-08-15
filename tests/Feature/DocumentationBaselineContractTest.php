@@ -185,6 +185,7 @@ class DocumentationBaselineContractTest extends TestCase
                 $columns = $fk['columns'] ?? [];
                 $foreignColumns = $fk['foreign_columns'] ?? $fk['foreignColumns'] ?? [];
                 $target = $fk['foreign_table'] ?? $fk['foreignTable'] ?? null;
+
                 return in_array($column, $columns, true) && $target === $foreignTable && in_array($foreignColumn, $foreignColumns, true);
             });
             $this->assertTrue($matched, "Missing FK {$table}.{$column} -> {$foreignTable}.{$foreignColumn}.");
@@ -210,7 +211,9 @@ class DocumentationBaselineContractTest extends TestCase
         $count = 0;
         foreach ($swagger['paths'] ?? [] as $path => $pathItem) {
             foreach (['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'] as $method) {
-                if (! isset($pathItem[$method])) continue;
+                if (! isset($pathItem[$method])) {
+                    continue;
+                }
                 $count++;
                 foreach ($this->contract['api']['http_error_statuses'] as $status) {
                     $this->assertArrayHasKey((string) $status, $pathItem[$method]['responses'] ?? [], "{$method} {$path} missing HTTP {$status}.");
