@@ -1,0 +1,52 @@
+openapi: 3.0.3
+info:
+  title: WWHN-224 SKU Import Closure Contract
+  version: 1.0.0
+  description: Focused contract artifact for DEV224-P1-01/04/05. Scope is SKU-only.
+paths:
+  /api/v1/skus/import-excel:
+    post:
+      operationId: sku_import_excel
+      summary: Import or dry-run SKU Excel
+      description: >-
+        SKU-only endpoint. Requires sku.manage. Generic master/item import is outside this endpoint
+        until WWHN-225 receives BA/PM/Data Owner disposition. Import report persistence is mandatory;
+        report failure rolls back the transaction.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                update_existing:
+                  type: boolean
+                  default: false
+                dry_run:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Commit succeeded atomically or dry-run valid; data.import_report_id is non-null.
+        '401':
+          description: Unauthenticated.
+        '403':
+          description: Missing sku.manage permission.
+        '409':
+          description: Concurrent conflict; no partial write.
+        '422':
+          description: File/row validation rejected; no business mutation.
+        '503':
+          description: Import report persistence failed; transaction rolled back. Error code SKU_IMPORT_REPORT_PERSISTENCE_FAILED.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
