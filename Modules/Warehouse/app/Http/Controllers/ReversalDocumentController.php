@@ -141,6 +141,7 @@ class ReversalDocumentController extends Controller
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.sku' => ['required', 'string'],
             'lines.*.reversal_qty' => ['required', 'integer', 'min:1'],
+            'lines.*.item_id' => ['nullable', 'uuid'],
             'lines.*.reason' => ['nullable', 'string'],
         ]);
 
@@ -179,6 +180,7 @@ class ReversalDocumentController extends Controller
             $reversalLines[] = [
                 'movement_id' => $mv->id,
                 'quantity' => $line['reversal_qty'],
+                'item_id' => $line['item_id'] ?? null,
             ];
             $totalQty += $line['reversal_qty'];
         }

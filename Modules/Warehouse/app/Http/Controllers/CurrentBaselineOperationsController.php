@@ -68,6 +68,7 @@ class CurrentBaselineOperationsController extends Controller
                 'import_no' => 'OBI-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)),
                 'source_file_name' => $fileName,
                 'source_checksum' => $checksum,
+                'source_key' => 'CHECKSUM:'.$checksum,
                 'status' => $errorCount === 0 ? 'VALIDATED' : 'REJECTED',
                 'total_rows' => count($normalized),
                 'valid_rows' => count($normalized) - $errorCount,
