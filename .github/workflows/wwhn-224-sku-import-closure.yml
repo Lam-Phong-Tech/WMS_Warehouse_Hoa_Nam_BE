@@ -1,0 +1,210 @@
+name: WWHN-224 SKU Import P1 Closure
+
+on:
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
+      - 'Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php'
+      - 'tests/Feature/Wwhn174SkuImportValidationTest.php'
+      - 'tests/Feature/Wwhn224SkuImportDryRunTest.php'
+      - 'tests/Feature/Wwhn224ImportReportFailureContractTest.php'
+      - 'docs/engineering-evidence/WWHN-224/**'
+      - 'docs/api-contract/WWHN-224-sku-import-openapi.yaml'
+      - 'docs/postman/WWHN-224 SKU Import Closure.postman_collection.json'
+      - '.github/workflows/wwhn-224-sku-import-closure.yml'
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
+      - 'Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php'
+      - 'tests/Feature/Wwhn224SkuImportDryRunTest.php'
+      - 'tests/Feature/Wwhn224ImportReportFailureContractTest.php'
+      - 'docs/engineering-evidence/WWHN-224/**'
+      - 'docs/api-contract/WWHN-224-sku-import-openapi.yaml'
+      - 'docs/postman/WWHN-224 SKU Import Closure.postman_collection.json'
+      - '.github/workflows/wwhn-224-sku-import-closure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-224-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-sha-evidence:
+    name: ${{ matrix.database }} exact-SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql, mysql]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: wms_wwhn224_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d wms_wwhn224_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: wms_wwhn224_ci
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      FILESYSTEM_DISK: local
+      AUDIT_WRITE_POLICY: fail_closed
+      DB_CONNECTION: ${{ matrix.database }}
+      EVIDENCE_DIR: build/evidence/wwhn-224/${{ matrix.database }}
+
+    steps:
+      - name: Checkout exact execution SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring,bcmath,sqlite3,pdo_sqlite,pgsql,pdo_pgsql,mysqli,pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Configure isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          password="$(openssl rand -base64 36 | tr -d '\n')"
+          jwt="$(openssl rand -base64 64 | tr -d '\n')"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
+          echo "CI_DEMO_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "JWT_SECRET=$jwt" >> "$GITHUB_ENV"
+          case "${{ matrix.database }}" in
+            sqlite)
+              rm -f /tmp/wms-wwhn224.sqlite
+              touch /tmp/wms-wwhn224.sqlite
+              echo 'DB_DATABASE=/tmp/wms-wwhn224.sqlite' >> "$GITHUB_ENV"
+              ;;
+            pgsql)
+              echo 'DB_HOST=127.0.0.1' >> "$GITHUB_ENV"
+              echo 'DB_PORT=5432' >> "$GITHUB_ENV"
+              echo 'DB_DATABASE=wms_wwhn224_ci' >> "$GITHUB_ENV"
+              echo 'DB_USERNAME=postgres' >> "$GITHUB_ENV"
+              echo 'DB_PASSWORD=postgres' >> "$GITHUB_ENV"
+              ;;
+            mysql)
+              echo 'DB_HOST=127.0.0.1' >> "$GITHUB_ENV"
+              echo 'DB_PORT=3306' >> "$GITHUB_ENV"
+              echo 'DB_DATABASE=wms_wwhn224_ci' >> "$GITHUB_ENV"
+              echo 'DB_USERNAME=root' >> "$GITHUB_ENV"
+              echo 'DB_PASSWORD=root' >> "$GITHUB_ENV"
+              ;;
+          esac
+
+      - name: Static and contract gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          {
+            php -l Modules/Warehouse/app/Http/Controllers/ImportController.php
+            php -l Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php
+            php -l tests/Feature/Wwhn224ImportReportFailureContractTest.php
+            ./vendor/bin/pint --test \
+              Modules/Warehouse/app/Http/Controllers/ImportController.php \
+              Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php \
+              tests/Feature/Wwhn224ImportReportFailureContractTest.php
+            git diff --check "${{ github.event.pull_request.base.sha || 'HEAD^' }}" "${{ github.event.pull_request.head.sha || github.sha }}"
+            grep -q 'Missing sku.manage permission' Modules/Warehouse/app/Http/Controllers/ImportController.php
+            ! grep -q 'Missing product.manage permission' Modules/Warehouse/app/Http/Controllers/ImportController.php
+            grep -q 'SKU_IMPORT_REPORT_PERSISTENCE_FAILED' Modules/Warehouse/app/Http/Controllers/ImportController.php
+            grep -q 'SKU-only' docs/engineering-evidence/WWHN-224/DEV224_P1_CLOSURE.md
+            php -r 'json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);' \
+              'docs/postman/WWHN-224 SKU Import Closure.postman_collection.json'
+          } 2>&1 | tee "$EVIDENCE_DIR/static-contract-gates.raw.log"
+
+      - name: Run WWHN-224 reconciliation tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan test \
+            tests/Feature/Wwhn174SkuImportValidationTest.php \
+            tests/Feature/Wwhn224SkuImportDryRunTest.php \
+            tests/Feature/Wwhn224ImportReportFailureContractTest.php \
+            --log-junit "$EVIDENCE_DIR/phpunit-junit.xml" \
+            2>&1 | tee "$EVIDENCE_DIR/phpunit.raw.log"
+
+      - name: Collect route and generated OpenAPI evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan route:list --path=skus/import > "$EVIDENCE_DIR/routes.txt"
+          php artisan l5-swagger:generate 2>&1 | tee "$EVIDENCE_DIR/swagger-generate.raw.log"
+          cp storage/api-docs/api-docs.json "$EVIDENCE_DIR/api-docs.json"
+          grep -q 'skus/import-excel' "$EVIDENCE_DIR/api-docs.json"
+          grep -q 'sku.manage permission' "$EVIDENCE_DIR/api-docs.json"
+          ! grep -q 'Missing product.manage permission' "$EVIDENCE_DIR/api-docs.json"
+
+      - name: Build exact-SHA evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "source_sha=$(git rev-parse HEAD)"
+            echo "database=${{ matrix.database }}"
+            echo "workflow_run=${{ github.run_id }}"
+            echo "workflow_attempt=${{ github.run_attempt }}"
+            php -v | head -n 1
+            composer --version
+          } > "$EVIDENCE_DIR/build-version.txt"
+          sha256sum \
+            Modules/Warehouse/app/Http/Controllers/ImportController.php \
+            Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php \
+            tests/Feature/Wwhn224SkuImportDryRunTest.php \
+            tests/Feature/Wwhn224ImportReportFailureContractTest.php \
+            docs/api-contract/WWHN-224-sku-import-openapi.yaml \
+            'docs/postman/WWHN-224 SKU Import Closure.postman_collection.json' \
+            docs/engineering-evidence/WWHN-224/DEV224_P1_CLOSURE.md \
+            docs/engineering-evidence/WWHN-224/QA2_RECONCILIATION_RUNBOOK.md \
+            "$EVIDENCE_DIR/api-docs.json" \
+            "$EVIDENCE_DIR/phpunit-junit.xml" \
+            > "$EVIDENCE_DIR/SHA256SUMS"
+          sha256sum --check "$EVIDENCE_DIR/SHA256SUMS"
+
+      - name: Upload exact-SHA evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wwhn-224-p1-closure-${{ matrix.database }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/evidence/wwhn-224/${{ matrix.database }}
+          if-no-files-found: error
+          retention-days: 30
