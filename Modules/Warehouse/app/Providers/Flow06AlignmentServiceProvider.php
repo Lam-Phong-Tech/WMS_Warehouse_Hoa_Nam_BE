@@ -8,6 +8,7 @@ use Modules\Warehouse\Http\Controllers\AlignedImportMatchReportController;
 use Modules\Warehouse\Http\Controllers\AlignedLabelLogReportController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
+use Modules\Warehouse\Http\Controllers\AlignedWarrantyReportController;
 use Modules\Warehouse\Services\AlignedOutboundStockService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 
@@ -48,6 +49,10 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                 Route::get('reports/label-log', [AlignedLabelLogReportController::class, 'index'])
                     ->middleware('permission:report.view');
                 Route::get('reports/label-log/export-excel', [AlignedLabelLogReportController::class, 'export'])
+                    ->middleware('permission:report.export');
+                Route::get('reports/warranty-defects', [AlignedWarrantyReportController::class, 'index'])
+                    ->middleware('permission:report.view');
+                Route::get('reports/warranty-defects/export-excel', [AlignedWarrantyReportController::class, 'export'])
                     ->middleware('permission:report.export');
             });
         });

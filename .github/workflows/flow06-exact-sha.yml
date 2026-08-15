@@ -9,6 +9,7 @@ on:
       - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
       - 'Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php'
       - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
+      - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
       - 'tests/Feature/ReportFlow06ContractTest.php'
       - 'tests/Feature/DocumentationBaselineContractTest.php'
       - 'docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md'
@@ -21,6 +22,7 @@ on:
       - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
       - 'Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php'
       - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
+      - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
       - 'tests/Feature/ReportFlow06ContractTest.php'
       - 'tests/Feature/DocumentationBaselineContractTest.php'
       - 'docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md'
@@ -80,8 +82,8 @@ jobs:
           php artisan config:clear
       - name: Migrate and seed PostgreSQL
         run: php artisan migrate:fresh --seed --force
-      - name: Packing Label / RFID alignment tests
-        run: php artisan test --filter '/(Flow06PackingLabelAlignmentTest|ReportFlow06ContractTest)/'
+      - name: Flow 06 business / report alignment tests
+        run: php artisan test --filter '/(Flow06PackingLabelAlignmentTest|Flow06WarrantyReportAlignmentTest|ReportFlow06ContractTest)/'
       - name: Route and Swagger parity
         run: |
           php artisan test --filter '/(SwaggerRouteSyncTest)/'
