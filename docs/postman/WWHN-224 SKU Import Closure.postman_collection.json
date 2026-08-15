@@ -1,0 +1,53 @@
+{
+  "info": {
+    "name": "WWHN-224 SKU Import Closure",
+    "description": "Focused DEV224 closure collection. POST /api/v1/skus/import-excel is SKU-only and requires sku.manage. Generic master/item import requires separate WWHN-225 disposition.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8080"},
+    {"key": "token", "value": ""},
+    {"key": "valid_xlsx", "value": "WWHN-172-SKU-import-template-v1.1.0.xlsx"},
+    {"key": "import_report_id", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "SKU import — requires sku.manage",
+      "item": [
+        {
+          "name": "Dry-run valid",
+          "request": {
+            "method": "POST",
+            "description": "Authorization contract: authenticated caller must have sku.manage.",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-excel",
+            "body": {"mode": "formdata", "formdata": [
+              {"key": "file", "type": "file", "src": "{{valid_xlsx}}"},
+              {"key": "dry_run", "type": "text", "value": "true"}
+            ]}
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const j = pm.response.json();",
+            "pm.test('mandatory report', () => pm.expect(j.data.import_report_id).to.be.a('string').and.not.empty);",
+            "pm.test('dry-run no commit', () => { pm.expect(j.data.dry_run).to.eql(true); pm.expect(j.data.committed).to.eql(false); pm.expect(j.data.partial_write).to.eql(false); });",
+            "pm.collectionVariables.set('import_report_id', j.data.import_report_id);"
+          ]}}]
+        },
+        {
+          "name": "Report detail",
+          "request": {
+            "method": "GET",
+            "description": "Requires sku.manage.",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-reports/{{import_report_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Failure contract",
+      "description": "A forced ImportReport persistence failure is covered by PHPUnit because it requires an internal DB failure hook. Expected API contract: HTTP 503, SKU_IMPORT_REPORT_PERSISTENCE_FAILED, committed=false, partial_write=false, import_report_id=null, and no committed SKU/business-audit side effect."
+    }
+  ]
+}
