@@ -22,6 +22,7 @@ return [
     'write_policy' => env('AUDIT_WRITE_POLICY', 'outbox_required'),
 
     'reconcile' => [
+        'enabled' => filter_var(env('AUDIT_RECONCILE_ENABLED', true), FILTER_VALIDATE_BOOL),
         'batch_size' => (int) env('AUDIT_RECONCILE_BATCH_SIZE', 200),
         'max_backoff_minutes' => (int) env('AUDIT_RECONCILE_MAX_BACKOFF_MINUTES', 60),
         // Default: retry audit outbox every 5 minutes. Production may override
