@@ -11,12 +11,25 @@ use Throwable;
 /**
  * Audit writer duy nhất của dự án.
  *
- * Policy mặc định `outbox_required`: nếu ghi audit_log lỗi, payload đã redaction phải
- * được ghi vào audit_outbox và cảnh báo ở mức error. Nếu cả hai nơi đều lỗi, request
- * phải fail để không tạo trạng thái nghiệp vụ không có dấu vết audit.
+ * Supported write policies:
+ * - outbox_required: primary audit failure may continue only when the redacted payload
+ *   is durably persisted to audit_outbox. If both writes fail, the business operation fails.
+ * - fail_closed: any primary audit failure fails the business operation, even when the
+ *   payload was persisted to audit_outbox for recovery.
+ * - best_effort: primary/outbox failures are explicitly logged but do not fail the business
+ *   operation. This mode is intentionally weaker and must only be enabled by an approved
+ *   operational/architecture decision.
+ *
+ * Unknown policy values fail safe instead of silently degrading to best_effort.
  */
 class AuditLogger
 {
+    private const POLICY_OUTBOX_REQUIRED = 'outbox_required';
+
+    private const POLICY_FAIL_CLOSED = 'fail_closed';
+
+    private const POLICY_BEST_EFFORT = 'best_effort';
+
     public static function record(
         string $action,
         string $objectType,
@@ -27,6 +40,7 @@ class AuditLogger
         array $afterData = [],
         ?string $reason = null,
     ): void {
+        $policy = self::writePolicy();
         $payload = self::payload(
             $action,
             $objectType,
@@ -48,11 +62,10 @@ class AuditLogger
                 'action' => $payload['action'],
                 'object_type' => $objectType,
                 'object_id' => $objectId,
+                'policy' => $policy,
                 'exception' => $primaryError::class,
                 'message' => $primaryError->getMessage(),
             ]);
-
-            $policy = (string) config('audit.write_policy', 'outbox_required');
 
             try {
                 AuditOutbox::create([
@@ -67,9 +80,21 @@ class AuditLogger
                     'action' => $payload['action'],
                     'object_type' => $objectType,
                     'object_id' => $objectId,
+                    'policy' => $policy,
                     'primary_exception' => $primaryError::class,
                     'outbox_exception' => $outboxError::class,
                 ]);
+
+                if ($policy === self::POLICY_BEST_EFFORT) {
+                    Log::warning('AUDIT_BEST_EFFORT_CONTINUED_WITHOUT_DURABLE_AUDIT', [
+                        'request_id' => $requestId,
+                        'action' => $payload['action'],
+                        'object_type' => $objectType,
+                        'object_id' => $objectId,
+                    ]);
+
+                    return;
+                }
 
                 throw new RuntimeException(
                     'Không thể ghi audit hoặc audit outbox; thao tác bị dừng để bảo toàn traceability.',
@@ -77,11 +102,20 @@ class AuditLogger
                 );
             }
 
-            if ($policy === 'fail_closed') {
+            if ($policy === self::POLICY_FAIL_CLOSED) {
                 throw new RuntimeException(
                     'Audit chính thất bại; payload đã được đưa vào outbox nhưng policy yêu cầu fail-closed.',
                     previous: $primaryError,
                 );
+            }
+
+            if ($policy === self::POLICY_BEST_EFFORT) {
+                Log::warning('AUDIT_BEST_EFFORT_FALLBACK_TO_OUTBOX', [
+                    'request_id' => $requestId,
+                    'action' => $payload['action'],
+                    'object_type' => $objectType,
+                    'object_id' => $objectId,
+                ]);
             }
         }
     }
@@ -125,6 +159,26 @@ class AuditLogger
         };
 
         return $walk($data);
+    }
+
+    private static function writePolicy(): string
+    {
+        $policy = strtolower(trim((string) config('audit.write_policy', self::POLICY_OUTBOX_REQUIRED)));
+        $allowed = [
+            self::POLICY_OUTBOX_REQUIRED,
+            self::POLICY_FAIL_CLOSED,
+            self::POLICY_BEST_EFFORT,
+        ];
+
+        if (! in_array($policy, $allowed, true)) {
+            Log::critical('AUDIT_WRITE_POLICY_INVALID', ['policy' => $policy]);
+
+            throw new RuntimeException(
+                'Cấu hình audit.write_policy không hợp lệ; thao tác bị dừng theo nguyên tắc fail-safe.'
+            );
+        }
+
+        return $policy;
     }
 
     private static function payload(
