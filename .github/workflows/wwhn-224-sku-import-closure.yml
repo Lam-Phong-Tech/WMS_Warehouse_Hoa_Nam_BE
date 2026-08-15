@@ -6,6 +6,7 @@ on:
     paths:
       - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
       - 'Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_15_193800_preserve_legacy_sku_version_code_on_postgres.php'
       - 'tests/Feature/Wwhn174SkuImportValidationTest.php'
       - 'tests/Feature/Wwhn224SkuImportDryRunTest.php'
       - 'tests/Feature/Wwhn224ImportReportFailureContractTest.php'
@@ -18,6 +19,8 @@ on:
     paths:
       - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
       - 'Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_15_193800_preserve_legacy_sku_version_code_on_postgres.php'
+      - 'tests/Feature/Wwhn174SkuImportValidationTest.php'
       - 'tests/Feature/Wwhn224SkuImportDryRunTest.php'
       - 'tests/Feature/Wwhn224ImportReportFailureContractTest.php'
       - 'docs/engineering-evidence/WWHN-224/**'
@@ -41,7 +44,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        database: [sqlite, pgsql, mysql]
+        # HN-WMS-ERD-DD-001 defines PostgreSQL 14+ as the reference DBMS.
+        # SQLite is retained as the deterministic lightweight test harness.
+        # MySQL is intentionally not an acceptance gate for WWHN-224 because
+        # current baseline migrations contain PostgreSQL-specific physical-ERD SQL.
+        database: [sqlite, pgsql]
 
     services:
       postgres:
@@ -56,17 +63,6 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
-      mysql:
-        image: mysql:8.4
-        env:
-          MYSQL_DATABASE: wms_wwhn224_ci
-          MYSQL_ROOT_PASSWORD: root
-        ports: ['3306:3306']
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=12
 
     env:
       APP_ENV: testing
@@ -89,7 +85,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring,bcmath,sqlite3,pdo_sqlite,pgsql,pdo_pgsql,mysqli,pdo_mysql
+          extensions: mbstring,bcmath,sqlite3,pdo_sqlite,pgsql,pdo_pgsql
           coverage: none
           tools: composer:v2
 
@@ -121,13 +117,6 @@ jobs:
               echo 'DB_USERNAME=postgres' >> "$GITHUB_ENV"
               echo 'DB_PASSWORD=postgres' >> "$GITHUB_ENV"
               ;;
-            mysql)
-              echo 'DB_HOST=127.0.0.1' >> "$GITHUB_ENV"
-              echo 'DB_PORT=3306' >> "$GITHUB_ENV"
-              echo 'DB_DATABASE=wms_wwhn224_ci' >> "$GITHUB_ENV"
-              echo 'DB_USERNAME=root' >> "$GITHUB_ENV"
-              echo 'DB_PASSWORD=root' >> "$GITHUB_ENV"
-              ;;
           esac
 
       - name: Static and contract gates
@@ -138,10 +127,12 @@ jobs:
           {
             php -l Modules/Warehouse/app/Http/Controllers/ImportController.php
             php -l Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php
+            php -l Modules/Warehouse/database/migrations/2026_08_15_193800_preserve_legacy_sku_version_code_on_postgres.php
             php -l tests/Feature/Wwhn224ImportReportFailureContractTest.php
             ./vendor/bin/pint --test \
               Modules/Warehouse/app/Http/Controllers/ImportController.php \
               Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php \
+              Modules/Warehouse/database/migrations/2026_08_15_193800_preserve_legacy_sku_version_code_on_postgres.php \
               tests/Feature/Wwhn224ImportReportFailureContractTest.php
             git diff --check "${{ github.event.pull_request.base.sha || 'HEAD^' }}" "${{ github.event.pull_request.head.sha || github.sha }}"
             grep -q 'Missing sku.manage permission' Modules/Warehouse/app/Http/Controllers/ImportController.php
@@ -185,10 +176,17 @@ jobs:
             echo "workflow_attempt=${{ github.run_attempt }}"
             php -v | head -n 1
             composer --version
+            if [ "${{ matrix.database }}" = 'sqlite' ]; then
+              php -r '$v=SQLite3::version(); echo "sqlite=".$v["versionString"].PHP_EOL;'
+            else
+              PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d wms_wwhn224_ci -Atc 'select version();'
+            fi
           } > "$EVIDENCE_DIR/build-version.txt"
           sha256sum \
             Modules/Warehouse/app/Http/Controllers/ImportController.php \
             Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php \
+            Modules/Warehouse/database/migrations/2026_08_15_193800_preserve_legacy_sku_version_code_on_postgres.php \
+            tests/Feature/Wwhn174SkuImportValidationTest.php \
             tests/Feature/Wwhn224SkuImportDryRunTest.php \
             tests/Feature/Wwhn224ImportReportFailureContractTest.php \
             docs/api-contract/WWHN-224-sku-import-openapi.yaml \
