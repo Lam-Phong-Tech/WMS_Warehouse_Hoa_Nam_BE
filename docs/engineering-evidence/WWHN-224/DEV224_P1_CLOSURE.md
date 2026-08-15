@@ -1,7 +1,7 @@
 # WWHN-224 — DEV224 P1 Closure Register
 
-Version: 1.0.0  
-Target branch: `m1`  
+Version: 1.0.0
+Target branch: `m1`
 Scope owner: DEV (technical implementation); BA/PM/Data Owner approval remains recorded at WWHN-225 and QA2 independent execution at WWHN-226.
 
 ## 1. Scope disposition — DEV224-P1-01
@@ -63,7 +63,9 @@ Coverage includes valid, duplicate-in-file, duplicate-in-DB, invalid header, enu
 
 ## 6. Evidence lineage — DEV224-P1-03
 
-The historical `a3fd779…` snapshot is not used as a false current sign-off. This closure is intentionally produced through a new PR from current `m1`, with an exact-SHA workflow that uploads:
+The historical review SHA `a3fd779bc95ac029e376186c2205549b542444567` is not used as a false current sign-off. A GitHub combined-status lookup performed during this remediation returned `404 Ref not found`, so no retroactive workflow/status is claimed for that unresolved historical ref.
+
+This closure is intentionally produced through a new PR from current `m1`, with an exact-SHA workflow that uploads:
 
 - PHPUnit/JUnit output;
 - route list;
@@ -71,4 +73,4 @@ The historical `a3fd779…` snapshot is not used as a false current sign-off. Th
 - source/contract hashes (`SHA256SUMS`);
 - runtime versions and exact Git SHA.
 
-The PR/workflow run and merge SHA are the reproducible closure evidence.
+The remediation PR/workflow run and merge SHA supersede the unresolvable historical review snapshot as reproducible closure evidence.
