@@ -33,22 +33,7 @@ final class HoaNamErdSchema
             $start = $headers[0][$i][1] + strlen($headers[0][$i][0]);
             $end = $i + 1 < $count ? $headers[0][$i + 1][1] : strlen($markdown);
             $section = substr($markdown, $start, $end - $start);
-
-            preg_match_all(
-                '/^\s*\*\*([a-z0-9_]+)\*\*\s+([a-z]+(?:\(\s*\d+\s*(?:,\s*\d+\s*)?\))?)\s+(Yes|No)\s+(.*)$/mi',
-                $section,
-                $rows,
-                PREG_SET_ORDER,
-            );
-
-            $fields = [];
-            foreach ($rows as $row) {
-                $fields[strtolower($row[1])] = [
-                    'type' => strtolower(preg_replace('/\s+/', '', $row[2]) ?? $row[2]),
-                    'nullable' => strcasecmp($row[3], 'Yes') === 0,
-                    'key' => trim($row[4]),
-                ];
-            }
+            $fields = self::parseFields($section);
 
             if ($fields === []) {
                 throw new RuntimeException("No Data Dictionary fields parsed for {$table}.");
@@ -66,6 +51,55 @@ final class HoaNamErdSchema
         }
 
         return $schema;
+    }
+
+    /**
+     * Support both the original Pandoc/grid table format and standard Markdown
+     * pipe tables. BA documents are source-controlled artifacts, so a harmless
+     * presentation-format change must not make schema materialization fail.
+     *
+     * @return array<string, array{type:string,nullable:bool,key:string}>
+     */
+    private static function parseFields(string $section): array
+    {
+        preg_match_all(
+            '/^\s*\*\*([a-z0-9_]+)\*\*\s+([a-z]+(?:\(\s*\d+\s*(?:,\s*\d+\s*)?\))?)\s+(Yes|No)\s+(.*)$/mi',
+            $section,
+            $gridRows,
+            PREG_SET_ORDER,
+        );
+
+        $fields = self::normalizeRows($gridRows);
+        if ($fields !== []) {
+            return $fields;
+        }
+
+        preg_match_all(
+            '/^\s*\|\s*\*\*([a-z0-9_]+)\*\*\s*\|\s*([a-z]+(?:\(\s*\d+\s*(?:,\s*\d+\s*)?\))?)\s*\|\s*(Yes|No)\s*\|\s*([^|]*)\|.*$/mi',
+            $section,
+            $pipeRows,
+            PREG_SET_ORDER,
+        );
+
+        return self::normalizeRows($pipeRows);
+    }
+
+    /**
+     * @param  array<int, array<int, string>>  $rows
+     * @return array<string, array{type:string,nullable:bool,key:string}>
+     */
+    private static function normalizeRows(array $rows): array
+    {
+        $fields = [];
+        foreach ($rows as $row) {
+            $fields[strtolower($row[1])] = [
+                'type' => strtolower(preg_replace('/\s+/', '', $row[2]) ?? $row[2]),
+                'nullable' => strcasecmp($row[3], 'Yes') === 0,
+                'key' => trim($row[4]),
+            ];
+        }
+
+        return $fields;
     }
 
     public static function relationKind(string $table): ?string
