@@ -1,0 +1,100 @@
+name: Flow 06 Exact SHA
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/Aligned*.php'
+      - 'Modules/Warehouse/app/Services/Aligned*.php'
+      - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php'
+      - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
+      - 'tests/Feature/ReportFlow06ContractTest.php'
+      - 'tests/Feature/DocumentationBaselineContractTest.php'
+      - 'docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md'
+      - '.github/workflows/flow06-exact-sha.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/Aligned*.php'
+      - 'Modules/Warehouse/app/Services/Aligned*.php'
+      - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php'
+      - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
+      - 'tests/Feature/ReportFlow06ContractTest.php'
+      - 'tests/Feature/DocumentationBaselineContractTest.php'
+      - 'docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md'
+      - '.github/workflows/flow06-exact-sha.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  flow06:
+    name: Flow 06 contract / migration / RBAC surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_flow06
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_flow06"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: Flow06-CI-Only-2026
+      JWT_SECRET: Flow06-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_flow06
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+      - name: Packing Label / RFID alignment tests
+        run: php artisan test --filter '/(Flow06PackingLabelAlignmentTest|ReportFlow06ContractTest)/'
+      - name: Route and Swagger parity
+        run: |
+          php artisan test --filter '/(SwaggerRouteSyncTest)/'
+          php artisan l5-swagger:generate
+      - name: Exact SHA evidence summary
+        run: |
+          mkdir -p artifacts/flow06
+          printf 'flow=06-report\nsha=%s\nbranch=%s\nresult=PASS\ndb=postgres16\n' "${GITHUB_SHA}" "${GITHUB_REF_NAME}" > artifacts/flow06/manifest.txt
+          sha256sum artifacts/flow06/manifest.txt > artifacts/flow06/SHA256SUMS
+          cat artifacts/flow06/manifest.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flow06-exact-sha-${{ github.sha }}
+          path: artifacts/flow06
+          if-no-files-found: error
+          retention-days: 30
