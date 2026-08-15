@@ -80,6 +80,18 @@ return new class extends Migration
             return;
         }
 
+        // This migration predates the current Packing Label baseline. The old
+        // structured projection contained `payload`, `label_code`, product/item
+        // snapshot columns, while the current canonical table intentionally keeps
+        // one immutable `label_payload` per outbound document. On a fresh/current
+        // schema those legacy target columns do not exist, so there is nothing to
+        // backfill here; the later Flow 06 alignment migration owns the canonical
+        // outbound-document projection. Keep this guarded for upgrades from older
+        // installations where the structured columns are still present.
+        if (! Schema::hasColumn('label_snapshots', 'payload')) {
+            return;
+        }
+
         DB::statement(<<<'SQL'
             UPDATE label_snapshots ls
                SET payload = COALESCE(ls.payload, ls.label_payload::jsonb, '{}'::jsonb),
