@@ -45,7 +45,6 @@ src/
 │   ├── outbound/            # Outbound documents, shipping, picking
 │   ├── inventory/           # Inventory balances, movements
 │   ├── scan/                # Scan operations, physical code classification
-│   ├── stocktake/           # Stocktake sessions, counts, adjustments
 │   ├── warranty/            # Warranty cases, events, defects
 │   ├── reverse/             # Reversal documents, adjustments
 │   ├── reports/             # Reports hub, exports
@@ -254,8 +253,6 @@ export const PERMISSION_CATALOG = {
   INVENTORY_TRACE: 'inventory.trace',
   
   // Stocktake
-  STOCKTAKE_COUNT: 'stocktake.count',
-  
   // Warranty
   WARRANTY_MANAGE: 'warranty.manage',
   
@@ -264,6 +261,7 @@ export const PERMISSION_CATALOG = {
   
   // Reports
   REPORT_VIEW: 'report.view',
+  REPORT_EXPORT: 'report.export',
   
   // Audit
   AUDIT_LOG_VIEW: 'AUDIT_LOG_VIEW',
@@ -280,7 +278,6 @@ export const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
   '/outbound': ['outbound.create', 'outbound.post'],
   '/inventory': 'inventory.view',
   '/scan': ['scan.classify', 'inventory.trace'],
-  '/stocktake': 'stocktake.count',
   '/warranty': 'warranty.manage',
   '/reverse': 'inventory.reversal.post',
   '/reports': 'report.view',
@@ -560,3 +557,13 @@ refactor: simplify permission checking logic
 **Last Updated**: 2026-07-31
 **Maintained By**: FE1 Team
 **Review Cycle**: Mỗi sprint
+
+## Flow 06 — Current Report / Packing Label Baseline (2026-08-15)
+
+- Report groups: Inventory Balance, XNT, Document History, Movement/Trace, Import/Match, Packing Label/Print, Warranty/Component, Outbound by recipient/Agency.
+- Read API requires `report.view`; every XLSX/PDF export requires `report.export`. Warranty PII is added only by BE when caller also has `warranty.pii.export`.
+- Report list endpoints accept server pagination (`page`, `per_page`, max 100); export uses the same filters without pagination and is capped at 10,000 rows.
+- Packing Label current flow is document-level: full scan first, then exactly one immutable label snapshot per outbound document/lot. The label contains customer phone and aggregate SKU/item information.
+- RFID is optional for PRODUCT outbound and is never a Post Issue gate. Concrete PRODUCT item matching, full-post, available-stock, idempotency and concurrency guards remain mandatory.
+- Scan/label/print/reprint/apply/RFID are stock-neutral. Only successful Post Issue decrements stock.
+- No Stocktake/Variance/Adjustment active MVP module; reconciliation + append-only Reversal is the correction path.

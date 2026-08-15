@@ -63,7 +63,16 @@ BRD v3.13 + SRS/FRD v1.6 + BPD v1.5
 
 - Không tạo tồn tại Agency/đại lý; Agency chỉ là nơi nhận hàng.
 
-- Không dùng camera điện thoại để đọc RFID. RFID được gắn/map bằng thiết bị/cơ chế phù hợp trước Post Issue.
+- Không dùng camera điện thoại để đọc RFID. RFID/hardware_uid là **tùy chọn** cho PRODUCT outbound; nếu vận hành có tag thì map bằng thiết bị/cơ chế phù hợp. Thiếu RFID không được chặn Post Issue.
+
+## 0.3.1. FLOW 06 / PACKING LABEL ALIGNMENT — 15/08/2026
+
+- Effective implementation decision: `DR-HN-20260815` (`docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md`); formal BAS source incorporation tracked at WWHN-257.
+- Outbound sequence: **Scan đủ → tổng hợp → tạo/preview/in đúng 01 Packing Label cho phiếu/lô → xác nhận đã dán → Hoàn tất xuất/Post Issue**.
+- Packing Label có SĐT khách hàng và aggregate SKU/item; không tạo label per item trong current flow.
+- RFID là optional cho mọi PRODUCT outbound; COMPONENT warranty không áp dụng RFID gate.
+- Scan/label/print/reprint/apply/RFID mapping đều stock-neutral; chỉ Post Issue mới giảm tồn.
+- `report.view` là read gate; `report.export` là export gate; export XLSX/PDF giữ filter và audit.
 
 ## 0.4. Mục lục tĩnh
 
@@ -104,11 +113,11 @@ BRD v3.13 + SRS/FRD v1.6 + BPD v1.5
 | **DEC-HN-20260804-01** | Inbound/Outbound full-post only        | Chỉ Post khi mọi line đủ chính xác; không partial/remainder/thiếu-thừa.                            |
 | **DEC-HN-20260804-02** | Không có Stocktake trong MVP           | Không màn/API/entity/permission/report kiểm kê; sai giao dịch dùng reversal/correction.            |
 | **DEC-HN-20260804-03** | Quét Barcode/QR bằng camera Web WMS    | HTTPS, camera permission, decode vào đúng context; manual fallback; camera không đọc RFID.         |
-| **DEC-HN-20260804-04** | Excel request + match + nhãn từng item | Import, row-level validation, match SKU+qty; scan hợp lệ tạo/in 01 nhãn/item; hỗ trợ In lại.       |
+| **DEC-HN-20260804-04** | Excel request + match + Packing Label lô | Import, row-level validation, match đủ SKU+qty; sau khi scan đủ toàn phiếu tạo/in/dán đúng 01 Packing Label cho phiếu/lô; hỗ trợ In lại. |
 | **DEC-HN-20260804-05** | Linh kiện chỉ xuất cho bảo hành        | Component Issue bắt buộc purpose=WARRANTY và warranty_case_id đang active.                         |
 | **DEC-HN-20260804-06** | Catalog độc lập tồn                    | Sản phẩm active/published vẫn hiển thị khi chưa có Balance hoặc qty=0 với trạng thái Chưa có hàng. |
 | **DEC-WM-001..003**    | 01 kho tổng; Agency là nơi nhận        | Không tồn/movement tại Agency; Post Issue chỉ giảm kho tổng và ghi nơi nhận.                       |
-| **DR-CARRIER-001**     | Barcode/QR inbound; RFID outbound      | RFID map vào cùng item; việc gắn mã không tạo item/SKU/movement.                                   |
+| **DR-CARRIER-001**     | Barcode/QR inbound; RFID optional outbound | Nếu có RFID thì map vào cùng item; RFID optional và việc gắn mã không tạo item/SKU/movement.                                |
 | **DEC-INV-001**        | Movement là authoritative ledger       | Balance là projection; item/container là subledger; cùng transaction và đối soát.                  |
 | **DR-PLAT-001**        | Web App PV responsive read-only        | Không cart/order/reservation/payment; chỉ active/published và available_qty kho tổng.              |
 
@@ -175,7 +184,7 @@ BRD v3.13 + SRS/FRD v1.6 + BPD v1.5
 |-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
 | **REQ-SRS-001** | Quản lý 01 kho tổng; Agency không phải warehouse.                                                                                                                                            | Must         | AC-SRS-001: không có agency balance/stocktake/movement.                                                                                                         | TC-SRS-001 |
 | **REQ-SRS-002** | Quản lý SKU PRODUCT và COMPONENT, serial/quantity mode.                                                                                                                                      | Must         | AC-SRS-002: SKU unique; serial mode khóa sau khi có stock.                                                                                                      | TC-SRS-002 |
-| **REQ-SRS-003** | ITEM có Physical_Code duy nhất; dùng Barcode khi nhập kho và phải map RFID/hardware_uid trước Post Issue.                                                                                    | Must         | AC-SRS-003: Post Receipt chấp nhận Barcode với hardware_uid rỗng; trước Post Issue RFID phải được map vào cùng item/Physical_Code; gắn RFID không tạo movement. | TC-SRS-003 |
+| **REQ-SRS-003** | ITEM có Physical_Code duy nhất; dùng Barcode/QR khi nhập kho; RFID/hardware_uid là optional metadata cho PRODUCT outbound.                                                                   | Must         | AC-SRS-003: Post Receipt chấp nhận Barcode với hardware_uid rỗng; Post Issue không bị chặn khi thiếu RFID; nếu map RFID thì map đúng cùng item và không tạo movement. | TC-SRS-003 |
 | **REQ-SRS-004** | CARTON/BOX/TRAY carrier cấu hình linh hoạt.                                                                                                                                                  | Must         | AC-SRS-004: QR/BARCODE/RFID/NFC/MANUAL hợp lệ.                                                                                                                  | TC-SRS-004 |
 | **REQ-SRS-005** | Quét Barcode/QR bằng camera điện thoại trên Web WMS cho inbound/outbound/trace/warranty; manual fallback.                                                                                    | Must         | AC-SRS-005: decode điền code_value vào đúng context; denied/unavailable có lỗi rõ + nhập tay.                                                                   | TC-SRS-005 |
 | **REQ-SRS-006** | Tạo inbound DRAFT/SCANNING, chưa tăng tồn.                                                                                                                                                   | Must         | AC-SRS-006: draft/scan không sinh movement.                                                                                                                     | TC-SRS-006 |
@@ -183,11 +192,11 @@ BRD v3.13 + SRS/FRD v1.6 + BPD v1.5
 | **REQ-SRS-008** | Post Receipt idempotent, atomic và audit.                                                                                                                                                    | Must         | AC-SRS-008: retry không double stock/movement; failure rollback all.                                                                                            | TC-SRS-008 |
 | **REQ-SRS-009** | Putaway cập nhật tray mapping, không đổi tồn.                                                                                                                                                | Must         | AC-SRS-009: không Inventory_Movement và available_qty không đổi.                                                                                                | TC-SRS-009 |
 | **REQ-SRS-010** | Tạo outbound DRAFT/SCANNING, chưa giảm tồn.                                                                                                                                                  | Must         | AC-SRS-010: draft/scan không có stock effect.                                                                                                                   | TC-SRS-010 |
-| **REQ-SRS-011** | Full Post Issue: Post một lần khi mọi line fully matched, đủ tồn và PRODUCT có RFID.                                                                                                         | Must         | AC-SRS-011: không PARTIALLY_POSTED/close remainder; không âm kho.                                                                                               | TC-SRS-011 |
+| **REQ-SRS-011** | Full Post Issue: Post một lần khi mọi line fully matched, đủ tồn và Packing Label duy nhất đã in/dán; RFID không phải gate.                                                                  | Must         | AC-SRS-011: không PARTIALLY_POSTED/close remainder; không âm kho; PRODUCT thiếu RFID vẫn Post được nếu các gate khác hợp lệ.                                    | TC-SRS-011 |
 | **REQ-SRS-012** | Post Issue idempotent/concurrent, không âm kho.                                                                                                                                              | Must         | AC-SRS-012: một request commit; request xung đột không trừ lần hai.                                                                                             | TC-SRS-012 |
 | **REQ-SRS-013** | Reversal/correction append-only cho Receipt/Issue.                                                                                                                                           | Must         | AC-SRS-013: giữ movement gốc; guard dependency; partial; chain; report net.                                                                                     | TC-SRS-013 |
 | **REQ-SRS-014** | Import toa yêu cầu xuất Excel, validate row-level và match theo sku_code + required_qty.                                                                                                     | Must         | AC-SRS-014: file hợp lệ tạo request/outbound; lỗi trả row/field/message; duplicate key không tạo trùng.                                                         | TC-SRS-014 |
-| **REQ-SRS-015** | Sau scan item hợp lệ, tạo label snapshot và direct-print 01 nhãn/item; hỗ trợ In lại.                                                                                                        | Must         | AC-SRS-015: không in SĐT; print/reprint stock-neutral; audit attempt/reprint_count.                                                                             | TC-SRS-015 |
+| **REQ-SRS-015** | Sau khi scan đủ toàn phiếu, tổng hợp và tạo/preview/direct-print đúng 01 Packing Label cho phiếu/lô; hỗ trợ In lại và xác nhận đã dán.                                                       | Must         | AC-SRS-015: Packing Label có SĐT khách hàng; create/print/reprint/apply stock-neutral; audit attempt/reprint_count; Post Issue mới trừ tồn.                    | TC-SRS-015 |
 | **REQ-SRS-016** | Warranty basic và TEMP_ONLY khi mất mã; lưu thêm customer_address và purchase_date khi có.                                                                                                   | Must         | AC-SRS-016: temp code/no link/no movement/one active case; customer_address được bảo vệ PII; purchase_date không được ở tương lai.                              | TC-SRS-016 |
 | **REQ-SRS-017** | Web App responsive list/detail/search/filter.                                                                                                                                                | Must         | AC-SRS-017: desktop/tablet/mobile; active/published only.                                                                                                       | TC-SRS-017 |
 | **REQ-SRS-018** | PV hiển thị available_qty kho tổng, read-only.                                                                                                                                               | Must         | AC-SRS-018: không lộ item/container/movement/cost; không stock effect.                                                                                          | TC-SRS-018 |
@@ -633,7 +642,7 @@ BRD v3.13 + SRS/FRD v1.6 + BPD v1.5
 
 - code_value unique; RFID hardware_uid unique khi có.
 
-- ITEM nhận bằng Barcode/QR; PRODUCT bắt buộc active RFID trước Post Issue.
+- ITEM nhận bằng Barcode/QR; PRODUCT vẫn phải match concrete item nhưng active RFID là tùy chọn và không phải Post Issue gate.
 
 - Một code map đúng một target; mapping RFID không tạo movement.
 

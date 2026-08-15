@@ -1950,58 +1950,34 @@ Item/container quantity được match vào outbound line. **\[BASELINE + TECH-P
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   **Constraint chính**                                                                                                                    **Index khuyến nghị**
   --------------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------
-  Một item chỉ active ở một outbound/component issue; availability/state checked khi match và commit. PRODUCT item cần RFID trước Post.   Partial UX(item_id) WHERE status=ACTIVE AND item_id IS NOT NULL; IDX(outbound_line_id,status); IDX(container_id).
+  Một item chỉ active ở một outbound/component issue; availability/state checked khi match và commit. PRODUCT phải match concrete item; RFID optional và không phải Post gate.   Partial UX(item_id) WHERE status=ACTIVE AND item_id IS NOT NULL; IDX(outbound_line_id,status); IDX(container_id).
 
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ### 42. label_snapshots
 
-Nội dung nhãn bất biến tại thời điểm scan hợp lệ. **\[BASELINE + TECH-PROPOSAL\]**
+Packing Label snapshot bất biến theo **phiếu/lô xuất**; current flow tạo đúng 01 canonical snapshot/outbound document. Legacy item-level snapshot chỉ giữ để audit/history. **\[BASELINE + TECH-PROPOSAL\]**
 
-  ----------------------------------------------------------------------------------------------------------------------------------------
-  **Field**                    **PostgreSQL type**   **Null**       **Key / Default**                          **Mô tả / Rule**
-  ---------------------------- --------------------- -------------- ------------------------------------------ ---------------------------
-  **id**                       uuid                  No             PK                                         Định danh.
+| **Field** | **PostgreSQL type** | **Null** | **Key / Default** | **Mô tả / Rule** |
+|---|---|---|---|---|
+| **id** | uuid | No | PK | Định danh snapshot. |
+| **outbound_document_id** | uuid | No | UNIQUE, FK outbound_documents.id | Đúng 01 Packing Label canonical / phiếu-lô xuất. |
+| **outbound_item_match_id** | uuid | Yes | FK outbound_item_matches.id | Legacy compatibility only; current write = NULL. |
+| **sku_id** | uuid | Yes | FK skus.id | Legacy compatibility only; current write = NULL. |
+| **item_id** | uuid | Yes | FK item_instances.id | Legacy compatibility only; current write = NULL. |
+| **label_payload** | jsonb | No |  | Immutable payload gồm label_code, outbound_no, recipient, customer_phone, item_count, sku_count, sku_summary. |
+| **status** | varchar(20) | No | CHECK PENDING_PRINT/PRINTED/PRINT_FAILED | Latest print status. |
+| **applied_at** | timestamptz | Yes |  | Thời điểm xác nhận đã dán Packing Label. |
+| **applied_by** | uuid | Yes | FK app_users.id | Actor xác nhận dán. |
+| **version** | integer | No | DEFAULT 1 | Optimistic/version tracking. |
+| **created_at** | timestamptz | No | DEFAULT now() | Tạo snapshot. |
+| **created_by** | uuid | Yes | FK app_users.id | Actor tạo. |
+| **updated_at** | timestamptz | No | DEFAULT now() | Chỉ metadata/status, không sửa immutable payload. |
+| **updated_by** | uuid | Yes | FK app_users.id | Actor cập nhật metadata/status. |
 
-  **label_code**               varchar(120)          No             UNIQUE                                     Mã nhãn.
+**Constraint chính:** `UNIQUE(outbound_document_id)` cho current canonical flow; chỉ tạo sau full scan; payload không đổi sau tạo; payload **có customer_phone**; print/reprint/apply stock-neutral; Post Issue mới trừ tồn. Legacy `outbound_item_match_id/sku_id/item_id` nullable để bảo toàn history nhưng không dùng cho current write.
 
-  **outbound_document_id**     uuid                  No             FK outbound_documents.id                   Phiếu.
-
-  **outbound_item_match_id**   uuid                  No             UNIQUE, FK outbound_item_matches.id        Một snapshot/item match.
-
-  **item_id**                  uuid                  Yes            FK item_instances.id                       Item.
-
-  **customer_name**            varchar(200)          No                                                        Snapshot.
-
-  **customer_address**         text                  No                                                        Snapshot.
-
-  **product_name**             varchar(255)          No                                                        Catalog snapshot.
-
-  **sku_code**                 varchar(100)          No                                                        SKU snapshot.
-
-  **item_code_value**          varchar(200)          No                                                        Barcode/QR in trên nhãn.
-
-  **outbound_no**              varchar(80)           No                                                        Mã phiếu snapshot.
-
-  **template_version**         varchar(50)           No                                                        Version template.
-
-  **payload**                  jsonb                 No                                                        Immutable render payload.
-
-  **status**                   varchar(20)           No             CHECK PENDING_PRINT/PRINTED/PRINT_FAILED   Latest status.
-
-  **reprint_count**            integer               No             DEFAULT 0                                  Số lần In lại.
-
-  **created_at**               timestamptz           No             DEFAULT now()                              Tạo.
-
-  **created_by**               uuid                  Yes            FK app_users.id                            Actor.
-  ----------------------------------------------------------------------------------------------------------------------------------------
-
-  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  **Constraint chính**                                                                                                    **Index khuyến nghị**
-  ----------------------------------------------------------------------------------------------------------------------- --------------------------------------------------------------------------------------------------------------
-  Không UPDATE nội dung sau tạo; không chứa customer_phone. Status/reprint_count có thể cập nhật hoặc derive từ events.   UX(label_code); UX(outbound_item_match_id); IDX(outbound_document_id); IDX(status,created_at); IDX(item_id).
-
-  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+**Index khuyến nghị:** `UX(outbound_document_id)`; `IDX(outbound_document_id,status)`; `IDX(applied_at)`; legacy index giữ khi cần migration/audit.
 
 ### 43. printer_configs
 
