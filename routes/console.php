@@ -18,15 +18,18 @@ Artisan::command('inspire', function () {
 | standard Laravel scheduler trigger (`php artisan schedule:run` every minute).
 |
 | Both commands use overlap locks to prevent duplicate processing when a prior
-| run is still active. Cron expressions remain environment-configurable.
+| run is still active. Cron expressions and kill switches remain environment-
+| configurable so DevOps can rollback scheduler activation without code rollback.
 |
 */
 Schedule::command('audit:reconcile')
     ->cron((string) config('audit.reconcile.schedule', '*/5 * * * *'))
     ->withoutOverlapping(max(1, (int) config('audit.reconcile.overlap_lock_minutes', 10)))
+    ->when(static fn (): bool => (bool) config('audit.reconcile.enabled', true))
     ->name('dev219:audit-reconcile');
 
 Schedule::command('inventory:reconcile')
     ->cron((string) config('reconciliation.inventory.schedule', '*/15 * * * *'))
     ->withoutOverlapping(max(1, (int) config('reconciliation.inventory.overlap_lock_minutes', 30)))
+    ->when(static fn (): bool => (bool) config('reconciliation.inventory.enabled', true))
     ->name('dev219:inventory-reconcile');
