@@ -26,6 +26,9 @@ class BackendMigrationSeedHealthTest extends TestCase
         $this->assertDatabaseHas('app_user', ['username' => 'admin', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('warehouses', ['code' => 'KHO-TONG-HN', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('products', ['code' => 'HN-PV-BASE-001', 'published_to_app' => true]);
+        $this->assertDatabaseHas('role', ['role_code' => 'SUPER_ADMIN', 'status' => 'ACTIVE']);
+        $this->assertDatabaseHas('permission', ['permission_key' => 'stock_document.post', 'status' => 'ACTIVE']);
+        $this->assertDatabaseHas('permission', ['permission_key' => 'audit_log.view', 'status' => 'ACTIVE']);
     }
 
     public function test_versioned_health_endpoint_returns_200_with_canonical_contract_after_seed(): void

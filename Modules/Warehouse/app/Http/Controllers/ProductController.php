@@ -244,4 +244,69 @@ class ProductController extends Controller
 
         return $payload;
     }
+
+    #[OA\Patch(
+        path: '/api/v1/products/{id}/enable',
+        operationId: 'product_enable',
+        summary: 'Enable a product',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Product enabled successfully'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 403, description: 'Missing product.manage permission'),
+            new OA\Response(response: 404, description: 'Product not found'),
+        ]
+    )]
+    public function enable(string $id)
+    {
+        return $this->setStatus($id, 'ACTIVE', 'Bật sản phẩm thành công');
+    }
+
+    #[OA\Patch(
+        path: '/api/v1/products/{id}/disable',
+        operationId: 'product_disable',
+        summary: 'Disable a product',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Product disabled successfully'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 403, description: 'Missing product.manage permission'),
+            new OA\Response(response: 404, description: 'Product not found'),
+        ]
+    )]
+    public function disable(string $id)
+    {
+        return $this->setStatus($id, 'INACTIVE', 'Tắt sản phẩm thành công');
+    }
+
+    private function setStatus(string $id, string $status, string $message)
+    {
+        $product = $this->products->find($id);
+
+        if (! $product) {
+            return $this->respondNotFound('Không tìm thấy sản phẩm.');
+        }
+
+        $product->status = $status;
+        $product->save();
+
+        AuditLogger::record(
+            action: $status === 'ACTIVE' ? 'ENABLE' : 'DISABLE',
+            objectType: 'sku',
+            objectId: $product->sku_id,
+            actorId: request()->user()?->user_id,
+            requestId: request()->attributes->get('request_id'),
+            afterData: $product->toArray()
+        );
+
+        return $this->respondSuccess($product, $message);
+    }
 }

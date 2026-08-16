@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\InventoryBalance;
+use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Services\ReportService;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -67,7 +68,13 @@ class ReportController extends Controller
             'available_qty' => (float) InventoryBalance::where('stock_status', 'AVAILABLE')->sum('available_qty'),
             'receipt_qty' => (float) ($movementSums->receipt_qty ?? 0),
             'issue_qty' => (float) ($movementSums->issue_qty ?? 0),
-            'warranty_cases_by_status' => [],
+            'warranty_cases_by_status' => DB::table('warranty_case')
+                ->selectRaw('status, count(*) as total')
+                ->whereNull('deleted_at')
+                ->groupBy('status')
+                ->pluck('total', 'status')
+                ->map(fn ($total) => (int) $total)
+                ->all(),
             'reconciliation_warnings' => $reconciliationWarnings,
         ]);
     }
@@ -288,13 +295,15 @@ class ReportController extends Controller
             'to_date' => ['required', 'date', 'after_or_equal:from_date'],
         ]);
         $lines = DB::table('stock_movements as m')
-            ->join('products as p', 'p.id', '=', 'm.product_id')
-            ->selectRaw('p.code as product_code, p.name as product_name, m.stock_status')
-            ->selectRaw('SUM(CASE WHEN m.qty_delta > 0 THEN m.qty_delta ELSE 0 END) as total_in')
-            ->selectRaw('SUM(CASE WHEN m.qty_delta < 0 THEN -m.qty_delta ELSE 0 END) as total_out')
+            ->join('sku as p', 'p.sku_id', '=', 'm.product_id')
+            ->selectRaw('p.sku_code as product_code, p.sku_name as product_name, m.stock_status')
+            ->selectRaw('SUM(CASE WHEN m.movement_type = ? THEN m.qty_delta ELSE 0 END) as total_in',
+                [StockMovement::RECEIPT_IN])
+            ->selectRaw('SUM(CASE WHEN m.movement_type = ? THEN -m.qty_delta ELSE 0 END) as total_out',
+                [StockMovement::ISSUE_OUT])
             ->whereBetween('m.occurred_at', ["{$validated['from_date']} 00:00:00", "{$validated['to_date']} 23:59:59"])
-            ->groupBy('p.code', 'p.name', 'm.stock_status')
-            ->orderBy('p.code')
+            ->groupBy('p.sku_code', 'p.sku_name', 'm.stock_status')
+            ->orderBy('p.sku_code')
             ->orderBy('m.stock_status')
             ->get();
 

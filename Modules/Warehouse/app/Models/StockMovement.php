@@ -86,4 +86,9 @@ class StockMovement extends Model
     {
         return $this->belongsTo(User::class, 'created_by', 'user_id');
     }
+
+    public function documentLine(): BelongsTo
+    {
+        return $this->belongsTo(StockDocumentLine::class, 'stock_document_line_id');
+    }
 }

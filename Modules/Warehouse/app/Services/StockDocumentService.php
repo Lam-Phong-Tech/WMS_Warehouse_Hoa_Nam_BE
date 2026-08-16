@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Support\ApiError;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Exceptions\WarehouseException;
 use Modules\Warehouse\Models\DocumentStatusHistory;
@@ -12,6 +13,7 @@ use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\StockMovement;
+use Modules\Warehouse\Services\ScanResolver;
 use Modules\Warehouse\Models\Warehouse;
 
 class StockDocumentService
@@ -22,7 +24,7 @@ class StockDocumentService
         StockDocument::TYPE_TRANSFER => 'DC',
     ];
 
-    public function __construct(private readonly StockLedger $ledger) {}
+    public function __construct(private readonly StockLedger $ledger, private readonly ScanResolver $scanResolver) {}
 
     public function create(string $type, array $data, string $userId): StockDocument
     {
@@ -118,6 +120,8 @@ class StockDocumentService
 
             foreach ($doc->lines as $line) {
                 $this->ledger->inbound($doc, $line, $userId);
+                $this->markInboundItemReceived($line);
+                $line->update(['scanned_qty' => $line->qty_planned]);
             }
 
             $fresh = $this->markPosted($doc, $userId, 'post_receipt');
@@ -283,6 +287,7 @@ class StockDocumentService
                 'stock_document_id' => $doc->id,
                 'line_no' => $index + 1,
                 'product_id' => $line['product_id'],
+                'item_instance_id' => $line['item_instance_id'] ?? null,
                 'qty_planned' => $line['qty_planned'],
                 'qty_actual' => $line['qty_planned'],
                 'scanned_qty' => 0,
@@ -319,6 +324,83 @@ class StockDocumentService
                 WarehouseException::invalidStatus("PRODUCT SKU {$line->product_id} requires active RFID before Post Issue.");
             }
         }
+    }
+
+    private function validateInboundScan(StockDocumentLine $line, string $qty, ?string $rawCode): void
+    {
+        if ($line->item_instance_id !== null) {
+            if ($rawCode === null || trim($rawCode) === '') {
+                ApiError::abort(422, 'SERIAL_SCAN_REQUIRED', 'Dòng item serial bắt buộc có raw_code khi scan.');
+            }
+            if (bccomp($qty, '1', 3) !== 0) {
+                ApiError::abort(422, 'SERIAL_SCAN_QUANTITY_INVALID', 'Dòng item serial chỉ được ghi nhận số lượng 1.');
+            }
+
+            $resolution = $this->scanResolver->resolveActive($rawCode);
+            if (! $resolution['item'] || $resolution['item']->item_id !== $line->item_instance_id) {
+                ApiError::abort(422, 'SCAN_ITEM_MISMATCH', 'Mã scan không thuộc item instance của dòng chứng từ.');
+            }
+            if ($resolution['item']->sku_id !== $line->product_id) {
+                ApiError::abort(422, 'SCAN_SKU_MISMATCH', 'Item scan không thuộc SKU của dòng chứng từ.');
+            }
+            if ($resolution['item']->item_status !== 'NEW') {
+                ApiError::abort(409, 'SCAN_ITEM_ALREADY_RECEIVED', 'Item scan đã được ghi nhận hoặc không ở trạng thái NEW.');
+            }
+
+            return;
+        }
+
+        if ($rawCode === null || trim($rawCode) === '') {
+            return;
+        }
+
+        $resolution = $this->scanResolver->resolveActive($rawCode);
+        if ($resolution['sku_id'] !== null && $resolution['sku_id'] !== $line->product_id) {
+            ApiError::abort(422, 'SCAN_SKU_MISMATCH', 'Mã scan không thuộc SKU của dòng chứng từ.');
+        }
+    }
+
+    private function markInboundItemReceived(StockDocumentLine $line): void
+    {
+        if ($line->item_instance_id === null) {
+            return;
+        }
+
+        $item = $line->itemInstance()->lockForUpdate()->first();
+        if (! $item || $item->item_status !== 'NEW') {
+            WarehouseException::invalidStatus('Item của dòng nhập không còn ở trạng thái NEW.');
+        }
+
+        $item->update(['item_status' => 'IN_STOCK', 'version' => $item->version + 1]);
+    }
+
+    private function recordInboundScanEvent(StockDocument $doc, StockDocumentLine $line, ?string $rawCode, string $userId): void
+    {
+        if ($rawCode === null || trim($rawCode) === '') {
+            return;
+        }
+
+        $resolution = $this->scanResolver->resolveActive($rawCode);
+        $batchId = (string) Str::uuid();
+        DB::table('scan_batches')->insert([
+            'scan_batch_id' => $batchId,
+            'source_type' => 'INBOUND',
+            'source_id' => $doc->id,
+            'warehouse_id' => $doc->dst_warehouse_id,
+            'created_by' => $userId,
+            'created_at' => now(),
+        ]);
+        DB::table('scan_events')->insert([
+            'scan_event_id' => (string) Str::uuid(),
+            'scan_batch_id' => $batchId,
+            'raw_code' => trim($rawCode),
+            'physical_code_id' => $resolution['physical_code']->physical_code_id,
+            'resolved_object_type' => $resolution['item'] ? 'ITEM_INSTANCE' : 'CONTAINER',
+            'resolved_object_id' => $resolution['item']?->item_id ?? $resolution['container']?->container_id,
+            'result_status' => 'ACCEPTED',
+            'message' => "Inbound document line {$line->line_no}",
+            'created_at' => now(),
+        ]);
     }
 
     private function assertStatus(StockDocument $doc, array $allowed, string $action): void

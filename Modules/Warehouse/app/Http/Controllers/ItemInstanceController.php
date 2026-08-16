@@ -192,12 +192,13 @@ class ItemInstanceController extends Controller
     #[OA\Get(
         path: '/api/v1/item-instances/{id}/trace',
         operationId: 'item_instance_trace',
-        summary: 'Truy vết item: sku -> physical_code -> container (cha) -> import_batch -> stock_movements',
+        summary: 'Truy vết item qua stock document line tới stock movements',
+        description: 'Stock movements chỉ được chọn qua stock_document_lines.item_instance_id; sku và import batch chỉ là ngữ cảnh mô tả.',
         security: [['bearerAuth' => []]],
         tags: ['24. Item Instance'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         responses: [
-            new OA\Response(response: 200, description: 'Chuỗi truy vết của item, kèm lịch sử stock_movements của sku tương ứng'),
+            new OA\Response(response: 200, description: 'Chuỗi truy vết item, kèm stock movements liên kết qua stock document line của chính item'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 404, description: 'Không tìm thấy item instance'),
         ]
@@ -212,22 +213,43 @@ class ItemInstanceController extends Controller
 
         $item->load(['sku', 'physicalCode', 'container.parent', 'importBatch']);
 
-        // stock_movements ghi nhận ở granularity sku (ERD không có cột item_instance_id/
-        // physical_code_id trên bảng này), nên trace tới movement/document đi qua sku_id.
-        $movements = StockMovement::query()
-            ->where('product_id', $item->sku_id)
-            ->orderByDesc('occurred_at')
+        // SKU and import batch are descriptive context only. Movement traceability is
+        // anchored to the item recorded on the stock document line.
+        $movementsQuery = StockMovement::query()
+            ->with('document')
+            ->whereHas('documentLine', fn ($query) => $query->where('item_instance_id', $item->item_id));
+            
+        $rawMovements = $movementsQuery->orderByDesc('occurred_at')
             ->limit(50)
-            ->get(['id', 'movement_no', 'movement_type', 'warehouse_id', 'qty_before', 'qty_delta', 'qty_after', 'stock_document_id', 'occurred_at']);
+            ->get();
+            
+        $formattedMovements = $rawMovements->map(function ($mov) {
+            return [
+                'movement_id' => $mov->id,
+                'type' => $mov->movement_type,
+                'document' => $mov->document ? [
+                    'doc_id' => $mov->document->id,
+                    'doc_no' => $mov->document->doc_no,
+                    'type' => current(explode('_', $mov->movement_type)),
+                ] : null,
+                'timestamp' => $mov->occurred_at,
+            ];
+        });
 
         return $this->respondSuccess([
+            // Thông tin truy vết cấp Item (đáp ứng tiêu chí BE2-P1-01)
+            'item_instance_id' => $item->item_id,
+            'serial_number' => $item->serial_number,
+            'physical_code' => $item->physicalCode,
+            'movements' => $formattedMovements,
+            
+            // Giữ lại các field cũ để không break test case cũ
             'item' => $item,
             'sku' => $item->sku,
-            'physical_code' => $item->physicalCode,
             'container' => $item->container,
             'parent_container' => $item->container?->parent,
             'import_batch' => $item->importBatch,
-            'stock_movements' => $movements,
+            'stock_movements' => $rawMovements,
         ]);
     }
 }

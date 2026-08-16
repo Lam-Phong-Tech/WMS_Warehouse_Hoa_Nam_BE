@@ -1,0 +1,56 @@
+{
+  "traceability": {
+    "parent_temp_key": "HN-TEC-001",
+    "epic_temp_key": "HN-EPIC-03",
+    "parent_task": "WWHN-31",
+    "dependency": "HN-TEC-001-ST01",
+    "output": "Schema/API modules",
+    "role": "BE2",
+    "publisher": "HN-BE-02"
+  },
+  "source": {
+    "branch": "m1-be-2",
+    "commit": "e867ae4f339abc6e1aa1c36ec69d47b0bafe7068",
+    "upstream": "origin/m1",
+    "merge_base": "f2f32dfc497fe281075a135dbc6c86b049a821d4",
+    "upstream_distance": {
+      "behind": 0,
+      "ahead": 18
+    }
+  },
+  "artifacts": [
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/WarrantyController.php",
+      "sha256": "5b9bbf801caf2dcb40817c028b55eb9bf3570c57de84702e830bb630a7266fdf"
+    },
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/ReportController.php",
+      "sha256": "eefad680db104941b9ad20072128a1366d497d166a834415b5ef1896b3000d17"
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_08_14_000001_add_catalog_report_warranty_pv_integrity_indexes.php",
+      "sha256": "cd35063258435462c86250915686b95eb26b7c4022376dff44b09697e6a1e9d6"
+    },
+    {
+      "path": "storage/api-docs/api-docs.json",
+      "sha256": "420f14c6108e02333540856b4d97b3818c84583e7af7263ae49e89b7216c6df2"
+    },
+    {
+      "path": "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json",
+      "sha256": "72ac6c1176c80837868761745681e31de022f74f72d0f04d4900f92d445708d6"
+    }
+  ],
+  "validation": {
+    "schema_api_modules_test": "4 passed, 18 assertions",
+    "full_suite": "157 passed, 987 assertions",
+    "format": "vendor/bin/pint --test passed",
+    "openapi": "npm run api:lint passed (3 recommendation warnings)",
+    "postman": "npm run api:postman passed",
+    "migration": "isolated SQLite --pretend passed; rollback/re-apply is covered by SchemaApiModulesTest"
+  },
+  "changelog": [
+    "TEMP_ONLY warranty receipt writes warranty_case, warranty_event, and audit_log only; it does not write stock_movements.",
+    "Removed the stale warranty-module comment from the dashboard report.",
+    "Added rollback/re-apply coverage for the PV uniqueness and warranty reporting migration."
+  ]
+}

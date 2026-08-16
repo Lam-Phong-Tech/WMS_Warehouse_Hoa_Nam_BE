@@ -1,0 +1,463 @@
+{
+  "info": {
+    "name": "WMS_HoaNam API Scenario Testing - TEST",
+    "description": "Smoke test cho npm run api:smoke (Newman). Login bang tai khoan admin da seed (AuthDatabaseSeeder), sau do goi tuan tu cac endpoint moi (Agency, Defect Catalog, Role, User) va tu don du lieu demo o cuoi moi folder.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "01. Authentication",
+      "item": [
+        {
+          "name": "Login (admin)",
+          "auth": { "type": "noauth" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('access_token present', function () { pm.expect(json.data.access_token).to.be.a('string'); });",
+                  "pm.environment.set('token', json.data.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"admin\",\"password\":\"Cntt@1234\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('me status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('username = admin', function () { pm.expect(pm.response.json().data.username).to.eql('admin'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "16. Agency",
+      "item": [
+        {
+          "name": "Create Agency",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('agencyId', json.data.agency_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agency_code\":\"SMOKE-AGY-{{$timestamp}}\",\"agency_name\":\"Smoke Test Agency\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/agencies", "host": ["{{baseUrl}}"], "path": ["agencies"] }
+          },
+          "response": []
+        },
+        {
+          "name": "List Agencies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('list status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/agencies?keyword=Smoke", "host": ["{{baseUrl}}"], "path": ["agencies"], "query": [{ "key": "keyword", "value": "Smoke" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Agency",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('update status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('name updated', function () { pm.expect(pm.response.json().data.agency_name).to.eql('Smoke Test Agency Updated'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agency_name\":\"Smoke Test Agency Updated\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/agencies/{{agencyId}}", "host": ["{{baseUrl}}"], "path": ["agencies", "{{agencyId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Cleanup - Delete Agency",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('delete status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/agencies/{{agencyId}}", "host": ["{{baseUrl}}"], "path": ["agencies", "{{agencyId}}"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "17. Defect Catalog",
+      "item": [
+        {
+          "name": "Create Defect Catalog",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('defectId', json.data.defect_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"defect_code\":\"SMOKE-DEF-{{$timestamp}}\",\"defect_name\":\"Smoke Test Defect\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/defect-catalogs", "host": ["{{baseUrl}}"], "path": ["defect-catalogs"] }
+          },
+          "response": []
+        },
+        {
+          "name": "List Defect Catalogs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('list status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/defect-catalogs?keyword=Smoke", "host": ["{{baseUrl}}"], "path": ["defect-catalogs"], "query": [{ "key": "keyword", "value": "Smoke" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Defect Catalog",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('update status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('status updated', function () { pm.expect(pm.response.json().data.status).to.eql('INACTIVE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"INACTIVE\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/defect-catalogs/{{defectId}}", "host": ["{{baseUrl}}"], "path": ["defect-catalogs", "{{defectId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Cleanup - Delete Defect Catalog",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('delete status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/defect-catalogs/{{defectId}}", "host": ["{{baseUrl}}"], "path": ["defect-catalogs", "{{defectId}}"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03. Roles",
+      "item": [
+        {
+          "name": "Create Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('roleId', json.data.role_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"role_code\":\"SMOKE_ROLE_{{$timestamp}}\",\"role_name\":\"Smoke Test Role\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/roles", "host": ["{{baseUrl}}"], "path": ["roles"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Permission (warehouse.view)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('list permissions status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('permission found', function () { pm.expect(json.data.length).to.be.above(0); });",
+                  "pm.environment.set('permissionId', json.data[0].permission_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/permissions?keyword=warehouse.view", "host": ["{{baseUrl}}"], "path": ["permissions"], "query": [{ "key": "keyword", "value": "warehouse.view" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Permissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('assign status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"permission_ids\":[\"{{permissionId}}\"]}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/roles/{{roleId}}/permissions", "host": ["{{baseUrl}}"], "path": ["roles", "{{roleId}}", "permissions"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02. Users",
+      "item": [
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create status 201', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.test('password_hash not leaked', function () { pm.expect(json.data.password_hash).to.be.undefined; });",
+                  "pm.environment.set('userId', json.data.user_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"smoke_user_{{$timestamp}}\",\"display_name\":\"Smoke User\",\"password\":\"Cntt@1234\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Existing Role (VIEWER)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('list roles status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('viewer role found', function () { pm.expect(json.data.length).to.be.above(0); });",
+                  "pm.environment.set('existingRoleId', json.data[0].role_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/roles?keyword=VIEWER", "host": ["{{baseUrl}}"], "path": ["roles"], "query": [{ "key": "keyword", "value": "VIEWER" }] }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Roles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('assign status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"role_ids\":[\"{{existingRoleId}}\"]}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}/roles", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}", "roles"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Cleanup - Delete User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('delete status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "99. Cleanup",
+      "item": [
+        {
+          "name": "Cleanup - Delete Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('delete status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/roles/{{roleId}}", "host": ["{{baseUrl}}"], "path": ["roles", "{{roleId}}"] }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -90,7 +90,7 @@ class PermissionAndValidationTest extends TestCase
         $skuHeaders = $this->authHeadersWithPermissions(['sku.view'], 'sku_view_only');
         $noSkuHeaders = $this->authHeadersWithPermissions(['warehouse.view'], 'no_sku_permission');
 
-        Product::create(['code' => 'SP-PROD-PERM', 'name' => 'San pham product permission', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        Sku::create(['code' => 'SP-PROD-PERM', 'name' => 'San pham product permission', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
         $this->getJson('/api/v1/products', $skuHeaders)
             ->assertOk()

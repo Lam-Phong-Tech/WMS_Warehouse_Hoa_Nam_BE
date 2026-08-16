@@ -161,6 +161,37 @@ class SkuAuthorizationTest extends TestCase
         ]);
     }
 
+    public function test_product_enable_and_disable_require_sku_manage(): void
+    {
+        $sku = Sku::query()->create([
+            'sku_code' => 'TEST-ENABLE-001',
+            'sku_name' => 'Test Enable Product',
+            'status' => 'INACTIVE',
+        ]);
+
+        $skuManager = $this->user('test-sku-manage@hoanam.com');
+        $viewer = $this->user('staff01@gmail.com');
+        $noPermission = $this->user('test-no-permission@hoanam.com');
+        $superAdmin = $this->user('test-super-admin@hoanam.com');
+
+        $this->patchJson("/api/v1/products/{$sku->sku_id}/enable", [], $this->auth($skuManager))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status', 'ACTIVE');
+
+        foreach ([$viewer, $noPermission] as $user) {
+            $this->patchJson("/api/v1/products/{$sku->sku_id}/disable", [], $this->auth($user))
+                ->assertStatus(403)
+                ->assertJsonPath('error.code', 'ACCESS_DENIED')
+                ->assertHeader('X-Request-ID');
+        }
+
+        $this->patchJson("/api/v1/products/{$sku->sku_id}/disable", [], $this->auth($superAdmin))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.status', 'INACTIVE');
+    }
+
     private function user(string $email): User
     {
         return User::query()->where('email', $email)->firstOrFail();

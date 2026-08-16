@@ -21,6 +21,8 @@ class WarrantyEvent extends Model
 
     protected $table = 'warranty_event';
 
+    protected $primaryKey = 'warranty_event_id';
+
     public $incrementing = false;
 
     public $timestamps = false;

@@ -198,10 +198,7 @@ class AuthorizationTest extends TestCase
 
     private function createTestUser(string $username, string $roleCode): User
     {
-        $role = Role::firstOrCreate(
-            ['role_code' => $roleCode],
-            ['role_name' => $roleCode, 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
-        );
+        $role = Role::where('role_code', $roleCode)->firstOrFail();
 
         $user = User::updateOrCreate(
             ['username' => $username],

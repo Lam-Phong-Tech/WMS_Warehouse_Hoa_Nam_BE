@@ -52,6 +52,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('products', [ProductController::class, 'store'])->middleware('permission:sku.manage');
         Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:sku.view');
         Route::patch('products/{id}', [ProductController::class, 'update'])->middleware('permission:sku.manage');
+        Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:sku.manage');
+        Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:sku.manage');
 
         Route::get('inbound-documents', [InboundDocumentController::class, 'index'])->middleware('permission:inbound.view');
         Route::post('inbound-documents', [CurrentBaselineDocumentController::class, 'storeInbound'])
