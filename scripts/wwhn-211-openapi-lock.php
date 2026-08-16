@@ -15,10 +15,10 @@ $fail = static function (string $message): never {
     exit(1);
 };
 
-if (!is_file($manifestPath)) {
+if (! is_file($manifestPath)) {
     $fail('Missing contract manifest: '.$manifestPath);
 }
-if (!is_file($openApiPath)) {
+if (! is_file($openApiPath)) {
     $fail('Missing generated OpenAPI artifact. Run php artisan l5-swagger:generate first.');
 }
 
@@ -38,7 +38,7 @@ foreach ($endpoints as $endpoint) {
     $permissions = $endpoint['permissions'] ?? [];
     $routePath = preg_replace('#^/api/v1/#', '', $path);
 
-    if ($method !== 'get' || !is_string($routePath) || !str_contains($routesSource, "Route::get('{$routePath}'")) {
+    if ($method !== 'get' || ! is_string($routePath) || ! str_contains($routesSource, "Route::get('{$routePath}'")) {
         $fail("Route mapping not locked for {$method} {$path}");
     }
 
@@ -46,16 +46,16 @@ foreach ($endpoints as $endpoint) {
         $permission = (string) $permission;
         $inRoute = str_contains($routesSource, "permission:{$permission}");
         $inScopeMiddleware = str_contains($middlewareSource, "hasPermission('{$permission}')");
-        if (!$inRoute && !$inScopeMiddleware) {
+        if (! $inRoute && ! $inScopeMiddleware) {
             $fail("Permission {$permission} is not enforced for contract {$path}");
         }
     }
 
-    if (!isset($openApi['paths'][$path][$method])) {
+    if (! isset($openApi['paths'][$path][$method])) {
         $fail("Generated OpenAPI is missing {$method} {$path}");
     }
 
-    $operation =& $openApi['paths'][$path][$method];
+    $operation = &$openApi['paths'][$path][$method];
     $operation['x-wwhn-211-contract-id'] = $manifest['contract_id'];
     $operation['x-required-permissions'] = array_values($permissions);
     $operation['x-warehouse-data-scope'] = 'server-side-fail-closed';
@@ -67,7 +67,7 @@ foreach ($endpoints as $endpoint) {
     foreach (($endpoint['errors'] ?? []) as $errorCode) {
         $errorKey = (string) $errorCode;
         $sample = $manifest['sample_errors'][$errorKey] ?? null;
-        if (!is_array($sample)) {
+        if (! is_array($sample)) {
             $fail("Missing sample error {$errorKey} for {$path}");
         }
 
@@ -94,7 +94,7 @@ file_put_contents(
     json_encode($openApi, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).PHP_EOL,
 );
 
-if (!is_dir($evidenceDir) && !mkdir($evidenceDir, 0777, true) && !is_dir($evidenceDir)) {
+if (! is_dir($evidenceDir) && ! mkdir($evidenceDir, 0777, true) && ! is_dir($evidenceDir)) {
     $fail('Cannot create evidence directory.');
 }
 
@@ -107,7 +107,7 @@ $codeFiles = [
 ];
 $codeHashes = [];
 foreach ($codeFiles as $name => $path) {
-    if (!is_file($path)) {
+    if (! is_file($path)) {
         $fail("Missing code evidence file: {$path}");
     }
     $codeHashes[$name] = hash_file('sha256', $path);
