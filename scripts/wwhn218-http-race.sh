@@ -5,6 +5,13 @@ BASE_URL="${WWHN218_BASE_URL:-http://127.0.0.1:8080}"
 EVIDENCE_DIR="${WWHN218_EVIDENCE_DIR:-storage/app/wwhn-218-evidence}"
 mkdir -p "$EVIDENCE_DIR/http"
 
+# PHPUnit regression classes legitimately use RefreshDatabase/transactions and
+# must not be relied on to leave seeded login principals behind. Restore the
+# current canonical seed state immediately before the independent HTTP phase so
+# runtime credentials, roles and permission assignments come from the same
+# AuthDatabaseSeeder whose catalog was regenerated earlier in this CI run.
+php artisan db:seed --force > "$EVIDENCE_DIR/runtime-reseed.log"
+
 json_get() {
   jq -er "$2" "$1"
 }
@@ -42,9 +49,11 @@ header_value() {
   awk -v IGNORECASE=1 -v key="$key" 'BEGIN{FS=":"} tolower($1)==tolower(key){sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' "$file"
 }
 
-# Retry login while the local Laravel server starts.
+# Retry login endpoint reachability only; the workflow has already asserted a
+# non-5xx application response and four PHP workers.
 for _ in $(seq 1 30); do
-  if curl -sS -o /dev/null "$BASE_URL/api/v1/auth/login"; then break; fi
+  HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/api/v1/auth/login" || true)"
+  if [[ "$HTTP_CODE" =~ ^[234][0-9][0-9]$ ]]; then break; fi
   sleep 1
 done
 
