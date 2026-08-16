@@ -101,8 +101,22 @@ jobs:
           set -euo pipefail
           php -r 'echo json_encode(["php"=>PHP_VERSION,"pdo_drivers"=>PDO::getAvailableDrivers()], JSON_PRETTY_PRINT), PHP_EOL;' > "$WWHN218_EVIDENCE_DIR/php-environment.json"
           psql -h 127.0.0.1 -U postgres -d hoa_nam_wwhn218 -Atc "select json_build_object('version',version(),'database',current_database(),'server_addr',inet_server_addr(),'server_port',inet_server_port());" > "$WWHN218_EVIDENCE_DIR/postgres-environment.json"
-          redis-cli -h 127.0.0.1 -p 6379 INFO server > "$WWHN218_EVIDENCE_DIR/redis-environment.txt"
-          test "$(redis-cli -h 127.0.0.1 -p 6379 ping)" = "PONG"
+          php -r '
+            require "vendor/autoload.php";
+            $client = new Predis\Client([
+              "scheme" => "tcp",
+              "host" => getenv("REDIS_HOST") ?: "127.0.0.1",
+              "port" => (int) (getenv("REDIS_PORT") ?: 6379),
+            ]);
+            $pong = (string) $client->ping();
+            $info = $client->info("server");
+            $payload = ["ping" => $pong, "server" => $info];
+            file_put_contents(
+              getenv("WWHN218_EVIDENCE_DIR")."/redis-environment.json",
+              json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).PHP_EOL
+            );
+            if (strtoupper($pong) !== "PONG") { fwrite(STDERR, "Redis PING failed: {$pong}\n"); exit(1); }
+          '
         env:
           PGPASSWORD: postgres
 
@@ -180,7 +194,7 @@ jobs:
             "$WWHN218_EVIDENCE_DIR/phpunit-wwhn218.xml" \
             "$WWHN218_EVIDENCE_DIR/regression-scope.md" \
             "$WWHN218_EVIDENCE_DIR/server-processes.txt" \
-            "$WWHN218_EVIDENCE_DIR/redis-environment.txt"; do
+            "$WWHN218_EVIDENCE_DIR/redis-environment.json"; do
             if [ -f "$file" ]; then
               sha256sum "$file" >> "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
             fi
