@@ -18,27 +18,19 @@ login() {
   jq -er '.data.access_token' "$output"
 }
 
-request_async() {
+request_http() {
   local name="$1" method="$2" path="$3" token="$4" version="$5" idem="$6" body_file="$7"
-  (
-    curl -sS \
-      -X "$method" \
-      -D "$EVIDENCE_DIR/http/${name}.headers" \
-      -o "$EVIDENCE_DIR/http/${name}.body.json" \
-      -w '%{http_code}\n' \
-      -H "Authorization: Bearer $token" \
-      -H 'Content-Type: application/json' \
-      -H "If-Match: \"$version\"" \
-      -H "Idempotency-Key: $idem" \
-      --data-binary "@$body_file" \
-      "$BASE_URL$path" > "$EVIDENCE_DIR/http/${name}.status"
-  ) &
-  echo $!
-}
-
-wait_http() {
-  local pid="$1"
-  wait "$pid"
+  curl -sS \
+    -X "$method" \
+    -D "$EVIDENCE_DIR/http/${name}.headers" \
+    -o "$EVIDENCE_DIR/http/${name}.body.json" \
+    -w '%{http_code}\n' \
+    -H "Authorization: Bearer $token" \
+    -H 'Content-Type: application/json' \
+    -H "If-Match: \"$version\"" \
+    -H "Idempotency-Key: $idem" \
+    --data-binary "@$body_file" \
+    "$BASE_URL$path" > "$EVIDENCE_DIR/http/${name}.status"
 }
 
 status_of() {
@@ -50,6 +42,7 @@ header_value() {
   awk -v IGNORECASE=1 -v key="$key" 'BEGIN{FS=":"} tolower($1)==tolower(key){sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' "$file"
 }
 
+# Retry login while the local Laravel server starts.
 for _ in $(seq 1 30); do
   if curl -sS -o /dev/null "$BASE_URL/api/v1/auth/login"; then break; fi
   sleep 1
@@ -66,10 +59,12 @@ php scripts/wwhn218-fixture.php snapshot "$DOC_ID" > "$EVIDENCE_DIR/db-before-po
 
 POST_KEY_A="wwhn218-post-a-${GITHUB_RUN_ID:-local}"
 POST_KEY_B="wwhn218-post-b-${GITHUB_RUN_ID:-local}"
-PID_A="$(request_async post-a POST "/api/v1/inbound-documents/$DOC_ID/post-receipt" "$KEEPER_TOKEN" "$POST_VERSION" "$POST_KEY_A" "$EVIDENCE_DIR/http/empty.json")"
-PID_B="$(request_async post-b POST "/api/v1/inbound-documents/$DOC_ID/post-receipt" "$KEEPER_TOKEN" "$POST_VERSION" "$POST_KEY_B" "$EVIDENCE_DIR/http/empty.json")"
-wait_http "$PID_A"
-wait_http "$PID_B"
+request_http post-a POST "/api/v1/inbound-documents/$DOC_ID/post-receipt" "$KEEPER_TOKEN" "$POST_VERSION" "$POST_KEY_A" "$EVIDENCE_DIR/http/empty.json" &
+PID_A=$!
+request_http post-b POST "/api/v1/inbound-documents/$DOC_ID/post-receipt" "$KEEPER_TOKEN" "$POST_VERSION" "$POST_KEY_B" "$EVIDENCE_DIR/http/empty.json" &
+PID_B=$!
+wait "$PID_A"
+wait "$PID_B"
 POST_A="$(status_of post-a)"
 POST_B="$(status_of post-b)"
 
@@ -86,6 +81,7 @@ if [[ "$POST_A" != "412" && "$POST_B" != "412" ]]; then
 fi
 php scripts/wwhn218-fixture.php snapshot "$DOC_ID" > "$EVIDENCE_DIR/db-after-post.json"
 
+# Backend permission is authoritative: WAREHOUSE_STAFF lacks inbound.post.
 curl -sS \
   -X POST \
   -D "$EVIDENCE_DIR/http/rbac-post-deny.headers" \
@@ -105,10 +101,12 @@ jq '.payload' "$EVIDENCE_DIR/reverse-fixture.json" > "$EVIDENCE_DIR/http/reverse
 
 REV_KEY_A="wwhn218-reverse-a-${GITHUB_RUN_ID:-local}"
 REV_KEY_B="wwhn218-reverse-b-${GITHUB_RUN_ID:-local}"
-RID_A="$(request_async reverse-a POST "/api/v1/inbound-documents/$DOC_ID/reverse" "$KEEPER_TOKEN" "$REVERSE_VERSION" "$REV_KEY_A" "$EVIDENCE_DIR/http/reverse.json")"
-RID_B="$(request_async reverse-b POST "/api/v1/inbound-documents/$DOC_ID/reverse" "$KEEPER_TOKEN" "$REVERSE_VERSION" "$REV_KEY_B" "$EVIDENCE_DIR/http/reverse.json")"
-wait_http "$RID_A"
-wait_http "$RID_B"
+request_http reverse-a POST "/api/v1/inbound-documents/$DOC_ID/reverse" "$KEEPER_TOKEN" "$REVERSE_VERSION" "$REV_KEY_A" "$EVIDENCE_DIR/http/reverse.json" &
+RID_A=$!
+request_http reverse-b POST "/api/v1/inbound-documents/$DOC_ID/reverse" "$KEEPER_TOKEN" "$REVERSE_VERSION" "$REV_KEY_B" "$EVIDENCE_DIR/http/reverse.json" &
+RID_B=$!
+wait "$RID_A"
+wait "$RID_B"
 REV_A="$(status_of reverse-a)"
 REV_B="$(status_of reverse-b)"
 
@@ -134,6 +132,7 @@ if [[ "$REVERSED_QTY" -gt "$ORIGINAL_QTY" || "$POSTED_REVERSALS" -ne 1 ]]; then
   exit 21
 fi
 
+# Same idempotency key + identical request after completion must replay the committed snapshot.
 curl -sS \
   -X POST \
   -D "$EVIDENCE_DIR/http/reverse-replay.headers" \
@@ -154,6 +153,7 @@ cmp -s <(jq '.reversal_movements,.reversal_documents' "$EVIDENCE_DIR/db-after-re
   exit 24
 }
 
+# Backend permission is authoritative for reversal as well.
 curl -sS \
   -X POST \
   -D "$EVIDENCE_DIR/http/rbac-reverse-deny.headers" \
