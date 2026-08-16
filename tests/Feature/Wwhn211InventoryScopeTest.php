@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -17,6 +18,13 @@ use Tests\TestCase;
 
 class Wwhn211InventoryScopeTest extends TestCase
 {
+    // Không có trait này, class chỉ chạy được khi DB đã được migrate sẵn từ bên
+    // ngoài (đúng với PostgreSQL dev DB nhưng sai với sqlite :memory: mà CI dùng —
+    // schema rỗng nên ensureCanonicalInventoryEvidenceRows() đâm vào "no such
+    // table: inventory_balances"). RefreshDatabase đưa class về đúng giao kèu của
+    // toàn bộ suite: migrate một lần rồi bọc mỗi test trong transaction.
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();

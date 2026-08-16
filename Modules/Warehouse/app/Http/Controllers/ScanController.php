@@ -58,7 +58,7 @@ use OpenApi\Attributes as OA;
             required: ['raw_code', 'context', 'warehouse_id'],
             properties: [
                 new OA\Property(property: 'raw_code', type: 'string', maxLength: 150, description: 'QR, barcode, serial, container code hoặc SKU code'),
-                new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'WARRANTY_TEMP_ONLY']),
+                new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'INVENTORY', 'TRACE', 'WARRANTY_RECEIVE', 'WARRANTY_TEMP_ONLY']),
                 new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', description: 'Kho nằm trong data scope của người dùng'),
             ]
         )
@@ -78,7 +78,7 @@ use OpenApi\Attributes as OA;
                         'posting_event_created', 'idempotency_cache_written', 'current_location',
                     ], properties: [
                         new OA\Property(property: 'raw_code', type: 'string'),
-                        new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'WARRANTY_TEMP_ONLY']),
+                        new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'INVENTORY', 'TRACE', 'WARRANTY_RECEIVE', 'WARRANTY_TEMP_ONLY']),
                         new OA\Property(property: 'classification', type: 'string', enum: ['ITEM', 'CONTAINER', 'SKU']),
                         new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
                         new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
@@ -123,7 +123,10 @@ class ScanController extends Controller
     {
         $validated = $request->validate([
             'raw_code' => ['required', 'string', 'max:150'],
-            'context' => ['required', 'string', 'in:INBOUND,OUTBOUND,WARRANTY_TEMP_ONLY'],
+            // SRS §5.3: camera context gồm inbound, outbound, inventory trace/search
+            // và warranty receive/search. INVENTORY/TRACE/WARRANTY_RECEIVE là
+            // read-only nên không có ràng buộc trạng thái như OUTBOUND.
+            'context' => ['required', 'string', 'in:INBOUND,OUTBOUND,INVENTORY,TRACE,WARRANTY_RECEIVE,WARRANTY_TEMP_ONLY'],
             'warehouse_id' => ['required', 'uuid'],
         ]);
 

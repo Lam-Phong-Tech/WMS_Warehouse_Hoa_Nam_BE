@@ -249,13 +249,20 @@ class InventoryBalanceController extends Controller
             return $map;
         }
 
+        // §7.5 "eligible Item_Instance status IN_STOCK and sellable condition":
+        // NEW là item vừa tạo chưa nhập kho nên không tính vào tồn khả dụng.
         $items = DB::table('item_instances')
             ->whereIn('sku_id', $productIds)
-            ->whereIn('item_status', ['IN_STOCK', 'NEW'])
+            ->where('item_status', 'IN_STOCK')
+            ->where(function ($query): void {
+                $query->whereNull('item_condition')->orWhere('item_condition', 'NORMAL');
+            })
             ->groupBy('sku_id')
             ->select('sku_id', DB::raw('COUNT(*) AS cnt'))
             ->get();
 
+        // ERD bảng 20: item_instances không mang warehouse_id vì REQ-SRS-001 chỉ có
+        // một kho ACTIVE — count là toàn hệ thống và áp cho kho đang xét.
         foreach ($items as $item) {
             foreach ($warehouseIds as $whId) {
                 $key = $whId.'|'.$item->sku_id;

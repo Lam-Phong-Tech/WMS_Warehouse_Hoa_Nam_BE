@@ -28,8 +28,10 @@ class CurrentBaselinePhysicalCodeController extends Controller
         ]);
         $hasItem = ! empty($validated['item_id']);
         $hasContainer = ! empty($validated['container_id']);
+        // SRS v1.12 §7.3: Physical_Code – Item/Container = 1–0..1 (UNASSIGNED hợp lệ
+        // theo lifecycle §13.9); chỉ chặn khi map đồng thời cả hai target.
         if ($hasItem && $hasContainer) {
-            ApiError::abort(422, 'PHYSICAL_CODE_TARGET_XOR', 'Physical code phải map đúng một item_id hoặc container_id.');
+            ApiError::abort(422, 'PHYSICAL_CODE_TARGET_XOR', 'Physical code phải map tối đa một item_id hoặc container_id.');
         }
         $targetType = $validated['code_type'] ?? ($hasItem ? 'ITEM' : ($hasContainer ? 'CONTAINER' : 'UNKNOWN'));
         if ($targetType === 'ITEM' && ! in_array($validated['carrier_type'], ['QR', 'BARCODE', 'RFID', 'NFC'], true)) {
@@ -91,6 +93,102 @@ class CurrentBaselinePhysicalCodeController extends Controller
         }, 3);
 
         return $this->respondCreated(DB::table('physical_codes')->where('physical_code_id', $id)->first(), 'Physical code mapped to canonical target.');
+    }
+
+    /**
+     * Annex C assignItemRfid: PUT /outbound-documents/{id}/items/{item_id}/rfid.
+     *
+     * SRS §13.9 + DEC-RFID-FALLBACK-001: gắn RFID là thao tác stock-neutral, KHÔNG
+     * phải gate của Post Issue. Idempotent theo (item, hardware_uid): gọi lại cùng
+     * tag trả về chính mapping cũ thay vì tạo bản ghi trùng.
+     */
+    public function assignOutboundItemRfid(Request $request, string $documentId, string $itemId)
+    {
+        $validated = $request->validate([
+            'code_value' => ['nullable', 'string', 'max:200'],
+            'hardware_uid' => ['required', 'string', 'max:200'],
+        ]);
+        $hardwareUid = trim((string) $validated['hardware_uid']);
+        $codeValue = strtoupper(trim((string) ($validated['code_value'] ?? $hardwareUid)));
+
+        $matched = DB::table('outbound_item_matches as m')
+            ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
+            ->where('l.stock_document_id', $documentId)
+            ->where('m.item_id', $itemId)
+            ->where(function ($query): void {
+                $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+            })
+            ->exists();
+        if (! $matched) {
+            ApiError::abort(422, 'ITEM_NOT_MATCHED_IN_DOCUMENT', 'Item chưa được match vào phiếu xuất này nên không thể gắn RFID.');
+        }
+
+        $payload = DB::transaction(function () use ($itemId, $codeValue, $hardwareUid, $request): array {
+            $existing = DB::table('physical_codes')
+                ->where('hardware_uid', $hardwareUid)
+                ->lockForUpdate()
+                ->first();
+            if ($existing !== null) {
+                if ((string) ($existing->item_id ?? '') !== $itemId) {
+                    // §13.9: duplicate hardware UID không tự merge.
+                    ApiError::abort(409, 'DUPLICATE_HARDWARE_UID', 'Hardware UID đã gắn cho item khác.', [
+                        'physical_code_id' => (string) $existing->physical_code_id,
+                    ]);
+                }
+
+                return ['physical_code' => $existing, 'created' => false];
+            }
+
+            $duplicateValue = DB::table('physical_codes')->where('code_value', $codeValue)->exists();
+            if ($duplicateValue) {
+                ApiError::abort(409, 'DUPLICATE_CODE_VALUE', 'code_value đã tồn tại trong hệ thống.');
+            }
+
+            $physicalCodeId = (string) Str::uuid();
+            DB::table('physical_codes')->insert([
+                'physical_code_id' => $physicalCodeId,
+                'code_value' => $codeValue,
+                'code_type' => 'ITEM',
+                'carrier_type' => 'RFID',
+                'hardware_uid' => $hardwareUid,
+                'item_id' => $itemId,
+                'container_id' => null,
+                'assigned_object_type' => 'ITEM',
+                'assigned_object_id' => $itemId,
+                'is_primary' => false,
+                'assigned_at' => now(),
+                'assigned_by' => $this->actorId(),
+                'status' => 'ACTIVE',
+                'version' => 1,
+                'created_by' => $this->actorId(),
+                'updated_by' => $this->actorId(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            AuditLogger::record(
+                action: 'ASSIGN_ITEM_RFID',
+                objectType: 'physical_code',
+                objectId: $physicalCodeId,
+                actorId: $this->actorId(),
+                requestId: $request->attributes->get('request_id'),
+                afterData: ['item_id' => $itemId, 'hardware_uid' => $hardwareUid, 'stock_effect' => 'NONE'],
+            );
+
+            return [
+                'physical_code' => DB::table('physical_codes')->where('physical_code_id', $physicalCodeId)->first(),
+                'created' => true,
+            ];
+        }, 3);
+
+        return $this->respondSuccess([
+            'outbound_document_id' => $documentId,
+            'item_id' => $itemId,
+            'physical_code' => $payload['physical_code'],
+            'rfid_required_for_post' => false,
+            'stock_effect' => 'NONE',
+            'movement_created' => false,
+        ], $payload['created'] ? 'Đã gắn RFID cho item; RFID không phải điều kiện Post Issue.' : 'RFID đã gắn trước đó cho item này.');
     }
 
     public function update(Request $request, string $id)

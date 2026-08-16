@@ -66,7 +66,8 @@ class PhysicalCodeTest extends TestCase
     public function test_item_code_type_with_non_chip_carrier_is_rejected_on_update_too(): void
     {
         $headers = $this->authHeaders();
-        $code = PhysicalCode::create(['code_value' => 'PC-CARTON', 'code_type' => 'CARTON', 'carrier_type' => 'PLAIN_LABEL', 'status' => 'ACTIVE']);
+        // ERD bảng 21: carrier_type CHECK BARCODE/QR/RFID/NFC/MANUAL — carrier phi-chip hợp lệ là MANUAL.
+        $code = PhysicalCode::create(['code_value' => 'PC-CARTON', 'code_type' => 'CARTON', 'carrier_type' => 'MANUAL', 'status' => 'ACTIVE']);
 
         // Cố tình đổi code_type sang ITEM nhưng vẫn giữ carrier PLAIN_LABEL — phải bị chặn ở update.
         $response = $this->patchJson("/api/v1/physical-codes/{$code->physical_code_id}", ['code_type' => 'ITEM'], $headers);

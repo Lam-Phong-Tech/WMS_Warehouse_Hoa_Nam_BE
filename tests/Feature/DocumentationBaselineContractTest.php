@@ -53,6 +53,13 @@ class DocumentationBaselineContractTest extends TestCase
         }
 
         $this->assertCount($this->expectedOperationCount(), $operations);
+
+        // Mỗi path Annex C khai trong contract phải thực sự tồn tại — chống việc
+        // chỉ tăng số đếm mà không đăng ký route.
+        foreach ($this->contract['api']['annex_c_alignment']['operations'] as $operation) {
+            $this->assertArrayHasKey($operation, $operations, "Annex C operation [{$operation}] chưa được đăng ký route.");
+        }
+
         $joined = strtolower(implode("\n", array_keys($operations)));
         foreach ($this->contract['api']['forbidden_path_fragments'] as $fragment) {
             $this->assertStringNotContainsString($fragment, $joined, "Forbidden API scope [{$fragment}] is exposed.");
@@ -164,12 +171,22 @@ class DocumentationBaselineContractTest extends TestCase
 
     public function test_mutable_operational_storage_is_physical(): void
     {
+        // ERD bảng 33/34: bảng canonical là reversal_documents/reversal_lines (số nhiều);
+        // reversal_document/reversal_line (số ít) là compatibility view sau 000791.
         $requiredPhysical = [
             'inventory_balances', 'stock_movements', 'outbound_request_imports', 'outbound_request_import_rows',
             'outbound_requests', 'outbound_request_lines', 'inbound_scan_entries', 'outbound_item_matches',
             'label_snapshots', 'printer_configs', 'label_print_events', 'component_issue_documents',
-            'component_issue_lines', 'component_issue_items', 'putaway_events', 'reversal_document', 'reversal_line',
+            'component_issue_lines', 'component_issue_items', 'putaway_events',
         ];
+
+        // Migration 000791 (chỉ chạy trên PostgreSQL) đảo chiều: tên số nhiều thành
+        // bảng vật lý, số ít thành view. sqlite giữ baseline số ít làm bảng vật lý,
+        // nên yêu cầu "phải là storage ghi được" kiểm theo tên của từng driver.
+        $requiredPhysical = array_merge($requiredPhysical, DB::getDriverName() === 'pgsql'
+            ? ['reversal_documents', 'reversal_lines']
+            : ['reversal_document', 'reversal_line']);
+
         foreach ($requiredPhysical as $table) {
             $this->assertTrue($this->isPhysicalTable($table), "{$table} must be physical storage, not a compatibility view.");
         }
@@ -252,7 +269,11 @@ class DocumentationBaselineContractTest extends TestCase
         // Base manifest remains pinned to the approved source bundle. The project-owner
         // Flow 06 alignment adds exactly one non-stock-changing action: confirm that the
         // already printed document-level Packing Label has physically been applied.
-        return (int) $this->contract['api']['operation_count'] + 1;
+        // Annex C alignment adds the canonical §8.1/Annex C paths, each listed explicitly
+        // in the contract so any surface change stays reviewable.
+        return (int) $this->contract['api']['operation_count']
+            + 1
+            + count($this->contract['api']['annex_c_alignment']['operations']);
     }
 
     private function findRoute(string $method, string $uri): mixed

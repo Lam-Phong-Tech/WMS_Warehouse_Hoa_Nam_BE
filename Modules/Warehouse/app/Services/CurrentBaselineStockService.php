@@ -612,7 +612,11 @@ class CurrentBaselineStockService
 
     private function recordScanEvidence(object $document, object $line, ?object $item, array $payload, ?string $actorId): void
     {
-        if (! Schema::hasTable('scan_batch') || ! Schema::hasTable('scan_event')) {
+        // scan_event là compatibility VIEW từ 000791 — hasTable() trả false cho
+        // view trên PostgreSQL nên phải kiểm tra thêm hasView, nếu không evidence
+        // NFR-SRS-004 bị bỏ qua trong im lặng.
+        $hasScanEvent = Schema::hasTable('scan_event') || Schema::hasView('scan_event');
+        if (! Schema::hasTable('scan_batch') || ! $hasScanEvent) {
             return;
         }
 
@@ -683,20 +687,9 @@ class CurrentBaselineStockService
                 ]);
             }
 
-            foreach ($matches as $match) {
-                $hasRfid = DB::table('physical_codes')
-                    ->where('assigned_object_type', 'ITEM')
-                    ->where('assigned_object_id', $match->item_id)
-                    ->where('carrier_type', 'RFID')
-                    ->where('status', 'ACTIVE')
-                    ->whereNotNull('hardware_uid')
-                    ->exists();
-                if (! $hasRfid) {
-                    ApiError::abort(422, 'ITEM_RFID_REQUIRED', 'PRODUCT item thiếu active RFID/hardware_uid trước Post Issue.', [
-                        'item_id' => (string) $match->item_id,
-                    ]);
-                }
-            }
+            // SRS v1.12 REQ-SRS-011 / DEC-RFID-FALLBACK-001: RFID là OPTIONAL và
+            // không phải Post Issue gate — Barcode/QR là định danh hợp lệ. Guard
+            // ITEM_RFID_REQUIRED cũ (theo ERD proposal v1.6) đã bị gỡ theo baseline.
         }
     }
 
@@ -968,14 +961,15 @@ class CurrentBaselineStockService
         ?string $actorId,
         array $snapshot
     ): void {
-        if (! Schema::hasTable('posting_event')) {
+        if (! Schema::hasTable('posting_event') && ! Schema::hasView('posting_event')) {
             return;
         }
         DB::table('posting_event')->insert([
             'posting_event_id' => (string) Str::uuid(),
             'operation' => $operation,
             'idempotency_key' => $idempotencyKey,
-            'request_hash' => $requestHash,
+            // ERD bảng 31: request_hash char(64) — chuẩn hóa composite v2|md5 về sha256 digest.
+            'request_hash' => self::postingRequestDigest($requestHash),
             'status' => 'COMMITTED',
             'document_id' => $documentId,
             'movement_id' => $movementId,
@@ -983,5 +977,22 @@ class CurrentBaselineStockService
             'created_by' => $actorId,
             'created_at' => now(),
         ]);
+    }
+
+    /**
+     * posting_events.request_hash là char(64) (ERD bảng 31); IdempotencyStore
+     * trả composite "v2:<sha256>|md5:<md5>" — lấy đúng sha256 digest 64 ký tự,
+     * fallback hash lại cho định dạng lạ.
+     */
+    public static function postingRequestDigest(string $requestHash): string
+    {
+        if (preg_match('/^v2:([0-9a-f]{64})\|/', $requestHash, $m) === 1) {
+            return $m[1];
+        }
+        if (preg_match('/^[0-9a-f]{64}$/', $requestHash) === 1) {
+            return $requestHash;
+        }
+
+        return hash('sha256', $requestHash);
     }
 }

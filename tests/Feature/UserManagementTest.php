@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
@@ -126,6 +127,22 @@ class UserManagementTest extends TestCase
         $response = $this->deleteJson("/api/v1/users/{$target->user_id}", [], $headers);
 
         $response->assertOk();
+
+        // ERD delete policy: master không hard-delete — bản ghi và lịch sử giữ
+        // nguyên, người dùng chỉ bị vô hiệu hoá. Cách vô hiệu hoá được ghi nhận
+        // khác nhau theo driver nên kiểm đúng cơ chế của từng nhánh schema.
+        if (DB::getDriverName() === 'pgsql') {
+            // app_user là view; trigger hn_legacy_app_user_write ánh xạ DELETE
+            // thành status=INACTIVE trên bảng canonical app_users.
+            $this->assertDatabaseHas('app_users', [
+                'id' => $target->user_id,
+                'status' => 'INACTIVE',
+            ]);
+
+            return;
+        }
+
+        // sqlite giữ baseline app_user là bảng vật lý có SoftDeletes.
         $this->assertNull(User::find($target->user_id));
         $this->assertNotNull(User::withTrashed()->find($target->user_id));
     }

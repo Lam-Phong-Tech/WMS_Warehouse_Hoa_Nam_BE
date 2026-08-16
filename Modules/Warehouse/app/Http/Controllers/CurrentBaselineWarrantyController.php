@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\WarrantyPiiMasker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -43,7 +44,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'defect_code' => ['nullable', 'string', 'max:80'],
             'customer_name' => ['required', 'string', 'max:200'],
             'customer_phone' => ['required', 'string', 'max:30'],
-            'customer_address' => ['nullable', 'string', 'max:1000'],
+            // Annex A/D: customer_address tối đa 500 ký tự.
+            'customer_address' => ['nullable', 'string', 'max:500'],
             'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
             'description' => ['required', 'string', 'max:2000'],
             'reported_defect' => ['nullable', 'string', 'max:2000'],
@@ -187,6 +189,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'status' => ['sometimes', 'in:RECEIVED,CHECKING,REPAIRING,COMPLETED,RETURNED,CANCELLED'],
             'condition_status' => ['nullable', 'string', 'max:30'],
             'description' => ['nullable', 'string', 'max:2000'],
+            // §13.8: ghi chú timeline đi vào warranty_event.note, KHÔNG ghi đè
+            // mô tả tiếp nhận gốc (description) của case.
+            'note' => ['nullable', 'string', 'max:2000'],
             'confirmed_defect' => ['nullable', 'string', 'max:2000'],
             'accessories_received' => ['nullable', 'string', 'max:1000'],
             'received_condition' => ['nullable', 'string', 'max:500'],
@@ -235,7 +240,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ApiError::abort(409, 'INVALID_WARRANTY_TRANSITION', "Không cho phép {$case->status} -> {$target}.");
             }
 
-            $cancelReason = trim((string) ($validated['cancel_reason'] ?? $validated['description'] ?? ''));
+            $cancelReason = trim((string) ($validated['cancel_reason'] ?? $validated['note'] ?? $validated['description'] ?? ''));
             if ($target === 'CANCELLED' && $case->status !== 'CANCELLED' && $cancelReason === '') {
                 ApiError::abort(422, 'CANCEL_REASON_REQUIRED', 'Hủy case bảo hành bắt buộc có lý do/bằng chứng.');
             }
@@ -262,11 +267,11 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'event_type' => self::STATUS_EVENT_TYPES[$target] ?? 'STATUS_CHANGE',
                     'from_status' => $case->status,
                     'to_status' => $target,
-                    'note' => $validated['description'] ?? ($target === 'CANCELLED' ? $cancelReason : null),
+                    'note' => $validated['note'] ?? $validated['description'] ?? ($target === 'CANCELLED' ? $cancelReason : null),
                     'created_by' => $this->currentActorId(),
                     'event_at' => now(),
                 ]);
-            } elseif (($validated['description'] ?? $validated['confirmed_defect'] ?? null) !== null) {
+            } elseif (($validated['note'] ?? $validated['description'] ?? $validated['confirmed_defect'] ?? null) !== null) {
                 DB::table('warranty_event')->insert([
                     'warranty_event_id' => (string) Str::uuid(),
                     'warranty_case_id' => $id,
@@ -395,9 +400,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         $customerPhone = (string) ($case->customer_phone ?? '');
         $customerAddress = (string) ($case->customer_address ?? '');
         if (! $request->user()?->hasPermission('warranty.pii.view')) {
-            $customerName = $this->mask($customerName);
-            $customerPhone = $this->mask($customerPhone);
-            $customerAddress = $this->mask($customerAddress);
+            $customerName = WarrantyPiiMasker::name($customerName);
+            $customerPhone = WarrantyPiiMasker::phone($customerPhone);
+            $customerAddress = WarrantyPiiMasker::address($customerAddress);
         }
 
         return [
@@ -466,10 +471,5 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         $id = auth('api')->id();
 
         return $id === null ? null : (string) $id;
-    }
-
-    private function mask(string $value): string
-    {
-        return $value === '' ? '' : mb_substr($value, 0, 1).'***';
     }
 }

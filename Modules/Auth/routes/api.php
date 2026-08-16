@@ -40,6 +40,9 @@ Route::prefix('v1')->group(function (): void {
             ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
         Route::post('roles/{id}/permissions', [RoleController::class, 'assignPermissions'])
             ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
+        // Annex C replaceRolePermissions dùng PUT (thay toàn bộ tập quyền).
+        Route::put('roles/{id}/permissions', [RoleController::class, 'assignPermissions'])
+            ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
 
         Route::get('permissions', [PermissionController::class, 'index'])->middleware('permission:iam.permission.view');
         Route::get('permissions/{id}', [PermissionController::class, 'show'])->middleware('permission:iam.permission.view');

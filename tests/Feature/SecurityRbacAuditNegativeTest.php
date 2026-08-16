@@ -240,11 +240,7 @@ class SecurityRbacAuditNegativeTest extends TestCase
      */
     public function test_user_without_warehouse_scope_gets_403(): void
     {
-        $warehouse = Warehouse::create([
-            'code' => 'KHO-SCOPE',
-            'name' => 'Kho Scope Test',
-            'status' => 'ACTIVE',
-        ]);
+        $warehouse = $this->ensureActiveWarehouse('KHO-SCOPE', 'Kho Scope Test');
 
         $this->seedRoleWithPermissions('WAREHOUSE_VIEWER_SCOPE', ['warehouse.view']);
         $user = $this->createUser('scopeuser', 'WAREHOUSE_VIEWER_SCOPE');
@@ -421,8 +417,9 @@ class SecurityRbacAuditNegativeTest extends TestCase
     public function test_role_based_navigation_capabilities(): void
     {
         // Create warehouses for testing
-        Warehouse::create(['code' => 'KHO-NAV1', 'name' => 'Kho Nav 1', 'status' => 'ACTIVE']);
-        Warehouse::create(['code' => 'KHO-NAV2', 'name' => 'Kho Nav 2', 'status' => 'ACTIVE']);
+        // REQ-SRS-001: chỉ một warehouse ACTIVE; kho thứ hai để INACTIVE.
+        $this->ensureActiveWarehouse('KHO-NAV1', 'Kho Nav 1');
+        Warehouse::create(['code' => 'KHO-NAV2', 'name' => 'Kho Nav 2', 'status' => 'INACTIVE']);
 
         $this->seedRoleWithPermissions('VIEWER_NAV', ['warehouse.view', 'stock_document.view']);
         $this->seedRoleWithPermissions('EDITOR_NAV', [

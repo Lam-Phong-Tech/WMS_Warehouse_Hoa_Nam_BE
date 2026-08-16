@@ -5,13 +5,14 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Agency;
 use Modules\Warehouse\Models\DefectCatalog;
 use Modules\Warehouse\Models\InventoryBalance;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
@@ -34,17 +35,18 @@ class ReportFlow06IntegrationTest extends TestCase
 
     private Warehouse $warehouse;
 
-    private Product $productA;
+    private Sku $productA;
 
-    private Product $productB;
+    private Sku $productB;
 
     protected function setUp(): void
     {
         parent::setUp();
         [$this->user, $this->token] = $this->createSuperAdmin();
-        $this->warehouse = Warehouse::create(['code' => 'KHO-RPT', 'name' => 'Kho test report', 'status' => 'ACTIVE']);
-        $this->productA = Product::create(['code' => 'SP-RPT-A', 'name' => 'Sản phẩm A', 'status' => 'ACTIVE']);
-        $this->productB = Product::create(['code' => 'SP-RPT-B', 'name' => 'Sản phẩm B', 'status' => 'ACTIVE']);
+        $this->warehouse = $this->ensureActiveWarehouse('KHO-RPT', 'Kho test report');
+        // ERD bảng 16: skus.sku_type NOT NULL (PRODUCT/COMPONENT), không có default.
+        $this->productA = Sku::create(['code' => 'SP-RPT-A', 'name' => 'Sản phẩm A', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $this->productB = Sku::create(['code' => 'SP-RPT-B', 'name' => 'Sản phẩm B', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
     }
 
     // ── 1. Inventory Balance ─────────────────────────────────
@@ -428,7 +430,8 @@ class ReportFlow06IntegrationTest extends TestCase
             'defect_code' => 'LH-01', 'defect_name' => 'Lỗi hỏng', 'status' => 'ACTIVE',
         ]);
         $this->createWarrantyCase('WC-RPT-001', 'RECEIVED', $defect->defect_id);
-        $this->createWarrantyCase('WC-RPT-002', 'INSPECTING', $defect->defect_id);
+        // ERD/SRS §6: warranty status hợp lệ RECEIVED/CHECKING/REPAIRING/COMPLETED/RETURNED/CANCELLED.
+        $this->createWarrantyCase('WC-RPT-002', 'CHECKING', $defect->defect_id);
 
         $today = now()->toDateString();
         $from = now()->subDays(1)->toDateString();
@@ -566,10 +569,12 @@ class ReportFlow06IntegrationTest extends TestCase
 
     public function test_pagination_returns_subset_when_per_page_specified(): void
     {
-        for ($i = 0; $i < 5; $i++) {
+        // ERD §0.2: stock_status CHECK AVAILABLE/NON_SELLABLE/DEFECTIVE/QUARANTINE
+        // + unique(warehouse, sku, status) — 5 dòng = 4 status của A + 1 của B.
+        foreach ($this->paginationBalanceRows() as $i => [$productId, $status]) {
             InventoryBalance::create([
-                'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
-                'stock_status' => "STATUS_{$i}", 'on_hand_qty' => $i + 1, 'available_qty' => $i + 1,
+                'warehouse_id' => $this->warehouse->id, 'product_id' => $productId,
+                'stock_status' => $status, 'on_hand_qty' => $i + 1, 'available_qty' => $i + 1,
                 'reserved_qty' => 0, 'version' => 1,
             ]);
         }
@@ -586,10 +591,10 @@ class ReportFlow06IntegrationTest extends TestCase
 
     public function test_pagination_page_2_returns_correct_slice(): void
     {
-        for ($i = 0; $i < 5; $i++) {
+        foreach ($this->paginationBalanceRows() as $i => [$productId, $status]) {
             InventoryBalance::create([
-                'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
-                'stock_status' => "STATUS_{$i}", 'on_hand_qty' => $i + 1, 'available_qty' => $i + 1,
+                'warehouse_id' => $this->warehouse->id, 'product_id' => $productId,
+                'stock_status' => $status, 'on_hand_qty' => $i + 1, 'available_qty' => $i + 1,
                 'reserved_qty' => 0, 'version' => 1,
             ]);
         }
@@ -603,10 +608,10 @@ class ReportFlow06IntegrationTest extends TestCase
 
     public function test_no_pagination_when_per_page_not_sent(): void
     {
-        for ($i = 0; $i < 3; $i++) {
+        foreach (['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE'] as $status) {
             InventoryBalance::create([
                 'warehouse_id' => $this->warehouse->id, 'product_id' => $this->productA->id,
-                'stock_status' => "STATUS_{$i}", 'on_hand_qty' => 1, 'available_qty' => 1,
+                'stock_status' => $status, 'on_hand_qty' => 1, 'available_qty' => 1,
                 'reserved_qty' => 0, 'version' => 1,
             ]);
         }
@@ -616,6 +621,101 @@ class ReportFlow06IntegrationTest extends TestCase
         $data = $response->json('data');
         $this->assertCount(3, $data['rows']);
         $this->assertArrayNotHasKey('pagination', $data);
+    }
+
+    public function test_movement_trace_paginates_in_sql_but_summary_covers_whole_period(): void
+    {
+        $today = now()->toDateString();
+        foreach ([5, 3, 2, -4] as $delta) {
+            $this->createMovement($delta > 0 ? 'RECEIPT' : 'ISSUE', $this->productA, $delta, $today);
+        }
+
+        $response = $this->api("/api/v1/reports/movement-trace?from_date={$today}&to_date={$today}&per_page=2&page=1")
+            ->assertOk();
+
+        // Trang chỉ có 2 dòng nhưng summary phải tính trên cả 4 movement.
+        $this->assertCount(2, $response->json('data.rows'));
+        $this->assertSame(4, $response->json('data.pagination.total'));
+        $this->assertSame(2, $response->json('data.pagination.last_page'));
+        $this->assertSame(4, $response->json('data.summary.total_movements'));
+        $this->assertEqualsWithDelta(6.0, (float) $response->json('data.summary.net_effect'), 0.001);
+    }
+
+    // ── 12b. Annex C endpoints (REQ-SRS-031/032) ─────────────
+
+    public function test_inventory_ledger_report_returns_signed_movement_rows(): void
+    {
+        $today = now()->toDateString();
+        $this->createMovement('RECEIPT', $this->productA, 7, $today);
+
+        $this->api("/api/v1/reports/inventory-ledger?from_date={$today}&to_date={$today}")
+            ->assertOk()
+            ->assertJsonPath('data.rows.0.product_code', 'SP-RPT-A')
+            ->assertJsonPath('data.rows.0.qty_delta', 7);
+    }
+
+    public function test_report_by_code_dispatches_every_hub_report(): void
+    {
+        $hub = $this->api('/api/v1/reports/hub')->assertOk()->json('data');
+        $today = now()->toDateString();
+
+        foreach ($hub as $entry) {
+            $this->api("/api/v1/reports/{$entry['key']}?per_page=5&from_date={$today}&to_date={$today}")
+                ->assertOk()
+                ->assertJsonPath('success', true);
+        }
+    }
+
+    public function test_report_by_code_rejects_unknown_code(): void
+    {
+        $this->api('/api/v1/reports/khong-ton-tai')
+            ->assertNotFound()
+            ->assertJsonPath('error.code', 'RESOURCE_NOT_FOUND');
+    }
+
+    public function test_create_report_export_requires_idempotency_key_and_returns_job(): void
+    {
+        $this->postJson('/api/v1/reports/export', ['report_code' => 'inventory-balance'], [
+            'Authorization' => "Bearer {$this->token}",
+        ])->assertStatus(428);
+
+        $response = $this->postJson('/api/v1/reports/export', [
+            'report_code' => 'inventory-balance',
+            'format' => 'xlsx',
+        ], [
+            'Authorization' => "Bearer {$this->token}",
+            'Idempotency-Key' => 'report-export-001',
+        ])->assertCreated();
+
+        $response->assertJsonPath('data.report_code', 'inventory-balance')
+            ->assertJsonPath('data.status', 'READY')
+            ->assertJsonPath('data.format', 'xlsx');
+        $this->assertNotEmpty($response->json('data.export_job_id'));
+        $this->assertStringContainsString('/export-excel', (string) $response->json('data.download_url'));
+
+        // Replay cùng key/payload trả lại đúng job cũ (AC-GWT-IDEMP-001).
+        $replay = $this->postJson('/api/v1/reports/export', [
+            'report_code' => 'inventory-balance',
+            'format' => 'xlsx',
+        ], [
+            'Authorization' => "Bearer {$this->token}",
+            'Idempotency-Key' => 'report-export-001',
+        ])->assertCreated();
+        $this->assertSame($response->json('data.export_job_id'), $replay->json('data.export_job_id'));
+        $this->assertSame('true', $replay->headers->get('Idempotent-Replay'));
+    }
+
+    public function test_create_report_export_is_audited(): void
+    {
+        $this->postJson('/api/v1/reports/export', ['report_code' => 'movement-trace'], [
+            'Authorization' => "Bearer {$this->token}",
+            'Idempotency-Key' => 'report-export-audit-001',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('audit_log', [
+            'object_type' => 'report_export',
+            'action' => 'REPORT_EXPORT_REQUESTED',
+        ]);
     }
 
     // ── 13. RBAC ─────────────────────────────────────────────
@@ -679,7 +779,7 @@ class ReportFlow06IntegrationTest extends TestCase
         return [$user, JWTAuth::fromUser($user)];
     }
 
-    private function createMovement(string $type, Product $product, float $qty, ?string $date = null): void
+    private function createMovement(string $type, Sku $product, float $qty, ?string $date = null): void
     {
         $date ??= now()->toDateString();
         StockMovement::create([
@@ -692,10 +792,24 @@ class ReportFlow06IntegrationTest extends TestCase
             'qty_before' => 0,
             'qty_delta' => $qty,
             'qty_after' => abs($qty),
+            // ERD bảng 30: quantity NOT NULL và luôn dương; chiều nằm ở movement_type.
+            'quantity' => abs($qty),
             'created_by' => $this->user->user_id,
             'occurred_at' => "{$date} 12:00:00",
             'created_at' => "{$date} 12:00:00",
         ]);
+    }
+
+    /** @return array<int, array{0: string, 1: string}> 5 tổ hợp (product, status) hợp lệ theo ERD. */
+    private function paginationBalanceRows(): array
+    {
+        return [
+            [$this->productA->id, 'AVAILABLE'],
+            [$this->productA->id, 'NON_SELLABLE'],
+            [$this->productA->id, 'DEFECTIVE'],
+            [$this->productA->id, 'QUARANTINE'],
+            [$this->productB->id, 'AVAILABLE'],
+        ];
     }
 
     private function createStockDocument(string $docType, string $status, string $date, string $docNo, ?string $agencyId = null): string
@@ -710,6 +824,10 @@ class ReportFlow06IntegrationTest extends TestCase
             'src_warehouse_id' => $docType === 'issue' ? $this->warehouse->id : null,
             'dst_warehouse_id' => $docType === 'receipt' ? $this->warehouse->id : null,
             'agency_id' => $agencyId,
+            // SRS v1.12 §15: receiver_name NOT NULL sau Confirm — outbound mirror
+            // (outbound_documents.recipient_name NOT NULL) yêu cầu giá trị thật.
+            'recipient_name' => $docType === 'issue' ? 'Người nhận RPT' : null,
+            'recipient_address' => $docType === 'issue' ? 'Địa chỉ RPT' : null,
             'posted_at' => $status === 'POSTED' ? now() : null,
             'posted_by' => $status === 'POSTED' ? $this->user->user_id : null,
             'created_by' => $this->user->user_id,
@@ -729,7 +847,8 @@ class ReportFlow06IntegrationTest extends TestCase
             'line_no' => 1,
             'product_id' => $productId,
             'qty_planned' => $planned,
-            'qty_actual' => $scanned,
+            // chk_stock_document_line_integer_positive: qty_actual > 0 (full-post: actual = planned).
+            'qty_actual' => $planned,
             'scanned_qty' => $scanned,
             'created_at' => now(),
             'updated_at' => now(),
@@ -740,11 +859,27 @@ class ReportFlow06IntegrationTest extends TestCase
 
     private function createOutboundItemMatch(string $lineId, bool $newItem = false): string
     {
+        // FK item_instances: match phải trỏ item thật (ERD bảng 41).
+        $itemId = (string) Str::uuid();
+        $itemRow = [
+            'item_id' => $itemId,
+            'sku_id' => $this->productA->id,
+            'serial_number' => 'SN-MATCH-'.Str::upper(Str::random(8)),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+        // status chỉ tồn tại ở nhánh ERD PostgreSQL (migration thêm cột dùng cú
+        // pháp PG nên sqlite bỏ qua) và ở đó là NOT NULL — set theo driver.
+        if (Schema::hasColumn('item_instances', 'status')) {
+            $itemRow['status'] = 'IN_STOCK';
+        }
+        DB::table('item_instances')->insert($itemRow);
+
         $id = (string) Str::uuid();
         DB::table('outbound_item_matches')->insert([
             'id' => $id,
             'outbound_line_id' => $lineId,
-            'item_id' => (string) Str::uuid(),
+            'item_id' => $itemId,
             'quantity' => 1,
             'created_at' => now(),
             'updated_at' => now(),
@@ -810,10 +945,18 @@ class ReportFlow06IntegrationTest extends TestCase
 
     private function createWarrantyCase(string $code, string $status, ?string $defectId = null): void
     {
+        // chk_erd_warranty_identification_shape: IDENTIFIED đòi item_id;
+        // report fixture không cần item nên dùng shape TEMP_ONLY đầy đủ.
         DB::table('warranty_case')->insert([
             'warranty_case_id' => (string) Str::uuid(),
             'warranty_case_code' => $code,
-            'identification_status' => 'IDENTIFIED',
+            'identification_status' => 'TEMP_ONLY',
+            'temporary_item_code' => 'TEMP-'.Str::upper(Str::random(8)),
+            'missing_code_reason' => 'Mất tem mã',
+            'manual_product_description' => 'Máy khoan mô tả thủ công',
+            // ERD bảng 45: customer_name/customer_phone NOT NULL (SCR-WAR-01 bắt buộc).
+            'customer_name' => 'Khách RPT',
+            'customer_phone' => '0900000005',
             'status' => $status,
             'defect_id' => $defectId,
             'version' => 1,

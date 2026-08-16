@@ -50,7 +50,7 @@ class SkuGovernanceController extends Controller
         $validated = $request->validate([
             'code_value' => ['required', 'string', 'max:150'],
             'code_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'SERIAL'])],
-            'carrier_type' => ['sometimes', Rule::in(['UNIT', 'PACKAGE', 'LABEL', 'TAG'])],
+            'carrier_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL'])],
             'status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE'])],
             'version' => ['sometimes', 'integer', 'min:1'],
         ]);
@@ -101,7 +101,7 @@ class SkuGovernanceController extends Controller
             'physical_codes' => ['sometimes', 'array', 'max:100'],
             'physical_codes.*.code_value' => ['required', 'string', 'max:150'],
             'physical_codes.*.code_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'SERIAL'])],
-            'physical_codes.*.carrier_type' => ['sometimes', Rule::in(['UNIT', 'PACKAGE', 'LABEL', 'TAG'])],
+            'physical_codes.*.carrier_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL'])],
             'physical_codes.*.status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE'])],
         ];
     }

@@ -31,7 +31,7 @@ class ScanClassificationService
     ): array {
         $code = trim($rawCode);
 
-        $physicalCode = Schema::hasTable('physical_code')
+        $physicalCode = (Schema::hasTable('physical_code') || Schema::hasView('physical_code'))
             ? DB::table('physical_code')->where('code_value', $code)->first()
             : null;
 
@@ -140,11 +140,13 @@ class ScanClassificationService
             }
         }
 
-        if (Schema::hasTable('item_instance')) {
-            $query = DB::table('item_instance');
+        // Canonical subledger là item_instances (số nhiều) — luồng Post Receipt ghi vào
+        // đây (DEC-INV-001); bảng không có warehouse_id vì REQ-SRS-001 một kho ACTIVE.
+        if (Schema::hasTable('item_instances') || Schema::hasView('item_instances')) {
+            $query = DB::table('item_instances');
             if (is_string($assignedId) && $assignedId !== '') {
                 $query->where('item_id', $assignedId);
-            } elseif (Schema::hasColumn('item_instance', 'physical_code_id')) {
+            } elseif (Schema::hasColumn('item_instances', 'physical_code_id')) {
                 $query->where('physical_code_id', $physicalCodeId);
             } else {
                 $query->whereRaw('1 = 0');
@@ -152,11 +154,12 @@ class ScanClassificationService
 
             $item = $query->first();
             if ($item !== null) {
-                $this->assertWarehouseMatch($item->warehouse_id ?? null, $warehouse, $hideCrossWarehouseExistence);
+                $condition = strtoupper((string) ($item->item_condition ?? 'NORMAL'));
+                $stockStatus = $condition === 'NORMAL' ? 'AVAILABLE' : $condition;
                 $this->assertContextCompatible(
                     'ITEM',
                     (string) ($item->item_status ?? 'IN_STOCK'),
-                    (string) ($item->condition_status ?? 'AVAILABLE'),
+                    $stockStatus,
                     $context
                 );
 
@@ -165,9 +168,10 @@ class ScanClassificationService
                     'item_id' => (string) $item->item_id,
                     'sku_id' => $item->sku_id ?? null,
                     'product_id' => $item->sku_id ?? null,
-                    'stock_status' => (string) ($item->condition_status ?? 'AVAILABLE'),
+                    'serial_no' => $item->serial_number ?? null,
+                    'stock_status' => $stockStatus,
                     'object_status' => (string) ($item->item_status ?? 'IN_STOCK'),
-                    'container_id' => $item->container_id ?? null,
+                    'container_id' => $item->current_container_id ?? $item->container_id ?? null,
                     'location_hint' => $item->location_hint ?? null,
                 ];
             }
@@ -212,7 +216,7 @@ class ScanClassificationService
         Warehouse $warehouse,
         bool $hideCrossWarehouseExistence
     ): ?array {
-        if (! Schema::hasTable('container')) {
+        if (! Schema::hasTable('container') && ! Schema::hasView('container')) {
             return null;
         }
 
@@ -231,7 +235,7 @@ class ScanClassificationService
         Warehouse $warehouse,
         bool $hideCrossWarehouseExistence
     ): ?array {
-        if (! Schema::hasTable('container')) {
+        if (! Schema::hasTable('container') && ! Schema::hasView('container')) {
             return null;
         }
 
@@ -258,9 +262,19 @@ class ScanClassificationService
         Warehouse $warehouse,
         bool $hideCrossWarehouseExistence
     ): array {
-        $this->assertWarehouseMatch($container->warehouse_id ?? null, $warehouse, $hideCrossWarehouseExistence);
+        // ERD bảng 22: containers không có warehouse_id (REQ-SRS-001 một kho ACTIVE);
+        // legacy view chiếu NULL nên chỉ assert khi object thật sự mang warehouse_id.
+        $containerWarehouseId = $container->warehouse_id ?? null;
+        if (is_string($containerWarehouseId) && $containerWarehouseId !== '') {
+            $this->assertWarehouseMatch($containerWarehouseId, $warehouse, $hideCrossWarehouseExistence);
+        }
         $status = (string) ($container->status ?? 'ACTIVE');
-        $this->assertActiveStatus($status, 'SCAN_CONTAINER_INACTIVE', 'Container đang không hoạt động.');
+        // ERD bảng 22: containers.status ∈ EMPTY/IN_STOCK/PARTIAL/ISSUED/
+        // RECEIVED_PENDING_PUTAWAY/STORED/CLOSED — không có 'ACTIVE'. Chỉ
+        // CLOSED/ISSUED mới là "không còn dùng được" cho scan.
+        if (in_array(strtoupper($status), ['CLOSED', 'ISSUED'], true)) {
+            ApiError::abort(409, 'SCAN_CONTAINER_INACTIVE', 'Container đã CLOSED/ISSUED nên không dùng cho scan mới.', ['status' => $status]);
+        }
         $this->assertContextCompatible('CONTAINER', $status, 'AVAILABLE', $context);
 
         $productId = $container->primary_product_id ?? $container->sku_id ?? null;
@@ -283,7 +297,7 @@ class ScanClassificationService
      */
     private function resolveSkuByCode(string $code, Warehouse $warehouse): ?array
     {
-        if (! Schema::hasTable('products')) {
+        if (! Schema::hasTable('products') && ! Schema::hasView('products')) {
             return null;
         }
 
@@ -302,7 +316,7 @@ class ScanClassificationService
      */
     private function resolveSkuById(mixed $assignedId, Warehouse $warehouse): ?array
     {
-        if (! Schema::hasTable('products') || ! is_string($assignedId) || $assignedId === '') {
+        if (! Schema::hasTable('products') && ! Schema::hasView('products') || ! is_string($assignedId) || $assignedId === '') {
             return null;
         }
 
@@ -359,7 +373,7 @@ class ScanClassificationService
         }
 
         $acceptableIds = [(string) $warehouse->id];
-        if (Schema::hasTable('warehouse')
+        if ((Schema::hasTable('warehouse') || Schema::hasView('warehouse'))
             && Schema::hasColumn('warehouse', 'warehouse_id')
             && Schema::hasColumn('warehouse', 'warehouse_code')) {
             $mirrorId = DB::table('warehouse')
@@ -388,8 +402,14 @@ class ScanClassificationService
         $normalizedObjectStatus = strtoupper($objectStatus);
         $normalizedStockStatus = strtoupper($stockStatus);
 
+        // Container dùng vòng đời riêng theo ERD bảng 22: STORED/PARTIAL vẫn là
+        // container đang chứa hàng nên hợp lệ cho ngữ cảnh OUTBOUND.
+        $outboundReadyStatuses = $classification === 'CONTAINER'
+            ? ['IN_STOCK', 'ACTIVE', 'STORED', 'PARTIAL']
+            : ['IN_STOCK', 'ACTIVE'];
+
         if ($context === 'OUTBOUND'
-            && ($normalizedObjectStatus !== 'IN_STOCK' && $normalizedObjectStatus !== 'ACTIVE'
+            && (! in_array($normalizedObjectStatus, $outboundReadyStatuses, true)
                 || $normalizedStockStatus !== 'AVAILABLE')) {
             ApiError::abort(409, 'SCAN_CONTEXT_CONFLICT', 'Đối tượng scan không đủ điều kiện cho ngữ cảnh OUTBOUND.', [
                 'classification' => $classification,

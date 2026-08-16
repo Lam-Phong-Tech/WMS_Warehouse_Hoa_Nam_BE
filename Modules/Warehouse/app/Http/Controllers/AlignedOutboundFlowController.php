@@ -100,9 +100,11 @@ class AlignedOutboundFlowController extends Controller
 
     public function storePackingLabel(Request $request)
     {
+        // SRS §5.2 + §15 + AC-GWT-OUTBOUND-REQUEST-001: address/phone nullable,
+        // "Missing address/phone render blank" — không được chặn tạo nhãn khi thiếu SĐT.
         $validated = $request->validate([
             'outbound_document_id' => ['required', 'uuid', 'exists:stock_documents,id'],
-            'customer_phone' => ['required', 'string', 'min:6', 'max:50'],
+            'customer_phone' => ['nullable', 'string', 'max:50'],
         ]);
         $documentId = (string) $validated['outbound_document_id'];
 
@@ -140,13 +142,18 @@ class AlignedOutboundFlowController extends Controller
 
             $snapshotId = (string) Str::uuid();
             $labelCode = 'PL-'.(string) $document->doc_no;
+            $sourceRequestNo = $document->outbound_request_id !== null
+                ? (string) (DB::table('outbound_requests')->where('id', $document->outbound_request_id)->value('request_no') ?? '')
+                : '';
+            $customerPhone = trim((string) ($validated['customer_phone'] ?? ''));
             $payload = [
                 'label_code' => $labelCode,
                 'outbound_no' => (string) $document->doc_no,
                 'outbound_document_id' => $documentId,
+                'source_request_no' => $sourceRequestNo,
                 'recipient_name' => (string) ($document->recipient_name ?? ''),
                 'recipient_address' => (string) ($document->recipient_address ?? ''),
-                'customer_phone' => trim((string) $validated['customer_phone']),
+                'customer_phone' => $customerPhone,
                 'item_count' => (int) $activeMatches->sum('quantity'),
                 'sku_count' => $lines->pluck('product_id')->unique()->count(),
                 'sku_summary' => $lines->map(fn (object $line): array => [
@@ -157,6 +164,9 @@ class AlignedOutboundFlowController extends Controller
                 ])->values()->all(),
                 'created_at' => now()->toIso8601String(),
             ];
+            // Annex A Packing_Label_Snapshot có content_hash; §5.2 yêu cầu Post Issue
+            // kiểm tra "snapshot còn khớp outbound content".
+            $payload['content_hash'] = $this->labelContentHash($documentId);
 
             DB::table('label_snapshots')->insert([
                 'id' => $snapshotId,
@@ -196,7 +206,78 @@ class AlignedOutboundFlowController extends Controller
         return $this->respondCreated($this->labelPayload($snapshotId), 'Đã tạo 01 Packing Label bất biến cho phiếu/lô xuất; chưa trừ tồn.');
     }
 
+    /**
+     * Annex C previewPackingLabel. SRS §6: DRAFT/PENDING_PRINT → PREVIEWED.
+     * Stock-neutral; chỉ được thao tác khi outbound còn pre-completion.
+     */
+    public function previewPackingLabel(Request $request, string $documentId, string $labelId)
+    {
+        return $this->transitionLabel($request, $documentId, $labelId, 'PREVIEWED', ['DRAFT', 'PENDING_PRINT', 'PREVIEWED'], 'PACKING_LABEL_PREVIEWED', 'Đã preview Packing Label; chưa in, chưa trừ tồn.');
+    }
+
+    /**
+     * Annex C readyPackingLabel. SRS §6 + DR_HN_20260815: Ready đóng băng snapshot
+     * immutable (payload đã bất biến từ lúc tạo) và mở cổng cho lệnh in.
+     */
+    public function readyPackingLabel(Request $request, string $documentId, string $labelId)
+    {
+        return $this->transitionLabel($request, $documentId, $labelId, 'READY_TO_PRINT', ['DRAFT', 'PENDING_PRINT', 'PREVIEWED', 'READY_TO_PRINT'], 'PACKING_LABEL_READY', 'Packing Label đã sẵn sàng in; snapshot bất biến.');
+    }
+
+    /**
+     * @param  list<string>  $allowedFrom
+     */
+    private function transitionLabel(Request $request, string $documentId, string $labelId, string $target, array $allowedFrom, string $auditAction, string $message)
+    {
+        return DB::transaction(function () use ($request, $documentId, $labelId, $target, $allowedFrom, $auditAction, $message) {
+            $snapshot = DB::table('label_snapshots')->where('id', $labelId)->lockForUpdate()->first();
+            if ($snapshot === null || (string) $snapshot->outbound_document_id !== $documentId) {
+                ApiError::abort(404, 'LABEL_NOT_FOUND', 'Không tìm thấy Packing Label của phiếu xuất này.');
+            }
+
+            $document = $this->lockDocument($documentId);
+            if (! in_array((string) $document->status, ['DRAFT', 'SCANNING'], true)) {
+                ApiError::abort(409, 'STATE_CONFLICT', 'Preview/Ready chỉ thực hiện khi phiếu xuất chưa hoàn tất.');
+            }
+
+            $current = (string) $snapshot->status;
+            if (! in_array($current, $allowedFrom, true)) {
+                ApiError::abort(409, 'LABEL_STATE_CONFLICT', "Không thể chuyển Packing Label từ {$current} sang {$target}.");
+            }
+
+            if ($current !== $target) {
+                DB::table('label_snapshots')->where('id', $labelId)->update([
+                    'status' => $target,
+                    'version' => ((int) ($snapshot->version ?? 0)) + 1,
+                    'updated_at' => now(),
+                    'updated_by' => $this->actorId(),
+                ]);
+                AuditLogger::record(
+                    action: $auditAction,
+                    objectType: 'label_snapshot',
+                    objectId: $labelId,
+                    actorId: $this->actorId(),
+                    requestId: $request->attributes->get('request_id'),
+                    afterData: ['from_status' => $current, 'to_status' => $target, 'stock_effect' => 'NONE'],
+                );
+            }
+
+            return $this->respondSuccess($this->labelPayload($labelId) + [
+                'stock_effect' => 'NONE',
+                'movement_created' => false,
+            ], $message);
+        }, 3);
+    }
+
     public function applyPackingLabel(Request $request, string $id)
+    {
+        // lockForUpdate chỉ có hiệu lực trong transaction (PG autocommit nhả lock ngay).
+        return DB::transaction(function () use ($request, $id) {
+            return $this->applyPackingLabelLocked($request, $id);
+        }, 3);
+    }
+
+    private function applyPackingLabelLocked(Request $request, string $id)
     {
         $snapshot = DB::table('label_snapshots')->where('id', $id)->lockForUpdate()->first();
         if ($snapshot === null) {
@@ -270,6 +351,11 @@ class AlignedOutboundFlowController extends Controller
                     if ($label->applied_at === null) {
                         ApiError::abort(422, 'PACKING_LABEL_NOT_APPLIED', 'Phải xác nhận đã dán Packing Label trước Post Issue.');
                     }
+                    // §5.2: snapshot phải còn khớp outbound content tại thời điểm Post.
+                    $snapshotHash = (string) (json_decode((string) $label->label_payload, true)['content_hash'] ?? '');
+                    if ($snapshotHash !== '' && $snapshotHash !== $this->labelContentHash($id)) {
+                        ApiError::abort(409, 'LABEL_SNAPSHOT_STALE', 'Nội dung phiếu đã đổi sau khi in nhãn; phải in lại nhãn khớp nội dung mới.');
+                    }
 
                     DB::table('stock_documents')->where('id', $id)->update([
                         'version' => $expectedVersion + 1,
@@ -303,6 +389,39 @@ class AlignedOutboundFlowController extends Controller
         $lines = DB::table('stock_document_lines')->where('stock_document_id', $documentId)->get(['qty_planned', 'scanned_qty']);
 
         return $lines->isNotEmpty() && $lines->every(fn (object $line): bool => (int) $line->qty_planned > 0 && (int) $line->qty_planned === (int) $line->scanned_qty);
+    }
+
+    /**
+     * Annex A content_hash: chốt nội dung nghiệp vụ của nhãn (người nhận + từng
+     * line SKU/số lượng + tập item đã match) để Post Issue phát hiện nhãn cũ.
+     */
+    private function labelContentHash(string $documentId): string
+    {
+        $document = DB::table('stock_documents')->where('id', $documentId)->first();
+        $lines = DB::table('stock_document_lines')
+            ->where('stock_document_id', $documentId)
+            ->orderBy('line_no')
+            ->get(['product_id', 'qty_planned'])
+            ->map(fn (object $line): string => $line->product_id.':'.(int) $line->qty_planned)
+            ->all();
+        $items = DB::table('outbound_item_matches as m')
+            ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
+            ->where('l.stock_document_id', $documentId)
+            ->where(function ($query): void {
+                $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
+            })
+            ->orderBy('m.item_id')
+            ->pluck('m.item_id')
+            ->map(fn ($id): string => (string) $id)
+            ->all();
+
+        return hash('sha256', json_encode([
+            'outbound_no' => (string) ($document->doc_no ?? ''),
+            'recipient_name' => (string) ($document->recipient_name ?? ''),
+            'recipient_address' => (string) ($document->recipient_address ?? ''),
+            'lines' => $lines,
+            'items' => $items,
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
     }
 
     private function labelPayload(string $id): array

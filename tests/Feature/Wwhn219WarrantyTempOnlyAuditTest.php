@@ -24,7 +24,15 @@ class Wwhn219WarrantyTempOnlyAuditTest extends TestCase
             'warranty_case_code' => 'WARRANTY-AUDIT-TEMP-ONLY',
             'inventory_serial_id' => null,
             'product_id' => null,
-            'identification_status' => 'UNIDENTIFIED',
+            // chk_erd_warranty_identification_shape: TEMP_ONLY yêu cầu đủ bộ
+            // temporary_item_code + missing_code_reason + manual_product_description.
+            'identification_status' => 'TEMP_ONLY',
+            'temporary_item_code' => 'TEMP-AUDIT-SEED',
+            'missing_code_reason' => 'Mất tem mã',
+            'manual_product_description' => 'Máy mô tả thủ công (fixture)',
+            // ERD bảng 45: customer_name/customer_phone NOT NULL (SCR-WAR-01 bắt buộc).
+            'customer_name' => 'Khách audit test',
+            'customer_phone' => '0900000004',
             'status' => WarrantyCase::STATUS_RECEIVED,
             'created_by' => $user->user_id,
             'version' => 1,
@@ -37,6 +45,8 @@ class Wwhn219WarrantyTempOnlyAuditTest extends TestCase
             [
                 'temporary_item_code' => 'TEMP-AUDIT-0001',
                 'missing_code_reason' => 'Mat tem ma khi tiep nhan',
+                // Annex D SCR-WAR-01: bắt buộc khi TEMP_ONLY.
+                'manual_product_description' => 'May mo ta thu cong (audit)',
                 'condition_status' => 'WAITING_CHECK',
             ],
             [
@@ -57,7 +67,9 @@ class Wwhn219WarrantyTempOnlyAuditTest extends TestCase
         $this->assertSame('warranty_case', $log->object_type);
         $this->assertSame((string) $user->user_id, $log->actor_id);
         $this->assertSame(WarrantyCase::STATUS_RECEIVED, $log->before_data['status']);
-        $this->assertSame('TEMP_ONLY', $log->after_data['status']);
+        // SRS v1.12 §6: TEMP_ONLY là identification_status; case status giữ nguyên.
+        $this->assertSame(WarrantyCase::STATUS_RECEIVED, $log->after_data['status']);
+        $this->assertSame('TEMP_ONLY', $log->after_data['identification_status']);
         $this->assertSame('TEMP-AUDIT-0001', $log->after_data['temporary_item_code']);
     }
 

@@ -322,9 +322,12 @@ class WmsContractController extends Controller
     )]
     public function scanBatches(Request $request)
     {
-        return $this->respondPaginated(
-            DB::table('scan_batches')->orderByDesc('created_at')->paginate($this->perPage($request))
-        );
+        $query = DB::table('scan_batches')->orderByDesc('created_at');
+        if ($request->filled('warehouse_id')) {
+            $query->where('warehouse_id', $request->input('warehouse_id'));
+        }
+
+        return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
     #[OA\Get(
@@ -346,12 +349,53 @@ class WmsContractController extends Controller
     )]
     public function scanEvents(Request $request)
     {
-        $query = DB::table('scan_record_events')->orderByDesc('created_at');
-        if ($request->filled('result_status')) {
-            $query->where('result_status', $request->input('result_status'));
+        // NFR-SRS-004 scan evidence. Hệ thống có hai kho evidence song song:
+        // `scan_record_events` (ScanRecordingService, gắn với scan_batches) và
+        // `scan_events` canonical do luồng chứng từ ghi qua recordScanEvidence.
+        // Truy vết phải nhìn được cả hai nên hợp nhất về một contract chung.
+        $resultStatus = $request->filled('result_status') ? (string) $request->input('result_status') : null;
+
+        $recordEvents = DB::table('scan_record_events')
+            ->select([
+                'scan_event_id as id',
+                'scan_batch_id',
+                DB::raw("'scan_record_events' AS evidence_source"),
+                'raw_code',
+                'result_status',
+                'physical_code_id',
+                'resolved_object_type',
+                'resolved_object_id',
+                'created_at',
+            ]);
+        if ($resultStatus !== null) {
+            $recordEvents->where('result_status', $resultStatus);
         }
 
-        return $this->respondPaginated($query->paginate($this->perPage($request)));
+        if (Schema::hasTable('scan_events') || Schema::hasView('scan_events')) {
+            $canonical = DB::table('scan_events')
+                ->select([
+                    'id',
+                    'scan_batch_id',
+                    DB::raw("'scan_events' AS evidence_source"),
+                    'raw_code',
+                    'result_status',
+                    'physical_code_id',
+                    'resolved_object_type',
+                    'resolved_object_id',
+                    'created_at',
+                ]);
+            if ($resultStatus !== null) {
+                $canonical->where('result_status', $resultStatus);
+            }
+            $recordEvents->unionAll($canonical);
+        }
+
+        $page = DB::query()
+            ->fromSub($recordEvents, 'evidence')
+            ->orderByDesc('created_at')
+            ->paginate($this->perPage($request));
+
+        return $this->respondPaginated($page);
     }
 
     #[OA\Post(

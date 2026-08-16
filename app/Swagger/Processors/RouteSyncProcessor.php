@@ -91,6 +91,9 @@ class RouteSyncProcessor
         'get api/v1/reports/dashboard-quick' => 'Số liệu nhanh cho dashboard',
         'get api/v1/reports/warranty-defects' => 'Báo cáo bảo hành & linh kiện',
         'get api/v1/reports/warranty-defects/export-excel' => 'Xuất Excel/PDF báo cáo bảo hành & linh kiện',
+        'get api/v1/reports/inventory-ledger' => 'Sổ ledger tồn kho theo Annex C',
+        'get api/v1/reports/{report_code}' => 'Lấy báo cáo theo report_code',
+        'post api/v1/reports/export' => 'Tạo yêu cầu export báo cáo',
         'post api/v1/containers/{id}/items' => 'Thêm hàng vào container',
         'delete api/v1/containers/{id}/items/{containerItemId}' => 'Xoá hàng khỏi container',
         'get api/v1/item-instances/{id}/trace' => 'Truy vết vòng đời item instance',
@@ -115,6 +118,45 @@ class RouteSyncProcessor
         'get api/v1/warranty-attachments/{attachmentid}/download' => 'Tải xuống tệp đính kèm bảo hành',
         'delete api/v1/warranty-attachments/{attachmentid}' => 'Xoá (logical) tệp đính kèm bảo hành',
         'post api/v1/scan/classify' => 'Phân loại mã quét',
+        // Alias theo đúng path Annex C (§8.1). Cùng handler với route hiện hành.
+        'post api/v1/inbound-documents/{id}/scans' => 'Quét hàng cho phiếu nhập (Annex C)',
+        'post api/v1/inbound-documents/{id}/reversals' => 'Hoàn tác nhập kho cho phiếu nhập (Annex C)',
+        'post api/v1/outbound-documents/{id}/scans' => 'Quét hàng cho phiếu xuất (Annex C)',
+        'post api/v1/outbound-documents/{id}/reversals' => 'Hoàn tác xuất kho cho phiếu xuất (Annex C)',
+        'get api/v1/putaway-tasks' => 'Danh sách BOX chờ xếp khay (Annex C)',
+        'post api/v1/putaway-tasks' => 'Tạo tác vụ xếp BOX vào TRAY (Annex C)',
+        'post api/v1/putaway-tasks/{id}/confirm' => 'Xác nhận xếp BOX vào TRAY (Annex C)',
+        'post api/v1/putaway-tasks/{id}/cancel' => 'Huỷ tác vụ xếp BOX vào TRAY (Annex C)',
+        'post api/v1/warranty-cases/{id}/status' => 'Chuyển trạng thái hồ sơ bảo hành (Annex C)',
+        'get api/v1/warranty-component-issues' => 'Danh sách phiếu xuất linh kiện bảo hành (Annex C)',
+        'post api/v1/warranty-component-issues' => 'Tạo phiếu xuất linh kiện bảo hành (Annex C)',
+        'get api/v1/warranty-component-issues/{id}' => 'Chi tiết phiếu xuất linh kiện bảo hành (Annex C)',
+        'post api/v1/warranty-component-issues/{id}/scans' => 'Quét linh kiện cho phiếu xuất bảo hành (Annex C)',
+        'post api/v1/warranty-component-issues/{id}/cancel' => 'Huỷ phiếu xuất linh kiện bảo hành (Annex C)',
+        'post api/v1/warranty-component-issues/{id}/post' => 'Ghi nhận phiếu xuất linh kiện bảo hành (Annex C)',
+        'post api/v1/outbound-request-imports/{id}/confirm' => 'Xác nhận import yêu cầu xuất (Annex C)',
+        'post api/v1/outbound-request-imports/manual' => 'Tạo toa yêu cầu xuất nhập tay (Annex C)',
+        'get api/v1/inventory' => 'Tồn kho hiện tại (Annex C)',
+        'get api/v1/inventory/trace/{code}' => 'Truy vết tồn kho theo mã vật lý (Annex C)',
+        'post api/v1/scan-batches/classify' => 'Phân loại lô mã quét (Annex C)',
+        'get api/v1/scan/batches' => 'Danh sách lô quét (scan evidence)',
+        'get api/v1/scan/events' => 'Danh sách sự kiện quét (scan evidence)',
+        'patch api/v1/brands/{id}' => 'Cập nhật thương hiệu',
+        'patch api/v1/product-categories/{id}' => 'Cập nhật danh mục sản phẩm',
+        'patch api/v1/power-sources/{id}' => 'Cập nhật nguồn điện',
+        'patch api/v1/product-models/{id}' => 'Cập nhật model sản phẩm',
+        'patch api/v1/package-variants/{id}' => 'Cập nhật quy cách đóng gói',
+        'patch api/v1/pv/products/{id}/publish' => 'Publish/gỡ SKU khỏi App PV',
+        'put api/v1/roles/{id}/permissions' => 'Thay toàn bộ tập quyền của vai trò',
+        'get api/v1/inbound-documents/{id}/scan-entries' => 'Danh sách mã đã quét của phiếu nhập',
+        'post api/v1/reversal-documents/{id}/confirm' => 'Xác nhận hàng vật lý quay lại kho cho Reversal',
+        'post api/v1/reversal-documents/{id}/post' => 'Post Reversal và ghi movement append-only',
+        'post api/v1/reversal-documents/{id}/cancel' => 'Huỷ Reversal khi còn DRAFT',
+        'put api/v1/outbound-documents/{id}/items/{itemid}/rfid' => 'Gắn RFID cho item của phiếu xuất',
+        'post api/v1/outbound-documents/{id}/packing-labels/{labelid}/preview' => 'Preview Packing Label trước khi hoàn tất',
+        'post api/v1/outbound-documents/{id}/packing-labels/{labelid}/ready' => 'Đóng băng Packing Label sẵn sàng in',
+        'post api/v1/outbound-documents/{id}/packing-labels/{labelid}/print' => 'In Packing Label của phiếu xuất',
+        'post api/v1/outbound-documents/{id}/packing-labels/{labelid}/reprint' => 'In lại Packing Label sau hoàn tất',
         'get api/v1/skus/import-template' => 'Tải file mẫu import SKU',
         'post api/v1/skus/import-excel' => 'Import SKU từ Excel',
         'post api/v1/skus/{id}/physical-codes' => 'Gán mã vật lý cho SKU',
@@ -537,11 +579,18 @@ class RouteSyncProcessor
         return $action === 'Closure' ? $route->uri() : $action;
     }
 
-    /** @param array{method: string, uri: string, action: string} $route */
+    /**
+     * OpenAPI yêu cầu operationId duy nhất. Gạch ngang trong tên resource phải
+     * sinh ra id khác với dấu "/" — nếu không `putaway-tasks` (alias Annex C) và
+     * `putaway/tasks` (route hiện hành) sẽ cùng ra `get_api_v1_putaway_tasks`.
+     *
+     * @param  array{method: string, uri: string, action: string}  $route
+     */
     private function operationId(array $route): string
     {
         $base = strtolower($route['method'].'_'.$route['uri']);
-        $base = preg_replace('/[^a-z0-9]+/', '_', $base) ?? $base;
+        $base = str_replace('-', '__', $base);
+        $base = preg_replace('/[^a-z0-9_]+/', '_', $base) ?? $base;
 
         return trim($base, '_');
     }

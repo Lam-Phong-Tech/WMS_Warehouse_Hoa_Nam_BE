@@ -61,6 +61,21 @@ class AuthDatabaseSeeder extends Seeder
         ['report.export', 'Export reports'],
         ['audit_log.view', 'View audit logs'],
 
+        // Permission key chuẩn theo SRS v1.12 §8.1 + Annex C. Route mới dùng key này;
+        // route legacy chấp nhận cả hai qua middleware dạng `permission:A|B`.
+        ['putaway.view', 'View putaway tasks (Annex C)'],
+        ['putaway.manage', 'Create/confirm/cancel putaway tasks (Annex C)'],
+        ['warranty.view', 'View warranty cases (Annex C)'],
+        ['scan.execute', 'Classify scan batches (Annex C alias of scan.classify)'],
+        ['packing_label.preview', 'Preview packing label before completion'],
+        ['packing_label.ready', 'Freeze packing label snapshot (READY_TO_PRINT)'],
+        ['packing_label.print', 'Print packing label'],
+        ['packing_label.reprint', 'Reprint packing label after completion'],
+        ['outbound.request.import', 'Import outbound request (Annex C)'],
+        ['outbound.request.confirm', 'Confirm outbound request import (Annex C)'],
+        ['outbound.request.manual_create', 'Create outbound request manually (Annex C)'],
+        ['pv.master.manage', 'Manage PV industry/tag/mapping/recommendation'],
+
         // Legacy compatibility permissions. Do not use these on new routes.
         ['product.view', 'Legacy alias: view SKUs/products'],
         ['product.manage', 'Legacy alias: manage SKUs/products'],
@@ -106,6 +121,10 @@ class AuthDatabaseSeeder extends Seeder
                 'scan.classify', 'pv.publish', 'report.view', 'report.export', 'audit_log.view',
                 'physical_code.view', 'physical_code.manage', 'import_batch.view', 'import_batch.manage',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
+                'putaway.view', 'putaway.manage', 'warranty.view', 'scan.execute',
+                'packing_label.preview', 'packing_label.ready', 'packing_label.print', 'packing_label.reprint',
+                'outbound.request.import', 'outbound.request.confirm', 'outbound.request.manual_create',
+                'pv.master.manage',
             ],
         ],
         'WAREHOUSE_STAFF' => [
@@ -119,6 +138,9 @@ class AuthDatabaseSeeder extends Seeder
                 'physical_code.view', 'import_batch.view', 'container.view', 'item_instance.view',
                 'product.view', 'stock_document.view', 'stock_document.create', 'stock_document.scan',
                 'product_master.view',
+                'putaway.view', 'putaway.manage', 'scan.execute',
+                'packing_label.preview', 'packing_label.ready', 'packing_label.print',
+                'outbound.request.import', 'outbound.request.confirm', 'outbound.request.manual_create',
             ],
         ],
         'WAREHOUSE_APPROVER' => [
@@ -131,6 +153,7 @@ class AuthDatabaseSeeder extends Seeder
                 'agency.view', 'defect.view',
                 'physical_code.view', 'import_batch.view', 'container.view', 'item_instance.view',
                 'product.view', 'stock_document.view',
+                'putaway.view', 'warranty.view',
             ],
         ],
         'WAREHOUSE_KEEPER' => [
@@ -146,6 +169,9 @@ class AuthDatabaseSeeder extends Seeder
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
                 'product.view', 'stock_document.view', 'stock_document.post', 'stock_document.scan',
                 'stock_document.cancel', 'stock_document.reverse', 'product_master.view',
+                'putaway.view', 'putaway.manage', 'warranty.view', 'scan.execute',
+                'packing_label.preview', 'packing_label.ready', 'packing_label.print', 'packing_label.reprint',
+                'outbound.request.import', 'outbound.request.confirm', 'outbound.request.manual_create',
             ],
         ],
         'WARRANTY_STAFF' => [
@@ -155,6 +181,7 @@ class AuthDatabaseSeeder extends Seeder
                 'inventory.view', 'inventory.trace',
                 'warranty.manage', 'warranty.component_issue',
                 'scan.classify', 'physical_code.view', 'item_instance.view',
+                'warranty.view', 'scan.execute',
             ],
         ],
         'LEADERSHIP' => [
@@ -163,6 +190,7 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inventory.view', 'inventory.trace', 'report.view',
                 'agency.view', 'defect.view', 'audit_log.view',
+                'putaway.view', 'warranty.view',
             ],
         ],
         'VIEWER' => [

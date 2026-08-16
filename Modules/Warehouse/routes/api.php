@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\AgencyController;
+use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\ContainerController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
@@ -32,8 +33,11 @@ use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductMasterController;
 use Modules\Warehouse\Http\Controllers\PutawayController;
 use Modules\Warehouse\Http\Controllers\ReversalDocumentController;
+use Modules\Warehouse\Http\Controllers\ScanController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
+use Modules\Warehouse\Http\Controllers\WmsContractController;
+use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
 use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 
@@ -84,13 +88,21 @@ Route::prefix('v1')->group(function (): void {
         Route::post('outbound-documents/{id}/post-issue', [CurrentBaselineStockFlowController::class, 'postIssue'])->middleware('permission:outbound.post');
         Route::post('outbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseOutbound'])->middleware('permission:inventory.reversal.post');
 
-        Route::get('inventory/balances', [InventoryBalanceController::class, 'index'])->middleware('permission:inventory.view');
-        Route::get('inventory/balances/{id}/subledger', [InventoryBalanceController::class, 'subledger'])->middleware('permission:inventory.view');
-        Route::get('stock-movements', [StockMovementController::class, 'index'])->middleware('permission:inventory.view');
+        // §8.1 Enforcement standard: "exact x-permission + data scope". Middleware
+        // dưới đây chặn đọc/truy vết ngoài warehouse scope, không thay thế permission.
+        Route::get('inventory/balances', [InventoryBalanceController::class, 'index'])
+            ->middleware(['permission:inventory.view', EnforceInventoryWarehouseScope::class]);
+        Route::get('inventory/balances/{id}/subledger', [InventoryBalanceController::class, 'subledger'])
+            ->middleware(['permission:inventory.view', EnforceInventoryWarehouseScope::class]);
+        Route::get('stock-movements', [StockMovementController::class, 'index'])
+            ->middleware(['permission:inventory.view', EnforceInventoryWarehouseScope::class]);
         Route::get('stock-movements/reversible', [StockMovementController::class, 'reversible'])->middleware('permission:inventory.reversal.post');
-        Route::get('stock-movements/trace-by-code', [StockMovementController::class, 'traceByPhysicalCode'])->middleware('permission:inventory.trace');
-        Route::get('stock-movements/{id}', [StockMovementController::class, 'show'])->middleware('permission:inventory.view');
-        Route::get('stock-movements/{id}/trace-source', [StockMovementController::class, 'traceSource'])->middleware('permission:inventory.trace');
+        Route::get('stock-movements/trace-by-code', [StockMovementController::class, 'traceByPhysicalCode'])
+            ->middleware(['permission:inventory.trace', EnforceInventoryWarehouseScope::class]);
+        Route::get('stock-movements/{id}', [StockMovementController::class, 'show'])
+            ->middleware(['permission:inventory.view', EnforceInventoryWarehouseScope::class]);
+        Route::get('stock-movements/{id}/trace-source', [StockMovementController::class, 'traceSource'])
+            ->middleware(['permission:inventory.trace', EnforceInventoryWarehouseScope::class]);
 
         Route::get('reversal-documents', [ReversalDocumentController::class, 'index'])->middleware('permission:inventory.view');
         Route::post('reversal-documents', [ReversalDocumentController::class, 'store'])->middleware('permission:inventory.reversal.post');
@@ -121,6 +133,11 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
         Route::get('reports/warranty-defects', [OperationalReportController::class, 'warrantyDefects'])->middleware('permission:report.view');
         Route::get('reports/warranty-defects/export-excel', [OperationalReportController::class, 'warrantyDefectsExport'])->middleware('permission:report.export');
+        // Annex C REQ-SRS-031/032. "reports/{report_code}" là catch-all nên phải
+        // đăng ký sau mọi route reports/* cụ thể ở trên.
+        Route::get('reports/inventory-ledger', [OperationalReportController::class, 'inventoryLedger'])->middleware('permission:report.view');
+        Route::post('reports/export', [OperationalReportController::class, 'createExport'])->middleware('permission:report.export');
+        Route::get('reports/{report_code}', [OperationalReportController::class, 'byCode'])->middleware('permission:report.view');
 
         Route::get('agencies', [AgencyController::class, 'index'])->middleware('permission:agency.view');
         Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
@@ -211,5 +228,87 @@ Route::prefix('v1')->group(function (): void {
         Route::post('warranty-cases/{id}/attachments', [CurrentBaselineWarrantyAttachmentController::class, 'store'])->middleware('permission:warranty.manage');
         Route::get('warranty-attachments/{attachmentId}/download', [CurrentBaselineWarrantyAttachmentController::class, 'download'])->middleware('permission:warranty.manage');
         Route::delete('warranty-attachments/{attachmentId}', [CurrentBaselineWarrantyAttachmentController::class, 'destroy'])->middleware('permission:warranty.manage');
+
+        // ──────────────────────────────────────────────────────────────────
+        // Alias theo đúng path/permission của SRS v1.12 §8.1 + Annex C.
+        // Cùng handler với route hiện hành nên không nhân đôi nghiệp vụ;
+        // permission dùng dạng `chuẩn|legacy` để không thu hồi quyền đang cấp.
+        // ──────────────────────────────────────────────────────────────────
+        Route::post('inbound-documents/{id}/scans', [CurrentBaselineStockFlowController::class, 'inboundScan'])
+            ->middleware(['permission:inbound.scan', EnsureInboundComponentBox::class]);
+        Route::post('inbound-documents/{id}/reversals', [CurrentBaselineStockFlowController::class, 'reverseInbound'])
+            ->middleware('permission:inventory.reversal.post');
+
+        // Route /scan gốc được Flow06AlignmentServiceProvider override sang
+        // AlignedOutboundFlowController; alias phải trỏ thẳng handler thật để hai
+        // path không chạy hai nghiệp vụ khác nhau (label 1/lô vs label per-item).
+        Route::post('outbound-documents/{id}/scans', [AlignedOutboundFlowController::class, 'outboundScan'])
+            ->middleware('permission:outbound.scan');
+        Route::post('outbound-documents/{id}/reversals', [CurrentBaselineStockFlowController::class, 'reverseOutbound'])
+            ->middleware('permission:inventory.reversal.post');
+
+        Route::get('putaway-tasks', [PutawayController::class, 'tasks'])->middleware('permission:putaway.view|putaway.manage|container.view');
+        Route::post('putaway-tasks', [CurrentBaselinePutawayTaskController::class, 'store'])->middleware('permission:putaway.manage|container.manage');
+        Route::post('putaway-tasks/{id}/confirm', [PutawayController::class, 'confirm'])->middleware('permission:putaway.manage|container.manage');
+        Route::post('putaway-tasks/{id}/cancel', [PutawayController::class, 'cancel'])->middleware('permission:putaway.manage|container.manage');
+
+        Route::post('warranty-cases/{id}/status', [CurrentBaselineWarrantyController::class, 'updateWarrantyCase'])
+            ->middleware('permission:warranty.manage');
+
+        Route::get('warranty-component-issues', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
+        Route::post('warranty-component-issues', [CurrentBaselineComponentFlowController::class, 'store'])->middleware('permission:warranty.component_issue');
+        Route::get('warranty-component-issues/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware('permission:warranty.component_issue');
+        Route::post('warranty-component-issues/{id}/scans', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware('permission:warranty.component_issue');
+        Route::post('warranty-component-issues/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware('permission:warranty.component_issue');
+        Route::post('warranty-component-issues/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware('permission:warranty.component_issue');
+
+        Route::post('outbound-request-imports/{id}/confirm', [CurrentBaselineImportController::class, 'consumeOutboundRequestImport'])
+            ->middleware('permission:outbound.request.confirm|outbound.import');
+        Route::post('outbound-request-imports/manual', [CurrentBaselineOperationsController::class, 'storeOutboundRequestImport'])
+            ->middleware('permission:outbound.request.manual_create|outbound.import');
+
+        Route::get('inventory', [InventoryBalanceController::class, 'index'])->middleware('permission:inventory.view');
+        Route::get('inventory/trace/{code}', [StockMovementController::class, 'traceByPathCode'])->middleware('permission:inventory.trace');
+
+        Route::post('scan-batches/classify', [ScanController::class, 'classify'])->middleware('permission:scan.execute|scan.classify');
+
+        // NFR-SRS-004: bằng chứng scan phải tra cứu được (FE TRACE/PhysicalCodes).
+        Route::get('scan/batches', [WmsContractController::class, 'scanBatches'])->middleware('permission:inventory.view');
+        Route::get('scan/events', [WmsContractController::class, 'scanEvents'])->middleware('permission:inventory.view');
+
+        // Annex D SCR-IN-01: đọc lại bằng chứng quét của phiếu nhập.
+        Route::get('inbound-documents/{id}/scan-entries', [CurrentBaselineDocumentController::class, 'inboundScanEntries'])
+            ->middleware('permission:inbound.view');
+
+        // Annex C updateCatalogMasterEntry — deactivate thay vì xoá (BR-MST-01..07).
+        Route::patch('brands/{id}', [CurrentBaselineMasterController::class, 'updateBrand'])->middleware('permission:catalog.manage');
+        Route::patch('product-categories/{id}', [CurrentBaselineMasterController::class, 'updateProductCategory'])->middleware('permission:catalog.manage');
+        Route::patch('power-sources/{id}', [CurrentBaselineMasterController::class, 'updatePowerSource'])->middleware('permission:catalog.manage');
+        Route::patch('product-models/{id}', [CurrentBaselineMasterController::class, 'updateProductModel'])->middleware('permission:catalog.manage');
+        Route::patch('package-variants/{id}', [CurrentBaselineMasterController::class, 'updatePackageVariant'])->middleware('permission:catalog.manage');
+
+        // Annex C publishPvProduct — quyền pv.publish tách khỏi sku.manage theo §3.
+        Route::patch('pv/products/{id}/publish', [ProductController::class, 'publishPvProduct'])
+            ->middleware('permission:pv.publish|sku.manage');
+
+        // SRS §6 Reversal state model: DRAFT → (confirm) → post/cancel.
+        Route::post('reversal-documents/{id}/confirm', [ReversalDocumentController::class, 'confirm'])->middleware('permission:inventory.reversal.post');
+        Route::post('reversal-documents/{id}/post', [ReversalDocumentController::class, 'post'])->middleware('permission:inventory.reversal.post');
+        Route::post('reversal-documents/{id}/cancel', [ReversalDocumentController::class, 'cancel'])->middleware('permission:inventory.reversal.post');
+
+        // Annex C assignItemRfid — RFID là tùy chọn, không phải gate Post Issue.
+        Route::put('outbound-documents/{id}/items/{itemId}/rfid', [CurrentBaselinePhysicalCodeController::class, 'assignOutboundItemRfid'])
+            ->middleware('permission:physical_code.assign_rfid');
+
+        // Annex C packing label lifecycle (§6): preview/ready trước completion,
+        // print/reprint dùng lại đúng snapshot bất biến.
+        Route::post('outbound-documents/{id}/packing-labels/{labelId}/preview', [AlignedOutboundFlowController::class, 'previewPackingLabel'])
+            ->middleware('permission:packing_label.preview|label.print');
+        Route::post('outbound-documents/{id}/packing-labels/{labelId}/ready', [AlignedOutboundFlowController::class, 'readyPackingLabel'])
+            ->middleware('permission:packing_label.ready|label.print');
+        Route::post('outbound-documents/{id}/packing-labels/{labelId}/print', [CurrentBaselineOperationsController::class, 'printPackingLabelForDocument'])
+            ->middleware('permission:packing_label.print|label.print');
+        Route::post('outbound-documents/{id}/packing-labels/{labelId}/reprint', [CurrentBaselineOperationsController::class, 'reprintPackingLabelForDocument'])
+            ->middleware('permission:packing_label.reprint|label.reprint');
     });
 });

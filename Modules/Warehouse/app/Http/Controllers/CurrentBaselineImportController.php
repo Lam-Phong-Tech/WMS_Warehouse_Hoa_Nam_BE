@@ -203,9 +203,12 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                         }
 
                         $customerName = (string) ($first['customer_name'] ?? $first['recipient_name'] ?? '');
-                        $customerAddress = (string) ($first['customer_address'] ?? $first['recipient_address'] ?? '');
-                        if ($customerName === '' || $customerAddress === '') {
-                            ApiError::abort(422, 'OUTBOUND_RECIPIENT_REQUIRED', 'customer_name và customer_address bắt buộc trước khi consume toa xuất.');
+                        // SRS v1.12 §15 + REQ-SRS-014: receiver_name bắt buộc trước Confirm;
+                        // address/phone nullable (toa mẫu khách hàng không có địa chỉ).
+                        $customerAddress = trim((string) ($first['customer_address'] ?? $first['recipient_address'] ?? ''));
+                        $customerAddress = $customerAddress === '' ? null : $customerAddress;
+                        if ($customerName === '') {
+                            ApiError::abort(422, 'OUTBOUND_RECIPIENT_REQUIRED', 'customer_name (người nhận) bắt buộc trước khi consume toa xuất.');
                         }
 
                         $requestId = (string) Str::uuid();

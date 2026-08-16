@@ -45,6 +45,14 @@ class SchemaApiModulesTest extends TestCase
             'warranty_case_code' => 'WRN-'.Str::upper(Str::random(10)),
             'status' => $status,
             'inventory_serial_id' => $serialId,
+            // chk_erd_warranty_identification_shape: không item → TEMP_ONLY đủ bộ temp fields.
+            'identification_status' => $serialId === null ? 'TEMP_ONLY' : 'IDENTIFIED',
+            'temporary_item_code' => $serialId === null ? 'TEMP-'.Str::upper(Str::random(8)) : null,
+            'missing_code_reason' => $serialId === null ? 'Mất tem mã' : null,
+            'manual_product_description' => $serialId === null ? 'Máy mô tả thủ công (fixture)' : null,
+            // ERD bảng 45: customer_name/customer_phone NOT NULL (SCR-WAR-01 bắt buộc).
+            'customer_name' => 'Khách schema test',
+            'customer_phone' => '0900000003',
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
@@ -70,7 +78,7 @@ class SchemaApiModulesTest extends TestCase
     public function test_warranty_api_uses_singular_schema_and_records_temp_only_idempotently(): void
     {
         $headers = $this->headers();
-        $warehouse = Warehouse::create(['code' => 'WH-WRN-'.Str::random(6), 'name' => 'Warranty warehouse', 'status' => 'ACTIVE']);
+        $warehouse = $this->ensureActiveWarehouse('WH-WRN-'.Str::random(6), 'Warranty warehouse');
         $sku = Sku::create(['sku_code' => 'SKU-WRN-'.Str::random(8), 'sku_name' => 'Warranty SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
         $serialId = (string) Str::uuid();
         DB::table('inventory_serials')->insert([
@@ -98,6 +106,8 @@ class SchemaApiModulesTest extends TestCase
         $payload = [
             'temporary_item_code' => 'TEMP-WRN-001',
             'missing_code_reason' => 'Khách không còn tem/mã sản phẩm gốc.',
+            // Annex D SCR-WAR-01: bắt buộc khi TEMP_ONLY.
+            'manual_product_description' => 'Máy mô tả thủ công (schema test)',
             'defect_id' => $defectId,
             'condition_status' => 'WAITING_CHECK',
             'note' => 'Test temporary receipt',
@@ -110,7 +120,9 @@ class SchemaApiModulesTest extends TestCase
 
         $this->postJson("/api/v1/warranty-cases/{$caseId}/temp-only", $payload, $requestHeaders)
             ->assertOk()
-            ->assertJsonPath('data.status', 'TEMP_ONLY')
+            // SRS v1.12 §6: TEMP_ONLY là identification_status; case status giữ RECEIVED.
+            ->assertJsonPath('data.status', 'RECEIVED')
+            ->assertJsonPath('data.identification_status', 'TEMP_ONLY')
             ->assertJsonPath('data.temporary_item_code', 'TEMP-WRN-001');
         $this->postJson("/api/v1/warranty-cases/{$caseId}/temp-only", $payload, $requestHeaders)->assertOk();
 
@@ -118,7 +130,8 @@ class SchemaApiModulesTest extends TestCase
             'warranty_case_id' => $caseId,
             'inventory_serial_id' => null,
             'temporary_item_code' => 'TEMP-WRN-001',
-            'status' => 'TEMP_ONLY',
+            'identification_status' => 'TEMP_ONLY',
+            'status' => 'RECEIVED',
         ]);
         $this->assertDatabaseCount('warranty_event', 1);
         $this->assertDatabaseCount('stock_movements', 0);
@@ -128,29 +141,47 @@ class SchemaApiModulesTest extends TestCase
             ->assertJsonPath('data.0.warranty_case_id', $caseId);
     }
 
+    /**
+     * Migration 2026_08_10_000791 chỉ chạy trên PostgreSQL: ở đó pv_product_profiles
+     * là bảng vật lý còn pv_product_profile là view tương thích. Trên sqlite thì
+     * ngược lại (view chưa có trigger INSTEAD OF), nên fixture phải ghi vào đúng
+     * bảng vật lý của từng driver — chỗ mà unique index uk_pv_product_profile_product
+     * thực sự nằm.
+     */
+    private function insertPvProfile(string $skuId, string $displayName): void
+    {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::table('pv_product_profiles')->insert([
+                'id' => (string) Str::uuid(),
+                'sku_id' => $skuId,
+                'display_name' => $displayName,
+                'published' => false,
+                'version' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return;
+        }
+
+        DB::table('pv_product_profile')->insert([
+            'profile_id' => (string) Str::uuid(),
+            'product_id' => $skuId,
+            'display_name' => $displayName,
+            'published' => false,
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     public function test_pv_profile_schema_accepts_only_one_profile_per_sku(): void
     {
         $sku = Sku::create(['sku_code' => 'SKU-PV-'.Str::random(8), 'sku_name' => 'PV SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
-        DB::table('pv_product_profile')->insert([
-            'profile_id' => (string) Str::uuid(),
-            'product_id' => $sku->sku_id,
-            'display_name' => 'PV Profile',
-            'published' => false,
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->insertPvProfile($sku->sku_id, 'PV Profile');
 
         $this->expectException(\Illuminate\Database\QueryException::class);
-        DB::table('pv_product_profile')->insert([
-            'profile_id' => (string) Str::uuid(),
-            'product_id' => $sku->sku_id,
-            'display_name' => 'Duplicate PV Profile',
-            'published' => false,
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->insertPvProfile($sku->sku_id, 'Duplicate PV Profile');
     }
 
     public function test_schema_integrity_migration_rolls_back_and_reapplies_cleanly(): void
@@ -162,25 +193,9 @@ class SchemaApiModulesTest extends TestCase
         $migration->up();
 
         $sku = Sku::create(['sku_code' => 'SKU-PV-RB-'.Str::random(8), 'sku_name' => 'PV rollback SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
-        DB::table('pv_product_profile')->insert([
-            'profile_id' => (string) Str::uuid(),
-            'product_id' => $sku->sku_id,
-            'display_name' => 'PV profile after rollback',
-            'published' => false,
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->insertPvProfile($sku->sku_id, 'PV profile after rollback');
 
         $this->expectException(\Illuminate\Database\QueryException::class);
-        DB::table('pv_product_profile')->insert([
-            'profile_id' => (string) Str::uuid(),
-            'product_id' => $sku->sku_id,
-            'display_name' => 'Duplicate after rollback',
-            'published' => false,
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->insertPvProfile($sku->sku_id, 'Duplicate after rollback');
     }
 }

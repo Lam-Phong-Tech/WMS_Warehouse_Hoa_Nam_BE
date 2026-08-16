@@ -132,6 +132,8 @@ class Wwhn198InboundScanValidationTest extends TestCase
             'line_no' => 1,
             'product_id' => $sku->sku_id,
             'qty_planned' => 1,
+            // chk_stock_document_line_integer_positive: qty_actual > 0.
+            'qty_actual' => 1,
             'scanned_qty' => 0,
             'created_at' => now(),
             'updated_at' => now(),

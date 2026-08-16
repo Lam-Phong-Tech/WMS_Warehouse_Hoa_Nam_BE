@@ -24,6 +24,9 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
 
     private const ATTACHMENT_TYPES = ['INTAKE', 'DIAGNOSTIC', 'RETURN', 'OTHER'];
 
+    /** Annex D SCR-WAR-01: images <= 10 files, <= 10MB/file. */
+    private const MAX_ACTIVE_ATTACHMENTS = 10;
+
     public function index(Request $request, string $id)
     {
         $this->requireCase($id);
@@ -51,6 +54,15 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             'file' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,pdf'],
             'attachment_type' => ['nullable', 'in:'.implode(',', self::ATTACHMENT_TYPES)],
         ]);
+
+        // Annex D SCR-WAR-01: tối đa 10 file đính kèm mỗi case.
+        $activeCount = (int) DB::table('warranty_attachments')
+            ->where('warranty_case_id', $id)
+            ->where('status', 'ACTIVE')
+            ->count();
+        if ($activeCount >= self::MAX_ACTIVE_ATTACHMENTS) {
+            ApiError::abort(422, 'ATTACHMENT_LIMIT_EXCEEDED', 'Mỗi case bảo hành chỉ được giữ tối đa '.self::MAX_ACTIVE_ATTACHMENTS.' tệp đính kèm.');
+        }
 
         $file = $validated['file'];
         $attachmentId = (string) Str::uuid();

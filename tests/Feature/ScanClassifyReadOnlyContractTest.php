@@ -66,7 +66,8 @@ class ScanClassifyReadOnlyContractTest extends TestCase
             'physical_code_id' => $physicalCodeId,
             'code_value' => 'QR-WWHN-150-ITEM-001',
             'code_type' => 'QR',
-            'carrier_type' => 'LABEL',
+            // ERD bảng 21: carrier_type CHECK BARCODE/QR/RFID/NFC/MANUAL.
+            'carrier_type' => 'QR',
             'assigned_object_type' => 'ITEM',
             'assigned_object_id' => $serial->id,
             'status' => 'ACTIVE',
@@ -91,8 +92,10 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
     public function test_scan_enforces_permission_and_warehouse_data_scope(): void
     {
-        $warehouseA = $this->warehouse('KHO-SCAN-A');
-        $warehouseB = $this->warehouse('KHO-SCAN-B');
+        // REQ-SRS-001: chỉ một warehouse ACTIVE; kho ngoài scope dùng INACTIVE
+        // (scope check theo warehouse_id nên deny path vẫn được chứng minh).
+        $warehouseA = $this->ensureActiveWarehouse('KHO-SCAN-A');
+        $warehouseB = Warehouse::query()->create(['code' => 'KHO-SCAN-B', 'name' => 'KHO-SCAN-B', 'status' => 'INACTIVE']);
         $product = $this->product('SKU-SCAN-SCOPE');
         $serial = $this->serial($warehouseB, $product, 'SERIAL-SCAN-SCOPE');
 
@@ -153,7 +156,8 @@ class ScanClassifyReadOnlyContractTest extends TestCase
             'container_type' => 'BOX',
             'warehouse_id' => $warehouse->id,
             'primary_product_id' => $product->id,
-            'status' => 'ACTIVE',
+            // chk_containers_status_current: dùng status hợp lệ theo ERD.
+            'status' => 'STORED',
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
@@ -293,11 +297,8 @@ class ScanClassifyReadOnlyContractTest extends TestCase
 
     private function warehouse(string $code): Warehouse
     {
-        return Warehouse::query()->create([
-            'code' => $code,
-            'name' => $code,
-            'status' => 'ACTIVE',
-        ]);
+        // REQ-SRS-001: tái sử dụng warehouse ACTIVE duy nhất.
+        return $this->ensureActiveWarehouse($code);
     }
 
     private function product(string $code): Product

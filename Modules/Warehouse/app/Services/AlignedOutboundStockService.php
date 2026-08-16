@@ -299,14 +299,15 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
         ?string $actorId,
         array $snapshot
     ): void {
-        if (! Schema::hasTable('posting_event')) {
+        if (! Schema::hasTable('posting_event') && ! Schema::hasView('posting_event')) {
             return;
         }
         DB::table('posting_event')->insert([
             'posting_event_id' => (string) Str::uuid(),
             'operation' => $operation,
             'idempotency_key' => $idempotencyKey,
-            'request_hash' => $requestHash,
+            // ERD bảng 31: request_hash char(64).
+            'request_hash' => self::postingRequestDigest($requestHash),
             'status' => 'COMMITTED',
             'document_id' => $documentId,
             'movement_id' => $movementId,

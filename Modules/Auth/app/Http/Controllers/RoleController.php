@@ -11,6 +11,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Http\Requests\AssignRolePermissionRequest;
 use Modules\Auth\Http\Requests\StoreRoleRequest;
 use Modules\Auth\Http\Requests\UpdateRoleRequest;
+use Modules\Auth\Models\User;
 use Modules\Auth\Repositories\Contracts\RoleRepositoryInterface;
 use OpenApi\Attributes as OA;
 
@@ -235,6 +236,15 @@ class RoleController extends Controller
             $pivotData[$permissionId] = ['role_permission_id' => (string) Str::uuid()];
         }
         $role->permissions()->sync($pivotData);
+
+        // Permission caches are keyed by user version (User::permissions, TTL 300s).
+        // Bump version của mọi user đang giữ role để thu hồi/gán quyền có hiệu lực
+        // ngay request kế tiếp (BR-IAM: backend enforcement, least privilege).
+        User::query()
+            ->whereIn('user_id', function ($query) use ($id): void {
+                $query->select('user_id')->from('user_role')->where('role_id', $id);
+            })
+            ->increment('version');
 
         AuditLogger::record(
             action: 'ASSIGN_PERMISSIONS',

@@ -70,7 +70,8 @@ class ItemInstanceTest extends TestCase
         $this->assertDatabaseMissing('item_instances', ['sku_id' => $sku->sku_id]);
 
         $code = $this->chipCode('IT-0001');
-        $withCode = $this->postJson('/api/v1/item-instances', ['sku_id' => $sku->sku_id, 'physical_code_id' => $code->physical_code_id], $headers);
+        // ERD bảng 20: SKU serial-tracked bắt buộc serial_number.
+        $withCode = $this->postJson('/api/v1/item-instances', ['sku_id' => $sku->sku_id, 'physical_code_id' => $code->physical_code_id, 'serial_number' => 'SN-IT-0001'], $headers);
         $withCode->assertCreated()->assertJsonPath('data.item_status', 'NEW');
     }
 
@@ -90,15 +91,15 @@ class ItemInstanceTest extends TestCase
         $sku = $this->serialTrackedSku();
         $code = $this->chipCode('IT-SHARED');
 
-        $first = $this->postJson('/api/v1/item-instances', ['sku_id' => $sku->sku_id, 'physical_code_id' => $code->physical_code_id], $headers);
+        $first = $this->postJson('/api/v1/item-instances', ['sku_id' => $sku->sku_id, 'physical_code_id' => $code->physical_code_id, 'serial_number' => 'SN-SHARED-1'], $headers);
         $first->assertCreated();
 
         // Bypass qua create thứ 2 dùng lại physical_code_id đã gán.
-        $second = $this->postJson('/api/v1/item-instances', ['sku_id' => $sku->sku_id, 'physical_code_id' => $code->physical_code_id], $headers);
+        $second = $this->postJson('/api/v1/item-instances', ['sku_id' => $sku->sku_id, 'physical_code_id' => $code->physical_code_id, 'serial_number' => 'SN-SHARED-2'], $headers);
         $second->assertStatus(422);
 
         // Bypass qua update: tạo item khác không có code, rồi PATCH gán code đã bị chiếm.
-        $other = ItemInstance::create(['sku_id' => $sku->sku_id, 'item_status' => 'NEW', 'item_condition' => 'NORMAL', 'version' => 1]);
+        $other = ItemInstance::create(['sku_id' => $sku->sku_id, 'serial_number' => 'SN-SHARED-3', 'item_status' => 'NEW', 'item_condition' => 'NORMAL', 'version' => 1]);
         $viaUpdate = $this->patchJson("/api/v1/item-instances/{$other->item_id}", ['physical_code_id' => $code->physical_code_id, 'version' => 1], $headers);
         $viaUpdate->assertStatus(422);
     }
@@ -138,17 +139,18 @@ class ItemInstanceTest extends TestCase
         $sku = $this->serialTrackedSku();
         $code = $this->chipCode('IT-TRACE');
         $importBatch = ImportBatch::create(['import_batch_code' => 'IB-TRACE', 'status' => 'ACTIVE']);
-        $tray = Container::create(['container_code' => 'TRAY-01', 'container_type' => 'TRAY', 'physical_code_id' => $this->chipCode('CT-TRAY')->physical_code_id, 'status' => 'ACTIVE', 'version' => 1]);
+        // chk_containers_status_current: EMPTY/IN_STOCK/PARTIAL/ISSUED/RECEIVED_PENDING_PUTAWAY/STORED/CLOSED.
+        $tray = Container::create(['container_code' => 'TRAY-01', 'container_type' => 'TRAY', 'physical_code_id' => $this->chipCode('CT-TRAY')->physical_code_id, 'status' => 'EMPTY', 'version' => 1]);
         $box = Container::create([
             'container_code' => 'BOX-01', 'container_type' => 'BOX',
             'physical_code_id' => $this->chipCode('CT-BOX')->physical_code_id,
             'primary_sku_id' => $sku->sku_id, 'parent_container_id' => $tray->container_id,
-            'status' => 'ACTIVE', 'version' => 1,
+            'status' => 'STORED', 'version' => 1,
         ]);
         $item = ItemInstance::create([
             'sku_id' => $sku->sku_id, 'physical_code_id' => $code->physical_code_id,
             'container_id' => $box->container_id, 'import_batch_id' => $importBatch->import_batch_id,
-            'item_status' => 'IN_STOCK', 'item_condition' => 'NORMAL', 'version' => 1,
+            'serial_number' => 'SN-TRACE-CHAIN', 'item_status' => 'IN_STOCK', 'item_condition' => 'NORMAL', 'version' => 1,
         ]);
 
         $response = $this->getJson("/api/v1/item-instances/{$item->item_id}/trace", $headers);
@@ -167,26 +169,29 @@ class ItemInstanceTest extends TestCase
         $sku = $this->nonSerialSku();
         $code = $this->chipCode('IT-TRACE-PHYSICAL');
         $importBatch = ImportBatch::create(['import_batch_code' => 'IB-TRACE-BATCH', 'status' => 'ACTIVE']);
-        $container = Container::create(['container_code' => 'BOX-TRACE-CONTAINER', 'container_type' => 'BOX', 'physical_code_id' => $this->chipCode('CT-BOX-TRACE')->physical_code_id, 'primary_sku_id' => $sku->sku_id, 'status' => 'ACTIVE', 'version' => 1]);
+        // chk_containers_status_current: dùng status hợp lệ theo ERD.
+        $container = Container::create(['container_code' => 'BOX-TRACE-CONTAINER', 'container_type' => 'BOX', 'physical_code_id' => $this->chipCode('CT-BOX-TRACE')->physical_code_id, 'primary_sku_id' => $sku->sku_id, 'status' => 'STORED', 'version' => 1]);
         
         $item = ItemInstance::create([
             'sku_id' => $sku->sku_id,
             'physical_code_id' => $code->physical_code_id,
             'container_id' => $container->container_id,
             'import_batch_id' => $importBatch->import_batch_id,
+            'serial_number' => 'SN-TRACE-MOV',
             'item_status' => 'IN_STOCK',
             'item_condition' => 'NORMAL',
             'version' => 1
         ]);
 
-        $warehouse = Warehouse::create(['code' => 'WH-TRACE', 'name' => 'Kho trace', 'status' => 'ACTIVE']);
+        $warehouse = $this->ensureActiveWarehouse('WH-TRACE', 'Kho trace');
         $creator = User::first();
 
         $document = StockDocument::create([
             'doc_type' => StockDocument::TYPE_RECEIPT,
             'doc_no' => 'PN-TRACE-0001',
             'doc_date' => now()->format('Y-m-d'),
-            'status' => StockDocument::STATUS_APPROVED,
+            // chk_stock_documents_current_status: DRAFT/SCANNING/POSTED/CANCELLED (SRS §6).
+            'status' => 'POSTED',
             'dst_warehouse_id' => $warehouse->id,
             'created_by' => $creator->user_id,
         ]);
@@ -208,6 +213,8 @@ class ItemInstanceTest extends TestCase
             'qty_before' => 0,
             'qty_delta' => 10,
             'qty_after' => 10,
+            // ERD bảng 30: quantity NOT NULL, luôn dương.
+            'quantity' => 10,
             'stock_document_id' => $document->id,
             'stock_document_line_id' => $line->id,
             'created_by' => $creator->user_id,

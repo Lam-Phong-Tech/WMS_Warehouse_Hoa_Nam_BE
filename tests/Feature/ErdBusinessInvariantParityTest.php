@@ -133,14 +133,18 @@ class ErdBusinessInvariantParityTest extends TestCase
     {
         $this->requirePostgres();
 
+        // Sau 2026_08_10_000790/000791, các legacy relation là VIEW trên bảng canonical;
+        // vai trò "mirror runtime -> canonical" do INSTEAD OF trigger của view đảm nhận
+        // (tên trg_hn_legacy_<view>_write). Danh sách trg_erd_mirror_* cũ đã bị
+        // retire cùng bảng runtime vật lý.
         $required = [
-            ['app_user', 'trg_erd_mirror_app_users_from_app_user'],
-            ['role', 'trg_erd_mirror_roles_from_role'],
-            ['permission', 'trg_erd_mirror_permissions_from_permission'],
-            ['user_role', 'trg_erd_mirror_user_roles_from_user_role'],
-            ['role_permission', 'trg_erd_mirror_role_permissions_from_role_permission'],
-            ['warranty_case', 'trg_erd_mirror_warranty_cases_from_warranty_case'],
-            ['defect_catalogs', 'trg_erd_mirror_defect_catalog_from_runtime'],
+            ['app_user', 'trg_hn_legacy_app_user_write'],
+            ['role', 'trg_hn_legacy_role_write'],
+            ['permission', 'trg_hn_legacy_permission_write'],
+            ['user_role', 'trg_hn_legacy_user_role_write'],
+            ['role_permission', 'trg_hn_legacy_role_permission_write'],
+            ['warranty_case', 'trg_hn_legacy_warranty_case_write'],
+            ['defect_catalog', 'trg_hn_legacy_defect_catalog_write'],
         ];
 
         foreach ($required as [$table, $trigger]) {

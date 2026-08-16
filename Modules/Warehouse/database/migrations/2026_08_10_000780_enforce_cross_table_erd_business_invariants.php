@@ -172,25 +172,10 @@ return new class extends Migration
                     IF NOT EXISTS (SELECT 1 FROM outbound_lines l WHERE l.outbound_document_id=NEW.id) THEN
                         RAISE EXCEPTION 'FULL_POST_REQUIRED: outbound document has no lines';
                     END IF;
-                    IF EXISTS (
-                        SELECT 1
-                          FROM outbound_item_matches m
-                          JOIN outbound_lines l ON l.id=m.outbound_line_id
-                          JOIN skus s ON s.id=l.sku_id
-                         WHERE l.outbound_document_id=NEW.id
-                           AND m.status IN ('ACTIVE','POSTED')
-                           AND s.sku_type='PRODUCT'
-                           AND m.item_id IS NOT NULL
-                           AND NOT EXISTS (
-                               SELECT 1 FROM physical_codes pc
-                                WHERE pc.item_id=m.item_id
-                                  AND pc.carrier_type='RFID'
-                                  AND pc.hardware_uid IS NOT NULL
-                                  AND pc.status='ACTIVE'
-                           )
-                    ) THEN
-                        RAISE EXCEPTION 'RFID_REQUIRED: every matched PRODUCT item requires active RFID/hardware_uid';
-                    END IF;
+                    -- SRS v1.12 REQ-SRS-011 / DEC-RFID-FALLBACK-001: RFID là OPTIONAL tại
+                    -- outbound, không phải Post gate — Barcode/QR là định danh hợp lệ.
+                    -- Guard RFID_REQUIRED cũ (ERD proposal cho SRS v1.6) đã bị baseline
+                    -- v1.12 thay thế và được gỡ tại đây.
                 END IF;
                 RETURN NEW;
             END;

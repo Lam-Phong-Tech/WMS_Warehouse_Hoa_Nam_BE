@@ -492,6 +492,33 @@ class CurrentBaselineOperationsController extends Controller
         return $this->dispatchLabel($request, $id, true);
     }
 
+    /**
+     * Annex C printPackingLabel: POST /outbound-documents/{id}/packing-labels/{label_id}/print.
+     * Ràng buộc nhãn phải thuộc đúng phiếu xuất trước khi gửi lệnh in.
+     */
+    public function printPackingLabelForDocument(Request $request, string $documentId, string $labelId)
+    {
+        $this->assertLabelBelongsToDocument($documentId, $labelId);
+
+        return $this->dispatchLabel($request, $labelId, false);
+    }
+
+    /** Annex C reprintPackingLabel — stock-neutral, dùng lại chính snapshot cũ. */
+    public function reprintPackingLabelForDocument(Request $request, string $documentId, string $labelId)
+    {
+        $this->assertLabelBelongsToDocument($documentId, $labelId);
+
+        return $this->dispatchLabel($request, $labelId, true);
+    }
+
+    private function assertLabelBelongsToDocument(string $documentId, string $labelId): void
+    {
+        $snapshot = DB::table('label_snapshots')->where('id', $labelId)->first();
+        if ($snapshot === null || (string) $snapshot->outbound_document_id !== $documentId) {
+            ApiError::abort(404, 'LABEL_NOT_FOUND', 'Không tìm thấy Packing Label của phiếu xuất này.');
+        }
+    }
+
     public function pvCatalog(Request $request)
     {
         $query = DB::table('pv_product_profile as p')
@@ -547,9 +574,8 @@ class CurrentBaselineOperationsController extends Controller
         if (! in_array('recipient_name', $headers, true) && ! in_array('customer_name', $headers, true)) {
             ApiError::abort(422, 'INVALID_EXCEL_TEMPLATE', 'Thiếu recipient_name/customer_name.');
         }
-        if (! in_array('recipient_address', $headers, true) && ! in_array('customer_address', $headers, true)) {
-            ApiError::abort(422, 'INVALID_EXCEL_TEMPLATE', 'Thiếu recipient_address/customer_address.');
-        }
+        // SRS v1.12 §15 + REQ-SRS-014: recipient_address/customer_address nullable —
+        // file toa mẫu không có cột địa chỉ vẫn hợp lệ, không được chặn ở header.
 
         $rows = [];
         foreach ($raw as $values) {
@@ -579,9 +605,8 @@ class CurrentBaselineOperationsController extends Controller
         if ($recipientName === '') {
             $errors[] = $this->rowError($rowNo, 'recipient_name', 'REQUIRED', 'recipient/customer name is required.');
         }
-        if ($recipientAddress === '') {
-            $errors[] = $this->rowError($rowNo, 'recipient_address', 'REQUIRED', 'recipient/customer address is required.');
-        }
+        // SRS v1.12 §15 + REQ-SRS-014: recipient_address/phone nullable — không chặn
+        // Confirm khi toa nguồn (vd. toa mẫu khách hàng) không có địa chỉ.
 
         $sku = null;
         if ($skuId) {

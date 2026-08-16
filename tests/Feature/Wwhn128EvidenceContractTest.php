@@ -58,7 +58,7 @@ class Wwhn128EvidenceContractTest extends TestCase
         InventoryBalance::query()->create([
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
-            'stock_status' => 'DAMAGED',
+            'stock_status' => 'DEFECTIVE',
             'on_hand_qty' => 2,
             'available_qty' => 0,
             'reserved_qty' => 0,
@@ -67,7 +67,7 @@ class Wwhn128EvidenceContractTest extends TestCase
 
         $this->movement($user, $warehouse, $product, 'AVAILABLE', '10.000', '0.000', '10.000', StockMovement::RECEIPT_POSTED);
         $this->movement($user, $warehouse, $product, 'AVAILABLE', '-3.000', '10.000', '7.000', StockMovement::ISSUE_POSTED);
-        $this->movement($user, $warehouse, $product, 'DAMAGED', '2.000', '0.000', '2.000', StockMovement::RECEIPT_POSTED);
+        $this->movement($user, $warehouse, $product, 'DEFECTIVE', '2.000', '0.000', '2.000', StockMovement::RECEIPT_POSTED);
 
         $response = $this->getJson(
             "/api/v1/reports/inventory-reconciliation?warehouse_id={$warehouse->id}&product_id={$product->id}",
@@ -81,9 +81,9 @@ class Wwhn128EvidenceContractTest extends TestCase
         $after = $this->snapshot($warehouse->id, $product->id);
         $this->assertSame(3, $after['movement_count']);
         $this->assertSame(7.0, $after['ledger_by_status']['AVAILABLE']);
-        $this->assertSame(2.0, $after['ledger_by_status']['DAMAGED']);
+        $this->assertSame(2.0, $after['ledger_by_status']['DEFECTIVE']);
         $this->assertSame(7.0, $after['balance_by_status']['AVAILABLE']);
-        $this->assertSame(2.0, $after['balance_by_status']['DAMAGED']);
+        $this->assertSame(2.0, $after['balance_by_status']['DEFECTIVE']);
 
         $schema = $this->schemaVerification();
         $this->assertSame('PASS', $schema['summary']['status']);
@@ -270,9 +270,11 @@ class Wwhn128EvidenceContractTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
             'stock_status' => $stockStatus,
-            'qty_before' => $before,
-            'qty_delta' => $delta,
-            'qty_after' => $after,
+            // ERD §0/bảng 30: quantity/qty_* là bigint nguyên (quantity NOT NULL > 0).
+            'qty_before' => (int) round((float) $before),
+            'qty_delta' => (int) round((float) $delta),
+            'qty_after' => (int) round((float) $after),
+            'quantity' => max(1, abs((int) round((float) $delta))),
             'created_by' => $user->user_id,
             'occurred_at' => now(),
             'created_at' => now(),

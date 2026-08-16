@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -39,7 +39,7 @@ class AuthorizationTest extends TestCase
         $noPermissionToken = JWTAuth::fromUser($noPermission);
         $superAdminToken = JWTAuth::fromUser($superAdmin);
 
-        $product = Product::create([
+        $product = Sku::create([
             'code' => 'AUTH-SKU-PRODUCT',
             'name' => 'Authorization SKU Product',
             'unit' => 'cai',

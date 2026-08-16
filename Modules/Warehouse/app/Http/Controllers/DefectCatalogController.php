@@ -3,9 +3,12 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreDefectCatalogRequest;
 use Modules\Warehouse\Http\Requests\UpdateDefectCatalogRequest;
@@ -138,8 +141,12 @@ class DefectCatalogController extends Controller
             return $this->respondNotFound('Không tìm thấy danh mục lỗi.');
         }
 
+        $validated = $request->validated();
+        $this->assertVersionIfProvided($request, $before);
+        $this->assertCodeImmutableAfterUse($id, $validated, $before);
+
         $beforeData = $before->toArray();
-        $defect = $this->defects->update($id, $request->validated());
+        $defect = $this->defects->update($id, $validated);
 
         AuditLogger::record(
             action: 'UPDATE',
@@ -195,5 +202,45 @@ class DefectCatalogController extends Controller
         );
 
         return $this->respondSuccess(null, 'Xoá danh mục lỗi thành công');
+    }
+
+    /**
+     * Annex C updateDefect + ERD defect_catalog.version: If-Match là optimistic
+     * locking. Chỉ enforce khi client gửi header.
+     */
+    private function assertVersionIfProvided(Request $request, Model $current): void
+    {
+        $header = trim((string) $request->header('If-Match'));
+        if ($header === '') {
+            return;
+        }
+        $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên.');
+        }
+        if ((int) $header !== (int) ($current->version ?? 0)) {
+            ApiError::abort(412, 'STALE_VERSION', 'Danh mục lỗi đã được cập nhật bởi phiên khác; tải lại trước khi lưu.', [
+                'expected_version' => (int) $header,
+                'current_version' => (int) ($current->version ?? 0),
+            ]);
+        }
+    }
+
+    /**
+     * BR-DEF-01..04: "history không bị đổi" — lỗi đã gắn vào hồ sơ bảo hành thì
+     * defect_code là dữ liệu lịch sử, chỉ được deactivate chứ không đổi mã.
+     */
+    private function assertCodeImmutableAfterUse(string $id, array $payload, Model $current): void
+    {
+        if (! array_key_exists('defect_code', $payload)) {
+            return;
+        }
+        if (strtoupper(trim((string) $payload['defect_code'])) === strtoupper(trim((string) $current->defect_code))) {
+            return;
+        }
+
+        if (DB::table('warranty_case')->where('defect_id', $id)->exists()) {
+            ApiError::abort(409, 'DEFECT_CODE_IMMUTABLE_AFTER_USE', 'Lỗi đã được gán vào hồ sơ bảo hành nên không đổi được defect_code.');
+        }
     }
 }

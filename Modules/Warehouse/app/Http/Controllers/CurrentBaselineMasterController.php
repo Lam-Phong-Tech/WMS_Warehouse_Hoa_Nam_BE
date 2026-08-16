@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Modules\AuditLog\Services\AuditLogger;
 
 class CurrentBaselineMasterController extends Controller
 {
@@ -93,6 +95,133 @@ class CurrentBaselineMasterController extends Controller
         }
 
         return $this->insert('package_variants', $validated);
+    }
+
+    public function updateBrand(Request $request, string $id)
+    {
+        return $this->updateMaster($request, $id, 'brands', 'brand_code', 'brand_name');
+    }
+
+    public function updateProductCategory(Request $request, string $id)
+    {
+        return $this->updateMaster($request, $id, 'product_categories', 'category_code', 'category_name');
+    }
+
+    public function updatePowerSource(Request $request, string $id)
+    {
+        return $this->updateMaster($request, $id, 'power_sources', 'power_source_code', 'power_source_name');
+    }
+
+    public function updateProductModel(Request $request, string $id)
+    {
+        return $this->updateMaster($request, $id, 'product_models', 'model_code', 'model_name');
+    }
+
+    public function updatePackageVariant(Request $request, string $id)
+    {
+        return $this->updateMaster($request, $id, 'package_variants', 'package_code', 'package_name');
+    }
+
+    /**
+     * Annex C updateCatalogMasterEntry + §8.1 Master: "Unique, active/inactive,
+     * immutable code after use". BR-MST-01..07: deactivate thay vì xoá; mã đã được
+     * SKU tham chiếu thì không đổi được. If-Match theo ERD (version) — chỉ enforce
+     * khi client gửi header để không phá client đang chạy.
+     */
+    private function updateMaster(Request $request, string $id, string $table, string $codeColumn, string $nameColumn)
+    {
+        $rules = [
+            $codeColumn => ['sometimes', 'string', 'max:80', Rule::unique($table, $codeColumn)->ignore($id, 'id')],
+            $nameColumn => ['sometimes', 'string', 'max:200'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'status' => ['sometimes', 'in:ACTIVE,INACTIVE'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+        ];
+        if ($table === 'product_models') {
+            $rules['brand_id'] = ['nullable', 'uuid', 'exists:brands,id'];
+        }
+        $validated = $request->validate($rules);
+        if ($validated === []) {
+            ApiError::abort(422, 'EMPTY_UPDATE', 'Phải gửi ít nhất một trường để cập nhật.');
+        }
+
+        return DB::transaction(function () use ($request, $id, $table, $codeColumn, $nameColumn, $validated) {
+            $current = DB::table($table)->where('id', $id)->lockForUpdate()->first();
+            if ($current === null) {
+                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy catalog master.');
+            }
+            $this->assertVersionIfProvided($request, $current);
+
+            if (array_key_exists($codeColumn, $validated)
+                && (string) $validated[$codeColumn] !== (string) $current->{$codeColumn}
+                && $this->masterIsReferenced($table, $id)) {
+                ApiError::abort(409, 'MASTER_CODE_IMMUTABLE_AFTER_USE', 'Mã master đã được SKU tham chiếu nên không được đổi; hãy tạo master mới.');
+            }
+
+            $payload = $validated + ['updated_at' => now()];
+            // package_variants giữ cả cặp cột legacy variant_* nên phải ghi đồng bộ.
+            if ($table === 'package_variants') {
+                if (array_key_exists($codeColumn, $validated) && Schema::hasColumn($table, 'variant_code')) {
+                    $payload['variant_code'] = $validated[$codeColumn];
+                }
+                if (array_key_exists($nameColumn, $validated) && Schema::hasColumn($table, 'variant_name')) {
+                    $payload['variant_name'] = $validated[$nameColumn];
+                }
+            }
+            foreach (['updated_by' => $this->actorId(), 'version' => ((int) ($current->version ?? 0)) + 1] as $column => $value) {
+                if (Schema::hasColumn($table, $column)) {
+                    $payload[$column] = $value;
+                }
+            }
+
+            DB::table($table)->where('id', $id)->update($payload);
+
+            AuditLogger::record(
+                action: 'UPDATE',
+                objectType: $table,
+                objectId: $id,
+                actorId: $this->actorId(),
+                requestId: $request->attributes->get('request_id'),
+                beforeData: (array) $current,
+                afterData: (array) DB::table($table)->where('id', $id)->first(),
+            );
+
+            return $this->respondSuccess(DB::table($table)->where('id', $id)->first(), 'Cập nhật catalog master thành công.');
+        }, 3);
+    }
+
+    /** Master được coi là "đã dùng" khi có SKU trỏ tới. */
+    private function masterIsReferenced(string $table, string $id): bool
+    {
+        $column = match ($table) {
+            'brands' => 'brand_id',
+            'product_categories' => 'category_id',
+            'product_models' => 'model_id',
+            default => null,
+        };
+        if ($column === null || ! Schema::hasColumn('skus', $column)) {
+            return false;
+        }
+
+        return DB::table('skus')->where($column, $id)->exists();
+    }
+
+    private function assertVersionIfProvided(Request $request, object $current): void
+    {
+        $header = trim((string) $request->header('If-Match'));
+        if ($header === '') {
+            return;
+        }
+        $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên.');
+        }
+        if ((int) $header !== (int) ($current->version ?? 0)) {
+            ApiError::abort(412, 'STALE_VERSION', 'Bản ghi đã được cập nhật bởi phiên khác; tải lại trước khi lưu.', [
+                'expected_version' => (int) $header,
+                'current_version' => (int) ($current->version ?? 0),
+            ]);
+        }
     }
 
     private function storeSimpleMaster(Request $request, string $table, string $code, string $name)

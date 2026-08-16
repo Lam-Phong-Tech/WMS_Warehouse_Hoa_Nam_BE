@@ -502,6 +502,136 @@ class CurrentBaselineReversalService
         };
     }
 
+    /**
+     * SRS §6 bước "CONFIRMED": xác nhận hàng vật lý đã quay lại kho (BR-REV-06).
+     * ERD bảng 33 giữ status ∈ DRAFT/POSTED/CANCELLED nên trạng thái xác nhận được
+     * biểu diễn bằng physical_return_status, không phải bằng status.
+     *
+     * @return array<string, mixed>
+     */
+    public function confirmPhysicalReturn(string $reversalId, ?string $actorId, int $expectedVersion, ?string $returnCondition = null): array
+    {
+        return DB::transaction(function () use ($reversalId, $actorId, $expectedVersion, $returnCondition): array {
+            $reversal = $this->lockReversal($reversalId);
+            $this->assertVersion($reversal, $expectedVersion, 'reversal document');
+            if ((string) $reversal->status !== 'DRAFT') {
+                ApiError::abort(409, 'REVERSAL_NOT_DRAFT', 'Chỉ reversal DRAFT mới xác nhận hàng về.');
+            }
+            if ((string) ($reversal->physical_return_status ?? '') === 'CONFIRMED') {
+                return $this->reversalSnapshot($reversalId);
+            }
+            if ((string) ($reversal->physical_return_status ?? '') !== 'PENDING_RETURN') {
+                ApiError::abort(409, 'REVERSAL_NOT_PENDING_RETURN', 'Reversal không ở trạng thái chờ hàng về.');
+            }
+
+            DB::table('reversal_document')->where('reversal_document_id', $reversalId)->update([
+                'physical_return_status' => 'CONFIRMED',
+                'condition_status' => $returnCondition ?? $reversal->condition_status,
+                'version' => $expectedVersion + 1,
+                'updated_by' => $actorId,
+                'updated_at' => now(),
+            ]);
+
+            AuditLogger::record(
+                action: 'REVERSAL_PHYSICAL_RETURN_CONFIRMED',
+                objectType: 'reversal_document',
+                objectId: $reversalId,
+                actorId: $actorId,
+                afterData: ['physical_return_status' => 'CONFIRMED', 'stock_effect' => 'NONE'],
+            );
+
+            return $this->reversalSnapshot($reversalId);
+        }, 3);
+    }
+
+    /**
+     * SRS §6 bước "POSTED" — Annex C postReversal. Điểm duy nhất phát sinh
+     * movement/stock effect của luồng Reversal.
+     *
+     * @return array<string, mixed>
+     */
+    public function postReversalDocument(string $reversalId, ?string $actorId, string $idempotencyKey, string $requestHash, int $expectedVersion): array
+    {
+        return DB::transaction(function () use ($reversalId, $actorId, $idempotencyKey, $requestHash, $expectedVersion): array {
+            $reversal = $this->lockReversal($reversalId);
+            $this->assertVersion($reversal, $expectedVersion, 'reversal document');
+            if ((string) $reversal->status !== 'DRAFT') {
+                ApiError::abort(409, 'REVERSAL_NOT_DRAFT', 'Reversal phải ở DRAFT trước khi Post.');
+            }
+
+            $documentType = strtoupper((string) $reversal->original_document_type) === 'INBOUND' ? 'receipt' : 'issue';
+            $document = $this->lockOriginalDocument((string) $reversal->original_document_id, $documentType);
+
+            return $this->postDraft($reversalId, $document, $documentType, $actorId, $idempotencyKey, $requestHash);
+        }, 3);
+    }
+
+    /**
+     * SRS §6 bước "CANCELLED": chỉ huỷ được DRAFT; POSTED là append-only
+     * (BR-REV-08) nên phải sửa bằng reversal mới trong cùng chain.
+     *
+     * @return array<string, mixed>
+     */
+    public function cancelReversalDocument(string $reversalId, ?string $actorId, int $expectedVersion, string $reason): array
+    {
+        return DB::transaction(function () use ($reversalId, $actorId, $expectedVersion, $reason): array {
+            $reversal = $this->lockReversal($reversalId);
+            $this->assertVersion($reversal, $expectedVersion, 'reversal document');
+            if ((string) $reversal->status === 'POSTED') {
+                ApiError::abort(409, 'REVERSAL_POSTED_IMMUTABLE', 'Reversal POSTED là append-only; tạo reversal mới trong cùng chain (BR-REV-08).');
+            }
+            if ((string) $reversal->status !== 'DRAFT') {
+                ApiError::abort(409, 'REVERSAL_NOT_DRAFT', 'Chỉ reversal DRAFT mới huỷ được.');
+            }
+
+            DB::table('reversal_document')->where('reversal_document_id', $reversalId)->update([
+                'status' => 'CANCELLED',
+                'cancel_reason' => $reason,
+                'cancelled_at' => now(),
+                'version' => $expectedVersion + 1,
+                'updated_by' => $actorId,
+                'updated_at' => now(),
+            ]);
+
+            AuditLogger::record(
+                action: 'REVERSAL_CANCELLED',
+                objectType: 'reversal_document',
+                objectId: $reversalId,
+                actorId: $actorId,
+                afterData: ['status' => 'CANCELLED', 'reason' => $reason, 'stock_effect' => 'NONE'],
+            );
+
+            return $this->reversalSnapshot($reversalId);
+        }, 3);
+    }
+
+    private function lockReversal(string $reversalId): object
+    {
+        $reversal = DB::table('reversal_document')->where('reversal_document_id', $reversalId)->lockForUpdate()->first();
+        if ($reversal === null) {
+            ApiError::abort(404, 'REVERSAL_NOT_FOUND', 'Không tìm thấy reversal document.');
+        }
+
+        return $reversal;
+    }
+
+    /** @return array<string, mixed> */
+    private function reversalSnapshot(string $reversalId): array
+    {
+        $reversal = DB::table('reversal_document')->where('reversal_document_id', $reversalId)->first();
+
+        return [
+            'reversal_document_id' => $reversalId,
+            'reversal_status' => (string) ($reversal->status ?? ''),
+            'physical_return_status' => $reversal->physical_return_status ?? null,
+            'condition_status' => $reversal->condition_status ?? null,
+            'original_document_id' => (string) ($reversal->original_document_id ?? ''),
+            'version' => (int) ($reversal->version ?? 0),
+            'stock_effect' => 'NONE',
+            'movement_ids' => [],
+        ];
+    }
+
     private function lockOriginalDocument(string $documentId, string $documentType): object
     {
         $document = DB::table('stock_documents')
@@ -528,14 +658,15 @@ class CurrentBaselineReversalService
 
     private function recordPostingEvent(string $reversalId, string $key, string $hash, array $movementIds, ?string $actorId): void
     {
-        if (! DB::getSchemaBuilder()->hasTable('posting_event')) {
+        if (! DB::getSchemaBuilder()->hasTable('posting_event') && ! DB::getSchemaBuilder()->hasView('posting_event')) {
             return;
         }
         DB::table('posting_event')->insert([
             'posting_event_id' => (string) Str::uuid(),
             'operation' => 'reverse_'.$reversalId,
             'idempotency_key' => $key,
-            'request_hash' => $hash,
+            // ERD bảng 31: request_hash char(64).
+            'request_hash' => CurrentBaselineStockService::postingRequestDigest($hash),
             'status' => 'COMMITTED',
             'document_id' => $reversalId,
             'movement_id' => $movementIds[0] ?? null,

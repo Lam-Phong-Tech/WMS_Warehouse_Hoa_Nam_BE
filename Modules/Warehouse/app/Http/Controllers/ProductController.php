@@ -161,8 +161,12 @@ class ProductController extends Controller
         $validated = $request->validated();
         $this->assertImmutableAfterStock($id, $validated, $before);
         $validated = $this->assertPublishRequiresActive($validated, $before);
+        $nextVersion = $this->assertVersionMatchesIfProvided($request, $before);
 
         $beforeData = $before->toArray();
+        if ($nextVersion !== null) {
+            $validated['version'] = $nextVersion;
+        }
         $product = $this->products->update($id, $validated);
 
         AuditLogger::record(
@@ -176,6 +180,73 @@ class ProductController extends Controller
         );
 
         return $this->respondSuccess($product, 'Cập nhật SKU thành công');
+    }
+
+    /**
+     * Annex C publishPvProduct: PATCH /pv/products/{sku_id}/publish, permission
+     * riêng `pv.publish` (§3 tách khỏi sku.manage) + If-Match. REQ-SRS-020:
+     * SKU không ACTIVE thì không được publish; publish không phụ thuộc tồn kho.
+     */
+    public function publishPvProduct(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'published' => ['required', 'boolean'],
+        ]);
+
+        $before = $this->products->find($id);
+        if (! $before) {
+            return $this->respondNotFound('Không tìm thấy SKU.');
+        }
+
+        $payload = $this->assertPublishRequiresActive(['published_to_app' => (bool) $validated['published']], $before);
+        $nextVersion = $this->assertVersionMatchesIfProvided($request, $before);
+        if ($nextVersion !== null) {
+            $payload['version'] = $nextVersion;
+        }
+
+        $beforeData = $before->toArray();
+        $product = $this->products->update($id, $payload);
+
+        AuditLogger::record(
+            action: $validated['published'] ? 'PV_PUBLISH' : 'PV_UNPUBLISH',
+            objectType: 'sku',
+            objectId: $id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            beforeData: $beforeData,
+            afterData: $product->toArray(),
+        );
+
+        return $this->respondSuccess($product, $validated['published'] ? 'Đã publish SKU lên App PV.' : 'Đã gỡ SKU khỏi App PV.');
+    }
+
+    /**
+     * Annex C updateSku + ERD bảng 16 (skus.version): khi client gửi If-Match,
+     * phải so version thật và trả 412 STALE_VERSION nếu lệch, rồi tăng version.
+     * Không gửi header thì giữ hành vi hiện hành (chưa bắt buộc theo baseline
+     * đang chạy), nên client cũ không bị vỡ.
+     */
+    private function assertVersionMatchesIfProvided(Request $request, Model $current): ?int
+    {
+        $header = trim((string) $request->header('If-Match'));
+        if ($header === '') {
+            return null;
+        }
+
+        $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
+        if (! ctype_digit($header) || (int) $header < 1) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên dương.');
+        }
+
+        $currentVersion = (int) ($current->version ?? 0);
+        if ((int) $header !== $currentVersion) {
+            ApiError::abort(412, 'STALE_VERSION', 'SKU đã được cập nhật bởi phiên khác; tải lại trước khi lưu.', [
+                'expected_version' => (int) $header,
+                'current_version' => $currentVersion,
+            ]);
+        }
+
+        return $currentVersion + 1;
     }
 
     /**

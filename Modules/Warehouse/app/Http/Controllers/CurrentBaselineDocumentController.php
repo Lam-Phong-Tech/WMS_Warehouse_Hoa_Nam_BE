@@ -8,12 +8,60 @@ use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 
 class CurrentBaselineDocumentController extends Controller
 {
     use ApiResponse;
+
+    /**
+     * Annex D SCR-IN-01: bảng mã đã quét của phiếu nhập (mã / SKU / kết quả /
+     * nguồn CAMERA hay nhập tay) phải đọc lại được sau khi tải lại trang —
+     * inbound_scan_entries đã lưu scan_source nhưng trước đó không có endpoint đọc.
+     */
+    public function inboundScanEntries(Request $request, string $id)
+    {
+        $document = DB::table('stock_documents')->where('id', $id)->where('doc_type', 'receipt')->first();
+        if ($document === null) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nhập.');
+        }
+
+        $columns = [
+            'e.id',
+            'e.inbound_line_id',
+            'e.item_id',
+            'e.container_id',
+            'e.quantity',
+            'e.scan_source',
+            'e.status',
+            'e.created_at',
+            'l.line_no',
+            'l.product_id',
+            's.sku_code',
+            's.sku_name',
+            'i.serial_number',
+        ];
+        // item_code chỉ tồn tại trên nhánh ERD PostgreSQL (migration bổ sung cột
+        // này dùng cú pháp PG nên bị bỏ qua ở sqlite) — chọn có điều kiện để
+        // endpoint chạy được trên cả hai driver mà CI đang dùng.
+        if (Schema::hasColumn('item_instances', 'item_code')) {
+            $columns[] = 'i.item_code';
+        }
+
+        $page = DB::table('inbound_scan_entries as e')
+            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
+            ->leftJoin('sku as s', 's.sku_id', '=', 'l.product_id')
+            ->leftJoin('item_instances as i', 'i.item_id', '=', 'e.item_id')
+            ->where('l.stock_document_id', $id)
+            ->orderByDesc('e.created_at')
+            ->select($columns)
+            ->paginate($this->perPage($request));
+
+        return $this->respondPaginated($page);
+    }
 
     public function storeInbound(Request $request)
     {
@@ -56,7 +104,9 @@ class CurrentBaselineDocumentController extends Controller
     public function updateInbound(Request $request, string $id)
     {
         $validated = $request->validate([
-            'doc_no' => ['sometimes', 'string', 'max:80'],
+            // DB có UNIQUE(doc_no); thiếu rule ở update sẽ nổ QueryException 500
+            // thay vì 422 VALIDATION_ERROR theo §8.2.
+            'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
             'doc_date' => ['sometimes', 'date'],
             'source_name' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
@@ -74,7 +124,7 @@ class CurrentBaselineDocumentController extends Controller
     public function updateOutbound(Request $request, string $id)
     {
         $validated = $request->validate([
-            'doc_no' => ['sometimes', 'string', 'max:80'],
+            'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
             'doc_date' => ['sometimes', 'date'],
             'agency_id' => ['nullable', 'uuid', 'exists:agencies,agency_id'],
             'recipient_name' => ['nullable', 'string', 'max:200'],

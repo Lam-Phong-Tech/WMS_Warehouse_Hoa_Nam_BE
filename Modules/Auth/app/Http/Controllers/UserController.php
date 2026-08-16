@@ -7,6 +7,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Http\Requests\AssignUserRoleRequest;
@@ -268,9 +269,24 @@ class UserController extends Controller
         $beforeRoleIds = $user->roles()->pluck('role.role_id')->all();
         $beforeVersion = (int) $user->version;
 
+        // BR-IAM-08 "scope assignment explicit": dạng `roles[]` cho phép gán kèm
+        // scope_ref và cửa sổ hiệu lực; dạng `role_ids[]` giữ nguyên cho client cũ.
+        $validated = $request->validated();
+        $assignments = $validated['roles'] ?? array_map(
+            fn (string $roleId): array => ['role_id' => $roleId],
+            $validated['role_ids'] ?? []
+        );
+
         $pivotData = [];
-        foreach ($request->validated()['role_ids'] as $roleId) {
-            $pivotData[$roleId] = ['user_role_id' => (string) Str::uuid()];
+        foreach ($assignments as $assignment) {
+            $roleId = (string) $assignment['role_id'];
+            $pivot = ['user_role_id' => (string) Str::uuid()];
+            foreach (['scope_ref', 'effective_from', 'effective_to'] as $column) {
+                if (array_key_exists($column, $assignment) && Schema::hasColumn('user_role', $column)) {
+                    $pivot[$column] = $assignment[$column];
+                }
+            }
+            $pivotData[$roleId] = $pivot;
         }
         $user->roles()->sync($pivotData);
 

@@ -80,8 +80,10 @@ class AuthRbacAuditHardeningTest extends TestCase
 
     public function test_warehouse_scope_filters_list_and_denies_detail_and_mutation_outside_scope(): void
     {
-        $warehouseA = Warehouse::create(['code' => 'KHO-A', 'name' => 'Kho A', 'status' => 'ACTIVE']);
-        $warehouseB = Warehouse::create(['code' => 'KHO-B', 'name' => 'Kho B', 'status' => 'ACTIVE']);
+        // REQ-SRS-001: chỉ một warehouse ACTIVE. Kho ngoài scope dùng INACTIVE —
+        // data-scope check theo warehouse_id nên vẫn chứng minh được deny path.
+        $warehouseA = $this->ensureActiveWarehouse('KHO-A', 'Kho A');
+        $warehouseB = Warehouse::create(['code' => 'KHO-B', 'name' => 'Kho B', 'status' => 'INACTIVE']);
         $role = $this->createRole('KHO_A_MANAGER', ['warehouse.view', 'warehouse.manage']);
         $user = $this->createUser('scope_a', $role, ['scope_ref' => $warehouseA->getKey()]);
         $token = JWTAuth::fromUser($user);

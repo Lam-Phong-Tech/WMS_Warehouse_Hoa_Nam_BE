@@ -158,7 +158,9 @@ return new class extends Migration
             'physical_codes' => [
                 "carrier_type IN ('BARCODE','QR','RFID','NFC','MANUAL')",
                 "status IN ('ACTIVE','INACTIVE','LOST','DAMAGED')",
-                '((item_id IS NOT NULL)::integer + (container_id IS NOT NULL)::integer) = 1',
+                // SRS v1.12 §7.3: Physical_Code – Item/Container = 1–0..1; §13.9 cho phép
+                // UNASSIGNED trước khi gán — tối đa một target, không bắt buộc có.
+                '((item_id IS NOT NULL)::integer + (container_id IS NOT NULL)::integer) <= 1',
                 "carrier_type <> 'RFID' OR hardware_uid IS NOT NULL",
             ],
             'containers' => [

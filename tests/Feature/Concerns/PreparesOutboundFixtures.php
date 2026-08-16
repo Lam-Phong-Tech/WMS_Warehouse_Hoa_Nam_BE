@@ -52,6 +52,13 @@ trait PreparesOutboundFixtures
 
     private function warehouseFixture(string $code = 'KHO-TONG-HN'): Warehouse
     {
+        // REQ-SRS-001 + uk_warehouses_single_active: chỉ một warehouse ACTIVE.
+        // Tái sử dụng warehouse ACTIVE hiện hữu (vd. từ seed) thay vì tạo bản thứ hai.
+        $existing = Warehouse::query()->where('status', 'ACTIVE')->first();
+        if ($existing !== null) {
+            return $existing;
+        }
+
         return Warehouse::create([
             'code' => $code,
             'name' => 'Kho tổng Hòa Nam',
@@ -207,10 +214,35 @@ trait PreparesOutboundFixtures
 
     private function outboundRequestFixture(string $skuId, int $qty, string $requestNo): string
     {
+        // ERD bảng 37: outbound_requests.import_id NOT NULL — mọi toa (Excel hoặc
+        // nhập tay) đều phải trace về một outbound_request_imports record, khớp
+        // REQ-SRS-014 (cả hai kênh lưu source_type/source_ref/checksum).
+        $importId = (string) Str::uuid();
+        $checksum = hash('sha256', 'test-fixture:'.$requestNo.':'.$importId);
+        DB::table('outbound_request_imports')->insert([
+            'id' => $importId,
+            'import_no' => 'OBI-TEST-'.Str::upper(Str::random(10)),
+            'source_file_name' => 'test-fixture.xlsx',
+            'source_checksum' => $checksum,
+            'source_key' => 'CHECKSUM:'.$checksum,
+            'status' => 'CONSUMED',
+            'total_rows' => 1,
+            'valid_rows' => 1,
+            'error_rows' => 0,
+            'consumed_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+            'version' => 0,
+        ]);
+
         $requestId = (string) Str::uuid();
         DB::table('outbound_requests')->insert([
             'id' => $requestId,
             'request_no' => $requestNo,
+            'import_id' => $importId,
+            'source_checksum' => $checksum,
+            'customer_name' => 'Đại lý test',
+            'customer_address' => '123 Test Street',
             'recipient_name' => 'Đại lý test',
             'recipient_address' => '123 Test Street',
             'request_date' => now()->toDateString(),

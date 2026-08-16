@@ -37,6 +37,12 @@ class StoreItemInstanceRequest extends FormRequest
                 $validator->errors()->add('physical_code_id', 'SKU loại PRODUCT có is_serial_tracked=true bắt buộc phải có physical_code_id.');
             }
 
+            // ERD bảng 20 (serial subledger) + DB guard SERIAL_REQUIRED: SKU
+            // tracking SERIAL bắt buộc serial_number — validate 422 thay vì để 500.
+            if ($sku && $sku->is_serial_tracked && ! $this->filled('serial_number')) {
+                $validator->errors()->add('serial_number', 'SKU theo dõi serial bắt buộc serial_number.');
+            }
+
             if ($this->filled('physical_code_id')) {
                 $physicalCode = PhysicalCode::find($this->input('physical_code_id'));
                 if ($physicalCode && $physicalCode->status !== 'ACTIVE') {

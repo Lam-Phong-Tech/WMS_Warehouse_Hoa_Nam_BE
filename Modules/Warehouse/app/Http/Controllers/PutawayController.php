@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use OpenApi\Attributes as OA;
 
@@ -15,108 +15,6 @@ use OpenApi\Attributes as OA;
 class PutawayController extends Controller
 {
     use ApiResponse;
-
-    #[OA\Post(
-        path: '/api/v1/inbound-documents/{id}/boxes',
-        operationId: 'inbound_register_component_box',
-        summary: 'Đăng ký BOX cho dòng nhập COMPONENT trước khi scan',
-        security: [['bearerAuth' => []]],
-        tags: ['24. Putaway'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
-            required: ['line_id', 'box_code'],
-            properties: [
-                new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'box_code', type: 'string', example: 'BOX-COMP-0001'),
-            ],
-        )),
-        responses: [
-            new OA\Response(response: 200, description: 'BOX đã tồn tại và hợp lệ'),
-            new OA\Response(response: 201, description: 'Đăng ký BOX thành công'),
-            new OA\Response(response: 409, description: 'BOX đang thuộc luồng khác hoặc state conflict'),
-            new OA\Response(response: 422, description: 'Dòng không phải COMPONENT / dữ liệu không hợp lệ'),
-        ],
-    )]
-    public function registerInboundBox(Request $request, string $documentId)
-    {
-        $payload = $request->validate([
-            'line_id' => ['required', 'uuid'],
-            'box_code' => ['required', 'string', 'max:100'],
-        ]);
-        $actorId = $this->actorId();
-
-        $result = DB::transaction(function () use ($payload, $documentId, $actorId): array {
-            $document = DB::table('stock_documents')
-                ->where('id', $documentId)
-                ->where('doc_type', 'receipt')
-                ->lockForUpdate()
-                ->first();
-            if ($document === null) {
-                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nhập.');
-            }
-            if (! in_array((string) $document->status, ['DRAFT', 'SCANNING'], true)) {
-                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ phiếu DRAFT/SCANNING mới được đăng ký BOX.');
-            }
-
-            $line = DB::table('stock_document_lines')
-                ->where('id', $payload['line_id'])
-                ->where('stock_document_id', $documentId)
-                ->lockForUpdate()
-                ->first();
-            if ($line === null) {
-                ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy dòng nhập kho.');
-            }
-
-            $sku = DB::table('sku')->where('sku_id', $line->product_id)->first();
-            if ($sku === null || strtoupper((string) $sku->sku_type) !== 'COMPONENT') {
-                ApiError::abort(422, 'COMPONENT_SKU_REQUIRED', 'BOX putaway chỉ áp dụng cho SKU COMPONENT.');
-            }
-            if (strtoupper((string) $sku->status) !== 'ACTIVE') {
-                ApiError::abort(422, 'SKU_NOT_ACTIVE', 'SKU COMPONENT phải ACTIVE.');
-            }
-
-            $boxCode = strtoupper(trim((string) $payload['box_code']));
-            $box = DB::table('containers')->where('container_code', $boxCode)->lockForUpdate()->first();
-            if ($box !== null) {
-                $this->assertBoxReusable($box, (string) $line->product_id);
-                $this->assertBoxNotUsedByOtherActiveReceipt((string) $box->container_id, $documentId);
-
-                return $this->boxResponse($box, false);
-            }
-
-            $boxId = (string) Str::uuid();
-            DB::table('containers')->insert([
-                'container_id' => $boxId,
-                'container_code' => $boxCode,
-                'container_type' => 'BOX',
-                'physical_code_id' => null,
-                'primary_sku_id' => $line->product_id,
-                'parent_container_id' => null,
-                'zone_code' => null,
-                'location_hint' => null,
-                'status' => 'EMPTY',
-                'version' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $box = DB::table('containers')->where('container_id', $boxId)->first();
-
-            AuditLogger::record(
-                action: 'CREATE_RECEIPT_BOX',
-                objectType: 'container',
-                objectId: $boxId,
-                actorId: $actorId,
-                requestId: $request->attributes->get('request_id'),
-                afterData: (array) $box,
-            );
-
-            return $this->boxResponse($box, true);
-        }, 3);
-
-        return $result['created']
-            ? $this->respondCreated($result, 'Đã đăng ký BOX cho dòng nhập COMPONENT.')
-            : $this->respondSuccess($result, 'BOX đã tồn tại và hợp lệ.');
-    }
 
     #[OA\Get(
         path: '/api/v1/putaway/tasks',
@@ -150,28 +48,27 @@ class PutawayController extends Controller
                 });
             })
             ->orderBy('c.container_code')
-            ->get([
+            ->select([
                 'c.container_id', 'c.container_code', 'c.primary_sku_id',
                 'c.parent_container_id', 'c.location_hint', 'c.status', 'c.version',
                 's.sku_code', 's.sku_name',
             ]);
 
-        $rows = $boxes->map(function ($box): array {
-            $receipt = $this->latestPostedReceipt((string) $box->container_id);
-            $quantity = (int) DB::table('inbound_scan_entries as e')
-                ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-                ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-                ->where('e.container_id', $box->container_id)
-                ->where('d.status', 'POSTED')
-                ->sum('e.quantity');
-            $draft = DB::table('putaway_events')
-                ->where('box_container_id', $box->container_id)
-                ->where('status', 'DRAFT')
-                ->orderByDesc('created_at')
-                ->first();
-            $targetTray = $draft?->to_tray_id
-                ? DB::table('containers')->where('container_id', $draft->to_tray_id)->value('container_code')
-                : null;
+        // Annex C PutawayTaskPage: phân trang ở tầng SQL. Các số liệu phụ được nạp
+        // theo lô cho đúng trang hiện tại thay vì 4 truy vấn/BOX (N+1).
+        $page = $boxes->paginate($this->perPage($request));
+        $boxIds = collect($page->items())->pluck('container_id')->map(fn ($id): string => (string) $id)->all();
+        $quantities = $this->postedQuantitiesByBox($boxIds);
+        $drafts = $this->latestDraftsByBox($boxIds);
+        $receipts = $this->latestPostedReceiptsByBox($boxIds);
+        $trayCodes = $this->trayCodes($drafts);
+
+        $rows = collect($page->items())->map(function ($box) use ($quantities, $drafts, $receipts, $trayCodes): array {
+            $boxId = (string) $box->container_id;
+            $receipt = $receipts[$boxId] ?? null;
+            $quantity = (int) ($quantities[$boxId] ?? 0);
+            $draft = $drafts[$boxId] ?? null;
+            $targetTray = $draft?->to_tray_id ? ($trayCodes[(string) $draft->to_tray_id] ?? null) : null;
 
             return [
                 'id' => (string) $box->container_id,
@@ -194,98 +91,90 @@ class PutawayController extends Controller
             ];
         })->values();
 
-        return $this->respondSuccess($rows, 'Danh sách BOX chờ xếp khay.');
+        return $this->respondPaginated(
+            new LengthAwarePaginator($rows->all(), $page->total(), $page->perPage(), $page->currentPage()),
+            'Danh sách BOX chờ xếp khay.'
+        );
     }
 
-    #[OA\Post(
-        path: '/api/v1/putaway/tasks',
-        operationId: 'putaway_task_create',
-        summary: 'PTW-01 - Tạo putaway DRAFT từ BOX sang TRAY',
-        security: [['bearerAuth' => []]],
-        tags: ['24. Putaway'],
-        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
-            required: ['box_container_id', 'to_tray_id'],
-            properties: [
-                new OA\Property(property: 'box_container_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'to_tray_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'location_hint', type: 'string', nullable: true),
-                new OA\Property(property: 'note', type: 'string', nullable: true),
-            ],
-        )),
-        responses: [
-            new OA\Response(response: 201, description: 'Tạo DRAFT thành công'),
-            new OA\Response(response: 409, description: 'BOX không ở trạng thái putaway hoặc đã có DRAFT'),
-            new OA\Response(response: 422, description: 'BOX/TRAY không hợp lệ hoặc tạo cycle'),
-        ],
-    )]
-    public function storeTask(Request $request)
+    /**
+     * @param  list<string>  $boxIds
+     * @return array<string, int>
+     */
+    private function postedQuantitiesByBox(array $boxIds): array
     {
-        $payload = $request->validate([
-            'box_container_id' => ['required', 'uuid', 'exists:containers,container_id'],
-            'to_tray_id' => ['required', 'uuid', 'different:box_container_id', 'exists:containers,container_id'],
-            'location_hint' => ['nullable', 'string', 'max:255'],
-            'note' => ['nullable', 'string', 'max:2000'],
-        ]);
-        $actorId = $this->actorId();
+        if ($boxIds === []) {
+            return [];
+        }
 
-        $event = DB::transaction(function () use ($payload, $actorId) {
-            $box = DB::table('containers')->where('container_id', $payload['box_container_id'])->lockForUpdate()->first();
-            $tray = DB::table('containers')->where('container_id', $payload['to_tray_id'])->lockForUpdate()->first();
-            $this->assertBoxPutawayEligible($box);
-            $this->assertTrayUsable($tray);
-            $this->assertNoCycle((string) $box->container_id, (string) $tray->container_id);
+        return DB::table('inbound_scan_entries as e')
+            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
+            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
+            ->whereIn('e.container_id', $boxIds)
+            ->where('d.status', 'POSTED')
+            ->groupBy('e.container_id')
+            ->selectRaw('e.container_id, COALESCE(SUM(e.quantity), 0) AS total')
+            ->pluck('total', 'container_id')
+            ->map(fn ($value): int => (int) $value)
+            ->all();
+    }
 
-            $existing = DB::table('putaway_events')
-                ->where('box_container_id', $box->container_id)
-                ->where('status', 'DRAFT')
-                ->lockForUpdate()
-                ->first();
-            if ($existing !== null) {
-                ApiError::abort(409, 'PUTAWAY_DRAFT_EXISTS', 'BOX đã có putaway DRAFT chưa xử lý.', [
-                    'putaway_event_id' => (string) $existing->id,
-                    'version' => (int) $existing->version,
-                ]);
+    /**
+     * @param  list<string>  $boxIds
+     * @return array<string, object>
+     */
+    private function latestDraftsByBox(array $boxIds): array
+    {
+        if ($boxIds === []) {
+            return [];
+        }
+
+        return DB::table('putaway_events')
+            ->whereIn('box_container_id', $boxIds)
+            ->where('status', 'DRAFT')
+            ->orderByDesc('created_at')
+            ->get()
+            ->groupBy('box_container_id')
+            ->map(fn ($rows) => $rows->first())
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $boxIds
+     * @return array<string, object>
+     */
+    private function latestPostedReceiptsByBox(array $boxIds): array
+    {
+        $map = [];
+        foreach ($boxIds as $boxId) {
+            $receipt = $this->latestPostedReceipt($boxId);
+            if ($receipt !== null) {
+                $map[$boxId] = $receipt;
             }
+        }
 
-            $eventId = (string) Str::uuid();
-            $receipt = $this->latestPostedReceipt((string) $box->container_id);
-            DB::table('putaway_events')->insert([
-                'id' => $eventId,
-                'stock_document_id' => $receipt?->id,
-                'warehouse_id' => $receipt?->dst_warehouse_id,
-                'container_id' => $box->container_id,
-                'box_container_id' => $box->container_id,
-                'from_parent_container_id' => $box->parent_container_id,
-                'to_parent_container_id' => $tray->container_id,
-                'from_tray_id' => $box->parent_container_id,
-                'to_tray_id' => $tray->container_id,
-                'from_location_hint' => $box->location_hint,
-                'to_location_hint' => $payload['location_hint'] ?? $tray->location_hint,
-                'location_hint' => $payload['location_hint'] ?? $tray->location_hint,
-                'status' => 'DRAFT',
-                'confirmed_at' => now(),
-                'created_by' => $actorId,
-                'confirmed_by' => null,
-                'note' => $payload['note'] ?? null,
-                'version' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-                'updated_by' => $actorId,
-            ]);
+        return $map;
+    }
 
-            return DB::table('putaway_events')->where('id', $eventId)->first();
-        }, 3);
+    /**
+     * @param  array<string, object>  $drafts
+     * @return array<string, string>
+     */
+    private function trayCodes(array $drafts): array
+    {
+        $trayIds = array_values(array_filter(array_map(
+            fn ($draft): ?string => $draft?->to_tray_id !== null ? (string) $draft->to_tray_id : null,
+            $drafts
+        )));
+        if ($trayIds === []) {
+            return [];
+        }
 
-        AuditLogger::record(
-            action: 'PUTAWAY_DRAFT_CREATE',
-            objectType: 'putaway_event',
-            objectId: (string) $event->id,
-            actorId: $actorId,
-            requestId: $request->attributes->get('request_id'),
-            afterData: (array) $event,
-        );
-
-        return $this->respondCreated($this->eventResponse($event), 'Đã tạo tác vụ putaway DRAFT.');
+        return DB::table('containers')
+            ->whereIn('container_id', $trayIds)
+            ->pluck('container_code', 'container_id')
+            ->map(fn ($code): string => (string) $code)
+            ->all();
     }
 
     #[OA\Post(
@@ -451,13 +340,17 @@ class PutawayController extends Controller
                 });
             })
             ->orderByDesc('p.confirmed_at')
-            ->limit(500)
-            ->get([
+            // Trước đây hard-limit 500 dòng và im lặng cắt phần còn lại; phân trang
+            // thật để client biết tổng số bản ghi.
+            ->select([
                 'p.id', 'p.box_container_id', 'p.from_tray_id', 'p.to_tray_id',
                 'p.location_hint', 'p.note', 'p.confirmed_at', 'p.created_at', 'p.version',
                 'b.container_code as box_code', 'ft.container_code as old_tray_code',
                 'tt.container_code as new_tray_code', 'u.display_name as actor_name',
             ])
+            ->paginate($this->perPage($request));
+
+        $mapped = collect($rows->items())
             ->map(fn ($row): array => [
                 'id' => (string) $row->id,
                 'box_container_id' => (string) $row->box_container_id,
@@ -473,34 +366,10 @@ class PutawayController extends Controller
                 'movement_created' => false,
             ])->values();
 
-        return $this->respondSuccess($rows, 'Lịch sử putaway đã xác nhận.');
-    }
-
-    private function assertBoxReusable(object $box, string $skuId): void
-    {
-        if ((string) $box->container_type !== 'BOX') {
-            ApiError::abort(422, 'BOX_CODE_CONFLICT', 'Mã đã tồn tại nhưng không phải BOX.');
-        }
-        if ((string) $box->primary_sku_id !== $skuId) {
-            ApiError::abort(422, 'BOX_SKU_MISMATCH', 'Một BOX chỉ được chứa một SKU COMPONENT.');
-        }
-        if ($box->parent_container_id !== null || in_array((string) $box->status, ['CLOSED', 'ISSUED', 'STORED'], true)) {
-            ApiError::abort(409, 'BOX_NOT_RECEIVABLE', 'BOX đã được lưu kho/đóng hoặc thuộc vị trí khác.');
-        }
-    }
-
-    private function assertBoxNotUsedByOtherActiveReceipt(string $boxId, string $documentId): void
-    {
-        $conflict = DB::table('inbound_scan_entries as e')
-            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-            ->where('e.container_id', $boxId)
-            ->where('d.id', '<>', $documentId)
-            ->whereIn('d.status', ['DRAFT', 'SCANNING'])
-            ->exists();
-        if ($conflict) {
-            ApiError::abort(409, 'BOX_IN_OTHER_ACTIVE_RECEIPT', 'BOX đang được dùng bởi một phiếu nhập khác chưa kết thúc.');
-        }
+        return $this->respondPaginated(
+            new LengthAwarePaginator($mapped->all(), $rows->total(), $rows->perPage(), $rows->currentPage()),
+            'Lịch sử putaway đã xác nhận.'
+        );
     }
 
     private function assertBoxPutawayEligible(?object $box, bool $allowDraftTarget = false): void
@@ -562,20 +431,6 @@ class PutawayController extends Controller
             'status' => (string) $event->status,
             'version' => (int) $event->version,
             'note' => $event->note,
-            'stock_effect' => 'NONE',
-            'movement_created' => false,
-        ];
-    }
-
-    private function boxResponse(object $box, bool $created): array
-    {
-        return [
-            'container_id' => (string) $box->container_id,
-            'box_code' => (string) $box->container_code,
-            'sku_id' => (string) $box->primary_sku_id,
-            'status' => (string) $box->status,
-            'version' => (int) $box->version,
-            'created' => $created,
             'stock_effect' => 'NONE',
             'movement_created' => false,
         ];

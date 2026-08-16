@@ -38,6 +38,7 @@ class WarrantyCase extends Model
         'warranty_case_id',
         'warranty_case_code',
         'inventory_serial_id',
+        'item_id',
         'product_id',
         'temporary_item_code',
         'identification_status',

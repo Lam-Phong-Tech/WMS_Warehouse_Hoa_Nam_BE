@@ -3,9 +3,13 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreAgencyRequest;
 use Modules\Warehouse\Http\Requests\UpdateAgencyRequest;
@@ -143,8 +147,12 @@ class AgencyController extends Controller
             return $this->respondNotFound('Không tìm thấy đại lý.');
         }
 
+        $validated = $request->validated();
+        $this->assertVersionIfProvided($request, $before);
+        $this->assertCodeImmutableAfterUse($id, $validated, $before);
+
         $beforeData = $before->toArray();
-        $agency = $this->agencies->update($id, $request->validated());
+        $agency = $this->agencies->update($id, $validated);
 
         AuditLogger::record(
             action: 'UPDATE',
@@ -200,5 +208,48 @@ class AgencyController extends Controller
         );
 
         return $this->respondSuccess(null, 'Xoá đại lý thành công');
+    }
+
+    /**
+     * Annex C updateAgency + ERD agencies.version: If-Match là optimistic locking.
+     * Chỉ enforce khi client gửi header, để client cũ không bị vỡ.
+     */
+    private function assertVersionIfProvided(Request $request, Model $current): void
+    {
+        $header = trim((string) $request->header('If-Match'));
+        if ($header === '') {
+            return;
+        }
+        $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên.');
+        }
+        if ((int) $header !== (int) ($current->version ?? 0)) {
+            ApiError::abort(412, 'STALE_VERSION', 'Đại lý đã được cập nhật bởi phiên khác; tải lại trước khi lưu.', [
+                'expected_version' => (int) $header,
+                'current_version' => (int) ($current->version ?? 0),
+            ]);
+        }
+    }
+
+    /**
+     * §8.1 Master: "immutable code after use" + BR-AGY-01. Đại lý đã xuất hiện trên
+     * chứng từ/toa thì agency_code là dữ liệu lịch sử, không được đổi.
+     */
+    private function assertCodeImmutableAfterUse(string $id, array $payload, Model $current): void
+    {
+        if (! array_key_exists('agency_code', $payload)) {
+            return;
+        }
+        if (strtoupper(trim((string) $payload['agency_code'])) === strtoupper(trim((string) $current->agency_code))) {
+            return;
+        }
+
+        $referenced = DB::table('stock_documents')->where('agency_id', $id)->exists()
+            || (Schema::hasTable('outbound_requests') && DB::table('outbound_requests')->where('agency_id', $id)->exists());
+
+        if ($referenced) {
+            ApiError::abort(409, 'AGENCY_CODE_IMMUTABLE_AFTER_USE', 'Đại lý đã được dùng trên chứng từ nên không đổi được agency_code.');
+        }
     }
 }

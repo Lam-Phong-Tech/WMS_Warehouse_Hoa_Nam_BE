@@ -268,7 +268,8 @@ return new class extends Migration
     private function addPostgresConstraints(): void
     {
         foreach ([
-            'ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_target_xor CHECK ((item_id IS NOT NULL)::int + (container_id IS NOT NULL)::int = 1)',
+            // SRS v1.12 §7.3 (1–0..1) + §13.9 UNASSIGNED: tối đa một target, không bắt buộc có.
+            'ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_target_xor CHECK ((item_id IS NOT NULL)::int + (container_id IS NOT NULL)::int <= 1)',
             "ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_status_current CHECK (status IN ('ACTIVE','INACTIVE','LOST','DAMAGED'))",
             "ALTER TABLE physical_codes ADD CONSTRAINT chk_physical_codes_carrier_current CHECK (carrier_type IN ('BARCODE','QR','RFID','NFC','MANUAL'))",
             "ALTER TABLE containers ADD CONSTRAINT chk_containers_status_current CHECK (status IN ('EMPTY','IN_STOCK','PARTIAL','ISSUED','RECEIVED_PENDING_PUTAWAY','STORED','CLOSED'))",

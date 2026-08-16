@@ -2,6 +2,7 @@
 
 namespace Modules\AuditLog\Services;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\AuditLog\Models\AuditOutbox;
@@ -39,7 +40,11 @@ class AuditLogger
         );
 
         try {
-            AuditLog::create($payload);
+            // PostgreSQL: một câu lệnh lỗi làm abort toàn bộ transaction đang mở,
+            // nên fallback outbox bên dưới cũng sẽ chết với 25P02. Bọc trong
+            // transaction lồng để Laravel cấp SAVEPOINT — lỗi chỉ rollback tới
+            // savepoint và transaction nghiệp vụ vẫn ghi được outbox.
+            DB::transaction(fn () => AuditLog::create($payload));
 
             return;
         } catch (Throwable $primaryError) {
@@ -55,12 +60,12 @@ class AuditLogger
             $policy = (string) config('audit.write_policy', 'outbox_required');
 
             try {
-                AuditOutbox::create([
+                DB::transaction(fn () => AuditOutbox::create([
                     'payload' => $payload,
                     'attempts' => 0,
                     'last_error' => self::truncate($primaryError->getMessage()),
                     'available_at' => now(),
-                ]);
+                ]));
             } catch (Throwable $outboxError) {
                 Log::critical('AUDIT_OUTBOX_WRITE_FAILED', [
                     'request_id' => $requestId,

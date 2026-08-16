@@ -355,7 +355,11 @@ class CurrentBaselineComponentFlowController extends Controller
 
     private function recordScanEvent(object $document, ?string $physicalCodeId, ?string $itemId, ?string $containerId, ?string $rawCode): ?string
     {
-        if ($rawCode === null || ! DB::getSchemaBuilder()->hasTable('scan_batch') || ! DB::getSchemaBuilder()->hasTable('scan_event')) {
+        // scan_event là compatibility VIEW — hasTable() trả false cho view trên
+        // PostgreSQL, phải kiểm tra thêm hasView để không bỏ rơi evidence NFR-SRS-004.
+        $schema = DB::getSchemaBuilder();
+        $hasScanEvent = $schema->hasTable('scan_event') || $schema->hasView('scan_event');
+        if ($rawCode === null || ! $schema->hasTable('scan_batch') || ! $hasScanEvent) {
             return null;
         }
         $batchId = (string) Str::uuid();

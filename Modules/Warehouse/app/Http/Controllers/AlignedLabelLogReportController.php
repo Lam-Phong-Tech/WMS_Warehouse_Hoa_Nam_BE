@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -20,6 +21,15 @@ class AlignedLabelLogReportController extends Controller
 
     private const EXPORT_ROW_LIMIT = 10000;
 
+    /**
+     * BR-EXP-01..05 "PII bị giới hạn" + NFR-SRS-015: file export chỉ hiện 3 số cuối
+     * của SĐT khách; route export chỉ gác report.export nên không được xuất phone thô.
+     */
+    private function maskPhone(string $phone): string
+    {
+        return WarrantyPiiMasker::phone($phone);
+    }
+
     public function index(Request $request)
     {
         $report = $this->build($request);
@@ -31,7 +41,7 @@ class AlignedLabelLogReportController extends Controller
     {
         $report = $this->build($request);
         $rows = collect($report['rows'])->map(fn (array $row): array => [
-            $row['outbound_no'], $row['label_code'], $row['id'], $row['outbound_date'], $row['recipient'], $row['customer_phone'],
+            $row['outbound_no'], $row['label_code'], $row['id'], $row['outbound_date'], $row['recipient'], $this->maskPhone((string) ($row['customer_phone'] ?? '')),
             $row['label_count'], $row['item_count'], $row['sku_count'], $row['sku_summary'],
             $row['status'], $row['applied'] ? 'YES' : 'NO', $row['total_attempts'],
             $row['failed_count'], $row['reprint_count'], $row['created_at'],

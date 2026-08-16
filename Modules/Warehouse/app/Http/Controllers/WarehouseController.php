@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Requests\UpdateWarehouseRequest;
@@ -121,8 +122,18 @@ class WarehouseController extends Controller
             return $this->respondNotFound('Không tìm thấy kho.');
         }
 
+        $validated = $request->validated();
+        // REQ-SRS-001 + §8.1: chỉ tồn tại một kho ACTIVE. Trả 409 STATE_CONFLICT
+        // thay vì để unique index ném 500.
+        if (($validated['status'] ?? null) === 'ACTIVE' && (string) $before->status !== 'ACTIVE') {
+            $otherActive = DB::table('warehouses')->where('status', 'ACTIVE')->where('id', '!=', $id)->exists();
+            if ($otherActive) {
+                ApiError::abort(409, 'STATE_CONFLICT', 'Hệ thống chỉ cho phép một kho ACTIVE; hãy ngừng kích hoạt kho hiện tại trước.');
+            }
+        }
+
         $beforeData = $before->toArray();
-        $warehouse = $this->warehouses->update($id, $request->validated());
+        $warehouse = $this->warehouses->update($id, $validated);
 
         AuditLogger::record(
             action: 'UPDATE',

@@ -43,12 +43,14 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
             'sku_type' => 'PRODUCT',
             'components' => [[
                 'component_id' => $component->sku_id,
-                'quantity' => 2.5,
+                // ERD §0: quantity bigint đơn vị nguyên — không có phân số trong MVP.
+                'quantity' => 2,
             ]],
             'physical_codes' => [[
                 'code_value' => 'hn-kit-001',
                 'code_type' => 'BARCODE',
-                'carrier_type' => 'UNIT',
+                // ERD/DR-CARRIER-001: carrier hợp lệ BARCODE/QR/RFID/NFC/MANUAL.
+                'carrier_type' => 'BARCODE',
             ]],
         ];
 

@@ -242,6 +242,13 @@ class CurrentBaselineStockFlowController extends Controller
             }
         );
 
+        // AC-GWT-IN-001 / TC-P1-005: retry cùng Idempotency-Key trả business result
+        // cũ kèm replayed=true — QA phải phân biệt được replay ở tầng body, không
+        // chỉ ở header.
+        if (is_array($body) && array_key_exists('data', $body) && is_array($body['data'])) {
+            $body['data']['replayed'] = $replay;
+        }
+
         $response = response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
         $version = data_get($body, 'data.version');
         if ($version !== null) {

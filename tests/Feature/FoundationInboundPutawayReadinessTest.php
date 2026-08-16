@@ -40,11 +40,8 @@ class FoundationInboundPutawayReadinessTest extends TestCase
 
     private function warehouse(string $code, string $name): Warehouse
     {
-        return Warehouse::create([
-            'code' => $code,
-            'name' => $name,
-            'status' => 'ACTIVE',
-        ]);
+        // REQ-SRS-001: tái sử dụng warehouse ACTIVE duy nhất.
+        return $this->ensureActiveWarehouse($code, $name);
     }
 
     public function test_products_write_routes_are_reachable_on_canonical_products_contract(): void

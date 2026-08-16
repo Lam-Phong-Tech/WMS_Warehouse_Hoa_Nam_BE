@@ -44,16 +44,18 @@ class InventoryReconciliationSignedStatusTest extends TestCase
         InventoryBalance::query()->create([
             'warehouse_id' => $warehouse->id,
             'product_id' => $product->id,
-            'stock_status' => 'DAMAGED',
+            // ERD bảng 29: stock_status CHECK AVAILABLE/NON_SELLABLE/DEFECTIVE/QUARANTINE.
+            'stock_status' => 'DEFECTIVE',
             'on_hand_qty' => 2,
             'available_qty' => 0,
             'reserved_qty' => 0,
             'version' => 1,
         ]);
 
-        $this->movement($user, $warehouse, $product, 'AVAILABLE', '10.000', '0.000', '10.000', StockMovement::RECEIPT_POSTED);
-        $this->movement($user, $warehouse, $product, 'AVAILABLE', '-3.000', '10.000', '7.000', StockMovement::ISSUE_POSTED);
-        $this->movement($user, $warehouse, $product, 'DAMAGED', '2.000', '0.000', '2.000', StockMovement::RECEIPT_POSTED);
+        // stock_movements.qty_* là bigint — không nhận chuỗi thập phân '10.000'.
+        $this->movement($user, $warehouse, $product, 'AVAILABLE', '10', '0', '10', StockMovement::RECEIPT_POSTED);
+        $this->movement($user, $warehouse, $product, 'AVAILABLE', '-3', '10', '7', StockMovement::ISSUE_POSTED);
+        $this->movement($user, $warehouse, $product, 'DEFECTIVE', '2', '0', '2', StockMovement::RECEIPT_POSTED);
 
         $response = $this->getJson(
             "/api/v1/reports/inventory-reconciliation?warehouse_id={$warehouse->id}&product_id={$product->id}",
@@ -69,9 +71,9 @@ class InventoryReconciliationSignedStatusTest extends TestCase
         $this->assertSame(7.0, (float) $rows['AVAILABLE']['expected_qty']);
         $this->assertSame(7.0, (float) $rows['AVAILABLE']['current_on_hand_qty']);
         $this->assertSame(0.0, (float) $rows['AVAILABLE']['delta_qty']);
-        $this->assertSame(2.0, (float) $rows['DAMAGED']['expected_qty']);
-        $this->assertSame(2.0, (float) $rows['DAMAGED']['current_on_hand_qty']);
-        $this->assertSame(0.0, (float) $rows['DAMAGED']['delta_qty']);
+        $this->assertSame(2.0, (float) $rows['DEFECTIVE']['expected_qty']);
+        $this->assertSame(2.0, (float) $rows['DEFECTIVE']['current_on_hand_qty']);
+        $this->assertSame(0.0, (float) $rows['DEFECTIVE']['delta_qty']);
     }
 
     private function movement(
@@ -94,6 +96,8 @@ class InventoryReconciliationSignedStatusTest extends TestCase
             'qty_before' => $before,
             'qty_delta' => $delta,
             'qty_after' => $after,
+            // chk_stock_movement_positive_quantity: quantity là độ lớn tuyệt đối.
+            'quantity' => abs((int) $delta),
             'created_by' => $user->user_id,
             'occurred_at' => now(),
             'created_at' => now(),

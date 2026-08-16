@@ -99,6 +99,93 @@ class ReversalDocumentController extends Controller
         return $this->respondSuccess($doc);
     }
 
+    /**
+     * SRS §6 Reversal state model + Annex C. Ba bước tách bạch:
+     * confirm (xác nhận hàng vật lý về, stock-neutral) → post (điểm duy nhất sinh
+     * movement) → hoặc cancel khi còn DRAFT. BR-REV-02 bắt buộc If-Match;
+     * BR-REV-12 bắt buộc Idempotency-Key ở bước Post.
+     */
+    public function confirm(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'return_condition' => ['nullable', 'in:SELLABLE,DEFECTIVE,NON_SELLABLE'],
+        ]);
+
+        $result = $this->reversalService->confirmPhysicalReturn(
+            $id,
+            $this->actorId(),
+            $this->requiredVersion($request),
+            $validated['return_condition'] ?? null
+        );
+
+        return $this->respondSuccess($result, 'Đã xác nhận hàng vật lý quay lại kho; chưa phát sinh stock effect.');
+    }
+
+    public function post(Request $request, string $id)
+    {
+        $key = IdempotencyKeyGuard::require($request);
+        $expectedVersion = $this->requiredVersion($request);
+
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $key,
+            'post_reversal_'.$id,
+            $this->actorId(),
+            IdempotencyStore::requestHash($request),
+            function () use ($id, $key, $request, $expectedVersion): array {
+                $result = $this->reversalService->postReversalDocument(
+                    $id,
+                    $this->actorId(),
+                    $key,
+                    IdempotencyStore::requestHash($request),
+                    $expectedVersion
+                );
+
+                return [200, [
+                    'success' => true,
+                    'message' => 'Đã Post reversal; movement append-only đã ghi.',
+                    'data' => $result,
+                ]];
+            }
+        );
+
+        if (is_array($body) && isset($body['data']) && is_array($body['data'])) {
+            $body['data']['replayed'] = $replay;
+        }
+
+        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    public function cancel(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
+        ]);
+
+        $result = $this->reversalService->cancelReversalDocument(
+            $id,
+            $this->actorId(),
+            $this->requiredVersion($request),
+            (string) $validated['reason']
+        );
+
+        return $this->respondSuccess($result, 'Đã huỷ reversal DRAFT; không phát sinh stock effect.');
+    }
+
+    /** BR-REV-02 + §8.2: thiếu If-Match phải trả 428, không ngầm giả định version. */
+    private function requiredVersion(Request $request): int
+    {
+        if (! $request->hasHeader('If-Match')) {
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Thao tác reversal bắt buộc header If-Match.');
+        }
+        $raw = preg_replace('/^W\//', '', trim((string) $request->header('If-Match'))) ?? '';
+        $version = (int) trim($raw, '" ');
+        if ($version < 1) {
+            ApiError::abort(400, 'INVALID_HEADER', 'If-Match phải là số nguyên dương.');
+        }
+
+        return $version;
+    }
+
     public function lines(string $id)
     {
         $doc = DB::table('reversal_documents')->where('id', $id)->first();
@@ -151,10 +238,15 @@ class ReversalDocumentController extends Controller
 
         $idempotencyKey = IdempotencyKeyGuard::require($request);
 
-        $expectedVersion = 1;
-        if ($request->hasHeader('If-Match')) {
-            $raw = preg_replace('/^W\//', '', trim((string) $request->header('If-Match'))) ?? '';
-            $expectedVersion = (int) trim($raw, '" ');
+        // BR-REV-02 + §8.2: thiếu If-Match phải trả 428 PRECONDITION_REQUIRED,
+        // không được ngầm giả định version=1 (bypass optimistic lock).
+        if (! $request->hasHeader('If-Match')) {
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Reversal bắt buộc header If-Match theo version chứng từ gốc.');
+        }
+        $raw = preg_replace('/^W\//', '', trim((string) $request->header('If-Match'))) ?? '';
+        $expectedVersion = (int) trim($raw, '" ');
+        if ($expectedVersion < 1) {
+            ApiError::abort(400, 'INVALID_HEADER', 'If-Match phải là số nguyên dương.');
         }
 
         $refId = $validated['reference_document_id'];
@@ -203,8 +295,10 @@ class ReversalDocumentController extends Controller
             'lines' => $reversalLines,
         ];
         if ($type === 'issue') {
+            // BR-REV-06: chỉ cộng tồn khi client xác nhận tường minh hàng vật lý
+            // đã về — default true sẽ cộng tồn cho hàng chưa quay lại kho.
             $servicePayload['condition_status'] = strtoupper((string) ($validated['return_condition'] ?? 'SELLABLE'));
-            $servicePayload['physical_return_confirmed'] = (bool) ($validated['physical_return_confirmed'] ?? true);
+            $servicePayload['physical_return_confirmed'] = (bool) ($validated['physical_return_confirmed'] ?? false);
         }
 
         $actorId = $this->actorId();

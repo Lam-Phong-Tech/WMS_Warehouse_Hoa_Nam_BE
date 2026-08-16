@@ -26,7 +26,9 @@ class SkuAggregateService
 
     private const CODE_TYPES = ['BARCODE', 'QR', 'RFID', 'SERIAL'];
 
-    private const CARRIER_TYPES = ['UNIT', 'PACKAGE', 'LABEL', 'TAG'];
+    // ERD bảng 21 / DR-CARRIER-001: carrier hợp lệ là BARCODE/QR/RFID/NFC/MANUAL
+    // (enum UNIT/PACKAGE/LABEL/TAG cũ đã bị baseline thay thế; DB CHECK enforce).
+    private const CARRIER_TYPES = ['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL'];
 
     public function create(array $payload, ?string $actorId, ?string $requestId): array
     {
@@ -354,7 +356,7 @@ class SkuAggregateService
         $prefix = $index === null ? 'physical_code' : "physical_codes.{$index}";
         $value = strtoupper(trim((string) ($code['code_value'] ?? '')));
         $type = strtoupper(trim((string) ($code['code_type'] ?? 'BARCODE')));
-        $carrier = strtoupper(trim((string) ($code['carrier_type'] ?? 'UNIT')));
+        $carrier = strtoupper(trim((string) ($code['carrier_type'] ?? 'BARCODE')));
         $status = strtoupper(trim((string) ($code['status'] ?? 'ACTIVE')));
 
         if ($value === '' || mb_strlen($value) > 150) {

@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\InventoryBalance;
-use Modules\Warehouse\Models\Product;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
@@ -34,6 +34,8 @@ class InventoryReconciliationIntegrityTest extends TestCase
             'qty_before' => 0,
             'qty_delta' => 7,
             'qty_after' => 7,
+            // ERD bảng 30: quantity NOT NULL, luôn dương.
+            'quantity' => 7,
             'created_by' => $user->user_id,
             'occurred_at' => now(),
             'created_at' => now(),
@@ -105,18 +107,19 @@ class InventoryReconciliationIntegrityTest extends TestCase
 
     private function createWarehouse(string $code): Warehouse
     {
-        return Warehouse::create([
-            'code' => $code,
-            'name' => $code,
-            'status' => 'ACTIVE',
-        ]);
+        // REQ-SRS-001: tái sử dụng warehouse ACTIVE duy nhất.
+        return $this->ensureActiveWarehouse($code);
     }
 
-    private function createProduct(string $code): Product
+    private function createProduct(string $code): Sku
     {
-        return Product::create([
+        return Sku::create([
             'code' => $code,
             'name' => $code,
+            // ERD bảng 16: sku_type NOT NULL, không default — fixture phải khai báo tường minh.
+            'sku_type' => 'PRODUCT',
+            'unit' => 'cai',
+            'is_serial_tracked' => false,
             'status' => 'ACTIVE',
         ]);
     }

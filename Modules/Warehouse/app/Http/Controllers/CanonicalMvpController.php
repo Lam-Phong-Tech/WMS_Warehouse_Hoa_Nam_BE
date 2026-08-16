@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
+use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -453,14 +454,21 @@ class CanonicalMvpController extends Controller
                 $query->where($column, $request->input($column));
             }
         }
-        $this->applyKeyword($query, $request, $this->keywordColumns($table));
+        $keywordColumns = $this->keywordColumns($table);
+        $piiHidden = $masked !== [] && ! $request->user()?->hasPermission('warranty.pii.view');
+        if ($piiHidden) {
+            // §13.8: masking phải đi kèm chặn search LIKE trên cột PII, nếu không
+            // keyword search trở thành oracle dò tên/SĐT đầy đủ từng ký tự.
+            $keywordColumns = array_values(array_diff($keywordColumns, $masked));
+        }
+        $this->applyKeyword($query, $request, $keywordColumns);
 
         $page = $query->orderByDesc($orderBy)->paginate($this->perPage($request));
-        if ($masked !== [] && ! $request->user()?->hasPermission('warranty.pii.view')) {
+        if ($piiHidden) {
             $page->getCollection()->transform(function (object $row) use ($masked): object {
                 foreach ($masked as $field) {
                     if (isset($row->{$field})) {
-                        $row->{$field} = $this->mask((string) $row->{$field});
+                        $row->{$field} = $this->maskPii($field, (string) $row->{$field});
                     }
                 }
 
@@ -585,12 +593,13 @@ class CanonicalMvpController extends Controller
         return is_string($id) ? $id : null;
     }
 
-    private function mask(string $value): string
+    /** §13.8: mỗi loại PII có shape mask riêng (name/phone/address). */
+    private function maskPii(string $field, string $value): string
     {
-        if ($value === '') {
-            return '';
-        }
-
-        return mb_substr($value, 0, 1).'***';
+        return match ($field) {
+            'customer_phone' => WarrantyPiiMasker::phone($value),
+            'customer_address' => WarrantyPiiMasker::address($value),
+            default => WarrantyPiiMasker::name($value),
+        };
     }
 }

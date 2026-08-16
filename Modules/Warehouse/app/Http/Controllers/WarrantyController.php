@@ -63,8 +63,16 @@ class WarrantyController extends Controller
         InventorySerial::STATUS_RETURNED_TO_CUSTOMER,
     ];
 
-    /** @var array<int, string> */
+    /**
+     * SRS §6 + unique index uk_warranty_case_one_active_item (status NOT IN
+     * RETURNED/CANCELLED): case đã RETURNED không còn là "active case" —
+     * thiếu RETURNED ở đây gây 409 ACTIVE_WARRANTY_EXISTS oan. Giữ CLOSED
+     * cho dữ liệu legacy nếu còn.
+     *
+     * @var array<int, string>
+     */
     private const TERMINAL_CASE_STATUSES = [
+        WarrantyCase::STATUS_RETURNED,
         WarrantyCase::STATUS_CLOSED,
         WarrantyCase::STATUS_CANCELLED,
     ];
@@ -76,7 +84,9 @@ class WarrantyController extends Controller
         $validated = $request->validate([
             'temporary_item_code' => ['required', 'string', 'max:150'],
             'missing_code_reason' => ['required', 'string', 'max:500'],
-            'manual_product_description' => ['nullable', 'string', 'max:2000'],
+            // Annex D SCR-WAR-01: manual_product_description bắt buộc khi TEMP_ONLY
+            // (DB CHECK chk_erd_warranty_identification_shape enforce).
+            'manual_product_description' => ['required', 'string', 'max:2000'],
             'defect_id' => ['nullable', 'uuid', 'exists:defect_catalog,defect_id'],
             'condition_status' => ['required', 'string', 'in:WAITING_CHECK,INSPECTING'],
             'note' => ['nullable', 'string', 'max:1000'],
@@ -107,6 +117,9 @@ class WarrantyController extends Controller
                     $fromProductId = $case->product_id;
                     $case->update([
                         'inventory_serial_id' => null,
+                        // View warranty_case expose cả alias item_id — phải null tường minh
+                        // để trigger không COALESCE lại giá trị cũ (shape TEMP_ONLY đòi item null).
+                        'item_id' => null,
                         'product_id' => null,
                         'temporary_item_code' => $validated['temporary_item_code'],
                         'identification_status' => 'TEMP_ONLY',
@@ -114,7 +127,9 @@ class WarrantyController extends Controller
                         'manual_product_description' => $validated['manual_product_description'] ?? null,
                         'defect_id' => $validated['defect_id'] ?? null,
                         'condition_status' => $validated['condition_status'],
-                        'status' => WarrantyCase::STATUS_TEMP_ONLY,
+                        // SRS v1.12 §6: case status chỉ gồm RECEIVED/CHECKING/REPAIRING/
+                        // COMPLETED/RETURNED/CANCELLED — TEMP_ONLY là identification_status,
+                        // không phải state của case (DB CHECK chk_erd_warranty_cases_2 enforce).
                         'version' => ((int) $case->version) + 1,
                     ]);
 
@@ -123,7 +138,7 @@ class WarrantyController extends Controller
                         'warranty_case_id' => $case->warranty_case_id,
                         'event_type' => WarrantyEvent::EVENT_TEMP_ONLY,
                         'from_status' => $fromStatus,
-                        'to_status' => WarrantyCase::STATUS_TEMP_ONLY,
+                        'to_status' => $fromStatus,
                         'note' => $validated['note'] ?? 'Tiếp nhận bảo hành chưa định danh',
                         'created_by' => $userId,
                         'event_at' => now(),
@@ -136,12 +151,12 @@ class WarrantyController extends Controller
                         actorId: $userId,
                         requestId: request()->attributes->get('request_id'),
                         beforeData: ['status' => $fromStatus, 'inventory_serial_id' => $fromInventorySerialId, 'product_id' => $fromProductId],
-                        afterData: ['status' => WarrantyCase::STATUS_TEMP_ONLY, 'identification_status' => 'TEMP_ONLY', 'temporary_item_code' => $validated['temporary_item_code'], 'version' => $case->version],
+                        afterData: ['status' => $fromStatus, 'identification_status' => 'TEMP_ONLY', 'temporary_item_code' => $validated['temporary_item_code'], 'version' => $case->version],
                     );
 
                     return [
                         'warranty_case_id' => $case->warranty_case_id,
-                        'status' => WarrantyCase::STATUS_TEMP_ONLY,
+                        'status' => $fromStatus,
                         'identification_status' => 'TEMP_ONLY',
                         'temporary_item_code' => $validated['temporary_item_code'],
                         'condition_status' => $validated['condition_status'],

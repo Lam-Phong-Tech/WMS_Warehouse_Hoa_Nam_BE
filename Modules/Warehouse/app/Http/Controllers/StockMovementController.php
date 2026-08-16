@@ -239,6 +239,17 @@ class StockMovementController extends Controller
         ]);
     }
 
+    /**
+     * Annex C getInventoryTrace: GET /inventory/trace/{code} — cùng nghiệp vụ với
+     * trace-by-code nhưng mã nằm ở path thay vì query.
+     */
+    public function traceByPathCode(Request $request, string $code)
+    {
+        $request->merge(['code' => $code]);
+
+        return $this->traceByPhysicalCode($request);
+    }
+
     #[OA\Get(
         path: '/api/v1/stock-movements/reversible',
         operationId: 'stock_movement_reversible',
@@ -319,6 +330,7 @@ class StockMovementController extends Controller
             ->unique()
             ->all();
         $itemDependencyMap = $this->buildItemDependencyMap($serialDocIds);
+        $itemCandidateMap = $this->buildItemCandidateMap($serialDocIds);
 
         $result = [];
         foreach ($movements->items() as $mv) {
@@ -350,6 +362,9 @@ class StockMovementController extends Controller
                 'version' => (string) $mv->version,
                 'dependency_guard' => $docDepGuard,
                 'can_reverse' => $canReverse,
+                // BR-REV/AC-GWT-REV-001: SKU serial-tracked bắt buộc reverse theo
+                // item (quantity=1 + item_id) — FE cần biết cờ này và ứng viên item.
+                'is_serial_tracked' => (bool) $mv->is_serial_tracked,
                 'lines' => [
                     [
                         'id' => $mv->id,
@@ -362,12 +377,73 @@ class StockMovementController extends Controller
                         'uom' => $mv->unit ?? '',
                         'dependency_guard' => $docDepGuard,
                         'can_reverse' => $canReverse,
+                        'is_serial_tracked' => (bool) $mv->is_serial_tracked,
+                        'items' => $mv->is_serial_tracked && $mv->stock_document_id
+                            ? array_values(array_filter(
+                                $itemCandidateMap[$mv->stock_document_id] ?? [],
+                                fn (array $item): bool => (string) $item['sku_id'] === (string) $mv->product_id
+                            ))
+                            : [],
                     ],
                 ],
             ];
         }
 
         return $this->respondSuccess($result);
+    }
+
+    /**
+     * Ứng viên item cho Reverse theo document serial-tracked: ISSUE → item ISSUED
+     * (khách trả về), RECEIPT → item còn IN_STOCK/NEW (chưa downstream).
+     *
+     * @param  list<string>  $stockDocIds
+     * @return array<string, list<array{item_id: string, sku_id: string, item_code: ?string, serial_number: ?string, item_status: string}>>
+     */
+    private function buildItemCandidateMap(array $stockDocIds): array
+    {
+        if (empty($stockDocIds)) {
+            return [];
+        }
+
+        $map = [];
+        $outboundItems = DB::table('item_instances')
+            ->join('outbound_item_matches', 'outbound_item_matches.item_id', '=', 'item_instances.item_id')
+            ->join('stock_document_lines', 'stock_document_lines.id', '=', 'outbound_item_matches.outbound_line_id')
+            ->whereIn('stock_document_lines.stock_document_id', $stockDocIds)
+            ->where('item_instances.item_status', 'ISSUED')
+            ->get([
+                'stock_document_lines.stock_document_id',
+                'item_instances.item_id',
+                'item_instances.sku_id',
+                'item_instances.item_code',
+                'item_instances.serial_number',
+                'item_instances.item_status',
+            ]);
+        $inboundItems = DB::table('item_instances')
+            ->join('inbound_scan_entries', 'inbound_scan_entries.item_id', '=', 'item_instances.item_id')
+            ->join('stock_document_lines', 'stock_document_lines.id', '=', 'inbound_scan_entries.inbound_line_id')
+            ->whereIn('stock_document_lines.stock_document_id', $stockDocIds)
+            ->whereIn('item_instances.item_status', ['IN_STOCK', 'NEW'])
+            ->get([
+                'stock_document_lines.stock_document_id',
+                'item_instances.item_id',
+                'item_instances.sku_id',
+                'item_instances.item_code',
+                'item_instances.serial_number',
+                'item_instances.item_status',
+            ]);
+
+        foreach ($outboundItems->merge($inboundItems) as $row) {
+            $map[(string) $row->stock_document_id][] = [
+                'item_id' => (string) $row->item_id,
+                'sku_id' => (string) $row->sku_id,
+                'item_code' => $row->item_code,
+                'serial_number' => $row->serial_number,
+                'item_status' => (string) $row->item_status,
+            ];
+        }
+
+        return $map;
     }
 
     /** @param list<string> $stockDocIds */

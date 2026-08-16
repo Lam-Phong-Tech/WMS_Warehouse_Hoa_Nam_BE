@@ -390,24 +390,36 @@ class Wwhn193PutawayLifecycleTest extends TestCase
 
     public function test_putaway_create_rejects_container_cycle(): void
     {
+        // DB guard hn_erd_guard_container_hierarchy (MVP: chỉ BOX được putaway
+        // vào TRAY) chặn từ gốc mọi cấu trúc tạo vòng lặp: TRAY không thể nằm
+        // trong BOX nên chuỗi BOX→TRAY→BOX không thể tồn tại. Fixture cố tạo
+        // TRAY con của BOX phải bị từ chối ngay tại tầng DB.
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('Guard hn_erd_guard_container_hierarchy là trigger PostgreSQL; sqlite không có tầng chặn này.');
+        }
+
         $headers = ['Authorization' => $this->authHeaders()['Authorization']];
         $sku = $this->componentSku('COMP-CYCLE-01');
         $box = $this->boxReadyForPutaway('BOX-CYCLE-01', $sku->sku_id);
-        // TRAY đã nằm bên trong chính BOX này -> đưa BOX vào TRAY sẽ tạo vòng lặp.
-        $tray = Container::create([
-            'container_code' => 'TRAY-CYCLE-01',
-            'container_type' => 'TRAY',
-            'status' => 'EMPTY',
-            'parent_container_id' => $box->container_id,
-            'version' => 1,
-        ]);
 
-        $this->postJson('/api/v1/putaway/tasks', [
-            'box_container_id' => $box->container_id,
-            'to_tray_id' => $tray->container_id,
-        ], $headers)
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'CONTAINER_CYCLE');
+        try {
+            // Bọc trong transaction con (SAVEPOINT) để lỗi guard không abort
+            // transaction bọc ngoài của RefreshDatabase trên PostgreSQL.
+            DB::transaction(function () use ($box): void {
+                Container::create([
+                    'container_code' => 'TRAY-CYCLE-01',
+                    'container_type' => 'TRAY',
+                    'status' => 'EMPTY',
+                    'parent_container_id' => $box->container_id,
+                    'version' => 1,
+                ]);
+            });
+            $this->fail('TRAY nằm trong BOX phải bị hierarchy guard từ chối.');
+        } catch (\Illuminate\Database\QueryException $exception) {
+            $this->assertStringContainsString('PUTAWAY_BOX_REQUIRED', $exception->getMessage());
+        }
+
+        $this->assertDatabaseMissing('containers', ['container_code' => 'TRAY-CYCLE-01']);
     }
 
     public function test_putaway_create_returns_422_for_non_existent_tray(): void

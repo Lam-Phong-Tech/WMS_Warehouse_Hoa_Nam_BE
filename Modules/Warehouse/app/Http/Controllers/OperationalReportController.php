@@ -4,10 +4,17 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\IdempotencyKeyGuard;
+use App\Support\IdempotencyStore;
+use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -42,6 +49,47 @@ class OperationalReportController extends Controller
 
     private const MAX_PER_PAGE = 200;
 
+    /**
+     * report_code (Annex C getReportByCode) → builder tương ứng. Danh sách khớp
+     * đúng hub và §13.10.
+     *
+     * @var array<string, string>
+     */
+    private const REPORT_BUILDERS = [
+        'inventory-balance' => 'buildInventoryBalance',
+        'inventory-ledger' => 'buildMovementTrace',
+        'inventory-xnt' => 'buildXnt',
+        'document-history' => 'buildDocumentHistory',
+        'movement-trace' => 'buildMovementTrace',
+        'outbound-by-agency' => 'buildOutboundByAgency',
+    ];
+
+    /**
+     * Ba báo cáo này được Flow06AlignmentServiceProvider override sang controller
+     * Aligned; dispatcher phải đi qua đúng controller đó để trả cùng một contract
+     * với endpoint chuyên biệt.
+     *
+     * @var array<string, class-string>
+     */
+    private const ALIGNED_REPORTS = [
+        'import-match' => AlignedImportMatchReportController::class,
+        'label-log' => AlignedLabelLogReportController::class,
+        'warranty-defects' => AlignedWarrantyReportController::class,
+    ];
+
+    /** @var array<string, string> */
+    private const EXPORT_DOWNLOAD_PATHS = [
+        'inventory-balance' => '/api/v1/reports/inventory-balance/export-excel',
+        'inventory-ledger' => '/api/v1/reports/movement-trace/export-excel',
+        'inventory-xnt' => '/api/v1/reports/inventory-xnt/export-excel',
+        'document-history' => '/api/v1/reports/document-history/export-excel',
+        'movement-trace' => '/api/v1/reports/movement-trace/export-excel',
+        'import-match' => '/api/v1/reports/import-match/export-excel',
+        'label-log' => '/api/v1/reports/label-log/export-excel',
+        'warranty-defects' => '/api/v1/reports/warranty-defects/export-excel',
+        'outbound-by-agency' => '/api/v1/reports/outbound-by-agency/export-excel',
+    ];
+
     // ── Hub ──────────────────────────────────────────────────
 
     #[OA\Get(path: '/api/v1/reports/hub', operationId: 'report_hub', summary: 'Danh mục báo cáo vận hành Flow 06', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'Danh mục 8 báo cáo MVP')])]
@@ -59,6 +107,127 @@ class OperationalReportController extends Controller
         ]);
     }
 
+    /**
+     * Annex C getInventoryLedgerReport (REQ-SRS-031). Sổ ledger là source of truth
+     * theo DEC-INV-001: từng movement đã POSTED cộng dồn theo chiều thời gian.
+     */
+    public function inventoryLedger(Request $request)
+    {
+        return $this->respondSuccess($this->paginateReport($this->buildMovementTrace($request), $request));
+    }
+
+    /**
+     * Annex C getReportByCode (REQ-SRS-031): một cửa duy nhất trả bất kỳ báo cáo
+     * nào trong hub theo report_code, dùng đúng filter/scope của báo cáo đó.
+     */
+    public function byCode(Request $request, string $reportCode)
+    {
+        $this->assertKnownReportCode($reportCode);
+
+        if (isset(self::ALIGNED_REPORTS[$reportCode])) {
+            return app(self::ALIGNED_REPORTS[$reportCode])->index($request);
+        }
+
+        return $this->respondSuccess($this->paginateReport($this->{self::REPORT_BUILDERS[$reportCode]}($request), $request));
+    }
+
+    private function assertKnownReportCode(string $reportCode): void
+    {
+        $known = array_merge(array_keys(self::REPORT_BUILDERS), array_keys(self::ALIGNED_REPORTS));
+        if (! in_array($reportCode, $known, true)) {
+            sort($known);
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', "Không có báo cáo với report_code \"{$reportCode}\".", [
+                'available' => $known,
+            ]);
+        }
+    }
+
+    /**
+     * Annex C createReportExport (REQ-SRS-032): nhận ReportExportRequest kèm
+     * Idempotency-Key, trả ExportJob. BR-EXP-01: export dùng đúng filter/scope của
+     * màn hình nên job giữ nguyên filter đã gửi; BR-EXP-02: mọi export đều audit.
+     */
+    public function createExport(Request $request)
+    {
+        $validated = $request->validate([
+            'report_code' => ['required', 'string', Rule::in(array_keys(self::EXPORT_DOWNLOAD_PATHS))],
+            'format' => ['nullable', 'in:xlsx,pdf'],
+            'filters' => ['nullable', 'array'],
+        ]);
+        $key = IdempotencyKeyGuard::require($request);
+        $reportCode = (string) $validated['report_code'];
+        $format = (string) ($validated['format'] ?? 'xlsx');
+
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $key,
+            'report_export_'.$reportCode,
+            $this->currentActorId(),
+            IdempotencyStore::requestHash($request),
+            function () use ($request, $reportCode, $format): array {
+                $jobId = (string) Str::uuid();
+                $rowCount = $this->exportRowCount($request, $reportCode);
+
+                AuditLogger::record(
+                    action: 'REPORT_EXPORT_REQUESTED',
+                    objectType: 'report_export',
+                    objectId: $jobId,
+                    actorId: $this->currentActorId(),
+                    requestId: $request->attributes->get('request_id'),
+                    afterData: ['report_code' => $reportCode, 'format' => $format, 'row_count' => $rowCount],
+                );
+
+                return [201, [
+                    'success' => true,
+                    'message' => 'Đã tạo yêu cầu export; tải file qua download_url.',
+                    'data' => [
+                        'export_job_id' => $jobId,
+                        'report_code' => $reportCode,
+                        'format' => $format,
+                        // Export chạy đồng bộ (không có queue worker trong MVP) nên job
+                        // ở trạng thái READY ngay và download_url trỏ endpoint stream sẵn có.
+                        'status' => 'READY',
+                        'row_count' => $rowCount,
+                        'download_url' => self::EXPORT_DOWNLOAD_PATHS[$reportCode].'?format='.$format,
+                        'requested_at' => now()->toIso8601String(),
+                    ],
+                ]];
+            }
+        );
+
+        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    private function currentActorId(): ?string
+    {
+        $id = auth('api')->id();
+
+        return $id === null ? null : (string) $id;
+    }
+
+    /** Số dòng sẽ nằm trong file export, dùng đúng filter client gửi. */
+    private function exportRowCount(Request $request, string $reportCode): int
+    {
+        if (isset(self::ALIGNED_REPORTS[$reportCode])) {
+            $payload = app(self::ALIGNED_REPORTS[$reportCode])->index($request)->getData(true);
+
+            return count($this->reportRows($payload['data'] ?? []));
+        }
+
+        return count($this->reportRows($this->{self::REPORT_BUILDERS[$reportCode]}($request)));
+    }
+
+    /** @param array<string, mixed> $report */
+    private function reportRows(array $report): array
+    {
+        foreach (['rows', 'lines'] as $key) {
+            if (isset($report[$key]) && is_array($report[$key])) {
+                return $report[$key];
+            }
+        }
+
+        return [];
+    }
+
     // ── Inventory Balance ────────────────────────────────────
 
     #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'Báo cáo tồn kho hiện tại kèm đối soát ledger', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
@@ -72,16 +241,17 @@ class OperationalReportController extends Controller
     {
         $report = $this->buildInventoryBalance($request);
         $rows = array_map(fn (array $row): array => [
-            $row['warehouse_code'], $row['product_code'], $row['product_name'], $row['stock_status'],
-            $row['on_hand_qty'], $row['available_qty'], $row['reserved_qty'], $row['ledger_qty'],
-            $row['variance'], $row['reconciliation_status'], $row['updated_at'],
+            $row['warehouse_code'], $row['product_code'], $row['product_name'], $row['category'], $row['stock_status'],
+            $row['on_hand_qty'], $row['available_qty'], $row['serial_qty'], $row['box_qty'], $row['reserved_qty'],
+            $row['location_hint'], $row['ledger_qty'], $row['variance'], $row['reconciliation_status'], $row['updated_at'],
         ], $report['rows']);
+        $headers = ['Kho', 'Mã SKU', 'Tên SKU', 'Nhóm hàng', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Serial', 'Trong khay/thùng', 'Đã giữ', 'Vị trí gợi ý', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'];
 
         if ($request->query('format') === 'pdf') {
-            return $this->exportPdf('Tồn kho hiện tại', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Đã giữ', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'], $rows, 'bao-cao-ton-kho-hien-tai', 'inventory-balance', $request);
+            return $this->exportPdf('Tồn kho hiện tại', $headers, $rows, 'bao-cao-ton-kho-hien-tai', 'inventory-balance', $request);
         }
 
-        return $this->exportRows($request, 'Ton kho', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Đã giữ', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'], $rows, 'bao-cao-ton-kho-hien-tai.xlsx', 'inventory-balance');
+        return $this->exportRows($request, 'Ton kho', $headers, $rows, 'bao-cao-ton-kho-hien-tai.xlsx', 'inventory-balance');
     }
 
     // ── XNT ──────────────────────────────────────────────────
@@ -122,22 +292,39 @@ class OperationalReportController extends Controller
     public function documentHistoryExport(Request $request)
     {
         $report = $this->buildDocumentHistory($request);
-        $rows = array_map(fn (array $row): array => [
-            $row['document_no'], $row['doc_type'], $row['warehouse_code'], $row['counterpart'],
-            $row['document_date'], $row['status'], $row['posted_at'], $row['cancelled_at'],
-            $row['created_by_name'], $row['posted_by_name'], $row['note'],
-        ], $report['rows']);
+        // §13.10 RPT-IO-01: file xuất theo dòng document×line để đối soát
+        // "Sum authoritative movements = posted/issued qty".
+        $rows = [];
+        foreach ($report['rows'] as $row) {
+            $lines = $row['lines'] === [] ? [null] : $row['lines'];
+            foreach ($lines as $line) {
+                $rows[] = [
+                    $row['document_no'], $row['doc_type'], $row['warehouse_code'], $row['counterpart'],
+                    $line['line_no'] ?? '', $line['product_code'] ?? '', $line['product_name'] ?? '',
+                    $line['expected_qty'] ?? '', $line['scanned_qty'] ?? '', $line['posted_qty'] ?? '',
+                    $row['document_date'], $row['status'], $row['posted_at'], $row['cancelled_at'],
+                    $row['created_by_name'], $row['posted_by_name'], $row['note'],
+                ];
+            }
+        }
+        $headers = ['Mã phiếu', 'Loại', 'Kho', 'Đối tác/Nơi nhận', 'Dòng', 'Mã SKU', 'Tên SKU', 'Kế hoạch', 'Đã scan', 'Đã post', 'Ngày phiếu', 'Trạng thái', 'Posted at', 'Cancelled at', 'Người tạo', 'Người post', 'Ghi chú'];
 
         if ($request->query('format') === 'pdf') {
-            return $this->exportPdf('Lịch sử phiếu', ['Mã phiếu', 'Loại', 'Kho', 'Đối tác/Nơi nhận', 'Ngày phiếu', 'Trạng thái', 'Posted at', 'Cancelled at', 'Người tạo', 'Người post', 'Ghi chú'], $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}", 'document-history', $request);
+            return $this->exportPdf('Lịch sử phiếu', $headers, $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}", 'document-history', $request);
         }
 
-        return $this->exportRows($request, 'Lich su phieu', ['Mã phiếu', 'Loại', 'Kho', 'Đối tác/Nơi nhận', 'Ngày phiếu', 'Trạng thái', 'Posted at', 'Cancelled at', 'Người tạo', 'Người post', 'Ghi chú'], $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'document-history');
+        return $this->exportRows($request, 'Lich su phieu', $headers, $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'document-history');
     }
 
     // ── Import Match ─────────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/import-match', operationId: 'report_import_match', summary: 'Đối soát import toa yêu cầu xuất', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['UPLOADED', 'VALIDATED', 'REJECTED', 'CONSUMED'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'error_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['has_errors', 'no_errors'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Đối soát import')])]
+    #[OA\Get(path: '/api/v1/reports/import-match', operationId: 'report_import_match', summary: 'Đối soát import toa yêu cầu xuất', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['UPLOADED', 'VALIDATED', 'REJECTED', 'CONSUMED'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'error_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['VALID', 'INVALID', 'ERROR', 'PENDING'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Đối soát import')])]
+    /**
+     * Route GET /reports/import-match được Flow06AlignmentServiceProvider đăng ký
+     * lại sang AlignedImportMatchReportController (đăng ký sau nên thắng), method
+     * này chỉ còn giữ OpenAPI contract. Mọi thay đổi filter/response phải làm ở
+     * controller Aligned và phản ánh lại vào attribute OA ở đây.
+     */
     public function importMatch(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildImportMatch($request), $request));
@@ -197,15 +384,17 @@ class OperationalReportController extends Controller
     {
         $report = $this->buildOutboundByAgency($request);
         $rows = array_map(fn (array $row): array => [
-            $row['agency_code'], $row['agency_name'], $row['product_code'], $row['product_name'], $row['outbound_no'],
+            $row['source_request_no'], $row['agency_code'], $row['agency_name'], $row['address'], $row['contact_masked'],
+            $row['product_code'], $row['product_name'], $row['outbound_no'],
             $row['document_date'], $row['posted_at'], $row['required_qty'], $row['scanned_qty'],
         ], $report['rows']);
+        $headers = ['Phiếu toa', 'Mã nơi nhận', 'Nơi nhận', 'Địa chỉ', 'Liên hệ', 'Mã SKU', 'Tên SKU', 'Phiếu xuất', 'Ngày phiếu', 'Posted at', 'Yêu cầu', 'Đã xuất'];
 
         if ($request->query('format') === 'pdf') {
-            return $this->exportPdf('Xuất theo nơi nhận', ['Mã nơi nhận', 'Nơi nhận', 'Mã SKU', 'Tên SKU', 'Phiếu xuất', 'Ngày phiếu', 'Posted at', 'Yêu cầu', 'Đã xuất'], $rows, "xuat-theo-noi-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}", 'outbound-by-agency', $request);
+            return $this->exportPdf('Xuất theo nơi nhận', $headers, $rows, "xuat-theo-noi-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}", 'outbound-by-agency', $request);
         }
 
-        return $this->exportRows($request, 'Xuat noi nhan', ['Mã nơi nhận', 'Nơi nhận', 'Mã SKU', 'Tên SKU', 'Phiếu xuất', 'Ngày phiếu', 'Posted at', 'Yêu cầu', 'Đã xuất'], $rows, "xuat-theo-noi-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'outbound-by-agency');
+        return $this->exportRows($request, 'Xuat noi nhan', $headers, $rows, "xuat-theo-noi-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'outbound-by-agency');
     }
 
     // ── Movement Trace ───────────────────────────────────────
@@ -220,17 +409,19 @@ class OperationalReportController extends Controller
     public function movementTraceExport(Request $request)
     {
         $report = $this->buildMovementTrace($request);
+        // §13.10 RPT-MOV-01: movement_id là khoá truy ngược, không được thiếu trong file.
         $rows = array_map(fn (array $row): array => [
-            $row['occurred_at'], $row['movement_type'], $row['warehouse_code'], $row['product_code'], $row['product_name'],
+            $row['id'], $row['occurred_at'], $row['movement_type'], $row['warehouse_code'], $row['product_code'], $row['product_name'],
             $row['stock_status'], $row['qty_delta'], $row['item_id'], $row['container_id'], $row['physical_code'],
-            $row['source_type'], $row['source_id'], $row['original_movement_id'], $row['correction_chain_id'],
+            $row['actor'], $row['source_type'], $row['source_id'], $row['original_movement_id'], $row['correction_chain_id'],
         ], $report['rows']);
+        $headers = ['Movement ID', 'Thời gian', 'Movement', 'Kho', 'Mã SKU', 'Tên SKU', 'Stock status', 'Qty delta', 'Item', 'Container', 'Physical code', 'Người thực hiện', 'Source type', 'Source id', 'Original movement', 'Correction chain'];
 
         if ($request->query('format') === 'pdf') {
-            return $this->exportPdf('Movement Trace', ['Thời gian', 'Movement', 'Kho', 'Mã SKU', 'Tên SKU', 'Stock status', 'Qty delta', 'Item', 'Container', 'Physical code', 'Source type', 'Source id', 'Original movement', 'Correction chain'], $rows, "movement-trace-{$report['period']['from_date']}-{$report['period']['to_date']}", 'movement-trace', $request);
+            return $this->exportPdf('Movement Trace', $headers, $rows, "movement-trace-{$report['period']['from_date']}-{$report['period']['to_date']}", 'movement-trace', $request);
         }
 
-        return $this->exportRows($request, 'Movement Trace', ['Thời gian', 'Movement', 'Kho', 'Mã SKU', 'Tên SKU', 'Stock status', 'Qty delta', 'Item', 'Container', 'Physical code', 'Source type', 'Source id', 'Original movement', 'Correction chain'], $rows, "movement-trace-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'movement-trace');
+        return $this->exportRows($request, 'Movement Trace', $headers, $rows, "movement-trace-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'movement-trace');
     }
 
     // ── Reconciliation ───────────────────────────────────────
@@ -245,21 +436,52 @@ class OperationalReportController extends Controller
             'only_mismatch' => ['nullable', 'boolean'],
         ]);
         $report = $this->buildInventoryBalance($request);
-        $rows = collect($report['rows']);
+        $rows = collect($report['rows'])->map(function (array $row): array {
+            // §7.5: ngoài Ledger↔Balance còn 3 check bắt buộc.
+            // - Serial subledger: available = số Item_Instance IN_STOCK sellable.
+            // - Quantity subledger: available >= tổng quantity trong container mapping
+            //   (container không tạo bucket tồn riêng — Container integrity).
+            $available = (float) $row['available_qty'];
+            $serialQty = (float) $row['serial_qty'];
+            $boxQty = (float) $row['box_qty'];
+            $isSerialDimension = $serialQty > 0;
+
+            $row['serial_subledger_status'] = ! $isSerialDimension || $row['stock_status'] !== 'AVAILABLE'
+                ? 'NOT_APPLICABLE'
+                : (abs($available - $serialQty) < 0.001 ? 'MATCH' : 'MISMATCH');
+            $row['quantity_subledger_status'] = $boxQty <= 0
+                ? 'NOT_APPLICABLE'
+                : ($boxQty <= (float) $row['on_hand_qty'] + 0.001 ? 'MATCH' : 'MISMATCH');
+            $row['container_integrity_status'] = $boxQty > (float) $row['on_hand_qty'] + 0.001
+                ? 'MISMATCH'
+                : 'MATCH';
+
+            $checks = [$row['reconciliation_status'], $row['serial_subledger_status'], $row['quantity_subledger_status'], $row['container_integrity_status']];
+            $row['reconciliation_overall'] = in_array('MISMATCH', $checks, true) ? 'MISMATCH' : 'MATCH';
+
+            return $row;
+        });
         if ($request->boolean('only_mismatch')) {
-            $rows = $rows->where('reconciliation_status', 'MISMATCH')->values();
+            $rows = $rows->where('reconciliation_overall', 'MISMATCH')->values();
         }
+
+        $mismatches = $rows->where('reconciliation_overall', 'MISMATCH')->values();
 
         return $this->respondSuccess([
             'formula' => 'variance = COALESCE(balance.on_hand_qty, 0) - SUM(stock_movements.qty_delta)',
             'dimension' => ['warehouse_id', 'product_id', 'stock_status'],
+            'checks' => ['ledger_to_balance', 'serial_subledger', 'quantity_subledger', 'container_integrity'],
             'summary' => [
                 'rows_checked' => $rows->count(),
                 'mismatch_count' => $rows->where('reconciliation_status', 'MISMATCH')->count(),
+                'serial_subledger_mismatch_count' => $rows->where('serial_subledger_status', 'MISMATCH')->count(),
+                'quantity_subledger_mismatch_count' => $rows->where('quantity_subledger_status', 'MISMATCH')->count(),
+                'container_integrity_mismatch_count' => $rows->where('container_integrity_status', 'MISMATCH')->count(),
                 'status' => $rows->where('reconciliation_status', 'MISMATCH')->isEmpty() ? 'PASS' : 'FAIL',
+                'overall_status' => $mismatches->isEmpty() ? 'PASS' : 'FAIL',
             ],
             'rows' => $rows->all(),
-            'mismatches' => $rows->where('reconciliation_status', 'MISMATCH')->values()->all(),
+            'mismatches' => $mismatches->all(),
         ]);
     }
 
@@ -376,30 +598,45 @@ class OperationalReportController extends Controller
 
     private function buildInventoryBalance(Request $request): array
     {
-        $request->validate([
+        // §13.10 RPT-INV-01: filter SKU/category/status + as_of (inclusive).
+        $validated = $request->validate([
             'warehouse_id' => ['nullable', 'uuid'],
             'product_id' => ['nullable', 'uuid'],
+            'category_id' => ['nullable', 'uuid'],
             'stock_status' => ['nullable', 'in:'.implode(',', self::STOCK_STATUSES)],
+            'as_of' => ['nullable', 'date'],
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
+        $asOf = ! empty($validated['as_of']) ? Carbon::parse($validated['as_of'])->toDateString() : null;
 
         $balanceQuery = DB::table('inventory_balances as b')
             ->leftJoin('warehouses as w', 'w.id', '=', 'b.warehouse_id')
             ->leftJoin('products as p', 'p.id', '=', 'b.product_id')
-            ->select('b.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name');
+            ->leftJoin('product_categories as pc', 'pc.id', '=', 'p.category_id')
+            ->select('b.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'p.category_id', 'pc.category_name');
         $movementQuery = DB::table('stock_movements as m')
             ->leftJoin('warehouses as w', 'w.id', '=', 'm.warehouse_id')
             ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
-            ->select('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name')
+            ->leftJoin('product_categories as pc', 'pc.id', '=', 'p.category_id')
+            ->select('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'p.category_id', 'pc.category_name')
             ->selectRaw('SUM(m.qty_delta) AS ledger_qty')
             ->selectRaw('MAX(m.occurred_at) AS movement_updated_at')
-            ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code', 'p.code', 'p.name');
+            ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code', 'p.code', 'p.name', 'p.category_id', 'pc.category_name');
 
         foreach (['warehouse_id', 'product_id', 'stock_status'] as $filter) {
             if ($request->filled($filter)) {
                 $balanceQuery->where("b.{$filter}", $request->input($filter));
                 $movementQuery->where("m.{$filter}", $request->input($filter));
             }
+        }
+        if (! empty($validated['category_id'])) {
+            $balanceQuery->where('p.category_id', $validated['category_id']);
+            $movementQuery->where('p.category_id', $validated['category_id']);
+        }
+        if ($asOf !== null) {
+            // DEC-INV-001: ledger là source of truth nên as_of chỉ cắt được trên
+            // movement; balance projection luôn là trạng thái hiện tại.
+            $movementQuery->where('m.occurred_at', '<=', "{$asOf} 23:59:59");
         }
         if ($request->filled('keyword')) {
             $keyword = '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%';
@@ -417,7 +654,14 @@ class OperationalReportController extends Controller
         $movements = $movementQuery->get()->keyBy(fn ($r) => $this->dimensionKey($r->warehouse_id, $r->product_id, $r->stock_status));
         $keys = $balances->keys()->merge($movements->keys())->unique()->values();
 
-        $rows = $keys->map(function (string $key) use ($balances, $movements): array {
+        // §13.10 RPT-INV-01: serial_qty/box_qty là subledger (Item_Instance /
+        // container quantity mapping), location_hint non-authoritative (DR-LOC-001).
+        $productIds = $balances->pluck('product_id')->merge($movements->pluck('product_id'))->filter()->unique()->values()->all();
+        $serialCounts = $this->serialSubledgerCounts($productIds);
+        $boxCounts = $this->boxSubledgerCounts($productIds);
+        $locationHints = $this->locationHints($productIds);
+
+        $rows = $keys->map(function (string $key) use ($balances, $movements, $serialCounts, $boxCounts, $locationHints): array {
             $balance = $balances->get($key);
             $movement = $movements->get($key);
             $balanceExists = $balance !== null;
@@ -445,7 +689,12 @@ class OperationalReportController extends Controller
                 'product_id' => $productId,
                 'product_code' => (string) ($balance->product_code ?? $movement->product_code ?? ''),
                 'product_name' => (string) ($balance->product_name ?? $movement->product_name ?? ''),
+                'category_id' => $balance->category_id ?? $movement->category_id ?? null,
+                'category' => (string) ($balance->category_name ?? $movement->category_name ?? ''),
                 'stock_status' => $status,
+                'serial_qty' => (float) ($serialCounts[$productId] ?? 0),
+                'box_qty' => (float) ($boxCounts[$productId] ?? 0),
+                'location_hint' => (string) ($locationHints[$productId] ?? ''),
                 'on_hand_qty' => $onHand,
                 'available_qty' => (float) ($balance->available_qty ?? ($status === 'AVAILABLE' ? $onHand : 0)),
                 'reserved_qty' => (float) ($balance->reserved_qty ?? 0),
@@ -473,12 +722,81 @@ class OperationalReportController extends Controller
         ];
     }
 
+    /**
+     * §7.1 subledger serial: số Item_Instance đang nằm trong kho theo SKU.
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, int>
+     */
+    private function serialSubledgerCounts(array $productIds): array
+    {
+        if ($productIds === [] || ! Schema::hasTable('item_instances')) {
+            return [];
+        }
+
+        return DB::table('item_instances')
+            ->whereIn('sku_id', $productIds)
+            ->where('item_status', 'IN_STOCK')
+            ->groupBy('sku_id')
+            ->selectRaw('sku_id, COUNT(*) AS total')
+            ->pluck('total', 'sku_id')
+            ->map(fn ($value): int => (int) $value)
+            ->all();
+    }
+
+    /**
+     * §7.1 subledger quantity: tổng số lượng đang nằm trong container mapping active.
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, int>
+     */
+    private function boxSubledgerCounts(array $productIds): array
+    {
+        if ($productIds === [] || ! Schema::hasTable('container_items')) {
+            return [];
+        }
+
+        return DB::table('container_items')
+            ->whereIn('sku_id', $productIds)
+            ->where('is_active', true)
+            ->groupBy('sku_id')
+            ->selectRaw('sku_id, COALESCE(SUM(quantity), 0) AS total')
+            ->pluck('total', 'sku_id')
+            ->map(fn ($value): int => (int) $value)
+            ->all();
+    }
+
+    /**
+     * DR-LOC-001: location_hint chỉ để hiển thị, không authoritative — lấy hint
+     * của container chứa SKU gần nhất.
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, string>
+     */
+    private function locationHints(array $productIds): array
+    {
+        if ($productIds === [] || ! Schema::hasTable('containers')) {
+            return [];
+        }
+
+        return DB::table('containers')
+            ->whereIn('primary_sku_id', $productIds)
+            ->whereNotNull('location_hint')
+            ->orderByDesc('updated_at')
+            ->get(['primary_sku_id', 'location_hint'])
+            ->groupBy('primary_sku_id')
+            ->map(fn ($rows): string => (string) $rows->first()->location_hint)
+            ->all();
+    }
+
     private function buildXnt(Request $request): array
     {
         [$from, $to] = $this->period($request, true);
-        $request->validate([
+        // §13.10 RPT-XNT-01: filter date period; SKU/category.
+        $validated = $request->validate([
             'warehouse_id' => ['nullable', 'uuid'],
             'product_id' => ['nullable', 'uuid'],
+            'category_id' => ['nullable', 'uuid'],
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
         $fromTs = "{$from} 00:00:00";
@@ -495,6 +813,9 @@ class OperationalReportController extends Controller
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'COMPONENT_ISSUE' THEN -m.qty_delta ELSE 0 END) AS component_issue", [$fromTs, $toTs])
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'REVERSAL' THEN m.qty_delta ELSE 0 END) AS reversal_net", [$fromTs, $toTs])
             ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code', 'p.code', 'p.name');
+        if (! empty($validated['category_id'])) {
+            $query->where('p.category_id', $validated['category_id']);
+        }
         if ($request->filled('warehouse_id')) {
             $query->where('m.warehouse_id', $request->input('warehouse_id'));
         }
@@ -596,6 +917,13 @@ class OperationalReportController extends Controller
             });
         }
         $documents = $query->orderByDesc('sd.doc_date')->orderByDesc('sd.created_at')->get();
+
+        // §13.10 RPT-IO-01 yêu cầu tầng line: expected/required, scanned/matched,
+        // posted/issued. posted_qty lấy từ movement authoritative (DEC-INV-001)
+        // để "Sum authoritative movements = posted/issued qty" kiểm chứng được.
+        $documentIds = $documents->pluck('id')->all();
+        $linesByDocument = $this->documentHistoryLines($documentIds, $validated['product_id'] ?? null);
+
         $rows = $documents->map(fn ($d): array => [
             'id' => (string) $d->id,
             'document_no' => (string) $d->doc_no,
@@ -609,6 +937,7 @@ class OperationalReportController extends Controller
             'created_by_name' => $d->creator_name ?? null,
             'posted_by_name' => $d->poster_name ?? null,
             'note' => $d->note ?? null,
+            'lines' => $linesByDocument[(string) $d->id] ?? [],
         ])->all();
         $statuses = collect($rows)->countBy('status');
 
@@ -621,6 +950,48 @@ class OperationalReportController extends Controller
             ],
             'rows' => $rows,
         ];
+    }
+
+    /**
+     * @param  list<string>  $documentIds
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function documentHistoryLines(array $documentIds, ?string $productId): array
+    {
+        if ($documentIds === []) {
+            return [];
+        }
+
+        $postedByLine = DB::table('stock_movements')
+            ->whereIn('stock_document_id', $documentIds)
+            ->whereIn('movement_type', ['RECEIPT', 'ISSUE'])
+            ->groupBy('stock_document_id', 'product_id')
+            ->selectRaw('stock_document_id, product_id, SUM(ABS(qty_delta)) AS posted_qty')
+            ->get()
+            ->keyBy(fn ($row): string => $row->stock_document_id.'|'.$row->product_id);
+
+        $query = DB::table('stock_document_lines as sdl')
+            ->leftJoin('products as p', 'p.id', '=', 'sdl.product_id')
+            ->whereIn('sdl.stock_document_id', $documentIds)
+            ->select('sdl.id', 'sdl.stock_document_id', 'sdl.line_no', 'sdl.product_id', 'sdl.qty_planned', 'sdl.scanned_qty', 'p.code as product_code', 'p.name as product_name')
+            ->orderBy('sdl.line_no');
+        if ($productId !== null && $productId !== '') {
+            $query->where('sdl.product_id', $productId);
+        }
+
+        return $query->get()
+            ->groupBy('stock_document_id')
+            ->map(fn (Collection $lines): array => $lines->map(fn ($line): array => [
+                'id' => (string) $line->id,
+                'line_no' => (int) $line->line_no,
+                'product_id' => (string) $line->product_id,
+                'product_code' => (string) ($line->product_code ?? ''),
+                'product_name' => (string) ($line->product_name ?? ''),
+                'expected_qty' => (float) $line->qty_planned,
+                'scanned_qty' => (float) $line->scanned_qty,
+                'posted_qty' => (float) ($postedByLine[$line->stock_document_id.'|'.$line->product_id]->posted_qty ?? 0),
+            ])->values()->all())
+            ->all();
     }
 
     private function buildImportMatch(Request $request): array
@@ -798,13 +1169,16 @@ class OperationalReportController extends Controller
             'product_id' => ['nullable', 'uuid'],
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
+        // §13.10 RPT-RECIPIENT-01: cột bắt buộc gồm source_request_no, address và
+        // contact đã mask — source_request_no là khoá trace về toa nguồn.
         $query = DB::table('stock_documents as sd')
             ->join('stock_document_lines as l', 'l.stock_document_id', '=', 'sd.id')
             ->leftJoin('agencies as a', 'a.agency_id', '=', 'sd.agency_id')
             ->leftJoin('products as p', 'p.id', '=', 'l.product_id')
+            ->leftJoin('outbound_requests as orq', 'orq.id', '=', 'sd.outbound_request_id')
             ->where('sd.doc_type', 'issue')->where('sd.status', 'POSTED')
             ->whereBetween('sd.doc_date', [$from, $to])
-            ->select('sd.id', 'sd.doc_no', 'sd.doc_date', 'sd.posted_at', 'sd.agency_id', 'sd.recipient_name', 'a.agency_code', 'a.agency_name', 'p.code as product_code', 'p.name as product_name', 'l.product_id', 'l.qty_planned', 'l.scanned_qty');
+            ->select('sd.id', 'sd.doc_no', 'sd.doc_date', 'sd.posted_at', 'sd.agency_id', 'sd.recipient_name', 'sd.recipient_address', 'a.agency_code', 'a.agency_name', 'a.phone as agency_phone', 'orq.request_no as source_request_no', 'p.code as product_code', 'p.name as product_name', 'l.product_id', 'l.qty_planned', 'l.scanned_qty');
         if (! empty($validated['agency_id'])) {
             $query->where('sd.agency_id', $validated['agency_id']);
         }
@@ -820,9 +1194,17 @@ class OperationalReportController extends Controller
                     ->orWhereRaw("LOWER(COALESCE(a.agency_code, '')) LIKE ?", [$kw]);
             });
         }
+        // BR-EXP-01..05 + Annex D: contact là PII, mặc định mask; chỉ actor có
+        // warranty.pii.view mới thấy đầy đủ.
+        $showContact = (bool) $request->user()?->hasPermission('warranty.pii.view');
         $rows = $query->orderByDesc('sd.doc_date')->get()->map(fn ($r): array => [
             'agency_code' => (string) ($r->agency_code ?? 'DIRECT'),
             'agency_name' => (string) ($r->agency_name ?? $r->recipient_name ?? 'Người nhận trực tiếp'),
+            'source_request_no' => (string) ($r->source_request_no ?? ''),
+            'address' => (string) ($r->recipient_address ?? ''),
+            'contact_masked' => $showContact
+                ? (string) ($r->agency_phone ?? '')
+                : WarrantyPiiMasker::phone((string) ($r->agency_phone ?? '')),
             'product_code' => (string) ($r->product_code ?? ''),
             'product_name' => (string) ($r->product_name ?? ''),
             'outbound_no' => (string) $r->doc_no,
@@ -870,11 +1252,13 @@ class OperationalReportController extends Controller
             'movement_type' => ['nullable', 'in:'.implode(',', self::MOVEMENT_TYPES)], 'code_value' => ['nullable', 'string', 'max:255'],
             'source_type' => ['nullable', 'string', 'max:80'], 'source_id' => ['nullable', 'uuid'],
         ]);
+        // §13.10 RPT-MOV-01 yêu cầu cột actor — join app_user như document-history.
         $query = DB::table('stock_movements as m')
             ->leftJoin('warehouses as w', 'w.id', '=', 'm.warehouse_id')
             ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
+            ->leftJoin('app_user as au', 'au.user_id', '=', 'm.created_by')
             ->whereBetween('m.occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->select('m.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name');
+            ->select('m.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'au.username as actor_username', 'au.display_name as actor_display_name');
         foreach (['warehouse_id', 'product_id', 'item_id', 'movement_type', 'source_type', 'source_id'] as $filter) {
             if (! empty($validated[$filter])) {
                 $query->where("m.{$filter}", $validated[$filter]);
@@ -890,6 +1274,27 @@ class OperationalReportController extends Controller
                 });
             }
         }
+        // stock_movements là ledger append-only nên có thể rất lớn: phân trang ở
+        // tầng SQL, còn summary dùng aggregate riêng để vẫn phản ánh toàn bộ kỳ.
+        $pagination = null;
+        $aggregate = null;
+        if ($request->filled('per_page')) {
+            $perPage = min(max(1, (int) $request->input('per_page', self::DEFAULT_PER_PAGE)), self::MAX_PER_PAGE);
+            $page = max(1, (int) $request->input('page', 1));
+            // select() thay thế danh sách cột (selectRaw chỉ nối thêm, sẽ vỡ vì
+            // m.* không nằm trong GROUP BY).
+            $aggregate = (clone $query)->reorder()->select(DB::raw(
+                "COUNT(*) AS total_movements, COALESCE(SUM(m.qty_delta), 0) AS net_effect, SUM(CASE WHEN m.movement_type = 'REVERSAL' THEN 1 ELSE 0 END) AS reversal_count"
+            ))->first();
+            $pagination = [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => (int) ($aggregate->total_movements ?? 0),
+                'last_page' => max(1, (int) ceil(((int) ($aggregate->total_movements ?? 0)) / $perPage)),
+            ];
+            $query->forPage($page, $perPage);
+        }
+
         $movements = $query->orderByDesc('m.occurred_at')->orderByDesc('m.id')->get();
         $objectIds = $movements->pluck('item_id')->merge($movements->pluck('container_id'))->filter()->unique()->values()->all();
         $codeMap = $objectIds === [] ? collect() : DB::table('physical_codes')->whereIn('assigned_object_id', $objectIds)->where('status', 'ACTIVE')->orderBy('created_at')->get(['assigned_object_id', 'code_value'])->groupBy('assigned_object_id')->map(fn ($rows) => (string) $rows->first()->code_value);
@@ -909,21 +1314,27 @@ class OperationalReportController extends Controller
             'physical_code' => (string) ($codeMap[(string) ($m->item_id ?? $m->container_id ?? '')] ?? ''),
             'source_type' => (string) ($m->source_type ?? ''),
             'source_id' => $m->source_id ?? null,
+            'actor' => (string) ($m->actor_display_name ?? $m->actor_username ?? ''),
             'original_movement_id' => $m->original_movement_id ?? null,
             'correction_chain_id' => $m->correction_chain_id ?? null,
         ])->all();
         $collection = collect($rows);
 
-        return [
+        $report = [
             'period' => ['from_date' => $from, 'to_date' => $to],
             'formula' => 'net_effect = SUM(qty_delta); reversal/correction append-only, không sửa movement gốc',
             'summary' => [
-                'total_movements' => count($rows),
-                'net_effect' => (float) $collection->sum('qty_delta'),
-                'reversal_count' => $collection->where('movement_type', 'REVERSAL')->count(),
+                'total_movements' => (int) ($aggregate->total_movements ?? count($rows)),
+                'net_effect' => (float) ($aggregate->net_effect ?? $collection->sum('qty_delta')),
+                'reversal_count' => (int) ($aggregate->reversal_count ?? $collection->where('movement_type', 'REVERSAL')->count()),
             ],
             'rows' => $rows,
         ];
+        if ($pagination !== null) {
+            $report['pagination'] = $pagination;
+        }
+
+        return $report;
     }
 
     private function buildWarrantyReport(Request $request, bool $includePii): array
@@ -1041,6 +1452,10 @@ class OperationalReportController extends Controller
 
     private function paginateReport(array $report, Request $request, string $rowsKey = 'rows'): array
     {
+        // Builder đã phân trang ở tầng SQL thì không cắt lại trong bộ nhớ.
+        if (isset($report['pagination'])) {
+            return $report;
+        }
         if (! $request->filled('per_page')) {
             return $report;
         }

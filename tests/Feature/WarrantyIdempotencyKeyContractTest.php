@@ -174,8 +174,10 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
     private function validPayload(): array
     {
         return [
-            'temporary_item_code' => 'TEMP-IDEMPOTENCY-CONTRACT',
+            // temporary_item_code unique — mỗi case một mã tạm riêng.
+            'temporary_item_code' => 'TEMP-IDEM-'.Str::upper(Str::random(10)),
             'missing_code_reason' => 'Kiểm tra contract Idempotency-Key',
+            'manual_product_description' => 'Máy mô tả thủ công (contract)',
             'condition_status' => 'WAITING_CHECK',
         ];
     }
@@ -208,7 +210,15 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
             'warranty_case_code' => $code,
             'inventory_serial_id' => null,
             'product_id' => null,
-            'identification_status' => 'UNIDENTIFIED',
+            // chk_erd_warranty_identification_shape: TEMP_ONLY yêu cầu đủ bộ
+            // temporary_item_code + missing_code_reason + manual_product_description.
+            'identification_status' => 'TEMP_ONLY',
+            'temporary_item_code' => 'TEMP-'.Str::upper(Str::random(8)),
+            'missing_code_reason' => 'Mất tem mã',
+            'manual_product_description' => 'Máy mô tả thủ công (fixture)',
+            // ERD bảng 45: customer_name/customer_phone NOT NULL (SCR-WAR-01 bắt buộc).
+            'customer_name' => 'Khách idem test',
+            'customer_phone' => '0900000001',
             'status' => WarrantyCase::STATUS_RECEIVED,
             'created_by' => $user->user_id,
             'version' => 1,

@@ -86,6 +86,10 @@ class SkuManagementTest extends TestCase
             'qty_before' => 0,
             'qty_delta' => 5,
             'qty_after' => 5,
+            // ERD bảng 30: quantity/stock_status/occurred_at NOT NULL.
+            'quantity' => 5,
+            'stock_status' => 'AVAILABLE',
+            'occurred_at' => now(),
             'created_by' => $actor->user_id,
         ]);
     }

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
@@ -29,6 +31,7 @@ class WarrantyStatusOnlyContractTest extends TestCase
         $payload = [
             'temporary_item_code' => 'TEMP-UNKNOWN-001',
             'missing_code_reason' => 'Mất tem serial khi khách bàn giao',
+            'manual_product_description' => 'Máy mô tả thủ công (contract)',
             'condition_status' => 'WAITING_CHECK',
             'note' => 'Tiếp nhận kiểm tra ngoại quan',
         ];
@@ -40,7 +43,8 @@ class WarrantyStatusOnlyContractTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.stock_effect', 'NONE')
             ->assertJsonPath('data.movement_created', false)
-            ->assertJsonPath('data.status', WarrantyCase::STATUS_TEMP_ONLY)
+            // SRS v1.12 §6: TEMP_ONLY là identification_status; case status giữ RECEIVED.
+            ->assertJsonPath('data.status', WarrantyCase::STATUS_RECEIVED)
             ->assertJsonPath('data.identification_status', 'TEMP_ONLY');
 
         $firstBody = $first->json();
@@ -57,7 +61,7 @@ class WarrantyStatusOnlyContractTest extends TestCase
             'inventory_serial_id' => null,
             'product_id' => null,
             'identification_status' => 'TEMP_ONLY',
-            'status' => WarrantyCase::STATUS_TEMP_ONLY,
+            'status' => WarrantyCase::STATUS_RECEIVED,
             'version' => 2,
         ]);
         $this->assertSame($warehouse->id, $balance->fresh()->warehouse_id);
@@ -73,12 +77,14 @@ class WarrantyStatusOnlyContractTest extends TestCase
         $this->postJson("/api/v1/warranty-cases/{$case->warranty_case_id}/temp-only", [
             'temporary_item_code' => 'TEMP-A',
             'missing_code_reason' => 'Không đọc được tem',
+            'manual_product_description' => 'Máy mô tả thủ công (contract)',
             'condition_status' => 'WAITING_CHECK',
         ], $headers)->assertOk();
 
         $this->postJson("/api/v1/warranty-cases/{$case->warranty_case_id}/temp-only", [
             'temporary_item_code' => 'TEMP-B',
             'missing_code_reason' => 'Không đọc được tem',
+            'manual_product_description' => 'Máy mô tả thủ công (contract)',
             'condition_status' => 'WAITING_CHECK',
         ], $headers)
             ->assertStatus(409)
@@ -104,6 +110,7 @@ class WarrantyStatusOnlyContractTest extends TestCase
         $this->postJson("/api/v1/warranty-cases/{$case->warranty_case_id}/temp-only", [
             'temporary_item_code' => 'TEMP-SHOULD-NOT-APPLY',
             'missing_code_reason' => 'Yêu cầu sai luồng',
+            'manual_product_description' => 'Máy mô tả thủ công (contract)',
             'condition_status' => 'WAITING_CHECK',
         ], $this->headers($token, 'warranty-in-stock-001'))
             ->assertStatus(422)
@@ -125,6 +132,14 @@ class WarrantyStatusOnlyContractTest extends TestCase
 
     public function test_serial_with_another_active_warranty_case_is_rejected(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            // Partial unique ux_erd_warranty_one_active_case_item nằm trên
+            // warranty_cases(item_id) của nhánh ERD PostgreSQL, nơi trigger legacy
+            // ánh xạ inventory_serial_id → item_id. Nhánh sqlite không có ánh xạ đó
+            // nên index tương ứng không bao được case tạo qua inventory_serial_id.
+            $this->markTestSkipped('One-active-case guard chỉ được materialize trên PostgreSQL.');
+        }
+
         [$user, $token] = $this->createSuperAdmin();
         [$warehouse, $product] = $this->createInventoryFixture();
         $serial = InventorySerial::query()->create([
@@ -134,17 +149,21 @@ class WarrantyStatusOnlyContractTest extends TestCase
             'status' => InventorySerial::STATUS_ISSUED,
         ]);
         $case = $this->createWarrantyCase($user, $serial->id, $product->id, 'WARRANTY-ACTIVE-001');
-        $this->createWarrantyCase($user, $serial->id, $product->id, 'WARRANTY-ACTIVE-002');
 
-        $this->postJson("/api/v1/warranty-cases/{$case->warranty_case_id}/temp-only", [
-            'temporary_item_code' => 'TEMP-DUPLICATE',
-            'missing_code_reason' => 'Kiểm thử trùng active warranty',
-            'condition_status' => 'WAITING_CHECK',
-        ], $this->headers($token, 'warranty-active-duplicate-001'))
-            ->assertStatus(409)
-            ->assertJsonPath('error.code', 'ACTIVE_WARRANTY_EXISTS');
+        // AC-SRS-016 (one active case) được enforce từ tầng DB bằng partial unique
+        // ux_erd_warranty_one_active_case_item — case active thứ hai cho cùng item
+        // không thể tồn tại, kể cả khi bypass API.
+        try {
+            DB::transaction(function () use ($user, $serial, $product): void {
+                $this->createWarrantyCase($user, $serial->id, $product->id, 'WARRANTY-ACTIVE-002');
+            });
+            $this->fail('Case active thứ hai cho cùng item phải bị one-active-case guard từ chối.');
+        } catch (QueryException $exception) {
+            $this->assertStringContainsString('ux_erd_warranty_one_active_case_item', $exception->getMessage());
+        }
 
         $this->assertSame(0, WarrantyEvent::query()->where('warranty_case_id', $case->warranty_case_id)->count());
+        $this->assertDatabaseMissing('warranty_case', ['warranty_case_code' => 'WARRANTY-ACTIVE-002']);
     }
 
     private function createSuperAdmin(): array
@@ -204,7 +223,15 @@ class WarrantyStatusOnlyContractTest extends TestCase
             'warranty_case_code' => $code,
             'inventory_serial_id' => $serialId,
             'product_id' => $productId,
-            'identification_status' => $serialId === null ? 'UNIDENTIFIED' : 'IDENTIFIED',
+            // chk_erd_warranty_identification_shape: TEMP_ONLY yêu cầu đủ bộ temp
+            // fields; IDENTIFIED yêu cầu item_id thật.
+            'identification_status' => $serialId === null ? 'TEMP_ONLY' : 'IDENTIFIED',
+            'temporary_item_code' => $serialId === null ? 'TEMP-'.Str::upper(Str::random(8)) : null,
+            'missing_code_reason' => $serialId === null ? 'Mất tem mã' : null,
+            'manual_product_description' => $serialId === null ? 'Máy mô tả thủ công (fixture)' : null,
+            // ERD bảng 45: customer_name/customer_phone NOT NULL (SCR-WAR-01 bắt buộc).
+            'customer_name' => 'Khách temp-only test',
+            'customer_phone' => '0900000002',
             'status' => WarrantyCase::STATUS_RECEIVED,
             'created_by' => $user->user_id,
             'version' => 1,

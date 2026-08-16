@@ -93,7 +93,7 @@
 
   Full-post guard                     Tất cả line scanned_qty = expected_qty/required_qty trước Post.
 
-  Product outbound guard              Mọi PRODUCT item matched có active RFID/hardware_uid.
+  Product outbound guard              RFID optional theo SRS v1.12/DEC-RFID-FALLBACK-001: mapping stock-neutral, Barcode/QR là fallback hợp lệ, thiếu RFID không chặn Post Issue.
 
   Component guard                     purpose=WARRANTY và warranty case active.
 
@@ -1048,7 +1048,7 @@ Mã Barcode/QR/RFID/NFC/MANUAL map item hoặc container. **\[BASELINE + TECH-PR
   ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   **Constraint chính**                                                                                                                      **Index khuyến nghị**
   ----------------------------------------------------------------------------------------------------------------------------------------- ----------------------------------------------------------------------------------------------------------------------------------------
-  CHECK đúng một trong item_id/container_id khác null. PRODUCT Post Issue yêu cầu active RFID code/hardware_uid. Gắn RFID không movement.   UX(code_value); UX(hardware_uid) WHERE NOT NULL; IDX(item_id,status); IDX(container_id,status); partial UX primary per target/carrier.
+  CHECK tối đa một trong item_id/container_id khác null (SRS v1.12 §7.3: Physical_Code – Item/Container = 1–0..1; §13.9 cho phép UNASSIGNED trước khi gán). RFID optional tại outbound theo SRS v1.12/DEC-RFID-FALLBACK-001, không phải gate Post Issue. Gắn RFID không movement.   UX(code_value); UX(hardware_uid) WHERE NOT NULL; IDX(item_id,status); IDX(container_id,status); partial UX primary per target/carrier.
 
   ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -1572,6 +1572,12 @@ Header reversal/correction append-only. **\[BASELINE + TECH-PROPOSAL\]**
 
   **cancel_reason**            text                  Yes                                           Lý do.
 
+  **condition_status**         varchar(30)           Yes                                           Condition hàng về (BR-REV-06/07): SELLABLE/DEFECTIVE/NON_SELLABLE.
+
+  **physical_return_status**   varchar(30)           Yes            CHECK PENDING_RETURN/CONFIRMED Xác nhận hàng vật lý đã về kho trước khi cộng tồn (BR-REV-06).
+
+  **idempotency_key**          varchar(200)          Yes                                           Key retry theo BR-REV-12.
+
   **created_at**               timestamptz           No             DEFAULT now()                  Thời điểm tạo.
 
   **created_by**               uuid                  Yes            FK app_users.id                Actor tạo; null cho system/bootstrap.
@@ -1756,7 +1762,7 @@ Toa yêu cầu xuất đã consume từ Excel. **\[BASELINE + TECH-PROPOSAL\]**
 
   **customer_name**      varchar(200)          No                                              Snapshot PII.
 
-  **customer_address**   text                  No                                              Snapshot PII.
+  **customer_address**   text                  Yes                                             Snapshot PII; nullable theo SRS v1.12 §15 (REQ-SRS-014: address/phone của toa được phép trống, receiver_name bắt buộc).
 
   **agency_id**          uuid                  Yes            FK agencies.id                   Nếu map nơi nhận.
 
@@ -1840,7 +1846,7 @@ Phiếu xuất sản phẩm full-post. **\[BASELINE + TECH-PROPOSAL\]**
 
   **recipient_name**        varchar(200)          No                                                     Snapshot customer/recipient.
 
-  **recipient_address**     text                  No                                                     Snapshot địa chỉ.
+  **recipient_address**     text                  Yes                                                    Snapshot địa chỉ; nullable theo SRS v1.12 §15 (REQ-SRS-014 toa mẫu không có địa chỉ).
 
   **document_date**         date                  No                                                     Ngày.
 
