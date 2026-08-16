@@ -12,6 +12,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Modules\Auth\Http\Middleware\CheckPermission;
+use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -28,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(Wwhn172AggregateLock::class);
         $middleware->prepend(ApiConventionMiddleware::class);
+        // Global registration is deliberate: the middleware itself is a no-op
+        // outside the six WWHN-211 read/trace endpoints. Registering centrally
+        // prevents a future route refactor from silently dropping data-scope.
+        $middleware->append(EnforceInventoryWarehouseScope::class);
 
         $middleware->alias([
             'permission' => CheckPermission::class,

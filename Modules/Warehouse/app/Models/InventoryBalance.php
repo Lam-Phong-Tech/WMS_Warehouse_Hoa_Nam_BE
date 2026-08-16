@@ -5,10 +5,11 @@ namespace Modules\Warehouse\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Modules\Warehouse\Models\Concerns\ScopesWarehouseData;
 
 class InventoryBalance extends Model
 {
-    use HasUuids;
+    use HasUuids, ScopesWarehouseData;
 
     protected $table = 'inventory_balances';
 

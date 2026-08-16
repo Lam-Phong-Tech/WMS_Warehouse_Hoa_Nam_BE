@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Concerns\ScopesWarehouseData;
 
 class StockMovement extends Model
 {
-    use HasUuids;
+    use HasUuids, ScopesWarehouseData;
 
     public const OPENING = 'OPENING';
 

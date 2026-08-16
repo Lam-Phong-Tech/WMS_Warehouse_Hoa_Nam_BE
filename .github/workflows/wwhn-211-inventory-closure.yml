@@ -1,0 +1,100 @@
+name: WWHN-211 Inventory Closure
+
+on:
+  push:
+    branches:
+      - m1
+    paths:
+      - "Modules/Warehouse/**"
+      - "Modules/Auth/**"
+      - "bootstrap/app.php"
+      - "docs/evidence/WWHN-211/**"
+      - "scripts/wwhn-211-openapi-lock.php"
+      - "tests/Feature/Wwhn211InventoryScopeTest.php"
+      - ".github/workflows/wwhn-211-inventory-closure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-authorization:
+    name: Contract + backend authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, pdo_sqlite, sqlite3
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan jwt:secret --force
+
+      - name: Generate and lock exact OpenAPI contract
+        run: |
+          php artisan l5-swagger:generate
+          php scripts/wwhn-211-openapi-lock.php
+
+      - name: Verify PHP formatting
+        run: |
+          ./vendor/bin/pint --test \
+            Modules/Warehouse/app/Models/Concerns/ScopesWarehouseData.php \
+            Modules/Warehouse/app/Http/Middleware/EnforceInventoryWarehouseScope.php \
+            Modules/Warehouse/app/Models/InventoryBalance.php \
+            Modules/Warehouse/app/Models/StockMovement.php \
+            bootstrap/app.php \
+            tests/Feature/Wwhn211InventoryScopeTest.php \
+            scripts/wwhn-211-openapi-lock.php
+
+      - name: Run WWHN-211 backend data-scope tests
+        run: php artisan test tests/Feature/Wwhn211InventoryScopeTest.php
+
+      - name: Capture route and immutable hash evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="storage/app/wwhn-211-evidence"
+          mkdir -p "$evidence_dir"
+
+          php artisan route:list --path=api/v1/inventory > "$evidence_dir/routes-inventory.txt"
+          php artisan route:list --path=api/v1/stock-movements > "$evidence_dir/routes-stock-movements.txt"
+
+          sha256sum \
+            storage/api-docs/api-docs.json \
+            docs/evidence/WWHN-211/contract-lock.json \
+            Modules/Warehouse/routes/api.php \
+            Modules/Warehouse/app/Http/Middleware/EnforceInventoryWarehouseScope.php \
+            Modules/Warehouse/app/Models/Concerns/ScopesWarehouseData.php \
+            Modules/Warehouse/app/Models/InventoryBalance.php \
+            Modules/Warehouse/app/Models/StockMovement.php \
+            tests/Feature/Wwhn211InventoryScopeTest.php \
+            > "$evidence_dir/SHA256SUMS"
+
+          printf '%s\n' "$GITHUB_SHA" > "$evidence_dir/EXACT_GIT_SHA"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$evidence_dir/GITHUB_RUN_ID"
+          printf '%s\n' "$GITHUB_RUN_ATTEMPT" > "$evidence_dir/GITHUB_RUN_ATTEMPT"
+
+      - name: Upload immutable WWHN-211 BE evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-211-be-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            storage/api-docs/api-docs.json
+            storage/app/wwhn-211-evidence/**
+            docs/evidence/WWHN-211/contract-lock.json

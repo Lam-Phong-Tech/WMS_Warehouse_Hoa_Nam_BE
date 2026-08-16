@@ -1,0 +1,91 @@
+{
+  "contract_id": "WWHN-211-INVENTORY-READ-TRACE",
+  "version": "1.0.0",
+  "status": "CODE_LOCKED_EXTERNAL_GOVERNANCE_PENDING",
+  "source_of_truth": {
+    "inventory": "docs/HoaNam_ERD_Moi_Nhat.md#inventory_balances+inventory_movements",
+    "stocktake_model_a": "OUT_OF_WWHN_211_CODE_SCOPE_PER_CURRENT_ERD",
+    "reversal": "separate reversal routes/services; WWHN-211 is read/trace only",
+    "external_decision_gates": ["WWHN-108", "WWHN-17"]
+  },
+  "scope": {
+    "in": [
+      "inventory balance list",
+      "inventory balance subledger",
+      "stock movement list",
+      "stock movement detail",
+      "movement source trace",
+      "physical-code trace lookup"
+    ],
+    "out": [
+      "safe-stock configuration/service",
+      "safe-stock alerts",
+      "scan batch mutation/service",
+      "inbound scan workflow",
+      "outbound scan workflow",
+      "stocktake scan workflow"
+    ]
+  },
+  "authorization": {
+    "authentication": "auth:api",
+    "warehouse_data_scope": "server-side fail-closed",
+    "forbidden_error_code": "ACCESS_DENIED",
+    "frontend_guard_is_authoritative": false
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/balances",
+      "permissions": ["inventory.view"],
+      "success": 200,
+      "errors": [401, 403],
+      "sample_success": {"success": true, "data": [{"id": "<uuid>", "warehouse_id": "<uuid>", "product_id": "<uuid>", "on_hand_qty": 10, "available_qty": 8, "reserved_qty": 2, "reconciliation_status": "MATCH"}], "meta": {"current_page": 1, "per_page": 15, "total": 1}}
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/balances/{id}/subledger",
+      "permissions": ["inventory.view"],
+      "success": 200,
+      "errors": [401, 403, 404],
+      "sample_success": {"success": true, "data": {"balance_id": "<uuid>", "product_id": "<uuid>", "warehouse_id": "<uuid>", "items": [], "containers": [], "item_count": 0, "container_count": 0}}
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stock-movements",
+      "permissions": ["inventory.view"],
+      "success": 200,
+      "errors": [401, 403],
+      "sample_success": {"success": true, "data": [{"id": "<uuid>", "movement_no": "MV-000001", "movement_type": "RECEIPT", "warehouse_id": "<uuid>", "product_id": "<uuid>", "qty_delta": 1}], "meta": {"current_page": 1, "per_page": 15, "total": 1}}
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stock-movements/{id}",
+      "permissions": ["inventory.view"],
+      "success": 200,
+      "errors": [401, 403, 404],
+      "sample_success": {"success": true, "data": {"id": "<uuid>", "movement_no": "MV-000001", "warehouse_id": "<uuid>", "qty_delta": 1}}
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stock-movements/{id}/trace-source",
+      "permissions": ["inventory.view", "inventory.trace"],
+      "success": 200,
+      "errors": [401, 403, 404],
+      "sample_success": {"success": true, "data": {"movement": {"id": "<uuid>", "warehouse_id": "<uuid>"}, "document": null, "status_history": [], "original_movement": null, "reversal_movement": null}}
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stock-movements/trace-by-code",
+      "permissions": ["inventory.view", "inventory.trace"],
+      "success": 200,
+      "errors": [401, 403, 404, 422],
+      "sample_success": {"success": true, "data": {"physical_code": {"code_value": "QR-001"}, "resolved_type": "ITEM", "resolved_id": "<uuid>", "resolved_object": {"sku_code": "SKU-001"}, "movements": [{"id": "<uuid>", "warehouse_id": "<uuid>"}], "container_items": []}}
+    }
+  ],
+  "sample_errors": {
+    "401": {"success": false, "message": "Chưa xác thực", "error_code": "UNAUTHENTICATED", "errors": [], "error": {"code": "UNAUTHENTICATED", "details": []}},
+    "403": {"success": false, "message": "Kho yêu cầu nằm ngoài data scope hiện hành.", "error_code": "ACCESS_DENIED", "errors": [], "error": {"code": "ACCESS_DENIED", "details": []}},
+    "404": {"success": false, "message": "Không tìm thấy dữ liệu", "error_code": "RESOURCE_NOT_FOUND", "errors": [], "error": {"code": "RESOURCE_NOT_FOUND", "details": []}},
+    "422": {"success": false, "message": "Dữ liệu không hợp lệ", "error_code": "BUSINESS_RULE_ERROR", "errors": {}, "error": {"code": "BUSINESS_RULE_ERROR", "details": {}}}
+  }
+}
