@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Modules\Warehouse\Database\Migrations\Concerns\DropsBaselineViewsAroundAlter;
 
 /**
  * BP-WMS-08/09: mở các field ERD §45/§47 (reported_defect, confirmed_defect,
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    use DropsBaselineViewsAroundAlter;
+
     public function up(): void
     {
         $this->extendWarrantyAttachments();
@@ -63,21 +66,23 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('warranty_case', function (Blueprint $table): void {
-            foreach ([
-                'reported_defect' => fn () => $table->text('reported_defect')->nullable(),
-                'confirmed_defect' => fn () => $table->text('confirmed_defect')->nullable(),
-                'accessories_received' => fn () => $table->text('accessories_received')->nullable(),
-                'received_condition' => fn () => $table->text('received_condition')->nullable(),
-                'received_at' => fn () => $table->timestamp('received_at')->nullable(),
-                'completed_at' => fn () => $table->timestamp('completed_at')->nullable(),
-                'returned_at' => fn () => $table->timestamp('returned_at')->nullable(),
-                'cancel_reason' => fn () => $table->text('cancel_reason')->nullable(),
-            ] as $column => $definition) {
-                if (! Schema::hasColumn('warranty_case', $column)) {
-                    $definition();
+        $this->alterTableAroundBaselineViews('warranty_case', function () {
+            Schema::table('warranty_case', function (Blueprint $table): void {
+                foreach ([
+                    'reported_defect' => fn () => $table->text('reported_defect')->nullable(),
+                    'confirmed_defect' => fn () => $table->text('confirmed_defect')->nullable(),
+                    'accessories_received' => fn () => $table->text('accessories_received')->nullable(),
+                    'received_condition' => fn () => $table->text('received_condition')->nullable(),
+                    'received_at' => fn () => $table->timestamp('received_at')->nullable(),
+                    'completed_at' => fn () => $table->timestamp('completed_at')->nullable(),
+                    'returned_at' => fn () => $table->timestamp('returned_at')->nullable(),
+                    'cancel_reason' => fn () => $table->text('cancel_reason')->nullable(),
+                ] as $column => $definition) {
+                    if (! Schema::hasColumn('warranty_case', $column)) {
+                        $definition();
+                    }
                 }
-            }
+            });
         });
     }
 

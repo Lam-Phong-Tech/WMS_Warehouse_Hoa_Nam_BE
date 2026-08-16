@@ -67,11 +67,11 @@ class OutboundDocumentFlowTest extends TestCase
         $this->assertSame('SCANNING', $document->status);
         $this->assertSame(3, (int) $document->version);
 
-        // 4. Post Issue phải bị chặn nếu chưa đủ label PRINTED cho mọi PRODUCT item.
+        // 4. Post Issue phải bị chặn nếu chưa tạo Packing Label cho document.
         $this->postJson("/api/v1/outbound-documents/{$documentId}/post-issue", [], $headers + [
             'If-Match' => '3',
             'Idempotency-Key' => 'post-issue-flow-001',
-        ])->assertStatus(422)->assertJsonPath('error.code', 'LABEL_NOT_PRINTED');
+        ])->assertStatus(422)->assertJsonPath('error.code', 'PACKING_LABEL_REQUIRED');
 
         $this->markLabelsPrinted($documentId);
 

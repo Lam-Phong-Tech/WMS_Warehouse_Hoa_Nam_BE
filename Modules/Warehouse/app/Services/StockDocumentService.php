@@ -390,7 +390,7 @@ class StockDocumentService
             'created_by' => $userId,
             'created_at' => now(),
         ]);
-        DB::table('scan_events')->insert([
+        DB::table('scan_record_events')->insert([
             'scan_event_id' => (string) Str::uuid(),
             'scan_batch_id' => $batchId,
             'raw_code' => trim($rawCode),

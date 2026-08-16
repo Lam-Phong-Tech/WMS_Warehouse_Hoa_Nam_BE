@@ -25,7 +25,7 @@ class ScanRecordingService
                 'created_by' => $userId,
                 'created_at' => now(),
             ]);
-            DB::table('scan_events')->insert([
+            DB::table('scan_record_events')->insert([
                 'scan_event_id' => $eventId,
                 'scan_batch_id' => $batchId,
                 'raw_code' => trim($data['raw_code']),

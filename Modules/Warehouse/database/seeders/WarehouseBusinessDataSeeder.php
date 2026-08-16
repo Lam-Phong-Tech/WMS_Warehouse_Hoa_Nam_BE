@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Sku;
@@ -442,8 +443,6 @@ class WarehouseBusinessDataSeeder extends Seeder
             'item_status' => 'NEW',
             'item_condition' => 'NORMAL',
             'version' => 1,
-            'created_by' => $this->actorId,
-            'updated_by' => $this->actorId,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -486,9 +485,11 @@ class WarehouseBusinessDataSeeder extends Seeder
 
         $containerId = (string) Str::uuid();
         DB::table('containers')->insert([
-            // containers không có trigger normalize mirror; phải set cả 2 khóa.
+            // Trên Postgres, containers có cột id mirror + trigger normalize
+            // riêng (không tự set như các bảng khác) nên phải set thủ công.
+            // Trên SQLite (test), bảng containers không có cột này.
             'container_id' => $containerId,
-            'id' => $containerId,
+            ...(Schema::hasColumn('containers', 'id') ? ['id' => $containerId] : []),
             'container_code' => $code,
             'container_type' => $type,
             'primary_sku_id' => $primarySkuId,
@@ -574,7 +575,6 @@ class WarehouseBusinessDataSeeder extends Seeder
             'recipient_address' => 'Hà Nội',
             'request_date' => now()->toDateString(),
             'status' => 'OPEN',
-            'note' => 'Toa xuất mẫu từ seeder',
             'version' => 1,
             'created_by' => $this->actorId,
             'updated_by' => $this->actorId,
@@ -615,8 +615,12 @@ class WarehouseBusinessDataSeeder extends Seeder
             'total_rows' => 2,
             'valid_rows' => 2,
             'error_rows' => 0,
-            'uploaded_at' => now(),
-            'uploaded_by' => $this->actorId,
+            // uploaded_at/uploaded_by chỉ tồn tại trên Postgres (ERD 1.0
+            // hardening, pgsql-only); SQLite (test) không có 2 cột này.
+            ...(Schema::hasColumn('outbound_request_imports', 'uploaded_at') ? [
+                'uploaded_at' => now(),
+                'uploaded_by' => $this->actorId,
+            ] : []),
             'validated_at' => now(),
             'consumed_at' => now(),
             'consumed_by' => $this->actorId,

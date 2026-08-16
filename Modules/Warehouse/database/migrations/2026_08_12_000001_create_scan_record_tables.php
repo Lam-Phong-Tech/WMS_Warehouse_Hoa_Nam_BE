@@ -18,7 +18,7 @@ return new class extends Migration
             $table->index(['source_type', 'source_id'], 'idx_scan_batches_source');
         });
 
-        Schema::create('scan_events', function (Blueprint $table) {
+        Schema::create('scan_record_events', function (Blueprint $table) {
             $table->uuid('scan_event_id')->primary();
             $table->foreignUuid('scan_batch_id')->constrained('scan_batches', 'scan_batch_id')->cascadeOnDelete();
             $table->string('raw_code', 100);
@@ -28,13 +28,13 @@ return new class extends Migration
             $table->string('result_status', 30)->index();
             $table->string('message', 500)->nullable();
             $table->timestamp('created_at')->useCurrent();
-            $table->index(['resolved_object_type', 'resolved_object_id'], 'idx_scan_events_resolved');
+            $table->index(['resolved_object_type', 'resolved_object_id'], 'idx_scan_record_events_resolved');
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('scan_events');
+        Schema::dropIfExists('scan_record_events');
         Schema::dropIfExists('scan_batches');
     }
 };

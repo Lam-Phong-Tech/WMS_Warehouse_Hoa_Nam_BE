@@ -36,5 +36,5 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
         ->middleware('permission:scan.classify');
 
     Route::post('warranty-cases/{id}/temp-only', [WarrantyController::class, 'tempOnly'])
-        ->middleware('permission:warranty.manage');
+        ->middleware('permission:warranty.temp_only');
 });

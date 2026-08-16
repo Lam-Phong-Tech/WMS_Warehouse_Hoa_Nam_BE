@@ -4,9 +4,12 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Modules\Warehouse\Database\Migrations\Concerns\DropsBaselineViewsAroundAlter;
 
 return new class extends Migration
 {
+    use DropsBaselineViewsAroundAlter;
+
     public function up(): void
     {
         $this->copyLegacyDefectsToCatalog();
@@ -22,12 +25,16 @@ return new class extends Migration
             throw new \RuntimeException("Cannot add PV profile uniqueness: {$duplicates} SKU(s) have multiple profiles.");
         }
 
-        Schema::table('pv_product_profile', function (Blueprint $table) {
-            $table->unique('product_id', 'uk_pv_product_profile_product');
+        $this->alterTableAroundBaselineViews('pv_product_profile', function () {
+            Schema::table('pv_product_profile', function (Blueprint $table) {
+                $table->unique('product_id', 'uk_pv_product_profile_product');
+            });
         });
 
-        Schema::table('warranty_case', function (Blueprint $table) {
-            $table->index(['product_id', 'status'], 'idx_warranty_case_product_status');
+        $this->alterTableAroundBaselineViews('warranty_case', function () {
+            Schema::table('warranty_case', function (Blueprint $table) {
+                $table->index(['product_id', 'status'], 'idx_warranty_case_product_status');
+            });
         });
     }
 
@@ -36,12 +43,16 @@ return new class extends Migration
         $this->copyCatalogDefectsToLegacy();
         $this->replaceWarrantyDefectForeignKey('defect_catalog');
 
-        Schema::table('warranty_case', function (Blueprint $table) {
-            $table->dropIndex('idx_warranty_case_product_status');
+        $this->alterTableAroundBaselineViews('warranty_case', function () {
+            Schema::table('warranty_case', function (Blueprint $table) {
+                $table->dropIndex('idx_warranty_case_product_status');
+            });
         });
 
-        Schema::table('pv_product_profile', function (Blueprint $table) {
-            $table->dropUnique('uk_pv_product_profile_product');
+        $this->alterTableAroundBaselineViews('pv_product_profile', function () {
+            Schema::table('pv_product_profile', function (Blueprint $table) {
+                $table->dropUnique('uk_pv_product_profile_product');
+            });
         });
     }
 
@@ -89,15 +100,17 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('warranty_case', function (Blueprint $table) {
-            $table->dropForeign(['defect_id']);
-        });
+        $this->alterTableAroundBaselineViews('warranty_case', function () use ($targetTable) {
+            Schema::table('warranty_case', function (Blueprint $table) {
+                $table->dropForeign(['defect_id']);
+            });
 
-        Schema::table('warranty_case', function (Blueprint $table) use ($targetTable) {
-            $table->foreign('defect_id')
-                ->references('defect_id')
-                ->on($targetTable)
-                ->nullOnDelete();
+            Schema::table('warranty_case', function (Blueprint $table) use ($targetTable) {
+                $table->foreign('defect_id')
+                    ->references('defect_id')
+                    ->on($targetTable)
+                    ->nullOnDelete();
+            });
         });
     }
 };

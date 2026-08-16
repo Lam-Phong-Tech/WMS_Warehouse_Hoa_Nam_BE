@@ -619,21 +619,26 @@ class CurrentBaselineStockService
         // NFR-SRS-004: mọi scan (camera/nhập tay code_value lẫn chọn item_id trực
         // tiếp) đều để lại scan_event; raw_code fallback về mã vật lý của item.
         $rawCode = isset($payload['code_value']) ? strtoupper(trim((string) $payload['code_value'])) : null;
-        $physicalId = null;
-        if ($rawCode !== null && $rawCode !== '') {
-            $physicalId = DB::table('physical_codes')->where('code_value', $rawCode)->value('physical_code_id');
-        } elseif ($item !== null) {
-            $physical = DB::table('physical_codes')
-                ->where('assigned_object_type', 'ITEM')
-                ->where('assigned_object_id', $item->item_id)
-                ->where('status', 'ACTIVE')
-                ->orderBy('created_at')
-                ->first(['physical_code_id', 'code_value']);
-            $physicalId = $physical?->physical_code_id;
-            $rawCode = $physical?->code_value !== null ? (string) $physical->code_value : (string) $item->item_id;
-        } else {
-            $rawCode = (string) $line->product_id;
+        if ($rawCode === null || $rawCode === '') {
+            if ($item !== null) {
+                $physical = DB::table('physical_codes')
+                    ->where('assigned_object_type', 'ITEM')
+                    ->where('assigned_object_id', $item->item_id)
+                    ->where('status', 'ACTIVE')
+                    ->orderBy('created_at')
+                    ->first(['code_value']);
+                $rawCode = $physical?->code_value !== null ? (string) $physical->code_value : (string) $item->item_id;
+            } else {
+                $rawCode = (string) $line->product_id;
+            }
         }
+
+        // scan_event.physical_code_id là FK legacy trỏ physical_code (số ít),
+        // khác bảng canonical physical_codes (số nhiều) dùng ở trên — tra lại
+        // theo raw_code để không insert ID sai bảng.
+        $legacyPhysicalId = $rawCode !== null && $rawCode !== ''
+            ? DB::table('physical_code')->where('code_value', $rawCode)->value('physical_code_id')
+            : null;
 
         $batchId = (string) Str::uuid();
         DB::table('scan_batch')->insert([
@@ -648,7 +653,7 @@ class CurrentBaselineStockService
             'scan_event_id' => (string) Str::uuid(),
             'scan_batch_id' => $batchId,
             'raw_code' => $rawCode,
-            'physical_code_id' => $physicalId,
+            'physical_code_id' => $legacyPhysicalId,
             'resolved_object_type' => $item ? 'ITEM' : 'SKU',
             'resolved_object_id' => $item?->item_id ?? $line->product_id,
             'result_status' => 'VALID',

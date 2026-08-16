@@ -170,42 +170,39 @@ trait PreparesOutboundFixtures
         ]);
     }
 
-    /** Đánh dấu PRINTED cho mọi label snapshot hiện có của document (tự tạo qua scan) — cập nhật thay vì insert để tránh vỡ unique(outbound_item_match_id). */
+    /**
+     * Đánh dấu PRINTED cho Packing Label của document. Từ migration
+     * 2026_08_15_140000 (flow06), label là document-level: đúng một
+     * label_snapshots cho mỗi outbound_document (uk_label_snapshots_outbound_document),
+     * còn outbound_item_match_id/sku_id/item_id chỉ giữ lại cho snapshot lịch sử.
+     */
     private function markLabelsPrinted(string $documentId): void
     {
-        $matchIds = DB::table('outbound_item_matches as m')
-            ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
-            ->where('l.stock_document_id', $documentId)
-            ->where(function ($query): void {
-                $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
-            })
-            ->pluck('m.id');
-
-        foreach ($matchIds as $matchId) {
-            $existing = DB::table('label_snapshots')->where('outbound_item_match_id', $matchId)->first();
-            if ($existing !== null) {
-                DB::table('label_snapshots')->where('id', $existing->id)->update([
-                    'status' => 'PRINTED',
-                    'version' => ((int) $existing->version) + 1,
-                    'updated_at' => now(),
-                ]);
-
-                continue;
-            }
-
-            $match = DB::table('outbound_item_matches')->where('id', $matchId)->first();
-            DB::table('label_snapshots')->insert([
-                'id' => (string) Str::uuid(),
-                'outbound_item_match_id' => $matchId,
-                'sku_id' => DB::table('stock_document_lines')->where('id', $match->outbound_line_id)->value('product_id'),
-                'item_id' => $match->item_id,
-                'label_payload' => json_encode(['test' => true]),
+        $existing = DB::table('label_snapshots')->where('outbound_document_id', $documentId)->first();
+        if ($existing !== null) {
+            DB::table('label_snapshots')->where('id', $existing->id)->update([
                 'status' => 'PRINTED',
-                'version' => 1,
-                'created_at' => now(),
+                'applied_at' => now(),
+                'version' => ((int) $existing->version) + 1,
                 'updated_at' => now(),
             ]);
+
+            return;
         }
+
+        DB::table('label_snapshots')->insert([
+            'id' => (string) Str::uuid(),
+            'outbound_document_id' => $documentId,
+            'outbound_item_match_id' => null,
+            'sku_id' => null,
+            'item_id' => null,
+            'label_payload' => json_encode(['test' => true]),
+            'status' => 'PRINTED',
+            'applied_at' => now(),
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function outboundRequestFixture(string $skuId, int $qty, string $requestNo): string

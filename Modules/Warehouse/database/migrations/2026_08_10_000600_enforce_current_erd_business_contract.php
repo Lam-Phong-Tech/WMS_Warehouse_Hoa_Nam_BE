@@ -4,9 +4,12 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Modules\Warehouse\Database\Migrations\Concerns\DropsBaselineViewsAroundAlter;
 
 return new class extends Migration
 {
+    use DropsBaselineViewsAroundAlter;
+
     public function up(): void
     {
         $this->dropSupersededScope();
@@ -95,19 +98,21 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('warranty_case', function (Blueprint $table): void {
-            if (! Schema::hasColumn('warranty_case', 'item_id')) {
-                $table->uuid('item_id')->nullable();
-            }
-            if (! Schema::hasColumn('warranty_case', 'customer_address')) {
-                $table->text('customer_address')->nullable();
-            }
-            if (! Schema::hasColumn('warranty_case', 'purchase_date')) {
-                $table->date('purchase_date')->nullable();
-            }
-            if (! Schema::hasColumn('warranty_case', 'sales_trace_status')) {
-                $table->string('sales_trace_status', 30)->nullable();
-            }
+        $this->alterTableAroundBaselineViews('warranty_case', function () {
+            Schema::table('warranty_case', function (Blueprint $table): void {
+                if (! Schema::hasColumn('warranty_case', 'item_id')) {
+                    $table->uuid('item_id')->nullable();
+                }
+                if (! Schema::hasColumn('warranty_case', 'customer_address')) {
+                    $table->text('customer_address')->nullable();
+                }
+                if (! Schema::hasColumn('warranty_case', 'purchase_date')) {
+                    $table->date('purchase_date')->nullable();
+                }
+                if (! Schema::hasColumn('warranty_case', 'sales_trace_status')) {
+                    $table->string('sales_trace_status', 30)->nullable();
+                }
+            });
         });
 
         $this->addIndex('warranty_case', ['item_id', 'status'], 'idx_warranty_case_item_status');
@@ -120,28 +125,30 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('stock_movements', function (Blueprint $table): void {
-            if (! Schema::hasColumn('stock_movements', 'source_type')) {
-                $table->string('source_type', 40)->nullable();
-            }
-            if (! Schema::hasColumn('stock_movements', 'source_id')) {
-                $table->uuid('source_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_movements', 'source_line_id')) {
-                $table->uuid('source_line_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_movements', 'item_id')) {
-                $table->uuid('item_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_movements', 'container_id')) {
-                $table->uuid('container_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_movements', 'correction_chain_id')) {
-                $table->uuid('correction_chain_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_movements', 'idempotency_record_id')) {
-                $table->uuid('idempotency_record_id')->nullable();
-            }
+        $this->alterTableAroundBaselineViews('stock_movements', function () {
+            Schema::table('stock_movements', function (Blueprint $table): void {
+                if (! Schema::hasColumn('stock_movements', 'source_type')) {
+                    $table->string('source_type', 40)->nullable();
+                }
+                if (! Schema::hasColumn('stock_movements', 'source_id')) {
+                    $table->uuid('source_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_movements', 'source_line_id')) {
+                    $table->uuid('source_line_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_movements', 'item_id')) {
+                    $table->uuid('item_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_movements', 'container_id')) {
+                    $table->uuid('container_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_movements', 'correction_chain_id')) {
+                    $table->uuid('correction_chain_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_movements', 'idempotency_record_id')) {
+                    $table->uuid('idempotency_record_id')->nullable();
+                }
+            });
         });
 
         DB::table('stock_movements')->whereNull('source_type')->whereNotNull('stock_document_id')->update([
@@ -161,32 +168,36 @@ return new class extends Migration
     private function alignReversalContract(): void
     {
         if (Schema::hasTable('reversal_document')) {
-            Schema::table('reversal_document', function (Blueprint $table): void {
-                if (! Schema::hasColumn('reversal_document', 'correction_chain_id')) {
-                    $table->uuid('correction_chain_id')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'condition_status')) {
-                    $table->string('condition_status', 30)->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'idempotency_key')) {
-                    $table->string('idempotency_key', 100)->nullable();
-                }
+            $this->alterTableAroundBaselineViews('reversal_document', function () {
+                Schema::table('reversal_document', function (Blueprint $table): void {
+                    if (! Schema::hasColumn('reversal_document', 'correction_chain_id')) {
+                        $table->uuid('correction_chain_id')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'condition_status')) {
+                        $table->string('condition_status', 30)->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'idempotency_key')) {
+                        $table->string('idempotency_key', 100)->nullable();
+                    }
+                });
             });
             $this->addIndex('reversal_document', ['correction_chain_id'], 'idx_reversal_document_chain');
             $this->addUnique('reversal_document', ['idempotency_key'], 'uk_reversal_document_idempotency');
         }
 
         if (Schema::hasTable('reversal_line')) {
-            Schema::table('reversal_line', function (Blueprint $table): void {
-                if (! Schema::hasColumn('reversal_line', 'sku_id')) {
-                    $table->uuid('sku_id')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'item_id')) {
-                    $table->uuid('item_id')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'stock_status')) {
-                    $table->string('stock_status', 30)->nullable();
-                }
+            $this->alterTableAroundBaselineViews('reversal_line', function () {
+                Schema::table('reversal_line', function (Blueprint $table): void {
+                    if (! Schema::hasColumn('reversal_line', 'sku_id')) {
+                        $table->uuid('sku_id')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'item_id')) {
+                        $table->uuid('item_id')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'stock_status')) {
+                        $table->string('stock_status', 30)->nullable();
+                    }
+                });
             });
             $this->addForeignKey('reversal_line', 'sku_id', 'sku', 'sku_id', 'fk_reversal_line_sku', 'restrict');
             $this->addForeignKey('reversal_line', 'item_id', 'item_instances', 'item_id', 'fk_reversal_line_item', 'set null');
@@ -446,7 +457,9 @@ return new class extends Migration
         if (! Schema::hasTable($table) || $this->indexExists($table, $name)) {
             return;
         }
-        Schema::table($table, fn (Blueprint $blueprint) => $blueprint->index($columns, $name));
+        $this->alterTableAroundBaselineViews($table, function () use ($table, $columns, $name) {
+            Schema::table($table, fn (Blueprint $blueprint) => $blueprint->index($columns, $name));
+        });
     }
 
     private function addUnique(string $table, array $columns, string $name): void
@@ -471,7 +484,9 @@ return new class extends Migration
             throw new RuntimeException("Cannot add unique index {$name}: duplicate baseline data exists.");
         }
 
-        Schema::table($table, fn (Blueprint $blueprint) => $blueprint->unique($columns, $name));
+        $this->alterTableAroundBaselineViews($table, function () use ($table, $columns, $name) {
+            Schema::table($table, fn (Blueprint $blueprint) => $blueprint->unique($columns, $name));
+        });
     }
 
     private function indexExists(string $table, string $name): bool

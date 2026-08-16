@@ -29,7 +29,7 @@ class SchemaApiModulesTest extends TestCase
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
 
-        foreach (['inventory.view', 'report.view', 'warranty.temp_only'] as $key) {
+        foreach (['inventory.view', 'report.view', 'warranty.manage', 'warranty.temp_only'] as $key) {
             $permission = Permission::create(['permission_key' => $key, 'permission_name' => $key, 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']);
             DB::table('role_permission')->insert(['role_permission_id' => (string) Str::uuid(), 'role_id' => $role->role_id, 'permission_id' => $permission->permission_id]);
         }
@@ -37,13 +37,14 @@ class SchemaApiModulesTest extends TestCase
         return ['Authorization' => 'Bearer '.auth('api')->login($user)];
     }
 
-    private function warrantyCase(string $status = 'RECEIVED'): string
+    private function warrantyCase(string $status = 'RECEIVED', ?string $serialId = null): string
     {
         $id = (string) Str::uuid();
         DB::table('warranty_case')->insert([
             'warranty_case_id' => $id,
             'warranty_case_code' => 'WRN-'.Str::upper(Str::random(10)),
             'status' => $status,
+            'inventory_serial_id' => $serialId,
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
@@ -77,6 +78,7 @@ class SchemaApiModulesTest extends TestCase
             'product_id' => $sku->sku_id,
             'warehouse_id' => $warehouse->id,
             'serial_no' => 'SER-WRN-'.Str::random(10),
+            'status' => 'ISSUED',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -88,26 +90,40 @@ class SchemaApiModulesTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $caseId = $this->warrantyCase();
+        $caseId = $this->warrantyCase(serialId: $serialId);
 
-        $payload = ['item_id' => $serialId, 'defect_id' => $defectId, 'condition_status' => 'WAITING_CHECK', 'note' => 'Test temporary receipt'];
+        // WarrantyController::tempOnly() chuyển phiếu sang chế độ "không xác định
+        // được item" — chủ động NULL inventory_serial_id/product_id, thay bằng
+        // temporary_item_code/missing_code_reason. Không phải API gán item_id.
+        $payload = [
+            'temporary_item_code' => 'TEMP-WRN-001',
+            'missing_code_reason' => 'Khách không còn tem/mã sản phẩm gốc.',
+            'defect_id' => $defectId,
+            'condition_status' => 'WAITING_CHECK',
+            'note' => 'Test temporary receipt',
+        ];
         $requestHeaders = $headers + ['Idempotency-Key' => 'warranty-temp-001'];
 
-        $this->getJson('/api/v1/warranty/cases', $headers)
+        $this->getJson('/api/v1/warranty-cases', $headers)
             ->assertOk()
             ->assertJsonPath('data.0.warranty_case_id', $caseId);
 
         $this->postJson("/api/v1/warranty-cases/{$caseId}/temp-only", $payload, $requestHeaders)
             ->assertOk()
             ->assertJsonPath('data.status', 'TEMP_ONLY')
-            ->assertJsonPath('data.item_id', $serialId);
+            ->assertJsonPath('data.temporary_item_code', 'TEMP-WRN-001');
         $this->postJson("/api/v1/warranty-cases/{$caseId}/temp-only", $payload, $requestHeaders)->assertOk();
 
-        $this->assertDatabaseHas('warranty_case', ['warranty_case_id' => $caseId, 'inventory_serial_id' => $serialId, 'status' => 'TEMP_ONLY']);
+        $this->assertDatabaseHas('warranty_case', [
+            'warranty_case_id' => $caseId,
+            'inventory_serial_id' => null,
+            'temporary_item_code' => 'TEMP-WRN-001',
+            'status' => 'TEMP_ONLY',
+        ]);
         $this->assertDatabaseCount('warranty_event', 1);
         $this->assertDatabaseCount('stock_movements', 0);
         $this->assertDatabaseHas('audit_log', ['action' => 'WARRANTY_TEMP_ONLY', 'object_type' => 'warranty_case', 'object_id' => $caseId]);
-        $this->getJson("/api/v1/warranty/cases/{$caseId}/events", $headers)
+        $this->getJson("/api/v1/warranty-cases/{$caseId}/events", $headers)
             ->assertOk()
             ->assertJsonPath('data.0.warranty_case_id', $caseId);
     }

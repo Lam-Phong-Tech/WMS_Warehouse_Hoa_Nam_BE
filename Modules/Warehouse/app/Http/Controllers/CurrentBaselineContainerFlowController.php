@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
@@ -65,7 +66,9 @@ class CurrentBaselineContainerFlowController extends Controller
             }
 
             DB::table('containers')->insert([
-                'id' => $id,
+                // Trên Postgres, containers có cột id mirror (không tự set
+                // như các bảng khác); trên SQLite bảng này không có cột id.
+                ...(Schema::hasColumn('containers', 'id') ? ['id' => $id] : []),
                 'container_id' => $id,
                 'container_code' => $validated['container_code'],
                 'container_type' => $type,

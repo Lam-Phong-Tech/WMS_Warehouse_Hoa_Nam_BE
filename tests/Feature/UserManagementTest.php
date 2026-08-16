@@ -183,7 +183,13 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseHas('app_user', ['username' => 'mixedcase']);
     }
 
-    public function test_login_requires_email_and_password_not_username(): void
+    /**
+     * AuthController::login() chấp nhận cả username lẫn email
+     * (LoginRequest: email required_without:username và ngược lại) — không còn
+     * bắt buộc chỉ email-only. Username sai lệch (chưa trim/normalize khi tạo)
+     * không khớp bản ghi nên trả 401, không phải lỗi validate 422.
+     */
+    public function test_login_with_unmatched_username_returns_unauthenticated(): void
     {
         User::create([
             'username' => 'normalized',
@@ -199,8 +205,8 @@ class UserManagementTest extends TestCase
             'password' => 'secret123',
         ]);
 
-        $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR');
+        $response->assertStatus(401)
+            ->assertJsonPath('error.code', 'UNAUTHENTICATED');
     }
 
     public function test_user_create_and_update_write_audit_log(): void

@@ -266,10 +266,17 @@ class ReportFlow06IntegrationTest extends TestCase
     public function test_import_match_error_status_filter(): void
     {
         $this->createOutboundRequestImport('CONSUMED', 'clean.xlsx', 10, 10, 0);
-        $this->createOutboundRequestImport('VALIDATED', 'dirty.xlsx', 10, 5, 5);
+        $dirtyImportId = $this->createOutboundRequestImport('VALIDATED', 'dirty.xlsx', 10, 5, 5);
+        DB::table('outbound_request_import_rows')->insert([
+            'id' => (string) Str::uuid(),
+            'import_id' => $dirtyImportId,
+            'row_no' => 1,
+            'validation_status' => 'ERROR',
+            'created_at' => now(),
+        ]);
 
         $today = now()->toDateString();
-        $response = $this->api("/api/v1/reports/import-match?from_date={$today}&to_date={$today}&error_status=has_errors");
+        $response = $this->api("/api/v1/reports/import-match?from_date={$today}&to_date={$today}&error_status=ERROR");
         $response->assertOk()->assertJsonPath('data.summary.total_batches', 1);
     }
 
@@ -292,9 +299,9 @@ class ReportFlow06IntegrationTest extends TestCase
         $today = now()->toDateString();
         $docId = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-LABEL-001');
         $lineId = $this->createDocumentLine($docId, $this->productA->id, 5);
-        $matchId = $this->createOutboundItemMatch($lineId);
+        $this->createOutboundItemMatch($lineId);
 
-        $snapshotId = $this->createLabelSnapshot($this->productA->id, $matchId);
+        $snapshotId = $this->createLabelSnapshot($docId);
         $this->createLabelPrintEvent($snapshotId, 'PRINTED');
 
         $response = $this->api("/api/v1/reports/label-log?from_date={$today}&to_date={$today}");
@@ -317,23 +324,25 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->assertEquals('OUT-LABEL-001', $row['outbound_no']);
     }
 
+    /** Label là document-level (1 label/document); payload gộp item_count/sku_count cho mọi match của lô. */
     public function test_label_log_aggregates_by_outbound_document(): void
     {
         $today = now()->toDateString();
         $docId = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-AGG-001');
         $lineId = $this->createDocumentLine($docId, $this->productA->id, 5);
-        $match1 = $this->createOutboundItemMatch($lineId);
-        $match2 = $this->createOutboundItemMatch($lineId, true);
+        $this->createOutboundItemMatch($lineId);
+        $this->createOutboundItemMatch($lineId, true);
 
-        $this->createLabelSnapshot($this->productA->id, $match1);
-        $this->createLabelSnapshot($this->productB->id, $match2);
+        $this->createLabelSnapshot($docId, ['item_count' => 2, 'sku_count' => 2]);
 
         $response = $this->api("/api/v1/reports/label-log?from_date={$today}&to_date={$today}");
         $response->assertOk();
         $rows = $response->json('data.rows');
         $docRows = collect($rows)->where('outbound_no', 'OUT-AGG-001');
         $this->assertCount(1, $docRows);
-        $this->assertEquals(2, $docRows->first()['label_count']);
+        $this->assertEquals(1, $docRows->first()['label_count']);
+        $this->assertEquals(2, $docRows->first()['item_count']);
+        $this->assertEquals(2, $docRows->first()['sku_count']);
     }
 
     public function test_label_log_export_returns_xlsx(): void
@@ -341,8 +350,8 @@ class ReportFlow06IntegrationTest extends TestCase
         $today = now()->toDateString();
         $docId = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-LABEL-EXP');
         $lineId = $this->createDocumentLine($docId, $this->productA->id, 1);
-        $matchId = $this->createOutboundItemMatch($lineId);
-        $this->createLabelSnapshot($this->productA->id, $matchId);
+        $this->createOutboundItemMatch($lineId);
+        $this->createLabelSnapshot($docId);
 
         $this->api("/api/v1/reports/label-log/export-excel?from_date={$today}&to_date={$today}")
             ->assertOk()
@@ -744,16 +753,24 @@ class ReportFlow06IntegrationTest extends TestCase
         return $id;
     }
 
-    private function createLabelSnapshot(string $productId, ?string $matchId = null): string
+    /**
+     * Từ migration 2026_08_15_140000 (flow06), label là document-level:
+     * đúng một label_snapshots cho mỗi outbound_document
+     * (uk_label_snapshots_outbound_document); outbound_item_match_id/sku_id
+     * chỉ giữ lại cho snapshot lịch sử.
+     */
+    private function createLabelSnapshot(string $documentId, array $payload = []): string
     {
         $id = (string) Str::uuid();
         DB::table('label_snapshots')->insert([
             'id' => $id,
-            'sku_id' => $productId,
-            'item_id' => (string) Str::uuid(),
-            'outbound_item_match_id' => $matchId,
-            'label_payload' => json_encode(['sku_id' => $productId, 'test' => true]),
+            'outbound_document_id' => $documentId,
+            'outbound_item_match_id' => null,
+            'sku_id' => null,
+            'item_id' => null,
+            'label_payload' => json_encode($payload + ['test' => true]),
             'status' => 'PRINTED',
+            'applied_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -771,10 +788,11 @@ class ReportFlow06IntegrationTest extends TestCase
         ]);
     }
 
-    private function createOutboundRequestImport(string $status, string $fileName, int $total, int $valid, int $errors): void
+    private function createOutboundRequestImport(string $status, string $fileName, int $total, int $valid, int $errors): string
     {
+        $id = (string) Str::uuid();
         DB::table('outbound_request_imports')->insert([
-            'id' => (string) Str::uuid(),
+            'id' => $id,
             'import_no' => 'IMP-'.Str::random(6),
             'source_file_name' => $fileName,
             'source_checksum' => md5($fileName.Str::random(8)),
@@ -786,6 +804,8 @@ class ReportFlow06IntegrationTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        return $id;
     }
 
     private function createWarrantyCase(string $code, string $status, ?string $defectId = null): void

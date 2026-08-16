@@ -346,7 +346,7 @@ class WmsContractController extends Controller
     )]
     public function scanEvents(Request $request)
     {
-        $query = DB::table('scan_events')->orderByDesc('created_at');
+        $query = DB::table('scan_record_events')->orderByDesc('created_at');
         if ($request->filled('result_status')) {
             $query->where('result_status', $request->input('result_status'));
         }
@@ -396,7 +396,7 @@ class WmsContractController extends Controller
         ]);
 
         foreach ($data['codes'] ?? [] as $code) {
-            DB::table('scan_events')->insert([
+            DB::table('scan_record_events')->insert([
                 'scan_event_id' => (string) Str::uuid(),
                 'scan_batch_id' => $batchId,
                 'raw_code' => $code,

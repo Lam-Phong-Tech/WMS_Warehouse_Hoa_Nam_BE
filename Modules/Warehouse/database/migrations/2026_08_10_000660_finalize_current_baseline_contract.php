@@ -4,9 +4,12 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Modules\Warehouse\Database\Migrations\Concerns\DropsBaselineViewsAroundAlter;
 
 return new class extends Migration
 {
+    use DropsBaselineViewsAroundAlter;
+
     public function up(): void
     {
         $this->alignStockDocuments();
@@ -32,25 +35,27 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('stock_documents', function (Blueprint $table): void {
-            if (! Schema::hasColumn('stock_documents', 'source_name')) {
-                $table->string('source_name', 255)->nullable();
-            }
-            if (! Schema::hasColumn('stock_documents', 'outbound_request_id')) {
-                $table->uuid('outbound_request_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_documents', 'agency_id')) {
-                $table->uuid('agency_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_documents', 'recipient_name')) {
-                $table->string('recipient_name', 200)->nullable();
-            }
-            if (! Schema::hasColumn('stock_documents', 'recipient_address')) {
-                $table->text('recipient_address')->nullable();
-            }
-            if (! Schema::hasColumn('stock_documents', 'version')) {
-                $table->unsignedInteger('version')->default(1);
-            }
+        $this->alterTableAroundBaselineViews('stock_documents', function () {
+            Schema::table('stock_documents', function (Blueprint $table): void {
+                if (! Schema::hasColumn('stock_documents', 'source_name')) {
+                    $table->string('source_name', 255)->nullable();
+                }
+                if (! Schema::hasColumn('stock_documents', 'outbound_request_id')) {
+                    $table->uuid('outbound_request_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_documents', 'agency_id')) {
+                    $table->uuid('agency_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_documents', 'recipient_name')) {
+                    $table->string('recipient_name', 200)->nullable();
+                }
+                if (! Schema::hasColumn('stock_documents', 'recipient_address')) {
+                    $table->text('recipient_address')->nullable();
+                }
+                if (! Schema::hasColumn('stock_documents', 'version')) {
+                    $table->unsignedInteger('version')->default(1);
+                }
+            });
         });
 
         DB::table('stock_documents')->whereNull('version')->update(['version' => 1]);
@@ -64,19 +69,21 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('stock_document_lines', function (Blueprint $table): void {
-            if (! Schema::hasColumn('stock_document_lines', 'outbound_request_line_id')) {
-                $table->uuid('outbound_request_line_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_document_lines', 'import_batch_id')) {
-                $table->uuid('import_batch_id')->nullable();
-            }
-            if (! Schema::hasColumn('stock_document_lines', 'note')) {
-                $table->text('note')->nullable();
-            }
-            if (! Schema::hasColumn('stock_document_lines', 'version')) {
-                $table->unsignedInteger('version')->default(1);
-            }
+        $this->alterTableAroundBaselineViews('stock_document_lines', function () {
+            Schema::table('stock_document_lines', function (Blueprint $table): void {
+                if (! Schema::hasColumn('stock_document_lines', 'outbound_request_line_id')) {
+                    $table->uuid('outbound_request_line_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_document_lines', 'import_batch_id')) {
+                    $table->uuid('import_batch_id')->nullable();
+                }
+                if (! Schema::hasColumn('stock_document_lines', 'note')) {
+                    $table->text('note')->nullable();
+                }
+                if (! Schema::hasColumn('stock_document_lines', 'version')) {
+                    $table->unsignedInteger('version')->default(1);
+                }
+            });
         });
 
         $this->addIndex('stock_document_lines', ['outbound_request_line_id'], 'idx_stock_document_lines_request_line');
@@ -110,34 +117,36 @@ return new class extends Migration
     private function alignReversalContract(): void
     {
         if (Schema::hasTable('reversal_document')) {
-            Schema::table('reversal_document', function (Blueprint $table): void {
-                if (! Schema::hasColumn('reversal_document', 'warehouse_id')) {
-                    $table->uuid('warehouse_id')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'original_document_type')) {
-                    $table->string('original_document_type', 50)->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'original_document_id')) {
-                    $table->uuid('original_document_id')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'reason_code')) {
-                    $table->string('reason_code', 80)->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'reason_text')) {
-                    $table->text('reason_text')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'physical_return_status')) {
-                    $table->string('physical_return_status', 30)->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'cancelled_at')) {
-                    $table->timestamp('cancelled_at')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'cancel_reason')) {
-                    $table->text('cancel_reason')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_document', 'updated_by')) {
-                    $table->uuid('updated_by')->nullable();
-                }
+            $this->alterTableAroundBaselineViews('reversal_document', function () {
+                Schema::table('reversal_document', function (Blueprint $table): void {
+                    if (! Schema::hasColumn('reversal_document', 'warehouse_id')) {
+                        $table->uuid('warehouse_id')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'original_document_type')) {
+                        $table->string('original_document_type', 50)->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'original_document_id')) {
+                        $table->uuid('original_document_id')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'reason_code')) {
+                        $table->string('reason_code', 80)->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'reason_text')) {
+                        $table->text('reason_text')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'physical_return_status')) {
+                        $table->string('physical_return_status', 30)->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'cancelled_at')) {
+                        $table->timestamp('cancelled_at')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'cancel_reason')) {
+                        $table->text('cancel_reason')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_document', 'updated_by')) {
+                        $table->uuid('updated_by')->nullable();
+                    }
+                });
             });
 
             DB::table('reversal_document')->whereNull('original_document_id')->whereNotNull('stock_document_id')->update([
@@ -149,31 +158,33 @@ return new class extends Migration
         }
 
         if (Schema::hasTable('reversal_line')) {
-            Schema::table('reversal_line', function (Blueprint $table): void {
-                if (! Schema::hasColumn('reversal_line', 'line_no')) {
-                    $table->unsignedInteger('line_no')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'quantity_to_reverse')) {
-                    $table->bigInteger('quantity_to_reverse')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'return_condition')) {
-                    $table->string('return_condition', 30)->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'downstream_check_result')) {
-                    $table->json('downstream_check_result')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'posted_movement_id')) {
-                    $table->uuid('posted_movement_id')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'created_by')) {
-                    $table->uuid('created_by')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'updated_by')) {
-                    $table->uuid('updated_by')->nullable();
-                }
-                if (! Schema::hasColumn('reversal_line', 'version')) {
-                    $table->unsignedInteger('version')->default(1);
-                }
+            $this->alterTableAroundBaselineViews('reversal_line', function () {
+                Schema::table('reversal_line', function (Blueprint $table): void {
+                    if (! Schema::hasColumn('reversal_line', 'line_no')) {
+                        $table->unsignedInteger('line_no')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'quantity_to_reverse')) {
+                        $table->bigInteger('quantity_to_reverse')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'return_condition')) {
+                        $table->string('return_condition', 30)->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'downstream_check_result')) {
+                        $table->json('downstream_check_result')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'posted_movement_id')) {
+                        $table->uuid('posted_movement_id')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'created_by')) {
+                        $table->uuid('created_by')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'updated_by')) {
+                        $table->uuid('updated_by')->nullable();
+                    }
+                    if (! Schema::hasColumn('reversal_line', 'version')) {
+                        $table->unsignedInteger('version')->default(1);
+                    }
+                });
             });
 
             DB::table('reversal_line')->whereNull('quantity_to_reverse')->update([
@@ -319,7 +330,9 @@ return new class extends Migration
         if (! Schema::hasTable($table) || $this->indexExists($table, $name)) {
             return;
         }
-        Schema::table($table, fn (Blueprint $blueprint) => $blueprint->index($columns, $name));
+        $this->alterTableAroundBaselineViews($table, function () use ($table, $columns, $name) {
+            Schema::table($table, fn (Blueprint $blueprint) => $blueprint->index($columns, $name));
+        });
     }
 
     private function addUnique(string $table, array $columns, string $name): void
@@ -335,7 +348,9 @@ return new class extends Migration
         if (DB::table($table)->select($columns)->whereNotNull($columns[0])->groupBy($columns)->havingRaw('COUNT(*) > 1')->exists()) {
             throw new RuntimeException("Cannot add unique index {$name}: duplicate baseline data exists.");
         }
-        Schema::table($table, fn (Blueprint $blueprint) => $blueprint->unique($columns, $name));
+        $this->alterTableAroundBaselineViews($table, function () use ($table, $columns, $name) {
+            Schema::table($table, fn (Blueprint $blueprint) => $blueprint->unique($columns, $name));
+        });
     }
 
     private function indexExists(string $table, string $name): bool
