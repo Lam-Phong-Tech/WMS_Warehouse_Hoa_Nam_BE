@@ -29,6 +29,8 @@ class Wwhn211InventoryScopeTest extends TestCase
             $table->string('warehouse_id');
             $table->string('value')->nullable();
         });
+
+        $this->ensureCanonicalInventoryEvidenceRows();
     }
 
     protected function tearDown(): void
@@ -90,7 +92,7 @@ class Wwhn211InventoryScopeTest extends TestCase
     public function test_direct_movement_id_outside_scope_returns_backend_403(): void
     {
         $movement = DB::table('stock_movements')->select(['id', 'warehouse_id'])->first();
-        $this->assertNotNull($movement, 'Seeded PostgreSQL evidence DB must contain at least one stock movement.');
+        $this->assertNotNull($movement, 'Canonical evidence fixture must contain at least one stock movement.');
 
         $this->authenticate(['warehouse-outside-seeded-scope']);
         $request = Request::create('/api/v1/stock-movements/'.$movement->id, 'GET');
@@ -107,7 +109,7 @@ class Wwhn211InventoryScopeTest extends TestCase
     public function test_direct_balance_subledger_outside_scope_returns_backend_403(): void
     {
         $balance = DB::table('inventory_balances')->select(['id', 'warehouse_id'])->first();
-        $this->assertNotNull($balance, 'Seeded PostgreSQL evidence DB must contain at least one inventory balance.');
+        $this->assertNotNull($balance, 'Canonical evidence fixture must contain at least one inventory balance.');
 
         $this->authenticate(['warehouse-outside-seeded-scope']);
         $request = Request::create('/api/v1/inventory/balances/'.$balance->id.'/subledger', 'GET');
@@ -172,6 +174,90 @@ class Wwhn211InventoryScopeTest extends TestCase
 
         $this->assertSame(403, $response->getStatusCode());
         $this->assertSame('ACCESS_DENIED', $response->getData(true)['error_code']);
+    }
+
+    /**
+     * Build the two physical rows needed by direct-ID data-scope tests without
+     * depending on business seeders having already Posted a stock document.
+     * The rows use existing canonical master/user IDs and insert only; no
+     * canonical table is dropped, recreated, updated, or deleted.
+     */
+    private function ensureCanonicalInventoryEvidenceRows(): void
+    {
+        if (DB::table('inventory_balances')->exists() && DB::table('stock_movements')->exists()) {
+            return;
+        }
+
+        $warehouseId = DB::table('warehouses')->value('id');
+        $skuId = Schema::hasTable('skus')
+            ? DB::table('skus')->value('id')
+            : DB::table('sku')->value('sku_id');
+        $userId = Schema::hasTable('app_users')
+            ? DB::table('app_users')->value('id')
+            : DB::table('app_user')->value('user_id');
+
+        if (! is_string($warehouseId) || ! is_string($skuId) || ! is_string($userId)) {
+            throw new \RuntimeException('WWHN-211 evidence fixture requires seeded warehouse, SKU and user masters.');
+        }
+
+        $now = now();
+        $balanceId = '21100000-0000-4000-8000-000000000001';
+        $movementId = '21100000-0000-4000-8000-000000000002';
+
+        if (! DB::table('inventory_balances')->exists()) {
+            $balance = [
+                'id' => $balanceId,
+                'warehouse_id' => $warehouseId,
+                'product_id' => $skuId,
+                'stock_status' => 'AVAILABLE',
+                'on_hand_qty' => 1,
+                'available_qty' => 1,
+                'reserved_qty' => 0,
+                'version' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            if (Schema::hasColumn('inventory_balances', 'sku_id')) {
+                $balance['sku_id'] = $skuId;
+            }
+            if (Schema::hasColumn('inventory_balances', 'quantity')) {
+                $balance['quantity'] = 1;
+            }
+            DB::table('inventory_balances')->insertOrIgnore($balance);
+        }
+
+        if (! DB::table('stock_movements')->exists()) {
+            $movement = [
+                'id' => $movementId,
+                'movement_no' => 'MV-WWHN211-SCOPE',
+                'business_key' => 'wwhn211-scope-evidence',
+                'movement_type' => 'RECEIPT',
+                'warehouse_id' => $warehouseId,
+                'product_id' => $skuId,
+                'stock_status' => 'AVAILABLE',
+                'qty_before' => 0,
+                'qty_delta' => 1,
+                'qty_after' => 1,
+                'created_by' => $userId,
+                'request_id' => 'WWHN-211-SCOPE-EVIDENCE',
+                'occurred_at' => $now,
+                'created_at' => $now,
+            ];
+            if (Schema::hasColumn('stock_movements', 'sku_id')) {
+                $movement['sku_id'] = $skuId;
+            }
+            if (Schema::hasColumn('stock_movements', 'quantity')) {
+                $movement['quantity'] = 1;
+            }
+            if (Schema::hasColumn('stock_movements', 'source_type')) {
+                $movement['source_type'] = 'STOCK_DOCUMENT';
+            }
+            DB::table('stock_movements')->insertOrIgnore($movement);
+        }
+
+        if (! DB::table('inventory_balances')->exists() || ! DB::table('stock_movements')->exists()) {
+            throw new \RuntimeException('WWHN-211 canonical evidence rows could not be created.');
+        }
     }
 
     private function authenticate(?array $warehouseScopeIds): void
