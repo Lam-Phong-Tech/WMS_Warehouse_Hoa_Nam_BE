@@ -37,6 +37,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
 
     env:
       APP_ENV: testing
@@ -47,6 +56,8 @@ jobs:
       DB_DATABASE: hoa_nam_wwhn218
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
       LOG_CHANNEL: stderr
       WWHN218_EVIDENCE_DIR: storage/app/wwhn-218-evidence
 
@@ -84,12 +95,14 @@ jobs:
           php artisan jwt:secret --force
           php artisan migrate:fresh --seed --force
 
-      - name: Prove PostgreSQL environment
+      - name: Prove PostgreSQL and Redis environment
         shell: bash
         run: |
           set -euo pipefail
           php -r 'echo json_encode(["php"=>PHP_VERSION,"pdo_drivers"=>PDO::getAvailableDrivers()], JSON_PRETTY_PRINT), PHP_EOL;' > "$WWHN218_EVIDENCE_DIR/php-environment.json"
           psql -h 127.0.0.1 -U postgres -d hoa_nam_wwhn218 -Atc "select json_build_object('version',version(),'database',current_database(),'server_addr',inet_server_addr(),'server_port',inet_server_port());" > "$WWHN218_EVIDENCE_DIR/postgres-environment.json"
+          redis-cli -h 127.0.0.1 -p 6379 INFO server > "$WWHN218_EVIDENCE_DIR/redis-environment.txt"
+          test "$(redis-cli -h 127.0.0.1 -p 6379 ping)" = "PONG"
         env:
           PGPASSWORD: postgres
 
@@ -114,12 +127,27 @@ jobs:
           `Wwhn211InventoryScopeTest` is intentionally not part of this gate: it is a WWHN-211 fixture that drops/recreates `stock_movements` in test setup. On the current PostgreSQL canonical schema, compatibility view `inventory_movements__legacy_projection` depends on that physical table, so the fixture aborts before any RBAC assertion executes. WWHN-218 proves RBAC independently using real HTTP 403 responses on the exact seeded PostgreSQL build rather than mutating the canonical schema to satisfy an unrelated legacy fixture.
           EOF
 
-      - name: Start API on exact build
+      - name: Start multi-worker API on exact build
         shell: bash
         run: |
           set -euo pipefail
-          nohup php artisan serve --host=127.0.0.1 --port=8080 > "$WWHN218_EVIDENCE_DIR/laravel-server.log" 2>&1 &
+          printf '%s\n' "PHP_CLI_SERVER_WORKERS=4" > "$WWHN218_EVIDENCE_DIR/server-worker-config.txt"
+          PHP_CLI_SERVER_WORKERS=4 nohup php artisan serve --host=127.0.0.1 --port=8080 > "$WWHN218_EVIDENCE_DIR/laravel-server.log" 2>&1 &
           echo $! > "$WWHN218_EVIDENCE_DIR/laravel-server.pid"
+          for _ in $(seq 1 30); do
+            if curl -sS -o /dev/null http://127.0.0.1:8080/api/v1/auth/login; then
+              break
+            fi
+            sleep 0.25
+          done
+          ps -ef | grep -E '[p]hp.*(artisan serve|127\.0\.0\.1:8080)' > "$WWHN218_EVIDENCE_DIR/server-processes.txt" || true
+          WORKER_COUNT=$(grep -Ec '127\.0\.0\.1:8080' "$WWHN218_EVIDENCE_DIR/server-processes.txt" || true)
+          printf '%s\n' "$WORKER_COUNT" > "$WWHN218_EVIDENCE_DIR/server-worker-count.txt"
+          if [ "$WORKER_COUNT" -lt 2 ]; then
+            echo "Expected at least two PHP HTTP worker processes for concurrency evidence; got $WORKER_COUNT" >&2
+            cat "$WWHN218_EVIDENCE_DIR/server-processes.txt" >&2 || true
+            exit 1
+          fi
 
       - name: Run real concurrent HTTP race, replay and RBAC proof
         run: bash scripts/wwhn218-http-race.sh
@@ -150,7 +178,9 @@ jobs:
             "$WWHN218_EVIDENCE_DIR/route-permission-matrix.json" \
             "$WWHN218_EVIDENCE_DIR/runtime-summary.json" \
             "$WWHN218_EVIDENCE_DIR/phpunit-wwhn218.xml" \
-            "$WWHN218_EVIDENCE_DIR/regression-scope.md"; do
+            "$WWHN218_EVIDENCE_DIR/regression-scope.md" \
+            "$WWHN218_EVIDENCE_DIR/server-processes.txt" \
+            "$WWHN218_EVIDENCE_DIR/redis-environment.txt"; do
             if [ -f "$file" ]; then
               sha256sum "$file" >> "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
             fi
