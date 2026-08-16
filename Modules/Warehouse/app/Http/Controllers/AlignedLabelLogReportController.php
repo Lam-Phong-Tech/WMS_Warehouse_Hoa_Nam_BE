@@ -31,12 +31,12 @@ class AlignedLabelLogReportController extends Controller
     {
         $report = $this->build($request);
         $rows = collect($report['rows'])->map(fn (array $row): array => [
-            $row['outbound_no'], $row['outbound_date'], $row['recipient'], $row['customer_phone'],
+            $row['outbound_no'], $row['label_code'], $row['id'], $row['outbound_date'], $row['recipient'], $row['customer_phone'],
             $row['label_count'], $row['item_count'], $row['sku_count'], $row['sku_summary'],
             $row['status'], $row['applied'] ? 'YES' : 'NO', $row['total_attempts'],
             $row['failed_count'], $row['reprint_count'], $row['created_at'],
         ])->all();
-        $headers = ['Outbound', 'Date', 'Recipient', 'Phone', 'Label count', 'Item count', 'SKU count', 'SKU summary', 'Status', 'Applied', 'Attempts', 'Failed', 'Reprint', 'Created at'];
+        $headers = ['Outbound', 'Packing Label', 'Label Snapshot', 'Date', 'Recipient', 'Phone', 'Label count', 'Item count', 'SKU count', 'SKU summary', 'Status', 'Applied', 'Attempts', 'Failed', 'Reprint', 'Created at'];
         $format = strtolower((string) $request->query('format', 'xlsx'));
 
         return $format === 'pdf'
@@ -113,6 +113,7 @@ class AlignedLabelLogReportController extends Controller
 
             return [
                 'id' => (string) $s->id,
+                'label_code' => (string) ($payload['label_code'] ?? ''),
                 'outbound_document_id' => (string) $s->outbound_document_id,
                 'outbound_no' => (string) $s->outbound_no,
                 'outbound_date' => (string) $s->outbound_date,

@@ -60,6 +60,7 @@ class AgencyController extends Controller
                 properties: [
                     new OA\Property(property: 'agency_code', type: 'string', maxLength: 50, example: 'DL-0001'),
                     new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Đại lý Hoà Nam Q1'),
+                    new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
                     new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
                     new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
@@ -120,6 +121,7 @@ class AgencyController extends Controller
             content: new OA\JsonContent(properties: [
                 new OA\Property(property: 'agency_code', type: 'string', maxLength: 50),
                 new OA\Property(property: 'agency_name', type: 'string', maxLength: 255),
+                new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
                 new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),

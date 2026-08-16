@@ -138,6 +138,10 @@ class ReversalDocumentController extends Controller
             'reference_document_id' => ['required', 'string'],
             'reference_document_type' => ['required', 'string'],
             'reason' => ['required', 'string', 'min:5', 'max:2000'],
+            // BR-REV-06/07: Reverse Issue phải khai tình trạng hàng quay về;
+            // chỉ SELLABLE mới cộng available_qty. Mặc định giữ hành vi cũ.
+            'return_condition' => ['nullable', 'in:SELLABLE,DEFECTIVE,NON_SELLABLE'],
+            'physical_return_confirmed' => ['nullable', 'boolean'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.sku' => ['required', 'string'],
             'lines.*.reversal_qty' => ['required', 'integer', 'min:1'],
@@ -199,8 +203,8 @@ class ReversalDocumentController extends Controller
             'lines' => $reversalLines,
         ];
         if ($type === 'issue') {
-            $servicePayload['condition_status'] = 'SELLABLE';
-            $servicePayload['physical_return_confirmed'] = true;
+            $servicePayload['condition_status'] = strtoupper((string) ($validated['return_condition'] ?? 'SELLABLE'));
+            $servicePayload['physical_return_confirmed'] = (bool) ($validated['physical_return_confirmed'] ?? true);
         }
 
         $actorId = $this->actorId();

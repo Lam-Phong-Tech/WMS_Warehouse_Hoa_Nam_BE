@@ -17,5 +17,5 @@ class Agency extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['agency_code', 'agency_name', 'phone', 'address', 'status'];
+    protected $fillable = ['agency_code', 'agency_name', 'contact_name', 'phone', 'address', 'status'];
 }

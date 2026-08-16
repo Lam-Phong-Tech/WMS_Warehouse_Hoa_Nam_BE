@@ -20,6 +20,7 @@ class UpdateAgencyRequest extends FormRequest
                 Rule::unique('agencies', 'agency_code')->ignore($this->route('id'), 'agency_id'),
             ],
             'agency_name' => ['sometimes', 'string', 'max:255'],
+            'contact_name' => ['nullable', 'string', 'max:200'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:500'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],

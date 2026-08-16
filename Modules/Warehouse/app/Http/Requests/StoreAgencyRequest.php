@@ -17,6 +17,7 @@ class StoreAgencyRequest extends FormRequest
         return [
             'agency_code' => ['required', 'string', 'max:50', 'unique:agencies,agency_code'],
             'agency_name' => ['required', 'string', 'max:255'],
+            'contact_name' => ['nullable', 'string', 'max:200'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:500'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
