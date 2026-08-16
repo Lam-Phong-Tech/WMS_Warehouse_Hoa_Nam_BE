@@ -1,0 +1,140 @@
+name: WWHN-218 Hardening Evidence
+
+on:
+  push:
+    branches:
+      - m1
+    paths:
+      - "app/Support/IdempotencyStore.php"
+      - "app/Support/IdempotencyKeyGuard.php"
+      - "Modules/Auth/**"
+      - "Modules/Warehouse/**"
+      - "scripts/wwhn218-*.php"
+      - "scripts/wwhn218-*.sh"
+      - "docs/evidence/WWHN-218/**"
+      - ".github/workflows/wwhn-218-hardening-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-hard-gate:
+    name: PostgreSQL race + RBAC + idempotency + permission catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoa_nam_wwhn218
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoa_nam_wwhn218"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: hoa_nam_wwhn218
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      LOG_CHANNEL: stderr
+      WWHN218_EVIDENCE_DIR: storage/app/wwhn-218-evidence
+
+    steps:
+      - name: Checkout exact m1 SHA
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3 + PostgreSQL extensions
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, pdo_pgsql, pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan jwt:secret --force
+          php artisan migrate:fresh --seed --force
+
+      - name: Prove PostgreSQL environment and exact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WWHN218_EVIDENCE_DIR"
+          printf '%s\n' "$GITHUB_SHA" > "$WWHN218_EVIDENCE_DIR/EXACT_GIT_SHA"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$WWHN218_EVIDENCE_DIR/GITHUB_RUN_ID"
+          printf '%s\n' "$GITHUB_RUN_ATTEMPT" > "$WWHN218_EVIDENCE_DIR/GITHUB_RUN_ATTEMPT"
+          printf '%s\n' "$GITHUB_REF_NAME" > "$WWHN218_EVIDENCE_DIR/GIT_REF_NAME"
+          php -r 'echo json_encode(["php"=>PHP_VERSION,"pdo_drivers"=>PDO::getAvailableDrivers()], JSON_PRETTY_PRINT), PHP_EOL;' > "$WWHN218_EVIDENCE_DIR/php-environment.json"
+          psql -h 127.0.0.1 -U postgres -d hoa_nam_wwhn218 -Atc "select json_build_object('version',version(),'database',current_database(),'server_addr',inet_server_addr(),'server_port',inet_server_port());" > "$WWHN218_EVIDENCE_DIR/postgres-environment.json"
+        env:
+          PGPASSWORD: postgres
+
+      - name: Regenerate permission catalog and route-permission matrix from current seeded DB
+        run: php scripts/wwhn218-permission-evidence.php "$WWHN218_EVIDENCE_DIR"
+
+      - name: Run WWHN-218 scoped regression tests
+        run: |
+          php artisan test \
+            tests/Feature/StockDocumentIdempotencyTest.php \
+            tests/Feature/CurrentBaselineIfMatchContractTest.php \
+            tests/Feature/Wwhn211InventoryScopeTest.php \
+            --log-junit "$WWHN218_EVIDENCE_DIR/phpunit-wwhn218.xml"
+
+      - name: Start API on exact build
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup php artisan serve --host=127.0.0.1 --port=8080 > "$WWHN218_EVIDENCE_DIR/laravel-server.log" 2>&1 &
+          echo $! > "$WWHN218_EVIDENCE_DIR/laravel-server.pid"
+
+      - name: Run real concurrent HTTP race, replay and RBAC proof
+        run: bash scripts/wwhn218-http-race.sh
+
+      - name: Capture route source and immutable hashes
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan route:list --path=v1/inbound-documents > "$WWHN218_EVIDENCE_DIR/routes-inbound.txt" || true
+          php artisan route:list --path=v1/outbound-documents > "$WWHN218_EVIDENCE_DIR/routes-outbound.txt" || true
+          php artisan route:list --path=v1/reversal-documents > "$WWHN218_EVIDENCE_DIR/routes-reversal.txt" || true
+          sha256sum \
+            Modules/Auth/database/seeders/AuthDatabaseSeeder.php \
+            Modules/Warehouse/routes/api.php \
+            Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php \
+            Modules/Warehouse/app/Services/CurrentBaselineStockService.php \
+            Modules/Warehouse/app/Services/CurrentBaselineReversalService.php \
+            app/Support/IdempotencyStore.php \
+            scripts/wwhn218-permission-evidence.php \
+            scripts/wwhn218-fixture.php \
+            scripts/wwhn218-http-race.sh \
+            "$WWHN218_EVIDENCE_DIR/permission-catalog.json" \
+            "$WWHN218_EVIDENCE_DIR/route-permission-matrix.json" \
+            > "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
+
+      - name: Upload immutable WWHN-218 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-218-hardening-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            storage/app/wwhn-218-evidence/**
