@@ -211,6 +211,29 @@ jobs:
       - name: Run real concurrent HTTP race, replay and RBAC proof
         run: bash scripts/wwhn218-http-race.sh
 
+      - name: Fail closed if evidence contains authentication secrets
+        id: evidence_secret_scan
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WWHN218_EVIDENCE_DIR"
+          LEAKS="$WWHN218_EVIDENCE_DIR/evidence-secret-scan-leaks.txt"
+          : > "$LEAKS"
+          grep -RIlE \
+            'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]{20,}|"(access_token|refresh_token|jwt|token)"[[:space:]]*:[[:space:]]*"[^"]{12,}"' \
+            "$WWHN218_EVIDENCE_DIR" > "$LEAKS" || true
+          if [ -s "$LEAKS" ]; then
+            echo "Authentication secret/token material detected in evidence; artifact upload is blocked." >&2
+            cat "$LEAKS" >&2
+            exit 1
+          fi
+          rm -f "$LEAKS"
+          jq -n \
+            --arg checked_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{checked_at:$checked_at,status:"PASS",authentication_secret_material_detected:false,artifact_upload_allowed:true}' \
+            > "$WWHN218_EVIDENCE_DIR/evidence-security-summary.json"
+
       - name: Capture route source and immutable hashes
         if: always()
         shell: bash
@@ -242,14 +265,15 @@ jobs:
             "$WWHN218_EVIDENCE_DIR/postgres-multiconnection-proof.json" \
             "$WWHN218_EVIDENCE_DIR/server-processes.txt" \
             "$WWHN218_EVIDENCE_DIR/server-readiness-status.txt" \
-            "$WWHN218_EVIDENCE_DIR/redis-environment.json"; do
+            "$WWHN218_EVIDENCE_DIR/redis-environment.json" \
+            "$WWHN218_EVIDENCE_DIR/evidence-security-summary.json"; do
             if [ -f "$file" ]; then
               sha256sum "$file" >> "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
             fi
           done
 
       - name: Upload immutable WWHN-218 evidence
-        if: always()
+        if: always() && steps.evidence_secret_scan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: wwhn-218-hardening-${{ github.sha }}
