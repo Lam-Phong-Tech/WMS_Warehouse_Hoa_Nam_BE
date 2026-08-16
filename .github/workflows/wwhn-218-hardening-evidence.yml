@@ -173,20 +173,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SERVER_ROUTER="vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"
+          SERVER_ROUTER="$(pwd)/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"
           test -f "$SERVER_ROUTER"
           printf '%s\n' "PHP_CLI_SERVER_WORKERS=4" > "$WWHN218_EVIDENCE_DIR/server-worker-config.txt"
-          nohup env PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 "$SERVER_ROUTER" > "$WWHN218_EVIDENCE_DIR/laravel-server.log" 2>&1 &
+          (
+            cd public
+            exec env PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 "$SERVER_ROUTER"
+          ) > "$WWHN218_EVIDENCE_DIR/laravel-server.log" 2>&1 &
           echo $! > "$WWHN218_EVIDENCE_DIR/laravel-server.pid"
           READY=0
           for _ in $(seq 1 40); do
-            if curl -sS -o /dev/null http://127.0.0.1:8080/api/v1/auth/login; then
+            HTTP_CODE="$(curl -sS -o "$WWHN218_EVIDENCE_DIR/server-readiness-body.txt" -w '%{http_code}' http://127.0.0.1:8080/api/v1/auth/login || true)"
+            printf '%s\n' "$HTTP_CODE" > "$WWHN218_EVIDENCE_DIR/server-readiness-status.txt"
+            if [[ "$HTTP_CODE" =~ ^[234][0-9][0-9]$ ]]; then
               READY=1
               break
             fi
             sleep 0.25
           done
-          [[ "$READY" -eq 1 ]] || { cat "$WWHN218_EVIDENCE_DIR/laravel-server.log" >&2; exit 1; }
+          if [[ "$READY" -ne 1 ]]; then
+            echo "HTTP server never produced a non-5xx application response" >&2
+            cat "$WWHN218_EVIDENCE_DIR/server-readiness-status.txt" >&2 || true
+            cat "$WWHN218_EVIDENCE_DIR/server-readiness-body.txt" >&2 || true
+            cat "$WWHN218_EVIDENCE_DIR/laravel-server.log" >&2 || true
+            exit 1
+          fi
           ps -ef | grep -E '[p]hp.*-S 127\.0\.0\.1:8080' > "$WWHN218_EVIDENCE_DIR/server-processes.txt" || true
           WORKER_COUNT=$(grep -Ec 'php.*-S 127\.0\.0\.1:8080' "$WWHN218_EVIDENCE_DIR/server-processes.txt" || true)
           printf '%s\n' "$WORKER_COUNT" > "$WWHN218_EVIDENCE_DIR/server-worker-count.txt"
@@ -230,6 +241,7 @@ jobs:
             "$WWHN218_EVIDENCE_DIR/regression-scope.md" \
             "$WWHN218_EVIDENCE_DIR/postgres-multiconnection-proof.json" \
             "$WWHN218_EVIDENCE_DIR/server-processes.txt" \
+            "$WWHN218_EVIDENCE_DIR/server-readiness-status.txt" \
             "$WWHN218_EVIDENCE_DIR/redis-environment.json"; do
             if [ -f "$file" ]; then
               sha256sum "$file" >> "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
