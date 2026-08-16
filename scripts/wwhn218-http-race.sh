@@ -6,11 +6,11 @@ EVIDENCE_DIR="${WWHN218_EVIDENCE_DIR:-storage/app/wwhn-218-evidence}"
 mkdir -p "$EVIDENCE_DIR/http"
 
 # PHPUnit regression classes legitimately use RefreshDatabase/transactions and
-# must not be relied on to leave seeded login principals behind. Restore the
-# current canonical seed state immediately before the independent HTTP phase so
-# runtime credentials, roles and permission assignments come from the same
-# AuthDatabaseSeeder whose catalog was regenerated earlier in this CI run.
-php artisan db:seed --force > "$EVIDENCE_DIR/runtime-reseed.log"
+# must not be relied on to leave seeded login principals behind. Restore only
+# the canonical Auth seed immediately before the independent HTTP phase. Do not
+# rerun warehouse/business seeders here: test fixtures may already have valid
+# business rows and PostgreSQL correctly protects their uniqueness constraints.
+php artisan db:seed --class="Modules\\Auth\\Database\\Seeders\\AuthDatabaseSeeder" --force > "$EVIDENCE_DIR/runtime-auth-reseed.log"
 
 json_get() {
   jq -er "$2" "$1"
