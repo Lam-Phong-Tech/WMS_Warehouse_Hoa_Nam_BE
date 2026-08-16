@@ -54,6 +54,18 @@ jobs:
       - name: Checkout exact m1 SHA
         uses: actions/checkout@v4
 
+      - name: Initialize immutable provenance evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WWHN218_EVIDENCE_DIR"
+          printf '%s\n' "$GITHUB_SHA" > "$WWHN218_EVIDENCE_DIR/EXACT_GIT_SHA"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$WWHN218_EVIDENCE_DIR/GITHUB_RUN_ID"
+          printf '%s\n' "$GITHUB_RUN_ATTEMPT" > "$WWHN218_EVIDENCE_DIR/GITHUB_RUN_ATTEMPT"
+          printf '%s\n' "$GITHUB_REF_NAME" > "$WWHN218_EVIDENCE_DIR/GIT_REF_NAME"
+          printf '%s\n' "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE" > "$WWHN218_EVIDENCE_DIR/CANONICAL_REPOSITORY"
+          printf '%s\n' "m1" > "$WWHN218_EVIDENCE_DIR/CANONICAL_BRANCH"
+
       - name: Setup PHP 8.3 + PostgreSQL extensions
         uses: shivammathur/setup-php@v2
         with:
@@ -65,22 +77,17 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
 
-      - name: Prepare application
+      - name: Prepare application on PostgreSQL
         run: |
           cp .env.example .env
           php artisan key:generate --force
           php artisan jwt:secret --force
           php artisan migrate:fresh --seed --force
 
-      - name: Prove PostgreSQL environment and exact provenance
+      - name: Prove PostgreSQL environment
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$WWHN218_EVIDENCE_DIR"
-          printf '%s\n' "$GITHUB_SHA" > "$WWHN218_EVIDENCE_DIR/EXACT_GIT_SHA"
-          printf '%s\n' "$GITHUB_RUN_ID" > "$WWHN218_EVIDENCE_DIR/GITHUB_RUN_ID"
-          printf '%s\n' "$GITHUB_RUN_ATTEMPT" > "$WWHN218_EVIDENCE_DIR/GITHUB_RUN_ATTEMPT"
-          printf '%s\n' "$GITHUB_REF_NAME" > "$WWHN218_EVIDENCE_DIR/GIT_REF_NAME"
           php -r 'echo json_encode(["php"=>PHP_VERSION,"pdo_drivers"=>PDO::getAvailableDrivers()], JSON_PRETTY_PRINT), PHP_EOL;' > "$WWHN218_EVIDENCE_DIR/php-environment.json"
           psql -h 127.0.0.1 -U postgres -d hoa_nam_wwhn218 -Atc "select json_build_object('version',version(),'database',current_database(),'server_addr',inet_server_addr(),'server_port',inet_server_port());" > "$WWHN218_EVIDENCE_DIR/postgres-environment.json"
         env:
@@ -112,12 +119,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php artisan route:list --path=v1/inbound-documents > "$WWHN218_EVIDENCE_DIR/routes-inbound.txt" || true
-          php artisan route:list --path=v1/outbound-documents > "$WWHN218_EVIDENCE_DIR/routes-outbound.txt" || true
-          php artisan route:list --path=v1/reversal-documents > "$WWHN218_EVIDENCE_DIR/routes-reversal.txt" || true
-          sha256sum \
+          mkdir -p "$WWHN218_EVIDENCE_DIR"
+          php artisan route:list --path=v1/inbound-documents > "$WWHN218_EVIDENCE_DIR/routes-inbound.txt" 2>&1 || true
+          php artisan route:list --path=v1/outbound-documents > "$WWHN218_EVIDENCE_DIR/routes-outbound.txt" 2>&1 || true
+          php artisan route:list --path=v1/reversal-documents > "$WWHN218_EVIDENCE_DIR/routes-reversal.txt" 2>&1 || true
+          : > "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
+          for file in \
             Modules/Auth/database/seeders/AuthDatabaseSeeder.php \
             Modules/Warehouse/routes/api.php \
+            Modules/Warehouse/database/migrations/2026_08_12_000001_create_scan_record_tables.php \
             Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php \
             Modules/Warehouse/app/Services/CurrentBaselineStockService.php \
             Modules/Warehouse/app/Services/CurrentBaselineReversalService.php \
@@ -127,7 +137,11 @@ jobs:
             scripts/wwhn218-http-race.sh \
             "$WWHN218_EVIDENCE_DIR/permission-catalog.json" \
             "$WWHN218_EVIDENCE_DIR/route-permission-matrix.json" \
-            > "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
+            "$WWHN218_EVIDENCE_DIR/runtime-summary.json"; do
+            if [ -f "$file" ]; then
+              sha256sum "$file" >> "$WWHN218_EVIDENCE_DIR/SHA256SUMS"
+            fi
+          done
 
       - name: Upload immutable WWHN-218 evidence
         if: always()
