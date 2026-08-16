@@ -17,12 +17,23 @@ json_get() {
 }
 
 login() {
-  local email="$1" password="$2" output="$3"
+  local email="$1" password="$2" output="$3" tmp token
+  tmp="$(mktemp)"
+  # Never persist authentication credentials/tokens into the evidence tree.
+  # Extract the JWT from a short-lived temp file, write only a redacted login
+  # response to the artifact directory, then delete the raw response.
   curl --fail-with-body -sS \
     -H 'Content-Type: application/json' \
     -d "$(jq -nc --arg email "$email" --arg password "$password" '{email:$email,password:$password}')" \
-    "$BASE_URL/api/v1/auth/login" > "$output"
-  jq -er '.data.access_token' "$output"
+    "$BASE_URL/api/v1/auth/login" > "$tmp"
+  token="$(jq -er '.data.access_token' "$tmp")"
+  jq '
+    if .data? and (.data | type == "object") then
+      .data |= del(.access_token, .refresh_token, .token, .jwt)
+    else . end
+  ' "$tmp" > "$output"
+  rm -f "$tmp"
+  printf '%s\n' "$token"
 }
 
 request_http() {
@@ -57,8 +68,8 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-KEEPER_TOKEN="$(login keeper01@gmail.com 'Cntt@1234' "$EVIDENCE_DIR/http/login-keeper.json")"
-STAFF_TOKEN="$(login staff01@gmail.com 'Cntt@1234' "$EVIDENCE_DIR/http/login-staff.json")"
+KEEPER_TOKEN="$(login keeper01@gmail.com 'Cntt@1234' "$EVIDENCE_DIR/http/login-keeper.redacted.json")"
+STAFF_TOKEN="$(login staff01@gmail.com 'Cntt@1234' "$EVIDENCE_DIR/http/login-staff.redacted.json")"
 
 php scripts/wwhn218-fixture.php prepare-post > "$EVIDENCE_DIR/post-fixture.json"
 DOC_ID="$(json_get "$EVIDENCE_DIR/post-fixture.json" '.document_id')"
