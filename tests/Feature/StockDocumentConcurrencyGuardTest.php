@@ -4,9 +4,22 @@ namespace Tests\Feature;
 
 use Tests\TestCase;
 
+/**
+ * ARCHITECTURE GUARD — NOT concurrency evidence.
+ *
+ * These assertions read source files and prove only that the locking/versioning
+ * constructs have not been deleted from the canonical services and controllers.
+ * They execute no transactions and open no competing connections, so they must
+ * never be cited as proof that concurrency control works at runtime.
+ *
+ * Executed proof lives in {@see Wwhn219RuntimeConcurrencyTest} and
+ * `scripts/wwhn219-runtime-concurrency.php`, which spawn real OS processes on
+ * independent PostgreSQL backends and assert the committed ledger, balance and
+ * audit outcome.
+ */
 class StockDocumentConcurrencyGuardTest extends TestCase
 {
-    public function test_stock_mutations_lock_authoritative_rows_and_version_balances(): void
+    public function test_source_guard_stock_mutations_retain_lock_and_version_constructs(): void
     {
         $stock = $this->source('Modules/Warehouse/app/Services/CurrentBaselineStockService.php');
         $flow = $this->source('Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php');
@@ -19,7 +32,7 @@ class StockDocumentConcurrencyGuardTest extends TestCase
         $this->assertStringContainsString('PRECONDITION_FAILED', $flow);
     }
 
-    public function test_reversal_rechecks_reversible_quantity_under_lock(): void
+    public function test_source_guard_reversal_retains_reversible_quantity_recheck_constructs(): void
     {
         $reversal = $this->source('Modules/Warehouse/app/Services/CurrentBaselineReversalService.php');
 
@@ -31,7 +44,7 @@ class StockDocumentConcurrencyGuardTest extends TestCase
         $this->assertStringContainsString('REVERSAL_OF_REVERSAL_FORBIDDEN', $reversal);
     }
 
-    public function test_container_and_component_mutations_are_versioned_and_locked(): void
+    public function test_source_guard_container_and_component_mutations_retain_version_constructs(): void
     {
         foreach ([
             'Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php',

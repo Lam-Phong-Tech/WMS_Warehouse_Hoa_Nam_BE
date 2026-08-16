@@ -1,0 +1,275 @@
+name: WWHN-219 Final Gate
+
+# Runs on the canonical branch only. PR #4 (dev219-p1-hardening-20260815) is CLOSED
+# and UNMERGED; its workflow never existed on m1, so this gate is the single source
+# of acceptance evidence for WWHN-219.
+on:
+  push:
+    branches:
+      - m1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two runs of the same SHA race and produce two conflicting manifests.
+  group: wwhn-219-final-gate-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  final-gate:
+    name: Full suite + runtime concurrency + permission catalog on PostgreSQL 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoa_nam_wwhn219
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoa_nam_wwhn219"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: hoa_nam_wwhn219
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      LOG_CHANNEL: stderr
+      WWHN219_EVIDENCE_DIR: storage/app/wwhn-219-evidence
+
+    steps:
+      - name: Checkout exact m1 SHA
+        uses: actions/checkout@v4
+
+      - name: Pin immutable provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WWHN219_EVIDENCE_DIR"
+          printf '%s\n' "$GITHUB_SHA"          > "$WWHN219_EVIDENCE_DIR/EXACT_GIT_SHA"
+          printf '%s\n' "$GITHUB_RUN_ID"       > "$WWHN219_EVIDENCE_DIR/GITHUB_RUN_ID"
+          printf '%s\n' "$GITHUB_RUN_ATTEMPT"  > "$WWHN219_EVIDENCE_DIR/GITHUB_RUN_ATTEMPT"
+          printf '%s\n' "$GITHUB_REF_NAME"     > "$WWHN219_EVIDENCE_DIR/GIT_REF_NAME"
+          printf '%s\n' "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE" > "$WWHN219_EVIDENCE_DIR/CANONICAL_REPOSITORY"
+          printf '%s\n' "m1" > "$WWHN219_EVIDENCE_DIR/CANONICAL_BRANCH"
+          # Acceptance must never be traced back to a superseded source.
+          cat > "$WWHN219_EVIDENCE_DIR/LEGACY_SOURCES_EXCLUDED.txt" <<'EOF'
+          Lam-Phong-Tech/Hoa_Nam_Backend
+          m1-be-2
+          dev219-p1-hardening-20260815 (PR #4, CLOSED, UNMERGED, acceptance_evidence=NO)
+          EOF
+          if [ "$GITHUB_REF_NAME" != "m1" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "WWHN-219 evidence may only be produced on the canonical m1 branch." >&2
+            exit 1
+          fi
+
+      - name: Setup PHP 8.3 with PostgreSQL extensions
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, pdo_pgsql, pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Prepare application on PostgreSQL 16
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan jwt:secret --force
+          php artisan migrate:fresh --seed --force
+
+      - name: Record database and runtime environment
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d hoa_nam_wwhn219 -Atc "select version();" > "$WWHN219_EVIDENCE_DIR/POSTGRES_VERSION"
+          php -r 'echo json_encode(["php"=>PHP_VERSION,"pdo_drivers"=>PDO::getAvailableDrivers()], JSON_PRETTY_PRINT), PHP_EOL;' > "$WWHN219_EVIDENCE_DIR/php-environment.json"
+          cat "$WWHN219_EVIDENCE_DIR/POSTGRES_VERSION"
+
+      # Phase 1 — the entire suite, not a --filter subset. A scoped run cannot
+      # support a claim that the build is green.
+      - name: Phase 1 — full PHPUnit suite
+        run: |
+          php artisan test \
+            --log-junit "$WWHN219_EVIDENCE_DIR/phpunit-full-suite.xml"
+
+      # Phase 2 — the WWHN-219 controls, reported separately so the ticket has its
+      # own named regression artifact.
+      - name: Phase 2 — WWHN-219 regression suite
+        run: |
+          php artisan test \
+            tests/Feature/Wwhn219ApplyAdjustmentDispositionTest.php \
+            tests/Feature/Wwhn219InventoryReconcileCommandTest.php \
+            tests/Feature/Wwhn219WarrantyTempOnlyAuditTest.php \
+            tests/Feature/SecurityRbacAuditNegativeTest.php \
+            tests/Feature/StockDocumentConcurrencyGuardTest.php \
+            tests/Feature/StockDocumentIdempotencyTest.php \
+            tests/Feature/CurrentBaselineIfMatchContractTest.php \
+            tests/Feature/Wwhn201PostIssueAtomicNonNegativeStockTest.php \
+            tests/Feature/Wwhn207InboundReversalFlowTest.php \
+            tests/Feature/Wwhn211InventoryScopeTest.php \
+            --log-junit "$WWHN219_EVIDENCE_DIR/phpunit-wwhn219-regression.xml"
+
+      # Phase 3 — executed concurrency. Real OS processes, independent PostgreSQL
+      # backends, sampled pg_locks, and ledger/balance/audit assertions.
+      - name: Phase 3 — runtime multi-connection concurrency race
+        env:
+          WWHN219_LOCK_HOLD_MS: "1500"
+        run: |
+          # The suite above uses RefreshDatabase, so restore the canonical auth
+          # principals the race fixtures resolve their actor from.
+          php artisan db:seed --class="Modules\\Auth\\Database\\Seeders\\AuthDatabaseSeeder" --force \
+            > "$WWHN219_EVIDENCE_DIR/runtime-auth-reseed.log"
+          php scripts/wwhn219-runtime-concurrency.php "$WWHN219_EVIDENCE_DIR"
+
+      # Phase 3b — HTTP-level race on a real multi-worker server. This covers the
+      # cases the service-level race cannot reach honestly: stale If-Match (412),
+      # duplicate Idempotency-Key replay, and backend-authoritative RBAC (403).
+      # Folded into this gate so every WWHN-219 claim traces to one SHA and one run.
+      - name: Phase 3b — start four-worker API on the exact build
+        shell: bash
+        env:
+          WWHN218_EVIDENCE_DIR: storage/app/wwhn-219-evidence/http-race
+        run: |
+          set -euo pipefail
+          mkdir -p "$WWHN218_EVIDENCE_DIR"
+          SERVER_ROUTER="$(pwd)/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"
+          test -f "$SERVER_ROUTER"
+          (
+            cd public
+            exec env PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 "$SERVER_ROUTER"
+          ) > "$WWHN218_EVIDENCE_DIR/laravel-server.log" 2>&1 &
+          echo $! > "$WWHN218_EVIDENCE_DIR/laravel-server.pid"
+          READY=0
+          for _ in $(seq 1 40); do
+            HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/v1/auth/login || true)"
+            if [[ "$HTTP_CODE" =~ ^[234][0-9][0-9]$ ]]; then READY=1; break; fi
+            sleep 0.25
+          done
+          if [[ "$READY" -ne 1 ]]; then
+            echo "HTTP server never produced a non-5xx application response" >&2
+            cat "$WWHN218_EVIDENCE_DIR/laravel-server.log" >&2 || true
+            exit 1
+          fi
+          ps -ef | grep -E '[p]hp.*-S 127\.0\.0\.1:8080' > "$WWHN218_EVIDENCE_DIR/server-processes.txt" || true
+          WORKER_COUNT=$(grep -Ec 'php.*-S 127\.0\.0\.1:8080' "$WWHN218_EVIDENCE_DIR/server-processes.txt" || true)
+          printf '%s\n' "$WORKER_COUNT" > "$WWHN218_EVIDENCE_DIR/server-worker-count.txt"
+          if [ "$WORKER_COUNT" -lt 4 ]; then
+            echo "Expected at least four PHP HTTP workers for concurrency evidence; got $WORKER_COUNT" >&2
+            exit 1
+          fi
+
+      - name: Phase 3b — HTTP race, idempotent replay and RBAC proof
+        env:
+          WWHN218_EVIDENCE_DIR: storage/app/wwhn-219-evidence/http-race
+          WWHN218_BASE_URL: http://127.0.0.1:8080
+        run: bash scripts/wwhn218-http-race.sh
+
+      - name: Phase 4 — regenerate permission catalog from the live database
+        run: php scripts/wwhn219-permission-catalog.php "$WWHN219_EVIDENCE_DIR"
+
+      - name: Phase 5 — capture route surface
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          php artisan route:list --json > "$WWHN219_EVIDENCE_DIR/routes-all.json" 2>/dev/null || true
+          php artisan route:list --path=v1/inbound-documents  > "$WWHN219_EVIDENCE_DIR/routes-inbound.txt"  2>&1 || true
+          php artisan route:list --path=v1/outbound-documents > "$WWHN219_EVIDENCE_DIR/routes-outbound.txt" 2>&1 || true
+          php artisan route:list --path=v1/reversal-documents > "$WWHN219_EVIDENCE_DIR/routes-reversal.txt" 2>&1 || true
+
+      - name: Phase 6 — build immutable evidence manifest
+        run: php scripts/wwhn219-evidence-manifest.php "$WWHN219_EVIDENCE_DIR"
+
+      - name: Fail closed if evidence carries authentication secrets
+        id: evidence_secret_scan
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$WWHN219_EVIDENCE_DIR"
+          LEAKS="$WWHN219_EVIDENCE_DIR/evidence-secret-scan-leaks.txt"
+          : > "$LEAKS"
+          grep -RIlE \
+            'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]{20,}|"(access_token|refresh_token|jwt|token)"[[:space:]]*:[[:space:]]*"[^"]{12,}"' \
+            "$WWHN219_EVIDENCE_DIR" > "$LEAKS" || true
+          if [ -s "$LEAKS" ]; then
+            echo "Authentication secret material detected in evidence; artifact upload blocked." >&2
+            cat "$LEAKS" >&2
+            exit 1
+          fi
+          rm -f "$LEAKS"
+
+      - name: Checksum every evidence artifact
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$WWHN219_EVIDENCE_DIR"
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          echo "Evidence files checksummed: $(wc -l < SHA256SUMS)"
+
+      - name: Print acceptance summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="$WWHN219_EVIDENCE_DIR/WWHN-219-EVIDENCE-MANIFEST.json"
+          if [ -f "$MANIFEST" ]; then
+            {
+              echo "## WWHN-219 Final Gate"
+              echo ""
+              echo "| Field | Value |"
+              echo "|---|---|"
+              echo "| FINAL_SHA | \`$(jq -r '.canonical_source.final_sha' "$MANIFEST")\` |"
+              echo "| CI run | $(jq -r '.ci.run_id' "$MANIFEST") |"
+              echo "| Full suite | $(jq -r '.full_test_suite.passed' "$MANIFEST")/$(jq -r '.full_test_suite.total' "$MANIFEST") passed, $(jq -r '.full_test_suite.red' "$MANIFEST") red ($(jq -r '.full_test_suite.failures' "$MANIFEST") failed + $(jq -r '.full_test_suite.errors' "$MANIFEST") errored) |"
+              echo "| Runtime concurrency | $(jq -r '.runtime_concurrency.status' "$MANIFEST") |"
+              echo "| Permission count | $(jq -r '.permission_catalog.count' "$MANIFEST") |"
+              echo "| Permission SHA256 | \`$(jq -r '.permission_catalog.sha256' "$MANIFEST")\` |"
+              echo "| Machine gates | $(jq -r '.machine_gate_status' "$MANIFEST") |"
+              echo "| Human gates | $(jq -r '.human_gate_status' "$MANIFEST") |"
+              echo "| Acceptance ready | $(jq -r '.acceptance_ready' "$MANIFEST") |"
+              echo ""
+              echo "PR #4 (\`dev219-p1-hardening-20260815\`) is CLOSED and UNMERGED — not acceptance evidence."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload immutable WWHN-219 evidence
+        if: always() && steps.evidence_secret_scan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-219-final-gate-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            storage/app/wwhn-219-evidence/**

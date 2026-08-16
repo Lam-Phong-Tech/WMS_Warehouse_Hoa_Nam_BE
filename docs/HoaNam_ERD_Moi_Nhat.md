@@ -386,12 +386,20 @@ Gán role cho user. **\[BASELINE + TECH-PROPOSAL\]**
   **assigned_at**   timestamptz           No             DEFAULT now()              Thời điểm gán.
 
   **assigned_by**   uuid                  Yes            FK app_users.id            Người gán.
+
+  **scope_ref**     varchar(100)          Yes                                       Phạm vi gán role; rỗng nghĩa là toàn hệ thống.
+
+  **effective_from** timestamptz          Yes                                       Thời điểm bắt đầu hiệu lực; rỗng nghĩa là không giới hạn.
+
+  **effective_to**  timestamptz           Yes                                       Thời điểm hết hiệu lực; rỗng nghĩa là không giới hạn.
   ----------------------------------------------------------------------------------------------------
 
   ------------------------------------------------------------------------------------------
   **Constraint chính**                                   **Index khuyến nghị**
   ------------------------------------------------------ -----------------------------------
   PK(user_id, role_id). User/role phải active khi gán.   IDX(role_id).
+  Backend chỉ công nhận role assignment đang trong cửa
+  sổ hiệu lực; giá trị rỗng coi như không giới hạn.
 
   ------------------------------------------------------------------------------------------
 

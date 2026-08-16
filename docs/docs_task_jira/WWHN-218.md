@@ -89,10 +89,10 @@ Toàn bộ 4 hạng mục hardening (RBAC, idempotency, concurrency, audit) **đ
 
 | ID | Nội dung | Owner đề xuất | Disposition |
 |---|---|---|---|
-| BE1-OP-01 | Regenerate `permission-catalog.json` evidence khớp seeder hiện tại | BE1 | Mở |
+| BE1-OP-01 | Regenerate `permission-catalog.json` evidence khớp seeder hiện tại | BE1 | **Đóng** — `scripts/wwhn219-permission-catalog.php` sinh catalog từ DB sau `migrate:fresh --seed` kèm SHA256; số thật là **71**, không phải snapshot cũ 31 |
 | BE1-OP-02 | Xác nhận dọn dẹp hay giữ `StockDocumentService`/`CurrentBaselineStockController` (dead code) | BE1 + Tech Lead | Mở |
-| BE1-OP-03 | Làm rõ route "apply-adjustment" đã map sang reversal hay chưa được xây | BA/QA | Mở, cần disposition trước khi đóng `HN-SEC-001` |
-| BE1-OP-04 | Xác nhận script concurrency Node có chạy trong CI hay chỉ manual; cân nhắc bổ sung PHPUnit race-condition test thật | BE1 + DevOps | Mở |
+| BE1-OP-03 | Làm rõ route "apply-adjustment" đã map sang reversal hay chưa được xây | BA/QA | **Đóng** — disposition `DISP-ADJ-001` (`docs/decision-records/DISPOSITION-APPLY-ADJUSTMENT.md`) chốt Phương án B: tên business action map sang Reversal/Correction, không có endpoint riêng. Khoá bằng `tests/Feature/Wwhn219ApplyAdjustmentDispositionTest.php` |
+| BE1-OP-04 | Xác nhận script concurrency Node có chạy trong CI hay chỉ manual; cân nhắc bổ sung PHPUnit race-condition test thật | BE1 + DevOps | **Đóng** — `scripts/wwhn219-runtime-concurrency.php` spawn process OS thật với backend PostgreSQL riêng, lấy mẫu `pg_locks`, chạy trong CI gate `wwhn-219-final-gate.yml` |
 
 ## Output đầu ra
 

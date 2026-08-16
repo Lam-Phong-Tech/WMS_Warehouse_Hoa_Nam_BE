@@ -391,7 +391,7 @@ return new class extends Migration
         $this->createView('app_users', 'SELECT user_id AS id, username, display_name, email, phone, status, created_at, NULL AS created_by, updated_at, NULL AS updated_by, version FROM app_user');
         $this->createView('roles', 'SELECT role_id AS id, role_code, role_name, status, created_at, NULL AS created_by, updated_at, NULL AS updated_by, 0 AS version FROM role');
         $this->createView('permissions', 'SELECT permission_id AS id, permission_key, permission_name AS description, status, created_at, NULL AS created_by, updated_at, NULL AS updated_by, 0 AS version FROM permission');
-        $this->createView('user_roles', 'SELECT user_id, role_id, created_at AS assigned_at, NULL AS assigned_by FROM user_role');
+        $this->createView('user_roles', 'SELECT user_id, role_id, created_at AS assigned_at, NULL AS assigned_by, scope_ref, effective_from, effective_to FROM user_role');
         $this->createView('role_permissions', 'SELECT role_id, permission_id, created_at AS assigned_at, NULL AS assigned_by FROM role_permission');
         $this->createView('idempotency_records', 'SELECT id, idem_key AS idempotency_key, user_id, operation, business_key, request_hash, status, response_code, response_body, locked_until, completed_at, created_at, updated_at FROM idempotency_keys');
         $this->createView('audit_logs', 'SELECT id, actor_id, action, object_type, object_id, reason, request_id, before_data, after_data, created_at FROM audit_log');
