@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Modules\Warehouse\Models\Concerns\ScopesWarehouseData;
+use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
 class Wwhn211InventoryScopeTest extends TestCase
@@ -177,10 +180,12 @@ class Wwhn211InventoryScopeTest extends TestCase
     }
 
     /**
-     * Build the two physical rows needed by direct-ID data-scope tests without
-     * depending on business seeders having already Posted a stock document.
-     * The rows use existing canonical master/user IDs and insert only; no
-     * canonical table is dropped, recreated, updated, or deleted.
+     * Build the physical rows needed by direct-ID data-scope tests without
+     * relying on seed state left behind by another test. RefreshDatabase tests
+     * in the same PHPUnit process can legitimately leave the canonical schema
+     * empty after rollback, so this fixture creates the minimum valid masters
+     * first, then INSERTs append-only evidence rows. It never drops, recreates,
+     * updates or deletes canonical ledger tables/rows.
      */
     private function ensureCanonicalInventoryEvidenceRows(): void
     {
@@ -188,18 +193,41 @@ class Wwhn211InventoryScopeTest extends TestCase
             return;
         }
 
-        $warehouseId = DB::table('warehouses')->value('id');
-        $skuId = Schema::hasTable('skus')
-            ? DB::table('skus')->value('id')
-            : DB::table('sku')->value('sku_id');
-        $userId = Schema::hasTable('app_users')
-            ? DB::table('app_users')->value('id')
-            : DB::table('app_user')->value('user_id');
-
-        if (! is_string($warehouseId) || ! is_string($skuId) || ! is_string($userId)) {
-            throw new \RuntimeException('WWHN-211 evidence fixture requires seeded warehouse, SKU and user masters.');
+        $warehouse = Warehouse::query()->first();
+        if ($warehouse === null) {
+            $warehouse = Warehouse::create([
+                'code' => 'WWHN211-SCOPE-WH',
+                'name' => 'WWHN-211 Scope Evidence Warehouse',
+                'status' => 'ACTIVE',
+            ]);
         }
 
+        $sku = Sku::query()->first();
+        if ($sku === null) {
+            $sku = Sku::create([
+                'sku_code' => 'WWHN211-SCOPE-SKU',
+                'sku_name' => 'WWHN-211 Scope Evidence SKU',
+                'sku_type' => 'COMPONENT',
+                'unit' => 'cai',
+                'is_serial_tracked' => false,
+                'status' => 'ACTIVE',
+            ]);
+        }
+
+        $persistedUser = User::query()->first();
+        if ($persistedUser === null) {
+            $persistedUser = User::create([
+                'username' => 'wwhn211-scope-fixture',
+                'display_name' => 'WWHN-211 Scope Fixture',
+                'password_hash' => Hash::make('Wwhn211ScopeFixture!'),
+                'status' => 'ACTIVE',
+                'version' => 1,
+            ]);
+        }
+
+        $warehouseId = (string) $warehouse->getKey();
+        $skuId = (string) $sku->getKey();
+        $userId = (string) $persistedUser->getKey();
         $now = now();
         $balanceId = '21100000-0000-4000-8000-000000000001';
         $movementId = '21100000-0000-4000-8000-000000000002';
@@ -223,7 +251,7 @@ class Wwhn211InventoryScopeTest extends TestCase
             if (Schema::hasColumn('inventory_balances', 'quantity')) {
                 $balance['quantity'] = 1;
             }
-            DB::table('inventory_balances')->insertOrIgnore($balance);
+            DB::table('inventory_balances')->insert($balance);
         }
 
         if (! DB::table('stock_movements')->exists()) {
@@ -252,7 +280,10 @@ class Wwhn211InventoryScopeTest extends TestCase
             if (Schema::hasColumn('stock_movements', 'source_type')) {
                 $movement['source_type'] = 'STOCK_DOCUMENT';
             }
-            DB::table('stock_movements')->insertOrIgnore($movement);
+            if (Schema::hasColumn('stock_movements', 'source_id')) {
+                $movement['source_id'] = $movementId;
+            }
+            DB::table('stock_movements')->insert($movement);
         }
 
         if (! DB::table('inventory_balances')->exists() || ! DB::table('stock_movements')->exists()) {
