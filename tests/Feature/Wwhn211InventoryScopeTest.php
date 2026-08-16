@@ -18,30 +18,22 @@ class Wwhn211InventoryScopeTest extends TestCase
     {
         parent::setUp();
 
+        // Keep this test isolated without dropping/recreating canonical runtime
+        // tables. On PostgreSQL, stock_movements and inventory_balances have
+        // compatibility views/triggers that legitimately depend on them; tearing
+        // those tables down makes the test fixture diverge from the migrated
+        // production schema and fails before RBAC is exercised.
         Schema::dropIfExists('wwhn211_scoped_rows');
-        Schema::dropIfExists('inventory_balances');
-        Schema::dropIfExists('stock_movements');
-
         Schema::create('wwhn211_scoped_rows', function (Blueprint $table): void {
             $table->string('id')->primary();
             $table->string('warehouse_id');
             $table->string('value')->nullable();
-        });
-        Schema::create('inventory_balances', function (Blueprint $table): void {
-            $table->string('id')->primary();
-            $table->string('warehouse_id');
-        });
-        Schema::create('stock_movements', function (Blueprint $table): void {
-            $table->string('id')->primary();
-            $table->string('warehouse_id');
         });
     }
 
     protected function tearDown(): void
     {
         Schema::dropIfExists('wwhn211_scoped_rows');
-        Schema::dropIfExists('inventory_balances');
-        Schema::dropIfExists('stock_movements');
         parent::tearDown();
     }
 
@@ -97,13 +89,15 @@ class Wwhn211InventoryScopeTest extends TestCase
 
     public function test_direct_movement_id_outside_scope_returns_backend_403(): void
     {
-        DB::table('stock_movements')->insert(['id' => 'mv-b', 'warehouse_id' => 'wh-b']);
-        $this->authenticate(['wh-a']);
-        $request = Request::create('/api/v1/stock-movements/mv-b', 'GET');
+        $movement = DB::table('stock_movements')->select(['id', 'warehouse_id'])->first();
+        $this->assertNotNull($movement, 'Seeded PostgreSQL evidence DB must contain at least one stock movement.');
+
+        $this->authenticate(['warehouse-outside-seeded-scope']);
+        $request = Request::create('/api/v1/stock-movements/'.$movement->id, 'GET');
 
         $response = (new EnforceInventoryWarehouseScope)->handle(
             $request,
-            fn () => response()->json(['success' => true, 'data' => ['id' => 'mv-b']]),
+            fn () => response()->json(['success' => true, 'data' => ['id' => $movement->id]]),
         );
 
         $this->assertSame(403, $response->getStatusCode());
@@ -112,13 +106,15 @@ class Wwhn211InventoryScopeTest extends TestCase
 
     public function test_direct_balance_subledger_outside_scope_returns_backend_403(): void
     {
-        DB::table('inventory_balances')->insert(['id' => 'bal-b', 'warehouse_id' => 'wh-b']);
-        $this->authenticate(['wh-a']);
-        $request = Request::create('/api/v1/inventory/balances/bal-b/subledger', 'GET');
+        $balance = DB::table('inventory_balances')->select(['id', 'warehouse_id'])->first();
+        $this->assertNotNull($balance, 'Seeded PostgreSQL evidence DB must contain at least one inventory balance.');
+
+        $this->authenticate(['warehouse-outside-seeded-scope']);
+        $request = Request::create('/api/v1/inventory/balances/'.$balance->id.'/subledger', 'GET');
 
         $response = (new EnforceInventoryWarehouseScope)->handle(
             $request,
-            fn () => response()->json(['success' => true, 'data' => ['balance_id' => 'bal-b']]),
+            fn () => response()->json(['success' => true, 'data' => ['balance_id' => $balance->id]]),
         );
 
         $this->assertSame(403, $response->getStatusCode());
