@@ -12,6 +12,32 @@ return new class extends Migration
 
     public function up(): void
     {
+        // After 2026_08_10_000791, PostgreSQL singular names such as
+        // `pv_product_profile` and `warranty_case` are compatibility views.
+        // Integrity constraints/indexes must be applied to the physical ERD
+        // tables, never to those views. SQLite still uses the singular
+        // physical baseline tables, so preserve the legacy path there.
+        if (DB::getDriverName() === 'pgsql') {
+            $duplicates = DB::table('pv_product_profiles')
+                ->select('sku_id')
+                ->groupBy('sku_id')
+                ->havingRaw('count(*) > 1')
+                ->count();
+
+            if ($duplicates > 0) {
+                throw new \RuntimeException("Cannot add PV profile uniqueness: {$duplicates} SKU(s) have multiple profiles.");
+            }
+
+            DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS uk_pv_product_profile_product ON pv_product_profiles (sku_id)');
+            DB::statement('CREATE INDEX IF NOT EXISTS idx_warranty_case_product_status ON warranty_cases (sku_id, status)');
+
+            // The canonical PostgreSQL warranty_cases.defect_id relationship is
+            // already materialized against defect_catalogs by the ERD hardening
+            // chain. The retired `defect_catalog` name is only a writable
+            // compatibility view at this point, so no FK replacement is needed.
+            return;
+        }
+
         $this->copyLegacyDefectsToCatalog();
         $this->replaceWarrantyDefectForeignKey('defect_catalogs');
 
@@ -40,6 +66,13 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('DROP INDEX IF EXISTS idx_warranty_case_product_status');
+            DB::statement('DROP INDEX IF EXISTS uk_pv_product_profile_product');
+
+            return;
+        }
+
         $this->copyCatalogDefectsToLegacy();
         $this->replaceWarrantyDefectForeignKey('defect_catalog');
 
