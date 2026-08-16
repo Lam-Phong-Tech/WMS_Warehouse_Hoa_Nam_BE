@@ -66,10 +66,13 @@ $activeReversal = collect($permissions)->contains(
     fn (array $row): bool => $row['permission_key'] === 'inventory.reversal.post' && strtoupper($row['status']) === 'ACTIVE'
 );
 
+// Module routes are mounted under Laravel's global /api prefix and then the
+// Warehouse module's /v1 prefix. The evidence matrix must use the effective
+// runtime URI exposed by `route:list`, not the module-local path fragment.
 $requiredRoutePermissions = [
-    'v1/inbound-documents/{id}/reverse' => 'inventory.reversal.post',
-    'v1/outbound-documents/{id}/reverse' => 'inventory.reversal.post',
-    'v1/reversal-documents' => 'inventory.reversal.post',
+    'api/v1/inbound-documents/{id}/reverse' => 'inventory.reversal.post',
+    'api/v1/outbound-documents/{id}/reverse' => 'inventory.reversal.post',
+    'api/v1/reversal-documents' => 'inventory.reversal.post',
 ];
 $routeChecks = [];
 foreach ($requiredRoutePermissions as $uri => $permission) {
