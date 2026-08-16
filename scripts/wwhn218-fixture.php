@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\Warehouse;
 
 require __DIR__.'/../vendor/autoload.php';
 
@@ -19,10 +22,102 @@ function emit(array $payload): never
     exit(0);
 }
 
+/**
+ * Build a minimal canonical DRAFT receipt when PHPUnit's RefreshDatabase tests
+ * have rolled back the original WarehouseBusinessDataSeeder rows. The HTTP
+ * hard gate must be order-independent: it may reuse PN-SEED-0003 when present,
+ * but it must never require a particular business seed row to survive the
+ * regression suite.
+ */
+function ensurePostFixture(): object
+{
+    $existing = DB::table('stock_documents')
+        ->where('doc_no', 'PN-SEED-0003')
+        ->where('doc_type', 'receipt')
+        ->first();
+    if ($existing !== null) {
+        return $existing;
+    }
+
+    $actorId = DB::table('app_user')->where('username', 'keeper01')->value('user_id')
+        ?? DB::table('app_user')->where('username', 'admin')->value('user_id');
+    if ($actorId === null) {
+        throw new RuntimeException('WWHN-218 fixture requires canonical AuthDatabaseSeeder principal keeper01/admin.');
+    }
+
+    $warehouse = Warehouse::query()->first();
+    if ($warehouse === null) {
+        $warehouse = Warehouse::create([
+            'code' => 'WWHN218-RACE-WH',
+            'name' => 'WWHN-218 Race Evidence Warehouse',
+            'status' => 'ACTIVE',
+        ]);
+    }
+
+    $sku = Sku::query()
+        ->where('status', 'ACTIVE')
+        ->where('sku_type', 'COMPONENT')
+        ->first();
+    if ($sku === null) {
+        $sku = Sku::create([
+            'sku_code' => 'WWHN218-RACE-SKU',
+            'sku_name' => 'WWHN-218 Race Evidence Component',
+            'sku_type' => 'COMPONENT',
+            'unit' => 'cai',
+            'is_serial_tracked' => false,
+            'status' => 'ACTIVE',
+        ]);
+    }
+
+    $id = (string) Str::uuid();
+    $lineId = (string) Str::uuid();
+    $now = now();
+
+    DB::transaction(function () use ($id, $lineId, $warehouse, $sku, $actorId, $now): void {
+        DB::table('stock_documents')->insert([
+            'id' => $id,
+            'doc_type' => 'receipt',
+            'doc_no' => 'WWHN218-RACE-PN',
+            'doc_date' => $now->toDateString(),
+            'status' => 'DRAFT',
+            'src_warehouse_id' => null,
+            'dst_warehouse_id' => (string) $warehouse->getKey(),
+            'source_name' => 'WWHN-218 CI race fixture',
+            'note' => 'Order-independent WWHN-218 PostgreSQL concurrency evidence fixture',
+            'version' => 1,
+            'created_by' => (string) $actorId,
+            'updated_by' => (string) $actorId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('stock_document_lines')->insert([
+            'id' => $lineId,
+            'stock_document_id' => $id,
+            'line_no' => 1,
+            'product_id' => (string) $sku->getKey(),
+            'qty_planned' => 5,
+            'qty_actual' => 5,
+            'scanned_qty' => 0,
+            'version' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    });
+
+    $created = DB::table('stock_documents')->where('id', $id)->first();
+    if ($created === null) {
+        throw new RuntimeException('WWHN-218 minimal post fixture could not be created.');
+    }
+
+    return $created;
+}
+
 if ($command === 'prepare-post') {
-    $document = DB::table('stock_documents')->where('doc_no', 'PN-SEED-0003')->where('doc_type', 'receipt')->first();
-    if ($document === null) {
-        fwrite(STDERR, "Seed fixture PN-SEED-0003 not found. Run migrate:fresh --seed first.\n");
+    try {
+        $document = ensurePostFixture();
+    } catch (Throwable $e) {
+        fwrite(STDERR, $e->getMessage()."\n");
         exit(2);
     }
 
