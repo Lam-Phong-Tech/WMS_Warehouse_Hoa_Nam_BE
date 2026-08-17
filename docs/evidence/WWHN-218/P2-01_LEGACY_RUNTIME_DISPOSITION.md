@@ -1,8 +1,25 @@
 # WWHN-218 / DEV218-P2-01 — Legacy runtime path disposition
 
-Status: **DEV DISPOSITION — RETAIN / PENDING TECH LEAD REVIEW**
+Status: **SUPERSEDED by `docs/decision-records/DEC-STK-002.md` (2026-08-17)**
 
-## Decision
+> **Đọc DEC-STK-002 thay cho file này.**
+>
+> File này gộp chung hai thứ khác bản chất dưới một nhãn "legacy", và đó chính là
+> nguồn nhầm lẫn khiến câu hỏi bị nêu lại qua WWHN-190/195/205/207/218:
+>
+> - `CurrentBaselineStockController` — **zero call site**, là bản sao write path
+>   thiếu toàn bộ control WWHN-218 (không `If-Match`, không `lockDocument`,
+>   không label gate, không duplicate-item guard). **Đã xoá** theo DEC-STK-002.
+> - `StockDocumentService` + `Inbound/OutboundDocumentController` — có route sống
+>   (`index`/`show`) và caller thật. **Giữ**, đúng như phần còn lại của file này.
+>
+> Lập luận "cần zero-call-site migration trước khi xoá" ở mục 4 bên dưới đã thoả
+> mãn với class thứ nhất: không có call site nào để migrate.
+>
+> Ràng buộc nay được thực thi bằng `scripts/verify-canonical-stock-write-path.php`
+> trong CI, không còn phụ thuộc vào việc đọc tài liệu.
+
+## Decision (nội dung gốc, giữ lại làm dấu vết)
 
 Do **not** delete `StockDocumentService`, `InboundDocumentController`, `OutboundDocumentController` or the compatibility concern solely to satisfy WWHN-218. Retain them as compatibility/read-side code while keeping the current-baseline mutation path authoritative.
 
