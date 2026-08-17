@@ -9,13 +9,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Http\Requests\StoreWarehouseRequest;
 use Modules\Warehouse\Http\Requests\UpdateWarehouseRequest;
 use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
 use OpenApi\Attributes as OA;
 
 /**
- * Kho Hoà Nam chỉ vận hành 01 kho tổng — không có tạo mới/xoá kho qua API, chỉ tra cứu
- * và cập nhật thông tin (tên/địa chỉ/liên hệ) của kho tổng đã seed sẵn.
+ * Kho Hoà Nam chỉ vận hành 01 kho tổng ACTIVE.
+ *
+ * AC-SRS-001 + §8.1 Warehouse: "cho phép tạo/sửa thông tin, địa chỉ và trạng thái
+ * của đúng 01 Warehouse; tạo Warehouse thứ hai bị chặn". POST tồn tại theo Annex C
+ * createWarehouse nhưng kho ACTIVE thứ hai bị WarehouseRepository trả 409
+ * STATE_CONFLICT. Không có xoá kho.
  */
 class WarehouseController extends Controller
 {
@@ -58,6 +63,50 @@ class WarehouseController extends Controller
         return $this->respondPaginated(
             $query->orderBy('code')->paginate($this->perPage($request))
         );
+    }
+
+    #[OA\Post(
+        path: '/api/v1/warehouses',
+        operationId: 'warehouse_create',
+        summary: 'Tạo kho tổng (kho ACTIVE thứ hai bị chặn 409)',
+        security: [['bearerAuth' => []]],
+        tags: ['06. Warehouse'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['code', 'name'],
+                properties: [
+                    new OA\Property(property: 'code', type: 'string', maxLength: 50, example: 'KHO-TONG-HN'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Kho tổng Hoà Nam'),
+                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
+                    new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo kho thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warehouse.manage'),
+            new OA\Response(response: 409, description: 'Đã tồn tại kho ACTIVE khác (REQ-SRS-001 single warehouse)'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        ]
+    )]
+    public function store(StoreWarehouseRequest $request)
+    {
+        $warehouse = $this->warehouses->create($request->validated() + ['status' => 'ACTIVE']);
+
+        AuditLogger::record(
+            action: 'CREATE',
+            objectType: 'warehouse',
+            objectId: (string) $warehouse->id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            afterData: $warehouse->toArray(),
+        );
+
+        return $this->respondCreated($warehouse, 'Tạo kho thành công');
     }
 
     #[OA\Get(

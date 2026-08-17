@@ -12,6 +12,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreProductRequest;
 use Modules\Warehouse\Http\Requests\UpdateProductRequest;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\SkuMasterLinkResolver;
 use OpenApi\Attributes as OA;
 
 class ProductController extends Controller
@@ -64,7 +65,11 @@ class ProductController extends Controller
                     new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'category_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'model_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'package_variant', type: 'string', enum: ['BARE', 'KIT', 'SET', 'BODY_ONLY'], nullable: true),
+                    new OA\Property(property: 'power_source_id', type: 'string', format: 'uuid', nullable: true, description: 'FK power_sources.id (ERD bảng 16)'),
+                    new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80, nullable: true, description: 'Tiện ích: gán nguồn điện theo mã master ACTIVE'),
+                    new OA\Property(property: 'package_variant_id', type: 'string', format: 'uuid', nullable: true, description: 'FK package_variants.id (ERD bảng 16)'),
+                    new OA\Property(property: 'package_variant_code', type: 'string', maxLength: 80, nullable: true, description: 'Tiện ích: gán quy cách đóng gói theo mã master ACTIVE'),
+                    new OA\Property(property: 'package_variant', type: 'string', maxLength: 50, nullable: true, description: 'Text legacy; khớp master thì tự gắn package_variant_id'),
                     new OA\Property(property: 'warranty_applicable', type: 'boolean', nullable: true),
                     new OA\Property(property: 'specification', type: 'object', nullable: true),
                     new OA\Property(property: 'published_to_app', type: 'boolean', nullable: true),
@@ -80,7 +85,8 @@ class ProductController extends Controller
     )]
     public function store(StoreProductRequest $request)
     {
-        $product = $this->products->create($request->validated() + ['status' => 'ACTIVE']);
+        $validated = $this->withResolvedMasterLinks($request->validated());
+        $product = $this->products->create($validated + ['status' => 'ACTIVE', 'version' => 1]);
 
         AuditLogger::record(
             action: 'CREATE',
@@ -134,7 +140,11 @@ class ProductController extends Controller
                 new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
                 new OA\Property(property: 'category_id', type: 'string', format: 'uuid', nullable: true),
                 new OA\Property(property: 'model_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'package_variant', type: 'string', enum: ['BARE', 'KIT', 'SET', 'BODY_ONLY'], nullable: true),
+                new OA\Property(property: 'power_source_id', type: 'string', format: 'uuid', nullable: true, description: 'FK power_sources.id (ERD bảng 16)'),
+                new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'package_variant_id', type: 'string', format: 'uuid', nullable: true, description: 'FK package_variants.id (ERD bảng 16)'),
+                new OA\Property(property: 'package_variant_code', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'package_variant', type: 'string', maxLength: 50, nullable: true),
                 new OA\Property(property: 'warranty_applicable', type: 'boolean', nullable: true),
                 new OA\Property(property: 'specification', type: 'object', nullable: true),
                 new OA\Property(property: 'published_to_app', type: 'boolean', nullable: true),
@@ -158,7 +168,7 @@ class ProductController extends Controller
             return $this->respondNotFound('Không tìm thấy SKU.');
         }
 
-        $validated = $request->validated();
+        $validated = $this->withResolvedMasterLinks($request->validated());
         $this->assertImmutableAfterStock($id, $validated, $before);
         $validated = $this->assertPublishRequiresActive($validated, $before);
         $nextVersion = $this->assertVersionMatchesIfProvided($request, $before);
@@ -218,6 +228,22 @@ class ProductController extends Controller
         );
 
         return $this->respondSuccess($product, $validated['published'] ? 'Đã publish SKU lên App PV.' : 'Đã gỡ SKU khỏi App PV.');
+    }
+
+    /**
+     * ERD bảng 16: quy đổi power_source_* / package_variant_* về đúng cặp FK +
+     * text legacy trước khi ghi. `*_code` chỉ là tiện ích cho client, không phải
+     * cột thật nên phải loại khỏi payload sau khi resolve.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function withResolvedMasterLinks(array $validated): array
+    {
+        $resolved = SkuMasterLinkResolver::resolve($validated);
+        unset($validated['power_source_code'], $validated['package_variant_code']);
+
+        return $resolved + $validated;
     }
 
     /**

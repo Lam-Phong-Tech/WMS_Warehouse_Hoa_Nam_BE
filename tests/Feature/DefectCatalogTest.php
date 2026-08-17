@@ -63,15 +63,22 @@ class DefectCatalogTest extends TestCase
         $response->assertStatus(422)->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR');
     }
 
-    public function test_defect_catalog_delete_succeeds_when_not_referenced(): void
+    /**
+     * BR-DEF-01..04 "lịch sử không bị đổi": không có endpoint xoá bệnh/lỗi; ngừng
+     * dùng bằng PATCH status=INACTIVE để hồ sơ bảo hành cũ giữ nguyên defect_id.
+     */
+    public function test_defect_catalog_has_no_delete_route_and_is_retired_by_deactivating(): void
     {
         $headers = $this->authHeaders();
-        $defect = DefectCatalog::create(['defect_code' => 'LOI-DEL', 'defect_name' => 'Lỗi xoá được', 'status' => 'ACTIVE']);
+        $defect = DefectCatalog::create(['defect_code' => 'LOI-DEL', 'defect_name' => 'Lỗi ngừng dùng', 'status' => 'ACTIVE']);
 
-        $response = $this->deleteJson("/api/v1/defect-catalogs/{$defect->defect_id}", [], $headers);
+        $this->deleteJson("/api/v1/defect-catalogs/{$defect->defect_id}", [], $headers)
+            ->assertStatus(405);
 
-        $response->assertOk();
-        $this->assertNull(DefectCatalog::find($defect->defect_id));
+        $this->patchJson("/api/v1/defect-catalogs/{$defect->defect_id}", ['status' => 'INACTIVE'], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'INACTIVE');
+        $this->assertNotNull(DefectCatalog::find($defect->defect_id));
     }
 
     public function test_defect_catalog_create_writes_audit_log(): void

@@ -27,6 +27,7 @@ class Product extends Model
     protected $fillable = [
         'code', 'name', 'sku_code', 'sku_name', 'sku_type', 'unit',
         'is_serial_tracked', 'brand_id', 'category_id', 'model_id',
+        'power_source_id', 'package_variant_id',
         'power_or_voltage', 'package_variant', 'version', 'version_code',
         'warranty_applicable', 'specification', 'published_to_app', 'status',
     ];
@@ -36,9 +37,16 @@ class Product extends Model
         'warranty_applicable' => 'boolean',
         'published_to_app' => 'boolean',
         'specification' => 'array',
+        'version' => 'integer',
     ];
 
-    protected $appends = ['sku_id', 'sku_code', 'sku_name', 'version'];
+    /**
+     * `version` KHÔNG còn nằm ở đây: view products nay chiếu thẳng skus.version
+     * (ERD bảng 16). Trước đây nó là accessor derive từ version_code nên mỗi lần
+     * optimistic lock tăng version lại ghi đè master "version" của SKU
+     * (REQ-SRS-029) — xem migration 2026_08_17_100000.
+     */
+    protected $appends = ['sku_id', 'sku_code', 'sku_name'];
 
     public function getSkuIdAttribute(): ?string
     {

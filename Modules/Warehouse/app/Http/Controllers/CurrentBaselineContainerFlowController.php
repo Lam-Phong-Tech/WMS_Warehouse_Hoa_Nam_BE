@@ -406,7 +406,7 @@ class CurrentBaselineContainerFlowController extends Controller
     private function assertVersion(object $container, int $expected): void
     {
         if ((int) $container->version !== $expected) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', 'Container version mismatch.', [
+            ApiError::abort(412, 'STALE_VERSION', 'Container version mismatch.', [
                 'expected_version' => $expected,
                 'current_version' => (int) $container->version,
             ]);

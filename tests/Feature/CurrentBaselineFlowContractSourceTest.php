@@ -59,7 +59,7 @@ class CurrentBaselineFlowContractSourceTest extends TestCase
         $this->assertStringContainsString('TEMP_ONLY_EVIDENCE_REQUIRED', $operations);
         $this->assertStringContainsString('If-Match', $warranty);
         $this->assertStringContainsString('PRECONDITION_REQUIRED', $warranty);
-        $this->assertStringContainsString('PRECONDITION_FAILED', $operations);
+        $this->assertStringContainsString('STALE_VERSION', $operations);
 
         $this->assertStringContainsString('LABEL_PII_FORBIDDEN', $operations);
         $this->assertStringContainsString('PRINT_FAILED', $operations);

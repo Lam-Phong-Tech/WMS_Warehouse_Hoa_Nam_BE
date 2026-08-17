@@ -22,7 +22,7 @@ class CurrentBaselineIfMatchContractTest extends TestCase
         $this->assertStringContainsString('DB::transaction(', $middleware);
         $this->assertStringContainsString('lockForUpdate()', $middleware);
         $this->assertStringContainsString('PRECONDITION_REQUIRED', $middleware);
-        $this->assertStringContainsString('PRECONDITION_FAILED', $middleware);
+        $this->assertStringContainsString('STALE_VERSION', $middleware);
         $this->assertStringContainsString("'ETag'", $middleware);
         $this->assertStringContainsString("'version' => \$current + 1", $middleware);
     }

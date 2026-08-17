@@ -454,7 +454,7 @@ class PutawayController extends Controller
     private function assertVersion(object $aggregate, int $expectedVersion): void
     {
         if ((int) ($aggregate->version ?? 0) !== $expectedVersion) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', 'Version không khớp, tải lại dữ liệu trước khi thao tác.', [
+            ApiError::abort(412, 'STALE_VERSION', 'Version không khớp, tải lại dữ liệu trước khi thao tác.', [
                 'expected_version' => $expectedVersion,
                 'current_version' => (int) ($aggregate->version ?? 0),
             ]);

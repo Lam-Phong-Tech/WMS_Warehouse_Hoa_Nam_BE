@@ -60,6 +60,17 @@ class DocumentationBaselineContractTest extends TestCase
             $this->assertArrayHasKey($operation, $operations, "Annex C operation [{$operation}] chưa được đăng ký route.");
         }
 
+        // Operation do ERD yêu cầu nhưng Annex C chưa khai: cũng phải tồn tại và
+        // phải có rationale, để surface không phình ra mà không ai review được.
+        foreach ($this->contract['api']['erd_alignment']['operations'] as $operation) {
+            $this->assertArrayHasKey($operation, $operations, "ERD-aligned operation [{$operation}] chưa được đăng ký route.");
+            $this->assertArrayHasKey(
+                $operation,
+                $this->contract['api']['erd_alignment']['rationale'],
+                "ERD-aligned operation [{$operation}] thiếu rationale trong contract."
+            );
+        }
+
         $joined = strtolower(implode("\n", array_keys($operations)));
         foreach ($this->contract['api']['forbidden_path_fragments'] as $fragment) {
             $this->assertStringNotContainsString($fragment, $joined, "Forbidden API scope [{$fragment}] is exposed.");
@@ -273,7 +284,8 @@ class DocumentationBaselineContractTest extends TestCase
         // in the contract so any surface change stays reviewable.
         return (int) $this->contract['api']['operation_count']
             + 1
-            + count($this->contract['api']['annex_c_alignment']['operations']);
+            + count($this->contract['api']['annex_c_alignment']['operations'])
+            + count($this->contract['api']['erd_alignment']['operations']);
     }
 
     private function findRoute(string $method, string $uri): mixed

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Support\MasterSelectionGuard;
 
 class CanonicalMvpController extends Controller
 {
@@ -330,6 +331,8 @@ class CanonicalMvpController extends Controller
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string', 'max:2000'],
         ]);
+        // BR-DEF-01..04: bệnh/lỗi INACTIVE không được chọn cho hồ sơ mới.
+        MasterSelectionGuard::assertDefectSelectable($validated['defect_id'] ?? null);
 
         $validated['warranty_case_id'] = (string) Str::uuid();
         $validated['warranty_case_code'] ??= 'WC-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4));
@@ -359,7 +362,7 @@ class CanonicalMvpController extends Controller
             return $this->respondNotFound('Warranty case not found.');
         }
         if ((int) $case->version !== (int) $validated['version']) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', 'Warranty case version mismatch.');
+            ApiError::abort(412, 'STALE_VERSION', 'Warranty case version mismatch.');
         }
 
         $from = $case->status;

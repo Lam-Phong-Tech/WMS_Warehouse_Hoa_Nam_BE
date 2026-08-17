@@ -99,7 +99,7 @@ class PostReceiptConcurrencyBehaviorTest extends TestCase
      * Two racing writers both read the document at version=2 (post-scan).
      * Writer A posts first and wins, bumping the document to version=3.
      * Writer B replays its stale version=2 If-Match against the now-committed
-     * row: the optimistic lock (assertVersion -> PRECONDITION_FAILED) must
+     * row: the optimistic lock (assertVersion -> STALE_VERSION) must
      * reject it, and the stock effect must be applied exactly once.
      */
     public function test_stale_version_racer_is_rejected_after_winner_commits_and_stock_effect_applies_once(): void
@@ -118,7 +118,7 @@ class PostReceiptConcurrencyBehaviorTest extends TestCase
         // Loser read the document before the winner committed and still holds If-Match: 2.
         $loserHeaders = $headers + ['If-Match' => '2', 'Idempotency-Key' => 'race-loser-001'];
         $loser = $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $loserHeaders);
-        $loser->assertStatus(412)->assertJsonPath('error.code', 'PRECONDITION_FAILED');
+        $loser->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
 
         $movementAfter = DB::table('stock_movements')->count();
         $this->assertSame($movementBefore + 1, $movementAfter, 'Losing racer must not create a second stock_movement.');

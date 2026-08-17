@@ -30,7 +30,7 @@ class CurrentBaselineIfMatch
             }
             $current = (int) ($row->version ?? 0);
             if ($current !== $expected) {
-                ApiError::abort(412, 'PRECONDITION_FAILED', 'Resource version mismatch.', [
+                ApiError::abort(412, 'STALE_VERSION', 'Resource version mismatch.', [
                     'expected_version' => $expected,
                     'current_version' => $current,
                 ]);

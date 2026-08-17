@@ -9,9 +9,18 @@
   ],
   "api": {
     "prefix": "/api/v1",
-    "operation_count": 179,
+    "operation_count": 176,
     "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
     "forbidden_path_fragments": ["stocktake", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"],
+    "erd_alignment": {
+      "note": "Operation bắt buộc bởi ERD nhưng chưa có mặt trong Annex C. Tất cả đều stock-neutral và phải liệt kê tường minh ở đây để API surface luôn kiểm chứng được. BA cần bổ sung vào Annex C ở revision kế tiếp.",
+      "operations": [
+        "POST /api/v1/inbound-documents/{id}/unscan"
+      ],
+      "rationale": {
+        "POST /api/v1/inbound-documents/{id}/unscan": "ERD bảng 28 inbound_scan_entries.status CHECK ACTIVE/REMOVED — 'Cho sửa trước Post' — cùng removed_at/removed_by và index idx_inbound_scan_line_status. Đối xứng với POST /outbound-documents/{id}/unmatch. Không có endpoint này thì quét sai một item chỉ còn cách Cancel cả phiếu, trái ý định ERD."
+      }
+    },
     "annex_c_alignment": {
       "note": "Path/permission chuẩn theo SRS v1.12 §8.1 + Annex C. Nhóm alias dùng chung handler với route hiện hành (route cũ giữ nguyên cho client đang chạy); phần còn lại là endpoint Annex C trước đây chưa hiện thực. Mọi bổ sung phải liệt kê ở đây để API surface luôn kiểm chứng được.",
       "operations": [
@@ -55,7 +64,15 @@
         "PATCH /api/v1/product-models/{id}",
         "PATCH /api/v1/package-variants/{id}",
         "PATCH /api/v1/pv/products/{id}/publish",
-        "PUT /api/v1/roles/{id}/permissions"
+        "PUT /api/v1/roles/{id}/permissions",
+        "POST /api/v1/warehouses",
+        "GET /api/v1/defects",
+        "POST /api/v1/defects",
+        "GET /api/v1/defects/{id}",
+        "PATCH /api/v1/defects/{id}",
+        "GET /api/v1/catalog-masters/{masterType}",
+        "POST /api/v1/catalog-masters/{masterType}",
+        "PATCH /api/v1/catalog-masters/{masterType}/{id}"
       ]
     }
   },

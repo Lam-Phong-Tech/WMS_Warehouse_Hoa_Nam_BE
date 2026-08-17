@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
@@ -113,38 +112,29 @@ class UserManagementTest extends TestCase
         $this->assertFalse($actor->fresh()->roles()->where('role.role_id', $grantedRole->role_id)->exists());
     }
 
-    public function test_user_delete_is_soft_delete(): void
+    /**
+     * BR-IAM-01/06 + retention >=5 năm: tài khoản là chủ thể của audit trail nên
+     * không có endpoint xoá (Annex C cũng không công bố deleteUser). Vô hiệu hoá
+     * bằng PATCH status=INACTIVE, bản ghi và lịch sử giữ nguyên.
+     */
+    public function test_user_has_no_delete_route_and_is_disabled_by_status(): void
     {
         $headers = $this->authHeaders();
         $target = User::create([
-            'username' => 'to-delete',
-            'display_name' => 'To delete',
+            'username' => 'to-disable',
+            'display_name' => 'To disable',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
 
-        $response = $this->deleteJson("/api/v1/users/{$target->user_id}", [], $headers);
+        $this->deleteJson("/api/v1/users/{$target->user_id}", [], $headers)
+            ->assertStatus(405);
 
-        $response->assertOk();
-
-        // ERD delete policy: master không hard-delete — bản ghi và lịch sử giữ
-        // nguyên, người dùng chỉ bị vô hiệu hoá. Cách vô hiệu hoá được ghi nhận
-        // khác nhau theo driver nên kiểm đúng cơ chế của từng nhánh schema.
-        if (DB::getDriverName() === 'pgsql') {
-            // app_user là view; trigger hn_legacy_app_user_write ánh xạ DELETE
-            // thành status=INACTIVE trên bảng canonical app_users.
-            $this->assertDatabaseHas('app_users', [
-                'id' => $target->user_id,
-                'status' => 'INACTIVE',
-            ]);
-
-            return;
-        }
-
-        // sqlite giữ baseline app_user là bảng vật lý có SoftDeletes.
-        $this->assertNull(User::find($target->user_id));
-        $this->assertNotNull(User::withTrashed()->find($target->user_id));
+        $this->patchJson("/api/v1/users/{$target->user_id}", ['status' => 'INACTIVE'], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'INACTIVE');
+        $this->assertNotNull(User::find($target->user_id));
     }
 
     public function test_user_update_with_matching_version_succeeds_and_bumps_version(): void
@@ -166,7 +156,11 @@ class UserManagementTest extends TestCase
         $response->assertOk()->assertJsonPath('data.version', 2);
     }
 
-    public function test_user_update_with_stale_version_returns_409(): void
+    /**
+     * §8.1 IAM "If-Match on update" + Annex C updateUser (412). Body `version` là
+     * đường legacy, nay trả cùng mã 412 STALE_VERSION như mọi aggregate khác.
+     */
+    public function test_user_update_with_stale_version_in_body_returns_412(): void
     {
         $headers = $this->authHeaders();
         $target = User::create([
@@ -182,8 +176,50 @@ class UserManagementTest extends TestCase
             'version' => 1,
         ], $headers);
 
-        $response->assertStatus(409)->assertJsonPath('error.code', 'STATE_CONFLICT');
+        $response->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
         $this->assertSame('Stale user', $target->fresh()->display_name);
+    }
+
+    public function test_user_update_with_stale_if_match_header_returns_412(): void
+    {
+        $headers = $this->authHeaders();
+        $target = User::create([
+            'username' => 'stale-header',
+            'display_name' => 'Stale header user',
+            'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE',
+            'version' => 3,
+        ]);
+
+        $response = $this->patchJson(
+            "/api/v1/users/{$target->user_id}",
+            ['display_name' => 'Ghi đè trái phép'],
+            $headers + ['If-Match' => '1']
+        );
+
+        $response->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
+        $this->assertSame('Stale header user', $target->fresh()->display_name);
+    }
+
+    public function test_user_update_with_matching_if_match_header_succeeds_and_bumps_version(): void
+    {
+        $headers = $this->authHeaders();
+        $target = User::create([
+            'username' => 'fresh-header',
+            'display_name' => 'Fresh header user',
+            'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE',
+            'version' => 3,
+        ]);
+
+        $response = $this->patchJson(
+            "/api/v1/users/{$target->user_id}",
+            ['display_name' => 'Đã đổi tên'],
+            $headers + ['If-Match' => '3']
+        );
+
+        $response->assertOk()->assertJsonPath('data.version', 4);
+        $this->assertSame('Đã đổi tên', $target->fresh()->display_name);
     }
 
     public function test_username_is_normalized_to_lowercase_trimmed_on_create(): void

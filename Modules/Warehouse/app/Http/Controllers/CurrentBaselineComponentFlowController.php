@@ -418,7 +418,7 @@ class CurrentBaselineComponentFlowController extends Controller
     private function assertVersion(object $document, int $expected): void
     {
         if ((int) $document->version !== $expected) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', 'Component Issue version mismatch.', [
+            ApiError::abort(412, 'STALE_VERSION', 'Component Issue version mismatch.', [
                 'expected_version' => $expected,
                 'current_version' => (int) $document->version,
             ]);

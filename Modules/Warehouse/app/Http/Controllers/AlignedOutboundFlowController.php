@@ -493,7 +493,7 @@ class AlignedOutboundFlowController extends Controller
     private function assertVersion(object $document, int $expected): void
     {
         if ((int) ($document->version ?? 0) !== $expected) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', 'Document version mismatch.', [
+            ApiError::abort(412, 'STALE_VERSION', 'Document version mismatch.', [
                 'expected_version' => $expected,
                 'current_version' => (int) ($document->version ?? 0),
             ]);

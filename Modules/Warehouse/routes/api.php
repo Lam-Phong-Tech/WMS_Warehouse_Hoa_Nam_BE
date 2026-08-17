@@ -65,18 +65,30 @@ Route::prefix('v1')->group(function (): void {
         Route::get('inbound-documents/{id}', [InboundDocumentController::class, 'show'])->middleware('permission:inbound.view');
         Route::patch('inbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateInbound'])
             ->middleware(['permission:inbound.create', EnsureCanonicalInboundWarehouse::class]);
-        Route::post('inbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelInbound'])->middleware('permission:inbound.cancel');
+        // Annex C cancelInboundDocument khai `inbound.create`; baseline seed lại cấp
+        // `inbound.cancel` riêng cho WAREHOUSE_APPROVER/KEEPER. Nhận cả hai để vừa
+        // đúng contract Annex C vừa không thu hồi quyền đang cấp.
+        Route::post('inbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelInbound'])
+            ->middleware('permission:inbound.cancel|inbound.create');
         Route::post('inbound-documents/{id}/boxes', [CurrentBaselineInboundBoxController::class, 'store'])->middleware('permission:inbound.scan');
         Route::post('inbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'inboundScan'])
             ->middleware(['permission:inbound.scan', EnsureInboundComponentBox::class]);
+        // ERD bảng 28 inbound_scan_entries.status ACTIVE/REMOVED "cho sửa trước Post":
+        // đối xứng với outbound-documents/{id}/unmatch, stock-neutral.
+        Route::post('inbound-documents/{id}/unscan', [CurrentBaselineStockFlowController::class, 'inboundUnscan'])
+            ->middleware('permission:inbound.scan');
         Route::post('inbound-documents/{id}/post-receipt', [CurrentBaselineStockFlowController::class, 'postReceipt'])->middleware('permission:inbound.post');
         Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])->middleware('permission:inventory.reversal.post');
 
-        Route::get('putaway/tasks', [PutawayController::class, 'tasks'])->middleware('permission:container.view');
-        Route::post('putaway/tasks', [CurrentBaselinePutawayTaskController::class, 'store'])->middleware('permission:container.manage');
-        Route::post('putaway/tasks/{id}/confirm', [PutawayController::class, 'confirm'])->middleware('permission:container.manage');
-        Route::post('putaway/tasks/{id}/cancel', [PutawayController::class, 'cancel'])->middleware('permission:container.manage');
-        Route::get('putaway/history', [PutawayController::class, 'history'])->middleware('permission:container.view');
+        // SRS §3: "Putaway task list/create/confirm/cancel" -> permission key
+        // `putaway.manage` (NV kho = A*). Path legacy /putaway/* phải nhận cùng bộ
+        // quyền như alias canonical /putaway-tasks ở dưới, nếu không NV kho được
+        // seed `putaway.manage` mà vẫn 403 trên đúng path FE đang gọi.
+        Route::get('putaway/tasks', [PutawayController::class, 'tasks'])->middleware('permission:putaway.view|putaway.manage|container.view');
+        Route::post('putaway/tasks', [CurrentBaselinePutawayTaskController::class, 'store'])->middleware('permission:putaway.manage|container.manage');
+        Route::post('putaway/tasks/{id}/confirm', [PutawayController::class, 'confirm'])->middleware('permission:putaway.manage|container.manage');
+        Route::post('putaway/tasks/{id}/cancel', [PutawayController::class, 'cancel'])->middleware('permission:putaway.manage|container.manage');
+        Route::get('putaway/history', [PutawayController::class, 'history'])->middleware('permission:putaway.view|putaway.manage|container.view');
 
         Route::get('outbound-documents', [OutboundDocumentController::class, 'index'])->middleware('permission:outbound.view');
         Route::post('outbound-documents', [CurrentBaselineDocumentController::class, 'storeOutbound'])->middleware('permission:outbound.create');
@@ -143,13 +155,15 @@ Route::prefix('v1')->group(function (): void {
         Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
         Route::get('agencies/{id}', [AgencyController::class, 'show'])->middleware('permission:agency.view');
         Route::patch('agencies/{id}', [AgencyController::class, 'update'])->middleware('permission:agency.manage');
-        Route::delete('agencies/{id}', [AgencyController::class, 'destroy'])->middleware('permission:agency.manage');
+        // BR-AGY-01 + BR-MST "deactivate thay vì xóa": không có DELETE đại lý.
+        // Ngừng dùng bằng PATCH status=INACTIVE để chứng từ lịch sử giữ nguyên FK.
 
         Route::get('defect-catalogs', [DefectCatalogController::class, 'index'])->middleware('permission:defect.view');
         Route::post('defect-catalogs', [DefectCatalogController::class, 'store'])->middleware('permission:defect.manage');
         Route::get('defect-catalogs/{id}', [DefectCatalogController::class, 'show'])->middleware('permission:defect.view');
         Route::patch('defect-catalogs/{id}', [DefectCatalogController::class, 'update'])->middleware('permission:defect.manage');
-        Route::delete('defect-catalogs/{id}', [DefectCatalogController::class, 'destroy'])->middleware('permission:defect.manage');
+        // BR-DEF-01..04 "lịch sử không bị đổi": không có DELETE bệnh/lỗi.
+        // Ngừng dùng bằng PATCH status=INACTIVE; hồ sơ bảo hành cũ giữ nguyên defect_id.
 
         Route::get('product-masters', [ProductMasterController::class, 'index'])->middleware('permission:catalog.view');
         Route::post('product-masters', [ProductMasterController::class, 'store'])->middleware('permission:catalog.manage');
@@ -279,6 +293,21 @@ Route::prefix('v1')->group(function (): void {
         // Annex D SCR-IN-01: đọc lại bằng chứng quét của phiếu nhập.
         Route::get('inbound-documents/{id}/scan-entries', [CurrentBaselineDocumentController::class, 'inboundScanEntries'])
             ->middleware('permission:inbound.view');
+
+        // Annex C createWarehouse — REQ-SRS-001: kho ACTIVE thứ hai trả 409 STATE_CONFLICT.
+        Route::post('warehouses', [WarehouseController::class, 'store'])->middleware('permission:warehouse.manage');
+
+        // Annex C listDefects / createDefect / updateDefect — path chuẩn §8.1 Master.
+        // Route /defect-catalogs giữ nguyên cho client hiện hành.
+        Route::get('defects', [DefectCatalogController::class, 'index'])->middleware('permission:defect.view');
+        Route::post('defects', [DefectCatalogController::class, 'store'])->middleware('permission:defect.manage');
+        Route::get('defects/{id}', [DefectCatalogController::class, 'show'])->middleware('permission:defect.view');
+        Route::patch('defects/{id}', [DefectCatalogController::class, 'update'])->middleware('permission:defect.manage');
+
+        // Annex C listCatalogMasterEntries / createCatalogMasterEntry / updateCatalogMasterEntry.
+        Route::get('catalog-masters/{masterType}', [CurrentBaselineMasterController::class, 'listCatalogMasterEntries'])->middleware('permission:catalog.view');
+        Route::post('catalog-masters/{masterType}', [CurrentBaselineMasterController::class, 'createCatalogMasterEntry'])->middleware('permission:catalog.manage');
+        Route::patch('catalog-masters/{masterType}/{id}', [CurrentBaselineMasterController::class, 'updateCatalogMasterEntry'])->middleware('permission:catalog.manage');
 
         // Annex C updateCatalogMasterEntry — deactivate thay vì xoá (BR-MST-01..07).
         Route::patch('brands/{id}', [CurrentBaselineMasterController::class, 'updateBrand'])->middleware('permission:catalog.manage');

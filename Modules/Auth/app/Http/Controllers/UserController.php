@@ -3,8 +3,8 @@
 namespace Modules\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Traits\ApiResponse;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -16,6 +16,11 @@ use Modules\Auth\Http\Requests\UpdateUserRequest;
 use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use OpenApi\Attributes as OA;
 
+/**
+ * Không có thao tác xoá người dùng: tài khoản là chủ thể của audit trail
+ * (BR-IAM-01/06, retention >=5 năm) và Annex C không công bố deleteUser.
+ * Vô hiệu hoá bằng PATCH status=INACTIVE|LOCKED.
+ */
 class UserController extends Controller
 {
     use ApiResponse;
@@ -122,7 +127,10 @@ class UserController extends Controller
         summary: 'Sửa người dùng',
         security: [['bearerAuth' => []]],
         tags: ['02. Users'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: false, description: 'Version hiện tại của user (§8.1 IAM "If-Match on update")', schema: new OA\Schema(type: 'string')),
+        ],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
                 new OA\Property(property: 'username', type: 'string', maxLength: 100),
@@ -131,7 +139,7 @@ class UserController extends Controller
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
                 new OA\Property(property: 'password', type: 'string', minLength: 8),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true),
-                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking: gửi kèm version hiện tại để tránh ghi đè thay đổi song song'),
+                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking legacy; ưu tiên header If-Match theo §8.1 IAM'),
             ])
         ),
         responses: [
@@ -139,7 +147,7 @@ class UserController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền user.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy người dùng'),
-            new OA\Response(response: 409, description: 'version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác'),
+            new OA\Response(response: 412, description: 'If-Match/version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
         ]
     )]
@@ -154,19 +162,8 @@ class UserController extends Controller
         $beforeData = $before->makeHidden('password_hash')->toArray();
 
         $data = $request->validated();
-
-        if (array_key_exists('version', $data)) {
-            $expectedVersion = $data['version'];
-            unset($data['version']);
-
-            if ((int) $before->version !== (int) $expectedVersion) {
-                return $this->respondConflict(
-                    'Người dùng đã bị thay đổi bởi thao tác khác, vui lòng tải lại dữ liệu.',
-                    [],
-                    'STATE_CONFLICT'
-                );
-            }
-        }
+        unset($data['version']);
+        $this->assertVersionMatches($request, $before);
 
         if (array_key_exists('password', $data)) {
             $data['password_hash'] = Hash::make($data['password']);
@@ -190,47 +187,35 @@ class UserController extends Controller
         return $this->respondSuccess($user, 'Cập nhật người dùng thành công');
     }
 
-    #[OA\Delete(
-        path: '/api/v1/users/{id}',
-        operationId: 'user_delete',
-        summary: 'Xoá người dùng (soft delete, bị chặn nếu đang được tham chiếu)',
-        security: [['bearerAuth' => []]],
-        tags: ['02. Users'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        responses: [
-            new OA\Response(response: 200, description: 'Xoá thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền user.manage'),
-            new OA\Response(response: 404, description: 'Không tìm thấy người dùng'),
-            new OA\Response(response: 409, description: 'Đang được tham chiếu, không thể xoá'),
-        ]
-    )]
-    public function destroy(Request $request, string $id)
+    /**
+     * §8.1 IAM: "If-Match on update"; Annex C updateUser công bố 412.
+     *
+     * Trước đây optimistic lock của IAM đọc `version` trong body và trả 409 —
+     * lệch với toàn bộ phần còn lại của hệ thống (header If-Match + 412
+     * STALE_VERSION). Body `version` vẫn được chấp nhận để client cũ không vỡ,
+     * nhưng cả hai đường nay cùng trả 412.
+     */
+    private function assertVersionMatches(Request $request, object $current): void
     {
-        $user = $this->users->find($id);
-
-        if (! $user) {
-            return $this->respondNotFound('Không tìm thấy người dùng.');
+        $expected = trim((string) $request->header('If-Match'));
+        if ($expected !== '') {
+            $expected = trim(preg_replace('/^W\//', '', $expected) ?? $expected, '" ');
+        } elseif ($request->has('version')) {
+            $expected = trim((string) $request->input('version'));
         }
 
-        $beforeData = $user->makeHidden('password_hash')->toArray();
-
-        try {
-            $this->users->delete($id);
-        } catch (QueryException) {
-            return $this->respondConflict('Người dùng đang được tham chiếu, không thể xoá.', [], 'REFERENCE_EXISTS');
+        if ($expected === '') {
+            return;
         }
-
-        AuditLogger::record(
-            action: 'DELETE',
-            objectType: 'user',
-            objectId: $id,
-            actorId: $request->user()?->user_id,
-            requestId: $request->attributes->get('request_id'),
-            beforeData: $beforeData,
-        );
-
-        return $this->respondSuccess(null, 'Xoá người dùng thành công');
+        if (! ctype_digit($expected)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên.');
+        }
+        if ((int) $expected !== (int) ($current->version ?? 0)) {
+            ApiError::abort(412, 'STALE_VERSION', 'Người dùng đã bị thay đổi bởi thao tác khác; tải lại trước khi lưu.', [
+                'expected_version' => (int) $expected,
+                'current_version' => (int) ($current->version ?? 0),
+            ]);
+        }
     }
 
     #[OA\Post(

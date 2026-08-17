@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\MasterSelectionGuard;
 
 class CurrentBaselineDocumentController extends Controller
 {
@@ -51,11 +52,21 @@ class CurrentBaselineDocumentController extends Controller
             $columns[] = 'i.item_code';
         }
 
+        // status=ACTIVE (mặc định hiển thị của IN-03) lọc bỏ entry đã gỡ; status=ALL
+        // trả cả lịch sử REMOVED để đối soát/audit.
+        $statusFilter = strtoupper(trim((string) $request->query('status', 'ACTIVE')));
+
         $page = DB::table('inbound_scan_entries as e')
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
             ->leftJoin('sku as s', 's.sku_id', '=', 'l.product_id')
             ->leftJoin('item_instances as i', 'i.item_id', '=', 'e.item_id')
             ->where('l.stock_document_id', $id)
+            ->when($statusFilter === 'ACTIVE', function ($query): void {
+                $query->where(function ($nested): void {
+                    $nested->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED');
+                });
+            })
+            ->when(in_array($statusFilter, ['REMOVED'], true), fn ($query) => $query->where('e.status', 'REMOVED'))
             ->orderByDesc('e.created_at')
             ->select($columns)
             ->paginate($this->perPage($request));
@@ -69,7 +80,11 @@ class CurrentBaselineDocumentController extends Controller
             'doc_no' => ['nullable', 'string', 'max:80', 'unique:stock_documents,doc_no'],
             'doc_date' => ['nullable', 'date'],
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
-            'source_name' => ['nullable', 'string', 'max:255'],
+            // Annex A / Annex D SCR-IN-01 đặt tên field là `source_reference` max 200;
+            // ERD bảng 26 lưu cột `source_name` varchar(255). Nhận cả hai tên và siết
+            // xuống 200 để thoả contract SRS mà vẫn nằm trong giới hạn cột của ERD.
+            'source_name' => ['nullable', 'string', 'max:200'],
+            'source_reference' => ['nullable', 'string', 'max:200'],
             'note' => ['nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'uuid', 'exists:sku,sku_id'],
@@ -97,6 +112,8 @@ class CurrentBaselineDocumentController extends Controller
             'note' => ['nullable', 'string', 'max:2000'],
             'lines' => ['prohibited'],
         ]);
+        // BR-AGY-01: đại lý INACTIVE không được chọn cho chứng từ mới.
+        MasterSelectionGuard::assertAgencySelectable($validated['agency_id'] ?? null);
 
         return $this->createIdempotent($request, 'issue', $validated);
     }
@@ -108,7 +125,8 @@ class CurrentBaselineDocumentController extends Controller
             // thay vì 422 VALIDATION_ERROR theo §8.2.
             'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
             'doc_date' => ['sometimes', 'date'],
-            'source_name' => ['nullable', 'string', 'max:255'],
+            'source_name' => ['nullable', 'string', 'max:200'],
+            'source_reference' => ['nullable', 'string', 'max:200'],
             'note' => ['nullable', 'string', 'max:2000'],
             'lines' => ['sometimes', 'array', 'min:1'],
             'lines.*.id' => ['nullable', 'uuid'],
@@ -135,6 +153,12 @@ class CurrentBaselineDocumentController extends Controller
             'lines.*.qty_planned' => ['required_with:lines', 'integer', 'min:1'],
             'lines.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
+        // BR-AGY-01: đổi sang đại lý INACTIVE bị chặn; giữ nguyên đại lý cũ (kể cả
+        // khi đại lý đó đã bị deactivate) vẫn phải sửa được các trường khác.
+        MasterSelectionGuard::assertAgencySelectable(
+            $validated['agency_id'] ?? null,
+            DB::table('stock_documents')->where('id', $id)->value('agency_id')
+        );
 
         return $this->updateDocument($request, $id, 'issue', $validated);
     }
@@ -189,6 +213,7 @@ class CurrentBaselineDocumentController extends Controller
         return DB::transaction(function () use ($type, $validated, $actorId): array {
             $warehouseId = (string) ($type === 'receipt' ? $validated['dst_warehouse_id'] : $validated['src_warehouse_id']);
             $this->assertActiveWarehouse($warehouseId);
+            $validated = $this->normalizeSourceReference($validated);
 
             if ($type === 'issue' && ! empty($validated['outbound_request_id'])) {
                 $validated = $this->hydrateOutboundRequest($validated);
@@ -295,6 +320,7 @@ class CurrentBaselineDocumentController extends Controller
             }
 
             unset($validated['lines']);
+            $validated = $this->normalizeSourceReference($validated);
             $allowed = $type === 'receipt'
                 ? ['doc_no', 'doc_date', 'source_name', 'note']
                 : ['doc_no', 'doc_date', 'agency_id', 'recipient_name', 'recipient_address', 'note'];
@@ -518,6 +544,11 @@ class CurrentBaselineDocumentController extends Controller
         return DB::table("{$table} as e")
             ->join('stock_document_lines as l', 'l.id', '=', "e.{$lineColumn}")
             ->where('l.stock_document_id', $documentId)
+            // Entry đã REMOVED không còn là scan evidence sống: nếu người dùng gỡ
+            // hết mã đã quét thì được phép sửa lại cấu trúc dòng như phiếu chưa quét.
+            ->where(function ($query): void {
+                $query->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED');
+            })
             ->exists();
     }
 
@@ -557,11 +588,26 @@ class CurrentBaselineDocumentController extends Controller
     private function assertVersion(object $document, int $expected): void
     {
         if ((int) $document->version !== $expected) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', 'Document version mismatch.', [
+            ApiError::abort(412, 'STALE_VERSION', 'Document version mismatch.', [
                 'expected_version' => $expected,
                 'current_version' => (int) $document->version,
             ]);
         }
+    }
+
+    /**
+     * Annex A / Annex D dùng tên `source_reference`; ERD bảng 26 dùng cột
+     * `source_name`. Chuẩn hoá về đúng một cột vật lý, ưu tiên giá trị client gửi
+     * theo tên chuẩn của SRS khi cả hai cùng có mặt.
+     */
+    private function normalizeSourceReference(array $validated): array
+    {
+        if (array_key_exists('source_reference', $validated)) {
+            $validated['source_name'] = $validated['source_reference'];
+            unset($validated['source_reference']);
+        }
+
+        return $validated;
     }
 
     private function documentPayload(string $id): array
@@ -570,6 +616,8 @@ class CurrentBaselineDocumentController extends Controller
 
         return [
             ...(array) $document,
+            // Alias đọc theo tên field của Annex A / Annex D SCR-IN-01.
+            'source_reference' => $document->source_name ?? null,
             'lines' => DB::table('stock_document_lines')->where('stock_document_id', $id)->orderBy('line_no')->get()->map(fn (object $row): array => (array) $row)->all(),
         ];
     }

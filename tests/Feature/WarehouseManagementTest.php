@@ -69,14 +69,25 @@ class WarehouseManagementTest extends TestCase
         ]);
     }
 
-    public function test_warehouse_has_no_create_or_delete_route(): void
+    /**
+     * AC-SRS-001 + §8.1 Warehouse: "GET/POST /warehouses ... create/edit name,
+     * address, active status; reject second warehouse with 409". Có tạo (Annex C
+     * createWarehouse) nhưng KHÔNG có xoá kho — kho là sổ tồn, chỉ deactivate.
+     */
+    public function test_warehouse_create_exists_and_rejects_second_active_but_delete_stays_absent(): void
     {
         $headers = $this->authHeaders();
+        Warehouse::query()->where('status', 'ACTIVE')->update(['status' => 'INACTIVE']);
 
         $this->postJson('/api/v1/warehouses', ['code' => 'WH-NEW', 'name' => 'Kho mới'], $headers)
-            ->assertStatus(405);
+            ->assertCreated()
+            ->assertJsonPath('data.code', 'WH-NEW');
 
-        $warehouse = Warehouse::create(['code' => 'WH-NODELETE', 'name' => 'Kho không xoá được', 'status' => 'ACTIVE']);
+        $this->postJson('/api/v1/warehouses', ['code' => 'WH-SECOND', 'name' => 'Kho thứ hai'], $headers)
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'STATE_CONFLICT');
+
+        $warehouse = Warehouse::query()->where('code', 'WH-NEW')->firstOrFail();
         $this->deleteJson("/api/v1/warehouses/{$warehouse->id}", [], $headers)
             ->assertStatus(405);
     }

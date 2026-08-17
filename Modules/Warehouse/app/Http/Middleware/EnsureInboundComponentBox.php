@@ -77,6 +77,10 @@ class EnsureInboundComponentBox
             ->where('e.container_id', $containerId)
             ->where('d.id', '<>', $documentId)
             ->whereIn('d.status', ['DRAFT', 'SCANNING'])
+            // Entry đã gỡ (ERD bảng 28 status=REMOVED) không còn chiếm BOX.
+            ->where(function ($query): void {
+                $query->whereNull('e.status')->orWhere('e.status', '<>', 'REMOVED');
+            })
             ->exists();
         if ($usedByOtherActiveReceipt) {
             ApiError::abort(409, 'BOX_IN_OTHER_ACTIVE_RECEIPT', 'BOX đang được dùng bởi một phiếu nhập khác chưa kết thúc.', [

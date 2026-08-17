@@ -8,9 +8,16 @@ use Illuminate\Http\Request;
 
 abstract class Controller
 {
+    /**
+     * SRS v1.12 §13.6 Pagination: "page, page_size default 50/max 200".
+     * `per_page` là tên tham số client hiện hành nên được giữ; `page_size` là tên
+     * chuẩn trong contract và phải được nhận đúng như nhau. Cap 200 theo contract.
+     */
     protected function perPage(Request $request, int $default = 15): int
     {
-        return min(100, max(1, (int) $request->input('per_page', $default)));
+        $requested = $request->input('per_page', $request->input('page_size', $default));
+
+        return min(200, max(1, (int) $requested));
     }
 
     /**

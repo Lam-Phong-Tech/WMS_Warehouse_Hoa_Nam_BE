@@ -37,7 +37,7 @@ class CurrentBaselineContainerController extends Controller
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy container.');
             }
             if ((int) $container->version !== $expectedVersion) {
-                ApiError::abort(412, 'PRECONDITION_FAILED', 'Container version mismatch.');
+                ApiError::abort(412, 'STALE_VERSION', 'Container version mismatch.');
             }
 
             $effectiveType = strtoupper((string) ($validated['container_type'] ?? $container->container_type));

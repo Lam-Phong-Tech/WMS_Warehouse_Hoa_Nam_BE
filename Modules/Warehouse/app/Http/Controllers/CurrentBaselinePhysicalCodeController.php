@@ -206,7 +206,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy physical code.');
             }
             if ((int) ($code->version ?? 0) !== $expectedVersion) {
-                ApiError::abort(412, 'PRECONDITION_FAILED', 'Physical code version mismatch.');
+                ApiError::abort(412, 'STALE_VERSION', 'Physical code version mismatch.');
             }
             if ($validated['status'] !== 'ACTIVE' && empty($validated['deactivation_reason'])) {
                 ApiError::abort(422, 'DEACTIVATION_REASON_REQUIRED', 'LOST/DAMAGED/INACTIVE bắt buộc deactivation_reason.');

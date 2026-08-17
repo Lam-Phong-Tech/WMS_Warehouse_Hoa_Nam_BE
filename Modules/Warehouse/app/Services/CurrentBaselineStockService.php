@@ -244,7 +244,15 @@ class CurrentBaselineStockService
                 ApiError::abort(422, 'NO_REVERSIBLE_MOVEMENT', 'Không có movement gốc hợp lệ để reversal.');
             }
 
-            $requestedLines = collect($payload['lines'] ?? [])->keyBy('movement_id');
+            // §5.5 / BR-REV-05: reversal phải chỉ rõ movement + quantity. Bản cũ cho
+            // phép payload rỗng rồi auto-đảo toàn bộ movement gốc — đó là đường tắt
+            // bypass ý định "chỉ đảo đúng phần cần đảo" nên bị chặn tường minh, giống
+            // guard REVERSAL_LINES_REQUIRED của CurrentBaselineReversalService.
+            if (($payload['lines'] ?? []) === []) {
+                ApiError::abort(422, 'REVERSAL_LINES_REQUIRED', 'Reversal phải chỉ rõ movement/quantity cần đảo; không auto-reverse toàn chứng từ.');
+            }
+
+            $requestedLines = collect($payload['lines'])->keyBy('movement_id');
             $reversalDocumentId = (string) Str::uuid();
             $chainId = (string) Str::uuid();
             DB::table('reversal_document')->insert([
@@ -532,6 +540,16 @@ class CurrentBaselineStockService
         }
     }
 
+    /**
+     * ERD bảng 28: inbound_scan_entries.status ACTIVE/REMOVED "cho sửa trước Post".
+     * Mọi tính toán tồn/subledger/guard chỉ được nhìn entry còn ACTIVE, nếu không
+     * item đã gỡ vẫn bị Post vào tồn.
+     */
+    private static function activeScanEntry($query, string $alias = 'e')
+    {
+        return $query->whereNull("{$alias}.status")->orWhere("{$alias}.status", '!=', 'REMOVED');
+    }
+
     private function assertItemAvailableForReceipt(object $item, string $documentId): void
     {
         if (! in_array((string) $item->item_status, ['NEW', 'ADJUSTED_OUT'], true)) {
@@ -544,6 +562,7 @@ class CurrentBaselineStockService
             ->where('e.item_id', $item->item_id)
             ->where('d.id', '!=', $documentId)
             ->whereIn('d.status', self::ACTIVE_DOCUMENT_STATUSES)
+            ->where(fn ($query) => self::activeScanEntry($query))
             ->exists();
         if ($conflict) {
             ApiError::abort(409, 'ITEM_ALREADY_RECEIVING', 'Item đang thuộc một inbound chưa Post khác.');
@@ -566,7 +585,11 @@ class CurrentBaselineStockService
 
     private function recordInboundScan(string $lineId, ?object $item, array $payload, int $quantity, ?string $actorId): void
     {
-        DB::table('inbound_scan_entries')->insert([
+        // ERD bảng 28 yêu cầu status ACTIVE/REMOVED + captured_at/captured_by.
+        // Trên PostgreSQL trigger hn_fill_scan_evidence_fields đã điền hộ, nhưng ghi
+        // tường minh để sqlite (CI) không lệch nhánh và để evidence không phụ thuộc
+        // trigger.
+        $row = [
             'id' => (string) Str::uuid(),
             'inbound_line_id' => $lineId,
             'item_id' => $item?->item_id,
@@ -578,7 +601,14 @@ class CurrentBaselineStockService
             'updated_at' => now(),
             'updated_by' => $actorId,
             'version' => 0,
-        ]);
+        ];
+        foreach (['status' => 'ACTIVE', 'captured_at' => now(), 'captured_by' => $actorId] as $column => $value) {
+            if (Schema::hasColumn('inbound_scan_entries', $column)) {
+                $row[$column] = $value;
+            }
+        }
+
+        DB::table('inbound_scan_entries')->insert($row);
     }
 
     private function recordOutboundMatch(string $lineId, ?object $item, array $payload, int $quantity, ?string $actorId): void
@@ -699,6 +729,7 @@ class CurrentBaselineStockService
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
             ->where('l.stock_document_id', $documentId)
             ->whereNotNull('e.item_id')
+            ->where(fn ($query) => self::activeScanEntry($query))
             ->pluck('e.item_id');
         if ($itemIds->isNotEmpty()) {
             DB::table('item_instances')->whereIn('item_id', $itemIds)->update([
@@ -766,6 +797,7 @@ class CurrentBaselineStockService
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
             ->where('l.stock_document_id', $documentId)
             ->whereNotNull('e.item_id')
+            ->where(fn ($query) => self::activeScanEntry($query))
             ->pluck('e.item_id');
         if ($itemIds->isNotEmpty()) {
             DB::table('item_instances')->whereIn('item_id', $itemIds)->update([
@@ -782,6 +814,7 @@ class CurrentBaselineStockService
             ->join('item_instances as i', 'i.item_id', '=', 'e.item_id')
             ->where('l.stock_document_id', $documentId)
             ->whereNotNull('e.item_id')
+            ->where(fn ($query) => self::activeScanEntry($query))
             ->whereNotIn('i.item_status', ['IN_STOCK', 'NEW', 'ADJUSTED_OUT'])
             ->exists();
         if ($blocked) {
@@ -910,7 +943,13 @@ class CurrentBaselineStockService
     private function resolveLineItemId(string $documentType, string $lineId): ?string
     {
         $itemIds = $documentType === 'receipt'
-            ? DB::table('inbound_scan_entries')->where('inbound_line_id', $lineId)->whereNotNull('item_id')->pluck('item_id')
+            ? DB::table('inbound_scan_entries')
+                ->where('inbound_line_id', $lineId)
+                ->whereNotNull('item_id')
+                ->where(function ($query): void {
+                    $query->whereNull('status')->orWhere('status', '!=', 'REMOVED');
+                })
+                ->pluck('item_id')
             : DB::table('outbound_item_matches')
                 ->where('outbound_line_id', $lineId)
                 ->whereNotNull('item_id')

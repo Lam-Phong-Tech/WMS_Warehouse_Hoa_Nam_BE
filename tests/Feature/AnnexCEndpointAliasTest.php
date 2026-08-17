@@ -47,6 +47,16 @@ class AnnexCEndpointAliasTest extends TestCase
         'post api/v1/reversal-documents/{id}/cancel' => 'inventory.reversal.post',
         'get api/v1/scan/batches' => 'inventory.view',
         'get api/v1/scan/events' => 'inventory.view',
+        // §8.1 Warehouse "GET/POST /warehouses" + Annex C createWarehouse.
+        'post api/v1/warehouses' => 'warehouse.manage',
+        // §8.1 Master "/defects; PATCH /defects/{id}" + Annex C list/create/updateDefect.
+        'get api/v1/defects' => 'defect.view',
+        'post api/v1/defects' => 'defect.manage',
+        'patch api/v1/defects/{id}' => 'defect.manage',
+        // §8.1 Master "/catalog-masters/{master_type}" + Annex C catalog master ops.
+        'get api/v1/catalog-masters/{masterType}' => 'catalog.view',
+        'post api/v1/catalog-masters/{masterType}' => 'catalog.manage',
+        'patch api/v1/catalog-masters/{masterType}/{id}' => 'catalog.manage',
     ];
 
     public function test_every_annex_c_path_is_registered_with_required_permission(): void

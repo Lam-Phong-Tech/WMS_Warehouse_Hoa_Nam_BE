@@ -27,7 +27,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('users', [UserController::class, 'store'])->middleware('permission:iam.user.manage');
         Route::get('users/{id}', [UserController::class, 'show'])->middleware('permission:iam.user.view');
         Route::patch('users/{id}', [UserController::class, 'update'])->middleware('permission:iam.user.manage');
-        Route::delete('users/{id}', [UserController::class, 'destroy'])->middleware('permission:iam.user.manage');
+        // BR-IAM-01/06: tài khoản là chủ thể của audit trail nên không xoá.
+        // Vô hiệu hoá bằng PATCH status=INACTIVE|LOCKED (Annex C cũng không có deleteUser).
         Route::post('users/{id}/roles', [UserController::class, 'assignRoles'])
             ->middleware(['permission:iam.user.manage', PreventSelfRoleAssignment::class]);
 

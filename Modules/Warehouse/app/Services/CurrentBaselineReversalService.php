@@ -649,7 +649,7 @@ class CurrentBaselineReversalService
     private function assertVersion(object $row, int $expected, string $resource): void
     {
         if ((int) ($row->version ?? 0) !== $expected) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', ucfirst($resource).' version mismatch.', [
+            ApiError::abort(412, 'STALE_VERSION', ucfirst($resource).' version mismatch.', [
                 'expected_version' => $expected,
                 'current_version' => (int) ($row->version ?? 0),
             ]);

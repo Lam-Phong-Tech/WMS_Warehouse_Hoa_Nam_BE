@@ -14,6 +14,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\InventorySerial;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
+use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
 
 #[OA\Post(
@@ -91,6 +92,12 @@ class WarrantyController extends Controller
             'condition_status' => ['required', 'string', 'in:WAITING_CHECK,INSPECTING'],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
+        // BR-DEF-01..04: không gán bệnh/lỗi INACTIVE, nhưng giữ nguyên giá trị cũ
+        // của hồ sơ vẫn hợp lệ (lịch sử không bị đổi).
+        MasterSelectionGuard::assertDefectSelectable(
+            $validated['defect_id'] ?? null,
+            DB::table('warranty_case')->where('warranty_case_id', $id)->value('defect_id')
+        );
 
         $userId = (string) auth('api')->id();
         $operation = "warranty_temp_only_{$id}";

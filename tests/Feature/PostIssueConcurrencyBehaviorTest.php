@@ -39,7 +39,7 @@ class PostIssueConcurrencyBehaviorTest extends TestCase
         // Loser đọc document trước khi winner commit, vẫn giữ If-Match: 2 (stale).
         $loserHeaders = $headers + ['If-Match' => '2', 'Idempotency-Key' => 'issue-race-loser-001'];
         $loser = $this->postJson("/api/v1/outbound-documents/{$documentId}/post-issue", [], $loserHeaders);
-        $loser->assertStatus(412)->assertJsonPath('error.code', 'PRECONDITION_FAILED');
+        $loser->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
 
         $movementAfter = DB::table('stock_movements')->count();
         $this->assertSame($movementBefore + 1, $movementAfter, 'Racer thua không được tạo thêm stock_movement thứ hai.');
@@ -141,7 +141,7 @@ class PostIssueConcurrencyBehaviorTest extends TestCase
             'quantity' => 1,
             'item_id' => $itemId,
         ], $headers + ['If-Match' => '1']);
-        $loser->assertStatus(412)->assertJsonPath('error.code', 'PRECONDITION_FAILED');
+        $loser->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
 
         $this->assertSame(1, DB::table('outbound_item_matches')->where('item_id', $itemId)->count());
     }

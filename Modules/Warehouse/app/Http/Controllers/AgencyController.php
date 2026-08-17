@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -19,6 +18,9 @@ use OpenApi\Attributes as OA;
 /**
  * Danh mục đại lý — chỉ dùng để tham chiếu/gán, KHÔNG có inventory_balance riêng
  * (BR-AGY-01/DEC-WM-001).
+ *
+ * Không có thao tác xoá: BR-AGY-01/BR-MST yêu cầu "deactivate thay vì xóa" và
+ * Annex C không công bố deleteAgency. Ngừng dùng bằng PATCH status=INACTIVE.
  */
 class AgencyController extends Controller
 {
@@ -165,49 +167,6 @@ class AgencyController extends Controller
         );
 
         return $this->respondSuccess($agency, 'Cập nhật đại lý thành công');
-    }
-
-    #[OA\Delete(
-        path: '/api/v1/agencies/{id}',
-        operationId: 'agency_delete',
-        summary: 'Xoá đại lý (bị chặn nếu đang được tham chiếu)',
-        security: [['bearerAuth' => []]],
-        tags: ['16. Agency'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        responses: [
-            new OA\Response(response: 200, description: 'Xoá thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền agency.manage'),
-            new OA\Response(response: 404, description: 'Không tìm thấy đại lý'),
-            new OA\Response(response: 409, description: 'Đại lý đang được tham chiếu, không thể xoá'),
-        ]
-    )]
-    public function destroy(Request $request, string $id)
-    {
-        $agency = $this->agencies->find($id);
-
-        if (! $agency) {
-            return $this->respondNotFound('Không tìm thấy đại lý.');
-        }
-
-        $beforeData = $agency->toArray();
-
-        try {
-            $this->agencies->delete($id);
-        } catch (QueryException) {
-            return $this->respondConflict('Đại lý đang được tham chiếu, không thể xoá.', [], 'REFERENCE_EXISTS');
-        }
-
-        AuditLogger::record(
-            action: 'DELETE',
-            objectType: 'agency',
-            objectId: $id,
-            actorId: $request->user()?->user_id,
-            requestId: $request->attributes->get('request_id'),
-            beforeData: $beforeData,
-        );
-
-        return $this->respondSuccess(null, 'Xoá đại lý thành công');
     }
 
     /**

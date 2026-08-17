@@ -70,6 +70,13 @@ class StockDocument extends Model
         'cancel_reason', 'cancelled_by', 'cancelled_at', 'created_by', 'updated_by',
     ];
 
+    /**
+     * SRS Annex A / Annex D SCR-IN-01 gọi nguồn nhập là `source_reference`; ERD
+     * bảng 26 lưu cột `source_name`. List/detail phải trả cả hai tên để client đọc
+     * đúng field trong contract mà không phải đổi schema vật lý.
+     */
+    protected $appends = ['source_reference'];
+
     protected $casts = [
         'doc_date' => 'date',
         'submitted_at' => 'datetime',
@@ -97,6 +104,13 @@ class StockDocument extends Model
                 WarehouseException::versionConflict();
             }
         });
+    }
+
+    public function getSourceReferenceAttribute(): ?string
+    {
+        $value = $this->attributes['source_name'] ?? null;
+
+        return $value === null ? null : (string) $value;
     }
 
     public function srcWarehouse(): BelongsTo

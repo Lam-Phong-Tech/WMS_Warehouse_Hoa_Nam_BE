@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
@@ -17,6 +16,9 @@ use OpenApi\Attributes as OA;
 
 /**
  * Danh mục bệnh/lỗi máy dùng cho bảo hành và báo cáo.
+ *
+ * Không có thao tác xoá: BR-DEF-01..04 yêu cầu "history không bị đổi" và Annex C
+ * không công bố deleteDefect. Ngừng dùng bằng PATCH status=INACTIVE.
  */
 class DefectCatalogController extends Controller
 {
@@ -159,49 +161,6 @@ class DefectCatalogController extends Controller
         );
 
         return $this->respondSuccess($defect, 'Cập nhật danh mục lỗi thành công');
-    }
-
-    #[OA\Delete(
-        path: '/api/v1/defect-catalogs/{id}',
-        operationId: 'defect_catalog_delete',
-        summary: 'Xoá lỗi/bệnh máy (bị chặn nếu đang được tham chiếu)',
-        security: [['bearerAuth' => []]],
-        tags: ['17. Defect Catalog'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        responses: [
-            new OA\Response(response: 200, description: 'Xoá thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền defect_catalog.manage'),
-            new OA\Response(response: 404, description: 'Không tìm thấy'),
-            new OA\Response(response: 409, description: 'Đang được tham chiếu, không thể xoá'),
-        ]
-    )]
-    public function destroy(Request $request, string $id)
-    {
-        $defect = $this->defects->find($id);
-
-        if (! $defect) {
-            return $this->respondNotFound('Không tìm thấy danh mục lỗi.');
-        }
-
-        $beforeData = $defect->toArray();
-
-        try {
-            $this->defects->delete($id);
-        } catch (QueryException) {
-            return $this->respondConflict('Danh mục lỗi đang được tham chiếu, không thể xoá.', [], 'REFERENCE_EXISTS');
-        }
-
-        AuditLogger::record(
-            action: 'DELETE',
-            objectType: 'defect_catalog',
-            objectId: $id,
-            actorId: $request->user()?->user_id,
-            requestId: $request->attributes->get('request_id'),
-            beforeData: $beforeData,
-        );
-
-        return $this->respondSuccess(null, 'Xoá danh mục lỗi thành công');
     }
 
     /**

@@ -18,7 +18,7 @@ use Tests\TestCase;
  * cover guard trùng item (`ITEM_ALREADY_RECEIVING`) nhưng không cover optimistic
  * version guard của chính request scan. File này lấp gap đó: 2 writer cùng đọc
  * document ở version=1, writer A scan line 1 trước và thắng (bump version=2),
- * writer B replay version=1 cũ vào line 2 phải bị 412 PRECONDITION_FAILED —
+ * writer B replay version=1 cũ vào line 2 phải bị 412 STALE_VERSION —
  * đúng hành vi 1 racer thua cuộc sẽ quan sát được khi 2 scan đến gần như đồng
  * thời trên cùng document (test suite dùng SQLite single-connection nên mô
  * phỏng bằng cách replay tuần tự request của writer thua, không phải race
@@ -77,7 +77,7 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
      * Two writers both read the freshly-created document at version=1.
      * Writer A scans line 1 first and wins, bumping the document to version=2.
      * Writer B replays its stale version=1 If-Match against line 2: the
-     * optimistic lock (assertVersion -> PRECONDITION_FAILED) must reject it
+     * optimistic lock (assertVersion -> STALE_VERSION) must reject it
      * even though line 2 itself was never touched by A, and B's line must
      * show zero scanned_qty / zero inbound_scan_entries afterwards.
      */
@@ -102,7 +102,7 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
             'quantity' => 1,
             'item_id' => $itemB,
         ], $ctx['headers'] + ['If-Match' => '1']);
-        $loser->assertStatus(412)->assertJsonPath('error.code', 'PRECONDITION_FAILED');
+        $loser->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
 
         $this->assertSame(
             $entriesBefore + 1,

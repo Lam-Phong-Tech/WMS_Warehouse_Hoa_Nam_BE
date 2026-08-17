@@ -268,7 +268,7 @@ class ImportService
 
             $skuType = $this->enum($get('sku_type'), ['PRODUCT', 'COMPONENT'], 'PRODUCT', $number, 'sku_type', $rowErrors);
             $status = $this->enum($get('status'), ['ACTIVE', 'INACTIVE'], 'ACTIVE', $number, 'status', $rowErrors);
-            $package = $this->nullableEnum($get('package_variant'), ['BARE', 'KIT', 'SET', 'BODY_ONLY'], $number, 'package_variant', $rowErrors);
+            $package = $this->nullableEnum($get('package_variant'), $this->allowedPackageVariants(), $number, 'package_variant', $rowErrors);
             $published = $this->boolean($get('published_to_app'), $number, 'published_to_app', $rowErrors);
             $serial = $this->boolean($get('is_serial_tracked'), $number, 'is_serial_tracked', $rowErrors);
             $versionCode = $this->text($get('version_code')) ?? $this->text($get('version'));
@@ -342,6 +342,27 @@ class ImportService
         }
 
         return $value;
+    }
+
+    /**
+     * AC-SRS-029 "thêm loại không cần code change": quy cách đóng gói hợp lệ đọc
+     * từ master package_variants. Master rỗng (fixture test tối giản) thì rơi về
+     * bộ mã baseline để import cũ không vỡ.
+     *
+     * @return array<int, string>
+     */
+    private function allowedPackageVariants(): array
+    {
+        $codes = DB::table('package_variants')
+            ->where('status', 'ACTIVE')
+            ->pluck('package_code')
+            ->map(fn ($code): string => strtoupper(trim((string) $code)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $codes === [] ? ['BARE', 'KIT', 'SET', 'BODY_ONLY'] : $codes;
     }
 
     private function nullableEnum(mixed $value, array $allowed, int $row, string $field, array &$errors): ?string

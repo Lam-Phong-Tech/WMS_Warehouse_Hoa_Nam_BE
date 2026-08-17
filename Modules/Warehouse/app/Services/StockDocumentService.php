@@ -12,7 +12,6 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
-use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Services\ScanResolver;
 use Modules\Warehouse\Models\Warehouse;
 
@@ -209,38 +208,25 @@ class StockDocumentService
         WarehouseException::invalidStatus('close_remainder is outside the latest MVP baseline.');
     }
 
+    /**
+     * SUPERSEDED — không được dùng lại.
+     *
+     * Bản cũ đặt stock_documents.status = 'REVERSED' và tự đảo toàn bộ movement gốc.
+     * Cả hai đều trái baseline hiện hành:
+     *  - BR-REV-01: chứng từ gốc phải GIỮ NGUYÊN POSTED, sửa sai bằng reversal
+     *    append-only. SRS §6 cũng không có state 'REVERSED' cho stock document.
+     *  - BR-REV-05 / §5.5: mỗi reversal phải chỉ rõ movement + qty_to_reverse > 0.
+     *
+     * Đường chạy đúng: CurrentBaselineStockFlowController::reverseInbound /
+     * reverseOutbound -> CurrentBaselineReversalService (giữ POSTED, bắt buộc lines,
+     * có downstream-dependency guard và reversible_qty recheck).
+     */
     public function reverseDocument(StockDocument $doc, string $userId, ?string $reason, ?string $idempotencyKey = null, ?string $requestHash = null, ?string $operation = null): StockDocument
     {
-        return DB::transaction(function () use ($doc, $userId, $reason, $idempotencyKey, $requestHash, $operation) {
-            $doc = $this->lockDocumentForStockEffect($doc);
-            $this->assertStatus($doc, [StockDocument::STATUS_POSTED], 'reverse');
-
-            $movements = StockMovement::where('stock_document_id', $doc->id)
-                ->whereNull('original_movement_id')
-                ->get();
-
-            foreach ($movements as $movement) {
-                if (StockMovement::where('original_movement_id', $movement->id)->exists()) {
-                    continue;
-                }
-                $this->ledger->reverse($movement, $userId);
-            }
-
-            $from = $doc->status;
-            $doc->update([
-                'status' => StockDocument::STATUS_REVERSED,
-                'reversed_by' => $userId,
-                'reversed_at' => now(),
-                'reverse_reason' => $reason,
-            ]);
-            $this->logStatusHistory($doc, $from, StockDocument::STATUS_REVERSED, 'reverse', $userId, $reason);
-            AuditLogger::record('REVERSE', 'stock_document', $doc->id, $userId, request()?->attributes->get('request_id'), reason: $reason);
-
-            $fresh = $doc->fresh(['lines', 'movements']);
-            $this->recordPostingEvent($operation ?? "reverse_stock_document_{$doc->id}", $idempotencyKey, $requestHash, $fresh, $userId);
-
-            return $fresh;
-        });
+        WarehouseException::invalidStatus(
+            'reverse_document is outside the latest MVP baseline: BR-REV-01 giữ chứng từ gốc ở POSTED. '
+            .'Dùng POST /inbound-documents/{id}/reversals hoặc /outbound-documents/{id}/reversals.'
+        );
     }
 
     private function startScanning(StockDocument $doc, string $userId, string $action): StockDocument

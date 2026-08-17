@@ -196,6 +196,38 @@ use OpenApi\Attributes as OA;
     ]
 )]
 #[OA\Post(
+    path: '/api/v1/inbound-documents/{id}/unscan',
+    operationId: 'stock_in_unscan',
+    summary: 'Gỡ một dòng đã quét khỏi phiếu DRAFT/SCANNING (stock-neutral)',
+    description: 'ERD bảng 28: inbound_scan_entries.status ACTIVE -> REMOVED để sửa mã quét sai trước Post; scanned_qty của line giảm tương ứng. Bắt buộc If-Match. Không tạo/không đảo stock movement. Sau Post phải dùng Reversal thay vì gỡ.',
+    security: [['bearerAuth' => []]],
+    tags: ['09. Stock In (Inbound)'],
+    parameters: [
+        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'integer', minimum: 0)),
+    ],
+    requestBody: new OA\RequestBody(
+        required: true,
+        content: new OA\JsonContent(
+            required: ['inbound_scan_entry_id'],
+            properties: [
+                new OA\Property(property: 'inbound_scan_entry_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true),
+            ]
+        )
+    ),
+    responses: [
+        new OA\Response(response: 200, description: 'Đã gỡ dòng quét; stock_effect=NONE'),
+        new OA\Response(response: 401, description: 'Chưa xác thực'),
+        new OA\Response(response: 403, description: 'Không có permission inbound.scan'),
+        new OA\Response(response: 404, description: 'Không tìm thấy phiếu/dòng quét'),
+        new OA\Response(response: 409, description: 'Phiếu không còn DRAFT/SCANNING hoặc dòng quét không còn ACTIVE'),
+        new OA\Response(response: 412, description: 'If-Match không khớp version hiện tại'),
+        new OA\Response(response: 422, description: 'Payload không hợp lệ'),
+        new OA\Response(response: 428, description: 'Thiếu If-Match'),
+    ]
+)]
+#[OA\Post(
     path: '/api/v1/inbound-documents/{id}/post-receipt',
     operationId: 'stock_in_post_receipt',
     summary: 'Full Post Receipt SCANNING -> POSTED',

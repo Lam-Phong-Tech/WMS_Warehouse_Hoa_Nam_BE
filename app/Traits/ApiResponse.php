@@ -77,7 +77,7 @@ trait ApiResponse
             403 => 'ACCESS_DENIED',
             404 => 'RESOURCE_NOT_FOUND',
             409 => 'STATE_CONFLICT',
-            412 => 'PRECONDITION_FAILED',
+            412 => 'STALE_VERSION',
             422 => 'BUSINESS_RULE_ERROR',
             428 => 'PRECONDITION_REQUIRED',
             500 => 'INTERNAL_SERVER_ERROR',

@@ -126,7 +126,7 @@ class CurrentBaselineItemIdentityController extends Controller
                         ApiError::abort(404, 'PHYSICAL_CODE_NOT_FOUND', 'Không tìm thấy item physical code.');
                     }
                     if ((int) ($code->version ?? 0) !== $expectedVersion) {
-                        ApiError::abort(412, 'PRECONDITION_FAILED', 'Physical code version mismatch.');
+                        ApiError::abort(412, 'STALE_VERSION', 'Physical code version mismatch.');
                     }
                     $itemId = (string) ($code->item_id ?? $code->assigned_object_id);
                     $item = DB::table('item_instances')->where('item_id', $itemId)->lockForUpdate()->first();

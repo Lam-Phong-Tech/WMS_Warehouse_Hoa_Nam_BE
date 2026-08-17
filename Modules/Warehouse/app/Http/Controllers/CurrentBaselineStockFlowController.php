@@ -49,6 +49,99 @@ class CurrentBaselineStockFlowController extends Controller
     }
 
     /**
+     * Gỡ một dòng đã quét khỏi phiếu nhập trước khi Post.
+     *
+     * ERD bảng 28 inbound_scan_entries đã thiết kế sẵn status ACTIVE/REMOVED
+     * ("Cho sửa trước Post") cùng removed_at/removed_by và index
+     * idx_inbound_scan_line_status, nhưng trước đây không có endpoint nào dùng nên
+     * quét sai một item chỉ còn cách Cancel cả phiếu. Entry chuyển ACTIVE ->
+     * REMOVED, line scanned_qty giảm tương ứng, hoàn toàn stock-neutral; item sau
+     * đó quét lại được vào chính phiếu này hoặc phiếu khác.
+     */
+    public function inboundUnscan(Request $request, string $id)
+    {
+        $payload = $request->validate([
+            'inbound_scan_entry_id' => ['required', 'uuid'],
+            'reason' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $expectedVersion = $this->expectedVersion($request);
+
+        $result = DB::transaction(function () use ($id, $payload, $expectedVersion): array {
+            $document = $this->lockDocument($id, 'receipt');
+            $this->assertVersion($document, $expectedVersion);
+            if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
+                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được gỡ mã đã quét; sau Post phải dùng Reversal.');
+            }
+
+            $entry = DB::table('inbound_scan_entries')
+                ->where('id', $payload['inbound_scan_entry_id'])
+                ->lockForUpdate()
+                ->first();
+            if ($entry === null) {
+                ApiError::abort(404, 'INBOUND_SCAN_ENTRY_NOT_FOUND', 'Không tìm thấy dòng đã quét.');
+            }
+            $line = DB::table('stock_document_lines')
+                ->where('id', $entry->inbound_line_id)
+                ->where('stock_document_id', $id)
+                ->lockForUpdate()
+                ->first();
+            if ($line === null) {
+                ApiError::abort(404, 'INBOUND_SCAN_ENTRY_NOT_FOUND', 'Dòng đã quét không thuộc phiếu nhập này.');
+            }
+            if ((string) ($entry->status ?? 'ACTIVE') !== 'ACTIVE') {
+                ApiError::abort(409, 'SCAN_ENTRY_NOT_ACTIVE', 'Chỉ dòng quét ACTIVE mới được gỡ trước Post.');
+            }
+
+            $previousScanned = (int) $line->scanned_qty;
+            $newScanned = max(0, $previousScanned - (int) $entry->quantity);
+            DB::table('inbound_scan_entries')->where('id', $entry->id)->update([
+                'status' => 'REMOVED',
+                'removed_at' => now(),
+                'removed_by' => $this->actorId(),
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+            ]);
+            DB::table('stock_document_lines')->where('id', $line->id)->update([
+                'scanned_qty' => $newScanned,
+                'updated_at' => now(),
+            ]);
+            $newVersion = $expectedVersion + 1;
+            DB::table('stock_documents')->where('id', $id)->update([
+                'version' => $newVersion,
+                'updated_by' => $this->actorId(),
+                'updated_at' => now(),
+            ]);
+
+            AuditLogger::record(
+                action: 'INBOUND_UNSCAN',
+                objectType: 'inbound_scan_entry',
+                objectId: (string) $entry->id,
+                actorId: $this->actorId(),
+                requestId: request()?->attributes->get('request_id'),
+                reason: $payload['reason'] ?? null,
+                beforeData: ['status' => 'ACTIVE', 'scanned_qty' => $previousScanned],
+                afterData: ['status' => 'REMOVED', 'scanned_qty' => $newScanned, 'item_id' => $entry->item_id],
+            );
+
+            return [
+                'document_id' => $id,
+                'line_id' => (string) $line->id,
+                'inbound_scan_entry_id' => (string) $entry->id,
+                'item_id' => $entry->item_id !== null ? (string) $entry->item_id : null,
+                'status' => 'REMOVED',
+                'required_quantity' => (int) $line->qty_planned,
+                'scanned_quantity' => $newScanned,
+                'stock_effect' => 'NONE',
+                'movement_created' => false,
+                'version' => $newVersion,
+            ];
+        }, 3);
+
+        return $this->respondSuccess($result, 'Inbound scan entry removed; stock_effect=NONE.')
+            ->header('ETag', '"'.((int) $result['version']).'"');
+    }
+
+    /**
      * Gỡ một item đã match khỏi phiếu xuất trước khi Post (BR "Gỡ trước Post").
      * Match chuyển ACTIVE -> REMOVED, line scanned_qty giảm tương ứng; hoàn toàn
      * stock-neutral. Item sau đó có thể scan lại vào phiếu này hoặc phiếu khác.
@@ -433,13 +526,12 @@ class CurrentBaselineStockFlowController extends Controller
         $query = DB::table("{$table} as e")
             ->join('stock_document_lines as l', 'l.id', '=', "e.{$lineColumn}")
             ->where('l.stock_document_id', $documentId)
-            ->where('e.item_id', $itemId);
-        if ($type !== 'receipt') {
-            // Match đã REMOVED (gỡ trước Post) được phép scan lại vào cùng phiếu.
-            $query->where(function ($sub): void {
+            ->where('e.item_id', $itemId)
+            // Entry/match đã REMOVED (gỡ trước Post) được phép quét lại vào cùng
+            // phiếu — áp dụng cho cả receipt (ERD bảng 28) và issue (ERD bảng 34).
+            ->where(function ($sub): void {
                 $sub->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED');
             });
-        }
         if ($query->exists()) {
             ApiError::abort(409, 'DUPLICATE_ITEM_IN_DOCUMENT', 'Một item chỉ được scan/match một lần trong cùng document.');
         }
@@ -490,11 +582,18 @@ class CurrentBaselineStockFlowController extends Controller
 
     private function scanPayload(Request $request): array
     {
+        // Annex D SCR-IN-01 field `scan_input`: "1..150 chars; trim". Trim trước khi
+        // validate để chuỗi chỉ gồm khoảng trắng bị bắt là rỗng thay vì lọt xuống
+        // resolver, và chặn đúng ngưỡng 150 của contract (trước đây là 200).
+        if ($request->has('code_value') && $request->input('code_value') !== null) {
+            $request->merge(['code_value' => trim((string) $request->input('code_value'))]);
+        }
+
         $validated = $request->validate([
             'line_id' => ['required', 'uuid'],
             'quantity' => ['required_without:qty', 'integer', 'min:1'],
             'qty' => ['required_without:quantity', 'integer', 'min:1'],
-            'code_value' => ['nullable', 'string', 'max:200'],
+            'code_value' => ['nullable', 'string', 'min:1', 'max:150'],
             'item_id' => ['nullable', 'uuid'],
             'container_id' => ['nullable', 'uuid'],
             'printer_config_id' => ['nullable', 'uuid', 'exists:printer_configs,id'],
@@ -532,7 +631,7 @@ class CurrentBaselineStockFlowController extends Controller
     private function assertVersion(object $document, int $expected): void
     {
         if ((int) ($document->version ?? 0) !== $expected) {
-            ApiError::abort(412, 'PRECONDITION_FAILED', 'Document version mismatch.', [
+            ApiError::abort(412, 'STALE_VERSION', 'Document version mismatch.', [
                 'expected_version' => $expected,
                 'current_version' => (int) ($document->version ?? 0),
             ]);

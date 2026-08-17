@@ -39,7 +39,10 @@ class InboundCanonicalListContractTest extends TestCase
         $guide = (string) file_get_contents(base_path('docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md'));
         $routeSync = (string) file_get_contents(base_path('app/Swagger/Processors/RouteSyncProcessor.php'));
 
-        $this->assertSame(179, $contract['api']['operation_count']);
+        // 179 -> 176 sau khi gỡ DELETE /agencies/{id}, /defect-catalogs/{id} và
+        // /users/{id}: Annex C không công bố thao tác xoá và BR-AGY/BR-DEF/BR-IAM
+        // yêu cầu deactivate thay vì xóa.
+        $this->assertSame(176, $contract['api']['operation_count']);
         $this->assertStringContainsString('Document ID: HN-WMS-TECH-GUIDE-001', $guide);
         $this->assertStringContainsString("'24. Putaway'", $routeSync);
         $this->assertStringContainsString("'get api/v1/putaway/tasks'", $routeSync);

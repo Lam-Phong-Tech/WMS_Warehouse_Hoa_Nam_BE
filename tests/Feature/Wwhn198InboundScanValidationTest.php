@@ -183,7 +183,7 @@ class Wwhn198InboundScanValidationTest extends TestCase
             'quantity' => 1,
         ], $ctx['headers'] + ['If-Match' => '99']);
 
-        $response->assertStatus(412)->assertJsonPath('error.code', 'PRECONDITION_FAILED');
+        $response->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
         $this->assertDatabaseHas('stock_documents', ['id' => $ctx['document_id'], 'status' => 'DRAFT', 'version' => 1]);
     }
 

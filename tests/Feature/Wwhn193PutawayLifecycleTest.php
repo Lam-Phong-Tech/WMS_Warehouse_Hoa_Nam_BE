@@ -230,7 +230,7 @@ class Wwhn193PutawayLifecycleTest extends TestCase
 
         $this->postJson("/api/v1/putaway/tasks/{$eventId}/confirm", [], $headers + ['If-Match' => '99'])
             ->assertStatus(412)
-            ->assertJsonPath('error.code', 'PRECONDITION_FAILED')
+            ->assertJsonPath('error.code', 'STALE_VERSION')
             ->assertJsonPath('error.details.expected_version', 99)
             ->assertJsonPath('error.details.current_version', 1);
 

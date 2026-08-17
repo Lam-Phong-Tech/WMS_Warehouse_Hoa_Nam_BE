@@ -121,6 +121,10 @@ class CurrentBaselineInboundBoxController extends Controller
             ->where('e.container_id', $boxId)
             ->where('d.id', '<>', $documentId)
             ->whereIn('d.status', ['DRAFT', 'SCANNING'])
+            // BOX chỉ còn bị chiếm khi entry ở phiếu kia vẫn ACTIVE.
+            ->where(function ($query): void {
+                $query->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED');
+            })
             ->exists();
         if ($conflict) {
             ApiError::abort(409, 'BOX_IN_OTHER_ACTIVE_RECEIPT', 'BOX đang được dùng bởi một phiếu nhập khác chưa kết thúc.');

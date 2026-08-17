@@ -229,7 +229,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Warranty case not found.');
             }
             if ((int) $case->version !== $expectedVersion) {
-                ApiError::abort(412, 'PRECONDITION_FAILED', 'Warranty case version mismatch.', [
+                ApiError::abort(412, 'STALE_VERSION', 'Warranty case version mismatch.', [
                     'expected_version' => $expectedVersion,
                     'current_version' => (int) $case->version,
                 ]);

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\MasterSelectionGuard;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class CurrentBaselineOperationsController extends Controller
@@ -206,6 +207,8 @@ class CurrentBaselineOperationsController extends Controller
             'manual_product_description' => ['nullable', 'string', 'max:2000'],
             'description' => ['nullable', 'string', 'max:2000'],
         ]);
+        // BR-DEF-01..04: bệnh/lỗi INACTIVE không được chọn cho hồ sơ mới.
+        MasterSelectionGuard::assertDefectSelectable($validated['defect_id'] ?? null);
 
         $id = DB::transaction(function () use ($validated): string {
             $item = null;
@@ -291,7 +294,7 @@ class CurrentBaselineOperationsController extends Controller
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Warranty case not found.');
             }
             if ((int) $case->version !== $expectedVersion) {
-                ApiError::abort(412, 'PRECONDITION_FAILED', 'Warranty case version mismatch.');
+                ApiError::abort(412, 'STALE_VERSION', 'Warranty case version mismatch.');
             }
 
             $target = $validated['status'];

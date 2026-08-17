@@ -36,7 +36,7 @@ const READ_ONLY_CONTROLLERS = [
 /** Method mang hiệu ứng tồn kho — không được xuất hiện trên class read-side. */
 const STOCK_MUTATING_METHODS = [
     'postReceipt', 'postIssue', 'reverseInbound', 'reverseOutbound',
-    'inboundScan', 'outboundScan', 'outboundUnmatch', 'postStockDocument',
+    'inboundScan', 'inboundUnscan', 'outboundScan', 'outboundUnmatch', 'postStockDocument',
     'reverseStockDocument', 'scanStockDocument',
 ];
 

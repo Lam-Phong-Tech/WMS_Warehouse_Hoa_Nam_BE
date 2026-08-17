@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Agency;
 use Modules\Warehouse\Models\DefectCatalog;
@@ -52,6 +53,18 @@ class WarehouseDatabaseSeeder extends Seeder
     private const POWER_SOURCES = [
         ['power_source_code' => 'MAINS_DIRECT', 'power_source_name' => 'Điện lưới trực tiếp'],
         ['power_source_code' => 'BATTERY', 'power_source_name' => 'Pin/ắc quy'],
+    ];
+
+    /**
+     * REQ-SRS-029: quy cách đóng gói là master mở rộng được, không phải enum cứng.
+     * Bốn mã dưới đây chỉ là baseline (đúng bộ giá trị legacy đang dùng trong
+     * template import SKU); thêm mã mới đi qua POST /package-variants.
+     */
+    private const PACKAGE_VARIANTS = [
+        ['package_code' => 'BARE', 'package_name' => 'Bare — chỉ máy'],
+        ['package_code' => 'KIT', 'package_name' => 'Kit — máy kèm phụ kiện'],
+        ['package_code' => 'SET', 'package_name' => 'Set — bộ nhiều máy'],
+        ['package_code' => 'BODY_ONLY', 'package_name' => 'Body only — không pin/sạc'],
     ];
 
     public function run(): void
@@ -128,6 +141,40 @@ class WarehouseDatabaseSeeder extends Seeder
                 'updated_by' => null,
                 'version' => 0,
             ]);
+        }
+
+        $this->seedPackageVariants();
+    }
+
+    private function seedPackageVariants(): void
+    {
+        if (! Schema::hasTable('package_variants')) {
+            return;
+        }
+
+        foreach (self::PACKAGE_VARIANTS as $row) {
+            $existing = DB::table('package_variants')->where('package_code', $row['package_code'])->first();
+            if ($existing !== null) {
+                continue;
+            }
+
+            $insert = [
+                'id' => (string) Str::uuid(),
+                'package_code' => $row['package_code'],
+                'package_name' => $row['package_name'],
+                'status' => 'ACTIVE',
+                'sort_order' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            // sqlite giữ cả cặp cột legacy variant_* (PostgreSQL đồng bộ bằng trigger).
+            foreach (['variant_code' => $row['package_code'], 'variant_name' => $row['package_name'], 'description' => null, 'created_by' => null, 'updated_by' => null, 'version' => 0] as $column => $value) {
+                if (Schema::hasColumn('package_variants', $column)) {
+                    $insert[$column] = $value;
+                }
+            }
+
+            DB::table('package_variants')->insert($insert);
         }
     }
 }

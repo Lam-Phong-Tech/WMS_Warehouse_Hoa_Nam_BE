@@ -72,15 +72,23 @@ class AgencyTest extends TestCase
         $response->assertStatus(404)->assertJsonPath('error.code', 'RESOURCE_NOT_FOUND');
     }
 
-    public function test_agency_delete_succeeds_when_not_referenced(): void
+    /**
+     * BR-AGY-01 + BR-MST "deactivate thay vì xóa": không có endpoint xoá đại lý;
+     * ngừng dùng bằng PATCH status=INACTIVE và bản ghi vẫn còn để chứng từ cũ
+     * giữ nguyên tham chiếu.
+     */
+    public function test_agency_has_no_delete_route_and_is_retired_by_deactivating(): void
     {
         $headers = $this->authHeaders();
-        $agency = Agency::create(['agency_code' => 'DL-DEL', 'agency_name' => 'Đại lý xoá được', 'status' => 'ACTIVE']);
+        $agency = Agency::create(['agency_code' => 'DL-DEL', 'agency_name' => 'Đại lý ngừng dùng', 'status' => 'ACTIVE']);
 
-        $response = $this->deleteJson("/api/v1/agencies/{$agency->agency_id}", [], $headers);
+        $this->deleteJson("/api/v1/agencies/{$agency->agency_id}", [], $headers)
+            ->assertStatus(405);
 
-        $response->assertOk();
-        $this->assertNull(Agency::find($agency->agency_id));
+        $this->patchJson("/api/v1/agencies/{$agency->agency_id}", ['status' => 'INACTIVE'], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'INACTIVE');
+        $this->assertNotNull(Agency::find($agency->agency_id));
     }
 
     public function test_agency_create_writes_audit_log(): void

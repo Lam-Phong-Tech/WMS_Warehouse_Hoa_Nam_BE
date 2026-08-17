@@ -123,6 +123,83 @@ class CurrentBaselineMasterController extends Controller
     }
 
     /**
+     * Annex C listCatalogMasterEntries / createCatalogMasterEntry /
+     * updateCatalogMasterEntry — một path chung `/catalog-masters/{master_type}`
+     * cho cả năm loại master của REQ-SRS-029. Route theo từng loại
+     * (/brands, /product-categories, ...) giữ nguyên cho client hiện hành.
+     *
+     * Body chấp nhận cả cặp `code`/`name` chung lẫn tên cột riêng của từng loại
+     * (brand_code, category_name, ...) để không bắt client viết hai kiểu payload.
+     *
+     * @var array<string, array{0:string,1:string,2:string}> master_type => [bảng, cột code, cột name]
+     */
+    private const CATALOG_MASTER_TYPES = [
+        'brands' => ['brands', 'brand_code', 'brand_name'],
+        'brand' => ['brands', 'brand_code', 'brand_name'],
+        'product-categories' => ['product_categories', 'category_code', 'category_name'],
+        'category' => ['product_categories', 'category_code', 'category_name'],
+        'product-models' => ['product_models', 'model_code', 'model_name'],
+        'model' => ['product_models', 'model_code', 'model_name'],
+        'power-sources' => ['power_sources', 'power_source_code', 'power_source_name'],
+        'power' => ['power_sources', 'power_source_code', 'power_source_name'],
+        'power-source' => ['power_sources', 'power_source_code', 'power_source_name'],
+        'package-variants' => ['package_variants', 'package_code', 'package_name'],
+        'package' => ['package_variants', 'package_code', 'package_name'],
+    ];
+
+    public function listCatalogMasterEntries(Request $request, string $masterType)
+    {
+        [$table] = $this->resolveCatalogMasterType($masterType);
+
+        return $this->page($request, $table);
+    }
+
+    public function createCatalogMasterEntry(Request $request, string $masterType)
+    {
+        [$table, $codeColumn, $nameColumn] = $this->resolveCatalogMasterType($masterType);
+        $this->normalizeGenericMasterPayload($request, $codeColumn, $nameColumn);
+
+        return match ($table) {
+            'product_models' => $this->storeProductModel($request),
+            'package_variants' => $this->storePackageVariant($request),
+            default => $this->storeSimpleMaster($request, $table, $codeColumn, $nameColumn),
+        };
+    }
+
+    public function updateCatalogMasterEntry(Request $request, string $masterType, string $id)
+    {
+        [$table, $codeColumn, $nameColumn] = $this->resolveCatalogMasterType($masterType);
+        $this->normalizeGenericMasterPayload($request, $codeColumn, $nameColumn);
+
+        return $this->updateMaster($request, $id, $table, $codeColumn, $nameColumn);
+    }
+
+    /** @return array{0:string,1:string,2:string} */
+    private function resolveCatalogMasterType(string $masterType): array
+    {
+        $key = strtolower(str_replace('_', '-', trim($masterType)));
+        if (! isset(self::CATALOG_MASTER_TYPES[$key])) {
+            ApiError::abort(422, 'UNKNOWN_MASTER_TYPE', 'master_type phải thuộc: brands, product-categories, product-models, power-sources, package-variants.');
+        }
+
+        return self::CATALOG_MASTER_TYPES[$key];
+    }
+
+    private function normalizeGenericMasterPayload(Request $request, string $codeColumn, string $nameColumn): void
+    {
+        $mapped = [];
+        if (! $request->has($codeColumn) && $request->has('code')) {
+            $mapped[$codeColumn] = $request->input('code');
+        }
+        if (! $request->has($nameColumn) && $request->has('name')) {
+            $mapped[$nameColumn] = $request->input('name');
+        }
+        if ($mapped !== []) {
+            $request->merge($mapped);
+        }
+    }
+
+    /**
      * Annex C updateCatalogMasterEntry + §8.1 Master: "Unique, active/inactive,
      * immutable code after use". BR-MST-01..07: deactivate thay vì xoá; mã đã được
      * SKU tham chiếu thì không đổi được. If-Match theo ERD (version) — chỉ enforce
@@ -190,13 +267,22 @@ class CurrentBaselineMasterController extends Controller
         }, 3);
     }
 
-    /** Master được coi là "đã dùng" khi có SKU trỏ tới. */
+    /**
+     * Master được coi là "đã dùng" khi có SKU trỏ tới.
+     *
+     * BR-MST-01..07 áp cho CẢ NĂM loại master; trước đây power_sources và
+     * package_variants rơi vào nhánh default => null nên vẫn đổi được mã sau khi
+     * SKU đã tham chiếu (ERD bảng 16 có đủ hai FK skus.power_source_id /
+     * skus.package_variant_id).
+     */
     private function masterIsReferenced(string $table, string $id): bool
     {
         $column = match ($table) {
             'brands' => 'brand_id',
             'product_categories' => 'category_id',
             'product_models' => 'model_id',
+            'power_sources' => 'power_source_id',
+            'package_variants' => 'package_variant_id',
             default => null,
         };
         if ($column === null || ! Schema::hasColumn('skus', $column)) {

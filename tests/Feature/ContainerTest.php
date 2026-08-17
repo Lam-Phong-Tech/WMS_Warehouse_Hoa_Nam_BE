@@ -131,7 +131,7 @@ class ContainerTest extends TestCase
             ['zone_code' => 'A1'],
             $this->withIfMatch($headers, 1)
         );
-        $stale->assertStatus(412)->assertJsonPath('error.code', 'PRECONDITION_FAILED');
+        $stale->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
         $this->assertNull($container->fresh()->zone_code);
 
         $ok = $this->patchJson(

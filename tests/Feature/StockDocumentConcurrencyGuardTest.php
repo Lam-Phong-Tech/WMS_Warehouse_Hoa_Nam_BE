@@ -29,7 +29,7 @@ class StockDocumentConcurrencyGuardTest extends TestCase
         $this->assertStringContainsString('VERSION_CONFLICT', $stock);
         $this->assertStringContainsString('lockForUpdate()', $flow);
         $this->assertStringContainsString('If-Match', $flow);
-        $this->assertStringContainsString('PRECONDITION_FAILED', $flow);
+        $this->assertStringContainsString('STALE_VERSION', $flow);
     }
 
     public function test_source_guard_reversal_retains_reversible_quantity_recheck_constructs(): void
@@ -53,7 +53,7 @@ class StockDocumentConcurrencyGuardTest extends TestCase
             $source = $this->source($path);
             $this->assertStringContainsString('lockForUpdate()', $source, $path);
             $this->assertStringContainsString('If-Match', $source, $path);
-            $this->assertStringContainsString('PRECONDITION_FAILED', $source, $path);
+            $this->assertStringContainsString('STALE_VERSION', $source, $path);
             $this->assertStringContainsString("'version' =>", $source, $path);
         }
     }

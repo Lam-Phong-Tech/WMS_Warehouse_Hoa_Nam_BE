@@ -13,7 +13,7 @@ use Tests\TestCase;
  * WWHN-201 (task cha HN-OUT-003 — "Post Issue atomic, không âm tồn và idempotent").
  *
  * WWHN-195/WWHN-199 đã lái qua HTTP: state guard (STATE_CONFLICT), optimistic lock
- * (PRECONDITION_FAILED), business_key uniqueness (DUPLICATE_STOCK_EFFECT), idempotent
+ * (STALE_VERSION), business_key uniqueness (DUPLICATE_STOCK_EFFECT), idempotent
  * replay không nhân đôi audit_log, và INSUFFICIENT_STOCK tại *scan time*
  * (assertIssueAvailability — soft-check, không lockForUpdate, xem WWHN-199 mục 3).
  *

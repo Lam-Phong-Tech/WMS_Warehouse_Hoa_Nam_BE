@@ -39,7 +39,7 @@ class StockDocumentIdempotencyTest extends TestCase
             $source = $this->source($path);
             $this->assertStringContainsString('If-Match', $source, $path);
             $this->assertStringContainsString('PRECONDITION_REQUIRED', $source, $path);
-            $this->assertStringContainsString('PRECONDITION_FAILED', $source, $path);
+            $this->assertStringContainsString('STALE_VERSION', $source, $path);
         }
     }
 

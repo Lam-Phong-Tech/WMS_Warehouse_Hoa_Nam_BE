@@ -130,7 +130,7 @@ class WarrantyReadinessTest extends TestCase
             'status' => 'REPAIRING',
         ], $headers + $this->idem() + ['If-Match' => '1'])
             ->assertStatus(412)
-            ->assertJsonPath('error.code', 'PRECONDITION_FAILED');
+            ->assertJsonPath('error.code', 'STALE_VERSION');
 
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'COMPLETED',
