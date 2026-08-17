@@ -30,7 +30,10 @@ return [
     'allowed_headers' => ['*'],
 
     // FE/QA need request correlation and optimistic-concurrency metadata.
-    'exposed_headers' => ['X-Request-ID', 'ETag'],
+    // Content-Disposition: BR-EXP-03 bắt tên file export phải có timestamp do BE
+    // đặt — trình duyệt chỉ đọc được header này khi nó được expose qua CORS.
+    // Idempotent-Replay: AC-GWT-IDEMP-001, cho phép FE phân biệt lần chạy thật và replay.
+    'exposed_headers' => ['X-Request-ID', 'ETag', 'Content-Disposition', 'Idempotent-Replay'],
 
     'max_age' => 3600,
 

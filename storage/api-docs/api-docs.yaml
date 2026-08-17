@@ -6149,11 +6149,23 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'Số liệu nhanh cho dashboard'
-      operationId: get_api_v1_reports_dashboard__quick
-      parameters: []
+      operationId: report_dashboard_quick
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
       responses:
         200:
-          description: 'Thành công'
+          description: 'Dashboard KPIs'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6179,9 +6191,71 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Lịch sử phiếu nhập và phiếu xuất theo trạng thái'
-      operationId: flow06_document_history
-      parameters: []
+      summary: 'RPT-IO-01 lịch sử phiếu nhập/xuất kèm tầng dòng'
+      description: '§13.10 RPT-IO-01. Mỗi phiếu kèm rows[].lines[] gồm expected/scanned/posted; posted lấy từ movement authoritative (DEC-INV-001). Filter: date, SKU, status, agency recipient.'
+      operationId: report_document_history
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: doc_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - inbound
+              - outbound
+              - all
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - DRAFT
+              - SCANNING
+              - POSTED
+              - CANCELLED
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: agency_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
       responses:
         200:
           description: 'Lịch sử phiếu'
@@ -6210,12 +6284,70 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel lịch sử phiếu nhập và phiếu xuất'
-      operationId: flow06_document_history_export
-      parameters: []
+      summary: 'Xuất XLSX/PDF lịch sử phiếu (bung theo dòng)'
+      description: 'BR-EXP-01..05 + §13.10 RPT-IO-01: mỗi dòng file là document × line kèm expected/scanned/posted để đối soát "Sum authoritative movements = posted/issued qty".'
+      operationId: report_document_history_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: doc_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - inbound
+              - outbound
+              - all
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - DRAFT
+              - SCANNING
+              - POSTED
+              - CANCELLED
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: agency_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'File XLSX'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6241,18 +6373,82 @@ paths:
     post:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Tạo yêu cầu export báo cáo'
-      operationId: post_api_v1_reports_export
-      parameters: []
+      summary: 'Annex C createReportExport — tạo job xuất báo cáo'
+      description: 'REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp.'
+      operationId: createReportExport
+      parameters:
+        -
+          name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            maxLength: 200
       requestBody:
-        required: false
+        description: ReportExportRequest
+        required: true
         content:
           application/json:
             schema:
+              required:
+                - report_code
+              properties:
+                report_code:
+                  type: string
+                  enum:
+                    - inventory-balance
+                    - inventory-ledger
+                    - inventory-xnt
+                    - document-history
+                    - movement-trace
+                    - import-match
+                    - label-log
+                    - warranty-defects
+                    - outbound-by-agency
+                format:
+                  type: string
+                  default: xlsx
+                  enum:
+                    - xlsx
+                    - pdf
+                filters:
+                  description: 'Bộ lọc y hệt màn hình đang xem'
+                  type: object
+                  additionalProperties: true
               type: object
-              example: []
-              additionalProperties: true
       responses:
+        201:
+          description: ExportJob
+          content:
+            application/json:
+              schema:
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    properties:
+                      export_job_id:
+                        type: string
+                        format: uuid
+                      report_code:
+                        type: string
+                      format:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - READY
+                      row_count:
+                        type: integer
+                      download_url:
+                        type: string
+                      requested_at:
+                        type: string
+                        format: date-time
+                    type: object
+                type: object
         200:
           description: 'Thành công'
         400:
@@ -6280,12 +6476,12 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Danh mục tám báo cáo vận hành MVP'
-      operationId: flow06_report_hub
+      summary: 'Danh mục báo cáo vận hành Flow 06'
+      operationId: report_hub
       parameters: []
       responses:
         200:
-          description: 'Danh mục báo cáo'
+          description: 'Danh mục 8 báo cáo MVP'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6311,12 +6507,83 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Đối soát batch Excel yêu cầu xuất và kết quả match'
-      operationId: flow06_import_match
-      parameters: []
+      summary: 'RPT-OUT-MATCH-01 đối soát toa yêu cầu xuất'
+      description: '§13.10 RPT-OUT-MATCH-01. rows là tầng dòng SKU của toa: source_request_no, source_version, SKU, required/matched/scanned/posted, validation status. batches giữ tổng hợp theo batch Excel (upload/validate/consume).'
+      operationId: report_import_match
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: status
+          in: query
+          description: 'Trạng thái batch import'
+          schema:
+            type: string
+            enum:
+              - UPLOADED
+              - VALIDATED
+              - REJECTED
+              - CONSUMED
+        -
+          name: error_status
+          in: query
+          description: 'Validation status ở tầng dòng'
+          schema:
+            type: string
+            enum:
+              - VALID
+              - INVALID
+              - ERROR
+              - PENDING
+        -
+          name: sku_code
+          in: query
+          schema:
+            type: string
+        -
+          name: request_id
+          in: query
+          description: 'Lọc theo toa canonical'
+          schema:
+            type: string
+            format: uuid
+        -
+          name: batch_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
       responses:
         200:
-          description: 'Đối soát import'
+          description: 'Đối soát toa tầng dòng'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6342,12 +6609,64 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel đối soát import và match'
-      operationId: flow06_import_match_export
-      parameters: []
+      summary: 'Xuất XLSX/PDF đối soát toa'
+      description: 'BR-EXP-01..05: dùng đúng bộ lọc của màn hình, audit mọi lần xuất, tên file có timestamp, tối đa 10.000 dòng.'
+      operationId: report_import_match_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - UPLOADED
+              - VALIDATED
+              - REJECTED
+              - CONSUMED
+        -
+          name: error_status
+          in: query
+          schema:
+            type: string
+            enum:
+              - VALID
+              - INVALID
+              - ERROR
+              - PENDING
+        -
+          name: sku_code
+          in: query
+          schema:
+            type: string
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'File XLSX'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6373,12 +6692,66 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Báo cáo tồn kho hiện tại kèm đối soát ledger'
-      operationId: flow06_inventory_balance
-      parameters: []
+      summary: 'RPT-INV-01 tồn kho hiện tại kèm đối soát ledger'
+      description: '§13.10 RPT-INV-01. Filter SKU/category/status + as_of (inclusive). Khi as_of ở quá khứ, báo cáo là ảnh chụp theo ledger và reconciliation_status = NOT_APPLICABLE.'
+      operationId: report_inventory_balance
+      parameters:
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: stock_status
+          in: query
+          schema:
+            type: string
+            enum:
+              - AVAILABLE
+              - NON_SELLABLE
+              - DEFECTIVE
+              - QUARANTINE
+        -
+          name: as_of
+          in: query
+          description: 'Mốc chốt số liệu, inclusive (Asia/Ho_Chi_Minh)'
+          schema:
+            type: string
+            format: date
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
       responses:
         200:
-          description: 'Báo cáo tồn kho'
+          description: 'Tồn kho hiện tại'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6404,12 +6777,61 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel báo cáo tồn kho hiện tại'
-      operationId: flow06_inventory_balance_export
-      parameters: []
+      summary: 'Xuất XLSX/PDF tồn kho hiện tại'
+      description: 'BR-EXP-01..05: cùng bộ lọc với /reports/inventory-balance, audit mọi lần xuất, tên file có timestamp, tối đa 10.000 dòng.'
+      operationId: report_inventory_balance_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: stock_status
+          in: query
+          schema:
+            type: string
+            enum:
+              - AVAILABLE
+              - NON_SELLABLE
+              - DEFECTIVE
+              - QUARANTINE
+        -
+          name: as_of
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'File XLSX'
+          description: 'File XLSX/PDF tồn kho'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6435,12 +6857,72 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Sổ ledger tồn kho theo Annex C'
-      operationId: get_api_v1_reports_inventory__ledger
-      parameters: []
+      summary: 'Annex C getInventoryLedgerReport — sổ ledger authoritative'
+      description: 'REQ-SRS-031 / DEC-INV-001. Cùng contract với RPT-MOV-01: từng movement đã POSTED, append-only, kèm reversal chain.'
+      operationId: getInventoryLedgerReport
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: item_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: code_value
+          in: query
+          schema:
+            type: string
+        -
+          name: movement_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - OPENING
+              - RECEIPT
+              - ISSUE
+              - COMPONENT_ISSUE
+              - REVERSAL
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
       responses:
         200:
-          description: 'Thành công'
+          description: 'ReportRowPage — sổ ledger'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6467,11 +6949,28 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'Đối soát tồn kho với sổ giao dịch'
-      operationId: get_api_v1_reports_inventory__reconciliation
-      parameters: []
+      operationId: report_inventory_reconciliation
+      parameters:
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: only_mismatch
+          in: query
+          schema:
+            type: boolean
       responses:
         200:
-          description: 'Thành công'
+          description: 'Kết quả đối soát'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6497,12 +6996,63 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Báo cáo nhập xuất tồn'
-      operationId: get_api_v1_reports_inventory__xnt
-      parameters: []
+      summary: 'RPT-XNT-01 Nhập-Xuất-Tồn theo authoritative ledger'
+      description: '§13.10 RPT-XNT-01 + BR-RPT-01: closing = opening + posted receipt - posted issue - component issue + posted reversal. Kỳ inclusive theo Asia/Ho_Chi_Minh.'
+      operationId: report_inventory_xnt_current
+      parameters:
+        -
+          name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
       responses:
         200:
-          description: 'Thành công'
+          description: XNT
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6528,12 +7078,63 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Báo cáo Nhập-Xuất-Tồn chi tiết theo movement type'
-      operationId: flow06_inventory_xnt_enhanced
-      parameters: []
+      summary: 'RPT-XNT-01 Nhập-Xuất-Tồn chi tiết theo movement type'
+      description: 'Cùng builder và cùng contract với /reports/inventory-xnt; alias giữ cho client đang dùng.'
+      operationId: report_xnt_enhanced
+      parameters:
+        -
+          name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
       responses:
         200:
-          description: 'Báo cáo XNT chi tiết'
+          description: 'XNT chi tiết'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6559,12 +7160,59 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel báo cáo Nhập-Xuất-Tồn chi tiết'
-      operationId: flow06_inventory_xnt_enhanced_export
-      parameters: []
+      summary: 'Xuất XLSX/PDF Nhập-Xuất-Tồn chi tiết'
+      description: 'Alias của /reports/inventory-xnt/export-excel, cùng bộ lọc và cùng quy tắc BR-EXP.'
+      operationId: report_xnt_enhanced_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'File XLSX'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6590,12 +7238,59 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel/PDF báo cáo nhập xuất tồn'
-      operationId: get_api_v1_reports_inventory__xnt_export__excel
-      parameters: []
+      summary: 'Xuất XLSX/PDF Nhập-Xuất-Tồn'
+      description: 'BR-EXP-01..05: cùng bộ lọc với /reports/inventory-xnt, audit, tên file có timestamp.'
+      operationId: report_xnt_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'Thành công'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6621,9 +7316,63 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Nhật ký in nhãn, lỗi in và in lại'
-      operationId: flow06_label_log
-      parameters: []
+      summary: 'RPT-LABEL-01 nhật ký nhãn Packing Label'
+      description: '§13.10 RPT-LABEL-01: label/outbound/printer/result/reprint count + tóm tắt SKU/số lượng. Cardinality hiện hành là đúng 01 Packing Label cho mỗi phiếu/lô xuất; mọi action in đều stock-neutral.'
+      operationId: report_label_log
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: status
+          in: query
+          description: 'Kết quả in'
+          schema:
+            type: string
+            enum:
+              - PENDING_PRINT
+              - PRINTED
+              - PRINT_FAILED
+        -
+          name: printer_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: actor_id
+          in: query
+          description: 'Người thực hiện lần in'
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
       responses:
         200:
           description: 'Nhật ký nhãn'
@@ -6652,12 +7401,60 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel nhật ký in nhãn và in lại'
-      operationId: flow06_label_log_export
-      parameters: []
+      summary: 'Xuất XLSX/PDF nhật ký nhãn'
+      description: 'BR-EXP-01..05 + NFR-SRS-015: dùng đúng bộ lọc màn hình, audit mọi lần xuất, tên file có timestamp, SĐT khách luôn ở dạng mask vì route chỉ gác report.export.'
+      operationId: report_label_log_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - PENDING_PRINT
+              - PRINTED
+              - PRINT_FAILED
+        -
+          name: printer_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: actor_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'File XLSX'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6683,9 +7480,81 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Truy vết movement, reversal và correction chain'
-      operationId: flow06_movement_trace
-      parameters: []
+      summary: 'RPT-MOV-01 lịch sử nhập/xuất/Reversal'
+      description: '§13.10 RPT-MOV-01: movement_id, source_document, movement_type, SKU/item, qty, actor, time, reversal_chain. Hiển thị gross + chain, không bao giờ ẩn movement gốc.'
+      operationId: report_movement_trace
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: item_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: code_value
+          in: query
+          description: 'Mã vật lý (Barcode/QR/RFID) của Item hoặc Container'
+          schema:
+            type: string
+        -
+          name: source_type
+          in: query
+          schema:
+            type: string
+        -
+          name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: movement_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - OPENING
+              - RECEIPT
+              - ISSUE
+              - COMPONENT_ISSUE
+              - REVERSAL
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
       responses:
         200:
           description: 'Movement trace'
@@ -6714,12 +7583,68 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel movement trace và correction chain'
-      operationId: flow06_movement_trace_export
-      parameters: []
+      summary: 'Xuất XLSX/PDF movement trace'
+      description: 'BR-EXP-01..05 + §13.10 RPT-MOV-01: movement_id là cột đầu để truy ngược ledger.'
+      operationId: report_movement_trace_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: warehouse_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: item_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: code_value
+          in: query
+          schema:
+            type: string
+        -
+          name: movement_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - OPENING
+              - RECEIPT
+              - ISSUE
+              - COMPONENT_ISSUE
+              - REVERSAL
       responses:
         200:
-          description: 'File XLSX'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6745,9 +7670,52 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Báo cáo xuất kho theo nơi nhận'
-      operationId: flow06_outbound_by_agency
-      parameters: []
+      summary: 'RPT-RECIPIENT-01 xuất kho theo nơi nhận'
+      description: '§13.10 RPT-RECIPIENT-01: source_request_no, outbound_no, receiver/agency, address, contact đã mask, SKU/qty, posted_at. Agency chỉ là chiều nơi nhận, không phải chủ tồn. contact_masked chỉ hiện đầy đủ khi actor có warranty.pii.view.'
+      operationId: report_outbound_by_agency
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: agency_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
       responses:
         200:
           description: 'Xuất theo nơi nhận'
@@ -6776,12 +7744,51 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel báo cáo xuất kho theo nơi nhận'
-      operationId: flow06_outbound_by_agency_export
-      parameters: []
+      summary: 'Xuất XLSX/PDF báo cáo theo nơi nhận'
+      description: 'BR-EXP-01..05: cùng bộ lọc màn hình; cột liên hệ giữ nguyên trạng thái mask theo quyền của actor.'
+      operationId: report_outbound_by_agency_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: agency_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: product_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'File XLSX'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6807,12 +7814,70 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Báo cáo bảo hành & linh kiện'
-      operationId: get_api_v1_reports_warranty__defects
-      parameters: []
+      summary: 'Annex C getWarrantyDefectReport — RPT-WAR-01/RPT-WAR-COMP-01'
+      description: '§13.10 RPT-WAR-01 + RPT-WAR-COMP-01: case, SKU/model hoặc UNKNOWN_MODEL, defect, status, received/returned, turnaround, linh kiện đã xuất (chỉ purpose=WARRANTY, case active lúc Post). §13.8: customer_name/phone/address luôn trả ở dạng mask trên API (pii_masked=true); TEMP_ONLY được đếm riêng.'
+      operationId: getWarrantyDefectReport
+      parameters:
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - RECEIVED
+              - CHECKING
+              - REPAIRING
+              - COMPLETED
+              - RETURNED
+              - CANCELLED
+        -
+          name: defect_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: model
+          in: query
+          description: 'SKU code/name hoặc mô tả thủ công của case TEMP_ONLY'
+          schema:
+            type: string
+        -
+          name: identification_status
+          in: query
+          schema:
+            type: string
+            enum:
+              - IDENTIFIED
+              - TEMP_ONLY
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
       responses:
         200:
-          description: 'Thành công'
+          description: 'WarrantyDefectReportPage — không chứa PII thô'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6838,12 +7903,73 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Xuất Excel/PDF báo cáo bảo hành & linh kiện'
-      operationId: get_api_v1_reports_warranty__defects_export__excel
-      parameters: []
+      summary: 'Xuất XLSX/PDF báo cáo bảo hành & linh kiện'
+      description: '§13.8: cột PII chỉ ở dạng thô khi actor có warranty.pii.export VÀ gửi kèm reason; thiếu một trong hai thì file vẫn xuất nhưng đã mask. reason kèm quyền thiếu → 403; reason quá ngắn → 422 PII_EXPORT_REASON_INVALID. Mọi lần xuất đều audit kèm reason; tên file có timestamp (BR-EXP-03).'
+      operationId: report_warranty_defects_export
+      parameters:
+        -
+          name: format
+          in: query
+          schema:
+            type: string
+            default: xlsx
+            enum:
+              - xlsx
+              - pdf
+        -
+          name: reason
+          in: query
+          description: 'Lý do xuất PII (>= 5 ký tự); bỏ trống thì file được mask'
+          schema:
+            type: string
+            maxLength: 500
+            minLength: 5
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - RECEIVED
+              - CHECKING
+              - REPAIRING
+              - COMPLETED
+              - RETURNED
+              - CANCELLED
+        -
+          name: defect_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: model
+          in: query
+          schema:
+            type: string
+        -
+          name: identification_status
+          in: query
+          schema:
+            type: string
+            enum:
+              - IDENTIFIED
+              - TEMP_ONLY
       responses:
         200:
-          description: 'Thành công'
+          description: 'File XLSX/PDF'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:
@@ -6869,8 +7995,9 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Lấy báo cáo theo report_code'
-      operationId: get_api_v1_reports_report_code
+      summary: 'Annex C getReportByCode — trả báo cáo theo mã'
+      description: 'REQ-SRS-031. Dispatcher trả đúng payload và đúng bộ filter của báo cáo tương ứng trong /reports/hub; query parameter chấp nhận theo từng report_code (xem endpoint chuyên biệt). report_code lạ trả 404 RESOURCE_NOT_FOUND kèm danh sách hợp lệ.'
+      operationId: getReportByCode
       parameters:
         -
           name: report_code
@@ -6878,9 +8005,49 @@ paths:
           required: true
           schema:
             type: string
+            enum:
+              - inventory-balance
+              - inventory-ledger
+              - inventory-xnt
+              - document-history
+              - movement-trace
+              - outbound-by-agency
+              - import-match
+              - label-log
+              - warranty-defects
+        -
+          name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            maximum: 200
+            minimum: 1
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
       responses:
         200:
-          description: 'Thành công'
+          description: 'ReportRowPage của báo cáo tương ứng'
         400:
           description: 'Yêu cầu không đúng định dạng'
         401:

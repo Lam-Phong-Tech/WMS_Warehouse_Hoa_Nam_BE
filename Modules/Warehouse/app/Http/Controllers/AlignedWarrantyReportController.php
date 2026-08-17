@@ -4,6 +4,8 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\ReportExportFileName;
+use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -11,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -25,53 +28,66 @@ class AlignedWarrantyReportController extends Controller
 
     private const ALL_STATUSES = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'];
 
+    /** §13.8: lý do xuất PII phải đủ dài để làm evidence audit, không nhận "x". */
+    private const PII_REASON_MIN_LENGTH = 5;
+
+    #[OA\Get(path: '/api/v1/reports/warranty-defects', operationId: 'getWarrantyDefectReport', summary: 'Annex C getWarrantyDefectReport — RPT-WAR-01/RPT-WAR-COMP-01', description: '§13.10 RPT-WAR-01 + RPT-WAR-COMP-01: case, SKU/model hoặc UNKNOWN_MODEL, defect, status, received/returned, turnaround, linh kiện đã xuất (chỉ purpose=WARRANTY, case active lúc Post). §13.8: customer_name/phone/address luôn trả ở dạng mask trên API (pii_masked=true); TEMP_ONLY được đếm riêng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'])), new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'model', in: 'query', description: 'SKU code/name hoặc mô tả thủ công của case TEMP_ONLY', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'identification_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['IDENTIFIED', 'TEMP_ONLY'])), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'WarrantyDefectReportPage — không chứa PII thô')])]
     public function index(Request $request)
     {
+        // §13.10 RPT-WAR-01 + §13.8: "customer/address masked by default" — báo cáo
+        // trên màn hình luôn hiển thị cột khách hàng nhưng ở dạng đã mask; giá trị
+        // đầy đủ chỉ dành cho actor có warranty.pii.view.
         return $this->respondSuccess($this->paginate($this->build($request, false), $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/warranty-defects/export-excel', operationId: 'report_warranty_defects_export', summary: 'Xuất XLSX/PDF báo cáo bảo hành & linh kiện', description: '§13.8: cột PII chỉ ở dạng thô khi actor có warranty.pii.export VÀ gửi kèm reason; thiếu một trong hai thì file vẫn xuất nhưng đã mask. reason kèm quyền thiếu → 403; reason quá ngắn → 422 PII_EXPORT_REASON_INVALID. Mọi lần xuất đều audit kèm reason; tên file có timestamp (BR-EXP-03).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'reason', in: 'query', description: 'Lý do xuất PII (>= 5 ký tự); bỏ trống thì file được mask', schema: new OA\Schema(type: 'string', minLength: 5, maxLength: 500)), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'])), new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'model', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'identification_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['IDENTIFIED', 'TEMP_ONLY']))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function export(Request $request)
     {
-        $includePii = (bool) $request->user()?->hasPermission('warranty.pii.export');
+        // §13.8 Privacy Contract: "PII export requires warranty.pii.export + reason".
+        // Thiếu một trong hai thì file vẫn xuất được nhưng ở dạng mask, không phải PII thô.
+        $reason = trim((string) $request->query('reason', ''));
+        $hasPiiPermission = (bool) $request->user()?->hasPermission('warranty.pii.export');
+        if ($reason !== '' && ! $hasPiiPermission) {
+            ApiError::abort(403, 'PERMISSION_DENIED', 'Xuất PII bảo hành cần quyền warranty.pii.export.', [
+                'required_permission' => 'warranty.pii.export',
+            ]);
+        }
+        if ($reason !== '' && mb_strlen($reason) < self::PII_REASON_MIN_LENGTH) {
+            ApiError::abort(422, 'PII_EXPORT_REASON_INVALID', 'Lý do xuất PII phải có ít nhất '.self::PII_REASON_MIN_LENGTH.' ký tự.', [
+                'field' => 'reason',
+                'min_length' => self::PII_REASON_MIN_LENGTH,
+            ]);
+        }
+        $includePii = $hasPiiPermission && $reason !== '';
+
         $report = $this->build($request, $includePii);
         $headers = [
             'Case', 'Nhận diện', 'SKU/Model', 'Bệnh/lỗi', 'Linh kiện đã xuất', 'Trạng thái',
             'Ngày mua', 'Ngày nhận', 'Ngày trả khách', 'Turnaround (ngày)', 'Ngày cập nhật',
+            'Khách hàng', 'SĐT', 'Địa chỉ',
         ];
-        if ($includePii) {
-            $headers = array_merge($headers, ['Khách hàng', 'SĐT', 'Địa chỉ']);
-        }
-        $rows = array_map(function (array $row) use ($includePii): array {
-            $result = [
-                $row['case_no'], $row['identification_status'], $row['model'], $row['defect'],
-                $row['components_issued'], $row['status'], $row['purchase_date'] ?? '',
-                $row['received_at'], $row['returned_at'] ?? '', $row['turnaround_days'] ?? '',
-                $row['updated_at'],
-            ];
-            if ($includePii) {
-                $result = array_merge($result, [
-                    $row['customer_name'] ?? '', $row['customer_phone'] ?? '', $row['customer_address'] ?? '',
-                ]);
-            }
-
-            return $result;
-        }, $report['rows']);
+        $rows = array_map(fn (array $row): array => [
+            $row['case_no'], $row['identification_status'], $row['model'], $row['defect'],
+            $row['components_issued'], $row['status'], $row['purchase_date'] ?? '',
+            $row['received_at'], $row['returned_at'] ?? '', $row['turnaround_days'] ?? '',
+            $row['updated_at'],
+            $row['customer_name'] ?? '', $row['customer_phone'] ?? '', $row['customer_address'] ?? '',
+        ], $report['rows']);
 
         $this->assertLimit($rows);
         $format = strtolower((string) $request->query('format', 'xlsx'));
-        $this->auditExport($request, count($rows), $includePii, $format);
+        $this->auditExport($request, count($rows), $includePii, $format, $reason);
 
         // BR-EXP-03: tên file phải có timestamp để không ghi đè lần export trước.
         $stem = sprintf(
-            'bao-cao-bao-hanh-%s-den-%s-%s',
+            'bao-cao-bao-hanh-%s-den-%s',
             $report['period']['from_date'],
-            $report['period']['to_date'],
-            now()->format('Ymd-His')
+            $report['period']['to_date']
         );
 
         return $format === 'pdf'
-            ? $this->pdf($headers, $rows, "{$stem}.pdf")
-            : $this->xlsx($headers, $rows, "{$stem}.xlsx");
+            ? $this->pdf($headers, $rows, ReportExportFileName::stamp("{$stem}.pdf"))
+            : $this->xlsx($headers, $rows, ReportExportFileName::stamp("{$stem}.xlsx"));
     }
 
     /** §13.10 RPT-WAR-01 "turnaround": số ngày từ tiếp nhận tới trả khách/hoàn tất sửa. */
@@ -162,11 +178,17 @@ class AlignedWarrantyReportController extends Controller
                 'turnaround_days' => $this->turnaroundDays($receivedAt, $case->returned_at ?? $case->completed_at),
                 'updated_at' => (string) ($case->updated_at ?? $case->created_at),
             ];
-            if ($includePii) {
-                $row['customer_name'] = $case->customer_name;
-                $row['customer_phone'] = $case->customer_phone;
-                $row['customer_address'] = $case->customer_address;
-            }
+            // §13.8: cột khách hàng LUÔN có mặt; chỉ nội dung đổi giữa full và mask
+            // (N*** H*** / ******9922 / "***, <địa giới cuối>").
+            $row['customer_name'] = $includePii
+                ? (string) ($case->customer_name ?? '')
+                : WarrantyPiiMasker::name((string) ($case->customer_name ?? ''));
+            $row['customer_phone'] = $includePii
+                ? (string) ($case->customer_phone ?? '')
+                : WarrantyPiiMasker::phone((string) ($case->customer_phone ?? ''));
+            $row['customer_address'] = $includePii
+                ? (string) ($case->customer_address ?? '')
+                : WarrantyPiiMasker::address((string) ($case->customer_address ?? ''));
 
             return $row;
         })->values();
@@ -195,6 +217,7 @@ class AlignedWarrantyReportController extends Controller
             'rows' => $rows->all(),
             'by_defect' => $byDefect,
             'pii_included' => $includePii,
+            'pii_masked' => ! $includePii,
         ];
     }
 
@@ -227,13 +250,23 @@ class AlignedWarrantyReportController extends Controller
         }
     }
 
-    private function auditExport(Request $request, int $rowCount, bool $pii, string $format): void
+    private function auditExport(Request $request, int $rowCount, bool $pii, string $format, string $reason): void
     {
+        // §13.8 "export audited": lý do là bằng chứng bắt buộc của lần xuất PII.
+        $filters = $request->query();
+        unset($filters['reason']);
+
         AuditLogger::record(
             action: 'WARRANTY_REPORT_EXPORTED', objectType: 'warranty_report', objectId: null,
             actorId: auth('api')->id() !== null ? (string) auth('api')->id() : null,
             requestId: $request->attributes->get('request_id'),
-            afterData: ['pii_included' => $pii, 'row_count' => $rowCount, 'format' => $format, 'filters' => $request->query()],
+            afterData: [
+                'pii_included' => $pii,
+                'pii_reason' => $pii ? $reason : null,
+                'row_count' => $rowCount,
+                'format' => $format,
+                'filters' => $filters,
+            ],
         );
     }
 

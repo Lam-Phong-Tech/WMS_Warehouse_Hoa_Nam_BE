@@ -92,12 +92,15 @@ class OutboundDocsAlignmentContractTest extends TestCase
 
     public function test_partial_and_stocktake_concepts_stay_removed_from_active_surface(): void
     {
-        $report = $this->source('Modules/Warehouse/app/Http/Controllers/ReportController.php');
+        // ReportController legacy đã bị gỡ; controller báo cáo đang chạy thật là
+        // OperationalReportController (REQ-SRS-037: không có capability stocktake).
+        $report = $this->source('Modules/Warehouse/app/Http/Controllers/OperationalReportController.php');
         $model = $this->source('Modules/Warehouse/app/Models/StockDocument.php');
         $outbound = $this->source('Modules/Warehouse/app/Http/Controllers/OutboundDocumentController.php');
 
         $this->assertStringNotContainsString('documents_partial', $report);
         $this->assertStringNotContainsString('stocktake_variance', $report);
+        $this->assertStringNotContainsString('PARTIALLY_POSTED', $report);
         $this->assertStringNotContainsString('PARTIALLY_POSTED', $model);
         $this->assertStringNotContainsString('PARTIALLY_POSTED', $outbound);
         $this->assertStringNotContainsString('stock_out_submit', $outbound);

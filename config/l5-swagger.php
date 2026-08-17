@@ -57,6 +57,13 @@ return [
                     base_path('Modules/Warehouse/app/Http/Controllers/WarehouseController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/ImportController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/ImportReportController.php'),
+                    // Flow 06 · Báo cáo: contract (filter §13.10 + schema Annex C) được
+                    // khai ngay trên controller thật. KHÔNG được bỏ 4 dòng dưới, nếu không
+                    // Swagger publish toàn bộ endpoint báo cáo mà không có query parameter.
+                    base_path('Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/AlignedLabelLogReportController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php'),
                 ],
             ],
         ],

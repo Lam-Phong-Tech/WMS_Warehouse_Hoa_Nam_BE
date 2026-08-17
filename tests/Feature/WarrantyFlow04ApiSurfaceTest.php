@@ -226,9 +226,14 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             ->assertJsonPath('data.summary.temp_only', 1)
             ->assertJsonPath('data.rows.0.model', 'UNKNOWN_MODEL')
             ->assertJsonPath('data.rows.0.components_issued', 'Chưa xuất');
+        // §13.8 + §13.10 RPT-WAR-01: "customer/address masked by default" — cột vẫn
+        // có trên báo cáo nhưng nội dung luôn ở dạng mask, kể cả với SUPER_ADMIN.
         $row = $report->json('data.rows.0');
-        $this->assertArrayNotHasKey('customer_name', $row);
-        $this->assertArrayNotHasKey('customer_phone', $row);
+        $this->assertTrue($report->json('data.pii_masked'));
+        $this->assertArrayHasKey('customer_name', $row);
+        $this->assertArrayHasKey('customer_phone', $row);
+        $this->assertStringContainsString('***', (string) $row['customer_name']);
+        $this->assertStringStartsWith('*', (string) $row['customer_phone']);
 
         $filtered = $this->getJson(
             '/api/v1/reports/warranty-defects?status=RETURNED',

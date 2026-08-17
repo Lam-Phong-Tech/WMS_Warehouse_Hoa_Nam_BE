@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\ReportExportFileName;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
@@ -11,6 +12,7 @@ use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -30,6 +32,7 @@ class AlignedLabelLogReportController extends Controller
         return WarrantyPiiMasker::phone($phone);
     }
 
+    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'RPT-LABEL-01 nhật ký nhãn Packing Label', description: '§13.10 RPT-LABEL-01: label/outbound/printer/result/reprint count + tóm tắt SKU/số lượng. Cardinality hiện hành là đúng 01 Packing Label cho mỗi phiếu/lô xuất; mọi action in đều stock-neutral.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', description: 'Kết quả in', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', description: 'Người thực hiện lần in', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
     public function index(Request $request)
     {
         $report = $this->build($request);
@@ -37,29 +40,33 @@ class AlignedLabelLogReportController extends Controller
         return $this->respondSuccess($this->paginate($report, $request));
     }
 
+    #[OA\Get(path: '/api/v1/reports/label-log/export-excel', operationId: 'report_label_log_export', summary: 'Xuất XLSX/PDF nhật ký nhãn', description: 'BR-EXP-01..05 + NFR-SRS-015: dùng đúng bộ lọc màn hình, audit mọi lần xuất, tên file có timestamp, SĐT khách luôn ở dạng mask vì route chỉ gác report.export.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function export(Request $request)
     {
         $report = $this->build($request);
         $rows = collect($report['rows'])->map(fn (array $row): array => [
             $row['outbound_no'], $row['label_code'], $row['id'], $row['outbound_date'], $row['recipient'], $this->maskPhone((string) ($row['customer_phone'] ?? '')),
             $row['label_count'], $row['item_count'], $row['sku_count'], $row['sku_summary'],
-            $row['status'], $row['applied'] ? 'YES' : 'NO', $row['total_attempts'],
-            $row['failed_count'], $row['reprint_count'], $row['created_at'],
+            $row['status'], $row['applied'] ? 'YES' : 'NO', $row['printer_code'], $row['printer_name'], $row['printed_by_name'], $row['total_attempts'],
+            $row['failed_count'], $row['reprint_count'], $row['last_attempt_at'], $row['created_at'],
         ])->all();
-        $headers = ['Outbound', 'Packing Label', 'Label Snapshot', 'Date', 'Recipient', 'Phone', 'Label count', 'Item count', 'SKU count', 'SKU summary', 'Status', 'Applied', 'Attempts', 'Failed', 'Reprint', 'Created at'];
+        // §13.10 RPT-LABEL-01 columns: label/outbound/printer/result/reprint count + SKU/quantity summary.
+        $headers = ['Outbound', 'Packing Label', 'Label Snapshot', 'Date', 'Recipient', 'Phone', 'Label count', 'Item count', 'SKU count', 'SKU summary', 'Status', 'Applied', 'Printer code', 'Printer', 'Printed by', 'Attempts', 'Failed', 'Reprint', 'Last attempt', 'Created at'];
         $format = strtolower((string) $request->query('format', 'xlsx'));
 
         return $format === 'pdf'
-            ? $this->exportPdf($request, 'Packing Label / Print Log', $headers, $rows, 'flow06-label-log.pdf')
-            : $this->exportXlsx($request, 'Label Log', $headers, $rows, 'flow06-label-log.xlsx');
+            ? $this->exportPdf($request, 'Packing Label / Print Log', $headers, $rows, ReportExportFileName::stamp('flow06-label-log.pdf'))
+            : $this->exportXlsx($request, 'Label Log', $headers, $rows, ReportExportFileName::stamp('flow06-label-log.xlsx'));
     }
 
     private function build(Request $request): array
     {
         [$from, $to] = $this->period($request);
+        // §13.10 RPT-LABEL-01 filters: date / printer / result / actor.
         $validated = $request->validate([
             'status' => ['nullable', 'in:PENDING_PRINT,PRINTED,PRINT_FAILED'],
             'printer_id' => ['nullable', 'uuid'],
+            'actor_id' => ['nullable', 'uuid'],
             'keyword' => ['nullable', 'string', 'max:200'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -95,6 +102,14 @@ class AlignedLabelLogReportController extends Controller
                     ->where('lpe.printer_config_id', $printerId);
             });
         }
+        if (! empty($validated['actor_id'])) {
+            $actorId = $validated['actor_id'];
+            $query->whereExists(function ($sub) use ($actorId): void {
+                $sub->selectRaw('1')->from('label_print_events as lpe')
+                    ->whereColumn('lpe.label_snapshot_id', 'ls.id')
+                    ->where('lpe.created_by', $actorId);
+            });
+        }
         if (! empty($validated['keyword'])) {
             $keyword = '%'.trim((string) $validated['keyword']).'%';
             $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
@@ -105,9 +120,13 @@ class AlignedLabelLogReportController extends Controller
             });
         }
 
-        $rows = $query->orderByDesc('ls.created_at')->get()->map(function (object $s): array {
+        $snapshots = $query->orderByDesc('ls.created_at')->get();
+        $lastAttempts = $this->lastPrintAttempts($snapshots->pluck('id')->map(fn ($id): string => (string) $id)->all());
+
+        $rows = $snapshots->map(function (object $s) use ($lastAttempts): array {
             $payload = json_decode((string) $s->label_payload, true) ?: [];
             $attempts = (int) ($s->total_attempts ?? 0);
+            $lastAttempt = $lastAttempts[(string) $s->id] ?? null;
             $skuSummary = $payload['sku_summary'] ?? [];
             if (is_array($skuSummary)) {
                 $skuSummary = collect($skuSummary)->map(function ($row): string {
@@ -135,6 +154,14 @@ class AlignedLabelLogReportController extends Controller
                 'sku_summary' => (string) $skuSummary,
                 'status' => (string) $s->status,
                 'applied' => $s->applied_at !== null,
+                // §13.10 RPT-LABEL-01 cột "printer" + "actor": lấy theo attempt gần
+                // nhất của chính nhãn đó (ERD bảng 44 — mỗi attempt một dòng).
+                'printer_config_id' => $lastAttempt->printer_config_id ?? null,
+                'printer_code' => (string) ($lastAttempt->printer_code ?? ''),
+                'printer_name' => (string) ($lastAttempt->printer_name ?? ''),
+                'printed_by' => $lastAttempt->created_by ?? null,
+                'printed_by_name' => (string) ($lastAttempt->actor_name ?? ''),
+                'last_attempt_at' => (string) ($lastAttempt->created_at ?? ''),
                 'total_attempts' => $attempts,
                 'failed_count' => (int) ($s->failed_count ?? 0),
                 'reprint_count' => max(0, $attempts - 1),
@@ -159,6 +186,33 @@ class AlignedLabelLogReportController extends Controller
             ],
             'rows' => $rows,
         ];
+    }
+
+    /**
+     * Attempt in gần nhất của từng nhãn, kèm máy in và actor. Gom một truy vấn rồi
+     * rút gọn trong PHP để tránh window function (sqlite lẫn PostgreSQL đều chạy).
+     *
+     * @param  list<string>  $snapshotIds
+     * @return array<string, object>
+     */
+    private function lastPrintAttempts(array $snapshotIds): array
+    {
+        if ($snapshotIds === []) {
+            return [];
+        }
+
+        return DB::table('label_print_events as lpe')
+            ->leftJoin('printer_configs as pc', 'pc.id', '=', 'lpe.printer_config_id')
+            ->leftJoin('app_user as au', 'au.user_id', '=', 'lpe.created_by')
+            ->whereIn('lpe.label_snapshot_id', $snapshotIds)
+            ->orderBy('lpe.created_at')
+            ->get([
+                'lpe.label_snapshot_id', 'lpe.printer_config_id', 'lpe.created_by', 'lpe.created_at',
+                'pc.printer_code', 'pc.printer_name',
+                DB::raw('COALESCE(au.display_name, au.username) as actor_name'),
+            ])
+            ->keyBy(fn (object $row): string => (string) $row->label_snapshot_id)
+            ->all();
     }
 
     private function paginate(array $report, Request $request): array

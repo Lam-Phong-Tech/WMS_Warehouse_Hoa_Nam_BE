@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\ReportExportFileName;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -111,6 +112,7 @@ class OperationalReportController extends Controller
      * Annex C getInventoryLedgerReport (REQ-SRS-031). Sổ ledger là source of truth
      * theo DEC-INV-001: từng movement đã POSTED cộng dồn theo chiều thời gian.
      */
+    #[OA\Get(path: '/api/v1/reports/inventory-ledger', operationId: 'getInventoryLedgerReport', summary: 'Annex C getInventoryLedgerReport — sổ ledger authoritative', description: 'REQ-SRS-031 / DEC-INV-001. Cùng contract với RPT-MOV-01: từng movement đã POSTED, append-only, kèm reversal chain.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'item_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'code_value', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'ReportRowPage — sổ ledger')])]
     public function inventoryLedger(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildMovementTrace($request), $request));
@@ -120,6 +122,7 @@ class OperationalReportController extends Controller
      * Annex C getReportByCode (REQ-SRS-031): một cửa duy nhất trả bất kỳ báo cáo
      * nào trong hub theo report_code, dùng đúng filter/scope của báo cáo đó.
      */
+    #[OA\Get(path: '/api/v1/reports/{report_code}', operationId: 'getReportByCode', summary: 'Annex C getReportByCode — trả báo cáo theo mã', description: 'REQ-SRS-031. Dispatcher trả đúng payload và đúng bộ filter của báo cáo tương ứng trong /reports/hub; query parameter chấp nhận theo từng report_code (xem endpoint chuyên biệt). report_code lạ trả 404 RESOURCE_NOT_FOUND kèm danh sách hợp lệ.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'report_code', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: ['inventory-balance', 'inventory-ledger', 'inventory-xnt', 'document-history', 'movement-trace', 'outbound-by-agency', 'import-match', 'label-log', 'warranty-defects'])), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'ReportRowPage của báo cáo tương ứng')])]
     public function byCode(Request $request, string $reportCode)
     {
         $this->assertKnownReportCode($reportCode);
@@ -147,6 +150,7 @@ class OperationalReportController extends Controller
      * Idempotency-Key, trả ExportJob. BR-EXP-01: export dùng đúng filter/scope của
      * màn hình nên job giữ nguyên filter đã gửi; BR-EXP-02: mọi export đều audit.
      */
+    #[OA\Post(path: '/api/v1/reports/export', operationId: 'createReportExport', summary: 'Annex C createReportExport — tạo job xuất báo cáo', description: 'REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 200))], requestBody: new OA\RequestBody(required: true, description: 'ReportExportRequest', content: new OA\JsonContent(required: ['report_code'], properties: [new OA\Property(property: 'report_code', type: 'string', enum: ['inventory-balance', 'inventory-ledger', 'inventory-xnt', 'document-history', 'movement-trace', 'import-match', 'label-log', 'warranty-defects', 'outbound-by-agency']), new OA\Property(property: 'format', type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx'), new OA\Property(property: 'filters', type: 'object', description: 'Bộ lọc y hệt màn hình đang xem', additionalProperties: true)])), responses: [new OA\Response(response: 201, description: 'ExportJob', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'message', type: 'string'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'export_job_id', type: 'string', format: 'uuid'), new OA\Property(property: 'report_code', type: 'string'), new OA\Property(property: 'format', type: 'string'), new OA\Property(property: 'status', type: 'string', enum: ['READY']), new OA\Property(property: 'row_count', type: 'integer'), new OA\Property(property: 'download_url', type: 'string'), new OA\Property(property: 'requested_at', type: 'string', format: 'date-time')], type: 'object')]))])]
     public function createExport(Request $request)
     {
         $validated = $request->validate([
@@ -157,13 +161,19 @@ class OperationalReportController extends Controller
         $key = IdempotencyKeyGuard::require($request);
         $reportCode = (string) $validated['report_code'];
         $format = (string) ($validated['format'] ?? 'xlsx');
+        // BR-EXP-01 "export dùng cùng filter/scope với màn hình": filter đến trong
+        // body nên phải merge vào input trước khi builder chạy, nếu không job đếm
+        // dòng trên TOÀN bộ dữ liệu (và báo cáo yêu cầu from_date sẽ 422 oan).
+        $filters = $this->exportFilters($validated['filters'] ?? []);
+        $request->merge($filters);
+        $downloadUrl = self::EXPORT_DOWNLOAD_PATHS[$reportCode].'?'.http_build_query($filters + ['format' => $format]);
 
         [$code, $body, $replay] = IdempotencyStore::handle(
             $key,
             'report_export_'.$reportCode,
             $this->currentActorId(),
             IdempotencyStore::requestHash($request),
-            function () use ($request, $reportCode, $format): array {
+            function () use ($request, $reportCode, $format, $filters, $downloadUrl): array {
                 $jobId = (string) Str::uuid();
                 $rowCount = $this->exportRowCount($request, $reportCode);
 
@@ -173,7 +183,7 @@ class OperationalReportController extends Controller
                     objectId: $jobId,
                     actorId: $this->currentActorId(),
                     requestId: $request->attributes->get('request_id'),
-                    afterData: ['report_code' => $reportCode, 'format' => $format, 'row_count' => $rowCount],
+                    afterData: ['report_code' => $reportCode, 'format' => $format, 'row_count' => $rowCount, 'filters' => $filters],
                 );
 
                 return [201, [
@@ -187,7 +197,10 @@ class OperationalReportController extends Controller
                         // ở trạng thái READY ngay và download_url trỏ endpoint stream sẵn có.
                         'status' => 'READY',
                         'row_count' => $rowCount,
-                        'download_url' => self::EXPORT_DOWNLOAD_PATHS[$reportCode].'?format='.$format,
+                        'filters' => $filters,
+                        // download_url mang theo đúng filter đã gửi để file tải về không
+                        // bao giờ rộng hơn phạm vi người dùng đang xem.
+                        'download_url' => $downloadUrl,
                         'requested_at' => now()->toIso8601String(),
                     ],
                 ]];
@@ -202,6 +215,30 @@ class OperationalReportController extends Controller
         $id = auth('api')->id();
 
         return $id === null ? null : (string) $id;
+    }
+
+    /**
+     * Chuẩn hoá filter của ReportExportRequest về scalar để merge vào input và
+     * ghép thành query string của download_url.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, string>
+     */
+    private function exportFilters(array $filters): array
+    {
+        $normalized = [];
+        foreach ($filters as $name => $value) {
+            if (! is_string($name) || is_array($value) || $value === null || $value === '') {
+                continue;
+            }
+            // page/per_page thuộc màn hình, không thuộc phạm vi file export.
+            if (in_array($name, ['page', 'per_page', 'format'], true)) {
+                continue;
+            }
+            $normalized[$name] = is_bool($value) ? ($value ? '1' : '0') : (string) $value;
+        }
+
+        return $normalized;
     }
 
     /** Số dòng sẽ nằm trong file export, dùng đúng filter client gửi. */
@@ -230,13 +267,13 @@ class OperationalReportController extends Controller
 
     // ── Inventory Balance ────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'Báo cáo tồn kho hiện tại kèm đối soát ledger', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'RPT-INV-01 tồn kho hiện tại kèm đối soát ledger', description: '§13.10 RPT-INV-01. Filter SKU/category/status + as_of (inclusive). Khi as_of ở quá khứ, báo cáo là ảnh chụp theo ledger và reconciliation_status = NOT_APPLICABLE.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'as_of', in: 'query', description: 'Mốc chốt số liệu, inclusive (Asia/Ho_Chi_Minh)', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
     public function inventoryBalance(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildInventoryBalance($request), $request));
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-balance/export-excel', operationId: 'report_inventory_balance_export', summary: 'Xuất Excel/PDF tồn kho hiện tại', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF tồn kho')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-balance/export-excel', operationId: 'report_inventory_balance_export', summary: 'Xuất XLSX/PDF tồn kho hiện tại', description: 'BR-EXP-01..05: cùng bộ lọc với /reports/inventory-balance, audit mọi lần xuất, tên file có timestamp, tối đa 10.000 dòng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'as_of', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF tồn kho')])]
     public function inventoryBalanceExport(Request $request)
     {
         $report = $this->buildInventoryBalance($request);
@@ -256,25 +293,25 @@ class OperationalReportController extends Controller
 
     // ── XNT ──────────────────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt_current', summary: 'Báo cáo Nhập-Xuất-Tồn theo authoritative ledger', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'XNT')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt_current', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn theo authoritative ledger', description: '§13.10 RPT-XNT-01 + BR-RPT-01: closing = opening + posted receipt - posted issue - component issue + posted reversal. Kỳ inclusive theo Asia/Ho_Chi_Minh.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'XNT')])]
     public function inventoryXnt(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildXnt($request), $request, 'lines'));
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt/export-excel', operationId: 'report_xnt_export', summary: 'Xuất Excel/PDF nhập xuất tồn', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt/export-excel', operationId: 'report_xnt_export', summary: 'Xuất XLSX/PDF Nhập-Xuất-Tồn', description: 'BR-EXP-01..05: cùng bộ lọc với /reports/inventory-xnt, audit, tên file có timestamp.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function inventoryXntExport(Request $request)
     {
         return $this->exportXnt($request, 'bao-cao-xnt');
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_xnt_enhanced', summary: 'Báo cáo nhập xuất tồn chi tiết', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'XNT chi tiết')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_xnt_enhanced', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn chi tiết theo movement type', description: 'Cùng builder và cùng contract với /reports/inventory-xnt; alias giữ cho client đang dùng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'XNT chi tiết')])]
     public function inventoryXntEnhanced(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildXnt($request), $request, 'lines'));
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced/export-excel', operationId: 'report_xnt_enhanced_export', summary: 'Xuất Excel/PDF nhập xuất tồn chi tiết', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced/export-excel', operationId: 'report_xnt_enhanced_export', summary: 'Xuất XLSX/PDF Nhập-Xuất-Tồn chi tiết', description: 'Alias của /reports/inventory-xnt/export-excel, cùng bộ lọc và cùng quy tắc BR-EXP.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function inventoryXntEnhancedExport(Request $request)
     {
         return $this->exportXnt($request, 'xnt-chitiet');
@@ -282,13 +319,13 @@ class OperationalReportController extends Controller
 
     // ── Document History ─────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/document-history', operationId: 'report_document_history', summary: 'Lịch sử phiếu nhập/xuất', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all'])), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Lịch sử phiếu')])]
+    #[OA\Get(path: '/api/v1/reports/document-history', operationId: 'report_document_history', summary: 'RPT-IO-01 lịch sử phiếu nhập/xuất kèm tầng dòng', description: '§13.10 RPT-IO-01. Mỗi phiếu kèm rows[].lines[] gồm expected/scanned/posted; posted lấy từ movement authoritative (DEC-INV-001). Filter: date, SKU, status, agency recipient.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all'])), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Lịch sử phiếu')])]
     public function documentHistory(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildDocumentHistory($request), $request));
     }
 
-    #[OA\Get(path: '/api/v1/reports/document-history/export-excel', operationId: 'report_document_history_export', summary: 'Xuất Excel/PDF lịch sử phiếu', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
+    #[OA\Get(path: '/api/v1/reports/document-history/export-excel', operationId: 'report_document_history_export', summary: 'Xuất XLSX/PDF lịch sử phiếu (bung theo dòng)', description: 'BR-EXP-01..05 + §13.10 RPT-IO-01: mỗi dòng file là document × line kèm expected/scanned/posted để đối soát "Sum authoritative movements = posted/issued qty".', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all'])), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function documentHistoryExport(Request $request)
     {
         $report = $this->buildDocumentHistory($request);
@@ -316,70 +353,15 @@ class OperationalReportController extends Controller
         return $this->exportRows($request, 'Lich su phieu', $headers, $rows, "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'document-history');
     }
 
-    // ── Import Match ─────────────────────────────────────────
-
-    #[OA\Get(path: '/api/v1/reports/import-match', operationId: 'report_import_match', summary: 'Đối soát import toa yêu cầu xuất', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['UPLOADED', 'VALIDATED', 'REJECTED', 'CONSUMED'])), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'error_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['VALID', 'INVALID', 'ERROR', 'PENDING'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Đối soát import')])]
-    /**
-     * Route GET /reports/import-match được Flow06AlignmentServiceProvider đăng ký
-     * lại sang AlignedImportMatchReportController (đăng ký sau nên thắng), method
-     * này chỉ còn giữ OpenAPI contract. Mọi thay đổi filter/response phải làm ở
-     * controller Aligned và phản ánh lại vào attribute OA ở đây.
-     */
-    public function importMatch(Request $request)
-    {
-        return $this->respondSuccess($this->paginateReport($this->buildImportMatch($request), $request));
-    }
-
-    #[OA\Get(path: '/api/v1/reports/import-match/export-excel', operationId: 'report_import_match_export', summary: 'Xuất Excel/PDF đối soát import', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
-    public function importMatchExport(Request $request)
-    {
-        $report = $this->buildImportMatch($request);
-        $rows = array_map(fn (array $row): array => [
-            $row['import_no'], $row['source_file_name'], $row['status'], $row['total_rows'], $row['valid_rows'],
-            $row['error_rows'], $row['pass_rate'], $row['matched_qty'], $row['uploaded_at'],
-            $row['uploaded_by_name'], $row['validated_at'], $row['consumed_at'], $row['consumed_by_name'],
-        ], $report['rows']);
-
-        if ($request->query('format') === 'pdf') {
-            return $this->exportPdf('Đối soát toa', ['Import', 'File nguồn', 'Trạng thái', 'Tổng dòng', 'Hợp lệ', 'Lỗi', 'Pass rate (%)', 'Matched qty', 'Uploaded at', 'Người upload', 'Validated at', 'Consumed at', 'Người consume'], $rows, "doi-soat-toa-{$report['period']['from_date']}-{$report['period']['to_date']}", 'import-match', $request);
-        }
-
-        return $this->exportRows($request, 'Import Match', ['Import', 'File nguồn', 'Trạng thái', 'Tổng dòng', 'Hợp lệ', 'Lỗi', 'Pass rate (%)', 'Matched qty', 'Uploaded at', 'Người upload', 'Validated at', 'Consumed at', 'Người consume'], $rows, "doi-soat-toa-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'import-match');
-    }
-
-    // ── Label Log ────────────────────────────────────────────
-
-    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'Nhật ký nhãn Packing Label', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
-    public function labelLog(Request $request)
-    {
-        return $this->respondSuccess($this->paginateReport($this->buildLabelLog($request), $request));
-    }
-
-    #[OA\Get(path: '/api/v1/reports/label-log/export-excel', operationId: 'report_label_log_export', summary: 'Xuất Excel/PDF nhật ký nhãn', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
-    public function labelLogExport(Request $request)
-    {
-        $report = $this->buildLabelLog($request);
-        $rows = array_map(fn (array $row): array => [
-            $row['outbound_no'], $row['outbound_date'], $row['recipient'], $row['label_count'], $row['item_count'],
-            $row['sku_count'], $row['sku_summary'], $row['status'], $row['total_attempts'], $row['failed_count'], $row['reprint_count'], $row['created_at'],
-        ], $report['rows']);
-
-        if ($request->query('format') === 'pdf') {
-            return $this->exportPdf('Nhật ký nhãn', ['Phiếu xuất', 'Ngày phiếu', 'Nơi nhận', 'Số nhãn', 'Số item', 'Số SKU', 'Tóm tắt SKU', 'Trạng thái', 'Tổng lần in', 'Lỗi in', 'In lại', 'Tạo lúc'], $rows, "nhat-ky-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}", 'label-log', $request);
-        }
-
-        return $this->exportRows($request, 'Packing Label', ['Phiếu xuất', 'Ngày phiếu', 'Nơi nhận', 'Số nhãn', 'Số item', 'Số SKU', 'Tóm tắt SKU', 'Trạng thái', 'Tổng lần in', 'Lỗi in', 'In lại', 'Tạo lúc'], $rows, "packing-label-{$report['period']['from_date']}-{$report['period']['to_date']}.xlsx", 'label-log');
-    }
-
     // ── Outbound by Agency ───────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/outbound-by-agency', operationId: 'report_outbound_by_agency', summary: 'Báo cáo xuất theo nơi nhận', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Xuất theo nơi nhận')])]
+    #[OA\Get(path: '/api/v1/reports/outbound-by-agency', operationId: 'report_outbound_by_agency', summary: 'RPT-RECIPIENT-01 xuất kho theo nơi nhận', description: '§13.10 RPT-RECIPIENT-01: source_request_no, outbound_no, receiver/agency, address, contact đã mask, SKU/qty, posted_at. Agency chỉ là chiều nơi nhận, không phải chủ tồn. contact_masked chỉ hiện đầy đủ khi actor có warranty.pii.view.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Xuất theo nơi nhận')])]
     public function outboundByAgency(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildOutboundByAgency($request), $request));
     }
 
-    #[OA\Get(path: '/api/v1/reports/outbound-by-agency/export-excel', operationId: 'report_outbound_by_agency_export', summary: 'Xuất Excel/PDF theo nơi nhận', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
+    #[OA\Get(path: '/api/v1/reports/outbound-by-agency/export-excel', operationId: 'report_outbound_by_agency_export', summary: 'Xuất XLSX/PDF báo cáo theo nơi nhận', description: 'BR-EXP-01..05: cùng bộ lọc màn hình; cột liên hệ giữ nguyên trạng thái mask theo quyền của actor.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function outboundByAgencyExport(Request $request)
     {
         $report = $this->buildOutboundByAgency($request);
@@ -399,13 +381,13 @@ class OperationalReportController extends Controller
 
     // ── Movement Trace ───────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/movement-trace', operationId: 'report_movement_trace', summary: 'Truy vết giao dịch kho', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer'))], responses: [new OA\Response(response: 200, description: 'Movement trace')])]
+    #[OA\Get(path: '/api/v1/reports/movement-trace', operationId: 'report_movement_trace', summary: 'RPT-MOV-01 lịch sử nhập/xuất/Reversal', description: '§13.10 RPT-MOV-01: movement_id, source_document, movement_type, SKU/item, qty, actor, time, reversal_chain. Hiển thị gross + chain, không bao giờ ẩn movement gốc.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'item_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'code_value', in: 'query', description: 'Mã vật lý (Barcode/QR/RFID) của Item hoặc Container', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'source_type', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'source_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Movement trace')])]
     public function movementTrace(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildMovementTrace($request), $request));
     }
 
-    #[OA\Get(path: '/api/v1/reports/movement-trace/export-excel', operationId: 'report_movement_trace_export', summary: 'Xuất Excel/PDF movement trace', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['pdf']))], responses: [new OA\Response(response: 200, description: 'File Excel/PDF')])]
+    #[OA\Get(path: '/api/v1/reports/movement-trace/export-excel', operationId: 'report_movement_trace_export', summary: 'Xuất XLSX/PDF movement trace', description: 'BR-EXP-01..05 + §13.10 RPT-MOV-01: movement_id là cột đầu để truy ngược ledger.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'item_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'code_value', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL']))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function movementTraceExport(Request $request)
     {
         $report = $this->buildMovementTrace($request);
@@ -585,14 +567,22 @@ class OperationalReportController extends Controller
         $boxCounts = $this->boxSubledgerCounts($productIds);
         $locationHints = $this->locationHints($productIds);
 
-        $rows = $keys->map(function (string $key) use ($balances, $movements, $serialCounts, $boxCounts, $locationHints): array {
+        // §13.10 RPT-INV-01 "as_of inclusive": khi client chốt một mốc quá khứ thì
+        // ledger đã bị cắt tới mốc đó còn inventory_balances luôn là hiện tại, nên
+        // hiệu hai vế KHÔNG phải divergence. Ở chế độ as_of, báo cáo trở thành ảnh
+        // chụp theo ledger (DEC-INV-001 — ledger là authoritative) và đối soát
+        // Ledger↔Balance được đánh NOT_APPLICABLE thay vì báo MISMATCH giả.
+        $isAsOfSnapshot = $asOf !== null && $asOf < now()->toDateString();
+
+        $rows = $keys->map(function (string $key) use ($balances, $movements, $serialCounts, $boxCounts, $locationHints, $isAsOfSnapshot): array {
             $balance = $balances->get($key);
             $movement = $movements->get($key);
             $balanceExists = $balance !== null;
-            $onHand = (float) ($balance->on_hand_qty ?? $balance->quantity ?? 0);
+            $currentOnHand = (float) ($balance->on_hand_qty ?? $balance->quantity ?? 0);
             $ledger = (float) ($movement->ledger_qty ?? 0);
-            $variance = bcsub((string) $onHand, (string) $ledger, 3);
-            $isMismatch = bccomp($variance, '0', 3) !== 0;
+            $onHand = $isAsOfSnapshot ? $ledger : $currentOnHand;
+            $variance = bcsub((string) $currentOnHand, (string) $ledger, 3);
+            $isMismatch = ! $isAsOfSnapshot && bccomp($variance, '0', 3) !== 0;
             $warehouseId = (string) ($balance->warehouse_id ?? $movement->warehouse_id ?? '');
             $productId = (string) ($balance->product_id ?? $movement->product_id ?? '');
             $status = (string) ($balance->stock_status ?? $movement->stock_status ?? 'AVAILABLE');
@@ -605,6 +595,10 @@ class OperationalReportController extends Controller
                     default => 'QUANTITY_MISMATCH',
                 };
             }
+
+            $available = $isAsOfSnapshot
+                ? ($status === 'AVAILABLE' ? $ledger : 0.0)
+                : (float) ($balance->available_qty ?? ($status === 'AVAILABLE' ? $currentOnHand : 0));
 
             return [
                 'id' => $key,
@@ -620,22 +614,26 @@ class OperationalReportController extends Controller
                 'box_qty' => (float) ($boxCounts[$productId] ?? 0),
                 'location_hint' => (string) ($locationHints[$productId] ?? ''),
                 'on_hand_qty' => $onHand,
-                'available_qty' => (float) ($balance->available_qty ?? ($status === 'AVAILABLE' ? $onHand : 0)),
-                'reserved_qty' => (float) ($balance->reserved_qty ?? 0),
+                'available_qty' => $available,
+                'reserved_qty' => $isAsOfSnapshot ? 0.0 : (float) ($balance->reserved_qty ?? 0),
                 'ledger_qty' => $ledger,
                 'expected_qty' => $ledger,
-                'current_on_hand_qty' => $onHand,
+                'current_on_hand_qty' => $currentOnHand,
                 'variance' => (float) $variance,
                 'delta_qty' => (float) $variance,
                 'balance_exists' => $balanceExists,
                 'mismatch_reason' => $mismatchReason,
-                'reconciliation_status' => $isMismatch ? 'MISMATCH' : 'MATCH',
+                'reconciliation_status' => $isAsOfSnapshot ? 'NOT_APPLICABLE' : ($isMismatch ? 'MISMATCH' : 'MATCH'),
                 'updated_at' => (string) ($balance->updated_at ?? $movement->movement_updated_at ?? ''),
             ];
         })->sortBy(['warehouse_code', 'product_code', 'stock_status'])->values();
 
         return [
             'data_as_of' => now()->toIso8601String(),
+            'as_of' => $asOf,
+            // Chỉ có ý nghĩa khi as_of nằm ở quá khứ; FE dùng cờ này để đổi nhãn cột
+            // "Tồn kho" thành tồn theo ledger tại mốc đã chọn.
+            'as_of_snapshot' => $isAsOfSnapshot,
             'summary' => [
                 'total_rows' => $rows->count(),
                 'total_on_hand' => $rows->sum('on_hand_qty'),
@@ -801,11 +799,13 @@ class OperationalReportController extends Controller
     private function buildDocumentHistory(Request $request): array
     {
         [$from, $to] = $this->period($request);
+        // §13.10 RPT-IO-01 filters: date, SKU, status, agency recipient.
         $validated = $request->validate([
             'doc_type' => ['nullable', 'in:inbound,outbound,all'],
             'status' => ['nullable', 'in:DRAFT,SCANNING,POSTED,CANCELLED'],
             'keyword' => ['nullable', 'string', 'max:200'],
             'product_id' => ['nullable', 'uuid'],
+            'agency_id' => ['nullable', 'uuid'],
         ]);
         $docType = $validated['doc_type'] ?? 'all';
         $query = DB::table('stock_documents as sd')
@@ -839,6 +839,9 @@ class OperationalReportController extends Controller
                     ->whereColumn('sdl.stock_document_id', 'sd.id')
                     ->where('sdl.product_id', $validated['product_id']);
             });
+        }
+        if (! empty($validated['agency_id'])) {
+            $query->where('sd.agency_id', $validated['agency_id']);
         }
         $documents = $query->orderByDesc('sd.doc_date')->orderByDesc('sd.created_at')->get();
 
@@ -916,173 +919,6 @@ class OperationalReportController extends Controller
                 'posted_qty' => (float) ($postedByLine[$line->stock_document_id.'|'.$line->product_id]->posted_qty ?? 0),
             ])->values()->all())
             ->all();
-    }
-
-    private function buildImportMatch(Request $request): array
-    {
-        [$from, $to] = $this->period($request);
-        $validated = $request->validate([
-            'status' => ['nullable', 'in:UPLOADED,VALIDATED,REJECTED,CONSUMED'],
-            'keyword' => ['nullable', 'string', 'max:200'],
-            'batch_id' => ['nullable', 'uuid'],
-            'request_id' => ['nullable', 'uuid'],
-            'sku_code' => ['nullable', 'string', 'max:100'],
-            'error_status' => ['nullable', 'in:has_errors,no_errors'],
-        ]);
-        $query = DB::table('outbound_request_imports as ori')
-            ->leftJoin('app_user as uu', 'uu.user_id', '=', 'ori.created_by')
-            ->leftJoin('app_user as cu', 'cu.user_id', '=', 'ori.consumed_by')
-            ->whereBetween('ori.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->select('ori.*', 'uu.display_name as uploader_name', 'cu.display_name as consumer_name');
-        if (! empty($validated['status'])) {
-            $query->where('ori.status', $validated['status']);
-        }
-        if (! empty($validated['keyword'])) {
-            $kw = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
-            $query->where(function ($q) use ($kw): void {
-                $q->whereRaw("LOWER(COALESCE(ori.import_no, '')) LIKE ?", [$kw])
-                    ->orWhereRaw("LOWER(COALESCE(ori.source_file_name, '')) LIKE ?", [$kw]);
-            });
-        }
-        if (! empty($validated['error_status'])) {
-            if ($validated['error_status'] === 'has_errors') {
-                $query->where('ori.error_rows', '>', 0);
-            } else {
-                $query->where(function ($q): void {
-                    $q->where('ori.error_rows', '=', 0)->orWhereNull('ori.error_rows');
-                });
-            }
-        }
-        $imports = $query->orderByDesc('ori.created_at')->get();
-        $importIds = $imports->pluck('id')->all();
-        $matched = collect();
-        if ($importIds !== []) {
-            $matched = DB::table('outbound_requests as r')
-                ->join('stock_documents as sd', 'sd.outbound_request_id', '=', 'r.id')
-                ->join('stock_document_lines as l', 'l.stock_document_id', '=', 'sd.id')
-                ->whereIn('r.import_id', $importIds)
-                ->where('sd.status', 'POSTED')
-                ->groupBy('r.import_id')
-                ->select('r.import_id')->selectRaw('SUM(l.scanned_qty) AS matched_qty')->pluck('matched_qty', 'r.import_id');
-        }
-        $rows = $imports->map(function ($i) use ($matched): array {
-            $total = (int) ($i->total_rows ?? 0);
-            $valid = (int) ($i->valid_rows ?? 0);
-
-            return [
-                'id' => (string) $i->id,
-                'import_no' => (string) ($i->import_no ?? $i->id),
-                'source_file_name' => (string) ($i->source_file_name ?? ''),
-                'status' => (string) $i->status,
-                'total_rows' => $total,
-                'valid_rows' => $valid,
-                'error_rows' => (int) ($i->error_rows ?? 0),
-                'pass_rate' => $total > 0 ? round($valid * 100 / $total, 2) : 0,
-                'matched_qty' => (float) ($matched[(string) $i->id] ?? 0),
-                'uploaded_at' => (string) $i->created_at,
-                'uploaded_by_name' => $i->uploader_name ?? null,
-                'validated_at' => $i->validated_at ?? null,
-                'consumed_at' => $i->consumed_at ?? ((string) $i->status === 'CONSUMED' ? ($i->updated_at ?? null) : null),
-                'consumed_by_name' => $i->consumer_name ?? null,
-            ];
-        })->all();
-        $collection = collect($rows);
-
-        return [
-            'period' => ['from_date' => $from, 'to_date' => $to],
-            'summary' => [
-                'total_batches' => count($rows),
-                'consumed' => $collection->where('status', 'CONSUMED')->count(),
-                'rejected' => $collection->where('status', 'REJECTED')->count(),
-                'avg_pass_rate' => count($rows) > 0 ? round((float) $collection->avg('pass_rate'), 2) : 0,
-                'total_matched_qty' => (float) $collection->sum('matched_qty'),
-            ],
-            'rows' => $rows,
-        ];
-    }
-
-    private function buildLabelLog(Request $request): array
-    {
-        [$from, $to] = $this->period($request);
-        $validated = $request->validate([
-            'status' => ['nullable', 'in:PENDING_PRINT,PRINTED,PRINT_FAILED'],
-            'printer_id' => ['nullable', 'uuid'],
-        ]);
-        $attempts = DB::table('label_print_events')
-            ->select('label_snapshot_id')
-            ->selectRaw('COUNT(*) AS total_attempts')
-            ->selectRaw("SUM(CASE WHEN status = 'PRINT_FAILED' THEN 1 ELSE 0 END) AS failed_count")
-            ->groupBy('label_snapshot_id');
-        $query = DB::table('label_snapshots as ls')
-            ->leftJoin('products as p', 'p.id', '=', 'ls.sku_id')
-            ->leftJoin('outbound_item_matches as oim', 'oim.id', '=', 'ls.outbound_item_match_id')
-            ->leftJoin('stock_document_lines as l', 'l.id', '=', 'oim.outbound_line_id')
-            ->leftJoin('stock_documents as sd', 'sd.id', '=', 'l.stock_document_id')
-            ->leftJoin('agencies as ag', 'ag.agency_id', '=', 'sd.agency_id')
-            ->leftJoinSub($attempts, 'pa', 'pa.label_snapshot_id', '=', 'ls.id')
-            ->whereBetween('ls.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->select('ls.id', 'ls.item_id', 'ls.sku_id', 'ls.status', 'ls.created_at',
-                'p.code as sku_code', 'sd.id as stock_document_id', 'sd.doc_no as outbound_no',
-                'sd.doc_date as outbound_date',
-                DB::raw("COALESCE(ag.agency_name, sd.recipient_name) as recipient"),
-                'pa.total_attempts', 'pa.failed_count');
-        if (! empty($validated['status'])) {
-            $query->where('ls.status', $validated['status']);
-        }
-        if (! empty($validated['printer_id'])) {
-            $printerId = $validated['printer_id'];
-            $query->whereExists(function ($q) use ($printerId): void {
-                $q->selectRaw('1')->from('label_print_events as lpe')
-                    ->whereColumn('lpe.label_snapshot_id', 'ls.id')
-                    ->where('lpe.printer_config_id', $printerId);
-            });
-        }
-        $snapshots = $query->orderByDesc('ls.created_at')->get();
-
-        $grouped = $snapshots->groupBy(fn ($s) => $s->stock_document_id !== null ? (string) $s->stock_document_id : 'UNL_'.$s->id);
-        $rows = $grouped->map(function (Collection $group): array {
-            $first = $group->first();
-            $linked = $first->stock_document_id !== null;
-            $attemptTotal = $group->sum(fn ($s) => (int) ($s->total_attempts ?? 0));
-            $failedTotal = $group->sum(fn ($s) => (int) ($s->failed_count ?? 0));
-            $reprintTotal = $group->sum(fn ($s) => max(0, (int) ($s->total_attempts ?? 0) - 1));
-            $skuCodes = $group->pluck('sku_code')->filter()->unique()->values();
-            $statuses = $group->pluck('status')->unique();
-            $aggStatus = $statuses->contains('PRINT_FAILED') ? 'PRINT_FAILED'
-                : ($statuses->contains('PENDING_PRINT') ? 'PENDING_PRINT' : 'PRINTED');
-
-            return [
-                'id' => $linked ? (string) $first->stock_document_id : (string) $first->id,
-                'outbound_no' => $first->outbound_no,
-                'outbound_date' => $first->outbound_date,
-                'recipient' => $first->recipient,
-                'label_count' => $group->count(),
-                'item_count' => $group->pluck('item_id')->filter()->unique()->count(),
-                'sku_count' => $skuCodes->count(),
-                'sku_summary' => $skuCodes->implode(', '),
-                'status' => $aggStatus,
-                'total_attempts' => $attemptTotal,
-                'failed_count' => $failedTotal,
-                'reprint_count' => $reprintTotal,
-                'created_at' => (string) $group->min('created_at'),
-            ];
-        })->values()->all();
-        $collection = collect($rows);
-        $total = count($rows);
-
-        return [
-            'period' => ['from_date' => $from, 'to_date' => $to],
-            'summary' => [
-                'total_labels' => $total,
-                'printed' => $collection->where('status', 'PRINTED')->count(),
-                'pending' => $collection->where('status', 'PENDING_PRINT')->count(),
-                'failed' => $collection->where('status', 'PRINT_FAILED')->count(),
-                'reprinted' => $collection->where('reprint_count', '>', 0)->count(),
-                'failure_rate' => $total > 0 ? round($collection->where('status', 'PRINT_FAILED')->count() * 100 / $total, 2) : 0,
-                'reprint_rate' => $total > 0 ? round($collection->where('reprint_count', '>', 0)->count() * 100 / $total, 2) : 0,
-            ],
-            'rows' => $rows,
-        ];
     }
 
     private function buildOutboundByAgency(Request $request): array
@@ -1311,6 +1147,8 @@ class OperationalReportController extends Controller
 
     private function exportRows(Request $request, string $sheetTitle, array $headers, array $rows, string $fileName, string $reportKey)
     {
+        $fileName = ReportExportFileName::stamp($fileName);
+
         if (count($rows) > self::EXPORT_ROW_LIMIT) {
             ApiError::abort(
                 422,
@@ -1384,7 +1222,7 @@ class OperationalReportController extends Controller
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', count($headers) > 8 ? 'landscape' : 'portrait');
         $dompdf->render();
-        $fileName = "{$filePrefix}.pdf";
+        $fileName = ReportExportFileName::stamp("{$filePrefix}.pdf");
 
         return response($dompdf->output(), 200, [
             'Content-Type' => 'application/pdf',

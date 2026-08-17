@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\AgencyController;
+use Modules\Warehouse\Http\Controllers\AlignedImportMatchReportController;
+use Modules\Warehouse\Http\Controllers\AlignedLabelLogReportController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
 use Modules\Warehouse\Http\Controllers\AlignedWarrantyReportController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
@@ -147,10 +149,13 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/document-history/export-excel', [OperationalReportController::class, 'documentHistoryExport'])->middleware('permission:report.export');
         Route::get('reports/movement-trace', [OperationalReportController::class, 'movementTrace'])->middleware('permission:report.view');
         Route::get('reports/movement-trace/export-excel', [OperationalReportController::class, 'movementTraceExport'])->middleware('permission:report.export');
-        Route::get('reports/import-match', [OperationalReportController::class, 'importMatch'])->middleware('permission:report.view');
-        Route::get('reports/import-match/export-excel', [OperationalReportController::class, 'importMatchExport'])->middleware('permission:report.export');
-        Route::get('reports/label-log', [OperationalReportController::class, 'labelLog'])->middleware('permission:report.view');
-        Route::get('reports/label-log/export-excel', [OperationalReportController::class, 'labelLogExport'])->middleware('permission:report.export');
+        // RPT-OUT-MATCH-01 / RPT-LABEL-01: trỏ thẳng controller Aligned (giống
+        // warranty-defects) thay vì để Flow06AlignmentServiceProvider override runtime.
+        // Handler legacy trong OperationalReportController đã được gỡ hẳn.
+        Route::get('reports/import-match', [AlignedImportMatchReportController::class, 'index'])->middleware('permission:report.view');
+        Route::get('reports/import-match/export-excel', [AlignedImportMatchReportController::class, 'export'])->middleware('permission:report.export');
+        Route::get('reports/label-log', [AlignedLabelLogReportController::class, 'index'])->middleware('permission:report.view');
+        Route::get('reports/label-log/export-excel', [AlignedLabelLogReportController::class, 'export'])->middleware('permission:report.export');
         Route::get('reports/outbound-by-agency', [OperationalReportController::class, 'outboundByAgency'])->middleware('permission:report.view');
         Route::get('reports/outbound-by-agency/export-excel', [OperationalReportController::class, 'outboundByAgencyExport'])->middleware('permission:report.export');
         Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');

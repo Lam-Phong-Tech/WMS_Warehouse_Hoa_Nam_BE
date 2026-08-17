@@ -4,8 +4,6 @@ namespace Modules\Warehouse\Providers;
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use Modules\Warehouse\Http\Controllers\AlignedImportMatchReportController;
-use Modules\Warehouse\Http\Controllers\AlignedLabelLogReportController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
@@ -44,17 +42,9 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                 Route::post('label-snapshots/{id}/apply', [AlignedOutboundFlowController::class, 'applyPackingLabel'])
                     ->middleware('permission:label.print');
 
-                Route::get('reports/import-match', [AlignedImportMatchReportController::class, 'index'])
-                    ->middleware('permission:report.view');
-                Route::get('reports/import-match/export-excel', [AlignedImportMatchReportController::class, 'export'])
-                    ->middleware('permission:report.export');
-                Route::get('reports/label-log', [AlignedLabelLogReportController::class, 'index'])
-                    ->middleware('permission:report.view');
-                Route::get('reports/label-log/export-excel', [AlignedLabelLogReportController::class, 'export'])
-                    ->middleware('permission:report.export');
-                // reports/warranty-defects{,/export-excel} đã trỏ thẳng
-                // AlignedWarrantyReportController trong routes/api.php (handler legacy
-                // đã bị gỡ) nên không cần override runtime ở đây nữa.
+                // Toàn bộ route Flow 06 (import-match, label-log, warranty-defects)
+                // đã trỏ thẳng controller Aligned trong routes/api.php nên không còn
+                // override runtime nào cho báo cáo ở đây — chỉ giữ override luồng xuất.
             });
         });
     }
