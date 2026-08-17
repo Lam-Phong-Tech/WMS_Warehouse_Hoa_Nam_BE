@@ -10,21 +10,25 @@ class WarrantyCase extends Model
 {
     use SoftDeletes;
 
+    /**
+     * SRS v1.12 §6 + ERD §0.2: đúng 6 trạng thái, DB CHECK
+     * chk_erd_warranty_cases_2 enforce. INSPECTING/WAITING_CHECK/REPAIRED/TEMP_ONLY
+     * là hằng số legacy đã gỡ — TEMP_ONLY là identification_status, không phải status.
+     */
     public const STATUS_RECEIVED = 'RECEIVED';
 
-    public const STATUS_INSPECTING = 'INSPECTING';
+    public const STATUS_CHECKING = 'CHECKING';
 
-    public const STATUS_WAITING_CHECK = 'WAITING_CHECK';
+    public const STATUS_REPAIRING = 'REPAIRING';
 
-    public const STATUS_TEMP_ONLY = 'TEMP_ONLY';
-
-    public const STATUS_REPAIRED = 'REPAIRED';
+    public const STATUS_COMPLETED = 'COMPLETED';
 
     public const STATUS_RETURNED = 'RETURNED';
 
-    public const STATUS_CLOSED = 'CLOSED';
-
     public const STATUS_CANCELLED = 'CANCELLED';
+
+    /** Chỉ còn để nhận diện dữ liệu legacy khi kiểm tra "case đã đóng". */
+    public const STATUS_CLOSED = 'CLOSED';
 
     protected $table = 'warranty_case';
 

@@ -41,15 +41,12 @@ class Wwhn46OutboundPickScanDedupTest extends TestCase
         $this->seedAvailableBalance($warehouse->id, $sku->sku_id, $qty);
         $requestId = $this->outboundRequestFixture($sku->sku_id, $qty, 'TOA-'.Str::upper(Str::random(6)));
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
 
         return [
             'headers' => $headers,
-            'document_id' => (string) $create->json('data.id'),
-            'line_id' => (string) $create->json('data.lines.0.id'),
+            'document_id' => $created['document_id'],
+            'line_id' => $created['line_ids'][0],
             'sku_id' => $sku->sku_id,
             'warehouse_id' => $warehouse->id,
         ];
@@ -234,7 +231,12 @@ class Wwhn46OutboundPickScanDedupTest extends TestCase
      * 2 lớp validate: SKU type được chốt tại create, scanStockDocument() chỉ re-check
      * phòng hờ (defense in depth) cho trường hợp SKU bị đổi type sau khi toa đã tạo.
      */
-    public function test_create_outbound_document_rejects_component_sku_request(): void
+    /**
+     * §5.4.1: COMPONENT chỉ được xuất qua Component Issue gắn warranty case active,
+     * nên toa xuất chứa COMPONENT bị chặn ngay ở bước tiếp nhận/Confirm (§8.1 — không
+     * còn endpoint tạo phiếu xuất trực tiếp để chặn ở đó nữa).
+     */
+    public function test_outbound_request_intake_rejects_component_sku_request(): void
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
@@ -247,14 +249,28 @@ class Wwhn46OutboundPickScanDedupTest extends TestCase
             'status' => 'ACTIVE',
         ]);
         $this->seedAvailableBalance($warehouse->id, $componentSku->sku_id, 1);
-        $requestId = $this->outboundRequestFixture($componentSku->sku_id, 1, 'TOA-'.Str::upper(Str::random(6)));
 
-        $response = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
+        $import = $this->postJson('/api/v1/outbound-request-imports', [
+            'rows' => [[
+                'request_no' => 'TOA-'.Str::upper(Str::random(6)),
+                'customer_name' => 'Đại lý test',
+                'sku_id' => $componentSku->sku_id,
+                'required_qty' => 1,
+            ]],
         ], $headers);
 
-        $response->assertStatus(422)->assertJsonPath('error.code', 'PRODUCT_SKU_REQUIRED');
+        $import->assertCreated()->assertJsonPath('data.import.status', 'REJECTED');
+        $this->assertSame(
+            'COMPONENT_OUTBOUND_FORBIDDEN',
+            (string) $import->json('data.rows.0.error_code'),
+        );
+
+        $importId = (string) $import->json('data.import.id');
+        $this->postJson("/api/v1/outbound-request-imports/{$importId}/confirm", [], $headers + [
+            'If-Match' => (string) ((int) $import->json('data.import.version')),
+            'Idempotency-Key' => 'confirm-component-forbidden',
+        ])->assertStatus(409)->assertJsonPath('error.code', 'IMPORT_HAS_BLOCKING_ERRORS');
+
         $this->assertSame(0, DB::table('stock_documents')->where('doc_type', 'issue')->count());
     }
 }

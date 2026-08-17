@@ -20,8 +20,8 @@ use Tests\TestCase;
  */
 class PostIssueConcurrencyBehaviorTest extends TestCase
 {
-    use RefreshDatabase;
     use PreparesOutboundFixtures;
+    use RefreshDatabase;
 
     public function test_stale_version_racer_is_rejected_after_winner_commits_and_stock_effect_applies_once(): void
     {
@@ -120,12 +120,9 @@ class PostIssueConcurrencyBehaviorTest extends TestCase
         $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-RACE-SCAN-001');
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
         $itemId = $this->seedItemInStock($sku->sku_id);
 
         // Winner scan trước với If-Match đúng (version=1), document -> SCANNING/version=2.

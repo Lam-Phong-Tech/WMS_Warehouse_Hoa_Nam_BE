@@ -183,13 +183,15 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
 
     // ---------------------------------------------------------------- P1-3
 
-    /** BR-AGY-01: đại lý INACTIVE không chọn được cho chứng từ mới. */
+    /**
+     * BR-AGY-01: đại lý INACTIVE không chọn được cho chứng từ mới. Sau khi gỡ
+     * POST /outbound-documents (§8.1) guard nằm ở bước Confirm toa xuất.
+     */
     public function test_inactive_agency_cannot_be_selected_for_new_outbound_document(): void
     {
         $headers = $this->superAdminHeaders();
-        $warehouse = $this->warehouseFixture();
+        $this->warehouseFixture();
         $sku = $this->productSkuFixture('SKU-AGY-01');
-        $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'REQ-AGY-01');
 
         $agencyId = (string) Str::uuid();
         DB::table('agencies')->insert([
@@ -201,12 +203,22 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-            'agency_id' => $agencyId,
-            'recipient_name' => 'Khách A',
-        ], $headers + ['Idempotency-Key' => (string) Str::uuid()])
+        $import = $this->postJson('/api/v1/outbound-request-imports', [
+            'rows' => [[
+                'request_no' => 'REQ-AGY-01',
+                'customer_name' => 'Khách A',
+                'agency_id' => $agencyId,
+                'sku_id' => $sku->sku_id,
+                'required_qty' => 1,
+            ]],
+        ], $headers);
+        $import->assertCreated()->assertJsonPath('data.import.status', 'VALIDATED');
+        $importId = (string) $import->json('data.import.id');
+
+        $this->postJson("/api/v1/outbound-request-imports/{$importId}/confirm", [], $headers + [
+            'If-Match' => (string) ((int) $import->json('data.import.version')),
+            'Idempotency-Key' => (string) Str::uuid(),
+        ])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'AGENCY_INACTIVE');
     }

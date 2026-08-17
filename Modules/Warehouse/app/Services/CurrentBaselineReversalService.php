@@ -157,8 +157,11 @@ class CurrentBaselineReversalService
                 }
                 $this->assertItemBelongsToOriginal((string) $itemId, (string) $movement->stock_document_line_id, $documentType, $skuId);
                 $this->assertItemDependency((string) $itemId, $documentType);
-            } elseif (! empty($itemId)) {
-                ApiError::abort(422, 'QUANTITY_MODE_ITEM_FORBIDDEN', 'SKU quantity-mode không được gán item_id tùy ý khi reversal.');
+            } else {
+                if (! empty($itemId)) {
+                    ApiError::abort(422, 'QUANTITY_MODE_ITEM_FORBIDDEN', 'SKU quantity-mode không được gán item_id tùy ý khi reversal.');
+                }
+                $this->assertQuantityDependency($movement, $documentType, $qty);
             }
 
             $reversalLineId = (string) Str::uuid();
@@ -462,6 +465,46 @@ class CurrentBaselineReversalService
             : DB::table('outbound_item_matches')->where('outbound_line_id', $originalLineId)->where('item_id', $itemId)->exists();
         if (! $exists) {
             ApiError::abort(422, 'ITEM_NOT_IN_ORIGINAL_TRANSACTION', 'item_id không thuộc line giao dịch gốc.');
+        }
+    }
+
+    /**
+     * BR-REV-03/BR-REV-04 cho SKU quantity-mode (linh kiện).
+     *
+     * SKU serial-tracked chặn theo trạng thái từng Item; SKU tính theo số lượng không có
+     * item nên "downstream dependency" được đo bằng tồn còn lại của bucket: nếu tồn khả
+     * dụng đã thấp hơn lượng cần đảo thì đúng bằng phần đó đã bị Issue/Component Issue
+     * tiêu thụ sau khi nhập, và phải đảo dependency theo thứ tự ngược trước.
+     *
+     * Trả 409 DOWNSTREAM_DEPENDENCY_EXISTS theo §8.2, không phải 422 INSUFFICIENT_STOCK:
+     * đây là lỗi thứ tự nghiệp vụ chứ không phải lỗi dữ liệu nhập.
+     */
+    private function assertQuantityDependency(object $movement, string $documentType, int $qty): void
+    {
+        if ($documentType !== 'receipt') {
+            return;
+        }
+
+        $stockStatus = (string) ($movement->stock_status ?: self::AVAILABLE);
+        $skuId = (string) ($movement->sku_id ?? $movement->product_id);
+
+        $balance = DB::table('inventory_balances')
+            ->where('warehouse_id', $movement->warehouse_id)
+            ->where(function ($query) use ($skuId): void {
+                $query->where('sku_id', $skuId)->orWhere('product_id', $skuId);
+            })
+            ->where('stock_status', $stockStatus)
+            ->lockForUpdate()
+            ->first();
+
+        $available = (int) ($balance->available_qty ?? 0);
+        if ($available < $qty) {
+            ApiError::abort(409, 'DOWNSTREAM_DEPENDENCY_EXISTS', 'Số lượng đã nhập đã bị tiêu thụ bởi giao dịch sau đó; phải đảo dependency theo thứ tự ngược trước.', [
+                'movement_id' => (string) $movement->id,
+                'stock_status' => $stockStatus,
+                'available_qty' => $available,
+                'requested_qty' => $qty,
+            ]);
         }
     }
 

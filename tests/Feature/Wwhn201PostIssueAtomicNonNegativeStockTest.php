@@ -120,14 +120,9 @@ class Wwhn201PostIssueAtomicNonNegativeStockTest extends TestCase
      */
     private function scanReadyOutboundDocument(array $headers, string $warehouseId, string $requestId, string $skuId): array
     {
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouseId,
-            'outbound_request_id' => $requestId,
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
+        $created = $this->outboundDocumentFixture((string) $warehouseId, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
         $itemId = (string) Str::uuid();
         DB::table('item_instances')->insert([
             'item_id' => $itemId,

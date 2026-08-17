@@ -72,8 +72,12 @@ class EnforceInventoryWarehouseScope
             return $response;
         }
 
-        if ($path === 'api/v1/stock-movements/trace-by-code') {
+        if ($this->isPhysicalCodeTracePath($path)) {
             return $this->filterPhysicalCodeTrace($request, $response, $warehouseIds);
+        }
+
+        if ($path === 'api/v1/stock-movements/reversible') {
+            return $this->filterReversibleLookup($response, $warehouseIds);
         }
 
         return $response;
@@ -111,17 +115,46 @@ class EnforceInventoryWarehouseScope
         return $response;
     }
 
+    /**
+     * `/stock-movements/reversible` chạy bằng query builder thô nên không được
+     * global scope của model bảo vệ. Lọc phản hồi theo warehouse scope để lookup
+     * Reversal không lộ movement của kho ngoài phạm vi.
+     *
+     * @param  list<string>  $warehouseIds
+     */
+    private function filterReversibleLookup(JsonResponse $response, array $warehouseIds): Response
+    {
+        $payload = $response->getData(true);
+        $rows = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+
+        $payload['data'] = array_values(array_filter(
+            $rows,
+            fn ($row): bool => is_array($row)
+                && isset($row['warehouse_id'])
+                && in_array((string) $row['warehouse_id'], $warehouseIds, true),
+        ));
+        $response->setData($payload);
+
+        return $response;
+    }
+
     private function isTargetPath(string $path): bool
     {
         if (in_array($path, [
+            // Annex C canonical queryInventory + legacy alias.
+            'api/v1/inventory',
             'api/v1/inventory/balances',
             'api/v1/stock-movements',
+            'api/v1/stock-movements/reversible',
             'api/v1/stock-movements/trace-by-code',
         ], true)) {
             return true;
         }
 
         return preg_match('#^api/v1/inventory/balances/[^/]+/subledger$#', $path) === 1
+            // Annex C canonical traceInventoryCode: cùng nghiệp vụ trace-by-code
+            // nên phải chịu cùng data-scope guard, không được là đường vòng.
+            || preg_match('#^api/v1/inventory/trace/.+$#', $path) === 1
             || preg_match('#^api/v1/stock-movements/[^/]+$#', $path) === 1
             || preg_match('#^api/v1/stock-movements/[^/]+/trace-source$#', $path) === 1;
     }
@@ -129,7 +162,14 @@ class EnforceInventoryWarehouseScope
     private function isTracePath(string $path): bool
     {
         return $path === 'api/v1/stock-movements/trace-by-code'
+            || preg_match('#^api/v1/inventory/trace/.+$#', $path) === 1
             || str_ends_with($path, '/trace-source');
+    }
+
+    private function isPhysicalCodeTracePath(string $path): bool
+    {
+        return $path === 'api/v1/stock-movements/trace-by-code'
+            || preg_match('#^api/v1/inventory/trace/.+$#', $path) === 1;
     }
 
     private function forbidden(Request $request, string $message): JsonResponse

@@ -13,7 +13,7 @@ class ExportStockSnapshot extends Command
         {--output=build/evidence/api-data/db-snapshot.json : Đường dẫn JSON output}
         {--label=snapshot : Nhãn before/after}';
 
-    protected $description = 'Xuất snapshot balance, signed ledger, posting/idempotency/scan event và stocktake làm evidence';
+    protected $description = 'Xuất snapshot balance, signed ledger, posting/idempotency/scan event và reversal chain làm evidence';
 
     public function handle(): int
     {
@@ -72,38 +72,49 @@ class ExportStockSnapshot extends Command
             ['scan_event_id']
         );
 
-        $stocktakeSessions = DB::table('stocktake_session')
-            ->select('session_id', 'session_no', 'warehouse_id', 'status', 'stocktake_started_at', 'count_cutoff_at', 'reviewed_at', 'movement_warning_flag', 'applied_at', 'session_version')
+        // DEC-REV-001/WWHN-26: sai giao dịch chỉ sửa bằng Reversal append-only, nên
+        // evidence của lớp "correction" là reversal chain — không có snapshot/variance.
+        $reversalDocuments = $this->tableRows(
+            'reversal_documents',
+            [
+                'id', 'reversal_no', 'warehouse_id', 'original_document_type', 'original_document_id',
+                'correction_chain_id', 'reason_code', 'status', 'posted_at', 'version',
+            ],
+            ['reversal_no']
+        );
+        $reversalLines = $this->tableRows(
+            'reversal_lines',
+            [
+                'id', 'reversal_document_id', 'line_no', 'original_movement_id', 'sku_id', 'item_id',
+                'quantity_to_reverse', 'return_condition', 'posted_movement_id',
+            ],
+            ['reversal_document_id', 'line_no']
+        );
+        $reversalMovements = DB::table('stock_movements')
+            ->whereNotNull('original_movement_id')
+            ->select('id', 'business_key', 'movement_type', 'warehouse_id', 'product_id', 'stock_status', 'qty_before', 'qty_delta', 'qty_after', 'original_movement_id', 'correction_chain_id')
             ->orderBy('created_at')
             ->get();
-        $stocktakeVariances = DB::table('stocktake_variance')
-            ->select('variance_id', 'session_id', 'grain_type', 'grain_id', 'grain_key', 'product_id', 'stock_status', 'expected_qty', 'expected_at_count', 'actual_qty', 'variance_qty', 'inventory_effect_qty', 'detected_movement_ids', 'acknowledged_movement_ids', 'status', 'applied_movement_id')
-            ->orderBy('session_id')
-            ->orderBy('grain_key')
-            ->get();
-        $stocktakeMovements = DB::table('stock_movements')
-            ->whereNotNull('stocktake_variance_id')
-            ->select('id', 'business_key', 'movement_type', 'warehouse_id', 'product_id', 'stock_status', 'qty_before', 'qty_delta', 'qty_after', 'stocktake_variance_id')
-            ->orderBy('created_at')
-            ->get();
-        $physicalItems = DB::table('inventory_serials')
-            ->select('id', 'product_id', 'warehouse_id', 'serial_no', 'stock_condition', 'status', 'updated_at')
-            ->orderBy('id')
-            ->get();
-        $physicalContainers = DB::table('container_item as ci')
-            ->join('container as c', 'c.container_id', '=', 'ci.container_id')
-            ->select('ci.container_item_id', 'ci.container_id', 'c.warehouse_id', 'ci.product_id', 'ci.quantity', 'ci.status', 'ci.updated_at')
-            ->orderBy('ci.container_item_id')
-            ->get();
+        $physicalItems = $this->tableRows(
+            'item_instances',
+            ['item_id', 'sku_id', 'item_code', 'serial_number', 'item_status', 'item_condition', 'container_id', 'updated_at'],
+            ['item_id']
+        );
+        $physicalContainers = $this->tableRows(
+            'container_items',
+            ['container_item_id', 'container_id', 'sku_id', 'item_id', 'quantity', 'status', 'is_active', 'updated_at'],
+            ['container_item_id']
+        );
 
         $payload = [
             'schema_version' => '2.1.0',
             'label' => (string) $this->option('label'),
             'generated_at_utc' => now()->utc()->toIso8601String(),
+            // ERD bảng 30: movement_type CHECK OPENING/RECEIPT/ISSUE/COMPONENT_ISSUE/REVERSAL.
             'signed_convention' => [
                 'formula' => 'SUM(stock_movements.qty_delta)',
-                'positive' => ['OPENING', 'RECEIPT_POSTED', 'ADJUST_IN', 'TRANSFER_IN', 'TRANSFER_RETURN', 'ISSUE_REVERSED'],
-                'negative' => ['ISSUE_POSTED', 'ADJUST_OUT', 'TRANSFER_OUT', 'RECEIPT_REVERSED'],
+                'positive' => ['OPENING', 'RECEIPT', 'ISSUE_REVERSED'],
+                'negative' => ['ISSUE', 'COMPONENT_ISSUE', 'RECEIPT_REVERSED'],
             ],
             'counts' => [
                 'inventory_balances' => DB::table('inventory_balances')->count(),
@@ -112,9 +123,9 @@ class ExportStockSnapshot extends Command
                 'idempotency_keys' => $idempotencyKeys->count(),
                 'scan_events' => $scanEvents->count(),
                 'ci_documents' => $ciDocuments->count(),
-                'stocktake_sessions' => $stocktakeSessions->count(),
-                'stocktake_variances' => $stocktakeVariances->count(),
-                'stocktake_movements' => $stocktakeMovements->count(),
+                'reversal_documents' => $reversalDocuments->count(),
+                'reversal_lines' => $reversalLines->count(),
+                'reversal_movements' => $reversalMovements->count(),
             ],
             'balances' => $balances,
             'signed_ledger_by_dimension' => $ledger,
@@ -122,9 +133,9 @@ class ExportStockSnapshot extends Command
             'posting_events' => $postingEvents,
             'idempotency_keys' => $idempotencyKeys,
             'scan_events' => $scanEvents,
-            'stocktake_sessions' => $stocktakeSessions,
-            'stocktake_variances' => $stocktakeVariances,
-            'stocktake_movements' => $stocktakeMovements,
+            'reversal_documents' => $reversalDocuments,
+            'reversal_lines' => $reversalLines,
+            'reversal_movements' => $reversalMovements,
             'physical_items' => $physicalItems,
             'physical_container_items' => $physicalContainers,
         ];

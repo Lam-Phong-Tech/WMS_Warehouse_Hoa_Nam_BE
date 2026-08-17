@@ -41,20 +41,14 @@ class Wwhn199ReservationConcurrencyGuardTest extends TestCase
         $itemId = $this->seedItemInStock($sku->sku_id);
 
         $requestA = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-RESV-A-001');
-        $docA = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestA,
-        ], $headers)->assertCreated();
-        $documentAId = (string) $docA->json('data.id');
-        $lineAId = (string) $docA->json('data.lines.0.id');
+        $docA = $this->outboundDocumentFixture((string) $warehouse->id, $requestA);
+        $documentAId = $docA['document_id'];
+        $lineAId = $docA['line_ids'][0];
 
         $requestB = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-RESV-B-001');
-        $docB = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestB,
-        ], $headers)->assertCreated();
-        $documentBId = (string) $docB->json('data.id');
-        $lineBId = (string) $docB->json('data.lines.0.id');
+        $docB = $this->outboundDocumentFixture((string) $warehouse->id, $requestB);
+        $documentBId = $docB['document_id'];
+        $lineBId = $docB['line_ids'][0];
 
         // Winner: item được match thành công vào phiếu A.
         $this->postJson("/api/v1/outbound-documents/{$documentAId}/scan", [
@@ -99,12 +93,9 @@ class Wwhn199ReservationConcurrencyGuardTest extends TestCase
         $itemId = $this->seedItemInStock($sku->sku_id);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 2, 'TOA-RESV-002');
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
 
         $this->postJson("/api/v1/outbound-documents/{$documentId}/scan", [
             'line_id' => $lineId,
@@ -182,37 +173,51 @@ class Wwhn199ReservationConcurrencyGuardTest extends TestCase
      * khi kiểm tra "đã có document active chưa" — race giữa 2 request tạo document từ
      * cùng toa được tuần tự hóa bởi row lock đó. OutboundDocumentFlowTest đã có 1 test
      * tuần tự cho OUTBOUND_REQUEST_ALREADY_USED; bổ sung ở đây theo đúng semantics
-     * "winner tạo trước, loser đọc version cũ" giống PostIssueConcurrencyBehaviorTest,
-     * và xác nhận trạng thái toa/documents cuối cùng nhất quán (không có 2 document
-     * active cho cùng 1 toa dưới bất kỳ hoàn cảnh nào).
+     * "winner tạo trước, loser bị chặn", và xác nhận trạng thái toa/documents cuối cùng
+     * nhất quán (không có 2 document active cho cùng 1 toa dưới bất kỳ hoàn cảnh nào).
      */
-    public function test_creating_outbound_document_from_already_consumed_request_leaves_single_active_document(): void
+    public function test_confirming_a_duplicate_request_no_never_creates_a_second_outbound_document(): void
     {
         $headers = $this->superAdminHeaders();
-        $warehouse = $this->warehouseFixture();
+        $this->warehouseFixture();
         $sku = $this->productSkuFixture('PROD-RESV-004');
-        $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-RESV-004');
 
-        $winner = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
+        $row = [
+            'request_no' => 'TOA-RESV-004',
+            'customer_name' => 'Đại lý test',
+            'sku_id' => $sku->sku_id,
+            'required_qty' => 1,
+        ];
+
+        $first = $this->postJson('/api/v1/outbound-request-imports', ['rows' => [$row]], $headers);
+        $first->assertCreated()->assertJsonPath('data.import.status', 'VALIDATED');
+        $firstImportId = (string) $first->json('data.import.id');
+        $this->postJson("/api/v1/outbound-request-imports/{$firstImportId}/confirm", [], $headers + [
+            'If-Match' => (string) ((int) $first->json('data.import.version')),
+            'Idempotency-Key' => 'confirm-resv-004-1',
+        ])->assertOk()->assertJsonCount(1, 'data.outbound_document_ids');
+
+        // Toa thứ hai cùng số toa (checksum khác vì thêm ghi chú) phải bị chặn.
+        $second = $this->postJson('/api/v1/outbound-request-imports', [
+            'rows' => [$row + ['note' => 'phát hành lại']],
         ], $headers);
-        $winner->assertCreated();
-        $winnerDocumentId = (string) $winner->json('data.id');
+        $second->assertCreated()->assertJsonPath('data.import.status', 'REJECTED');
+        $secondImportId = (string) $second->json('data.import.id');
+        $this->postJson("/api/v1/outbound-request-imports/{$secondImportId}/confirm", [], $headers + [
+            'If-Match' => (string) ((int) $second->json('data.import.version')),
+            'Idempotency-Key' => 'confirm-resv-004-2',
+        ])->assertStatus(409)->assertJsonPath('error.code', 'IMPORT_HAS_BLOCKING_ERRORS');
 
-        $loser = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $this->warehouseFixture('KHO-RESV-004-B')->id,
-            'outbound_request_id' => $requestId,
-        ], $headers);
-        $loser->assertStatus(409)->assertJsonPath('error.code', 'OUTBOUND_REQUEST_ALREADY_USED');
-
-        $activeDocuments = DB::table('stock_documents')
-            ->where('outbound_request_id', $requestId)
-            ->whereIn('status', ['DRAFT', 'SCANNING', 'POSTED'])
-            ->count();
-        $this->assertSame(1, $activeDocuments, 'Toa chỉ được có đúng 1 document active dù có 2 request tạo cùng lúc.');
-        $this->assertDatabaseHas('stock_documents', ['id' => $winnerDocumentId, 'outbound_request_id' => $requestId]);
-        $this->assertDatabaseHas('outbound_requests', ['id' => $requestId, 'status' => 'CONSUMED']);
+        $this->assertSame(
+            1,
+            DB::table('outbound_requests')->where('request_no', 'TOA-RESV-004')->count(),
+            'Số toa là duy nhất — không được tạo toa thứ hai.'
+        );
+        $this->assertSame(
+            1,
+            DB::table('stock_documents')->where('doc_type', 'issue')->count(),
+            'Toa chỉ được có đúng 1 phiếu xuất.'
+        );
     }
 
     /**
@@ -229,12 +234,9 @@ class Wwhn199ReservationConcurrencyGuardTest extends TestCase
         $itemId = $this->seedItemInStock($sku->sku_id);
 
         $requestA = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-RESV-A-005');
-        $docA = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestA,
-        ], $headers)->assertCreated();
-        $documentAId = (string) $docA->json('data.id');
-        $lineAId = (string) $docA->json('data.lines.0.id');
+        $docA = $this->outboundDocumentFixture((string) $warehouse->id, $requestA);
+        $documentAId = $docA['document_id'];
+        $lineAId = $docA['line_ids'][0];
 
         $scanA = $this->postJson("/api/v1/outbound-documents/{$documentAId}/scan", [
             'line_id' => $lineAId,
@@ -248,12 +250,9 @@ class Wwhn199ReservationConcurrencyGuardTest extends TestCase
         ], $headers + ['If-Match' => (string) $scanA->json('data.version')])->assertOk()->assertJsonPath('data.status', 'REMOVED');
 
         $requestB = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-RESV-B-005');
-        $docB = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestB,
-        ], $headers)->assertCreated();
-        $documentBId = (string) $docB->json('data.id');
-        $lineBId = (string) $docB->json('data.lines.0.id');
+        $docB = $this->outboundDocumentFixture((string) $warehouse->id, $requestB);
+        $documentBId = $docB['document_id'];
+        $lineBId = $docB['line_ids'][0];
 
         $this->postJson("/api/v1/outbound-documents/{$documentBId}/scan", [
             'line_id' => $lineBId,

@@ -106,11 +106,16 @@ class WarrantyReadinessTest extends TestCase
             ->assertJsonPath('data.version', 1)
             ->assertJsonPath('data.stock_effect', 'NONE');
 
-        // Thiếu Idempotency-Key -> 428 trước mọi hiệu ứng ghi.
+        // Annex C transitionWarrantyStatus không khai Idempotency-Key nên thiếu header
+        // này KHÔNG được 428; If-Match mới là precondition bắt buộc (test bên dưới).
+        // Dùng trạng thái trung gian rồi quay lại để phần lifecycle sau vẫn từ RECEIVED.
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
-            'status' => 'CHECKING',
-        ], $headers + ['If-Match' => '1'])->assertStatus(428)
-            ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
+            'accessories_received' => 'Pin 20V, sac',
+        ], $headers + ['If-Match' => '1'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'RECEIVED')
+            ->assertJsonPath('data.version', 2)
+            ->assertJsonPath('data.stock_effect', 'NONE');
 
         // Thiếu If-Match -> 428 (optimistic concurrency bắt buộc).
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
@@ -121,24 +126,24 @@ class WarrantyReadinessTest extends TestCase
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'CHECKING',
             'description' => 'Dang kiem tra',
-        ], $headers + $this->idem() + ['If-Match' => '1'])
+        ], $headers + $this->idem() + ['If-Match' => '2'])
             ->assertOk()
             ->assertJsonPath('data.status', 'CHECKING')
-            ->assertJsonPath('data.version', 2);
+            ->assertJsonPath('data.version', 3);
 
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'REPAIRING',
-        ], $headers + $this->idem() + ['If-Match' => '1'])
+        ], $headers + $this->idem() + ['If-Match' => '2'])
             ->assertStatus(412)
             ->assertJsonPath('error.code', 'STALE_VERSION');
 
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
             'status' => 'COMPLETED',
-        ], $headers + $this->idem() + ['If-Match' => '2'])
+        ], $headers + $this->idem() + ['If-Match' => '3'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'INVALID_WARRANTY_TRANSITION');
 
-        $version = 2;
+        $version = 3;
         foreach (['REPAIRING', 'COMPLETED', 'RETURNED'] as $target) {
             $response = $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
                 'status' => $target,

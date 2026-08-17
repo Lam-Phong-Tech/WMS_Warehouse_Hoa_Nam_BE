@@ -4764,63 +4764,6 @@
                         "bearerAuth": []
                     }
                 ]
-            },
-            "post": {
-                "tags": [
-                    "10. Stock Out (Outbound)"
-                ],
-                "summary": "Tạo phiếu xuất mới",
-                "operationId": "post_api_v1_outbound__documents",
-                "parameters": [],
-                "requestBody": {
-                    "required": false,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "example": {},
-                                "additionalProperties": true
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Thành công"
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền truy cập"
-                    },
-                    "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
-                    },
-                    "409": {
-                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
-                    },
-                    "412": {
-                        "description": "Điều kiện If-Match không đạt"
-                    },
-                    "422": {
-                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
-                    },
-                    "428": {
-                        "description": "Thiếu điều kiện If-Match bắt buộc"
-                    },
-                    "500": {
-                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
             }
         },
         "/api/v1/outbound-documents/{id}": {
@@ -4840,72 +4783,6 @@
                         }
                     }
                 ],
-                "responses": {
-                    "200": {
-                        "description": "Thành công"
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng"
-                    },
-                    "401": {
-                        "description": "Chưa xác thực"
-                    },
-                    "403": {
-                        "description": "Không có quyền truy cập"
-                    },
-                    "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
-                    },
-                    "409": {
-                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
-                    },
-                    "412": {
-                        "description": "Điều kiện If-Match không đạt"
-                    },
-                    "422": {
-                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
-                    },
-                    "428": {
-                        "description": "Thiếu điều kiện If-Match bắt buộc"
-                    },
-                    "500": {
-                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
-                    }
-                },
-                "security": [
-                    {
-                        "bearerAuth": []
-                    }
-                ]
-            },
-            "patch": {
-                "tags": [
-                    "10. Stock Out (Outbound)"
-                ],
-                "summary": "Cập nhật phiếu xuất",
-                "operationId": "patch_api_v1_outbound__documents_id",
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": false,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "example": {},
-                                "additionalProperties": true
-                            }
-                        }
-                    }
-                },
                 "responses": {
                     "200": {
                         "description": "Thành công"

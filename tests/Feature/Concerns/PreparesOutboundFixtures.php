@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Concerns;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -28,7 +29,7 @@ trait PreparesOutboundFixtures
     {
         if (DB::table('permission')->count() === 0) {
             $this->seed(AuthDatabaseSeeder::class);
-            \Illuminate\Support\Facades\Cache::flush();
+            Cache::flush();
         }
 
         $role = Role::where('role_code', $roleCode)->firstOrFail();
@@ -266,6 +267,68 @@ trait PreparesOutboundFixtures
     }
 
     /**
+     * SRS §8.1: "no direct POST /outbound-documents create operation" — phiếu xuất chỉ
+     * sinh từ Confirm toa. Test dựng thẳng phiếu DRAFT ở tầng DB đúng như
+     * consumeOutboundRequestImport tạo ra, thay vì gọi endpoint đã bị gỡ.
+     *
+     * @return array{document_id: string, line_ids: array<int,string>}
+     */
+    private function outboundDocumentFixture(string $warehouseId, string $requestId): array
+    {
+        $request = DB::table('outbound_requests')->where('id', $requestId)->first();
+        $actorId = (string) (auth('api')->id() ?? DB::table('app_user')->value('user_id'));
+        $documentId = (string) Str::uuid();
+        DB::table('stock_documents')->insert([
+            'id' => $documentId,
+            'doc_type' => 'issue',
+            'doc_no' => 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6)),
+            'doc_date' => now()->toDateString(),
+            'status' => 'DRAFT',
+            'src_warehouse_id' => $warehouseId,
+            'dst_warehouse_id' => null,
+            'outbound_request_id' => $requestId,
+            'agency_id' => $request->agency_id ?? null,
+            'recipient_name' => (string) ($request->customer_name ?? $request->recipient_name ?? 'Đại lý test'),
+            'recipient_address' => $request->customer_address ?? $request->recipient_address ?? null,
+            'version' => 1,
+            'created_by' => $actorId,
+            'updated_by' => $actorId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $lineIds = [];
+        $requestLines = DB::table('outbound_request_lines')
+            ->where('outbound_request_id', $requestId)
+            ->orderBy('line_no')
+            ->get();
+        foreach ($requestLines as $index => $requestLine) {
+            $lineId = (string) Str::uuid();
+            DB::table('stock_document_lines')->insert([
+                'id' => $lineId,
+                'stock_document_id' => $documentId,
+                'outbound_request_line_id' => $requestLine->id,
+                'line_no' => $index + 1,
+                'product_id' => $requestLine->sku_id,
+                'qty_planned' => (int) $requestLine->required_qty,
+                'qty_actual' => (int) $requestLine->required_qty,
+                'scanned_qty' => 0,
+                'version' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $lineIds[] = $lineId;
+        }
+
+        DB::table('outbound_requests')->where('id', $requestId)->update([
+            'status' => 'CONSUMED',
+            'updated_at' => now(),
+        ]);
+
+        return ['document_id' => $documentId, 'line_ids' => $lineIds];
+    }
+
+    /**
      * Dựng 1 outbound document đã SCANNING đầy đủ (đã match item, RFID, label PRINTED),
      * sẵn sàng Post Issue — dùng cho test concurrency/audit không cần lặp lại toàn bộ setup.
      */
@@ -276,12 +339,9 @@ trait PreparesOutboundFixtures
         $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-'.Str::upper(Str::random(6)));
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers);
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
 
         $itemId = $this->seedItemInStock($sku->sku_id);
         $this->seedRfidCode($itemId);

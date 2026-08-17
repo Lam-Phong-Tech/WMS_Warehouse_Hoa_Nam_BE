@@ -212,26 +212,8 @@ class WmsContractController extends Controller
         ]);
     }
 
-    #[OA\Get(
-        path: '/api/v1/stocktake/sessions',
-        operationId: 'wms_stocktake_sessions',
-        summary: 'List stocktake sessions',
-        security: [['bearerAuth' => []]],
-        tags: ['07. Inventory'],
-        parameters: [
-            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
-            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Paginated stocktake sessions'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing inventory.view permission'),
-        ]
-    )]
-    public function stocktakeSessions(Request $request)
-    {
-        return $this->tablePage($request, 'stocktake_sessions', 'created_at');
-    }
+    // REQ-SRS-037 / DEC-NO-STOCKTAKE-001: không expose Stocktake/Variance ở bất kỳ
+    // lớp nào, kể cả OpenAPI document. Handler + OA path đã được gỡ khỏi baseline.
 
     #[OA\Get(
         path: '/api/v1/reversal-documents',

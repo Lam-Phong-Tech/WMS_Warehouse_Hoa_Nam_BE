@@ -8,6 +8,7 @@ use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -33,14 +34,19 @@ class AlignedWarrantyReportController extends Controller
     {
         $includePii = (bool) $request->user()?->hasPermission('warranty.pii.export');
         $report = $this->build($request, $includePii);
-        $headers = ['Case', 'Nhận diện', 'SKU/Model', 'Bệnh/lỗi', 'Linh kiện đã xuất', 'Trạng thái', 'Ngày nhận', 'Ngày cập nhật'];
+        $headers = [
+            'Case', 'Nhận diện', 'SKU/Model', 'Bệnh/lỗi', 'Linh kiện đã xuất', 'Trạng thái',
+            'Ngày mua', 'Ngày nhận', 'Ngày trả khách', 'Turnaround (ngày)', 'Ngày cập nhật',
+        ];
         if ($includePii) {
             $headers = array_merge($headers, ['Khách hàng', 'SĐT', 'Địa chỉ']);
         }
         $rows = array_map(function (array $row) use ($includePii): array {
             $result = [
                 $row['case_no'], $row['identification_status'], $row['model'], $row['defect'],
-                $row['components_issued'], $row['status'], $row['received_at'], $row['updated_at'],
+                $row['components_issued'], $row['status'], $row['purchase_date'] ?? '',
+                $row['received_at'], $row['returned_at'] ?? '', $row['turnaround_days'] ?? '',
+                $row['updated_at'],
             ];
             if ($includePii) {
                 $result = array_merge($result, [
@@ -55,9 +61,27 @@ class AlignedWarrantyReportController extends Controller
         $format = strtolower((string) $request->query('format', 'xlsx'));
         $this->auditExport($request, count($rows), $includePii, $format);
 
+        // BR-EXP-03: tên file phải có timestamp để không ghi đè lần export trước.
+        $stem = sprintf(
+            'bao-cao-bao-hanh-%s-den-%s-%s',
+            $report['period']['from_date'],
+            $report['period']['to_date'],
+            now()->format('Ymd-His')
+        );
+
         return $format === 'pdf'
-            ? $this->pdf($headers, $rows, 'bao-cao-bao-hanh.pdf')
-            : $this->xlsx($headers, $rows, 'bao-cao-bao-hanh.xlsx');
+            ? $this->pdf($headers, $rows, "{$stem}.pdf")
+            : $this->xlsx($headers, $rows, "{$stem}.xlsx");
+    }
+
+    /** §13.10 RPT-WAR-01 "turnaround": số ngày từ tiếp nhận tới trả khách/hoàn tất sửa. */
+    private function turnaroundDays(string $receivedAt, mixed $closedAt): ?int
+    {
+        if ($receivedAt === '' || $closedAt === null || (string) $closedAt === '') {
+            return null;
+        }
+
+        return Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt));
     }
 
     private function build(Request $request, bool $includePii): array
@@ -68,6 +92,8 @@ class AlignedWarrantyReportController extends Controller
             'status' => ['nullable', 'in:'.implode(',', self::ALL_STATUSES)],
             'defect_id' => ['nullable', 'uuid'],
             'identification_status' => ['nullable', 'in:IDENTIFIED,TEMP_ONLY'],
+            // §13.10 RPT-WAR-01 filters: date, model, defect, status.
+            'model' => ['nullable', 'string', 'max:200'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -77,17 +103,29 @@ class AlignedWarrantyReportController extends Controller
         $query = DB::table('warranty_case as wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->leftJoin('defect_catalogs as d', 'd.defect_id', '=', 'wc.defect_id')
-            ->whereBetween('wc.created_at', ["{$from} 00:00:00", "{$to} 23:59:59"]);
+            // §13.10 "event timestamps Asia/Ho_Chi_Minh" + cột "received": kỳ báo cáo
+            // phải chạy theo ngày tiếp nhận thực tế, không phải created_at của bản ghi.
+            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
         foreach (['status', 'defect_id', 'identification_status'] as $filter) {
             if (! empty($validated[$filter])) {
                 $query->where("wc.{$filter}", $validated[$filter]);
             }
         }
+        if (! empty($validated['model'])) {
+            $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $model = '%'.$validated['model'].'%';
+            $query->where(function ($nested) use ($operator, $model): void {
+                $nested->where('s.sku_code', $operator, $model)
+                    ->orWhere('s.sku_name', $operator, $model)
+                    ->orWhere('wc.manual_product_description', $operator, $model);
+            });
+        }
 
-        $cases = $query->orderByDesc('wc.created_at')->get([
+        $cases = $query->orderByDesc(DB::raw('COALESCE(wc.received_at, wc.created_at)'))->get([
             'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status', 'wc.status',
             'wc.created_at', 'wc.updated_at', 'wc.temporary_item_code', 'wc.customer_name',
-            'wc.customer_phone', 'wc.customer_address', 's.sku_code', 'd.defect_code', 'd.defect_name',
+            'wc.customer_phone', 'wc.customer_address', 'wc.purchase_date', 'wc.received_at',
+            'wc.completed_at', 'wc.returned_at', 's.sku_code', 'd.defect_code', 'd.defect_name',
         ]);
 
         $caseIds = $cases->pluck('warranty_case_id')->all();
@@ -107,6 +145,7 @@ class AlignedWarrantyReportController extends Controller
             $issued = collect($issuedByCase->get((string) $case->warranty_case_id) ?? [])
                 ->map(fn (object $item): string => "{$item->sku_code} × ".(int) $item->issued_qty)
                 ->implode('; ');
+            $receivedAt = (string) ($case->received_at ?? $case->created_at);
             $row = [
                 'warranty_case_id' => (string) $case->warranty_case_id,
                 'case_no' => (string) $case->warranty_case_code,
@@ -116,7 +155,11 @@ class AlignedWarrantyReportController extends Controller
                 'defect' => $case->defect_code !== null ? trim("{$case->defect_code} · {$case->defect_name}") : 'Chưa phân loại',
                 'components_issued' => $issued !== '' ? $issued : 'Chưa xuất',
                 'status' => (string) $case->status,
-                'received_at' => (string) $case->created_at,
+                // §13.10 RPT-WAR-01 columns: received/returned + turnaround; purchase_date optional.
+                'purchase_date' => $case->purchase_date,
+                'received_at' => $receivedAt,
+                'returned_at' => $case->returned_at,
+                'turnaround_days' => $this->turnaroundDays($receivedAt, $case->returned_at ?? $case->completed_at),
                 'updated_at' => (string) ($case->updated_at ?? $case->created_at),
             ];
             if ($includePii) {

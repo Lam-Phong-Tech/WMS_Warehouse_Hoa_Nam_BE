@@ -7,6 +7,7 @@ use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\WarrantyPiiMasker;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
@@ -22,6 +23,15 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         'CANCELLED' => [],
     ];
 
+    /** §6: hai trạng thái không còn transition nào — case đóng, dữ liệu chỉ đọc. */
+    private const TERMINAL_STATUSES = ['RETURNED', 'CANCELLED'];
+
+    /** §13.8: PII bảo hành giữ 5 năm sau khi đóng case. */
+    public const PII_RETENTION_YEARS = 5;
+
+    /** §13.8: các cột PII bị anonymize khi hết hạn lưu trữ. */
+    public const PII_COLUMNS = ['customer_name', 'customer_phone', 'customer_address'];
+
     /** ERD §46: event_type RECEIVE/CHECK/REPAIR/COMPLETE/RETURN/CANCEL/NOTE. */
     private const STATUS_EVENT_TYPES = [
         'RECEIVED' => 'RECEIVE',
@@ -34,7 +44,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
     public function storeWarrantyCase(Request $request)
     {
-        $idempotencyKey = IdempotencyKeyGuard::require($request);
+        // Annex C createWarrantyCase: cột Idempotency/If-Match = "-" và §8.1 nhóm
+        // Warranty không liệt kê 428 -> header là tùy chọn, có thì vẫn replay.
+        $idempotencyKey = IdempotencyKeyGuard::optional($request);
         $validated = $request->validate([
             'warranty_case_code' => ['nullable', 'string', 'max:80'],
             'case_no' => ['nullable', 'string', 'max:80'],
@@ -55,17 +67,21 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'manual_product_description' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        [$code, $body, $replay] = IdempotencyStore::handle(
-            $idempotencyKey,
-            'create_warranty_case',
-            $this->currentActorId(),
-            IdempotencyStore::requestHash($request),
-            function () use ($validated, $request): array {
-                $caseId = $this->createWarrantyCase($validated, $request);
+        $execute = function () use ($validated, $request): array {
+            $caseId = $this->createWarrantyCase($validated, $request);
 
-                return [201, $this->caseEnvelope($caseId, $request, 'Warranty case received; stock_effect=NONE.')];
-            }
-        );
+            return [201, $this->caseEnvelope($caseId, $request, 'Warranty case received; stock_effect=NONE.')];
+        };
+
+        [$code, $body, $replay] = $idempotencyKey === null
+            ? [...$execute(), false]
+            : IdempotencyStore::handle(
+                $idempotencyKey,
+                'create_warranty_case',
+                $this->currentActorId(),
+                IdempotencyStore::requestHash($request),
+                $execute
+            );
 
         return response()->json($body, $code)
             ->header('Idempotent-Replay', $replay ? 'true' : 'false')
@@ -184,7 +200,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
     public function updateWarrantyCase(Request $request, string $id)
     {
-        $idempotencyKey = IdempotencyKeyGuard::require($request);
+        // Annex C transitionWarrantyStatus khai duy nhất If-Match; Idempotency-Key là
+        // tùy chọn (xem storeWarrantyCase). If-Match vẫn bắt buộc -> 428 nếu thiếu.
+        $idempotencyKey = IdempotencyKeyGuard::optional($request);
         $validated = $request->validate([
             'status' => ['sometimes', 'in:RECEIVED,CHECKING,REPAIRING,COMPLETED,RETURNED,CANCELLED'],
             'condition_status' => ['nullable', 'string', 'max:30'],
@@ -196,25 +214,49 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'accessories_received' => ['nullable', 'string', 'max:1000'],
             'received_condition' => ['nullable', 'string', 'max:500'],
             'cancel_reason' => ['nullable', 'string', 'max:1000'],
+            // Annex D SCR-WAR-01 không giới hạn các field dưới đây ở bước tạo:
+            // defect phải sửa được khi CHECKING kết luận khác, và PII sai lúc tiếp
+            // nhận phải sửa được thay vì mở case mới.
+            'defect_id' => ['nullable', 'uuid'],
+            'defect_code' => ['nullable', 'string', 'max:80'],
+            'customer_name' => ['sometimes', 'string', 'max:200'],
+            'customer_phone' => ['sometimes', 'string', 'max:30'],
+            'customer_address' => ['nullable', 'string', 'max:500'],
+            'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
         ]);
         if ($validated === []) {
-            ApiError::abort(422, 'EMPTY_UPDATE', 'Phải gửi status hoặc description để cập nhật.');
+            ApiError::abort(422, 'EMPTY_UPDATE', 'Phải gửi ít nhất một field để cập nhật.');
+        }
+        // §13.8: không cho ghi đè PII khi actor chỉ thấy giá trị đã mask — nếu không,
+        // một lần submit form sẽ lưu chính chuỗi mask lên dữ liệu thật.
+        $piiFields = array_values(array_intersect(
+            ['customer_name', 'customer_phone', 'customer_address'],
+            array_keys($validated)
+        ));
+        if ($piiFields !== [] && ! $request->user()?->hasPermission('warranty.pii.view')) {
+            ApiError::abort(403, 'PERMISSION_DENIED', 'Sửa thông tin khách hàng cần quyền warranty.pii.view.', [
+                'fields' => $piiFields,
+            ]);
         }
         $expectedVersion = $this->expectedVersion($request);
 
         // Replay cùng key trả lại snapshot đã commit; version check (412) chỉ chạy
         // cho lần thực thi đầu tiên nên retry sau khi thành công không bị 412 giả.
-        [$code, $body, $replay] = IdempotencyStore::handle(
-            $idempotencyKey,
-            "update_warranty_case_{$id}",
-            $this->currentActorId(),
-            IdempotencyStore::requestHash($request),
-            function () use ($id, $validated, $expectedVersion, $request): array {
-                $this->applyWarrantyCaseUpdate($id, $validated, $expectedVersion, $request);
+        $execute = function () use ($id, $validated, $expectedVersion, $request): array {
+            $this->applyWarrantyCaseUpdate($id, $validated, $expectedVersion, $request);
 
-                return [200, $this->caseEnvelope($id, $request, 'Warranty case updated; stock_effect=NONE.')];
-            }
-        );
+            return [200, $this->caseEnvelope($id, $request, 'Warranty case updated; stock_effect=NONE.')];
+        };
+
+        [$code, $body, $replay] = $idempotencyKey === null
+            ? [...$execute(), false]
+            : IdempotencyStore::handle(
+                $idempotencyKey,
+                "update_warranty_case_{$id}",
+                $this->currentActorId(),
+                IdempotencyStore::requestHash($request),
+                $execute
+            );
 
         return response()->json($body, $code)
             ->header('Idempotent-Replay', $replay ? 'true' : 'false')
@@ -234,16 +276,29 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'current_version' => (int) $case->version,
                 ]);
             }
+            // §6: RETURNED/CANCELLED là terminal. Nếu chỉ chặn transition thì request
+            // không kèm `status` vẫn ghi được confirmed_defect/PII lên case đã đóng.
+            if (in_array((string) $case->status, self::TERMINAL_STATUSES, true)) {
+                ApiError::abort(409, 'STATE_CONFLICT', 'Case bảo hành đã ở trạng thái terminal; không được cập nhật.', [
+                    'current_status' => (string) $case->status,
+                    'terminal_statuses' => self::TERMINAL_STATUSES,
+                ]);
+            }
 
             $target = (string) ($validated['status'] ?? $case->status);
             if ($target !== $case->status && ! in_array($target, self::TRANSITIONS[$case->status] ?? [], true)) {
                 ApiError::abort(409, 'INVALID_WARRANTY_TRANSITION', "Không cho phép {$case->status} -> {$target}.");
             }
 
+            $defect = $this->resolveDefect($validated);
+
             $cancelReason = trim((string) ($validated['cancel_reason'] ?? $validated['note'] ?? $validated['description'] ?? ''));
             if ($target === 'CANCELLED' && $case->status !== 'CANCELLED' && $cancelReason === '') {
                 ApiError::abort(422, 'CANCEL_REASON_REQUIRED', 'Hủy case bảo hành bắt buộc có lý do/bằng chứng.');
             }
+
+            $closing = in_array($target, self::TERMINAL_STATUSES, true);
+            $closedAt = $closing ? ($case->closed_at ?? now()) : $case->closed_at;
 
             DB::table('warranty_case')->where('warranty_case_id', $id)->update([
                 'status' => $target,
@@ -252,11 +307,25 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'confirmed_defect' => $validated['confirmed_defect'] ?? ($case->confirmed_defect ?? null),
                 'accessories_received' => $validated['accessories_received'] ?? ($case->accessories_received ?? null),
                 'received_condition' => $validated['received_condition'] ?? ($case->received_condition ?? null),
+                'defect_id' => $defect !== null ? $defect->defect_id : $case->defect_id,
+                'customer_name' => $validated['customer_name'] ?? $case->customer_name,
+                'customer_phone' => $validated['customer_phone'] ?? $case->customer_phone,
+                'customer_address' => array_key_exists('customer_address', $validated)
+                    ? $validated['customer_address']
+                    : ($case->customer_address ?? null),
+                'purchase_date' => array_key_exists('purchase_date', $validated)
+                    ? $validated['purchase_date']
+                    : ($case->purchase_date ?? null),
                 'cancel_reason' => $target === 'CANCELLED' ? ($cancelReason ?: ($case->cancel_reason ?? null)) : ($case->cancel_reason ?? null),
                 'completed_at' => $target === 'COMPLETED' && $case->status !== 'COMPLETED' ? now() : ($case->completed_at ?? null),
                 'returned_at' => $target === 'RETURNED' && $case->status !== 'RETURNED' ? now() : ($case->returned_at ?? null),
                 'version' => $expectedVersion + 1,
-                'closed_at' => in_array($target, ['RETURNED', 'CANCELLED'], true) ? now() : $case->closed_at,
+                'closed_at' => $closedAt,
+                // §13.8: PII giữ 5 năm sau khi đóng case rồi anonymize/purge. Mốc phải
+                // được chốt ngay lúc đóng để job purge (warranty:purge-pii) có căn cứ.
+                'retention_until' => $closing
+                    ? Carbon::parse((string) $closedAt)->addYears(self::PII_RETENTION_YEARS)
+                    : ($case->retention_until ?? null),
                 'updated_at' => now(),
             ]);
 
@@ -291,6 +360,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ]);
             }
 
+            // §13.8: audit ghi metadata thay đổi, KHÔNG ghi giá trị PII thật vào log.
+            $changedFields = array_values(array_diff(array_keys($validated), ['note']));
+
             AuditLogger::record(
                 action: 'WARRANTY_STATUS_CHANGE',
                 objectType: 'warranty_case',
@@ -298,7 +370,13 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 actorId: $this->currentActorId(),
                 requestId: $request->attributes->get('request_id'),
                 beforeData: ['status' => $case->status, 'version' => $case->version],
-                afterData: ['status' => $target, 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'],
+                afterData: [
+                    'status' => $target,
+                    'version' => $expectedVersion + 1,
+                    'changed_fields' => $changedFields,
+                    'pii_fields_changed' => array_values(array_intersect($changedFields, self::PII_COLUMNS)),
+                    'stock_effect' => 'NONE',
+                ],
             );
         }, 3);
     }
@@ -442,6 +520,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'cancel_reason' => $case->cancel_reason ?? null,
             'version' => (int) $case->version,
             'legal_hold_flag' => (bool) $case->legal_hold_flag,
+            'retention_until' => $case->retention_until ?? null,
+            'pii_masked' => ! (bool) $request->user()?->hasPermission('warranty.pii.view'),
             'created_by' => $case->created_by,
             'created_at' => $case->created_at,
             'updated_at' => $case->updated_at,

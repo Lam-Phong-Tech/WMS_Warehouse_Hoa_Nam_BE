@@ -124,35 +124,20 @@ class StockMovementController extends Controller
         $request->validate(['code' => ['required', 'string', 'max:200']]);
         $codeValue = trim((string) $request->input('code'));
 
-        $physicalCode = DB::table('physical_codes')
-            ->where('code_value', $codeValue)
-            ->orWhere('hardware_uid', $codeValue)
-            ->first();
-
-        if (! $physicalCode) {
-            return $this->respondNotFound('Không tìm thấy mã vật lý.');
+        $resolution = $this->resolveTraceTarget($codeValue);
+        if ($resolution === null) {
+            return $this->respondNotFound('Không tìm thấy mã tra cứu (physical code / item / container / SKU).');
         }
 
+        [$resolvedType, $resolvedId, $physicalCode, $resolvedBy] = $resolution;
         $resolvedObject = null;
-        $resolvedType = null;
-        $resolvedId = null;
-
-        if ($physicalCode->item_id) {
-            $resolvedType = 'ITEM';
-            $resolvedId = $physicalCode->item_id;
-        } elseif ($physicalCode->container_id) {
-            $resolvedType = 'CONTAINER';
-            $resolvedId = $physicalCode->container_id;
-        } elseif ($physicalCode->assigned_object_type && $physicalCode->assigned_object_id) {
-            $resolvedType = $physicalCode->assigned_object_type;
-            $resolvedId = $physicalCode->assigned_object_id;
-        }
 
         if (! $resolvedType || ! $resolvedId) {
             return $this->respondSuccess([
                 'physical_code' => $physicalCode,
                 'resolved_type' => null,
                 'resolved_id' => null,
+                'resolved_by' => $resolvedBy,
                 'resolved_object' => null,
                 'movements' => [],
                 'container_items' => [],
@@ -233,10 +218,89 @@ class StockMovementController extends Controller
             'physical_code' => $physicalCode,
             'resolved_type' => $resolvedType,
             'resolved_id' => $resolvedId,
+            'resolved_by' => $resolvedBy,
             'resolved_object' => $resolvedObject,
             'movements' => $movements,
             'container_items' => $containerItems,
         ]);
+    }
+
+    /**
+     * REQ-SRS-030 / BR-TRACE-01..06: truy vết "theo SKU/item/carton/box/tray/code".
+     * Mã người dùng nhập ở TRACE-01 có thể là physical code (barcode/QR/RFID), item
+     * code, serial, mã container (carton/box/tray) hoặc mã SKU — resolver phải thử đủ
+     * bốn nguồn thay vì chỉ physical_codes, nếu không item chưa gán tem sẽ trả 404.
+     *
+     * So khớp không phân biệt hoa thường: physical_codes.code_value được chuẩn hoá
+     * strtoupper lúc gán nên so sánh nguyên văn sẽ trượt khi người dùng gõ thường.
+     *
+     * @return array{0: ?string, 1: ?string, 2: ?object, 3: string}|null
+     */
+    private function resolveTraceTarget(string $codeValue): ?array
+    {
+        $needle = mb_strtolower($codeValue);
+
+        $physicalCode = DB::table('physical_codes')
+            ->where(function ($query) use ($needle): void {
+                $query->whereRaw('LOWER(CAST(code_value AS TEXT)) = ?', [$needle])
+                    ->orWhereRaw('LOWER(CAST(hardware_uid AS TEXT)) = ?', [$needle]);
+            })
+            ->first();
+
+        if ($physicalCode !== null) {
+            if ($physicalCode->item_id) {
+                return ['ITEM', (string) $physicalCode->item_id, $physicalCode, 'physical_code'];
+            }
+            if ($physicalCode->container_id) {
+                return ['CONTAINER', (string) $physicalCode->container_id, $physicalCode, 'physical_code'];
+            }
+            if ($physicalCode->assigned_object_type && $physicalCode->assigned_object_id) {
+                return [
+                    (string) $physicalCode->assigned_object_type,
+                    (string) $physicalCode->assigned_object_id,
+                    $physicalCode,
+                    'physical_code',
+                ];
+            }
+
+            return [null, null, $physicalCode, 'physical_code'];
+        }
+
+        $item = DB::table('item_instances')
+            ->where(function ($query) use ($needle): void {
+                $query->whereRaw('LOWER(CAST(item_code AS TEXT)) = ?', [$needle])
+                    ->orWhereRaw('LOWER(CAST(serial_number AS TEXT)) = ?', [$needle]);
+            })
+            ->first();
+        if ($item !== null) {
+            return ['ITEM', (string) $item->item_id, $this->primaryPhysicalCodeOfItem((string) $item->item_id), 'item_code'];
+        }
+
+        $container = DB::table('containers')
+            ->whereRaw('LOWER(CAST(container_code AS TEXT)) = ?', [$needle])
+            ->first();
+        if ($container !== null) {
+            return ['CONTAINER', (string) $container->container_id, null, 'container_code'];
+        }
+
+        $sku = DB::table('sku')
+            ->whereRaw('LOWER(CAST(sku_code AS TEXT)) = ?', [$needle])
+            ->first();
+        if ($sku !== null) {
+            return ['SKU', (string) $sku->sku_id, null, 'sku_code'];
+        }
+
+        return null;
+    }
+
+    private function primaryPhysicalCodeOfItem(string $itemId): ?object
+    {
+        return DB::table('physical_codes')
+            ->where('assigned_object_type', 'ITEM')
+            ->where('assigned_object_id', $itemId)
+            ->orderByDesc('is_primary')
+            ->orderByDesc('assigned_at')
+            ->first();
     }
 
     /**
@@ -270,7 +334,6 @@ class StockMovementController extends Controller
     {
         $query = DB::table('stock_movements')
             ->leftJoin('warehouses', 'stock_movements.warehouse_id', '=', 'warehouses.id')
-            ->leftJoin('products', 'stock_movements.product_id', '=', 'products.id')
             ->leftJoin('stock_documents', 'stock_movements.stock_document_id', '=', 'stock_documents.id')
             ->leftJoin('sku', 'stock_movements.product_id', '=', 'sku.sku_id')
             ->whereIn('stock_movements.movement_type', ['RECEIPT', 'ISSUE'])
@@ -282,6 +345,7 @@ class StockMovementController extends Controller
                 'stock_movements.source_id',
                 'stock_movements.warehouse_id',
                 'stock_movements.product_id',
+                'stock_movements.stock_status',
                 'stock_movements.quantity',
                 'stock_movements.occurred_at',
                 'stock_movements.created_by',
@@ -289,20 +353,19 @@ class StockMovementController extends Controller
                 DB::raw('COALESCE(stock_documents.version, 1) AS version'),
                 'warehouses.name as warehouse_name',
                 'warehouses.code as warehouse_code',
-                'products.code as sku_code',
-                'products.name as sku_name',
-                'products.unit',
+                'sku.sku_code',
+                'sku.sku_name',
+                'sku.unit',
                 DB::raw('COALESCE(sku.is_serial_tracked, false) AS is_serial_tracked'),
             ])
             ->orderByDesc('stock_movements.occurred_at');
 
         if ($request->filled('search')) {
-            $keyword = '%'.$request->input('search').'%';
-            $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
-            $query->where(function ($q) use ($keyword, $operator) {
-                $q->where(DB::raw('CAST(stock_movements.movement_no AS TEXT)'), $operator, $keyword)
-                    ->orWhere(DB::raw('CAST(products.code AS TEXT)'), $operator, $keyword)
-                    ->orWhere(DB::raw('CAST(products.name AS TEXT)'), $operator, $keyword);
+            $keyword = '%'.mb_strtolower((string) $request->input('search')).'%';
+            $query->where(function ($q) use ($keyword) {
+                $q->whereRaw('LOWER(CAST(stock_movements.movement_no AS TEXT)) LIKE ?', [$keyword])
+                    ->orWhereRaw('LOWER(CAST(sku.sku_code AS TEXT)) LIKE ?', [$keyword])
+                    ->orWhereRaw('LOWER(CAST(sku.sku_name AS TEXT)) LIKE ?', [$keyword]);
             });
         }
 
@@ -331,6 +394,7 @@ class StockMovementController extends Controller
             ->all();
         $itemDependencyMap = $this->buildItemDependencyMap($serialDocIds);
         $itemCandidateMap = $this->buildItemCandidateMap($serialDocIds);
+        $availableByBucket = $this->buildAvailableByBucket(collect($movements->items()));
 
         $result = [];
         foreach ($movements->items() as $mv) {
@@ -345,6 +409,15 @@ class StockMovementController extends Controller
             $docDepGuard = null;
             if ($mv->is_serial_tracked && $mv->stock_document_id) {
                 $docDepGuard = $itemDependencyMap[$mv->stock_document_id] ?? null;
+            } elseif ($mv->movement_type === 'RECEIPT' && $reversibleQty > 0) {
+                // BR-REV-03/04 cho SKU quantity-mode: phần đã bị Issue/Component Issue
+                // tiêu thụ sau khi nhập không còn đảo trực tiếp được. Preflight phải nói
+                // đúng điều backend sẽ enforce, nếu không REV-01 hiện "Reversible" rồi
+                // Post mới 409.
+                $bucketKey = $this->bucketKey($mv->warehouse_id, $mv->product_id, $mv->stock_status);
+                if ((int) ($availableByBucket[$bucketKey] ?? 0) < $reversibleQty) {
+                    $docDepGuard = 'DOWNSTREAM_CONSUMPTION_EXISTS';
+                }
             }
 
             $canReverse = $reversibleQty > 0 && $docDepGuard === null;
@@ -441,6 +514,38 @@ class StockMovementController extends Controller
                 'serial_number' => $row->serial_number,
                 'item_status' => (string) $row->item_status,
             ];
+        }
+
+        return $map;
+    }
+
+    private function bucketKey(?string $warehouseId, ?string $skuId, ?string $stockStatus): string
+    {
+        return ($warehouseId ?? '').'|'.($skuId ?? '').'|'.($stockStatus ?: 'AVAILABLE');
+    }
+
+    /**
+     * Tồn khả dụng theo bucket (warehouse, sku, stock_status) cho các movement đang xét.
+     *
+     * @param  \Illuminate\Support\Collection<int, object>  $movements
+     * @return array<string, int>
+     */
+    private function buildAvailableByBucket($movements): array
+    {
+        $warehouseIds = $movements->pluck('warehouse_id')->filter()->unique()->all();
+        $skuIds = $movements->pluck('product_id')->filter()->unique()->all();
+        if ($warehouseIds === [] || $skuIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('inventory_balances')
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->whereIn('product_id', $skuIds)
+            ->get(['warehouse_id', 'product_id', 'stock_status', 'available_qty']);
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[$this->bucketKey($row->warehouse_id, $row->product_id, $row->stock_status)] = (int) $row->available_qty;
         }
 
         return $map;

@@ -113,8 +113,11 @@ class WarrantyController extends Controller
                     /** @var WarrantyCase $case */
                     $case = WarrantyCase::query()->lockForUpdate()->findOrFail($id);
 
-                    if (! in_array($case->status, [WarrantyCase::STATUS_RECEIVED, WarrantyCase::STATUS_WAITING_CHECK], true)) {
-                        ApiError::abort(409, 'STATE_CONFLICT', 'Phiếu phải ở trạng thái RECEIVED hoặc WAITING_CHECK để chuyển TEMP_ONLY.');
+                    // §6: case chỉ có RECEIVED/CHECKING/REPAIRING/COMPLETED/RETURNED/
+                    // CANCELLED. Chuyển sang TEMP_ONLY là sửa nhận diện lúc tiếp nhận
+                    // nên chỉ hợp lệ khi case chưa đi qua bước kiểm tra.
+                    if ($case->status !== WarrantyCase::STATUS_RECEIVED) {
+                        ApiError::abort(409, 'STATE_CONFLICT', 'Phiếu phải ở trạng thái RECEIVED để chuyển TEMP_ONLY.');
                     }
 
                     $this->assertLinkedSerialEligible($case);

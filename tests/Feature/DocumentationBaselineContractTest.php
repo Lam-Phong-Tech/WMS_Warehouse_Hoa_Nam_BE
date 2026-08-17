@@ -90,8 +90,9 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/inbound-documents/{id}/scan' => 'CurrentBaselineStockFlowController@inboundScan',
             'POST api/v1/inbound-documents/{id}/post-receipt' => 'CurrentBaselineStockFlowController@postReceipt',
             'POST api/v1/inbound-documents/{id}/reverse' => 'CurrentBaselineStockFlowController@reverseInbound',
-            'POST api/v1/outbound-documents' => 'CurrentBaselineDocumentController@storeOutbound',
-            'PATCH api/v1/outbound-documents/{id}' => 'CurrentBaselineDocumentController@updateOutbound',
+            // §8.1: "Confirm creates exactly one outbound DRAFT; no direct POST
+            // /outbound-documents create operation" — 2 route tạo/sửa phiếu xuất trực
+            // tiếp đã được gỡ khỏi API surface (xem test_removed_outbound_write_routes).
             'POST api/v1/outbound-documents/{id}/cancel' => 'CurrentBaselineDocumentController@cancelOutbound',
             'POST api/v1/outbound-documents/{id}/scan' => 'AlignedOutboundFlowController@outboundScan',
             'POST api/v1/outbound-documents/{id}/post-issue' => 'AlignedOutboundFlowController@postIssue',
@@ -126,6 +127,17 @@ class DocumentationBaselineContractTest extends TestCase
         }
     }
 
+    /**
+     * SRS §8.1 (Outbound request / Excel intake): "Confirm creates exactly one outbound
+     * DRAFT; no direct POST /outbound-documents create operation." Annex C không khai
+     * createOutboundDocument/updateOutboundDocument → 2 route này phải vắng mặt.
+     */
+    public function test_removed_outbound_write_routes_are_absent_from_api_surface(): void
+    {
+        $this->assertNull($this->findRoute('POST', 'api/v1/outbound-documents'));
+        $this->assertNull($this->findRoute('PATCH', 'api/v1/outbound-documents/{id}'));
+    }
+
     public function test_canonical_route_permissions_cover_core_mutations(): void
     {
         $expected = [
@@ -140,7 +152,9 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/outbound-documents/{id}/post-issue' => 'permission:outbound.post',
             'POST api/v1/inbound-documents/{id}/reverse' => 'permission:inventory.reversal.post',
             'POST api/v1/outbound-documents/{id}/reverse' => 'permission:inventory.reversal.post',
-            'POST api/v1/outbound-request-imports' => 'permission:outbound.import',
+            // Annex C importOutboundRequestExcel: outbound.request.import (giữ
+            // outbound.import legacy để không thu hồi quyền đang cấp).
+            'POST api/v1/outbound-request-imports' => 'permission:outbound.request.import|outbound.import',
             'POST api/v1/component-issue-documents/{id}/scan' => 'permission:warranty.component_issue',
             'POST api/v1/component-issue-documents/{id}/post' => 'permission:warranty.component_issue',
             'PATCH api/v1/warranty-cases/{id}' => 'permission:warranty.manage',

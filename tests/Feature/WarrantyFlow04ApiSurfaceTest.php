@@ -139,7 +139,9 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         $caseId = $this->createTempOnlyCase($headers);
 
         $upload = $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
-            'file' => UploadedFile::fake()->create('mat-truoc.jpg', 120, 'image/jpeg'),
+            // Phải là ảnh thật: §13.8 content-type check đọc magic bytes, nên fake file
+            // rỗng (application/x-empty) bị chặn giống file bị đổi tên phần mở rộng.
+            'file' => UploadedFile::fake()->image('mat-truoc.jpg'),
             'attachment_type' => 'INTAKE',
         ], $headers);
         $upload->assertCreated()

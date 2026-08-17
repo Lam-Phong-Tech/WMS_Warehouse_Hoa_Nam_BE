@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Modules\Warehouse\Support\MasterSelectionGuard;
 
 class CanonicalMvpController extends Controller
 {
@@ -238,76 +237,11 @@ class CanonicalMvpController extends Controller
         return $this->tablePage($request, 'component_issue_documents', 'created_at', [], ['warranty_case_id', 'warehouse_id']);
     }
 
-    public function storeComponentIssueDocument(Request $request)
-    {
-        $validated = $request->validate([
-            'component_issue_no' => ['nullable', 'string', 'max:80', 'unique:component_issue_documents,component_issue_no'],
-            'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
-            'warranty_case_id' => ['required', 'uuid', 'exists:warranty_case,warranty_case_id'],
-            'document_date' => ['required', 'date'],
-            'lines' => ['required', 'array', 'min:1'],
-            'lines.*.sku_id' => ['required', 'uuid', 'exists:sku,sku_id'],
-            'lines.*.required_qty' => ['required', 'integer', 'min:1'],
-        ]);
-
-        $case = DB::table('warranty_case')->where('warranty_case_id', $validated['warranty_case_id'])->first();
-        if ($case === null || in_array($case->status, ['COMPLETED', 'RETURNED', 'CANCELLED', 'CLOSED'], true)) {
-            ApiError::abort(422, 'WARRANTY_CASE_NOT_ACTIVE', 'Component issue requires an active warranty case.');
-        }
-
-        $id = (string) Str::uuid();
-        DB::transaction(function () use ($validated, $id): void {
-            DB::table('component_issue_documents')->insert($this->timestamps([
-                'id' => $id,
-                'component_issue_no' => $validated['component_issue_no'] ?? ('CID-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4))),
-                'warehouse_id' => $validated['warehouse_id'],
-                'warranty_case_id' => $validated['warranty_case_id'],
-                'document_date' => $validated['document_date'],
-                'status' => 'DRAFT',
-                'created_by' => $this->userId(),
-                'updated_by' => $this->userId(),
-                'version' => 0,
-            ]));
-
-            foreach (array_values($validated['lines']) as $index => $line) {
-                DB::table('component_issue_lines')->insert($this->timestamps([
-                    'id' => (string) Str::uuid(),
-                    'component_issue_document_id' => $id,
-                    'line_no' => $index + 1,
-                    'sku_id' => $line['sku_id'],
-                    'required_qty' => $line['required_qty'],
-                    'scanned_qty' => 0,
-                    'created_by' => $this->userId(),
-                    'updated_by' => $this->userId(),
-                    'version' => 0,
-                ]));
-            }
-        });
-
-        return $this->respondCreated($this->componentIssuePayload($id), 'Component issue document created.');
-    }
-
-    public function postComponentIssueDocument(Request $request, string $id)
-    {
-        IdempotencyKeyGuard::require($request);
-        $doc = DB::table('component_issue_documents')->where('id', $id)->first();
-        if ($doc === null) {
-            return $this->respondNotFound('Component issue document not found.');
-        }
-        if ($doc->status !== 'DRAFT') {
-            ApiError::abort(409, 'STATE_CONFLICT', 'Only DRAFT component issue can be posted.');
-        }
-
-        DB::table('component_issue_documents')->where('id', $id)->update([
-            'status' => 'POSTED',
-            'posted_at' => now(),
-            'posted_by' => $this->userId(),
-            'updated_at' => now(),
-            'updated_by' => $this->userId(),
-        ]);
-
-        return $this->respondSuccess($this->componentIssuePayload($id), 'Component issue posted.');
-    }
+    // storeComponentIssueDocument/postComponentIssueDocument/storeWarrantyCase/
+    // updateWarrantyCase đã được gỡ: không route nào trỏ tới, đồng thời chúng mang
+    // nghiệp vụ lệch docs (Post không sinh Inventory_Movement, thiếu guard SKU
+    // COMPONENT, coi COMPLETED là case không active). Bề mặt duy nhất của luồng 04 là
+    // CurrentBaselineWarrantyController + CurrentBaselineComponentFlowController.
 
     public function listWarrantyCases(Request $request)
     {
@@ -317,74 +251,22 @@ class CanonicalMvpController extends Controller
             'created_at',
             ['customer_name', 'customer_phone', 'customer_address'],
             ['identification_status', 'defect_id'],
+            // Wireframe WAR-01 cho tìm cả "mã máy": serial của item gắn case và mọi
+            // Physical_Code ACTIVE map vào item đó. Cả hai đều không phải cột của
+            // warranty_case nên phải bơm thêm nhánh OR bằng subquery item_id.
+            function ($query, string $keyword, string $operator): void {
+                $query->orWhereIn('item_id', function ($sub) use ($keyword, $operator): void {
+                    $sub->select('item_id')->from('item_instances')
+                        ->where('serial_number', $operator, "%{$keyword}%");
+                });
+                $query->orWhereIn('item_id', function ($sub) use ($keyword, $operator): void {
+                    $sub->select('assigned_object_id')->from('physical_codes')
+                        ->where('assigned_object_type', 'ITEM')
+                        ->where('status', 'ACTIVE')
+                        ->where('code_value', $operator, "%{$keyword}%");
+                });
+            },
         );
-    }
-
-    public function storeWarrantyCase(Request $request)
-    {
-        $validated = $request->validate([
-            'warranty_case_code' => ['nullable', 'string', 'max:80', 'unique:warranty_case,warranty_case_code'],
-            'inventory_serial_id' => ['nullable', 'uuid'],
-            'product_id' => ['nullable', 'uuid', 'exists:sku,sku_id'],
-            'defect_id' => ['nullable', 'uuid', 'exists:defect_catalog,defect_id'],
-            'customer_name' => ['nullable', 'string', 'max:200'],
-            'customer_phone' => ['nullable', 'string', 'max:50'],
-            'description' => ['nullable', 'string', 'max:2000'],
-        ]);
-        // BR-DEF-01..04: bệnh/lỗi INACTIVE không được chọn cho hồ sơ mới.
-        MasterSelectionGuard::assertDefectSelectable($validated['defect_id'] ?? null);
-
-        $validated['warranty_case_id'] = (string) Str::uuid();
-        $validated['warranty_case_code'] ??= 'WC-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4));
-        $validated['status'] = 'RECEIVED';
-        $validated['identification_status'] = $validated['inventory_serial_id'] ? 'IDENTIFIED' : 'TEMP_ONLY';
-        $validated['created_by'] = $this->userId();
-        $validated['version'] = 1;
-        $validated['created_at'] = now();
-        $validated['updated_at'] = now();
-
-        DB::table('warranty_case')->insert($validated);
-
-        return $this->respondCreated(DB::table('warranty_case')->where('warranty_case_id', $validated['warranty_case_id'])->first(), 'Warranty case created.');
-    }
-
-    public function updateWarrantyCase(Request $request, string $id)
-    {
-        $validated = $request->validate([
-            'status' => ['sometimes', 'in:RECEIVED,CHECKING,REPAIRING,COMPLETED,RETURNED,CANCELLED'],
-            'condition_status' => ['nullable', 'string', 'max:30'],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'version' => ['required', 'integer', 'min:1'],
-        ]);
-
-        $case = DB::table('warranty_case')->where('warranty_case_id', $id)->first();
-        if ($case === null) {
-            return $this->respondNotFound('Warranty case not found.');
-        }
-        if ((int) $case->version !== (int) $validated['version']) {
-            ApiError::abort(412, 'STALE_VERSION', 'Warranty case version mismatch.');
-        }
-
-        $from = $case->status;
-        unset($validated['version']);
-        $validated['version'] = ((int) $case->version) + 1;
-        $validated['updated_at'] = now();
-
-        DB::table('warranty_case')->where('warranty_case_id', $id)->update($validated);
-        if (isset($validated['status']) && $validated['status'] !== $from) {
-            DB::table('warranty_event')->insert([
-                'warranty_event_id' => (string) Str::uuid(),
-                'warranty_case_id' => $id,
-                'event_type' => 'STATUS_CHANGE',
-                'from_status' => $from,
-                'to_status' => $validated['status'],
-                'note' => $request->input('description'),
-                'created_by' => $this->userId(),
-                'event_at' => now(),
-            ]);
-        }
-
-        return $this->respondSuccess(DB::table('warranty_case')->where('warranty_case_id', $id)->first(), 'Warranty case updated.');
     }
 
     public function listWarrantyEvents(Request $request, string $id)
@@ -446,7 +328,7 @@ class CanonicalMvpController extends Controller
         return $this->insertAndReturn($table, $validated);
     }
 
-    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [])
+    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [], ?callable $keywordExtension = null)
     {
         $query = DB::table($table);
         if ($request->filled('status')) {
@@ -464,7 +346,20 @@ class CanonicalMvpController extends Controller
             // keyword search trở thành oracle dò tên/SĐT đầy đủ từng ký tự.
             $keywordColumns = array_values(array_diff($keywordColumns, $masked));
         }
-        $this->applyKeyword($query, $request, $keywordColumns);
+        $keyword = trim((string) $request->input('keyword', ''));
+        if ($keywordExtension !== null && $keyword !== '') {
+            // Gom cả cột thường và nhánh bổ sung vào MỘT nhóm where lồng nhau để OR
+            // không tràn ra ngoài và vô hiệu các filter status/identification_status.
+            $operator = $query->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($nested) use ($keywordColumns, $keyword, $operator, $keywordExtension): void {
+                foreach ($keywordColumns as $column) {
+                    $nested->orWhere($column, $operator, "%{$keyword}%");
+                }
+                $keywordExtension($nested, $keyword, $operator);
+            });
+        } else {
+            $this->applyKeyword($query, $request, $keywordColumns);
+        }
 
         $page = $query->orderByDesc($orderBy)->paginate($this->perPage($request));
         if ($piiHidden) {
@@ -538,19 +433,6 @@ class CanonicalMvpController extends Controller
         return [
             'import' => $import,
             'rows' => DB::table('outbound_request_import_rows')->where('import_id', $id)->orderBy('row_no')->get(),
-        ];
-    }
-
-    private function componentIssuePayload(string $id): ?array
-    {
-        $doc = DB::table('component_issue_documents')->where('id', $id)->first();
-        if ($doc === null) {
-            return null;
-        }
-
-        return [
-            'document' => $doc,
-            'lines' => DB::table('component_issue_lines')->where('component_issue_document_id', $id)->orderBy('line_no')->get(),
         ];
     }
 

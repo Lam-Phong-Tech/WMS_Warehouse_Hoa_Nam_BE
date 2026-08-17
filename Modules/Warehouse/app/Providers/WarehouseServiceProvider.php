@@ -16,7 +16,6 @@ use Modules\Warehouse\Repositories\Contracts\ItemInstanceRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\PhysicalCodeRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\ProductMasterRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
-use Modules\Warehouse\Repositories\Contracts\SafeStockConfigRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
 use Modules\Warehouse\Repositories\DefectCatalogRepository;
 use Modules\Warehouse\Repositories\ImportBatchRepository;
@@ -24,7 +23,6 @@ use Modules\Warehouse\Repositories\ItemInstanceRepository;
 use Modules\Warehouse\Repositories\PhysicalCodeRepository;
 use Modules\Warehouse\Repositories\ProductMasterRepository;
 use Modules\Warehouse\Repositories\ProductRepository;
-use Modules\Warehouse\Repositories\SafeStockConfigRepository;
 use Modules\Warehouse\Repositories\WarehouseRepository;
 use Modules\Warehouse\Services\CanonicalScanClassificationService;
 use Modules\Warehouse\Services\ScanClassificationService;
@@ -62,7 +60,8 @@ class WarehouseServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(WarehouseRepositoryInterface::class, WarehouseRepository::class);
         $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
-        $this->app->bind(SafeStockConfigRepositoryInterface::class, SafeStockConfigRepository::class);
+        // REQ-SRS-037: MVP không có định mức tồn an toàn/kiểm kê — bảng safe_stock_configs
+        // đã bị 2026_08_10_000600 drop nên repository tương ứng cũng được gỡ.
         $this->app->bind(AgencyRepositoryInterface::class, AgencyRepository::class);
         $this->app->bind(DefectCatalogRepositoryInterface::class, DefectCatalogRepository::class);
         $this->app->bind(ProductMasterRepositoryInterface::class, ProductMasterRepository::class);

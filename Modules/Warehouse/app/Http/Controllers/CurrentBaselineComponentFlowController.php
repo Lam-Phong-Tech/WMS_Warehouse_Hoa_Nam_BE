@@ -29,7 +29,9 @@ class CurrentBaselineComponentFlowController extends Controller
             'component_issue_no' => ['nullable', 'string', 'max:80', 'unique:component_issue_documents,component_issue_no'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'warranty_case_id' => ['required', 'uuid', 'exists:warranty_case,warranty_case_id'],
-            'document_date' => ['required', 'date'],
+            // ERD §48 không có document_date — cột chỉ tồn tại ở runtime legacy nên
+            // không được bắt client gửi; thiếu thì lấy ngày lập phiếu = hôm nay.
+            'document_date' => ['nullable', 'date'],
             'purpose' => ['nullable', 'in:WARRANTY'],
             'note' => ['nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'],
@@ -54,7 +56,7 @@ class CurrentBaselineComponentFlowController extends Controller
                 'component_issue_no' => $validated['component_issue_no'] ?? ('CID-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4))),
                 'warehouse_id' => $validated['warehouse_id'],
                 'warranty_case_id' => $validated['warranty_case_id'],
-                'document_date' => $validated['document_date'],
+                'document_date' => $validated['document_date'] ?? now()->toDateString(),
                 'purpose' => 'WARRANTY',
                 'status' => 'DRAFT',
                 'note' => $validated['note'] ?? null,

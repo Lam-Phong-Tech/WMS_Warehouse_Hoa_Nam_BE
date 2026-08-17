@@ -9,7 +9,8 @@
   ],
   "api": {
     "prefix": "/api/v1",
-    "operation_count": 176,
+    "operation_count": 174,
+    "operation_count_note": "174 = 176 - 2. SRS v1.12 §8.1 (Outbound request / Excel intake) chốt 'Confirm creates exactly one outbound DRAFT; no direct POST /outbound-documents create operation' và Annex C không khai createOutboundDocument/updateOutboundDocument, nên POST /api/v1/outbound-documents và PATCH /api/v1/outbound-documents/{id} đã được gỡ khỏi API surface (DR_HN_20260817_OUTBOUND_FLOW03_ALIGNMENT).",
     "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
     "forbidden_path_fragments": ["stocktake", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"],
     "erd_alignment": {

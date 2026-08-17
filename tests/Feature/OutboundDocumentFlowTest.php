@@ -16,8 +16,8 @@ use Tests\TestCase;
  */
 class OutboundDocumentFlowTest extends TestCase
 {
-    use RefreshDatabase;
     use PreparesOutboundFixtures;
+    use RefreshDatabase;
 
     public function test_full_outbound_flow_manual_and_scan_mode_then_post_issue_and_reverse(): void
     {
@@ -27,15 +27,12 @@ class OutboundDocumentFlowTest extends TestCase
         $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 2);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 2, 'TOA-FLOW-001');
 
-        // 1. Tạo outbound document từ toa — lines bị hydrate tự động, không nhận lines thủ công.
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers);
-        $create->assertCreated()->assertJsonPath('data.status', 'DRAFT');
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-        $this->assertSame(2, (int) $create->json('data.lines.0.qty_planned'));
+        // 1. §8.1: phiếu xuất chỉ sinh từ Confirm toa; fixture dựng đúng shape đó.
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
+        $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'status' => 'DRAFT']);
+        $this->assertSame(2, (int) DB::table('stock_document_lines')->where('id', $lineId)->value('qty_planned'));
 
         // Toa phải chuyển CONSUMED ngay khi document được tạo (ERD bảng 37).
         $this->assertDatabaseHas('outbound_requests', ['id' => $requestId, 'status' => 'CONSUMED']);
@@ -67,11 +64,17 @@ class OutboundDocumentFlowTest extends TestCase
         $this->assertSame('SCANNING', $document->status);
         $this->assertSame(3, (int) $document->version);
 
-        // 4. Post Issue phải bị chặn nếu chưa tạo Packing Label cho document.
+        // 4. §5.2/§15: full match tự tạo/đảm bảo đúng 01 Packing Label DRAFT.
+        $label = DB::table('label_snapshots')->where('outbound_document_id', $documentId)->first();
+        $this->assertNotNull($label, 'Full match phải tạo/đảm bảo một Packing Label.');
+        $this->assertSame('DRAFT', (string) $label->status);
+        $this->assertSame(1, DB::table('label_snapshots')->where('outbound_document_id', $documentId)->count());
+
+        // Post Issue vẫn bị chặn khi nhãn chưa PRINTED + chưa xác nhận đã dán.
         $this->postJson("/api/v1/outbound-documents/{$documentId}/post-issue", [], $headers + [
             'If-Match' => '3',
             'Idempotency-Key' => 'post-issue-flow-001',
-        ])->assertStatus(422)->assertJsonPath('error.code', 'PACKING_LABEL_REQUIRED');
+        ])->assertStatus(422)->assertJsonPath('error.code', 'LABEL_NOT_PRINTED');
 
         $this->markLabelsPrinted($documentId);
 
@@ -125,40 +128,27 @@ class OutboundDocumentFlowTest extends TestCase
         $this->assertSame(2, $balanceAfterReverse);
     }
 
-    public function test_store_outbound_rejects_manual_lines_payload(): void
+    /**
+     * SRS §8.1 (Outbound request / Excel intake): "Confirm creates exactly one outbound
+     * DRAFT; no direct POST /outbound-documents create operation." Annex C cũng không
+     * khai createOutboundDocument/updateOutboundDocument.
+     */
+    public function test_direct_outbound_document_create_and_update_are_absent_from_api_surface(): void
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
         $sku = $this->productSkuFixture('PROD-FLOW-002');
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-FLOW-002');
 
-        $response = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
-        ], $headers);
-
-        $response->assertStatus(422)->assertJsonPath('error.details.lines.0', fn ($msg) => is_string($msg));
-    }
-
-    public function test_store_outbound_rejects_already_consumed_request(): void
-    {
-        $headers = $this->superAdminHeaders();
-        $warehouse = $this->warehouseFixture();
-        $sku = $this->productSkuFixture('PROD-FLOW-003');
-        $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-FLOW-003');
-
         $this->postJson('/api/v1/outbound-documents', [
             'src_warehouse_id' => $warehouse->id,
             'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
+        ], $headers)->assertStatus(405);
 
-        $second = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $this->warehouseFixture('KHO-B')->id,
-            'outbound_request_id' => $requestId,
-        ], $headers);
-
-        $second->assertStatus(409)->assertJsonPath('error.code', 'OUTBOUND_REQUEST_ALREADY_USED');
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $this->patchJson("/api/v1/outbound-documents/{$created['document_id']}", [
+            'recipient_name' => 'Đổi người nhận',
+        ], $headers + ['If-Match' => '1'])->assertStatus(405);
     }
 
     public function test_scan_rejects_item_without_sufficient_available_stock(): void
@@ -169,12 +159,9 @@ class OutboundDocumentFlowTest extends TestCase
         // Cố ý không seed balance AVAILABLE.
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-FLOW-004');
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
         $itemId = $this->seedItemInStock($sku->sku_id);
 
         $scan = $this->postJson("/api/v1/outbound-documents/{$documentId}/scan", [
@@ -194,12 +181,9 @@ class OutboundDocumentFlowTest extends TestCase
         $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-FLOW-005');
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
         $itemId = $this->seedItemInStock($sku->sku_id);
 
         $this->postJson("/api/v1/outbound-documents/{$documentId}/scan", [
@@ -207,6 +191,12 @@ class OutboundDocumentFlowTest extends TestCase
             'quantity' => 1,
             'item_id' => $itemId,
         ], $headers + ['If-Match' => '1'])->assertOk();
+
+        // Full match sinh nhãn DRAFT; nhãn chưa đóng băng nên vẫn sửa được match.
+        $this->assertDatabaseHas('label_snapshots', [
+            'outbound_document_id' => $documentId,
+            'status' => 'DRAFT',
+        ]);
 
         $matchId = (string) DB::table('outbound_item_matches')->where('item_id', $itemId)->value('id');
         $unmatch = $this->postJson("/api/v1/outbound-documents/{$documentId}/unmatch", [
@@ -218,5 +208,47 @@ class OutboundDocumentFlowTest extends TestCase
         $this->assertDatabaseHas('outbound_item_matches', ['id' => $matchId, 'status' => 'REMOVED']);
         // Item vẫn IN_STOCK — unmatch không tạo stock effect.
         $this->assertDatabaseHas('item_instances', ['item_id' => $itemId, 'item_status' => 'IN_STOCK']);
+        // Nhãn chưa đóng băng bị huỷ theo lô mới (§5.2 Ready mới freeze snapshot).
+        $this->assertDatabaseMissing('label_snapshots', ['outbound_document_id' => $documentId]);
+    }
+
+    /**
+     * §5.2 + §6: sau khi Ready đóng băng snapshot thì không được đổi match nữa.
+     */
+    public function test_unmatch_is_blocked_once_label_snapshot_is_frozen(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->productSkuFixture('PROD-FLOW-006');
+        $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
+        $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-FLOW-006');
+
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $itemId = $this->seedItemInStock($sku->sku_id);
+
+        $this->postJson("/api/v1/outbound-documents/{$documentId}/scan", [
+            'line_id' => $created['line_ids'][0],
+            'quantity' => 1,
+            'item_id' => $itemId,
+        ], $headers + ['If-Match' => '1'])->assertOk();
+
+        $label = DB::table('label_snapshots')->where('outbound_document_id', $documentId)->first();
+        $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$label->id}/preview", [], $headers + [
+            'If-Match' => (string) $label->version,
+        ])->assertOk()->assertJsonPath('data.status', 'PREVIEWED');
+
+        $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$label->id}/ready", [], $headers + [
+            'If-Match' => (string) ((int) $label->version + 1),
+            'Idempotency-Key' => 'label-ready-flow-006',
+        ])->assertOk()->assertJsonPath('data.status', 'READY_TO_PRINT');
+
+        $matchId = (string) DB::table('outbound_item_matches')->where('item_id', $itemId)->value('id');
+        $this->postJson("/api/v1/outbound-documents/{$documentId}/unmatch", [
+            'outbound_item_match_id' => $matchId,
+            'reason' => 'Đổi hàng sau khi đóng băng nhãn',
+        ], $headers + ['If-Match' => '2'])
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'PACKING_LABEL_ALREADY_CREATED');
     }
 }

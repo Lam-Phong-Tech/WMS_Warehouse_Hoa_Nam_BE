@@ -8,7 +8,7 @@ use Modules\Warehouse\Http\Controllers\AlignedImportMatchReportController;
 use Modules\Warehouse\Http\Controllers\AlignedLabelLogReportController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
-use Modules\Warehouse\Http\Controllers\AlignedWarrantyReportController;
+use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Services\AlignedOutboundStockService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 
@@ -28,14 +28,16 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
     {
         $this->app->booted(function (): void {
             Route::middleware(['api', 'auth:api'])->prefix('api/v1')->group(function (): void {
+                // Override giữ nguyên cả permission lẫn data scope (§8.1 Enforcement
+                // standard) — nếu bỏ scope ở đây thì route gốc bị thay thế và mất guard.
                 Route::get('outbound-documents', [AlignedOutboundDocumentController::class, 'index'])
-                    ->middleware('permission:outbound.view');
+                    ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
                 Route::post('outbound-documents/{id}/scan', [AlignedOutboundFlowController::class, 'outboundScan'])
-                    ->middleware('permission:outbound.scan');
+                    ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
                 Route::post('outbound-documents/{id}/unmatch', [AlignedOutboundFlowController::class, 'outboundUnmatch'])
-                    ->middleware('permission:outbound.scan');
+                    ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
                 Route::post('outbound-documents/{id}/post-issue', [AlignedOutboundFlowController::class, 'postIssue'])
-                    ->middleware('permission:outbound.post');
+                    ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
 
                 Route::post('label-snapshots', [AlignedOutboundFlowController::class, 'storePackingLabel'])
                     ->middleware('permission:label.print');
@@ -50,10 +52,9 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                     ->middleware('permission:report.view');
                 Route::get('reports/label-log/export-excel', [AlignedLabelLogReportController::class, 'export'])
                     ->middleware('permission:report.export');
-                Route::get('reports/warranty-defects', [AlignedWarrantyReportController::class, 'index'])
-                    ->middleware('permission:report.view');
-                Route::get('reports/warranty-defects/export-excel', [AlignedWarrantyReportController::class, 'export'])
-                    ->middleware('permission:report.export');
+                // reports/warranty-defects{,/export-excel} đã trỏ thẳng
+                // AlignedWarrantyReportController trong routes/api.php (handler legacy
+                // đã bị gỡ) nên không cần override runtime ở đây nữa.
             });
         });
     }

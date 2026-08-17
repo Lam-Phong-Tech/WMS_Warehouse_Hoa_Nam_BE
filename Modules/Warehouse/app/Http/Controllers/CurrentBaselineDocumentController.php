@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
-use Modules\Warehouse\Support\MasterSelectionGuard;
 
 class CurrentBaselineDocumentController extends Controller
 {
@@ -96,27 +95,11 @@ class CurrentBaselineDocumentController extends Controller
         return $this->createIdempotent($request, 'receipt', $validated);
     }
 
-    public function storeOutbound(Request $request)
-    {
-        // BP-WMS-04/05: mọi phiếu xuất đều sinh từ toa/request đã consume.
-        // Lines luôn hydrate từ outbound_request_lines; không nhận lines thủ công
-        // để không tạo "phiếu chết" (scan/post đều yêu cầu outbound_request_id).
-        $validated = $request->validate([
-            'doc_no' => ['nullable', 'string', 'max:80', 'unique:stock_documents,doc_no'],
-            'doc_date' => ['nullable', 'date'],
-            'src_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
-            'outbound_request_id' => ['required', 'uuid', 'exists:outbound_requests,id'],
-            'agency_id' => ['nullable', 'uuid', 'exists:agencies,agency_id'],
-            'recipient_name' => ['nullable', 'string', 'max:200'],
-            'recipient_address' => ['nullable', 'string', 'max:2000'],
-            'note' => ['nullable', 'string', 'max:2000'],
-            'lines' => ['prohibited'],
-        ]);
-        // BR-AGY-01: đại lý INACTIVE không được chọn cho chứng từ mới.
-        MasterSelectionGuard::assertAgencySelectable($validated['agency_id'] ?? null);
-
-        return $this->createIdempotent($request, 'issue', $validated);
-    }
+    // §8.1 (Outbound request / Excel intake): "Confirm creates exactly one outbound
+    // DRAFT; no direct POST /outbound-documents create operation." Annex C cũng không
+    // khai createOutboundDocument/updateOutboundDocument, nên storeOutbound/updateOutbound
+    // đã được gỡ khỏi surface — phiếu xuất chỉ sinh từ POST
+    // /outbound-request-imports/{id}/confirm và sửa nội dung toa phải làm ở bước Confirm.
 
     public function updateInbound(Request $request, string $id)
     {
@@ -137,30 +120,6 @@ class CurrentBaselineDocumentController extends Controller
         ]);
 
         return $this->updateDocument($request, $id, 'receipt', $validated);
-    }
-
-    public function updateOutbound(Request $request, string $id)
-    {
-        $validated = $request->validate([
-            'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
-            'doc_date' => ['sometimes', 'date'],
-            'agency_id' => ['nullable', 'uuid', 'exists:agencies,agency_id'],
-            'recipient_name' => ['nullable', 'string', 'max:200'],
-            'recipient_address' => ['nullable', 'string', 'max:2000'],
-            'note' => ['nullable', 'string', 'max:2000'],
-            'lines' => ['sometimes', 'array', 'min:1'],
-            'lines.*.product_id' => ['required_with:lines', 'uuid', 'exists:sku,sku_id'],
-            'lines.*.qty_planned' => ['required_with:lines', 'integer', 'min:1'],
-            'lines.*.note' => ['nullable', 'string', 'max:2000'],
-        ]);
-        // BR-AGY-01: đổi sang đại lý INACTIVE bị chặn; giữ nguyên đại lý cũ (kể cả
-        // khi đại lý đó đã bị deactivate) vẫn phải sửa được các trường khác.
-        MasterSelectionGuard::assertAgencySelectable(
-            $validated['agency_id'] ?? null,
-            DB::table('stock_documents')->where('id', $id)->value('agency_id')
-        );
-
-        return $this->updateDocument($request, $id, 'issue', $validated);
     }
 
     public function cancelInbound(Request $request, string $id)

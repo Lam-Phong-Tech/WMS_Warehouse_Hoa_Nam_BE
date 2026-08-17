@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\WarrantyAttachmentScanner;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,7 +52,9 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         }
 
         $validated = $request->validate([
-            'file' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,heic,pdf'],
+            // Annex D SCR-WAR-01: jpg/png/webp, <=10MB. heic/pdf không thuộc baseline
+            // nên không nhận nữa; validator `mimes:` là lớp đầu, magic-byte check ở dưới.
+            'file' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp'],
             'attachment_type' => ['nullable', 'in:'.implode(',', self::ATTACHMENT_TYPES)],
         ]);
 
@@ -65,10 +68,24 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         }
 
         $file = $validated['file'];
+        // §13.8 "malware/content-type check": MIME thật phải khớp allowlist + extension.
+        ['extension' => $extension] = WarrantyAttachmentScanner::assertContentType($file);
+        $scan = WarrantyAttachmentScanner::scanForMalware($file);
+
         $attachmentId = (string) Str::uuid();
-        $extension = strtolower((string) $file->getClientOriginalExtension()) ?: 'bin';
         $storageKey = "warranty-attachments/{$id}/{$attachmentId}.{$extension}";
         $checksum = hash_file('sha256', $file->getRealPath()) ?: null;
+
+        // File nhiễm/không quét được vẫn phải để lại vết QUARANTINED (ERD §47 status) và
+        // KHÔNG được ghi ra private storage.
+        if ($scan['result'] === WarrantyAttachmentScanner::RESULT_INFECTED) {
+            $this->recordQuarantine($request, $id, $attachmentId, $file, $checksum, $scan);
+
+            ApiError::abort(422, 'ATTACHMENT_MALWARE_DETECTED', 'Tệp đính kèm không vượt qua kiểm tra mã độc.', [
+                'attachment_id' => $attachmentId,
+                'scan_result' => $scan['result'],
+            ]);
+        }
 
         Storage::disk(self::DISK)->putFileAs("warranty-attachments/{$id}", $file, "{$attachmentId}.{$extension}");
 
@@ -107,13 +124,69 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
                 'attachment_type' => $validated['attachment_type'] ?? 'INTAKE',
                 'file_size_bytes' => $file->getSize(),
                 'checksum' => $checksum,
+                'scan_result' => $scan['result'],
                 'stock_effect' => 'NONE',
             ],
         );
 
         $row = DB::table('warranty_attachments')->where('id', $attachmentId)->first();
 
-        return $this->respondCreated($this->payload($row), 'Warranty attachment uploaded; stock_effect=NONE.');
+        return $this->respondCreated(
+            $this->payload($row) + ['scan_result' => $scan['result']],
+            'Warranty attachment uploaded; stock_effect=NONE.'
+        );
+    }
+
+    /**
+     * ERD §47 status QUARANTINED: giữ metadata của tệp bị chặn để audit/đối soát mà
+     * không lưu nội dung ra storage.
+     *
+     * @param  array{result: string, detail: string|null}  $scan
+     */
+    private function recordQuarantine(Request $request, string $caseId, string $attachmentId, $file, ?string $checksum, array $scan): void
+    {
+        $now = now();
+        $actorId = $this->actorId();
+
+        DB::table('warranty_attachments')->insert([
+            'id' => $attachmentId,
+            'warranty_case_id' => $caseId,
+            'file_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
+            // Không có nội dung trên disk; giữ khóa placeholder để cột NOT NULL/UNIQUE
+            // vẫn hợp lệ và mọi truy vấn theo storage_key không trùng file thật.
+            'storage_path' => 'quarantined/'.$attachmentId,
+            'storage_key' => 'quarantined/'.$attachmentId,
+            'mime_type' => mb_substr((string) $file->getMimeType(), 0, 120),
+            'content_type' => mb_substr((string) $file->getMimeType(), 0, 100),
+            'file_size' => $file->getSize(),
+            'file_size_bytes' => $file->getSize(),
+            'checksum' => $checksum,
+            'attachment_type' => 'OTHER',
+            'status' => 'QUARANTINED',
+            'uploaded_at' => $now,
+            'uploaded_by' => $actorId,
+            'created_at' => $now,
+            'created_by' => $actorId,
+            'updated_at' => $now,
+            'updated_by' => $actorId,
+            'version' => 1,
+        ]);
+
+        AuditLogger::record(
+            action: 'WARRANTY_ATTACHMENT_QUARANTINED',
+            objectType: 'warranty_attachment',
+            objectId: $attachmentId,
+            actorId: $actorId,
+            requestId: $request->attributes->get('request_id'),
+            afterData: [
+                'warranty_case_id' => $caseId,
+                'status' => 'QUARANTINED',
+                'scan_result' => $scan['result'],
+                'scan_detail' => $scan['detail'],
+                'checksum' => $checksum,
+                'stock_effect' => 'NONE',
+            ],
+        );
     }
 
     public function download(Request $request, string $attachmentId)
@@ -177,7 +250,8 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
     private function requireAttachment(string $attachmentId): object
     {
         $row = DB::table('warranty_attachments')->where('id', $attachmentId)->first();
-        if ($row === null || ($row->status ?? 'ACTIVE') === 'DELETED') {
+        // QUARANTINED chỉ tồn tại như bằng chứng audit — không có nội dung để tải về.
+        if ($row === null || in_array((string) ($row->status ?? 'ACTIVE'), ['DELETED', 'QUARANTINED'], true)) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy tệp đính kèm.');
         }
 

@@ -27,9 +27,12 @@ class OutboundDocsAlignmentContractTest extends TestCase
         $this->assertStringContainsString("'status' => 'CONSUMED'", $document);
         $this->assertStringContainsString("'status' => 'OPEN'", $document);
 
-        // BP-WMS-04/05: mọi phiếu xuất sinh từ toa; không nhận lines thủ công.
-        $this->assertStringContainsString("'outbound_request_id' => ['required'", $document);
-        $this->assertStringContainsString("'lines' => ['prohibited']", $document);
+        // §8.1 + BP-WMS-04/05: phiếu xuất chỉ sinh từ Confirm toa — không còn endpoint
+        // tạo/sửa phiếu xuất trực tiếp; line luôn lấy từ outbound_request_lines.
+        $this->assertStringNotContainsString("Route::post('outbound-documents',", $routes);
+        $this->assertStringNotContainsString("Route::patch('outbound-documents/{id}',", $routes);
+        $this->assertStringNotContainsString('function storeOutbound', $document);
+        $this->assertStringContainsString("'outbound_request_line_id' => \$requestLineId", $import);
     }
 
     public function test_import_surface_has_list_template_preview_and_errors(): void

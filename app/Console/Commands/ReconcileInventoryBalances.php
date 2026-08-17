@@ -121,34 +121,37 @@ class ReconcileInventoryBalances extends Command
             'variance' => (float) $variance,
         ]);
 
+        // ERD bảng 32: số liệu divergence phải nằm ở cột rời (ledger_qty/balance_qty/
+        // difference_qty/severity/detected_at) để §7.5 truy vấn/báo cáo được, không chỉ
+        // nằm trong JSON detected_value.
+        $erdColumns = [
+            'incident_no' => $incidentNo,
+            'divergence_type' => $divergenceType,
+            'warehouse_id' => $warehouseId,
+            'detected_value' => $detectedValue,
+            'detected_at' => now(),
+            'balance_qty' => (int) round($onHand),
+            'ledger_qty' => (int) round($ledger),
+            'difference_qty' => (int) round((float) $variance),
+            'severity' => $severity,
+            'status' => 'OPEN',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
         // `reconciliation_incidents` (plural) is the canonical writable table on the
-        // pgsql baseline (has detected_at/severity — see migration 2026_08_10_000760/000770);
-        // `reconciliation_incident` (singular) there is a read-only compatibility view that
-        // rejects writes via trigger. On the sqlite test baseline only the singular table
-        // exists (plural is a plain view without INSTEAD OF support), so target it instead.
+        // pgsql baseline; `reconciliation_incident` (singular) there is a read-only
+        // compatibility view that rejects writes via trigger. On the sqlite test baseline
+        // only the singular table exists (plural is a plain view), so target it instead.
         if (DB::getDriverName() === 'pgsql') {
-            DB::table('reconciliation_incidents')->insert([
+            DB::table('reconciliation_incidents')->insert($erdColumns + [
                 'id' => $incidentId,
-                'incident_no' => $incidentNo,
-                'divergence_type' => $divergenceType,
-                'warehouse_id' => $warehouseId,
                 'sku_id' => $productId,
-                'detected_value' => $detectedValue,
-                'status' => 'OPEN',
-                'severity' => $severity,
-                'detected_at' => now(),
-                'created_at' => now(),
             ]);
         } else {
-            DB::table('reconciliation_incident')->insert([
+            DB::table('reconciliation_incident')->insert($erdColumns + [
                 'incident_id' => $incidentId,
-                'incident_no' => $incidentNo,
-                'divergence_type' => $divergenceType,
-                'warehouse_id' => $warehouseId,
                 'product_id' => $productId,
-                'detected_value' => $detectedValue,
-                'status' => 'OPEN',
-                'created_at' => now(),
             ]);
         }
 

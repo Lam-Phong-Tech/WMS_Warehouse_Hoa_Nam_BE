@@ -12,7 +12,7 @@ use Modules\Warehouse\Models\Warehouse;
  *
  * This service must never create scan events, posting events, inventory movements,
  * balance mutations or idempotency records. Posting remains exclusively owned by
- * the inbound/outbound/stocktake posting services.
+ * the inbound/outbound/component-issue/reversal posting services.
  */
 class ScanClassificationService
 {

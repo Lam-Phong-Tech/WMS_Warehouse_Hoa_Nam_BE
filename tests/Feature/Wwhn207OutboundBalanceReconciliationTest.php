@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -29,8 +30,8 @@ use Tests\TestCase;
  */
 class Wwhn207OutboundBalanceReconciliationTest extends TestCase
 {
-    use RefreshDatabase;
     use PreparesOutboundFixtures;
+    use RefreshDatabase;
 
     private function seedLedgerBackedBalance(string $warehouseId, string $skuId, int $qty, string $actorId): void
     {
@@ -77,13 +78,9 @@ class Wwhn207OutboundBalanceReconciliationTest extends TestCase
         $this->seedLedgerBackedBalance($warehouse->id, $sku->sku_id, 1, $headers['__user_id']);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-'.Str::upper(Str::random(6)));
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers);
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
         $itemId = $this->seedItemInStock($sku->sku_id);
         $this->seedRfidCode($itemId);
 
@@ -299,13 +296,9 @@ class Wwhn207OutboundBalanceReconciliationTest extends TestCase
         $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 2);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-SUB-ISSUE-001');
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
         $issuedItemId = $this->seedItemInStock($sku->sku_id);
         $this->seedRfidCode($issuedItemId);
         $remainingItemId = $this->seedItemInStock($sku->sku_id);
@@ -353,7 +346,7 @@ class Wwhn207OutboundBalanceReconciliationTest extends TestCase
         $user = User::create([
             'username' => 'wwhn207-noaccess-'.Str::lower(Str::random(6)),
             'display_name' => 'No Access Tester',
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('secret123'),
+            'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

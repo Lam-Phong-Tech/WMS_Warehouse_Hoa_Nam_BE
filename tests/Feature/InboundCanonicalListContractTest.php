@@ -42,7 +42,9 @@ class InboundCanonicalListContractTest extends TestCase
         // 179 -> 176 sau khi gỡ DELETE /agencies/{id}, /defect-catalogs/{id} và
         // /users/{id}: Annex C không công bố thao tác xoá và BR-AGY/BR-DEF/BR-IAM
         // yêu cầu deactivate thay vì xóa.
-        $this->assertSame(176, $contract['api']['operation_count']);
+        // 176 -> 174 sau khi gỡ POST /outbound-documents + PATCH /outbound-documents/{id}
+        // theo SRS §8.1 "no direct POST /outbound-documents create operation".
+        $this->assertSame(174, $contract['api']['operation_count']);
         $this->assertStringContainsString('Document ID: HN-WMS-TECH-GUIDE-001', $guide);
         $this->assertStringContainsString("'24. Putaway'", $routeSync);
         $this->assertStringContainsString("'get api/v1/putaway/tasks'", $routeSync);

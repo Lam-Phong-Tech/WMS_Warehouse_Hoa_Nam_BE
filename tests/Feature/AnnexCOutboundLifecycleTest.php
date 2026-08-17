@@ -75,22 +75,43 @@ class AnnexCOutboundLifecycleTest extends TestCase
     {
         [$headers, $documentId] = $this->scannedOutbound('TOA-LBL-001', 'PROD-LBL-001');
 
-        $label = $this->postJson('/api/v1/label-snapshots', [
-            'outbound_document_id' => $documentId,
-        ], $headers)->assertCreated();
-        $labelId = (string) $label->json('data.id');
+        // §5.2/§15: full match đã tự tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT.
+        $label = DB::table('label_snapshots')->where('outbound_document_id', $documentId)->first();
+        $this->assertNotNull($label, 'Full match phải tạo/đảm bảo Packing Label.');
+        $this->assertSame('DRAFT', (string) $label->status);
+        $labelId = (string) $label->id;
+        $version = (int) $label->version;
 
+        // Annex C previewPackingLabel: If-Match bắt buộc.
         $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$labelId}/preview", [], $headers)
-            ->assertOk()
+            ->assertStatus(428)
+            ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
+
+        $preview = $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$labelId}/preview", [], $headers + [
+            'If-Match' => (string) $version,
+        ]);
+        $preview->assertOk()
             ->assertJsonPath('data.status', 'PREVIEWED')
             ->assertJsonPath('data.stock_effect', 'NONE');
+        $version = (int) $preview->json('data.version');
 
-        $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$labelId}/ready", [], $headers)
-            ->assertOk()
-            ->assertJsonPath('data.status', 'READY_TO_PRINT');
+        // Annex C readyPackingLabel: Idempotency-Key + If-Match; version cũ → 412.
+        $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$labelId}/ready", [], $headers + [
+            'If-Match' => (string) ($version - 1),
+            'Idempotency-Key' => 'label-ready-stale',
+        ])->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
+
+        $ready = $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$labelId}/ready", [], $headers + [
+            'If-Match' => (string) $version,
+            'Idempotency-Key' => 'label-ready-001',
+        ]);
+        $ready->assertOk()->assertJsonPath('data.status', 'READY_TO_PRINT');
+        $version = (int) $ready->json('data.version');
 
         // Preview sau khi đã READY_TO_PRINT là bước lùi trạng thái → 409.
-        $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$labelId}/preview", [], $headers)
+        $this->postJson("/api/v1/outbound-documents/{$documentId}/packing-labels/{$labelId}/preview", [], $headers + [
+            'If-Match' => (string) $version,
+        ])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'LABEL_STATE_CONFLICT');
 
@@ -100,11 +121,13 @@ class AnnexCOutboundLifecycleTest extends TestCase
     public function test_packing_label_lifecycle_rejects_label_of_another_document(): void
     {
         [$headers, $documentId] = $this->scannedOutbound('TOA-LBL-002', 'PROD-LBL-002');
-        $label = $this->postJson('/api/v1/label-snapshots', ['outbound_document_id' => $documentId], $headers)->assertCreated();
-        $labelId = (string) $label->json('data.id');
+        $label = DB::table('label_snapshots')->where('outbound_document_id', $documentId)->first();
+        $labelId = (string) $label->id;
         $otherDocumentId = (string) Str::uuid();
 
-        $this->postJson("/api/v1/outbound-documents/{$otherDocumentId}/packing-labels/{$labelId}/preview", [], $headers)
+        $this->postJson("/api/v1/outbound-documents/{$otherDocumentId}/packing-labels/{$labelId}/preview", [], $headers + [
+            'If-Match' => (string) $label->version,
+        ])
             ->assertNotFound()
             ->assertJsonPath('error.code', 'LABEL_NOT_FOUND');
     }
@@ -194,13 +217,9 @@ class AnnexCOutboundLifecycleTest extends TestCase
         $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 5);
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, $requestNo);
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
         $itemId = $this->seedItemInStock($sku->sku_id);
         $this->postJson("/api/v1/outbound-documents/{$documentId}/scan", [
             'line_id' => $lineId,

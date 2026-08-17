@@ -10,44 +10,55 @@ use Tests\TestCase;
 /**
  * WWHN-195: đối xứng với PostReceiptAuditLogTest — verify AuditLogger::record() thực
  * sự persist audit_log row (không chỉ assert call-site tồn tại trong source) cho
- * CREATE_OUTBOUND (lúc tạo document từ toa) và POST_ISSUE (lúc post thành công), và
- * idempotent replay không được ghi thêm audit row thứ hai.
+ * OUTBOUND_IMPORT_CONSUME (Confirm toa sinh phiếu xuất, §8.1) và POST_ISSUE (lúc post
+ * thành công), và idempotent replay không được ghi thêm audit row thứ hai.
  */
 class PostIssueAuditLogTest extends TestCase
 {
-    use RefreshDatabase;
     use PreparesOutboundFixtures;
+    use RefreshDatabase;
 
-    public function test_create_outbound_writes_audit_log_row_with_outbound_request_id(): void
+    public function test_confirming_toa_writes_audit_log_row_with_created_outbound_document(): void
     {
         $auth = $this->superAdminHeaders();
         $actorId = $auth['__user_id'];
         $headers = ['Authorization' => $auth['Authorization']];
 
-        $warehouse = $this->warehouseFixture();
+        $this->warehouseFixture();
         $sku = $this->productSkuFixture('AUDIT-ISSUE-CREATE-001');
-        $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-AUDIT-CREATE-001');
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
+        $import = $this->postJson('/api/v1/outbound-request-imports', [
+            'rows' => [[
+                'request_no' => 'TOA-AUDIT-CREATE-001',
+                'customer_name' => 'Đại lý test',
+                'sku_id' => $sku->sku_id,
+                'required_qty' => 1,
+            ]],
         ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
+        $import->assertCreated();
+        $importId = (string) $import->json('data.import.id');
+
+        $confirm = $this->postJson("/api/v1/outbound-request-imports/{$importId}/confirm", [], $headers + [
+            'If-Match' => (string) ((int) $import->json('data.import.version')),
+            'Idempotency-Key' => 'audit-confirm-001',
+        ]);
+        $confirm->assertOk();
+        $documentId = (string) $confirm->json('data.outbound_document_ids.0');
 
         $auditRow = DB::table('audit_log')
-            ->where('object_type', 'stock_document')
-            ->where('object_id', $documentId)
-            ->where('action', 'CREATE_OUTBOUND')
+            ->where('object_type', 'outbound_request_import')
+            ->where('object_id', $importId)
+            ->where('action', 'OUTBOUND_IMPORT_CONSUME')
             ->first();
 
-        $this->assertNotNull($auditRow, 'Expected a CREATE_OUTBOUND audit_log row after creating the outbound document.');
+        $this->assertNotNull($auditRow, 'Confirm toa phải ghi audit_log OUTBOUND_IMPORT_CONSUME.');
         $this->assertSame($actorId, $auditRow->actor_id);
         $this->assertNotNull($auditRow->request_id);
 
         $afterData = json_decode((string) $auditRow->after_data, true);
-        $this->assertSame('DRAFT', $afterData['status']);
-        $this->assertSame($requestId, $afterData['outbound_request_id']);
+        $this->assertSame('CONSUMED', $afterData['status']);
+        $this->assertContains($documentId, $afterData['outbound_document_ids']);
+        $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'status' => 'DRAFT']);
     }
 
     public function test_post_issue_writes_single_audit_log_row_and_replay_does_not_duplicate_it(): void
@@ -115,12 +126,8 @@ class PostIssueAuditLogTest extends TestCase
         $sku = $this->productSkuFixture('AUDIT-ISSUE-CANCEL-001');
         $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-AUDIT-CANCEL-001');
 
-        $create = $this->postJson('/api/v1/outbound-documents', [
-            'src_warehouse_id' => $warehouse->id,
-            'outbound_request_id' => $requestId,
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
         $cancel = $this->postJson("/api/v1/outbound-documents/{$documentId}/cancel", [
             'reason' => 'Khách hủy đơn trước khi xuất',
         ], $headers + ['If-Match' => '1']);

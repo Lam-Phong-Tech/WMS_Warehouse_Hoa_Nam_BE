@@ -51,10 +51,11 @@ class ReversalDocumentController extends Controller
             $query->where('reversal_documents.status', $request->input('status'));
         }
         if ($request->filled('keyword')) {
-            $keyword = '%'.$request->input('keyword').'%';
+            $keyword = '%'.mb_strtolower((string) $request->input('keyword')).'%';
+            // sqlite không có ILIKE; hạ chữ hai vế để cùng ngữ nghĩa trên mọi driver.
             $query->where(function ($q) use ($keyword) {
-                $q->whereRaw('CAST(reversal_documents.reversal_no AS TEXT) ILIKE ?', [$keyword])
-                    ->orWhereRaw('CAST(reversal_documents.reason_text AS TEXT) ILIKE ?', [$keyword]);
+                $q->whereRaw('LOWER(CAST(reversal_documents.reversal_no AS TEXT)) LIKE ?', [$keyword])
+                    ->orWhereRaw('LOWER(CAST(reversal_documents.reason_text AS TEXT)) LIKE ?', [$keyword]);
             });
         }
 
@@ -186,6 +187,12 @@ class ReversalDocumentController extends Controller
         return $version;
     }
 
+    /**
+     * Annex D SCR-REV-01 yêu cầu hiển thị original_movement, qty_to_reverse và
+     * return_condition. `reversal_lines.quantity` và `quantity_to_reverse` luôn bằng
+     * nhau (trigger view ghi cả hai) nên không được dùng làm "số lượng gốc" — số gốc
+     * phải lấy từ chính movement gốc, còn reversible_qty tính theo BR-REV-05.
+     */
     public function lines(string $id)
     {
         $doc = DB::table('reversal_documents')->where('id', $id)->first();
@@ -193,29 +200,106 @@ class ReversalDocumentController extends Controller
             return $this->respondNotFound('Không tìm thấy reversal document.');
         }
 
-        $lines = DB::table('reversal_lines')
-            ->leftJoin('products', 'reversal_lines.sku_id', '=', 'products.id')
-            ->where('reversal_lines.reversal_document_id', $id)
-            ->select([
-                'reversal_lines.id',
-                'reversal_lines.reversal_document_id',
-                'reversal_lines.line_no',
-                'reversal_lines.original_movement_id',
-                'reversal_lines.quantity as reversal_qty',
-                'reversal_lines.quantity_to_reverse as original_qty',
-                'reversal_lines.stock_status',
-                'reversal_lines.reason',
-                'reversal_lines.posted_movement_id',
-                'reversal_lines.version',
-                'reversal_lines.created_at',
-                'products.code as sku',
-                'products.name as sku_name',
-                'products.unit as uom',
-            ])
-            ->orderBy('reversal_lines.line_no')
+        $lines = DB::table('reversal_lines as rl')
+            ->leftJoin('stock_movements as mv', 'mv.id', '=', 'rl.original_movement_id')
+            ->leftJoin('sku', 'sku.sku_id', '=', 'rl.sku_id')
+            ->leftJoin('item_instances as it', 'it.item_id', '=', 'rl.item_id')
+            ->where('rl.reversal_document_id', $id)
+            ->orderBy('rl.line_no')
+            ->get([
+                'rl.id',
+                'rl.reversal_document_id',
+                'rl.line_no',
+                'rl.original_movement_id',
+                'rl.sku_id',
+                'rl.item_id',
+                'rl.quantity_to_reverse',
+                'rl.stock_status',
+                'rl.return_condition',
+                'rl.downstream_check_result',
+                'rl.posted_movement_id',
+                'rl.reason',
+                'rl.version',
+                'rl.created_at',
+                'mv.movement_no',
+                'mv.movement_type',
+                'mv.quantity as original_movement_quantity',
+                'mv.qty_delta as original_movement_qty_delta',
+                'sku.sku_code',
+                'sku.sku_name',
+                'sku.unit',
+                'it.item_code',
+                'it.serial_number',
+            ]);
+
+        $reversedByMovement = $this->postedReversedQtyByMovement(
+            $lines->pluck('original_movement_id')->filter()->unique()->all()
+        );
+
+        $docStatus = strtoupper((string) $doc->status);
+
+        return $this->respondSuccess($lines->map(function (object $line) use ($reversedByMovement, $docStatus): array {
+            $originalQty = (int) abs((int) ($line->original_movement_quantity ?? $line->original_movement_qty_delta ?? 0));
+            $reversalQty = (int) $line->quantity_to_reverse;
+            $reversedQty = (int) ($reversedByMovement[(string) $line->original_movement_id] ?? 0);
+
+            return [
+                'id' => $line->id,
+                'reversal_document_id' => $line->reversal_document_id,
+                'reversal_id' => $line->reversal_document_id,
+                'line_no' => (int) $line->line_no,
+                'original_movement_id' => $line->original_movement_id,
+                'original_movement_code' => $line->movement_no,
+                'original_movement_type' => $line->movement_type,
+                'sku' => $line->sku_code ?? '',
+                'sku_name' => $line->sku_name ?? '-',
+                'uom' => $line->unit ?? '',
+                'item_id' => $line->item_id,
+                'item_code' => $line->item_code,
+                'serial_number' => $line->serial_number,
+                'original_qty' => $originalQty,
+                'reversal_qty' => $reversalQty,
+                'reversed_qty' => $reversedQty,
+                'remaining_qty' => max(0, $originalQty - $reversedQty),
+                'return_condition' => $line->return_condition,
+                'stock_status' => $line->stock_status,
+                'dependency_check' => $line->downstream_check_result,
+                'posted_movement_id' => $line->posted_movement_id,
+                // §6: line chỉ "POSTED" khi đã sinh movement đối ứng; còn lại theo header.
+                'status' => $line->posted_movement_id !== null ? 'POSTED' : $docStatus,
+                'reason' => $line->reason,
+                'version' => (int) $line->version,
+                'created_at' => $line->created_at,
+            ];
+        })->all());
+    }
+
+    /**
+     * BR-REV-05: tổng lượng đã đảo (chỉ tính reversal đã POSTED) theo movement gốc.
+     *
+     * @param  list<string>  $movementIds
+     * @return array<string, int>
+     */
+    private function postedReversedQtyByMovement(array $movementIds): array
+    {
+        if ($movementIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('reversal_lines as rl')
+            ->join('reversal_documents as rd', 'rd.id', '=', 'rl.reversal_document_id')
+            ->whereIn('rl.original_movement_id', $movementIds)
+            ->where('rd.status', 'POSTED')
+            ->groupBy('rl.original_movement_id')
+            ->select('rl.original_movement_id', DB::raw('COALESCE(SUM(rl.quantity_to_reverse), 0) AS total_reversed'))
             ->get();
 
-        return $this->respondSuccess($lines);
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string) $row->original_movement_id] = (int) $row->total_reversed;
+        }
+
+        return $map;
     }
 
     public function store(Request $request)

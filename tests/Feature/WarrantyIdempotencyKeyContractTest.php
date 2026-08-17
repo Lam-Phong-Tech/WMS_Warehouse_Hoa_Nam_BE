@@ -77,7 +77,12 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
         }
     }
 
-    public function test_warranty_intake_requires_key_and_replays_snapshot_without_duplicate_case(): void
+    /**
+     * Annex C createWarrantyCase khai Idempotency/If-Match = "-" và §8.1 nhóm Warranty
+     * không liệt kê 428; §13.3 chỉ bắt idempotency cho action đổi tồn. Vì vậy thiếu
+     * header phải đi qua (case stock-neutral), còn có header thì vẫn replay.
+     */
+    public function test_warranty_intake_accepts_missing_key_and_replays_when_key_supplied(): void
     {
         [, $token] = $this->createSuperAdmin();
         $headers = ['Authorization' => "Bearer {$token}"];
@@ -91,10 +96,12 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
 
         $before = WarrantyCase::query()->count();
         $this->postJson('/api/v1/warranty-cases', $payload, $headers)
-            ->assertStatus(428)
-            ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
-        $this->assertSame($before, WarrantyCase::query()->count());
+            ->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'false')
+            ->assertJsonPath('data.stock_effect', 'NONE');
+        $this->assertSame($before + 1, WarrantyCase::query()->count());
 
+        $before = WarrantyCase::query()->count();
         $key = ['Idempotency-Key' => 'warranty-create-replay-0001'];
         $first = $this->postJson('/api/v1/warranty-cases', $payload, $headers + $key);
         $first->assertCreated()->assertHeader('Idempotent-Replay', 'false');
@@ -107,7 +114,11 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
         $this->assertSame($before + 1, WarrantyCase::query()->count());
     }
 
-    public function test_warranty_update_requires_key_and_replay_does_not_double_apply(): void
+    /**
+     * Annex C transitionWarrantyStatus khai duy nhất If-Match. Thiếu Idempotency-Key vẫn
+     * chạy (If-Match là guard chống double-apply: lần hai trả 412), có key thì replay.
+     */
+    public function test_warranty_update_without_key_relies_on_if_match_and_replays_with_key(): void
     {
         [, $token] = $this->createSuperAdmin();
         $headers = ['Authorization' => "Bearer {$token}"];
@@ -122,42 +133,54 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
         $create->assertCreated();
         $caseId = (string) $create->json('data.id');
 
+        // Không Idempotency-Key: đi qua bình thường, version tăng 1 -> 2.
         $this->patchJson(
             "/api/v1/warranty-cases/{$caseId}",
             ['status' => 'CHECKING'],
             $headers + ['If-Match' => '1']
         )
-            ->assertStatus(428)
-            ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
+            ->assertOk()
+            ->assertHeader('Idempotent-Replay', 'false')
+            ->assertJsonPath('data.version', 2);
+
+        // Lặp lại cùng If-Match cũ mà không có key -> 412, không double-apply.
+        $this->patchJson(
+            "/api/v1/warranty-cases/{$caseId}",
+            ['status' => 'CHECKING'],
+            $headers + ['If-Match' => '1']
+        )
+            ->assertStatus(412)
+            ->assertJsonPath('error.code', 'STALE_VERSION');
 
         $key = ['Idempotency-Key' => 'warranty-update-replay-0001'];
         $update = $this->patchJson(
             "/api/v1/warranty-cases/{$caseId}",
-            ['status' => 'CHECKING'],
-            $headers + $key + ['If-Match' => '1']
+            ['status' => 'REPAIRING'],
+            $headers + $key + ['If-Match' => '2']
         );
         $update->assertOk()
             ->assertHeader('Idempotent-Replay', 'false')
-            ->assertJsonPath('data.version', 2);
+            ->assertJsonPath('data.version', 3);
 
         // Retry cùng key/payload sau khi thành công phải trả snapshot cũ,
         // không tạo event mới và không tăng version (kể cả If-Match đã cũ).
         $retry = $this->patchJson(
             "/api/v1/warranty-cases/{$caseId}",
-            ['status' => 'CHECKING'],
-            $headers + $key + ['If-Match' => '1']
+            ['status' => 'REPAIRING'],
+            $headers + $key + ['If-Match' => '2']
         );
         $retry->assertOk()
             ->assertHeader('Idempotent-Replay', 'true')
-            ->assertJsonPath('data.version', 2)
-            ->assertJsonPath('data.status', 'CHECKING');
+            ->assertJsonPath('data.version', 3)
+            ->assertJsonPath('data.status', 'REPAIRING');
+        // 1 RECEIVE + 1 CHECKING + 1 REPAIRING; replay không thêm event.
         $this->assertSame(
-            2,
+            3,
             WarrantyEvent::query()->where('warranty_case_id', $caseId)->count(),
         );
         $this->assertDatabaseHas('warranty_case', [
             'warranty_case_id' => $caseId,
-            'version' => 2,
+            'version' => 3,
         ]);
     }
 

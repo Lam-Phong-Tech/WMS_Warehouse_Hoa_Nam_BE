@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class CurrentBaselineOperationsController extends Controller
 {
@@ -34,13 +35,20 @@ class CurrentBaselineOperationsController extends Controller
             'file' => ['nullable', 'required_without:rows', 'file', 'mimes:xlsx,xls', 'max:20480'],
             'rows' => ['nullable', 'required_without:file', 'array', 'min:1', 'max:10000'],
             'rows.*.request_no' => ['required_with:rows', 'string', 'max:80'],
+            'rows.*.request_date' => ['nullable', 'string', 'max:20'],
             'rows.*.recipient_name' => ['nullable', 'string', 'max:200'],
             'rows.*.customer_name' => ['nullable', 'string', 'max:200'],
             'rows.*.recipient_address' => ['nullable', 'string', 'max:1000'],
             'rows.*.customer_address' => ['nullable', 'string', 'max:1000'],
+            // §5.2 + Annex D SCR-OUT-01: SĐT người nhận optional ngay từ khâu tiếp nhận toa.
+            'rows.*.recipient_contact_phone' => ['nullable', 'string', 'max:50'],
+            'rows.*.customer_phone' => ['nullable', 'string', 'max:50'],
             'rows.*.sku_code' => ['nullable', 'string', 'max:100'],
             'rows.*.sku_id' => ['nullable', 'uuid'],
+            // BR-AGY-01 được kiểm ở Confirm nên agency_id phải đi qua validate.
+            'rows.*.agency_id' => ['nullable', 'uuid'],
             'rows.*.required_qty' => ['required_with:rows', 'integer', 'min:1'],
+            'rows.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
 
         [$rows, $fileName, $checksum] = isset($validated['file'])
@@ -592,21 +600,36 @@ class CurrentBaselineOperationsController extends Controller
         return [$rows, $fileName, hash_file('sha256', $path)];
     }
 
-    private function validateOutboundRow(array $row, int $rowNo): array
+    /**
+     * Chuẩn hoá + validate một dòng toa. `protected` để bước Confirm (Annex C
+     * OutboundRequestImportConfirmRequest) validate lại sau khi người dùng map SKU.
+     */
+    protected function validateOutboundRow(array $row, int $rowNo): array
     {
         $errors = [];
         $requestNo = trim((string) ($row['request_no'] ?? ''));
         $recipientName = trim((string) ($row['recipient_name'] ?? $row['customer_name'] ?? ''));
         $recipientAddress = trim((string) ($row['recipient_address'] ?? $row['customer_address'] ?? ''));
+        // §5.2 + Annex D SCR-OUT-01: SĐT người nhận nullable, chuẩn hoá khi có.
+        $recipientPhone = self::normalizePhone(
+            $row['recipient_contact_phone'] ?? $row['customer_phone'] ?? $row['recipient_phone'] ?? null
+        );
         $skuId = $row['sku_id'] ?? null;
         $skuCode = trim((string) ($row['sku_code'] ?? ''));
         $requiredQty = $row['required_qty'] ?? null;
+        [$requestDate, $dateError] = $this->normalizeRequestDate($row['request_date'] ?? null, $rowNo);
+        if ($dateError !== null) {
+            $errors[] = $dateError;
+        }
 
         if ($requestNo === '') {
             $errors[] = $this->rowError($rowNo, 'request_no', 'REQUIRED', 'request_no is required.');
         }
         if ($recipientName === '') {
             $errors[] = $this->rowError($rowNo, 'recipient_name', 'REQUIRED', 'recipient/customer name is required.');
+        }
+        if ($recipientPhone !== null && ! preg_match('/^\+?[0-9]{6,20}$/', $recipientPhone)) {
+            $errors[] = $this->rowError($rowNo, 'recipient_contact_phone', 'INVALID_PHONE', 'recipient_contact_phone chỉ nhận số (6-20 chữ số).');
         }
         // SRS v1.12 §15 + REQ-SRS-014: recipient_address/phone nullable — không chặn
         // Confirm khi toa nguồn (vd. toa mẫu khách hàng) không có địa chỉ.
@@ -619,6 +642,14 @@ class CurrentBaselineOperationsController extends Controller
         }
         if ($sku === null || strtoupper((string) $sku->status) !== 'ACTIVE') {
             $errors[] = $this->rowError($rowNo, 'sku_code', 'SKU_NOT_ACTIVE', 'SKU not found or inactive.');
+        } elseif (strtoupper((string) $sku->sku_type) !== 'PRODUCT') {
+            // §5.4.1: COMPONENT chỉ xuất qua Component Issue gắn warranty case active.
+            $errors[] = $this->rowError(
+                $rowNo,
+                'sku_code',
+                'COMPONENT_OUTBOUND_FORBIDDEN',
+                'COMPONENT SKU chỉ được xuất qua Component Issue liên kết warranty case active.'
+            );
         }
         if (filter_var($requiredQty, FILTER_VALIDATE_INT) === false || (int) $requiredQty <= 0) {
             $errors[] = $this->rowError($rowNo, 'required_qty', 'INVALID_QUANTITY', 'required_qty must be a positive integer.');
@@ -626,13 +657,67 @@ class CurrentBaselineOperationsController extends Controller
 
         return [[
             'request_no' => $requestNo,
+            'request_date' => $requestDate,
             'recipient_name' => $recipientName,
             'recipient_address' => $recipientAddress,
+            'recipient_contact_phone' => $recipientPhone,
             'agency_id' => $row['agency_id'] ?? null,
             'sku_id' => $sku?->sku_id,
             'sku_code' => $sku?->sku_code ?? $skuCode,
             'required_qty' => (int) $requiredQty,
+            'note' => isset($row['note']) && trim((string) $row['note']) !== '' ? trim((string) $row['note']) : null,
         ], $errors];
+    }
+
+    /** §5.2: chuẩn hoá SĐT người nhận (giữ dấu +, bỏ khoảng trắng/dấu phân cách). */
+    protected static function normalizePhone(mixed $value): ?string
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+        $normalized = preg_replace('/(?!^\+)[^0-9]/', '', $raw) ?? $raw;
+
+        return $normalized === '' ? null : $normalized;
+    }
+
+    /**
+     * §5.2: toa mang "số toa - ngày - người nhận". Ngày toa nullable (fallback ngày
+     * Confirm) nhưng nếu có phải parse được và không ở tương lai.
+     *
+     * @return array{0: ?string, 1: ?array<string,mixed>}
+     */
+    private function normalizeRequestDate(mixed $value, int $rowNo): array
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return [null, null];
+        }
+
+        // Excel serial date (PhpSpreadsheet trả number khi cell là kiểu date).
+        if (is_numeric($raw) && (float) $raw > 0 && ! str_contains($raw, '-') && ! str_contains($raw, '/')) {
+            try {
+                return [
+                    Date::excelToDateTimeObject((float) $raw)->format('Y-m-d'),
+                    null,
+                ];
+            } catch (\Throwable) {
+                // rơi xuống parser chuỗi bên dưới
+            }
+        }
+
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'Y/m/d'] as $format) {
+            $parsed = \DateTimeImmutable::createFromFormat('!'.$format, $raw);
+            if ($parsed !== false) {
+                if ($parsed > new \DateTimeImmutable('today 23:59:59')) {
+                    return [null, $this->rowError($rowNo, 'request_date', 'INVALID_REQUEST_DATE', 'request_date không được ở tương lai.')];
+                }
+
+                return [$parsed->format('Y-m-d'), null];
+            }
+        }
+
+        return [null, $this->rowError($rowNo, 'request_date', 'INVALID_REQUEST_DATE', 'request_date phải theo định dạng YYYY-MM-DD hoặc DD/MM/YYYY.')];
     }
 
     private function rowError(int $row, string $field, string $code, string $message): array
@@ -669,7 +754,31 @@ class CurrentBaselineOperationsController extends Controller
         return (array) $case;
     }
 
+    /**
+     * Annex C printPackingLabel/reprintPackingLabel — Idempotency-Key + If-Match.
+     * SRS §6: chỉ in từ READY_TO_PRINT (hoặc retry sau PRINT_FAILED); reprint dùng
+     * lại đúng snapshot đã PRINTED và stock-neutral kể cả sau completion.
+     */
     private function dispatchLabel(Request $request, string $id, bool $reprint)
+    {
+        $key = IdempotencyKeyGuard::require($request);
+        $hash = IdempotencyStore::requestHash($request);
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $key,
+            ($reprint ? 'reprint_packing_label_' : 'print_packing_label_').$id,
+            $this->actorId(),
+            $hash,
+            function () use ($request, $id, $reprint): array {
+                $response = $this->dispatchLabelOnce($request, $id, $reprint);
+
+                return [$response->getStatusCode(), $response->getData(true)];
+            }
+        );
+
+        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    private function dispatchLabelOnce(Request $request, string $id, bool $reprint)
     {
         $validated = $request->validate([
             'printer_config_id' => ['required', 'uuid', 'exists:printer_configs,id'],
@@ -679,6 +788,7 @@ class CurrentBaselineOperationsController extends Controller
         if ($snapshot === null) {
             return $this->respondNotFound('Label snapshot not found.');
         }
+        $this->assertLabelPrintable($request, $snapshot, $reprint);
         $printer = DB::table('printer_configs')->where('id', $validated['printer_config_id'])->first();
         if ($printer === null || ($printer->status ?? 'ACTIVE') !== 'ACTIVE' || empty($printer->agent_endpoint)) {
             return $this->recordPrintFailure($snapshot, $validated['printer_config_id'], 'Printer agent is not ACTIVE/configured.', $reprint);
@@ -704,7 +814,8 @@ class CurrentBaselineOperationsController extends Controller
             $error = $e->getMessage();
         }
 
-        DB::transaction(function () use ($eventId, $id, $validated, $status, $error): void {
+        $version = ((int) ($snapshot->version ?? 0)) + 1;
+        DB::transaction(function () use ($eventId, $id, $validated, $status, $error, $version): void {
             DB::table('label_print_events')->insert([
                 'id' => $eventId,
                 'label_snapshot_id' => $id,
@@ -718,25 +829,76 @@ class CurrentBaselineOperationsController extends Controller
                 'updated_by' => $this->actorId(),
                 'version' => 0,
             ]);
-            DB::table('label_snapshots')->where('id', $id)->update(['status' => $status, 'updated_at' => now()]);
+            DB::table('label_snapshots')->where('id', $id)->update([
+                'status' => $status,
+                'version' => $version,
+                'updated_at' => now(),
+            ]);
         });
 
         if ($status !== 'PRINTED') {
-            ApiError::abort(409, 'PRINT_FAILED', $error ?? 'Printer failed.');
+            // §5.2 + SCR-LBL-01: print failure chặn completion, tồn/movement không đổi.
+            ApiError::abort(409, 'PRINT_FAILED', $error ?? 'Printer failed.', [
+                'label_print_event_id' => $eventId,
+                'label_status' => 'PRINT_FAILED',
+                'version' => $version,
+                'reprint' => $reprint,
+            ]);
         }
 
         return $this->respondSuccess([
             'label_snapshot_id' => $id,
             'label_print_event_id' => $eventId,
             'status' => 'PRINTED',
+            'version' => $version,
             'reprint' => $reprint,
             'stock_effect' => 'NONE',
         ], $reprint ? 'Label reprinted.' : 'Label printed.');
     }
 
+    /**
+     * SRS §6 Packing_Label: DRAFT → PREVIEWED → READY_TO_PRINT → PRINTED,
+     * print failure → PRINT_FAILED (retry dùng lại chính snapshot đó).
+     * Reprint chỉ áp dụng cho nhãn đã PRINTED và được phép sau completion.
+     */
+    private function assertLabelPrintable(Request $request, object $snapshot, bool $reprint): void
+    {
+        $expected = $this->expectedLabelVersion($request);
+        if ((int) ($snapshot->version ?? 0) !== $expected) {
+            ApiError::abort(412, 'STALE_VERSION', 'Packing Label version mismatch.', [
+                'expected_version' => $expected,
+                'current_version' => (int) ($snapshot->version ?? 0),
+            ]);
+        }
+
+        $current = (string) $snapshot->status;
+        $allowed = $reprint ? ['PRINTED', 'PRINT_FAILED'] : ['READY_TO_PRINT', 'PRINT_FAILED'];
+        if (! in_array($current, $allowed, true)) {
+            ApiError::abort(409, 'LABEL_STATE_CONFLICT', $reprint
+                ? "Chỉ in lại được Packing Label đã PRINTED; trạng thái hiện tại {$current}."
+                : "Packing Label phải READY_TO_PRINT trước khi in; trạng thái hiện tại {$current}.");
+        }
+    }
+
+    private function expectedLabelVersion(Request $request): int
+    {
+        $header = trim((string) $request->header('If-Match'));
+        if ($header === '') {
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match là bắt buộc cho lệnh in/in lại Packing Label.');
+        }
+        $header = preg_replace('/^W\//', '', $header) ?? $header;
+        $header = trim($header, '" ');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
+        }
+
+        return (int) $header;
+    }
+
     private function recordPrintFailure(object $snapshot, string $printerId, string $message, bool $reprint)
     {
         $eventId = (string) Str::uuid();
+        $version = ((int) ($snapshot->version ?? 0)) + 1;
         DB::table('label_print_events')->insert([
             'id' => $eventId,
             'label_snapshot_id' => $snapshot->id,
@@ -749,8 +911,17 @@ class CurrentBaselineOperationsController extends Controller
             'updated_by' => $this->actorId(),
             'version' => 0,
         ]);
-        DB::table('label_snapshots')->where('id', $snapshot->id)->update(['status' => 'PRINT_FAILED', 'updated_at' => now()]);
-        ApiError::abort(409, 'PRINT_FAILED', $message, ['label_print_event_id' => $eventId, 'reprint' => $reprint]);
+        DB::table('label_snapshots')->where('id', $snapshot->id)->update([
+            'status' => 'PRINT_FAILED',
+            'version' => $version,
+            'updated_at' => now(),
+        ]);
+        ApiError::abort(409, 'PRINT_FAILED', $message, [
+            'label_print_event_id' => $eventId,
+            'label_status' => 'PRINT_FAILED',
+            'version' => $version,
+            'reprint' => $reprint,
+        ]);
     }
 
     private function containsPhoneField(array $payload): bool
