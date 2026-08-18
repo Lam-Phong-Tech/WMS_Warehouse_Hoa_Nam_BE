@@ -5308,121 +5308,51 @@
                     "00. Platform"
                 ],
                 "summary": "Public readiness health check",
+                "description": "Readiness công khai (không auth). HTTP 200 khi toàn bộ critical check (app, database, migrations, seed) ok; HTTP 503 + error_code HEALTH_CHECK_DEGRADED khi có check fail. `checks.cache` là chẩn đoán Valkey và CỐ Ý không gate readiness (fail-open xuống PostgreSQL). `data.build.sha` là danh tính artifact đang chạy, dùng cho mọi gate exact-SHA.",
                 "operationId": "backend_health_v1",
                 "parameters": [],
                 "responses": {
                     "200": {
-                        "description": "Ready",
+                        "description": "Ready — mọi critical check ok. Payload health nằm ở `data`.",
+                        "headers": {
+                            "Cache-Control": {
+                                "description": "Luôn no-store: readiness không được phục vụ từ cache trung gian.",
+                                "schema": {
+                                    "type": "string",
+                                    "example": "no-store, private"
+                                }
+                            }
+                        },
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                    "$ref": "#/components/schemas/HealthReadyEnvelope"
                                 }
                             }
                         }
                     },
                     "503": {
-                        "description": "Degraded",
-                        "content": {
-                            "application/json": {
+                        "description": "Degraded — ít nhất một critical check fail. Payload health nằm ở `errors` và `error.details`, KHÔNG ở `data`.",
+                        "headers": {
+                            "Cache-Control": {
+                                "description": "Luôn no-store: readiness không được phục vụ từ cache trung gian.",
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                    "type": "string",
+                                    "example": "no-store, private"
                                 }
                             }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
+                        },
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Chưa xác thực",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Không có quyền truy cập",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "412": {
-                        "description": "Điều kiện If-Match không đạt",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "428": {
-                        "description": "Thiếu điều kiện If-Match bắt buộc",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                    "$ref": "#/components/schemas/HealthDegradedEnvelope"
                                 }
                             }
                         }
                     }
                 },
-                "security": []
+                "security": [],
+                "x-exhaustive-responses": true
             }
         },
         "/api/v1/import-batches": {
@@ -28078,7 +28008,7 @@
                     "05. Product"
                 ],
                 "summary": "Import SKUs từ Excel theo cơ chế all-or-nothing, hỗ trợ dry-run",
-                "description": "Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. WWHN-331 FE331-P1-03R3: mọi response đều mang khối `data.constraints` (max_rows, max_file_size_kb, allowed_extensions, error_file_expiry_hours, idempotency_window_hours, idempotency_identity, decision_ref) — đây là hạn mức máy chủ ĐANG áp dụng, đọc từ hợp đồng đã duyệt `warehouse.sku_import` (DEC-IMP-001). Client hiển thị theo khối này, không hard-code lại các con số đó. WWHN-331 FE331-P1-02R3 (idempotent replay): một lần import COMMIT được định danh bằng `file_sha256 + actor_id + options_fingerprint`, trong đó options_fingerprint = sha256 của chuỗi chuẩn hoá `update_existing=0|1`. Nộp lại CÙNG file, CÙNG actor, CÙNG update_existing trong cửa sổ idempotent thì trả duplicate=true + import_report_id của lần gốc và không ghi SKU/tạo báo cáo mới; nộp lại cùng file nhưng ĐỔI update_existing là thao tác nghiệp vụ KHÁC (chỉ tạo mới ↔ cho phép ghi đè) nên vẫn chạy thật. Khi có row lỗi, dùng GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).",
+                "description": "Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. DEV224-P1-05R: Import báo cáo là OUTPUT BẮT BUỘC — nó được ghi TRONG cùng transaction với phần ghi SKU/audit, nên không tồn tại trạng thái \"đã ghi SKU nhưng không có báo cáo\". Ghi/đọc báo cáo hỏng thì transaction rollback và API trả 503 SKU_IMPORT_REPORT_PERSISTENCE_FAILED, KHÔNG trả 200 thiếu import_report_id. WWHN-331 FE331-P1-03R3: mọi response đều mang khối `data.constraints` (max_rows, max_file_size_kb, allowed_extensions, error_file_expiry_hours, idempotency_window_hours, idempotency_identity, decision_ref) — đây là hạn mức máy chủ ĐANG áp dụng, đọc từ hợp đồng đã duyệt `warehouse.sku_import` (DEC-IMP-001). Client hiển thị theo khối này, không hard-code lại các con số đó. WWHN-331 FE331-P1-02R3 (idempotent replay): một lần import COMMIT được định danh bằng `file_sha256 + actor_id + options_fingerprint`, trong đó options_fingerprint = sha256 của chuỗi chuẩn hoá `update_existing=0|1`. Nộp lại CÙNG file, CÙNG actor, CÙNG update_existing trong cửa sổ idempotent thì trả duplicate=true + import_report_id của lần gốc và không ghi SKU/tạo báo cáo mới; nộp lại cùng file nhưng ĐỔI update_existing là thao tác nghiệp vụ KHÁC (chỉ tạo mới ↔ cho phép ghi đè) nên vẫn chạy thật. Khi có row lỗi, dùng GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).",
                 "operationId": "sku_import_excel",
                 "parameters": [],
                 "requestBody": {
@@ -28111,7 +28041,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true)",
+                        "description": "Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true). Response luôn có `data.import_report_id` khác null (trừ ca duplicate, khi đó là id của lần import GỐC).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -28131,7 +28061,7 @@
                         }
                     },
                     "403": {
-                        "description": "Missing product.manage permission",
+                        "description": "Missing sku.manage permission",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -28151,7 +28081,17 @@
                         }
                     },
                     "422": {
-                        "description": "File/row validation failed; no business side effect",
+                        "description": "File/row validation failed; no business side effect. Với lỗi ở tầng DÒNG, Import báo cáo REJECTED vẫn được ghi và `data.import_report_id` khác null để tải file lỗi CSV.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "SKU_IMPORT_REPORT_PERSISTENCE_FAILED — không ghi/không đọc được Import báo cáo (`import_reports`), là output BẮT BUỘC của WWHN-224. Toàn bộ transaction đã rollback: `committed=false`, `partial_write=false`, `import_report_id=null`, `retryable=true`, kèm header `Retry-After`. Không có SKU nào được tạo/cập nhật, không audit nghiệp vụ nào còn lại (DEV224-P1-05R).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -28731,7 +28671,7 @@
                         }
                     },
                     "403": {
-                        "description": "Missing product.manage permission",
+                        "description": "Missing sku.manage permission",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -34168,6 +34108,318 @@
                     }
                 },
                 "type": "object"
+            },
+            "HealthBuildIdentity": {
+                "title": "Danh tinh artifact dang chay",
+                "description": "Do CI inject lúc build image (APP_BUILD_SHA/REF/TIME). `null` nghĩa là artifact KHÔNG khai được danh tính — ngoài local/testing đó là fail của gate `release.build_identity` (wms:golive-check), không phải giá trị hợp lệ. Không chứa secret: chỉ commit SHA, ref và thời điểm build.",
+                "required": [
+                    "sha",
+                    "ref",
+                    "built_at"
+                ],
+                "properties": {
+                    "sha": {
+                        "description": "Commit SHA của source đã build. Phải khớp exact candidate SHA đã pin trên WWHN-295.",
+                        "type": "string",
+                        "example": "0000000000000000000000000000000000000000",
+                        "nullable": true
+                    },
+                    "ref": {
+                        "description": "Git ref đã build (branch/tag).",
+                        "type": "string",
+                        "example": "refs/heads/m1",
+                        "nullable": true
+                    },
+                    "built_at": {
+                        "description": "Thời điểm build artifact (ISO-8601).",
+                        "type": "string",
+                        "example": "2026-08-19T02:11:07+07:00",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "HealthAppCheck": {
+                "title": "Check tien trinh ung dung",
+                "required": [
+                    "status"
+                ],
+                "properties": {
+                    "status": {
+                        "description": "Luôn `ok` khi request tới được controller; check này chứng minh tiến trình PHP phục vụ được.",
+                        "type": "string",
+                        "enum": [
+                            "ok"
+                        ]
+                    }
+                },
+                "type": "object"
+            },
+            "HealthDatabaseCheck": {
+                "title": "Check ket noi PostgreSQL",
+                "required": [
+                    "status"
+                ],
+                "properties": {
+                    "status": {
+                        "description": "Critical: `fail` kéo readiness xuống 503.",
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "fail"
+                        ]
+                    },
+                    "driver": {
+                        "description": "Driver đang dùng; chỉ có khi kết nối thành công.",
+                        "type": "string",
+                        "example": "pgsql",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "HealthMigrationsCheck": {
+                "title": "Check migration da chay",
+                "required": [
+                    "status",
+                    "ran_count"
+                ],
+                "properties": {
+                    "status": {
+                        "description": "Critical: `ran_count = 0` (schema trống) là `fail`.",
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "fail"
+                        ]
+                    },
+                    "ran_count": {
+                        "description": "Số bản ghi trong bảng migrations.",
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "type": "object"
+            },
+            "HealthSeedCheck": {
+                "title": "Check seed baseline",
+                "description": "Đọc qua model canonical; VIEW tương thích và cờ trình bày cố ý KHÔNG tính là danh tính seed.",
+                "required": [
+                    "status",
+                    "markers"
+                ],
+                "properties": {
+                    "status": {
+                        "description": "Critical: thiếu bất kỳ marker nào là `fail`.",
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "fail"
+                        ]
+                    },
+                    "markers": {
+                        "required": [
+                            "admin_user",
+                            "baseline_warehouse",
+                            "baseline_product"
+                        ],
+                        "properties": {
+                            "admin_user": {
+                                "description": "User `admin` ACTIVE.",
+                                "type": "boolean"
+                            },
+                            "baseline_warehouse": {
+                                "description": "Kho `KHO-TONG-HN` ACTIVE.",
+                                "type": "boolean"
+                            },
+                            "baseline_product": {
+                                "description": "SKU `HN-PV-BASE-001` ACTIVE.",
+                                "type": "boolean"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "HealthCacheCheck": {
+                "title": "Chan doan Valkey/Redis (KHONG gate readiness)",
+                "description": "Cache là dependency optional có fail-open xuống PostgreSQL (App\\Support\\Cache\\CacheService). `degraded` KHÔNG kéo HTTP status xuống 503 — biến nó thành hard gate sẽ gây restart loop liveness/readiness dù API vẫn phục vụ được. Monitor phải cảnh báo trên khoá này thay vì trên HTTP status.",
+                "required": [
+                    "status"
+                ],
+                "properties": {
+                    "status": {
+                        "description": "`skipped` khi CACHE_STORE không phải redis.",
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "degraded",
+                            "skipped"
+                        ]
+                    },
+                    "store": {
+                        "description": "Cache store đang cấu hình.",
+                        "type": "string",
+                        "example": "redis",
+                        "nullable": true
+                    },
+                    "ping": {
+                        "description": "Kết quả PING; chỉ có khi status = ok.",
+                        "type": "string",
+                        "example": "PONG",
+                        "nullable": true
+                    },
+                    "note": {
+                        "description": "Chỉ có khi status = degraded.",
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "HealthChecks": {
+                "title": "Tap check readiness",
+                "description": "Critical checks (app, database, migrations, seed) quyết định HTTP 200/503. `cache` là chẩn đoán, cố ý không critical.",
+                "required": [
+                    "app",
+                    "database",
+                    "migrations",
+                    "seed",
+                    "cache"
+                ],
+                "properties": {
+                    "app": {
+                        "$ref": "#/components/schemas/HealthAppCheck"
+                    },
+                    "database": {
+                        "$ref": "#/components/schemas/HealthDatabaseCheck"
+                    },
+                    "migrations": {
+                        "$ref": "#/components/schemas/HealthMigrationsCheck"
+                    },
+                    "seed": {
+                        "$ref": "#/components/schemas/HealthSeedCheck"
+                    },
+                    "cache": {
+                        "$ref": "#/components/schemas/HealthCacheCheck"
+                    }
+                },
+                "type": "object"
+            },
+            "HealthPayload": {
+                "title": "Payload readiness /api/v1/health",
+                "description": "Hình dạng payload GIỐNG HỆT nhau ở 200 và 503; chỉ khác vị trí trong envelope (200: `data`; 503: `errors` và `error.details`).",
+                "required": [
+                    "status",
+                    "version",
+                    "build",
+                    "environment",
+                    "server_time",
+                    "request_id",
+                    "checks"
+                ],
+                "properties": {
+                    "status": {
+                        "description": "`ok` tương ứng HTTP 200; `degraded` tương ứng HTTP 503 + error_code HEALTH_CHECK_DEGRADED.",
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "degraded"
+                        ]
+                    },
+                    "version": {
+                        "description": "Nhãn phát hành do vận hành đặt (APP_VERSION). KHÔNG phải danh tính artifact — dùng `build.sha`.",
+                        "type": "string",
+                        "example": "1.0.0"
+                    },
+                    "build": {
+                        "$ref": "#/components/schemas/HealthBuildIdentity"
+                    },
+                    "environment": {
+                        "description": "APP_ENV của tiến trình đang chạy.",
+                        "type": "string",
+                        "example": "production"
+                    },
+                    "server_time": {
+                        "description": "Thời điểm server trả lời (ISO-8601, Asia/Ho_Chi_Minh).",
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "request_id": {
+                        "description": "Cùng giá trị với `meta.request_id`; dùng để nối raw response với log/audit.",
+                        "type": "string"
+                    },
+                    "checks": {
+                        "$ref": "#/components/schemas/HealthChecks"
+                    }
+                },
+                "type": "object"
+            },
+            "HealthReadyEnvelope": {
+                "title": "Health 200 envelope thanh cong",
+                "description": "Envelope chuẩn với `data` = HealthPayload (`status = ok`).",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                    },
+                    {
+                        "required": [
+                            "data"
+                        ],
+                        "properties": {
+                            "data": {
+                                "$ref": "#/components/schemas/HealthPayload"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
+            },
+            "HealthDegradedEnvelope": {
+                "title": "Health 503 envelope loi",
+                "description": "Envelope lỗi chuẩn, `error_code = HEALTH_CHECK_DEGRADED`. CHÚ Ý: payload health nằm ở `errors` và `error.details`, KHÔNG có khoá `data` — hệ quả trực tiếp của respondError(). Client đọc `data` ở nhánh 503 sẽ luôn thấy undefined.",
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/ApiErrorEnvelope"
+                    },
+                    {
+                        "required": [
+                            "errors",
+                            "error"
+                        ],
+                        "properties": {
+                            "error_code": {
+                                "type": "string",
+                                "enum": [
+                                    "HEALTH_CHECK_DEGRADED"
+                                ]
+                            },
+                            "errors": {
+                                "$ref": "#/components/schemas/HealthPayload"
+                            },
+                            "error": {
+                                "required": [
+                                    "code",
+                                    "details"
+                                ],
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "enum": [
+                                            "HEALTH_CHECK_DEGRADED"
+                                        ]
+                                    },
+                                    "details": {
+                                        "$ref": "#/components/schemas/HealthPayload"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "object"
+                    }
+                ]
             },
             "XntReportLine": {
                 "title": "Dòng báo cáo Nhập-Xuất-Tồn (RPT-XNT-01)",

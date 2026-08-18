@@ -1,0 +1,162 @@
+name: WWHN-295 Runtime Config Health Closure
+
+# DEV295-P1-03 — "no PR / green immutable CI found" là lý do register 73/100 giữ gate
+# Build ở MISSING. Workflow này chạy đúng bộ gate của WWHN-295 trên chính commit được
+# push (github.sha), sinh manifest gắn SHA và upload artifact, để lần ký sau có run ID
+# bất biến thay vì lời khai trong mô tả.
+#
+# Ranh giới: đây là gate NGUỒN. Bằng chứng trên môi trường đã deploy (DEV295-P1-04/P1-05)
+# do DevOps/QA chạy bằng scripts/collect-wwhn295-runtime-evidence.sh trên UAT/PROD —
+# CI không thay thế được và không được giả vờ thay thế.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-295-runtime-config-health.yml'
+      - '.env.example'
+      - 'app/Console/Commands/BackendGoLiveCheck.php'
+      - 'app/Http/Controllers/HealthController.php'
+      - 'app/Http/Middleware/NoStoreApiResponses.php'
+      - 'app/Swagger/**'
+      - 'bootstrap/app.php'
+      - 'config/cache.php'
+      - 'config/health.php'
+      - 'config/queue.php'
+      - 'config/trustedproxy.php'
+      - 'docker-compose.yml'
+      - 'docker/nginx/default.conf'
+      - 'docs/evidence/WWHN-295/**'
+      - 'docs/docs_task_jira/WWHN-295.md'
+      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
+      - 'scripts/collect-wwhn295-runtime-evidence.sh'
+      - 'scripts/verify-wwhn-295-closure.mjs'
+      - 'storage/api-docs/**'
+      - 'tests/Feature/Wwhn295*.php'
+  pull_request:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-295-runtime-config-health.yml'
+      - '.env.example'
+      - 'app/Console/Commands/BackendGoLiveCheck.php'
+      - 'app/Http/Controllers/HealthController.php'
+      - 'app/Http/Middleware/NoStoreApiResponses.php'
+      - 'app/Swagger/**'
+      - 'bootstrap/app.php'
+      - 'config/cache.php'
+      - 'config/health.php'
+      - 'config/queue.php'
+      - 'config/trustedproxy.php'
+      - 'docker-compose.yml'
+      - 'docker/nginx/default.conf'
+      - 'docs/evidence/WWHN-295/**'
+      - 'docs/docs_task_jira/WWHN-295.md'
+      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
+      - 'scripts/collect-wwhn295-runtime-evidence.sh'
+      - 'scripts/verify-wwhn-295-closure.mjs'
+      - 'storage/api-docs/**'
+      - 'tests/Feature/Wwhn295*.php'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-295-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  closure:
+    name: Runtime/config/health source gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN295-CI-JWT-Runtime-Config-2026
+      CI_DEMO_PASSWORD: WWHN295-CI-Only-2026
+      # DEV295-P1-02: danh tính artifact phải đến từ CI, không hard-code.
+      APP_BUILD_SHA: ${{ github.sha }}
+      APP_BUILD_REF: ${{ github.ref }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # verifier cần lịch sử để kiểm range invariant của candidate
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Style check on WWHN-295 sources
+        run: >-
+          vendor/bin/pint --test
+          app/Http/Controllers/HealthController.php
+          app/Http/Middleware/NoStoreApiResponses.php
+          app/Console/Commands/BackendGoLiveCheck.php
+          app/Swagger/HealthSchemas.php
+          app/Swagger/Processors/RouteSyncProcessor.php
+          config/health.php
+          tests/Feature/Wwhn295HealthContractTest.php
+          tests/Feature/Wwhn295RuntimeConfigHealthTest.php
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: OpenAPI đã commit phải là bản sinh lại từ chính source này
+        run: |
+          set -euo pipefail
+          php artisan l5-swagger:generate
+          if ! git diff --exit-code -- storage/api-docs; then
+            echo "storage/api-docs lệch khỏi annotation trong source — commit lại bản regenerate." >&2
+            exit 1
+          fi
+
+      - name: WWHN-295 focused suite
+        run: >-
+          php artisan test --filter
+          '/(Wwhn295HealthContractTest|Wwhn295RuntimeConfigHealthTest|NoStoreApiResponsesTest|BackendMigrationSeedHealthTest|AuthSessionPersistenceTest)/'
+
+      - name: Contract lock + source pin + candidate sạch
+        run: node scripts/verify-wwhn-295-closure.mjs
+
+      - name: Evidence manifest gắn exact SHA
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-295
+          cp docs/evidence/WWHN-295/contract-lock.json artifacts/wwhn-295/
+          php -r '$d=json_decode(file_get_contents("storage/api-docs/api-docs.json"), true, 512, JSON_THROW_ON_ERROR); $op=$d["paths"]["/api/v1/health"]["get"]; file_put_contents("artifacts/wwhn-295/health-operation.json", json_encode($op, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n");'
+          cat > artifacts/wwhn-295/manifest.txt <<EOF
+          jira=WWHN-295
+          branch=${GITHUB_REF_NAME}
+          sha=${GITHUB_SHA}
+          openapi_revision=$(php -r 'echo json_decode(file_get_contents("storage/api-docs/api-docs.json"), true)["info"]["version"];')
+          scope=BE source gate only
+          deployed_env_evidence=NOT_CLAIMED_BY_CI
+          qa1_signoff=NOT_CLAIMED_BY_DEV
+          EOF
+          sha256sum artifacts/wwhn-295/* > artifacts/wwhn-295/SHA256SUMS
+          cat artifacts/wwhn-295/manifest.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-295-source-gate-${{ github.sha }}
+          path: artifacts/wwhn-295
+          if-no-files-found: error
+          retention-days: 30

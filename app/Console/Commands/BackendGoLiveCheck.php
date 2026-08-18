@@ -42,7 +42,8 @@ class BackendGoLiveCheck extends Command
     protected $signature = 'wms:golive-check
         {--json= : Ghi kết quả machine-readable ra file (evidence artifact)}
         {--allow-debug : Bỏ qua phát hiện APP_DEBUG=true — CHỈ có hiệu lực trên allowlist môi trường non-prod tại config golive.debug_override_environments}
-        {--write-route-contract : Ghi lại ma trận route→permission đã pin từ bảng route hiện tại; phải kèm review vì đây là thay đổi bề mặt bảo mật}';
+        {--write-route-contract : Ghi lại ma trận route→permission đã pin từ bảng route hiện tại; phải kèm review vì đây là thay đổi bề mặt bảo mật}
+        {--expect-sha= : Exact candidate SHA mà artifact đang chạy phải khớp; mặc định đọc env RELEASE_EXPECTED_SHA}';
 
     protected $description = 'Backend GoLive check — migration/seed/core/security readiness cho cutover (WWHN-300)';
 
@@ -569,6 +570,7 @@ class BackendGoLiveCheck extends Command
     {
         $isDevelopment = $this->isDevelopment();
         $sha = trim((string) config('health.build.sha'));
+        $expected = strtolower(trim((string) ($this->option('expect-sha') ?: env('RELEASE_EXPECTED_SHA', ''))));
 
         $detail = [
             'version' => (string) config('health.version'),
@@ -576,16 +578,40 @@ class BackendGoLiveCheck extends Command
             'ref' => config('health.build.ref'),
             'built_at' => config('health.build.built_at'),
             'published_at' => '/api/v1/health -> data.build',
+            'expected_sha' => $expected === '' ? null : $expected,
         ];
 
         if ($sha !== '') {
+            // DEV295-P1-04/P1-05: "có SHA" chưa phải bằng chứng cutover. Gate chỉ đóng
+            // khi SHA đang chạy khớp exact candidate đã pin trên WWHN-295 — nếu không
+            // thì QA đang đo một artifact khác với artifact được duyệt, và không ai
+            // nhìn ra điều đó từ một artifact evidence chỉ ghi "build_identity: ok".
+            if ($expected !== '') {
+                $matches = str_starts_with(strtolower($sha), $expected) && strlen($expected) >= 7;
+
+                return [
+                    'status' => $matches ? 'ok' : 'fail',
+                    'detail' => $detail + [
+                        'matches_expected' => $matches,
+                        'note' => $matches
+                            ? 'Artifact đang chạy khớp exact candidate đã pin.'
+                            : 'SHA đang chạy KHÁC exact candidate đã pin (hoặc expect-sha ngắn hơn 7 ký tự) — bằng chứng thu ở đây không thuộc về candidate.',
+                    ],
+                ];
+            }
+
             return ['status' => 'ok', 'detail' => $detail];
         }
 
-        // Local/dev không build qua CI nên thiếu SHA là bình thường, chỉ cảnh báo.
+        // Local/dev không build qua CI nên thiếu SHA là bình thường, chỉ cảnh báo —
+        // TRỪ khi người chạy đã khai expect-sha: khi đó họ đang thu bằng chứng cho một
+        // candidate cụ thể và "không có SHA" không thể là warn.
         return [
-            'status' => $isDevelopment ? 'warn' : 'fail',
-            'detail' => $detail + ['note' => 'APP_BUILD_SHA chưa được inject — không buộc được bằng chứng vào commit đã deploy.'],
+            'status' => ($isDevelopment && $expected === '') ? 'warn' : 'fail',
+            'detail' => $detail + [
+                'matches_expected' => $expected === '' ? null : false,
+                'note' => 'APP_BUILD_SHA chưa được inject — không buộc được bằng chứng vào commit đã deploy.',
+            ],
         ];
     }
 

@@ -458,7 +458,29 @@ class RouteSyncProcessor
         if (Undefined::isDefault($operation->requestBody)) {
             $operation->requestBody = $this->requestBody($route['method']);
         }
-        $operation->responses = $this->mergeBaselineResponses($operation->responses);
+        $operation->responses = $this->mergeBaselineResponses(
+            $operation->responses,
+            $this->declaresExhaustiveResponses($operation),
+        );
+    }
+
+    /**
+     * WWHN-295/DEV295-P1-02 — opt-out có kiểm soát của baseline error.
+     *
+     * Baseline 400/401/403/404/409/412/422/428/500 đúng cho endpoint nghiệp vụ có auth
+     * và optimistic locking, nhưng SAI cho endpoint public không dùng token và không
+     * đọc If-Match: `GET /api/v1/health` publish 401/403/412/428 khiến monitor và QA
+     * phải đoán trạng thái nào là thật. Operation nào tự khai đủ tập response của mình
+     * thì đánh dấu `x: ['exhaustive-responses' => true]`; mặc định vẫn là hành vi cũ,
+     * nên không endpoint nào mất baseline chỉ vì thay đổi này.
+     */
+    private function declaresExhaustiveResponses(OA\Operation $operation): bool
+    {
+        if (Undefined::isDefault($operation->x) || ! is_array($operation->x)) {
+            return false;
+        }
+
+        return ($operation->x['exhaustive-responses'] ?? false) === true;
     }
 
     private function requestBody(string $method): OA\RequestBody|string
@@ -711,7 +733,7 @@ class RouteSyncProcessor
         return $merged;
     }
 
-    private function mergeBaselineResponses(mixed $responses): array
+    private function mergeBaselineResponses(mixed $responses, bool $exhaustive = false): array
     {
         $merged = Undefined::isDefault($responses) ? [] : (array) $responses;
         $existing = [];
@@ -730,6 +752,10 @@ class RouteSyncProcessor
                     );
                 }
             }
+        }
+
+        if ($exhaustive) {
+            return $merged;
         }
 
         foreach ([200 => 'Thành công'] + self::ERROR_RESPONSES as $status => $description) {

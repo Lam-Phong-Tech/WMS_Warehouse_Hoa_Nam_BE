@@ -43668,17 +43668,89 @@
         },
         {
             "name": "00. Platform",
-            "description": "00. Platform",
+            "description": "WWHN-295 · Readiness công khai của backend. Sinh cùng revision với storage/api-docs/api-docs.json (operationId backend_health_v1) và bị khoá hash bởi docs/evidence/WWHN-295/contract-lock.json.",
             "item": [
                 {
-                    "id": "01021024-52a0-4a25-9323-310971b12c42",
-                    "name": "Public backend health endpoint for environment, database, migration and seed baseline checks",
+                    "id": "b2f0a7c1-2951-4f0b-9d4a-295000000001",
+                    "name": "Readiness health check (public, không auth)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "// WWHN-295 / DEV295-P1-02 — assertion phải bám ĐÚNG contract OpenAPI",
+                                    "// (components.schemas.HealthPayload.required). Sửa runtime mà quên sửa spec",
+                                    "// hoặc collection sẽ bị scripts/verify-wwhn-295-closure.mjs chặn.",
+                                    "const REQUIRED_HEALTH_FIELDS = ['status', 'version', 'build', 'environment', 'server_time', 'request_id', 'checks'];",
+                                    "const CRITICAL_CHECKS = ['app', 'database', 'migrations', 'seed'];",
+                                    "",
+                                    "pm.test('HTTP 200 (ready) hoặc 503 (degraded), không có mã nào khác', function () {",
+                                    "    pm.expect([200, 503]).to.include(pm.response.code);",
+                                    "});",
+                                    "",
+                                    "pm.test('Readiness không bao giờ được cache', function () {",
+                                    "    pm.expect(String(pm.response.headers.get('Cache-Control') || '')).to.include('no-store');",
+                                    "});",
+                                    "",
+                                    "const body = pm.response.json();",
+                                    "// 200 đặt payload ở data; 503 dùng respondError nên payload ở errors/error.details.",
+                                    "const payload = pm.response.code === 200 ? body.data : body.errors;",
+                                    "",
+                                    "pm.test('Payload health nằm đúng vị trí theo envelope', function () {",
+                                    "    pm.expect(payload, 'payload').to.be.an('object');",
+                                    "    if (pm.response.code === 503) {",
+                                    "        pm.expect(body.error_code).to.eql('HEALTH_CHECK_DEGRADED');",
+                                    "        pm.expect(body.error.details).to.eql(payload);",
+                                    "    }",
+                                    "});",
+                                    "",
+                                    "pm.test('Đủ trường bắt buộc của HealthPayload', function () {",
+                                    "    REQUIRED_HEALTH_FIELDS.forEach(function (field) {",
+                                    "        pm.expect(payload, field).to.have.property(field);",
+                                    "    });",
+                                    "    CRITICAL_CHECKS.forEach(function (check) {",
+                                    "        pm.expect(payload.checks, check).to.have.property(check);",
+                                    "    });",
+                                    "});",
+                                    "",
+                                    "pm.test('Danh tính artifact đọc được từ chính backend', function () {",
+                                    "    pm.expect(payload.build).to.be.an('object');",
+                                    "    ['sha', 'ref', 'built_at'].forEach(function (field) {",
+                                    "        pm.expect(payload.build, field).to.have.property(field);",
+                                    "    });",
+                                    "    // UAT/PROD phải inject APP_BUILD_SHA; local/testing được phép null.",
+                                    "    if (String(payload.environment) !== 'local' && String(payload.environment) !== 'testing') {",
+                                    "        pm.expect(payload.build.sha, 'build.sha').to.be.a('string').and.to.have.length.of.at.least(7);",
+                                    "    }",
+                                    "});",
+                                    "",
+                                    "pm.test('Build đã deploy khớp exact candidate SHA đã pin', function () {",
+                                    "    const expected = String(pm.variables.get('expectedBuildSha') || '').trim();",
+                                    "    if (!expected) {",
+                                    "        pm.expect.fail('Đặt biến expectedBuildSha = exact candidate SHA của WWHN-295 trước khi lấy bằng chứng QA/DevOps.');",
+                                    "    }",
+                                    "    pm.expect(String(payload.build.sha || '')).to.eql(expected);",
+                                    "});",
+                                    "",
+                                    "pm.test('200 chỉ khi toàn bộ critical check ok; cache KHÔNG gate readiness', function () {",
+                                    "    const criticalOk = CRITICAL_CHECKS.every(function (check) {",
+                                    "        return payload.checks[check] && payload.checks[check].status === 'ok';",
+                                    "    });",
+                                    "    pm.expect(criticalOk).to.eql(pm.response.code === 200);",
+                                    "    pm.expect(['ok', 'degraded', 'skipped']).to.include(payload.checks.cache.status);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
                     "request": {
-                        "name": "Public backend health endpoint for environment, database, migration and seed baseline checks",
-                        "description": {},
+                        "name": "Readiness health check (public, không auth)",
+                        "description": "GET /api/v1/health — không cần token. 200 khi app/database/migrations/seed đều ok; 503 + error_code HEALTH_CHECK_DEGRADED khi có critical check fail. checks.cache là chẩn đoán Valkey và CỐ Ý không gate readiness (fail-open xuống PostgreSQL). data.build.sha là danh tính artifact đang chạy — dùng cho mọi gate exact-SHA (WWHN-273/290/295/296/300).",
                         "url": {
                             "path": [
                                 "api",
+                                "v1",
                                 "health"
                             ],
                             "host": [
@@ -43687,18 +43759,24 @@
                             "query": [],
                             "variable": []
                         },
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
                         "method": "GET",
-                        "body": {},
                         "auth": null
                     },
                     "response": [
                         {
-                            "id": "0d02da8c-9025-4f08-92b6-33286247e252",
-                            "name": "Backend health check passed",
+                            "id": "b2f0a7c1-2951-4f0b-9d4a-295000000002",
+                            "name": "Ready — mọi critical check ok",
                             "originalRequest": {
                                 "url": {
                                     "path": [
                                         "api",
+                                        "v1",
                                         "health"
                                     ],
                                     "host": [
@@ -43707,22 +43785,39 @@
                                     "query": [],
                                     "variable": []
                                 },
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json"
+                                    }
+                                ],
                                 "method": "GET",
                                 "body": {}
                             },
                             "status": "OK",
                             "code": 200,
-                            "header": [],
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                },
+                                {
+                                    "key": "Cache-Control",
+                                    "value": "no-store, private"
+                                }
+                            ],
+                            "body": "{\n  \"success\": true,\n  \"message\": \"Backend health check passed.\",\n  \"data\": {\n    \"status\": \"ok\",\n    \"version\": \"1.0.0\",\n    \"build\": {\n      \"sha\": \"0000000000000000000000000000000000000000\",\n      \"ref\": \"refs/heads/m1\",\n      \"built_at\": \"2026-08-19T02:11:07+07:00\"\n    },\n    \"environment\": \"production\",\n    \"server_time\": \"2026-08-19T02:15:44+07:00\",\n    \"request_id\": \"3f1c1a1e-0c1d-4d3a-9a76-4f6f1e0d9a11\",\n    \"checks\": {\n      \"app\": { \"status\": \"ok\" },\n      \"database\": { \"status\": \"ok\", \"driver\": \"pgsql\" },\n      \"migrations\": { \"status\": \"ok\", \"ran_count\": 812 },\n      \"seed\": {\n        \"status\": \"ok\",\n        \"markers\": { \"admin_user\": true, \"baseline_warehouse\": true, \"baseline_product\": true }\n      },\n      \"cache\": { \"status\": \"ok\", \"store\": \"redis\", \"ping\": \"PONG\" }\n    }\n  },\n  \"meta\": {\n    \"request_id\": \"3f1c1a1e-0c1d-4d3a-9a76-4f6f1e0d9a11\",\n    \"timestamp\": \"2026-08-19T02:15:44+07:00\"\n  }\n}",
                             "cookie": [],
-                            "_postman_previewlanguage": "text"
+                            "_postman_previewlanguage": "json"
                         },
                         {
-                            "id": "d3beb198-6565-4f74-8ada-c5c6a5735c24",
-                            "name": "Backend health check degraded",
+                            "id": "b2f0a7c1-2951-4f0b-9d4a-295000000003",
+                            "name": "Degraded — payload nằm ở errors/error.details, KHÔNG ở data",
                             "originalRequest": {
                                 "url": {
                                     "path": [
                                         "api",
+                                        "v1",
                                         "health"
                                     ],
                                     "host": [
@@ -43731,20 +43826,32 @@
                                     "query": [],
                                     "variable": []
                                 },
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json"
+                                    }
+                                ],
                                 "method": "GET",
                                 "body": {}
                             },
                             "status": "Service Unavailable",
                             "code": 503,
-                            "header": [],
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                },
+                                {
+                                    "key": "Cache-Control",
+                                    "value": "no-store, private"
+                                }
+                            ],
+                            "body": "{\n  \"success\": false,\n  \"message\": \"Backend health check degraded.\",\n  \"error_code\": \"HEALTH_CHECK_DEGRADED\",\n  \"errors\": {\n    \"status\": \"degraded\",\n    \"version\": \"1.0.0\",\n    \"build\": {\n      \"sha\": \"0000000000000000000000000000000000000000\",\n      \"ref\": \"refs/heads/m1\",\n      \"built_at\": \"2026-08-19T02:11:07+07:00\"\n    },\n    \"environment\": \"production\",\n    \"server_time\": \"2026-08-19T02:15:44+07:00\",\n    \"request_id\": \"9d2b7c44-52a1-4c8e-9f0b-6a0c2d8e7b13\",\n    \"checks\": {\n      \"app\": { \"status\": \"ok\" },\n      \"database\": { \"status\": \"ok\", \"driver\": \"pgsql\" },\n      \"migrations\": { \"status\": \"ok\", \"ran_count\": 812 },\n      \"seed\": {\n        \"status\": \"fail\",\n        \"markers\": { \"admin_user\": true, \"baseline_warehouse\": true, \"baseline_product\": false }\n      },\n      \"cache\": {\n        \"status\": \"degraded\",\n        \"store\": \"redis\",\n        \"note\": \"application cache unavailable — fail-open to database\"\n      }\n    }\n  },\n  \"error\": {\n    \"code\": \"HEALTH_CHECK_DEGRADED\",\n    \"details\": {\n      \"status\": \"degraded\",\n      \"version\": \"1.0.0\",\n      \"build\": {\n        \"sha\": \"0000000000000000000000000000000000000000\",\n        \"ref\": \"refs/heads/m1\",\n        \"built_at\": \"2026-08-19T02:11:07+07:00\"\n      },\n      \"environment\": \"production\",\n      \"server_time\": \"2026-08-19T02:15:44+07:00\",\n      \"request_id\": \"9d2b7c44-52a1-4c8e-9f0b-6a0c2d8e7b13\",\n      \"checks\": {\n        \"app\": { \"status\": \"ok\" },\n        \"database\": { \"status\": \"ok\", \"driver\": \"pgsql\" },\n        \"migrations\": { \"status\": \"ok\", \"ran_count\": 812 },\n        \"seed\": {\n          \"status\": \"fail\",\n          \"markers\": { \"admin_user\": true, \"baseline_warehouse\": true, \"baseline_product\": false }\n        },\n        \"cache\": {\n          \"status\": \"degraded\",\n          \"store\": \"redis\",\n          \"note\": \"application cache unavailable — fail-open to database\"\n        }\n      }\n    }\n  },\n  \"meta\": {\n    \"request_id\": \"9d2b7c44-52a1-4c8e-9f0b-6a0c2d8e7b13\",\n    \"timestamp\": \"2026-08-19T02:15:44+07:00\"\n  }\n}",
                             "cookie": [],
-                            "_postman_previewlanguage": "text"
+                            "_postman_previewlanguage": "json"
                         }
-                    ],
-                    "event": [],
-                    "protocolProfileBehavior": {
-                        "disableBodyPruning": true
-                    }
+                    ]
                 }
             ]
         }

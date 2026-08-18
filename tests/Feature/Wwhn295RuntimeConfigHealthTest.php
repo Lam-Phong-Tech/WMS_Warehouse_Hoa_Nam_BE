@@ -196,6 +196,76 @@ class Wwhn295RuntimeConfigHealthTest extends TestCase
     }
 
     /**
+     * DEV295-P1-04/P1-05 — "có SHA" chưa phải bằng chứng cutover.
+     *
+     * Trước đây `release.build_identity` xanh với BẤT KỲ SHA nào khác rỗng, nên một
+     * artifact evidence hoàn toàn hợp lệ vẫn có thể được thu trên một build KHÁC với
+     * candidate đã duyệt mà không ai nhìn ra. `--expect-sha` biến việc buộc bằng chứng
+     * vào đúng commit thành điều kiện máy kiểm được, ngay trong artifact.
+     */
+    public function test_golive_check_fails_when_the_running_build_is_not_the_pinned_candidate(): void
+    {
+        config(['health.build.sha' => 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef']);
+
+        $path = storage_path('app/testing/wwhn-295-expect-sha-mismatch.json');
+        File::delete($path);
+
+        $this->artisan('wms:golive-check', [
+            '--json' => $path,
+            '--expect-sha' => 'c0ffee0c0ffee0c0ffee0c0ffee0c0ffee0c0ffe',
+        ])->run();
+
+        $check = json_decode((string) File::get($path), true)['checks']['release.build_identity'];
+        $this->assertSame('fail', $check['status']);
+        $this->assertFalse($check['detail']['matches_expected']);
+        $this->assertSame('c0ffee0c0ffee0c0ffee0c0ffee0c0ffee0c0ffe', $check['detail']['expected_sha']);
+
+        File::delete($path);
+    }
+
+    public function test_golive_check_binds_evidence_to_the_pinned_candidate_when_the_sha_matches(): void
+    {
+        config(['health.build.sha' => 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef']);
+
+        $path = storage_path('app/testing/wwhn-295-expect-sha-match.json');
+        File::delete($path);
+
+        $this->artisan('wms:golive-check', [
+            '--json' => $path,
+            '--expect-sha' => 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+        ])->run();
+
+        $check = json_decode((string) File::get($path), true)['checks']['release.build_identity'];
+        $this->assertSame('ok', $check['status']);
+        $this->assertTrue($check['detail']['matches_expected']);
+
+        File::delete($path);
+    }
+
+    /**
+     * Local thiếu APP_BUILD_SHA chỉ là warn, nhưng khi người chạy đã khai candidate
+     * thì "không có SHA" không thể là warn: không còn gì để buộc bằng chứng vào.
+     */
+    public function test_missing_build_sha_is_a_hard_fail_once_a_candidate_is_declared(): void
+    {
+        config(['health.build.sha' => null]);
+
+        $path = storage_path('app/testing/wwhn-295-expect-sha-missing.json');
+        File::delete($path);
+
+        $this->artisan('wms:golive-check', [
+            '--json' => $path,
+            '--expect-sha' => 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+        ])->run();
+
+        $check = json_decode((string) File::get($path), true)['checks']['release.build_identity'];
+        $this->assertSame('fail', $check['status']);
+        $this->assertNull($check['detail']['sha']);
+
+        File::delete($path);
+    }
+
+    /**
      * Lock của Cache::lock() thuộc application cache nên phải nằm cùng Valkey DB
      * với cache (DB 1). Mặc định 'default' của Laravel đẩy chúng sang DB 0 — nơi
      * .env.example và ClearWmsCache khẳng định chỉ có session/queue.
