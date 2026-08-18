@@ -49,3 +49,38 @@ php artisan test --filter=ErdPhysicalSchemaParityTest   # ERD-AMD-007 phải kh�
 ```
 
 Cả ba phải xanh trên đúng SHA đã pin; kết quả gắn vào `WWHN-260` như build evidence.
+
+## 7.5 SHA thực tế của lần bàn giao này
+
+| Hạng mục | Giá trị |
+|---|---|
+| BE — commit chứa nội dung `WWHN-260` | `b90d5ef67c6577db166fdac00f1323741ccfd888` |
+| FE — commit guard operational-only | `e02d4185608e7bb661481968a902b71c81386362` |
+| Nhánh | `m1` (cả hai repo) |
+
+**Lưu ý truy vết (quan trọng, không giấu):** nhánh `m1` đang có nhiều phiên làm việc song song
+dùng chung working tree. Commit BE `b90d5ef` vì thế mang **nhiều ticket** trong một commit
+(`WWHN-252` App PV/PV Admin, phần cứng cố `WWHN-299`, và toàn bộ `WWHN-260`), và tiêu đề commit
+ghi `WWHN-252`. Đây là hạn chế của quy trình làm việc, không phải của nội dung bàn giao.
+
+Cách reviewer tách đúng phần `WWHN-260` ra khỏi commit đó:
+
+```bash
+git show b90d5ef67c6577db166fdac00f1323741ccfd888 -- \
+  app/Support/Migration/ \
+  app/Console/Commands/MigrationVerifyRun.php \
+  app/Console/Commands/MigrationFinalDataLoad.php \
+  config/migration_mapping.php \
+  config/final_data_load.php \
+  Modules/Warehouse/database/migrations/2026_08_18_193000_add_duplicate_row_count_to_migration_runs.php \
+  docs/HoaNam_ERD_Moi_Nhat.md \
+  docs/migration/ docs/output/BE-HN-MIG-001-migration-pack/ docs/evidence/WWHN-260/ \
+  docs/docs_task_jira/WWHN-260.md docs/docs_task_jira/WWHN-260-signoff-comments.md \
+  docs/decision-records/DEC-MIG-SRC-001-migration-source-disposition.md \
+  tests/Feature/Wwhn260MigrationPackClosureTest.php
+```
+
+Danh sách tệp + digest của từng tệp nằm ở `MANIFEST.json`, nên nội dung bàn giao vẫn kiểm được
+độc lập với việc commit có lẫn ticket khác hay không. Khuyến nghị quy trình cho lần sau
+(`DEC-MIG-SRC-001` §Hệ quả): mỗi phiên làm việc commit bằng pathspec riêng trước khi phiên khác
+`git add`, để một commit chỉ mang một ticket.

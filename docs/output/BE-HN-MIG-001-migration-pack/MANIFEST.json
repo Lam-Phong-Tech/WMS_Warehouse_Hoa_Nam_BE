@@ -26,8 +26,8 @@
     },
     "branch": "m1",
     "implementation_sha": {
-        "backend": "PENDING",
-        "frontend": "PENDING"
+        "backend": "b90d5ef67c6577db166fdac00f1323741ccfd888",
+        "frontend": "e02d4185608e7bb661481968a902b71c81386362"
     },
     "checksum_algorithm": "sha256",
     "parts": {
@@ -38,7 +38,7 @@
         "04-reconciliation-evidence.md": "ddd361e3365f3cdb4fbab0537439bd2a7825ddb601aeb26949272a74800216ab",
         "05-repeatability-and-timing.md": "4df47a830ccd9d9b9d8d1e96d16de106f61b84911e376ccd2f5f7aac17631cf5",
         "06-rejected-rows-and-cleansing-log.md": "1986c7338effe5a61a79499a4eb3c29cc57f4822b38648040a31a469e95bfacc",
-        "07-source-and-build-disposition.md": "a9c2b9d33cc251d03b24ce427f44155e4d88de2b03649c067d213c0469c22dcc",
+        "07-source-and-build-disposition.md": "57d0659348c1690a4faa5c2eb99e5888a2eeaa80354b913c101e7415aba8d99c",
         "08-ops-uat-and-qa-handover.md": "241a8b8b1a157765394a303e96cafd0211fd77f1c10fca3081452d7d9786bec9"
     },
     "related_documents": {
@@ -47,7 +47,7 @@
         "docs/migration/FINAL_DATA_LOAD_RUNBOOK.md": "d74c7c5b7cffa93e2bb8ab274e20469e4d74ee3d7e9a15381e16b9d95157459c",
         "docs/decision-records/DEC-MIG-SRC-001-migration-source-disposition.md": "cb7a73f11bb10011f639082eeb9cf0d702da921b9901c983d8e02ad533b4042f",
         "docs/docs_task_jira/WWHN-260.md": "64b2f5dfadd132b77dc75501b87883c81ec7c9e1f981d1cdcc58d055a11e9559",
-        "docs/docs_task_jira/WWHN-260-signoff-comments.md": "425bfb7d94aff3080c9fa4daa59aa126e22f35e1bd9f31c72e2b84c92dbb1ea8",
+        "docs/docs_task_jira/WWHN-260-signoff-comments.md": "e900fba026330f70f9fec0661a01703d28fc48c98dba5776b1f41430a0d576da",
         "docs/evidence/WWHN-260/EVIDENCE_PACK.md": "609b1cafef95fc6d1d8c0ba5f143834ae2a986e456c1704852fe6f735eac24eb",
         "config/migration_mapping.php": "5c109d23815ea84a80673aa948b8243abc885ce259ffbc7443771bd573d94413"
     },

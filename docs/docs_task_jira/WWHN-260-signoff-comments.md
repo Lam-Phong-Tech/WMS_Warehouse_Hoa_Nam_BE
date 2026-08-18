@@ -4,8 +4,9 @@ Nguyên tắc: **mỗi vai trò một comment duy nhất**, nội dung là *đ�
 mới. Chi tiết kỹ thuật ở `docs/docs_task_jira/WWHN-260.md`,
 `docs/output/BE-HN-MIG-001-migration-pack/` và `docs/evidence/WWHN-260/`.
 
-Thay `<BE_SHA>` / `<FE_SHA>` bằng giá trị trong
-`docs/output/BE-HN-MIG-001-migration-pack/MANIFEST.json` → `implementation_sha`.
+SHA đã pin: BE `b90d5ef67c6577db166fdac00f1323741ccfd888` · FE `e02d4185608e7bb661481968a902b71c81386362`
+(nhánh `m1`). Danh mục tệp + digest ở `docs/output/BE-HN-MIG-001-migration-pack/MANIFEST.json`;
+lưu ý truy vết về việc commit BE mang nhiều ticket ở phần 7.5 của Migration Pack.
 
 ---
 
@@ -37,7 +38,7 @@ Thay `<BE_SHA>` / `<FE_SHA>` bằng giá trị trong
 > `tests/Feature/Wwhn260MigrationPackClosureTest.php` (10/10) và
 > `src/test/wwhn-260-migration-operational-only.test.ts` (4/4).
 >
-> Nhánh `m1` cho cả BE và FE, không tạo nhánh riêng. BE `<BE_SHA>` · FE `<FE_SHA>`.
+> Nhánh `m1` cho cả BE và FE, không tạo nhánh riêng. BE `b90d5ef67c6577db166fdac00f1323741ccfd888` · FE `e02d4185608e7bb661481968a902b71c81386362`.
 >
 > Không còn blocker thuộc vai trò DEV. Các gate còn lại cần chữ ký của BAS/Data Owner, QL kho,
 > Tech Lead, PM, DevOps và QA2.
