@@ -1,0 +1,49 @@
+{
+  "task": "WWHN-295",
+  "register": "DEV295-P1-01 (pin) · DEV295-P1-02 (contract) · DEV295-P1-03 (candidate sạch)",
+  "generated_by": "php artisan l5-swagger:generate && node scripts/verify-wwhn-295-closure.mjs --write-lock",
+  "openapi_revision": "2.0.0",
+  "candidate_sha": "7207feac7a4087680e69db609047729d08a5419e",
+  "slices": {
+    "openapi_health_operation": "ae5e2828fb34bbb7145667776713225dc9392de92b10b6b7b44ca43106a00985",
+    "openapi_health_schemas": "58f31f6f3211b68b5d7a4546c1e1772be31533146ec4f4bcc1c4f6660853e685",
+    "postman_platform_folder": "6504c11d7202464ce56df3bb7e996527db42e0b6d8e2213b2cc88c0847452070"
+  },
+  "artifacts": [
+    {
+      "path": "storage/api-docs/api-docs.json",
+      "sha256": "b86330ff5f29031303b46e1075f8d036e1fe0d19e5d610ec3cb1c38dcd12bf45",
+      "bytes": 1497363
+    },
+    {
+      "path": "storage/api-docs/api-docs.yaml",
+      "sha256": "0c20c342e79a3d6bb89449f01841a51371ea322e74178d618d5f6e1b3384418e",
+      "bytes": 749421
+    },
+    {
+      "path": "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json",
+      "sha256": "a2759f8179d5edb7e6ba93b87cb56f15b0d3b69b0566ebdc0fa65d4d8c591b07",
+      "bytes": 2217455
+    }
+  ],
+  "frozen_source_paths": [
+    ".env.example",
+    ".github/workflows/wwhn-295-runtime-config-health.yml",
+    "app/Console/Commands/BackendGoLiveCheck.php",
+    "app/Http/Controllers/HealthController.php",
+    "app/Http/Middleware/NoStoreApiResponses.php",
+    "app/Swagger/HealthSchemas.php",
+    "app/Swagger/Processors/RouteSyncProcessor.php",
+    "bootstrap/app.php",
+    "config/cache.php",
+    "config/health.php",
+    "config/queue.php",
+    "config/trustedproxy.php",
+    "docker-compose.yml",
+    "docker/nginx/default.conf",
+    "scripts/collect-wwhn295-runtime-evidence.sh",
+    "scripts/verify-wwhn-295-closure.mjs",
+    "tests/Feature/Wwhn295HealthContractTest.php",
+    "tests/Feature/Wwhn295RuntimeConfigHealthTest.php"
+  ]
+}
