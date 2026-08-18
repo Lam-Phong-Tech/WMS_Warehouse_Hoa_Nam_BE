@@ -62,7 +62,9 @@ class Wwhn219InventoryReconcileCommandTest extends TestCase
             'version' => 1,
         ]);
 
-        $this->artisan('inventory:reconcile')->assertSuccessful();
+        $this->artisan('inventory:reconcile')
+            ->expectsOutputToContain('1 lệch phát hiện, 1 incident mới')
+            ->assertSuccessful();
 
         $this->assertDatabaseHas('reconciliation_incident', [
             'warehouse_id' => $warehouse->id,
@@ -157,7 +159,9 @@ class Wwhn219InventoryReconcileCommandTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $this->artisan('inventory:reconcile', ['--dry-run' => true])->assertSuccessful();
+        $this->artisan('inventory:reconcile', ['--dry-run' => true])
+            ->expectsOutputToContain('1 lệch phát hiện, 1 incident sẽ được tạo nếu chạy thật (dry-run, không ghi incident)')
+            ->assertSuccessful();
 
         $this->assertSame(
             0,
@@ -165,6 +169,11 @@ class Wwhn219InventoryReconcileCommandTest extends TestCase
                 ->where('warehouse_id', $warehouse->id)
                 ->where('product_id', $product->id)
                 ->count()
+        );
+
+        $this->assertSame(
+            0,
+            AuditLog::query()->where('action', 'RECONCILIATION_INCIDENT_DETECTED')->count()
         );
     }
 }

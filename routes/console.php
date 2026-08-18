@@ -20,3 +20,17 @@ Schedule::command('inventory:reconcile')
     ->withoutOverlapping()
     ->onOneServer()
     ->runInBackground();
+
+/*
+ * DEV219-P1-04R disposition: audit:reconcile PHẢI chạy theo lịch, không phải N/A.
+ * AuditLogger::record() (outbox_required/fail_closed) đẩy audit event lỗi vào
+ * audit_outbox với backoff; nếu không có gì rút outbox ra thì audit_outbox phình vô hạn
+ * và audit trail của các bản ghi đó không bao giờ vào audit_log. Chạy mỗi 5 phút — đủ
+ * gần "chủ động" theo SRS §7.5 mà không cạnh tranh tài nguyên với request nghiệp vụ.
+ */
+Schedule::command('audit:reconcile')
+    ->everyFiveMinutes()
+    ->timezone(config('app.timezone'))
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();

@@ -15,6 +15,14 @@ use Throwable;
  * Policy mặc định `outbox_required`: nếu ghi audit_log lỗi, payload đã redaction phải
  * được ghi vào audit_outbox và cảnh báo ở mức error. Nếu cả hai nơi đều lỗi, request
  * phải fail để không tạo trạng thái nghiệp vụ không có dấu vết audit.
+ *
+ * Policy `fail_closed`: audit chính lỗi luôn làm request fail, kể cả khi outbox ghi
+ * thành công (dùng cho các route bắt buộc có audit, xem Wwhn172AggregateLock).
+ *
+ * Policy `best_effort`: không bao giờ chặn nghiệp vụ vì audit — kể cả khi cả audit_log
+ * lẫn audit_outbox đều ghi lỗi, chỉ log critical rồi return bình thường. Quyết định giữ
+ * policy này (thay vì luôn fail-closed) nằm ở ADR-AUDIT-001
+ * (`docs/decision-records/ADR-AUDIT-001-audit-write-policy.md`).
  */
 class AuditLogger
 {
@@ -74,12 +82,21 @@ class AuditLogger
                     'object_id' => $objectId,
                     'primary_exception' => $primaryError::class,
                     'outbox_exception' => $outboxError::class,
+                    'policy' => $policy,
                 ]);
 
-                throw new RuntimeException(
-                    'Không thể ghi audit hoặc audit outbox; thao tác bị dừng để bảo toàn traceability.',
-                    previous: $outboxError,
-                );
+                // best_effort (ADR-AUDIT-001): đã cảnh báo ở mức critical; theo định nghĩa
+                // policy này nghiệp vụ không bao giờ bị chặn vì audit, kể cả khi audit
+                // chính lẫn outbox đều lỗi. outbox_required/fail_closed vẫn phải fail để
+                // không tạo trạng thái nghiệp vụ mất traceability.
+                if ($policy !== 'best_effort') {
+                    throw new RuntimeException(
+                        'Không thể ghi audit hoặc audit outbox; thao tác bị dừng để bảo toàn traceability.',
+                        previous: $outboxError,
+                    );
+                }
+
+                return;
             }
 
             if ($policy === 'fail_closed') {

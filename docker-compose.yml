@@ -78,6 +78,41 @@ services:
     networks:
       - wms
 
+  # DEV219-P1-04R: bằng chứng hạ tầng thực sự gọi Schedule::command() trong
+  # routes/console.php (inventory:reconcile, audit:reconcile). Không có process nào
+  # gọi `schedule:run`/`schedule:work` thì các Schedule::command() ở đó chỉ là đăng ký,
+  # không bao giờ tự chạy. `schedule:work` (Laravel 8+) tự lặp mỗi phút, tương đương
+  # cron `* * * * * php artisan schedule:run` nhưng không cần cấu hình cron riêng trong
+  # image.
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    command: ["php", "artisan", "schedule:work"]
+    volumes:
+      - .:/var/www/html:delegated
+      - wms_vendor:/var/www/html/vendor
+    environment:
+      - AUTO_MIGRATE=false
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-wms_hoanam}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - MAIL_HOST=mailpit
+      - AWS_ENDPOINT=http://minio:9000
+      - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - wms
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped

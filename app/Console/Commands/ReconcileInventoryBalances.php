@@ -48,6 +48,7 @@ class ReconcileInventoryBalances extends Command
 
         $checked = 0;
         $created = 0;
+        $newIncidentCandidates = 0;
         $rows = [];
 
         foreach ($keys as $key) {
@@ -84,11 +85,13 @@ class ReconcileInventoryBalances extends Command
                 continue;
             }
 
+            $newIncidentCandidates++;
+
             if (! $dryRun) {
                 $this->recordIncident($warehouseId, $productId, $stockStatus, $divergenceType, $onHand, $ledger, $variance);
                 $openIncidentDimensions->put($incidentDimKey, true);
+                $created++;
             }
-            $created++;
         }
 
         $this->table(
@@ -96,8 +99,14 @@ class ReconcileInventoryBalances extends Command
             $rows
         );
 
-        $mode = $dryRun ? '(dry-run, không ghi incident)' : '';
-        $this->info("Đối soát hoàn tất: {$checked} dimension kiểm tra, ".count($rows)." lệch phát hiện, {$created} incident mới {$mode}");
+        if ($dryRun) {
+            // $created chỉ tăng sau khi recordIncident() thực sự ghi — trong dry-run
+            // không được gọi nên $created luôn là 0; dùng $newIncidentCandidates để
+            // báo "sẽ tạo bao nhiêu" mà không gây hiểu nhầm là đã ghi incident (DEV219-P2-01R).
+            $this->info("Đối soát hoàn tất: {$checked} dimension kiểm tra, ".count($rows)." lệch phát hiện, {$newIncidentCandidates} incident sẽ được tạo nếu chạy thật (dry-run, không ghi incident)");
+        } else {
+            $this->info("Đối soát hoàn tất: {$checked} dimension kiểm tra, ".count($rows)." lệch phát hiện, {$created} incident mới");
+        }
 
         return self::SUCCESS;
     }
