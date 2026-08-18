@@ -71,9 +71,12 @@ WWHN-290**, listed authoritatively in `WWHN-290_PINS.json` → `change_range.com
 | `96e545dcc7112576ae4ae00e783bfd642a114399` | `test(WWHN-290): align evidence guard markers` | **0** |
 | `f8942321f2a673137eb9e16c9fc86d013140f84a` | `ci(WWHN-290): add exact-SHA closure gate` | **0** |
 | `c1ce7bf1d4a18d2a428a46f10ea2e025cffd646c` | `docs(WWHN-290): close P1-02/03/04/05 and P2-01 with re-derivable evidence` | **0** |
+| `f97edcd6c401a8541f288620db3eed5f798dbfb8` | `test(WWHN-290): verify data impact per attributed commit, not only by range` | **0** |
 
 The verifier additionally reports any commit on the branch whose message mentions WWHN-290 but is absent from
-that list, so the attributed set cannot quietly become incomplete.
+that list, so the attributed set cannot quietly become incomplete. Commits that touch nothing outside
+`docs/evidence/wwhn-290/` are exempt from attribution: they carry no data impact by construction, and the
+commit that records the list can never contain its own hash.
 
 ## 4. Impact disposition per SRS v1.12 categories
 
