@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ApiConventionMiddleware;
+use App\Http\Middleware\NoStoreApiResponses;
 use App\Http\Middleware\Wwhn172AggregateLock;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Middleware\Authenticate;
@@ -29,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(Wwhn172AggregateLock::class);
         $middleware->prepend(ApiConventionMiddleware::class);
+        // Keep this outermost so every successful API response is forced to
+        // no-store after downstream middleware/controllers finish processing.
+        $middleware->prepend(NoStoreApiResponses::class);
         // Global registration is deliberate: the middleware itself is a no-op
         // outside the six WWHN-211 read/trace endpoints. Registering centrally
         // prevents a future route refactor from silently dropping data-scope.
