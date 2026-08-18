@@ -141,9 +141,24 @@ function canonical(value) {
   return JSON.stringify(value ?? null);
 }
 
-function healthSlices() {
-  const spec = readJson(OPENAPI_JSON);
-  const collection = readJson(POSTMAN);
+/** Nội dung file tại một commit (bytes) — nguồn bất biến để pin hash. */
+function readAt(commit, relativePath) {
+  return execFileSync("git", ["show", `${commit}:${relativePath}`], {
+    cwd: root,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+/**
+ * Slice/hash được tính từ commit chỉ định (mặc định: working tree).
+ *
+ * Lock phải pin theo NỘI DUNG TẠI CANDIDATE, không phải theo working tree lúc chạy
+ * --write-lock: hai giá trị đó lệch nhau ngay khi một task khác regenerate spec, và
+ * pin theo working tree sẽ ghi vào lock một con số không commit nào có.
+ */
+function healthSlices(commit = null) {
+  const spec = commit ? JSON.parse(readAt(commit, OPENAPI_JSON).toString("utf8")) : readJson(OPENAPI_JSON);
+  const collection = commit ? JSON.parse(readAt(commit, POSTMAN).toString("utf8")) : readJson(POSTMAN);
   const operation = spec.paths?.[HEALTH_PATH]?.get ?? null;
   const schemas = Object.fromEntries(
     Object.entries(spec.components?.schemas ?? {}).filter(([name]) => name.startsWith(HEALTH_SCHEMA_PREFIX)),
@@ -310,29 +325,25 @@ function verifyArtifacts(lock, candidate, hashes) {
     }
   }
 
+  if (!candidate) return;
+
   for (const artifact of lock.artifacts ?? []) {
     const live = sha256(readFile(artifact.path));
-    if (candidate) {
-      const blob = gitOrNull("show", `${candidate}:${artifact.path}`);
-      if (blob === null) {
-        fail("DEV295-P1-02", `${artifact.path} không tồn tại tại candidate ${candidate}.`);
-      } else {
-        const pinned = sha256(
-          execFileSync("git", ["show", `${candidate}:${artifact.path}`], {
-            cwd: root,
-            maxBuffer: 64 * 1024 * 1024,
-          }),
-        );
-        if (pinned !== artifact.sha256) {
-          fail(
-            "DEV295-P1-02",
-            `sha256 của ${artifact.path} tại candidate là ${pinned} nhưng lock ghi ${artifact.sha256}.`,
-          );
-        }
-        if (live !== pinned) {
-          info(`${artifact.path}: working tree đã khác bản tại candidate (sha256 ${live.slice(0, 12)}).`);
-        }
-      }
+    let pinned;
+    try {
+      pinned = sha256(readAt(candidate, artifact.path));
+    } catch {
+      fail("DEV295-P1-02", `${artifact.path} không tồn tại tại candidate ${candidate}.`);
+      continue;
+    }
+    if (pinned !== artifact.sha256) {
+      fail("DEV295-P1-02", `sha256 của ${artifact.path} tại candidate là ${pinned} nhưng lock ghi ${artifact.sha256}.`);
+    }
+    // Artifact dùng chung: task khác thêm endpoint là file đổi hợp lệ. Ghi nhận để
+    // người ký biết bản đang xem không byte-identical với bản tại candidate, nhưng
+    // KHÔNG fail — phần contract của health đã được slice hash bảo vệ ở trên.
+    if (live !== pinned) {
+      info(`${artifact.path}: working tree đã khác bản tại candidate (sha256 ${live.slice(0, 12)}).`);
     }
   }
 }
@@ -357,18 +368,21 @@ const slices = healthSlices();
 
 if (writeLock) {
   const candidate = candidateArg ?? git("rev-parse", "HEAD");
+  // Pin theo nội dung TẠI candidate: working tree có thể đã chứa spec do task khác
+  // regenerate, và pin con số đó là pin một trạng thái không commit nào giữ lại.
+  const pinnedSlices = healthSlices(candidate);
   const lock = {
     task: "WWHN-295",
     register: "DEV295-P1-01 (pin) · DEV295-P1-02 (contract) · DEV295-P1-03 (candidate sạch)",
     generated_by: "php artisan l5-swagger:generate && node scripts/verify-wwhn-295-closure.mjs --write-lock",
-    openapi_revision: slices.spec.info?.version ?? null,
+    openapi_revision: pinnedSlices.spec.info?.version ?? null,
     candidate_sha: candidate,
-    slices: slices.hashes,
-    artifacts: [OPENAPI_JSON, OPENAPI_YAML, POSTMAN].map((path) => ({
-      path,
-      sha256: sha256(readFile(path)),
-      bytes: readFile(path).length,
-    })),
+    slices: pinnedSlices.hashes,
+    artifacts: [OPENAPI_JSON, OPENAPI_YAML, POSTMAN].map((path) => {
+      const bytes = readAt(candidate, path);
+
+      return { path, sha256: sha256(bytes), bytes: bytes.length };
+    }),
     frozen_source_paths: FROZEN_PATHS,
   };
   mkdirSync(join(root, dirname(LOCK_PATH)), { recursive: true });
