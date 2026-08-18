@@ -6,13 +6,21 @@ chỉ đọc artifact được trỏ tới và xác nhận.
 **Exact identity dùng cho mọi comment:**
 
 ```text
-BE commit SHA: 2c82d0e8427eaeda986d55ecfaa5b211bfe3186f
+BE commit SHA: bf06fea0bf228f7fe0b119525eeb6e099bb94c9d
 FE commit SHA: 194b0076f53417e9a9d0258e12d3f8d3b3bae3d7
 Branch: m1
 Evidence: BE docs/evidence/WWHN-233/SHA256SUMS
 Disposition: DISP-STK-233 v1.0.0 — DEFERRED / NO CODE (PROPOSED, no effective date)
 Controlling source: REQ-SRS-037 — HN_SRS_FRD_v1.12_FULL.md (adopt tại WWHN-334)
 ```
+
+> **Cách đọc hai SHA trên.** Chúng là *commit cuối cùng chạm artifact của WWHN-233* ở mỗi
+> repo, không phải `HEAD` của `m1`. Bốn nhánh Stocktake (230/233/236/237) cùng commit vào
+> `m1` nên `HEAD` thường là commit của task khác; pin theo `HEAD` sẽ trỏ nhầm. Vì cùng lý
+> do đó, `bf06fea` mang nhãn `docs(WWHN-299)` — phiên song song đã gộp hai file gate của
+> WWHN-233 vào commit của họ. Nội dung nguyên vẹn và verifier xác nhận tại chính SHA này;
+> lịch sử `m1` không được viết lại để "làm đẹp" nhãn. Bản ghi máy đọc được:
+> `docs/evidence/WWHN-233/SOURCE_REGISTER.json` → `repository`.
 
 ---
 
