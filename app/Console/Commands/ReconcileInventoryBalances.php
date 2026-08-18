@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\InventoryProjectionRebuildService;
 use Modules\Warehouse\Services\LedgerReconciliationService;
 
 /**
@@ -14,13 +15,20 @@ use Modules\Warehouse\Services\LedgerReconciliationService;
  * Khác với GET /api/v1/reports/inventory-reconciliation (on-demand, không lưu vết), lệnh này
  * ghi lại các lệch số liệu mới phát hiện vào reconciliation_incidents để có audit trail và
  * cho phép cảnh báo chủ động (cron), thay vì chỉ hiện khi có người chủ động gọi API.
+ *
+ * WWHN-204 (DEV204-P1-03) bổ sung `--rebuild`: sau khi đã ghi vết divergence, dựng lại
+ * projection từ ledger bất biến để đóng WWHN-48 AC#2. Xem ranh giới với §7.5 / REQ-SRS-037
+ * ở docs/decision-records/DISP-INV-204-projection-rebuild.md và trong
+ * InventoryProjectionRebuildService.
  */
 class ReconcileInventoryBalances extends Command
 {
     protected $signature = 'inventory:reconcile
-        {--dry-run : Chỉ báo cáo, không ghi reconciliation_incidents}';
+        {--dry-run : Chỉ báo cáo, không ghi reconciliation_incidents và không sửa projection}
+        {--rebuild : Dựng lại inventory_balances từ ledger stock_movements (WWHN-48 AC#2 / DEV204-P1-03)}
+        {--reason= : Lý do ghi vào audit_log và resolution_ref khi rebuild}';
 
-    protected $description = 'Đối soát inventory_balances với stock_movements, ghi reconciliation_incidents cho lệch số liệu mới phát hiện';
+    protected $description = 'Đối soát inventory_balances với stock_movements, ghi reconciliation_incidents cho lệch số liệu mới phát hiện; --rebuild đưa projection về đúng ledger authoritative';
 
     public function handle(): int
     {
@@ -103,6 +111,63 @@ class ReconcileInventoryBalances extends Command
         } else {
             $this->info("Đối soát hoàn tất: {$checked} dimension kiểm tra, ".count($rows)." lệch phát hiện, {$created} incident mới");
         }
+
+        if ($this->option('rebuild')) {
+            return $this->runRebuild($dryRun);
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * DEV204-P1-03 / WWHN-48 AC#2 — đưa projection về đúng ledger authoritative.
+     *
+     * Đặt SAU bước phát hiện có chủ đích: incident được ghi trước (lưu vết là đã từng lệch),
+     * rồi rebuild mới đóng incident đó kèm resolution_ref. Nếu rebuild chạy trước thì §7.5
+     * mất hẳn dấu vết "đã có divergence" — chỉ còn thấy hệ thống luôn khớp.
+     *
+     * Ranh giới nghiệp vụ (DISP-INV-204): giá trị đích lấy 100% từ SUM(qty_delta), không có
+     * tham số nhập tay, không ghi ledger — nên đây KHÔNG phải "direct Balance edit" bị §7.5
+     * cấm, cũng không phải capability sửa tồn trực tiếp bị REQ-SRS-037 loại bỏ.
+     */
+    private function runRebuild(bool $dryRun): int
+    {
+        $service = app(InventoryProjectionRebuildService::class);
+
+        try {
+            $result = $service->rebuild(
+                dryRun: $dryRun,
+                actorId: null,
+                reason: $this->option('reason') ?: null,
+            );
+        } catch (\RuntimeException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $this->table(
+            ['warehouse_id', 'product_id', 'stock_status', 'on_hand_before', 'on_hand_after', 'divergence_type', 'action'],
+            array_map(static fn (array $r): array => [
+                $r['warehouse_id'], $r['product_id'], $r['stock_status'],
+                $r['on_hand_before'], $r['on_hand_after'], $r['divergence_type'], $r['action'],
+            ], $result['rows']),
+        );
+
+        if ($dryRun) {
+            $this->info('Rebuild (dry-run): '.$result['checked'].' dimension sẽ được đưa về ledger, chưa ghi gì.');
+
+            return self::SUCCESS;
+        }
+
+        $this->info(sprintf(
+            'Rebuild hoàn tất: run_id=%s, %d dimension đưa về ledger, %d incident chuyển RESOLVED. Ledger bất biến: %d dòng / tổng delta %s (không đổi trước-sau).',
+            $result['run_id'],
+            $result['repaired'],
+            $result['incidents_resolved'],
+            $result['ledger_fingerprint_after']['rows'],
+            $result['ledger_fingerprint_after']['sum'],
+        ));
 
         return self::SUCCESS;
     }
