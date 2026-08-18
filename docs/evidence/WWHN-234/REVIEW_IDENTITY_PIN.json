@@ -1,0 +1,101 @@
+{
+  "ticket": "WWHN-234",
+  "register_item": "DEV234-P1-04",
+  "purpose": "Neo định danh chính xác của bản review: SHA nào, đổi những file nào, và những bất biến nào phải còn đúng khi reviewer đọc lại. m1 là nhánh dùng chung nên HEAD trôi — không được dùng 'm1 HEAD' thay cho evidence của task.",
+  "review_date": "2026-08-18",
+  "reviewer_role": "DEV",
+
+  "backend": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "review_sha": "696868ce44ccccca51884c3c1ac7e9f41fd405b8",
+    "review_sha_subject": "fix(WWHN-234): canonical hoa bon lop xung dot 409 §8.2 va co replayed cho moi action doi ton",
+    "parent_sha": "b90d5ef",
+    "note": "review_sha là commit của chính WWHN-234. Mọi trích dẫn file:line trong CONCURRENCY_STATE_REVIEW.md đọc tại commit này."
+  },
+
+  "frontend": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "branch": "m1",
+    "review_sha": "48f7ff096ee6c570ff3a27c93f1d47b4e3b8595e",
+    "review_sha_subject": "feat(WWHN-234): request thua race nhan huong dan hanh dong thay vi loi chung"
+  },
+
+  "code_change": true,
+  "no_code_change_declaration": null,
+  "change_rationale": "Đây là review task, nhưng review phát hiện defect thật (F-01, F-02, F-03, F-09). Register DEV234-P1-04 cho phép hai hình thái: pin exact PR/commit khi có code change, hoặc khai formal NO CODE CHANGE. Task này thuộc hình thái thứ nhất.",
+
+  "code_changes": [
+    { "path": "app/Support/ConflictCode.php", "kind": "added", "finding": "F-01/F-02", "why": "nguồn duy nhất của bốn lớp xung đột 409 SRS §8.2" },
+    { "path": "app/Support/IdempotentEnvelope.php", "kind": "added", "finding": "F-09", "why": "cờ data.replayed dùng chung cho mọi action đổi tồn idempotent" },
+    { "path": "app/Support/IdempotencyStore.php", "kind": "modified", "finding": "F-01", "why": "hai hằng 409 trỏ về ConflictCode thay vì chuỗi độc lập" },
+    { "path": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php", "kind": "modified", "finding": "F-01/F-02", "why": "CAS balance → CONCURRENCY_CONFLICT; receipt dependency → DOWNSTREAM_DEPENDENCY_EXISTS" },
+    { "path": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php", "kind": "modified", "finding": "F-01/F-02", "why": "4 điểm phát mã canonical hoá; commit này cũng mang theo guard item-level của WWHN-239 do phiên song song viết trong cùng working tree" },
+    { "path": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php", "kind": "modified", "finding": "F-01", "why": "CAS balance → CONCURRENCY_CONFLICT" },
+    { "path": "Modules/Warehouse/app/Services/ContainerService.php", "kind": "modified", "finding": "F-01", "why": "CONTAINER_VERSION_CONFLICT → CONCURRENCY_CONFLICT" },
+    { "path": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php", "kind": "modified", "finding": "F-01", "why": "VERSION_CONFLICT → CONCURRENCY_CONFLICT" },
+    { "path": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php", "kind": "modified", "finding": "F-09", "why": "reversal cũng phát data.replayed" },
+    { "path": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php", "kind": "modified", "finding": "F-09", "why": "Post Issue phát data.replayed — đường Post Issue thật nằm ở đây" },
+    { "path": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php", "kind": "modified", "finding": "F-09", "why": "Component Issue Post phát data.replayed" },
+    { "path": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentIssueController.php", "kind": "modified", "finding": "F-09", "why": "Component Issue Post phát data.replayed" },
+    { "path": "scripts/generate-error-code-catalog.mjs", "kind": "modified", "finding": "F-01", "why": "phân giải hằng ConflictCode::* — nếu không catalog âm thầm báo thiếu đúng bốn mã quan trọng nhất" },
+    { "path": "scripts/verify-wwhn234-closure.mjs", "kind": "added", "finding": "F-08", "why": "verifier fail-closed cho toàn bộ register" },
+    { "path": "tests/Feature/Wwhn234ConflictClassContractTest.php", "kind": "added", "finding": "F-01/F-02", "why": "chặn mã cũ quay lại; 6 test / 51 assertion" },
+    { "path": "tests/Feature/Wwhn234PostIssueIdempotencyPayloadTest.php", "kind": "added", "finding": "F-09", "why": "đóng TC-P1-014 và hồi quy TC-P1-013" },
+    { "path": "tests/Feature/StockDocumentConcurrencyGuardTest.php", "kind": "modified", "finding": "F-01", "why": "assert theo mã canonical, thêm assertStringNotContains cho mã cũ" },
+    { "path": "tests/Feature/CurrentBaselineFlowContractSourceTest.php", "kind": "modified", "finding": "F-02", "why": "assert DOWNSTREAM_DEPENDENCY thay vì REVERSAL_DEPENDENCY_EXISTS" },
+    { "path": "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md", "kind": "regenerated", "finding": "F-01", "why": "sinh lại từ source sau khi generator hiểu hằng" },
+    { "path": "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json", "kind": "regenerated", "finding": "F-01", "why": "như trên" },
+    { "path": "docs/evidence/WWHN-234/", "kind": "added", "finding": "DEV234-P1-01..04", "why": "scope disposition, bản review, TC traceability, QA1 handoff, pin này" }
+  ],
+
+  "frontend_code_changes": [
+    { "path": "src/shared/api/concurrency-contract.ts", "kind": "added", "finding": "F-03" },
+    { "path": "src/shared/api/concurrency-contract.test.ts", "kind": "added", "finding": "F-03" },
+    { "path": "src/modules/inbound/services/inboundService.ts", "kind": "modified", "finding": "F-03" },
+    { "path": "src/modules/shipping/services/shippingService.ts", "kind": "modified", "finding": "F-03" }
+  ],
+
+  "live_invariants": {
+    "_why": "Bài học WWHN-290 (pin rot): m1 là nhánh dùng chung và storage/api-docs/api-docs.json bị các ticket khác regenerate nhiều lần trong cùng một ngày, nên pin blob tuyệt đối sẽ không resolve được và evidence trông như bịa. Vì vậy pin ở đây là bất biến sống, verifier assert vào file thật.",
+    "openapi_info_version": "2.0.0",
+    "openapi_stocktake_paths": 0,
+    "route_total": 239,
+    "route_stocktake": 0,
+    "conflict_code_canonical_set": [
+      "STATE_CONFLICT",
+      "IDEMPOTENCY_CONFLICT",
+      "CONCURRENCY_CONFLICT",
+      "DOWNSTREAM_DEPENDENCY_EXISTS"
+    ],
+    "retired_conflict_codes": [
+      "VERSION_CONFLICT",
+      "CONTAINER_VERSION_CONFLICT",
+      "REVERSAL_CONCURRENT_CONFLICT",
+      "REVERSAL_DEPENDENCY_EXISTS"
+    ],
+    "tc_matrix_total": 32,
+    "tc_covered": 30,
+    "tc_partial": 1,
+    "tc_gap": 1
+  },
+
+  "contract_sources": {
+    "srs": "docs/HN_SRS_FRD_v1.12_FULL.md (v1.12, adopt tại WWHN-334)",
+    "srs_sections": ["§5.5", "§6", "§8.1", "§8.2", "§13.2 AC-GWT-IDEMP-001/AC-GWT-CONC-001", "§13.3"],
+    "erd": "docs/HoaNam_ERD_Moi_Nhat.md",
+    "openapi": "storage/api-docs/api-docs.json (info.version 2.0.0, 231 operationId)",
+    "techstack": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md"
+  },
+
+  "verification": {
+    "command": "node scripts/verify-wwhn234-closure.mjs",
+    "expected_exit_code": 0,
+    "test_commands": [
+      "php artisan test --filter \"Wwhn234ConflictClassContractTest|Wwhn234PostIssueIdempotencyPayloadTest\"",
+      "npx vitest run src/shared/api/concurrency-contract.test.ts"
+    ]
+  },
+
+  "shared_branch_caveat": "m1 có nhiều phiên làm việc song song. Reviewer phải checkout đúng review_sha thay vì đọc m1 HEAD; kết quả đo trên HEAD trôi không tái lập được."
+}

@@ -39,7 +39,7 @@
         400
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php:95"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php:99"
     },
     {
       "code": "INVALID_QUERY",
@@ -103,7 +103,7 @@
         404
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:134"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:135"
     },
     {
       "code": "CONTAINER_ITEM_NOT_ACTIVE",
@@ -127,7 +127,7 @@
         404
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:50"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:51"
     },
     {
       "code": "INBOUND_SCAN_ENTRY_NOT_FOUND",
@@ -135,7 +135,7 @@
         404
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:81"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:82"
     },
     {
       "code": "LABEL_NOT_FOUND",
@@ -143,7 +143,7 @@
         404
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:332"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:333"
     },
     {
       "code": "MOVEMENT_NOT_FOUND",
@@ -159,7 +159,7 @@
         404
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:169"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:170"
     },
     {
       "code": "PHYSICAL_CODE_NOT_FOUND",
@@ -168,7 +168,7 @@
         422
       ],
       "occurrences": 5,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:340"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:344"
     },
     {
       "code": "PUTAWAY_NOT_FOUND",
@@ -361,7 +361,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:166"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:167"
     },
     {
       "code": "DUPLICATE_HARDWARE_UID",
@@ -377,7 +377,7 @@
         409
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:665"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:671"
     },
     {
       "code": "DUPLICATE_ITEM_MATCH",
@@ -449,7 +449,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:484"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:485"
     },
     {
       "code": "LABEL_STATE_CONFLICT",
@@ -457,7 +457,7 @@
         409
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:343"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:344"
     },
     {
       "code": "LEGACY_ITEM_LABEL_NOT_APPLICABLE",
@@ -465,7 +465,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:414"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:415"
     },
     {
       "code": "MASTER_CODE_IMMUTABLE_AFTER_USE",
@@ -481,7 +481,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:180"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:181"
     },
     {
       "code": "OUTBOUND_REQUEST_ALREADY_USED",
@@ -497,7 +497,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:118"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:119"
     },
     {
       "code": "PARENT_CONTAINER_NOT_AVAILABLE",
@@ -642,7 +642,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:92"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:93"
     },
     {
       "code": "SCAN_ITEM_ALREADY_RECEIVED",
@@ -938,7 +938,7 @@
         422
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:158"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:159"
     },
     {
       "code": "COMPONENT_ITEM_TARGET_REQUIRED",
@@ -970,7 +970,7 @@
         422
       ],
       "occurrences": 5,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:73"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:74"
     },
     {
       "code": "COMPONENT_TARGET_XOR",
@@ -978,7 +978,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:143"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:144"
     },
     {
       "code": "CONTAINER_CYCLE",
@@ -1114,7 +1114,7 @@
         422
       ],
       "occurrences": 6,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:468"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:469"
     },
     {
       "code": "FULL_SCAN_REQUIRED_FOR_LABEL",
@@ -1122,7 +1122,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:170"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:171"
     },
     {
       "code": "IMPORT_HAS_NO_VALID_ROWS",
@@ -1362,7 +1362,7 @@
         422
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:417"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:418"
     },
     {
       "code": "LABEL_PII_FORBIDDEN",
@@ -1450,7 +1450,7 @@
         422
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:42"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:43"
     },
     {
       "code": "PACKAGE_VARIANT_NOT_ACTIVE",
@@ -1466,7 +1466,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:479"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:480"
     },
     {
       "code": "PACKING_LABEL_REQUIRED",
@@ -1474,7 +1474,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:473"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:474"
     },
     {
       "code": "PARENT_CONTAINER_NOT_FOUND",
@@ -1498,7 +1498,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:346"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:350"
     },
     {
       "code": "PHYSICAL_CODE_TARGET_XOR",
@@ -1578,7 +1578,7 @@
         422
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:54"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:55"
     },
     {
       "code": "PUTAWAY_BOX_REQUIRED",
@@ -1682,7 +1682,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:149"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:150"
     },
     {
       "code": "SCAN_ITEM_MISMATCH",
@@ -1722,7 +1722,7 @@
         422
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:154"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:155"
     },
     {
       "code": "SERIAL_SCAN_QUANTITY_INVALID",
@@ -1866,7 +1866,7 @@
         422
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:46"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:47"
     },
     {
       "code": "WAREHOUSE_REQUIRED",
@@ -1890,7 +1890,7 @@
         422
       ],
       "occurrences": 5,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:50"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:51"
     },
     {
       "code": "WARRANTY_DEFECT_NOT_FOUND",
@@ -1970,7 +1970,7 @@
         500
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:391"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:395"
     },
     {
       "code": "VERSION_CONTRACT_MISSING",

@@ -40,14 +40,46 @@ function read(relative) {
 const disposition = read("docs/evidence/WWHN-234/SCOPE_AUTHORITY_DISPOSITION.md");
 check(
   "P1-01/doc",
-  disposition !== null && disposition.includes("DECISION-READY"),
-  "SCOPE_AUTHORITY_DISPOSITION.md tồn tại và tự khai là chưa phê duyệt",
+  disposition !== null && /\bPROPOSED\b/.test(disposition),
+  "SCOPE_AUTHORITY_DISPOSITION.md tồn tại và khai trạng thái PROPOSED (chưa có effective date)",
 );
+
+// Chỉ bắt lỗi khi câu KHẲNG ĐỊNH đã approved. Một câu phủ định ("không được tuyên bố ... là
+// approved") là đúng chính sách, không phải vi phạm — nếu không phân biệt, verifier sẽ đỏ
+// đúng vào tài liệu viết cẩn thận nhất.
+const NEGATION = /(không|chưa|never|not|chống|cấm)/i;
+const falseApproval = (disposition ?? "")
+  .split("\n")
+  .filter((line) => /DEC-NO-STOCKTAKE-001|DISP-STK-233/.test(line))
+  // Chỉ mã trạng thái mới là khẳng định. "GO/CONDITIONAL GO" xuất hiện hợp lệ khi mô tả
+  // *điều kiện* re-enable, nên không được tính là tuyên bố đã duyệt.
+  .filter((line) => /\b(approved|đã phê duyệt|đã được duyệt)\b/i.test(line))
+  .filter((line) => !NEGATION.test(line));
 check(
   "P1-01/no-false-approval",
-  disposition !== null &&
-    !/DEC-NO-STOCKTAKE-001[^\n]{0,80}\bAPPROVED\b/i.test(disposition),
-  "Không tài liệu nào được tuyên bố DEC-NO-STOCKTAKE-001 là APPROVED (WWHN-25 vẫn PENDING)",
+  disposition !== null && falseApproval.length === 0,
+  falseApproval.length === 0
+    ? "không có câu khẳng định disposition/Decision đã APPROVED (WWHN-25 vẫn In Progress)"
+    : `câu khẳng định approval sai: ${falseApproval[0].trim().slice(0, 100)}`,
+);
+
+// Chống phân mảnh disposition: nhánh WWHN-59 đã có DISP-STK-233. Nếu WWHN-234 phát hành
+// DISP-STK-234 thì dự án sẽ có hai văn bản cùng trả lời một câu hỏi cho cùng một nhánh
+// ticket — đúng cơ chế hỏng mà DEC-STK-002 §Context mô tả (cùng câu hỏi bị nêu lại năm lần
+// ở WWHN-190/195/205/207/218).
+const controlling = read("docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md");
+check(
+  "P1-01/inherits-disp-233",
+  controlling !== null && disposition !== null && disposition.includes("DISP-STK-233"),
+  "WWHN-234 trỏ tới DISP-STK-233 làm controlling disposition của nhánh WWHN-59",
+);
+const decisionRecords = existsSync(join(root, "docs/decision-records"))
+  ? readdirSync(join(root, "docs/decision-records"))
+  : [];
+check(
+  "P1-01/no-duplicate-disposition",
+  !decisionRecords.some((name) => /^DISP-STK-234/i.test(name)),
+  "WWHN-234 không phát hành disposition song song (DISP-STK-234)",
 );
 
 const routes = read("routes/api.php") ?? "";

@@ -6,7 +6,7 @@
 | Owner → Reviewer | QA1 → BA/Tech |
 | Gate | Core Quality |
 | Candidate | pin chính xác ở `REVIEW_IDENTITY_PIN.json` |
-| Scope authority | Nhánh A của `SCOPE_AUTHORITY_DISPOSITION.md` |
+| Scope authority | `DISP-STK-233` (kế thừa — xem `SCOPE_AUTHORITY_DISPOSITION.md`) |
 
 ---
 
@@ -130,29 +130,39 @@ hiện lại"* và **không** được tự gửi lại. Nếu tab 2 tự retry 
 | G-02 | `TC-P1-039` | MIGRATION_COMMIT CONCURRENCY: không có test hai commit song song cùng `migration_run_id` | Rủi ro thấp (job một lần + approver gate) nhưng là ô trống thật của §13.3 |
 | G-03 | `TC-P1-017..024` | Không tồn tại trong SRS; `COMPONENT_ISSUE_POST` là action đổi tồn nhưng không có hàng nào trong ma trận | Chuyển BA (finding F-07) |
 
-## 4. 235-B — disposition formal cho phần Stocktake
+## 4. 235-B — phần Stocktake ĐÃ có disposition, không viết lại
 
-QA1 **không** tự quyết định phần này. Text đề xuất để BA/PM ghi lên `WWHN-235`:
+Phần này **không** cần disposition mới. `DISP-STK-233` §8 và
+`docs/evidence/WWHN-233/QA_DISPOSITION_WWHN-235.md` đã dispose `WWHN-235` phần kiểm kê thành
+**DEFERRED / N/A cho MVP v1.12**, kèm lý do vì sao `Blocked`/`Pending` là sai trạng thái và
+kèm điều kiện re-open dùng chung bốn điều kiện của `DISP-STK-233` §2.
 
-```text
-WWHN-235 · Phần Stocktake (session/count/variance/apply-adjustment)
-Disposition : N/A — OUT OF SCOPE
-Căn cứ      : REQ-SRS-037 (Must, SRS/FRD v1.12, adopt tại WWHN-334)
-Bằng chứng  : 0/239 route, 0 permission, 0 controller, 0 operation trong OpenAPI 2.0.0,
-              0 bảng stocktake_* (đã drop tại migration 2026_08_10_000600)
-Điều kiện đảo: chỉ khi WWHN-25 / DEC-STK-001 được ký GO hoặc CONDITIONAL GO kèm effective
-              date, và BA baseline + OpenAPI + TC đã cập nhật TRƯỚC khi DEV bắt đầu.
-Ghi bởi     : ____________  Ngày: __________
+QA1 chỉ cần **trỏ tới** văn bản đó khi ghi trạng thái ticket, rồi chạy negative gate mà nó
+mô tả:
+
+```bash
+node scripts/verify-wwhn233-count-disposition.mjs
+php vendor/bin/phpunit --filter Wwhn233CountDeferredGate
 ```
 
-Không được ghi `Blocked` hay `Pending` — hai trạng thái đó không nói ai đang nợ việc gì và
-là nguyên nhân khiến vòng review trước không đóng được.
+```bash
+node scripts/verify-wwhn-233-closure.mjs
+```
+
+Viết một disposition thứ hai cho cùng một ticket chính là cơ chế hỏng mà `DEC-STK-002`
+§Context mô tả — cùng một câu hỏi bị nêu lại năm lần ở `WWHN-190/195/205/207/218`. Vòng này
+không lặp lại nó.
+
+Điều `WWHN-234` bổ sung là **235-A** ở §2: tám chiều test đó áp dụng cho bốn action đổi tồn
+**có thật**, và phần đó trước nay chưa ai giao cho QA1.
 
 ## 5. Điều kiện đóng `DEV234-P1-03`
 
-1. 235-A có **fixed-build report** trên đúng `<be_review_sha>`, kèm log test và output của
+1. 235-A có **fixed-build report** trên đúng `backend.review_sha`, kèm log test và output của
    sáu truy vấn DB ở §2.4.
 2. G-01/G-02/G-03 được ghi nhận rõ ràng (đã bổ sung test, hoặc chấp nhận rủi ro có người ký).
-3. 235-B có disposition formal do BA/PM ghi.
+3. 235-B: QA1 ghi trạng thái `DEFERRED / N/A` **trỏ tới** `DISP-STK-233` §8 và
+   `docs/evidence/WWHN-233/QA_DISPOSITION_WWHN-235.md`, và chạy negative gate ở §4.
+   Không tạo văn bản disposition mới.
 
 Thiếu bất kỳ mục nào ⇒ `DEV234-P1-03` vẫn OPEN.

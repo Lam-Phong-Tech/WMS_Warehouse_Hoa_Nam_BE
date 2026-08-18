@@ -8,7 +8,7 @@
 | Baseline pin | xem `REVIEW_IDENTITY_PIN.json` (BE SHA, FE SHA, OpenAPI `info.version`) |
 | Contract nguồn | SRS/FRD v1.12 §5.5, §6, §8.1, §8.2, §13.2, §13.3; `HN_OpenAPI` `2.0.0` (231 operation) |
 | Ngày review | 2026-08-18 |
-| Scope authority | **Nhánh A** của `SCOPE_AUTHORITY_DISPOSITION.md` — Stocktake OUT OF SCOPE |
+| Scope authority | `DISP-STK-233` (nhánh `WWHN-59/233/234/235`) — Stocktake DEFERRED, NO CODE |
 
 > Đây là bản review thật, không phải bản tóm tắt. Mọi mệnh đề đều dẫn `file:line` trên
 > baseline được pin, hoặc dẫn kết quả lệnh đã chạy trong `EXECUTION_LOG.md`.
@@ -53,9 +53,11 @@ preview/ready/print, Putaway confirm/cancel.
 ### 2.2. Ngoài phạm vi
 
 **Stocktake**: `REQ-SRS-037` (Must) cấm expose; đo trên baseline có 0 route / 0 permission /
-0 controller / 0 operation / 0 bảng (chi tiết `SCOPE_AUTHORITY_DISPOSITION.md` §2). Không có
-runtime nào để review. `TC-P1-017..024` **không tồn tại** trong SRS §13.3 — đây là khoảng
-trống đánh số của baseline, không phải TC bị bỏ sót; ghi nhận cho BA ở F-07.
+0 controller / 0 operation / 0 bảng (chi tiết `SCOPE_AUTHORITY_DISPOSITION.md` §4). Không có
+runtime nào để review. Nhánh ticket này **đã có** disposition `DISP-STK-233`
+(`WWHN-59 ↔ WWHN-233 ↔ WWHN-235`); `WWHN-234` kế thừa nguyên văn, **không** phát hành
+`DISP-STK-234`. `TC-P1-017..024` **không tồn tại** trong SRS §13.3 — đây là khoảng trống đánh
+số của baseline, không phải TC bị bỏ sót; ghi nhận cho BA ở F-07.
 
 ---
 

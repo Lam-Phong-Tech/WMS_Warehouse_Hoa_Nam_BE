@@ -1,0 +1,105 @@
+name: WWHN-234 Concurrency & State Gate
+
+# Vòng review trước rớt 32/100 vì output là lời văn: một tài liệu nói "đã review
+# concurrency" thì sau lần refactor kế tiếp vẫn đúng chính tả nhưng đã sai sự thật.
+# Workflow này là dạng máy của bản review — nó chạy lại từng mệnh đề và fail-closed khi
+# một mệnh đề không còn đúng, đặc biệt là hai thứ dễ mục nhất:
+#   1. bốn lớp xung đột 409 của SRS §8.2 quay về nhiều mã khác nhau tuỳ đường code;
+#   2. một đường Post đổi tồn mới quên phát data.replayed (TC-P1-005/013/029/037).
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'app/Support/ConflictCode.php'
+      - 'app/Support/IdempotentEnvelope.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'Modules/Warehouse/app/Http/Controllers/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'routes/api.php'
+      - 'storage/api-docs/api-docs.json'
+      - 'docs/evidence/WWHN-234/**'
+      - 'docs/decision-records/DISP-STK-233-*'
+      - 'scripts/verify-wwhn234-closure.mjs'
+      - 'scripts/generate-error-code-catalog.mjs'
+      - 'tests/Feature/Wwhn234*'
+      - '.github/workflows/wwhn-234-concurrency-state-gate.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'app/Support/ConflictCode.php'
+      - 'app/Support/IdempotentEnvelope.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'Modules/Warehouse/app/Http/Controllers/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'routes/api.php'
+      - 'storage/api-docs/api-docs.json'
+      - 'docs/evidence/WWHN-234/**'
+      - 'docs/decision-records/DISP-STK-233-*'
+      - 'scripts/verify-wwhn234-closure.mjs'
+      - 'scripts/generate-error-code-catalog.mjs'
+      - 'tests/Feature/Wwhn234*'
+      - '.github/workflows/wwhn-234-concurrency-state-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  concurrency-state-gate:
+    name: Conflict-class contract, replay flag and TC traceability
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN234-CI-JWT-Concurrency-State-2026
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Style check on WWHN-234 test locks
+        run: vendor/bin/pint --test tests/Feature/Wwhn234ConflictClassContractTest.php tests/Feature/Wwhn234PostIssueIdempotencyPayloadTest.php app/Support/ConflictCode.php app/Support/IdempotentEnvelope.php
+
+      - name: Conflict-class contract and replay-flag locks
+        run: php vendor/bin/phpunit --filter Wwhn234
+
+      - name: Sibling concurrency locks stay green
+        run: php vendor/bin/phpunit --filter 'StockDocumentConcurrencyGuard|PostReceiptConcurrencyBehavior|PostIssueConcurrencyBehavior|Wwhn180IdempotencyAtomicity|Wwhn289StockInvariantProof|Wwhn239ReversalItemLevelClosure'
+
+      - name: Error-code catalog must still match source
+        run: node scripts/generate-error-code-catalog.mjs --check
+
+      - name: Closure gate — 29 bất biến của register DEV234-P1-01..04
+        run: node scripts/verify-wwhn234-closure.mjs
+
+      - name: Upload WWHN-234 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-234-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-234/
+          retention-days: 90
