@@ -88,6 +88,12 @@ jobs:
           fi
           grep -Fq "Route::get('health'" routes/api.php
 
+      # Static contract, so it runs before anything expensive: the RC pin, the
+      # gate and the task document must agree, and the task document may not
+      # claim an evidence-ready state while the pin says the gate is red.
+      - name: WWHN-273 release sign-off contract (pin, provenance, honesty)
+        run: node scripts/verify-wwhn-273-release-signoff.mjs
+
       - name: Prepare Laravel runtime
         run: |
           cp .env.example .env
@@ -130,7 +136,7 @@ jobs:
       # endpoint still fails closed without a token, and the auth/master/inbound/
       # outbound/inventory smoke WWHN-72 asks for actually returns 200 against
       # the migrated and seeded database.
-      - name: Served runtime smoke (canonical health, legacy 404, default deny)
+      - name: Served runtime smoke (canonical health, legacy 404, default deny, no-Stocktake absence)
         run: |
           set -euo pipefail
           # The suite above runs RefreshDatabase against this same PostgreSQL
@@ -175,6 +181,31 @@ jobs:
             fi
             printf 'smoke%s=%s\n' "$path" "$code" >> artifacts/wwhn-273/served-smoke.txt
           done
+          # AC-SRS-037 reads "deployment v1.12 khong chua capability legacy", so
+          # the release evidence has to prove absence on the runtime that was
+          # actually served, not only in source. This is the executable form of
+          # the WWHN-72 AC3 wording "kiem ke smoke": there is no Stocktake API to
+          # call, so what gets smoked is that calling one answers 404 — probed
+          # WITH a valid token so a 404 cannot be mistaken for an authorization
+          # refusal, and so a catch-all route cannot answer in its place.
+          # See docs/decision-records/DISP-REL-273-STOCKTAKE-RELEASE-CRITERIA.md.
+          for path in /api/v1/stocktake-sessions /api/v1/inventory-snapshots /api/v1/stock-adjustments /api/v1/reports/stocktake-variance; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "http://$SMOKE_HOST:$SMOKE_PORT$path")"
+            if [ "$code" != '404' ]; then
+              echo "REQ-SRS-037 violated: GET $path is served with HTTP $code, expected 404" >&2
+              exit 1
+            fi
+            printf 'absent%s=%s\n' "$path" "$code" >> artifacts/wwhn-273/stocktake-absence.txt
+          done
+          adjust_code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d '{}' \
+            "http://$SMOKE_HOST:$SMOKE_PORT/api/v1/stocktake-sessions/00000000-0000-0000-0000-000000000000/apply-adjustment")"
+          if [ "$adjust_code" != '404' ]; then
+            echo "REQ-SRS-037 violated: apply-adjustment is served with HTTP $adjust_code, expected 404" >&2
+            exit 1
+          fi
+          printf 'absent_apply_adjustment_post=%s\n' "$adjust_code" >> artifacts/wwhn-273/stocktake-absence.txt
+          cat artifacts/wwhn-273/stocktake-absence.txt
           cat artifacts/wwhn-273/served-smoke.txt
 
       - name: Regenerate OpenAPI
@@ -198,13 +229,50 @@ jobs:
           health=/api/v1/health
           legacy_health=/api/health:REJECTED
           served_smoke=health200+legacy404+protected401+auth_master_inbound_outbound_inventory200
+          stocktake_absence=REQ-SRS-037:stocktake-sessions+inventory-snapshots+stock-adjustments+reports/stocktake-variance+apply-adjustment:404
           openapi_sha256=${openapi_sha256}
           result=SOURCE_CONTROLLED_PASS_IF_JOB_GREEN
           qa1_signoff=NOT_CLAIMED_BY_BE
           devops_deploy_backup_rollback=NOT_CLAIMED_BY_BE
           EOF
-          sha256sum artifacts/wwhn-273/release-signoff.txt > artifacts/wwhn-273/SHA256SUMS
+          sha256sum artifacts/wwhn-273/release-signoff.txt artifacts/wwhn-273/stocktake-absence.txt > artifacts/wwhn-273/SHA256SUMS
           cat artifacts/wwhn-273/release-signoff.txt
+
+      # A red run used to leave nothing behind: every evidence file is written by
+      # a step that gets skipped once an earlier one fails, so the upload step hit
+      # if-no-files-found:error and failed too. The run then had no artifact to
+      # retrieve, and a local diagnostic table in the task document filled that
+      # vacuum — which is exactly how "gate red on all runs" was reported as
+      # "evidence ready" (DEV273-P1-01). This step always writes the machine
+      # readable truth about the run, so the artifact exists whether the gate
+      # passed or failed, and the missing-file list shows where it stopped.
+      - name: Record gate status (always)
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-273
+          {
+            printf 'jira=WWHN-273\n'
+            printf 'sha=%s\n' "$GITHUB_SHA"
+            printf 'branch=%s\n' "$GITHUB_REF_NAME"
+            printf 'run_id=%s\n' "$GITHUB_RUN_ID"
+            printf 'run_attempt=%s\n' "$GITHUB_RUN_ATTEMPT"
+            printf 'run_url=%s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf 'job_status=%s\n' '${{ job.status }}'
+          } > artifacts/wwhn-273/gate-status.txt
+          for required in release-signoff.txt SHA256SUMS golive-check.json health.json served-smoke.txt stocktake-absence.txt; do
+            if [ -f "artifacts/wwhn-273/$required" ]; then
+              printf 'evidence_%s=PRESENT\n' "$required" >> artifacts/wwhn-273/gate-status.txt
+            else
+              printf 'evidence_%s=MISSING\n' "$required" >> artifacts/wwhn-273/gate-status.txt
+            fi
+          done
+          if [ '${{ job.status }}' != 'success' ]; then
+            printf 'result=RED_NO_BACKEND_RELEASE_SIGNOFF\n' >> artifacts/wwhn-273/gate-status.txt
+          else
+            printf 'result=GREEN_BACKEND_RELEASE_SIGNOFF_AT_EXACT_SHA\n' >> artifacts/wwhn-273/gate-status.txt
+          fi
+          cat artifacts/wwhn-273/gate-status.txt
 
       - name: Upload WWHN-273 backend release evidence
         if: always()
