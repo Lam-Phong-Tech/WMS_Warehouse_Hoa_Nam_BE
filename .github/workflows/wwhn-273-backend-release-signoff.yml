@@ -1,0 +1,132 @@
+name: WWHN-273 Backend Release Sign-off
+
+on:
+  push:
+    branches: [m1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-release-signoff:
+    name: Exact-SHA migration/health/auth/RBAC/OpenAPI gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn273
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn273"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn273
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: WWHN273-CI-JWT-Exact-SHA-2026
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      REFRESH_TOKEN_COOKIE_SAME_SITE: lax
+
+    steps:
+      - name: Checkout exact m1 SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Guard release workflow branch and canonical health route
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/hn-devops-ci-cd.yml'
+          grep -Fq -- '- m1' "$workflow"
+          grep -Fq '/api/v1/health' "$workflow"
+          if grep -Fq '/api/health' "$workflow"; then
+            echo 'Legacy /api/health is forbidden in the release workflow.' >&2
+            exit 1
+          fi
+          grep -Fq "Route::get('health'" routes/api.php
+
+      - name: Prepare Laravel runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migration and seed exact-SHA gate
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Focused release regression suite
+        run: |
+          php artisan test \
+            tests/Feature/BackendMigrationSeedHealthTest.php \
+            tests/Feature/AuthSessionPersistenceTest.php \
+            tests/Feature/AuthorizationTest.php \
+            tests/Feature/SwaggerRouteSyncTest.php
+
+      - name: Regenerate OpenAPI
+        run: php artisan l5-swagger:generate
+
+      - name: Build exact-SHA evidence manifest
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-273
+          openapi_sha256="$(sha256sum storage/api-docs/api-docs.json | awk '{print $1}')"
+          cat > artifacts/wwhn-273/release-signoff.txt <<EOF
+          jira=WWHN-273
+          parent=WWHN-72
+          branch=${GITHUB_REF_NAME}
+          sha=${GITHUB_SHA}
+          db=postgres16
+          health=/api/v1/health
+          legacy_health=/api/health:REJECTED
+          openapi_sha256=${openapi_sha256}
+          result=SOURCE_CONTROLLED_PASS_IF_JOB_GREEN
+          qa1_signoff=NOT_CLAIMED_BY_BE
+          devops_deploy_backup_rollback=NOT_CLAIMED_BY_BE
+          EOF
+          sha256sum artifacts/wwhn-273/release-signoff.txt > artifacts/wwhn-273/SHA256SUMS
+          cat artifacts/wwhn-273/release-signoff.txt
+
+      - name: Upload WWHN-273 backend release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-273-backend-release-signoff-${{ github.sha }}
+          path: artifacts/wwhn-273
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Truth-boundary summary
+        if: always()
+        run: |
+          echo '### WWHN-273 backend release sign-off' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Exact SHA: \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo '- Coverage: PostgreSQL migration/seed, canonical /api/v1/health, cookie session, authorization and Swagger route sync.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Boundary: backend source-controlled evidence only; QA1 and DevOps deployment/backup/rollback remain independent role-owned gates.' >> "$GITHUB_STEP_SUMMARY"
