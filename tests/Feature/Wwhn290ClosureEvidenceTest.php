@@ -22,7 +22,7 @@ class Wwhn290ClosureEvidenceTest extends TestCase
             'DEV290-P1-05',
             'NO-VERIFIED-UAT-DEFECT-INPUT',
             'FAIL-CLOSED / NEEDS OWNER DISPOSITION',
-            'PENDING FE1 CONFIRMATION',
+            'FE1 confirms consumer compatibility once',
             'QA1 must execute/verify WWHN-291',
             'm1` only',
             '2.0.0',
