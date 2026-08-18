@@ -100,7 +100,7 @@
   ],
   "required_objects": [
     "app_users", "roles", "permissions", "user_roles", "role_permissions", "idempotency_records", "audit_logs", "warehouses", "agencies",
-    "product_categories", "brands", "power_sources", "product_models", "package_variants", "defect_catalog", "skus", "sku_aliases", "sku_compatible_accessories",
+    "product_categories", "brands", "power_sources", "product_models", "package_variants", "defect_catalogs", "skus", "sku_aliases", "sku_compatible_accessories",
     "import_batches", "item_instances", "physical_codes", "containers", "container_items", "putaway_events", "scan_events", "inbound_documents", "inbound_lines",
     "inbound_scan_entries", "inventory_balances", "inventory_movements", "posting_events", "reconciliation_incidents", "reversal_documents", "reversal_lines",
     "outbound_request_imports", "outbound_request_import_rows", "outbound_requests", "outbound_request_lines", "outbound_documents", "outbound_lines",

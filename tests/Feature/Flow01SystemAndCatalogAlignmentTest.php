@@ -237,11 +237,18 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        // WWHN-310: fixture phải thoả CHECK chk_erd_warranty_identification_shape —
+        // IDENTIFIED bắt buộc có item_id; TEMP_ONLY bắt buộc có temporary_item_code +
+        // missing_code_reason + manual_product_description. Bản cũ khai IDENTIFIED mà
+        // không có item nên chỉ chạy được trên sqlite (nhánh không có CHECK này).
         $caseId = (string) Str::uuid();
         DB::table('warranty_case')->insert([
             'warranty_case_id' => $caseId,
             'warranty_case_code' => 'WC-DEF-OFF',
-            'identification_status' => 'IDENTIFIED',
+            'identification_status' => 'TEMP_ONLY',
+            'temporary_item_code' => 'TEMP-0000',
+            'missing_code_reason' => 'Chưa có mã khi tiếp nhận',
+            'manual_product_description' => 'Máy khoan chưa xác định model',
             'customer_name' => 'Khách B',
             'customer_phone' => '0901234567',
             'status' => 'RECEIVED',

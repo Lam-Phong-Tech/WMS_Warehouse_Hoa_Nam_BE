@@ -1,0 +1,39 @@
+{
+    "schema_version": "1.1.0",
+    "contract": "WWHN-150 + SRS v1.12 Annex C scan classify permission seed diff",
+    "expected": {
+        "permission_key": "scan.classify",
+        "annex_c_alias_key": "scan.execute",
+        "permission_status": "ACTIVE",
+        "roles": [
+            "ADMIN",
+            "SUPER_ADMIN",
+            "WAREHOUSE_KEEPER",
+            "WAREHOUSE_MANAGER",
+            "WAREHOUSE_STAFF",
+            "WARRANTY_STAFF"
+        ],
+        "roles_source": "WWHN-150 (scan.classify) + SRS v1.12 §5 role table via Annex C alias scan.execute",
+        "super_admin_rule": "backend bypass through User::isSuperAdmin"
+    },
+    "actual": {
+        "permission_status": "ACTIVE",
+        "roles": [
+            "ADMIN",
+            "SUPER_ADMIN",
+            "WAREHOUSE_KEEPER",
+            "WAREHOUSE_MANAGER",
+            "WAREHOUSE_STAFF",
+            "WARRANTY_STAFF"
+        ],
+        "route_permission": "scan.execute|scan.classify",
+        "route_accepted_permissions": [
+            "scan.execute",
+            "scan.classify"
+        ],
+        "backend_enforced": true
+    },
+    "missing_roles": [],
+    "unexpected_roles": [],
+    "status": "PASS"
+}

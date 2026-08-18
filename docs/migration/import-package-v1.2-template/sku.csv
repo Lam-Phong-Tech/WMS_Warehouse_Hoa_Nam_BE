@@ -1,0 +1,2 @@
+sku_code,sku_name,sku_type,unit,is_serial_tracked,version_code,status
+HN-MK-001-V1,Máy khoan mẫu,PRODUCT,cái,TRUE,V1,ACTIVE

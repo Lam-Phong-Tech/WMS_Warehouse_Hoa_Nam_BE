@@ -15,8 +15,8 @@ class StoreDefectCatalogRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'defect_code' => ['required', 'string', 'max:50', 'unique:defect_catalogs,defect_code'],
-            'defect_name' => ['required', 'string', 'max:255'],
+            'defect_code' => ['required', 'string', 'max:80', 'unique:defect_catalogs,defect_code'],
+            'defect_name' => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
         ];

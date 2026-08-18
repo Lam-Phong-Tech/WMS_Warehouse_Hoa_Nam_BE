@@ -60,11 +60,14 @@ class ExportPermissionCatalog extends Command
                 $permission = collect($middleware)
                     ->first(fn ($item) => is_string($item) && str_starts_with($item, 'permission:'));
 
+                $expression = $permission ? substr($permission, strlen('permission:')) : null;
+
                 return [
                     'methods' => array_values(array_diff($route->methods(), ['HEAD'])),
                     'uri' => $route->uri(),
                     'action' => $route->getActionName(),
-                    'permission' => $permission ? substr($permission, strlen('permission:')) : null,
+                    'permission' => $expression,
+                    'accepted_permissions' => self::acceptedPermissionKeys($expression),
                     'middleware' => array_values($middleware),
                 ];
             })
@@ -75,8 +78,11 @@ class ExportPermissionCatalog extends Command
             ->where('status', 'ACTIVE')
             ->pluck('permission_key')
             ->values();
+        // `permission:A|B` là biểu thức OR do CheckPermission tách bằng `|`; catalog phải
+        // đối chiếu theo từng permission key thành phần, không so khớp cả chuỗi biểu thức.
         $routePermissionKeys = $routes
-            ->pluck('permission')
+            ->pluck('accepted_permissions')
+            ->flatten()
             ->filter()
             ->unique()
             ->sort()
@@ -87,11 +93,13 @@ class ExportPermissionCatalog extends Command
 
         $endpointPermissionRoleMatrix = $routes->map(function (array $route) use ($roles) {
             $permission = $route['permission'];
+            $accepted = $route['accepted_permissions'];
             $roleCodes = $permission === null
                 ? []
                 : $roles
                     ->filter(fn (array $role) => $role['status'] === 'ACTIVE'
-                        && (in_array($permission, $role['permissions'], true) || $role['role_code'] === 'SUPER_ADMIN'))
+                        && ($role['role_code'] === 'SUPER_ADMIN'
+                            || array_intersect($accepted, $role['permissions']) !== []))
                     ->pluck('role_code')
                     ->values()
                     ->all();
@@ -100,6 +108,7 @@ class ExportPermissionCatalog extends Command
                 'methods' => $route['methods'],
                 'uri' => $route['uri'],
                 'permission' => $permission,
+                'accepted_permissions' => $accepted,
                 'roles' => $roleCodes,
                 'backend_enforced' => $permission !== null,
             ];
@@ -127,23 +136,39 @@ class ExportPermissionCatalog extends Command
             fn (array $row): bool => $row['uri'] === 'api/v1/scan/classify'
                 && in_array('POST', $row['methods'], true)
         );
-        $expectedScanRoles = ['ADMIN', 'SUPER_ADMIN', 'WAREHOUSE_MANAGER', 'WARRANTY_STAFF'];
+        // Baseline role set của POST /scan-batches/classify:
+        // - WWHN-150 chốt 4 role đầu qua permission key chuẩn `scan.classify`.
+        // - SRS v1.12 §5 (bảng vai trò, "Nhân viên kho ... scan/match Item") cộng Annex C alias
+        //   `scan.execute` mở thêm WAREHOUSE_KEEPER/WAREHOUSE_STAFF; alias được seed trong
+        //   AuthDatabaseSeeder và được CheckPermission chấp nhận theo OR.
+        // Danh sách dưới đây là baseline hợp nhất; lệch theo cả hai chiều đều FAIL để phát hiện drift.
+        $expectedScanRoles = [
+            'ADMIN',
+            'SUPER_ADMIN',
+            'WAREHOUSE_KEEPER',
+            'WAREHOUSE_MANAGER',
+            'WAREHOUSE_STAFF',
+            'WARRANTY_STAFF',
+        ];
         $actualScanRoles = collect($scanMatrix['roles'] ?? [])->sort()->values();
         $missingScanRoles = collect($expectedScanRoles)->diff($actualScanRoles)->values();
         $unexpectedScanRoles = $actualScanRoles->diff($expectedScanRoles)->values();
         $permissionSeedDiff = [
-            'schema_version' => '1.0.0',
-            'contract' => 'WWHN-150 scan.classify permission seed diff',
+            'schema_version' => '1.1.0',
+            'contract' => 'WWHN-150 + SRS v1.12 Annex C scan classify permission seed diff',
             'expected' => [
                 'permission_key' => 'scan.classify',
+                'annex_c_alias_key' => 'scan.execute',
                 'permission_status' => 'ACTIVE',
                 'roles' => $expectedScanRoles,
+                'roles_source' => 'WWHN-150 (scan.classify) + SRS v1.12 §5 role table via Annex C alias scan.execute',
                 'super_admin_rule' => 'backend bypass through User::isSuperAdmin',
             ],
             'actual' => [
                 'permission_status' => $permissions->firstWhere('permission_key', 'scan.classify')['status'] ?? null,
                 'roles' => $actualScanRoles->all(),
                 'route_permission' => $scanMatrix['permission'] ?? null,
+                'route_accepted_permissions' => $scanMatrix['accepted_permissions'] ?? [],
                 'backend_enforced' => $scanMatrix['backend_enforced'] ?? false,
             ],
             'missing_roles' => $missingScanRoles->all(),
@@ -151,14 +176,14 @@ class ExportPermissionCatalog extends Command
             'status' => $missingScanRoles->isEmpty()
                 && $unexpectedScanRoles->isEmpty()
                 && ($permissions->firstWhere('permission_key', 'scan.classify')['status'] ?? null) === 'ACTIVE'
-                && ($scanMatrix['permission'] ?? null) === 'scan.classify'
+                && in_array('scan.classify', $scanMatrix['accepted_permissions'] ?? [], true)
                 && ($scanMatrix['backend_enforced'] ?? false)
                 ? 'PASS'
                 : 'FAIL',
         ];
 
         $payload = [
-            'schema_version' => '1.1.0',
+            'schema_version' => '1.2.0',
             'generated_at_utc' => now()->utc()->toIso8601String(),
             'approval_status' => 'PENDING_FE_BA_REVIEW',
             'source_hashes' => $sourceHashes,
@@ -199,5 +224,20 @@ class ExportPermissionCatalog extends Command
         $this->info("Đã xuất permission catalog và role matrix: {$output}");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Tách biểu thức permission của route thành danh sách key được chấp nhận.
+     * Phải giữ đúng semantics runtime của Modules\Auth CheckPermission: `A|B` là OR.
+     *
+     * @return list<string>
+     */
+    private static function acceptedPermissionKeys(?string $expression): array
+    {
+        if ($expression === null || trim($expression) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', explode('|', $expression))));
     }
 }

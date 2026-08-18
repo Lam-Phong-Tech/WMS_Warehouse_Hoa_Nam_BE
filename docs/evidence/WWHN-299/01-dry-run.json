@@ -1,0 +1,38 @@
+{
+    "migration_run_id": "608fb131-1796-443b-9b87-06cf296e8223",
+    "migration_run_code": "WWHN-299-REHEARSAL#DRY_RUN",
+    "mode": "DRY_RUN",
+    "status": "PASSED",
+    "package_version": "1.2",
+    "source_file_name": "HoaNam_Import_Package_v1.2.zip",
+    "source_checksum": "718247b31ad76ddf0ac0580b2e7720aced043819b55164a4d09de8f0afcb50a1",
+    "file_checksums": {
+        "AGENCY": "aebc69be1c404c9fa75cdf20a862869bbbe3e2b9a9ff20ac1a8c807278d7d051",
+        "CONTAINER": "f5c631e7eb50d729b2a0aa589719a5794fe328d49f3044e394f8ebec5d2e8a2c",
+        "ITEM": "841c9b4bfda38d95df41e17c901830dfc0fb350e41d03b2606daa28ebd52c7d9",
+        "OPENING_BALANCE": "c31692dd72aec41130ae075a1670d693fd108954ca1154e8836698255e83f237",
+        "PHYSICAL_CODE": "e205bce50016bd7f5f257ef1cff7aa32a9f103e436242ba8d5149d403cd715d5",
+        "SKU": "c8336a22241a38ab0eba4b782e782c1e8124ccfb5bd7a3a65cc4e235dba6a2e5"
+    },
+    "counts": {
+        "total": 6,
+        "valid": 6,
+        "invalid": 0
+    },
+    "reconciliation": {
+        "status": "PASS",
+        "scope": "SOURCE",
+        "checks": [
+            {
+                "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
+                "sku_code": "HN-MK-001-V1",
+                "expected": 1,
+                "actual": 1,
+                "status": "PASS",
+                "message": "SKU serial-tracked HN-MK-001-V1: opening 1 vs số Item 1."
+            }
+        ]
+    },
+    "errors": [],
+    "replayed": false
+}

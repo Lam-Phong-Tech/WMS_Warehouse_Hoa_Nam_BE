@@ -72,10 +72,19 @@ class AlignedLabelLogReportController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
+        // WWHN-310 §13.10 RPT-LABEL-01. Hai lệch của bản cũ:
+        //  - failed_count chỉ đếm 'PRINT_FAILED', nhưng trên PostgreSQL trigger
+        //    chuẩn hoá status của sự kiện in về bộ ERD nên giá trị lưu là 'FAILED'
+        //    ⇒ số lần in lỗi luôn bằng 0 trên DB tham chiếu.
+        //  - reprint_count suy ra bằng total_attempts - 1 ⇒ một lần in lỗi rồi in
+        //    lại thành công bị báo là "đã in lại 1 lần" dù chưa hề in lại.
+        // Định nghĩa đúng: in lại là lần in THÀNH CÔNG thứ hai trở đi; retry sau lỗi
+        // thuộc cột failed. Cách tính này đúng trên cả hai driver.
         $attempts = DB::table('label_print_events')
             ->select('label_snapshot_id')
             ->selectRaw('COUNT(*) AS total_attempts')
-            ->selectRaw("SUM(CASE WHEN status = 'PRINT_FAILED' THEN 1 ELSE 0 END) AS failed_count")
+            ->selectRaw("SUM(CASE WHEN status IN ('PRINT_FAILED', 'FAILED') THEN 1 ELSE 0 END) AS failed_count")
+            ->selectRaw("SUM(CASE WHEN status = 'PRINTED' THEN 1 ELSE 0 END) AS printed_count")
             ->groupBy('label_snapshot_id');
 
         $query = DB::table('label_snapshots as ls')
@@ -88,7 +97,7 @@ class AlignedLabelLogReportController extends Controller
                 'ls.id', 'ls.outbound_document_id', 'ls.status', 'ls.label_payload', 'ls.applied_at', 'ls.created_at',
                 'sd.doc_no as outbound_no', 'sd.doc_date as outbound_date',
                 DB::raw('COALESCE(ag.agency_name, sd.recipient_name) as recipient'),
-                'pa.total_attempts', 'pa.failed_count'
+                'pa.total_attempts', 'pa.failed_count', 'pa.printed_count'
             );
 
         if (! empty($validated['status'])) {
@@ -164,7 +173,7 @@ class AlignedLabelLogReportController extends Controller
                 'last_attempt_at' => (string) ($lastAttempt->created_at ?? ''),
                 'total_attempts' => $attempts,
                 'failed_count' => (int) ($s->failed_count ?? 0),
-                'reprint_count' => max(0, $attempts - 1),
+                'reprint_count' => max(0, (int) ($s->printed_count ?? 0) - 1),
                 'created_at' => (string) $s->created_at,
             ];
         })->all();

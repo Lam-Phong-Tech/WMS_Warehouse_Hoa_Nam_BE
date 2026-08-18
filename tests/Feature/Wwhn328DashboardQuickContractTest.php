@@ -46,8 +46,16 @@ class Wwhn328DashboardQuickContractTest extends TestCase
         parent::setUp();
 
         $this->warehouseA = $this->ensureActiveWarehouse('KHO-328-A', 'Kho A');
+        // REQ-SRS-001 / ERD entity 8 "warehouses": MVP chỉ có 01 kho ACTIVE, chặn cứng
+        // bằng partial unique uk_warehouses_single_active (pgsql) + guard tầng ứng dụng
+        // WarehouseRepository::guardSingleActive(). Kho B ở đây chỉ đóng vai "kho nằm
+        // ngoài data-scope" nên nó cần TỒN TẠI chứ không cần ACTIVE: dashboard aggregate
+        // theo warehouse_id và không hề đọc warehouses.status (tham số warehouse_id chỉ
+        // validate 'uuid'), nên INACTIVE giữ nguyên toàn bộ kỳ vọng số liệu bên dưới.
+        // Tạo nó ở ACTIVE thì vỡ unique guard trên PostgreSQL (23505) còn SQLite lại cho
+        // qua — đúng loại đỏ mà CI chạy SQLite không bắt được.
         $this->warehouseB = Warehouse::create([
-            'code' => 'KHO-328-B', 'name' => 'Kho B', 'status' => 'ACTIVE',
+            'code' => 'KHO-328-B', 'name' => 'Kho B', 'status' => 'INACTIVE',
         ]);
         $this->product = Sku::create([
             'code' => 'SP-328', 'name' => 'SKU dashboard', 'sku_type' => 'PRODUCT',

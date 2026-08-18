@@ -1,0 +1,17 @@
+{
+    "migration_run_id": "1cfb2205-b252-4118-9f0b-a6d8be808f12",
+    "migration_run_code": "WWHN-299-REHEARSAL#ROLLBACK",
+    "mode": "ROLLBACK",
+    "status": "ROLLED_BACK",
+    "reconciliation": {
+        "status": "PASS",
+        "scope": "ROLLBACK",
+        "reversed_movements": 1,
+        "closed_masters": {
+            "containers": 1,
+            "item_instances": 1
+        },
+        "residual_opening_qty": 0
+    },
+    "replayed": false
+}

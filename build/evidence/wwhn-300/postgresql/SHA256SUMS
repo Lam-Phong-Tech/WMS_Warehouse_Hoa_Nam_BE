@@ -1,0 +1,11 @@
+f161a567669e85a8dc3b0bc0aa74178d3b64b177b6eb44751a8355bbd8928164 *./execution-metadata.raw.log
+ec3d48a49da235a8748feee45f34218c3f93123c55aadbf4eaf457e06820ee33 *./focused-phpunit.raw.log
+dd2379aa861c5f8fbfc6d6ee7da272999c8000a82802eaa5481b59c27bb76645 *./golive-check-after-migrate.raw.log
+fee65b9e2ec1cee39ea05c2a7ffa3066a7b1a54dca4c2c4bbfe2110cd4b12124 *./golive-check-after-roundtrip.raw.log
+690bbfb23e515ec00b033a00ae19bf12616b6f5e91109f4e5d75d2ff7dbc2d8a *./migrate-forward-after-rollback.raw.log
+e0b0b4737aec0b58deed4d158afdec8bc7137ca7a0be74578654f949947d8b96 *./migrate-fresh-seed.raw.log
+f50ca7ebbdf1fd60b5b1eb391c09dd54597da93d3285a69567cbf1a0a14e1bec *./migrate-rollback.raw.log
+0c50ae398f02182a68edbee92f98bca6c1c702539b0ab93751c23a558c0f84ad *./rollback-leftovers.raw.log
+33011b286cf96d7a86e40b43f464938b007bc38cbc6bb138f952adf5efd08f6e *./seed-after-rollback.raw.log
+1d499e025aacca2e59533324d08498a7304d555cbda10dff47e4f9fd3b42898f *./golive-check-after-roundtrip.json
+0559746fbaf25befb860ea804c68c2a1bde66f22cb4695a0d585ade058c93844 *./golive-check.json

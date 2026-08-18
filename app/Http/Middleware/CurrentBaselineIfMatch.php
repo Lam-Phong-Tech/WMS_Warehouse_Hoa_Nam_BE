@@ -9,6 +9,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * CẢNH BÁO (WWHN-309): middleware này hiện KHÔNG được gắn vào route nào.
+ * Optimistic locking đang được enforce trong controller/service bằng
+ * ApiError::abort(412, 'STALE_VERSION') / 428 PRECONDITION_REQUIRED. Đừng giả định
+ * route có If-Match chỉ vì lớp này tồn tại — kiểm tra
+ * docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md (cột If-Match).
+ */
 class CurrentBaselineIfMatch
 {
     public function handle(Request $request, Closure $next, string $table, string $primaryKey): Response

@@ -92,11 +92,17 @@ class ErdPhysicalSchemaParityTest extends TestCase
                     }
                 }
             }
-            if (preg_match_all('/\bUNIQUE\(([^)]+)\)/i', $definition['section'], $matches)) {
+            // WWHN-310: cột "Index khuyến nghị" khai index duy nhất bằng UX(...),
+            // trước đây không được kiểm - vì thế partial UX(item_id) của
+            // inbound_scan_entries (ERD bảng 28) thiếu hẳn mà cổng vẫn xanh.
+            foreach (['UNIQUE', 'UX'] as $keyword) {
+                if (! preg_match_all('/\b'.$keyword.'\(([^)]+)\)/i', $definition['section'], $matches)) {
+                    continue;
+                }
                 foreach ($matches[1] as $raw) {
                     $fields = $this->parseColumns($raw);
                     if ($fields !== []) {
-                        $this->assertTrue($this->hasUniqueKey($table, $fields), 'Missing documented UNIQUE '.$table.'('.implode(',', $fields).').');
+                        $this->assertTrue($this->hasUniqueKey($table, $fields), "Missing documented {$keyword} ".$table.'('.implode(',', $fields).').');
                     }
                 }
             }
@@ -175,11 +181,26 @@ class ErdPhysicalSchemaParityTest extends TestCase
         return collect(Schema::getIndexes($table))->contains(fn (array $index): bool => ($index['columns'] ?? []) === $fields);
     }
 
-    /** @return array<int,string> */
+    /**
+     * WWHN-310: phải trim TRƯỚC khi cắt phần chú thích phía sau tên cột.
+     *
+     * Data Dictionary viết ràng buộc nhiều cột dạng "PK(user_id, role_id)" - có
+     * khoảng trắng sau dấu phẩy. Khi chưa trim, preg_replace('/\s+.*./', '', ...)
+     * khớp ngay khoảng trắng đầu chuỗi và xoá sạch " role_id", nên mọi ràng buộc
+     * composite chỉ còn cột đầu tiên. Hệ quả: PK/UNIQUE/IDX nhiều cột trong toàn
+     * bộ 59 entity chưa từng được kiểm thật, và user_roles báo sai lệch PK dù
+     * schema vật lý đúng tài liệu.
+     *
+     * @return array<int,string>
+     */
     private function parseColumns(string $raw): array
     {
         return collect(explode(',', $raw))
-            ->map(fn (string $field): string => strtolower(trim(preg_replace('/\s+.*/', '', $field) ?? $field)))
+            ->map(function (string $field): string {
+                $field = trim($field);
+
+                return strtolower(trim(preg_replace('/\s+.*/', '', $field) ?? $field));
+            })
             ->filter(fn (string $field): bool => preg_match('/^[a-z0-9_]+$/', $field) === 1)
             ->values()->all();
     }

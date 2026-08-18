@@ -54,6 +54,21 @@ for (const [path, label] of REQUIRED_DOCS) {
   if (!existsSync(join(root, path))) failures.push(`Thiếu ${label}: ${path}`);
 }
 
+// Tài liệu tồn tại trên đĩa nhưng bị .gitignore = reviewer clone đúng closure SHA
+// KHÔNG thấy nó. Đây là lỗi thật đã xảy ra: `/docs/` từng bị ignore toàn bộ rồi
+// whitelist từng file, nên SRS baseline, decision record và runbook mà README trỏ
+// tới đều nằm ngoài git trong khi vẫn "tồn tại" trên máy người viết.
+for (const [path, label] of REQUIRED_DOCS) {
+  if (!existsSync(join(root, path))) continue;
+  try {
+    execFileSync("git", ["check-ignore", "-q", "--", path], { cwd: root, stdio: "pipe" });
+    failures.push(`${label} (${path}) đang bị .gitignore loại trừ - reviewer clone theo SHA sẽ không thấy tài liệu này`);
+  } catch (error) {
+    // exit code 1 = không bị ignore (trường hợp mong muốn). Exit code khác = git lỗi.
+    if (error.status !== 1) notes.push(`Không kiểm tra được git check-ignore cho ${path}`);
+  }
+}
+
 // --- 2. Generator phải khớp source -----------------------------------------
 for (const [script, label] of [
   ["scripts/generate-error-code-catalog.mjs", "catalog error code"],

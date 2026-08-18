@@ -79,6 +79,43 @@ Ngoài ra `php artisan` đang fatal do `App\Console\Commands\MigrationFinalDataL
 `Illuminate\Console\Command::fail()` (phải là `public`) — đã đổi tên thành `failWith()` để
 `l5-swagger:generate` và mọi lệnh artisan chạy được.
 
+## 4b. Bổ sung sau candidate — đỏ chỉ xuất hiện trên PostgreSQL (2026-08-18)
+
+Bảng §4 ở trên đo trên driver mặc định của test suite (**SQLite**). Chạy lại đúng class đó trên
+**PostgreSQL** thì **17/17 test đỏ ngay tại `setUp()`**, không phải 8 như ghi chú bàn giao ở
+`docs/docs_task_jira/WWHN-310.md` (§6) — con số 8 là undercount.
+
+| Mục | Nội dung |
+|---|---|
+| Triệu chứng | `SQLSTATE[23505] duplicate key value violates unique constraint "uk_warehouses_single_active" — Key (status)=(ACTIVE) already exists` |
+| Gốc | `setUp()` tạo **kho ACTIVE thứ hai** (`KHO-328-B`) sau `ensureActiveWarehouse('KHO-328-A')`. Partial unique `uk_warehouses_single_active` (migration `2026_08_02_000001`) + `ux_erd_warehouses_one_active` (migration `2026_08_10_000770`) chỉ được tạo trên pgsql, nên SQLite **xanh giả** và CI không bắt được. |
+| Phán quyết baseline | ERD entity 8 `warehouses`: *"MVP enforce tối đa 1 warehouse ACTIVE bằng partial unique index/config guard"*; REQ-SRS-001 / AC-SRS-001: đúng 01 kho vận hành. Ràng buộc nằm ở **số kho ACTIVE**, không phải số dòng kho — CHECK `status IN ('ACTIVE','INACTIVE')` và `WarehouseRepository::guardSingleActive()` đều chỉ chặn bản ACTIVE thứ hai. Kho thứ hai ở trạng thái INACTIVE là hợp lệ với baseline. |
+| Sửa | `KHO-328-B` → `status = 'INACTIVE'`. Test data-scope chỉ cần kho thứ hai **tồn tại** để gán movement/balance ngoài `scope_ref`; giữ nguyên toàn bộ expected totals vì `dashboard-quick` aggregate theo `warehouse_id` và **không đọc** `warehouses.status` (tham số `warehouse_id` chỉ validate `uuid`, không có rule `exists`/ACTIVE). Cùng khuôn với fixture sẵn có `AuthRbacAuditHardeningTest` và `SecurityRbacAuditNegativeTest`. |
+| Phương án loại bỏ | Không dùng cách "chỉ assert scoping trên 01 kho ACTIVE": làm vậy là xoá đúng phần coverage mà WWHN-328 tồn tại để bảo vệ (DS-01 — KPI/dòng đối soát của kho ngoài phạm vi bị rò). |
+
+Đo lại sau khi sửa, trên nền `24f9bde4d697f423b3bb7d1cbdaceb59e055a9eb` (fixture đang ở working
+tree của `m1`, **chưa commit**):
+
+| Driver | Lệnh | Kết quả |
+|---|---|---|
+| SQLite (mặc định) | `php vendor/bin/phpunit --no-coverage --filter Wwhn328DashboardQuickContractTest` | **17/17 passed**, 61 assertions |
+| PostgreSQL 16 (`hn_wwhn328`) | `DB_CONNECTION=pgsql … php vendor/bin/phpunit --no-coverage --filter Wwhn328DashboardQuickContractTest` | **17/17 passed**, 61 assertions (trước khi sửa: **17 errors**) |
+
+Số assertion không đổi giữa trước/sau ⇒ sửa fixture, không hạ kỳ vọng nào.
+
+**Tái lập:** chạy **2 lần liên tiếp** trên database PostgreSQL mới tạo (`DROP DATABASE` +
+`CREATE DATABASE hn_wwhn328`) — cả hai lần **17/17 pass, 61 assertions**. `pint --test` trên file
+fixture: passed.
+
+**Nhiễu môi trường đã loại trừ (không thuộc WWHN-328):** một lần quan sát thấy test đầu tiên của
+class báo `Missing ERD field defect_catalogs.id before type alignment.` (throw ở migration
+`2026_08_10_000760_align_erd_1_0_fields_types_and_data.php:44`) khi chạy lại trên đúng database mà
+lượt đỏ *trước khi sửa* để lại; 16 test còn lại vẫn xanh vì `RefreshDatabase` chạy lại
+`migrate:fresh` ở test kế tiếp. Nguyên nhân nằm ở chuỗi migration chứ không ở fixture:
+`migrate:fresh` **không drop view** (32 view tương thích còn sót trong schema `public`), nên trạng
+thái tồn dư đánh lừa guard của migration. Không tái lập được trên database sạch (2/2 lượt xanh) và
+không liên quan tới thay đổi `status` của `KHO-328-B`.
+
 ## 5. Phần KHÔNG thuộc phạm vi sửa code (cần người ký)
 
 | ID | Nội dung | Ai đóng |

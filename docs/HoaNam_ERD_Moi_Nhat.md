@@ -20,6 +20,44 @@
 
 **Working reference cho DEV / FE / QA / TEST**
 
+## 0.0. Sổ đăng ký sửa đổi ERD (Amendment Register)
+
+Bảng dưới ghi mọi lần sửa `HN-WMS-ERD-DD-001` sau bản phát hành 04/08/2026. Sửa đổi chỉ được
+ghi vào đây khi đã có nguồn baseline cao hơn (SRS/FRD v1.12, Decision Record) hoặc khi nội dung
+cũ là mô tả không khớp chính hình dạng vật lý mà chính tài liệu này quy định. Không sửa đổi nào
+được đổi business semantics đã chốt mà không có Change Request.
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------
+  **Mã**              **Ngày**       **Bảng / mục**                    **Nội dung sửa**                                                        **Nguồn**
+  ------------------- -------------- --------------------------------- ----------------------------------------------------------------------- ----------------
+  ERD-AMD-001         15/08/2026     physical_codes; Product outbound  RFID là optional, mapping stock-neutral, thiếu RFID không chặn Post      SRS v1.12
+                                     guard                             Issue; Barcode/QR là luồng hợp lệ.                                      §13.9 /
+                                                                                                                                               DEC-RFID-
+                                                                                                                                               FALLBACK-001
+
+  ERD-AMD-002         16/08/2026     33. reversal_documents            Bổ sung `condition_status`, `physical_return_status`,                    BR-REV-06/07/12
+                                                                       `idempotency_key` là cột vật lý thật (trước đó chỉ tồn tại ở view).
+
+  ERD-AMD-003         16/08/2026     41. label_snapshots;              `customer_address` / `recipient_address` chuyển sang nullable: toa mẫu   SRS v1.12 §15 /
+                                     39. outbound_documents            không có địa chỉ vẫn phải Post được.                                    REQ-SRS-014
+
+  ERD-AMD-004         17/08/2026     4. user_roles                     Bổ sung `scope_ref`, `effective_from`, `effective_to` và quy tắc cửa sổ  BR-IAM-08
+                                                                       hiệu lực.
+
+  ERD-AMD-005         18/08/2026     15. defect_catalog →              Đổi tên entity thành `defect_catalogs` cho khớp bảng vật lý canonical    WWHN-310 /
+                                     15. defect_catalogs               và quy ước số nhiều của 58 entity còn lại. `defect_catalog` (số ít) trở  DEC-DATA-001
+                                                                       thành compatibility view. Không đổi field/constraint/semantics.
+
+  ERD-AMD-006         18/08/2026     27. inbound_lines;                Viết đúng tên cột vật lý trong mệnh đề UNIQUE thay cho bí danh văn xuôi  WWHN-310 /
+                                     38. outbound_request_lines;       `document`/`request`: `UNIQUE(inbound_document_id,line_no)`,             DEC-DATA-001
+                                     49. component_issue_lines         `UNIQUE(outbound_request_id,line_no)`,
+                                                                       `UNIQUE(component_issue_document_id,line_no)`. Cùng ràng buộc đã có ở
+                                                                       cột "Index khuyến nghị", không đổi ràng buộc.
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Bản trong `WMS_Warehouse_Hoa_Nam_BE/docs/` và `WMS_Warehouse_Hoa_Nam_FE/docs/` phải giống hệt
+nhau; lệch bản là blocker của gói bàn giao dữ liệu (WWHN-310).
+
 # 0. PHẠM VI, GIẢ ĐỊNH VÀ QUY ƯỚC
 
   -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -170,7 +208,7 @@
 
   **14**         B. KHO, MASTER VÀ CATALOG              package_variants               Phiên bản/bộ/đóng gói để phân biệt SKU.                        BASELINE + TECH-PROPOSAL
 
-  **15**         B. KHO, MASTER VÀ CATALOG              defect_catalog                 Danh mục bệnh/lỗi cho bảo hành và báo cáo.                     BASELINE + TECH-PROPOSAL
+  **15**         B. KHO, MASTER VÀ CATALOG              defect_catalogs                 Danh mục bệnh/lỗi cho bảo hành và báo cáo.                     BASELINE + TECH-PROPOSAL
 
   **16**         B. KHO, MASTER VÀ CATALOG              skus                           Loại hàng tồn kho PRODUCT/COMPONENT.                           BASELINE + TECH-PROPOSAL
 
@@ -763,7 +801,7 @@ Phiên bản/bộ/đóng gói để phân biệt SKU. **\[BASELINE + TECH-PROPOS
 
   --------------------------------------------------------------------------------------------------------
 
-### 15. defect_catalog
+### 15. defect_catalogs
 
 Danh mục bệnh/lỗi cho bảo hành và báo cáo. **\[BASELINE + TECH-PROPOSAL\]**
 
@@ -1314,7 +1352,7 @@ Dòng SKU và expected/scanned quantity. **\[BASELINE + TECH-PROPOSAL\]**
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   **Constraint chính**                                                                                    **Index khuyến nghị**
   ------------------------------------------------------------------------------------------------------- ---------------------------------------------------------------------
-  UNIQUE(document,line_no); scanned_qty \<= expected_qty; Post guard scanned_qty=expected_qty mọi line.   UX(inbound_document_id,line_no); IDX(sku_id); IDX(import_batch_id).
+  UNIQUE(inbound_document_id,line_no); scanned_qty \<= expected_qty; Post guard scanned_qty=expected_qty mọi line.   UX(inbound_document_id,line_no); IDX(sku_id); IDX(import_batch_id).
 
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -1823,7 +1861,7 @@ Dòng SKU/required quantity của toa. **\[BASELINE + TECH-PROPOSAL\]**
   ----------------------------------------------------------------------------------------------
   **Constraint chính**                           **Index khuyến nghị**
   ---------------------------------------------- -----------------------------------------------
-  UNIQUE(request,line_no); match theo SKU+qty.   UX(outbound_request_id,line_no); IDX(sku_id).
+  UNIQUE(outbound_request_id,line_no); match theo SKU+qty.   UX(outbound_request_id,line_no); IDX(sku_id).
 
   ----------------------------------------------------------------------------------------------
 
@@ -2114,7 +2152,7 @@ Case bảo hành có mã hoặc TEMP_ONLY. **\[BASELINE + TECH-PROPOSAL\]**
 
   **purchase_date**                date                  Yes            CHECK \<= current_date          Ngày mua nếu có.
 
-  **defect_id**                    uuid                  Yes            FK defect_catalog.id            Danh mục lỗi.
+  **defect_id**                    uuid                  Yes            FK defect_catalogs.id            Danh mục lỗi.
 
   **reported_defect**              text                  No                                             Khách phản ánh.
 
@@ -2312,7 +2350,7 @@ Dòng COMPONENT SKU/quantity. **\[BASELINE + TECH-PROPOSAL\]**
   -------------------------------------------------------------------------------------------------------------------
   **Constraint chính**                                        **Index khuyến nghị**
   ----------------------------------------------------------- -------------------------------------------------------
-  UNIQUE(document,line_no); scanned\<=required; Post exact.   UX(component_issue_document_id,line_no); IDX(sku_id).
+  UNIQUE(component_issue_document_id,line_no); scanned\<=required; Post exact.   UX(component_issue_document_id,line_no); IDX(sku_id).
 
   -------------------------------------------------------------------------------------------------------------------
 

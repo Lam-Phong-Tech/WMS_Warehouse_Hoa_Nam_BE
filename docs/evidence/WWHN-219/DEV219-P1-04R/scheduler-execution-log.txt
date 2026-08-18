@@ -1,0 +1,8 @@
+scheduler-1  | 
+scheduler-1  |    INFO  Running scheduled tasks.  
+scheduler-1  | 
+scheduler-1  |    INFO  No scheduled commands are ready to run.  
+scheduler-1  | 
+scheduler-1  |   2026-08-18 08:25:00 Running ['artisan' audit:reconcile] in background  7.41ms DONE
+scheduler-1  |   ⇂ ('/usr/local/bin/php' 'artisan' audit:reconcile > '/dev/null' 2>&1 ; '/usr/local/bin/php' 'artisan' schedule:finish "framework/schedule-a2b0206345f332f503e8e5a6776621a776fe1276" "$?") > '/dev/null' 2>&1 &  
+scheduler-1  | 

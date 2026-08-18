@@ -62,8 +62,8 @@ class DefectCatalogController extends Controller
             content: new OA\JsonContent(
                 required: ['defect_code', 'defect_name'],
                 properties: [
-                    new OA\Property(property: 'defect_code', type: 'string', maxLength: 50, example: 'LOI-0001'),
-                    new OA\Property(property: 'defect_name', type: 'string', maxLength: 255, example: 'Chập cháy động cơ'),
+                    new OA\Property(property: 'defect_code', type: 'string', maxLength: 80, example: 'LOI-0001'),
+                    new OA\Property(property: 'defect_name', type: 'string', maxLength: 200, example: 'Chập cháy động cơ'),
                     new OA\Property(property: 'description', type: 'string', nullable: true),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
                 ]
@@ -121,8 +121,8 @@ class DefectCatalogController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'defect_code', type: 'string', maxLength: 50),
-                new OA\Property(property: 'defect_name', type: 'string', maxLength: 255),
+                new OA\Property(property: 'defect_code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'defect_name', type: 'string', maxLength: 200),
                 new OA\Property(property: 'description', type: 'string', nullable: true),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
             ])

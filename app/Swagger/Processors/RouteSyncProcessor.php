@@ -13,6 +13,10 @@ class RouteSyncProcessor
 {
     private const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'];
 
+    private const SUCCESS_ENVELOPE_REF = '#/components/schemas/ApiSuccessEnvelope';
+
+    private const ERROR_ENVELOPE_REF = '#/components/schemas/ApiErrorEnvelope';
+
     private const ERROR_RESPONSES = [
         400 => 'Yêu cầu không đúng định dạng',
         401 => 'Chưa xác thực',
@@ -407,6 +411,7 @@ class RouteSyncProcessor
             new OA\Response([
                 'response' => 200,
                 'description' => 'Thành công',
+                'content' => $this->envelopeContent(self::SUCCESS_ENVELOPE_REF),
                 '_context' => $this->context(),
             ]),
         ];
@@ -414,6 +419,7 @@ class RouteSyncProcessor
             $responses[] = new OA\Response([
                 'response' => $status,
                 'description' => $description,
+                'content' => $this->envelopeContent(self::ERROR_ENVELOPE_REF),
                 '_context' => $this->context(),
             ]);
         }
@@ -495,7 +501,143 @@ class RouteSyncProcessor
      */
     private function routeParameters(array $route): array
     {
-        return array_merge($this->pathParameters($route['path']), $this->collectionQueryParameters($route));
+        return array_merge(
+            $this->pathParameters($route['path']),
+            $this->contractHeaders($route),
+            $this->collectionQueryParameters($route),
+        );
+    }
+
+    /**
+     * Khai báo header contract (Idempotency-Key / If-Match) theo ĐÚNG hành vi
+     * runtime của controller, thay vì trông chờ mỗi controller nhớ khai tay.
+     *
+     * WWHN-309: trước đây chỉ 4/20 operation dùng IdempotencyKeyGuard và 7/24
+     * operation kiểm If-Match có khai header trong OpenAPI. FE/QA đọc contract
+     * không thấy header bắt buộc nên gặp 428 bất ngờ khi tích hợp. Đọc ngược từ
+     * source của action là cách duy nhất giữ contract không lệch runtime.
+     *
+     * @param  array{method: string, path: string, uri: string, action: string, middleware: array<int, string>}  $route
+     * @return array<int, OA\Parameter>
+     */
+    private function contractHeaders(array $route): array
+    {
+        $flags = $this->actionContractFlags($route['action']);
+        $headers = [];
+
+        if ($flags['idempotency'] !== null) {
+            $required = $flags['idempotency'] === 'required';
+            $headers[] = new OA\Parameter([
+                'name' => 'Idempotency-Key',
+                'in' => 'header',
+                'required' => $required,
+                'description' => $required
+                    ? 'Bắt buộc. Chuỗi 8-100 ký tự do client sinh. Gửi lại cùng key trả về kết quả lần đầu (replay); dùng lại key cho payload khác trả 409.'
+                    : 'Tuỳ chọn. Nếu gửi thì vẫn được kiểm độ dài 8-100 và đi qua cơ chế replay/conflict.',
+                'schema' => new OA\Schema([
+                    'type' => 'string',
+                    'minLength' => 8,
+                    'maxLength' => 100,
+                    '_context' => $this->context(),
+                ]),
+                '_context' => $this->context(),
+            ]);
+        }
+
+        if ($flags['if_match']) {
+            $headers[] = new OA\Parameter([
+                'name' => 'If-Match',
+                'in' => 'header',
+                'required' => false,
+                'description' => 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.',
+                'schema' => new OA\Schema([
+                    'type' => 'integer',
+                    'minimum' => 0,
+                    '_context' => $this->context(),
+                ]),
+                '_context' => $this->context(),
+            ]);
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Phân tích tĩnh 1 cấp: thân method của action, cộng thân các private helper
+     * cùng class mà action gọi qua $this->...(). Đủ để bắt các pattern hiện hành
+     * (assertVersion/assertVersionIfProvided/expectedVersion) mà không cần dựng
+     * call graph đầy đủ.
+     *
+     * @return array{idempotency: ?string, if_match: bool}
+     */
+    private function actionContractFlags(string $action): array
+    {
+        static $cache = [];
+
+        if (isset($cache[$action])) {
+            return $cache[$action];
+        }
+
+        $flags = ['idempotency' => null, 'if_match' => false];
+
+        if (! str_contains($action, '@')) {
+            return $cache[$action] = $flags;
+        }
+
+        [$class, $method] = explode('@', $action, 2);
+        if (! class_exists($class) || ! method_exists($class, $method)) {
+            return $cache[$action] = $flags;
+        }
+
+        $source = $this->methodSource($class, $method);
+        if ($source === null) {
+            return $cache[$action] = $flags;
+        }
+
+        preg_match_all('/\$this->([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $source, $matches);
+        foreach (array_unique($matches[1] ?? []) as $helper) {
+            if ($helper === $method || ! method_exists($class, $helper)) {
+                continue;
+            }
+            $source .= "\n".($this->methodSource($class, $helper) ?? '');
+        }
+
+        if (str_contains($source, 'IdempotencyKeyGuard::require')) {
+            $flags['idempotency'] = 'required';
+        } elseif (str_contains($source, 'IdempotencyKeyGuard::optional')) {
+            $flags['idempotency'] = 'optional';
+        }
+
+        if (preg_match("/header\(\s*'If-Match'/", $source) === 1) {
+            $flags['if_match'] = true;
+        }
+
+        return $cache[$action] = $flags;
+    }
+
+    private function methodSource(string $class, string $method): ?string
+    {
+        static $files = [];
+
+        try {
+            $reflection = new \ReflectionMethod($class, $method);
+        } catch (\ReflectionException) {
+            return null;
+        }
+
+        $file = $reflection->getFileName();
+        if ($file === false || $reflection->getStartLine() === false) {
+            return null;
+        }
+
+        $files[$file] ??= file($file) ?: [];
+        $lines = array_slice(
+            $files[$file],
+            $reflection->getStartLine() - 1,
+            $reflection->getEndLine() - $reflection->getStartLine() + 1
+        );
+
+        return implode('', $lines);
     }
 
     /**
@@ -553,6 +695,16 @@ class RouteSyncProcessor
         foreach ($merged as $response) {
             if ($response instanceof OA\Response && ! Undefined::isDefault($response->response)) {
                 $existing[(string) $response->response] = true;
+                // Response viết tay trong controller thường chỉ có description.
+                // Bổ sung envelope schema khi CHƯA có content để spec luôn mô tả
+                // được hình dạng payload; nếu controller đã khai content riêng
+                // thì giữ nguyên, không ghi đè contract chi tiết.
+                if (Undefined::isDefault($response->content)) {
+                    $status = (string) $response->response;
+                    $response->content = $this->envelopeContent(
+                        str_starts_with($status, '2') ? self::SUCCESS_ENVELOPE_REF : self::ERROR_ENVELOPE_REF
+                    );
+                }
             }
         }
 
@@ -561,12 +713,36 @@ class RouteSyncProcessor
                 $merged[] = new OA\Response([
                     'response' => $status,
                     'description' => $description,
+                    'content' => $this->envelopeContent($status === 200 ? self::SUCCESS_ENVELOPE_REF : self::ERROR_ENVELOPE_REF),
                     '_context' => $this->context(),
                 ]);
             }
         }
 
         return $merged;
+    }
+
+    /**
+     * Gắn envelope chuẩn vào các baseline response do processor tự sinh.
+     *
+     * Chỉ áp dụng cho response KHÔNG do controller khai tay: response viết tay
+     * đã có content riêng thì mergeBaselineResponses() bỏ qua, nên contract chi
+     * tiết của endpoint không bị processor ghi đè.
+     *
+     * @return array<int, OA\MediaType>
+     */
+    private function envelopeContent(string $ref): array
+    {
+        return [
+            new OA\MediaType([
+                'mediaType' => 'application/json',
+                'schema' => new OA\Schema([
+                    'ref' => $ref,
+                    '_context' => $this->context(),
+                ]),
+                '_context' => $this->context(),
+            ]),
+        ];
     }
 
     private function hasOperations(OA\PathItem $pathItem): bool

@@ -26,38 +26,15 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
-/docs/
-!docs/HN-INT-001_BE1_API_CONTRACT_APPROVAL.md
-!docs/HN-INT-001_BE1_payload_samples.postman_collection.json
-!docs/HN-DEVOPS-001_FE1_ENV_BUILD_HEALTH_EVIDENCE.md
-!docs/HN-BE-001_BACKEND_STANDARD.md
-!docs/HN-P1-001_BE_IMPLEMENTATION_EVIDENCE.md
-!docs/HN-P1-001_FINAL_SUMMARY.md
-!docs/output/
-!docs/output/BE2-HN-MC-001-sku-item-component/
-!docs/output/BE2-HN-MC-001-sku-item-component/00-summary.md
-!docs/output/BE2-HN-MC-001-sku-item-component/01-item-traceability.md
-!docs/output/BE2-HN-MC-001-sku-item-component/02-import-atomicity.md
-!docs/output/BE2-HN-MC-001-sku-item-component/03-api-and-migration.md
-!docs/output/BE2-HN-MC-001-sku-item-component/04-verification.md
-!docs/output/BE2-HN-IN-002-inbound-scan/
-!docs/output/BE2-HN-IN-002-inbound-scan/00-summary.md
-!docs/output/BE2-HN-IN-002-inbound-scan/01-scan-resolution-and-recording.md
-!docs/output/BE2-HN-IN-002-inbound-scan/02-inbound-validation.md
-!docs/output/BE2-HN-IN-002-inbound-scan/03-contract-and-verification.md
-!docs/output/BE2-HN-IN-002-inbound-scan/old_src/.gitkeep
-!docs/output/BE2-HN-TEC-001-schema-catalog-report-warranty-pv/
-!docs/output/BE2-HN-TEC-001-schema-catalog-report-warranty-pv/00-summary.md
-!docs/output/BE2-HN-TEC-001-schema-catalog-report-warranty-pv/01-schema-and-integrity.md
-!docs/output/BE2-HN-TEC-001-schema-catalog-report-warranty-pv/02-api-contract.md
-!docs/output/BE2-HN-TEC-001-schema-catalog-report-warranty-pv/03-verification.md
-!docs/output/BE2-HN-QA-002-seed-scripts/
-!docs/output/BE2-HN-QA-002-seed-scripts/00-summary.md
-!docs/output/BE2-HN-QA-002-seed-scripts/01-command-and-data.md
-!docs/output/BE2-HN-QA-002-seed-scripts/02-idempotency-and-security.md
-!docs/output/BE2-HN-QA-002-seed-scripts/03-verification.md
-!docs/output/BE2-HN-QA-002-seed-scripts/old_src/.gitkeep
+# WWHN-309: KHÔNG ignore /docs/. Trước đây `/docs/` bị ignore toàn bộ rồi whitelist
+# từng file một, nên mọi tài liệu MỚI im lặng không vào git — kể cả SRS baseline,
+# decision record, runbook cutover/rollback và runbook nạp dữ liệu cuối mà README
+# đang trỏ tới. Reviewer clone đúng closure SHA sẽ không thấy chúng, trong khi tài
+# liệu vẫn "tồn tại" trên máy người viết. Tài liệu là artifact bàn giao (WWHN-83):
+# phải lấy được theo exact SHA thì mới ký được.
 HN_BA_Master_WMS_PV_v1_0_MD/
 CLAUDE.md
 /.psysh
-WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md
+# WWHN-309: docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md được README và
+# HN-BE-ARCH-001 trỏ tới như baseline kiến trúc, nên phải nằm trong repo để
+# reviewer resolve được reference tại exact SHA (bản gốc do FE/Tech Lead sở hữu).

@@ -36,7 +36,7 @@ return new class extends Migration
      */
     private const SKIP_IDENTITY_ALIAS = [
         'agencies' => ['id'],
-        'defect_catalog' => ['id'],
+        'defect_catalogs' => ['id'],
         'import_batches' => ['id'],
         'item_instances' => ['id'],
         'physical_codes' => ['id'],

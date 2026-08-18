@@ -48,3 +48,22 @@ Schedule::command('import:purge-error-files')
     ->withoutOverlapping()
     ->onOneServer()
     ->runInBackground();
+
+/*
+ * WWHN-309 (cùng lớp lỗi với DEV219-P1-04R và DEV330-P1-01): `warranty:purge-pii` hiện
+ * thực hóa SRS §13.8 / DR-PRIV-001 — sau retention 5 năm kể từ khi đóng case, PII phải
+ * được anonymize nếu không có legal hold. Lệnh đã có, `retention_until` đã được ghi khi
+ * đóng case và đã backfill, nhưng KHÔNG có process nào gọi nó: PII tồn tại vô thời hạn
+ * trong production dù hợp đồng privacy đã cam kết purge. Đây là nghĩa vụ tuân thủ, không
+ * phải housekeeping tùy chọn.
+ *
+ * Chạy hàng ngày lúc 03:10 (lệch khỏi inventory 01:30 và import 02:15 để không cạnh
+ * tranh I/O). Lệnh idempotent và có --limit mặc định 500 nên một ngày lỡ nhịp được bù ở
+ * lần chạy kế tiếp; không dùng --dry-run ở đây vì lịch phải thực sự purge.
+ */
+Schedule::command('warranty:purge-pii')
+    ->dailyAt('03:10')
+    ->timezone(config('app.timezone'))
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();

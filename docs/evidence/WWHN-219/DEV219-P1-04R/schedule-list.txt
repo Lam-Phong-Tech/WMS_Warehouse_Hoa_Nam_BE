@@ -1,0 +1,4 @@
+
+ 30 1 * * * php artisan inventory:reconcile .. Next Due: 17 giờ tới
+ */5 * * * * php artisan audit:reconcile .. Next Due: 4 phút tới
+

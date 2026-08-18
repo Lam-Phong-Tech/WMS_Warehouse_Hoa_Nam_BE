@@ -16,10 +16,10 @@ class UpdateDefectCatalogRequest extends FormRequest
     {
         return [
             'defect_code' => [
-                'sometimes', 'string', 'max:50',
+                'sometimes', 'string', 'max:80',
                 Rule::unique('defect_catalogs', 'defect_code')->ignore($this->route('id'), 'defect_id'),
             ],
-            'defect_name' => ['sometimes', 'string', 'max:255'],
+            'defect_name' => ['sometimes', 'string', 'max:200'],
             'description' => ['nullable', 'string'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
         ];
