@@ -37,10 +37,18 @@ const PUBLIC_ALLOWLIST = new Set([
   "GET /api/v1/health",
   "POST /api/v1/auth/login",
   "POST /api/v1/auth/refresh",
-  "GET /api/v1/pv/catalog",
+  // WWHN-249 (DEV249-P1-03): 4 operation PUBLIC_ANONYMOUS theo Annex C là
+  // listPvProducts / getPvProduct / listPvIndustries / listPvRecommendations;
+  // SRS §12 (bảng Security) khai đích danh chúng phải override security: [].
+  "GET /api/v1/pv/products",
+  "GET /api/v1/pv/products/{skuId}",
   "GET /api/v1/pv/industries",
-  "GET /api/v1/pv/tags",
   "GET /api/v1/pv/recommendations",
+  // Alias lịch sử NGOÀI Annex C, giữ để client cũ không vỡ; cùng read model,
+  // cùng DTO chỉ-đọc. Không thêm alias mới vào đây nếu chưa có disposition của
+  // BA — danh sách này chính là hợp đồng "mặt công khai" của hệ thống.
+  "GET /api/v1/pv/catalog",
+  "GET /api/v1/pv/tags",
 ]);
 
 function routeTable() {

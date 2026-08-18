@@ -1,0 +1,173 @@
+{
+  "schemaVersion": "1.0.0",
+  "jira": "WWHN-230",
+  "disposition": "DISP-STK-230",
+  "backlogItems": [
+    "DEV230-P1-01",
+    "DEV230-P1-02",
+    "DEV230-P1-03",
+    "DEV230-P1-04"
+  ],
+  "mode": "pre-signoff",
+  "identity": {
+    "backend": {
+      "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+      "branch": "m1",
+      "commitSha": "b90d5ef67c6577db166fdac00f1323741ccfd888",
+      "workingTreeClean": false
+    },
+    "frontend": {
+      "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+      "branch": "m1",
+      "commitSha": "cc76a4e36069d3b6f299b0e0b4d371cf65a5e996",
+      "workingTreeClean": false
+    }
+  },
+  "baselineDigests": {
+    "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+    "docs/HoaNam_ERD_Moi_Nhat.md": "30badd145e3eba41d080492b07e995d92dacbc370d304c60c015adeddfa8c33b",
+    "docs/decision-records/DISP-STK-230-scope-disposition.md": "bc70aedf9fcb17256f07befe7c89d44aaa22d618ac85ba2cbcb58bb2d3ac8574",
+    "docs/decision-records/DISP-STK-230-APPROVAL.json": "61e82879abe409edb131049061225f18c0541476c3dea2ad8d02d916f350064b",
+    "docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json": "a63fa86286909f66d6da0e5000083bc540a1e2f0c247c5f3478dc6689cf0d38d"
+  },
+  "checks": [
+    {
+      "id": "DISP-EXISTS",
+      "status": "PASS",
+      "detail": "docs/decision-records/DISP-STK-230-scope-disposition.md must exist."
+    },
+    {
+      "id": "DISP-OPTION-B",
+      "status": "PASS",
+      "detail": "The disposition must record Option B (park/de-scope) explicitly."
+    },
+    {
+      "id": "DISP-ANCHOR",
+      "status": "PASS",
+      "detail": "The disposition must anchor the rule to REQ-SRS-037, not to a standalone Decision ID."
+    },
+    {
+      "id": "DISP-NO-FALSE-APPROVAL",
+      "status": "PASS",
+      "detail": "The disposition must not present DEC-STK-001 / DEC-NO-STOCKTAKE-001 as approved."
+    },
+    {
+      "id": "APPROVAL-EXISTS",
+      "status": "PASS",
+      "detail": "docs/decision-records/DISP-STK-230-APPROVAL.json must exist."
+    },
+    {
+      "id": "APPROVAL-OPTION-B",
+      "status": "PASS",
+      "detail": "approval.optionChosen must be \"B\"."
+    },
+    {
+      "id": "APPROVAL-REQUIREMENT",
+      "status": "PASS",
+      "detail": "approval.controllingRequirement must be REQ-SRS-037."
+    },
+    {
+      "id": "APPROVAL-SCOPE",
+      "status": "PASS",
+      "detail": "approval.impactedIssues must cover WWHN-230, WWHN-58 and WWHN-232."
+    },
+    {
+      "id": "APPROVAL-SIGNOFF",
+      "status": "PENDING",
+      "detail": "Sign-off still open for: baMain, pmApprover, techLead, qa1, bas (run with --require-signoff to enforce)."
+    },
+    {
+      "id": "APPROVAL-NOT-SELF-CLOSED",
+      "status": "PASS",
+      "detail": "A record may not claim APPROVED without an effectiveDate."
+    },
+    {
+      "id": "BASELINE-SRS-PRESENT",
+      "status": "PASS",
+      "detail": "docs/HN_SRS_FRD_v1.12_FULL.md must be present."
+    },
+    {
+      "id": "BASELINE-REQ-037",
+      "status": "PASS",
+      "detail": "SRS no longer contains REQ-SRS-037; re-review before enforcing."
+    },
+    {
+      "id": "BASELINE-REQ-037-TEXT",
+      "status": "PASS",
+      "detail": "SRS no longer states the no-Stocktake requirement; the guard must not outlive it."
+    },
+    {
+      "id": "BASELINE-NO-STOCKTAKE-SECTION",
+      "status": "PASS",
+      "detail": "SRS section 0.1 no longer excludes Stocktake from the MVP."
+    },
+    {
+      "id": "BASELINE-ERD-PRESENT",
+      "status": "PASS",
+      "detail": "docs/HoaNam_ERD_Moi_Nhat.md must be present."
+    },
+    {
+      "id": "BASELINE-ERD-EXCLUSION",
+      "status": "PASS",
+      "detail": "ERD section 0.1 no longer excludes Stocktake entities."
+    },
+    {
+      "id": "SURFACE-ROUTES",
+      "status": "PASS",
+      "detail": "Route files reference forbidden fragments: "
+    },
+    {
+      "id": "SURFACE-OPENAPI-JSON",
+      "status": "PASS",
+      "detail": "OpenAPI paths expose Stocktake: "
+    },
+    {
+      "id": "SURFACE-OPENAPI-YAML",
+      "status": "PASS",
+      "detail": "OpenAPI YAML exposes Stocktake paths: "
+    },
+    {
+      "id": "SURFACE-SOURCE",
+      "status": "PASS",
+      "detail": "Stocktake/variance implementation files found: "
+    },
+    {
+      "id": "CONTRACT-FORBIDS-STOCKTAKE",
+      "status": "PASS",
+      "detail": "docs/contracts/HoaNam_Current_Baseline_Contract.json must keep \"stocktake\" forbidden."
+    },
+    {
+      "id": "SUBSTITUTE-PATH",
+      "status": "PASS",
+      "detail": "De-scoping Stocktake only holds while the append-only Reversal correction path exists."
+    },
+    {
+      "id": "SUBSTITUTE-DISPOSITION",
+      "status": "PASS",
+      "detail": "DISP-ADJ-001 must remain the canonical mapping for the adjustment business action."
+    },
+    {
+      "id": "TEMPKEY-REGISTER",
+      "status": "PASS",
+      "detail": "docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json must exist."
+    },
+    {
+      "id": "TEMPKEY-HN-INV-001",
+      "status": "PASS",
+      "detail": "HN-INV-001 (the WWHN-230 dependency) must resolve to WWHN-48 with status CONFIRMED."
+    },
+    {
+      "id": "TEMPKEY-EVIDENCE",
+      "status": "PASS",
+      "detail": "CONFIRMED rows without a repo source naming both keys: "
+    },
+    {
+      "id": "TEMPKEY-NO-GUESSING",
+      "status": "PASS",
+      "detail": "Rows assert a Jira key without CONFIRMED/CANDIDATE status: "
+    }
+  ],
+  "testResult": null,
+  "result": "PASS",
+  "failures": []
+}

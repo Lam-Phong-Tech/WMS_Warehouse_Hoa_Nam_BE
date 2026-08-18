@@ -5,7 +5,7 @@
     "generated_by": "tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php",
     "command": "php vendor/bin/phpunit tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php",
     "environment": {
-        "ran_at": "2026-08-18T22:11:02+07:00",
+        "ran_at": "2026-08-18T23:19:57+07:00",
         "php_version": "8.3.30",
         "os_family": "Windows",
         "memory_limit": "512M",
@@ -28,65 +28,65 @@
         {
             "case": "dry_run/100 rows",
             "data_rows": 100,
-            "file_size_bytes": 8171,
-            "duration_ms": 51,
-            "peak_memory_bytes": 169869312,
+            "file_size_bytes": 8172,
+            "duration_ms": 59,
+            "peak_memory_bytes": 180355072,
             "http_status": 200
         },
         {
             "case": "dry_run/500 rows",
             "data_rows": 500,
-            "file_size_bytes": 16049,
-            "duration_ms": 190,
-            "peak_memory_bytes": 169869312,
+            "file_size_bytes": 16050,
+            "duration_ms": 207,
+            "peak_memory_bytes": 182452224,
             "http_status": 200
         },
         {
             "case": "dry_run/1000 rows",
             "data_rows": 1000,
-            "file_size_bytes": 25644,
-            "duration_ms": 322,
-            "peak_memory_bytes": 169869312,
+            "file_size_bytes": 25645,
+            "duration_ms": 476,
+            "peak_memory_bytes": 182452224,
             "http_status": 200
         },
         {
             "case": "reject/1001 rows (limit 1000)",
             "data_rows": 1001,
-            "file_size_bytes": 25740,
-            "duration_ms": 214,
-            "peak_memory_bytes": 171966464,
+            "file_size_bytes": 25741,
+            "duration_ms": 203,
+            "peak_memory_bytes": 184549376,
             "http_status": 422
         },
         {
             "case": "sparse dry_run/1000 rows (2x dòng vật lý)",
             "data_rows": 1000,
-            "file_size_bytes": 24924,
-            "duration_ms": 462,
-            "peak_memory_bytes": 171966464,
+            "file_size_bytes": 24925,
+            "duration_ms": 369,
+            "peak_memory_bytes": 184549376,
             "http_status": 200
         },
         {
             "case": "commit/1000 rows",
             "data_rows": 1000,
             "file_size_bytes": 25711,
-            "duration_ms": 3207,
-            "peak_memory_bytes": 174063616,
+            "duration_ms": 3403,
+            "peak_memory_bytes": 184549376,
             "http_status": 200
         },
         {
             "case": "reject/20000 rows (limit 1000)",
             "data_rows": 20000,
             "file_size_bytes": 388686,
-            "duration_ms": 1728,
-            "peak_memory_bytes": 216006656,
+            "duration_ms": 1194,
+            "peak_memory_bytes": 226492416,
             "http_status": 422
         },
         {
             "case": "reject/oversize upload (cap 11 KB)",
             "data_rows": 300,
             "file_size_bytes": 12214,
-            "duration_ms": 30,
-            "peak_memory_bytes": 213909504,
+            "duration_ms": 15,
+            "peak_memory_bytes": 224395264,
             "http_status": 422
         }
     ]

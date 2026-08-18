@@ -1,0 +1,171 @@
+{
+  "document": "SOURCE_REGISTER",
+  "task": "WWHN-236",
+  "register_item": "DEV236-P1-02",
+  "disposition": "DISP-STK-236",
+  "statement": "Reliance vào BRD/Handoff v3.9 đã được gỡ bỏ. Controlling source duy nhất cho phạm vi tồn kho/kiểm kê/sửa tồn là REQ-SRS-037 của HN_SRS_FRD_v1.12_FULL.md (adopt tại WWHN-334). Mọi nguồn còn khai Apply Adjustment đều là historical hoặc PROPOSED và không được trích dẫn làm controlling contract.",
+  "authority_ranking": [
+    "REQ-SRS-037 (SRS v1.12, ADOPTED, Must)",
+    "ERD §0.1 / Techstack Dev Guide / Wireframe MVP (cross-confirm)",
+    "DEC-STK-001 (WWHN-25) — PROPOSED, no effective date",
+    "WWHN-180 posting OpenAPI v1.7.0 — PROPOSED, pending independent sign-off",
+    "BRD/Handoff v3.9 + Changelog BE1 v1.0.1 — SUPERSEDED / historical"
+  ],
+  "parent_ac_disposition": {
+    "ticket": "WWHN-60",
+    "statement": "AC nào của WWHN-60 còn yêu cầu Apply Adjustment thay đổi tồn thì không còn hiệu lực và phải được BA rebaseline. Business action được map sang bề mặt Reversal canonical.",
+    "canonical_mapping": {
+      "Điều chỉnh receipt đã post": "POST /api/v1/inbound-documents/{id}/reverse [inventory.reversal.post]",
+      "Điều chỉnh issue đã post": "POST /api/v1/outbound-documents/{id}/reverse [inventory.reversal.post]",
+      "Chứng từ điều chỉnh độc lập": "POST /api/v1/reversal-documents [inventory.reversal.post]",
+      "Phát hiện lệch tồn": "GET /api/v1/reports/inventory-reconciliation [report.view]"
+    }
+  },
+  "candidate_identity": [
+    {
+      "repo": "BE",
+      "branch": "m1",
+      "head_sha": "e6c693e312a0e3febb5a5e0e157fa19ee1461828",
+      "working_tree": "DIRTY",
+      "working_tree_note": "Working tree có thay đổi chưa commit tại thời điểm sinh register. Exact SHA của candidate phải được pin lại sau khi commit — xem SHA256SUMS.",
+      "dirty_file_count": 68
+    },
+    {
+      "repo": "FE",
+      "branch": "m1",
+      "head_sha": "48f7ff096ee6c570ff3a27c93f1d47b4e3b8595e",
+      "working_tree": "DIRTY",
+      "working_tree_note": "Working tree có thay đổi chưa commit tại thời điểm sinh register. Exact SHA của candidate phải được pin lại sau khi commit — xem SHA256SUMS.",
+      "dirty_file_count": 74
+    }
+  ],
+  "controlling_sources": [
+    {
+      "id": "SRS-1.12",
+      "path": "docs/HN_SRS_FRD_v1.12_FULL.md",
+      "version": "v1.12",
+      "adopted_at": "WWHN-334",
+      "role": "CONTROLLING",
+      "anchor": "REQ-SRS-037 (Must) / AC-SRS-037 / TC-SRS-037 / BR-NOSTK-01..03; §5.3; dòng 65, 180, 235",
+      "repo": "FE",
+      "sha256": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+      "present": true
+    },
+    {
+      "id": "ERD",
+      "path": "docs/HoaNam_ERD_Moi_Nhat.md",
+      "version": "latest",
+      "role": "CROSS-CONFIRM",
+      "anchor": "§0.1 dòng 95 — không tạo Stocktake_Session/Snapshot/Count/Variance_Line/Adjustment",
+      "repo": "FE",
+      "sha256": "30badd145e3eba41d080492b07e995d92dacbc370d304c60c015adeddfa8c33b",
+      "present": true
+    },
+    {
+      "id": "WIREFRAME",
+      "path": "docs/HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html",
+      "version": "v3.20 / v1.12",
+      "role": "CROSS-CONFIRM",
+      "anchor": "Zero occurrence stocktake/kiểm kê/adjustment — không có màn hình để build",
+      "repo": "FE",
+      "sha256": "107a2b4de0f5763e39278ec130758d57e772e004e525416c088018cf9ddba658",
+      "present": true
+    },
+    {
+      "id": "TECHSTACK",
+      "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+      "version": "current",
+      "role": "CROSS-CONFIRM",
+      "anchor": "Dòng 568 — Stocktake/Variance/Adjustment ngoài MVP; correction path là Reversal",
+      "repo": "FE",
+      "sha256": "049818cae2d18af0d06d40f5d40098a8cf11279fde7d38cafb256a27cc0812ea",
+      "present": true
+    },
+    {
+      "id": "BASELINE-CONTRACT",
+      "path": "docs/contracts/HoaNam_Current_Baseline_Contract.json",
+      "version": "schema hiện hành",
+      "role": "MACHINE-GATE",
+      "anchor": "forbidden_path_fragments + excluded_tables + movement_types",
+      "repo": "BE",
+      "sha256": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+      "present": true
+    },
+    {
+      "id": "OPENAPI-RUNTIME",
+      "path": "storage/api-docs/api-docs.yaml",
+      "version": "sinh từ route thật",
+      "role": "MACHINE-GATE",
+      "anchor": "Bề mặt API thật — zero path adjustment/stocktake/variance",
+      "repo": "BE",
+      "sha256": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
+      "present": true
+    },
+    {
+      "id": "DISP-STK-236",
+      "path": "docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md",
+      "version": "1.0.0",
+      "role": "DISPOSITION",
+      "anchor": "Chốt authority + disposition DEFERRED cho WWHN-60/236/238 + HN-STK-002",
+      "repo": "BE",
+      "sha256": "63ef90e5493c4aa6a78ba68cb3bc68926d851105430780fb1caaa6c89f29d3b5",
+      "present": true
+    }
+  ],
+  "historical_sources": [
+    {
+      "id": "WWHN-180-OPENAPI-JSON",
+      "path": "docs/api-contract/WWHN-180-posting-openapi.json",
+      "role": "HISTORICAL",
+      "reason": "Task-scoped artifact, x-contract-status PROPOSED / x-approval-status PENDING_INDEPENDENT_SIGN_OFF. Immutable: chỉ được supersede bằng decision record, không sửa nội dung.",
+      "repo": "BE",
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "present": true
+    },
+    {
+      "id": "WWHN-180-OPENAPI-YAML",
+      "path": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+      "role": "HISTORICAL",
+      "reason": "Như trên.",
+      "repo": "BE",
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "present": true
+    },
+    {
+      "id": "WWHN-150-SCAN-OPENAPI",
+      "path": "docs/api-contract/WWHN-150-scan-openapi.yaml",
+      "role": "HISTORICAL",
+      "reason": "Còn khai enum scan context STOCKTAKE. Runtime ScanController chỉ nhận INBOUND,OUTBOUND,INVENTORY,TRACE,WARRANTY_RECEIVE,WARRANTY_TEMP_ONLY — khớp SRS §5.3. Drift đã ghi nhận ở WWHN-181.",
+      "repo": "BE",
+      "sha256": "3d01d8750f19f2e8a4a9c7aaafda0ee51615fb6b300771e9cc8ac5bbef982a08",
+      "present": true
+    },
+    {
+      "id": "CHANGELOG-BE1",
+      "path": "docs/api-contract/WMS_HoaNam_OpenAPI_Changelog_BE1.md",
+      "role": "HISTORICAL",
+      "reason": "v1.0.1 còn liệt POST /api/v1/stocktake-sessions/{id}/apply-adjustment. Đã bị HN-BE-API-001_API_CONTRACT_HANDOVER.md:192 hạ xuống historical.",
+      "repo": "BE",
+      "sha256": "90ef8276dddb22eefb00e2e935667c702a8be5338d2441e061ea7fe0b94a18f3",
+      "present": true
+    },
+    {
+      "id": "DEC-STK-001",
+      "path": "docs/decision-records/DEC-STK-001.md",
+      "role": "PROPOSED / NO EFFECTIVE DATE",
+      "reason": "Mô hình kiểm kê A (WWHN-25). Chưa bao giờ được duyệt, không có effective date ⇒ không phải authority ở MVP v1.12.",
+      "repo": "BE",
+      "sha256": "e8d7d8b9810a5c89473c1bdf341413cd0cbc983bbf08257a17addf7e975ade18",
+      "present": true
+    },
+    {
+      "id": "BRD-HANDOFF-v3.9",
+      "path": null,
+      "role": "SUPERSEDED",
+      "reason": "Baseline mà AC của WWHN-60 còn trích dẫn. Bị BRD v3.20 / SRS v1.12 thay thế (SRS revision history dòng 659, mốc 04/08/2026). Reliance đã được gỡ bỏ tại DISP-STK-236 §3.",
+      "sha256": null,
+      "present": false
+    }
+  ],
+  "missing_sources": []
+}

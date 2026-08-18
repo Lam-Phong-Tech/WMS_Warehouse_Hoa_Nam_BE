@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
@@ -175,6 +176,26 @@ class SchemaApiModulesTest extends TestCase
         ]);
     }
 
+    /**
+     * WWHN-252 (migration 2026_08_19_000200) tạo thêm ux_pv_product_profile_product_id
+     * trên đúng cột product_id để trigger publish của sqlite có mục tiêu ON CONFLICT.
+     * Kể từ đó, "insert trùng thì phải lỗi" KHÔNG còn chứng minh được index của
+     * migration 2026_08_14 sống sót qua down()/up(): index kia vẫn chặn thay.
+     * Nên phải kiểm chính danh uk_pv_product_profile_product.
+     */
+    private function hasPvUniqueIndex(): bool
+    {
+        $table = DB::getDriverName() === 'pgsql' ? 'pv_product_profiles' : 'pv_product_profile';
+
+        foreach (Schema::getIndexes($table) as $index) {
+            if (($index['name'] ?? null) === 'uk_pv_product_profile_product') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function test_pv_profile_schema_accepts_only_one_profile_per_sku(): void
     {
         $sku = Sku::create(['sku_code' => 'SKU-PV-'.Str::random(8), 'sku_name' => 'PV SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
@@ -189,8 +210,13 @@ class SchemaApiModulesTest extends TestCase
         $migrationPath = base_path('Modules/Warehouse/database/migrations/2026_08_14_000001_add_catalog_report_warranty_pv_integrity_indexes.php');
         $migration = require $migrationPath;
 
+        $this->assertTrue($this->hasPvUniqueIndex(), 'uk_pv_product_profile_product phải có sẵn trước khi rollback.');
+
         $migration->down();
+        $this->assertFalse($this->hasPvUniqueIndex(), 'down() phải gỡ đúng uk_pv_product_profile_product.');
+
         $migration->up();
+        $this->assertTrue($this->hasPvUniqueIndex(), 'up() phải dựng lại uk_pv_product_profile_product.');
 
         $sku = Sku::create(['sku_code' => 'SKU-PV-RB-'.Str::random(8), 'sku_name' => 'PV rollback SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
         $this->insertPvProfile($sku->sku_id, 'PV profile after rollback');

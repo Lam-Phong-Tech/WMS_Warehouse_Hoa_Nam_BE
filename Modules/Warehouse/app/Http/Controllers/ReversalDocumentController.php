@@ -36,6 +36,14 @@ class ReversalDocumentController extends Controller
                 'reversal_documents.correction_chain_id',
                 'reversal_documents.posted_at as reversed_at',
                 'reversal_documents.posted_by',
+                // ERD bảng 33 + BR-REV-06/07: hai cột này là điều kiện Post của Reverse
+                // Issue. Không chiếu ra thì REV-00/REV-01 không bao giờ thấy bước
+                // CONFIRMED, nút "Xác nhận hàng vật lý đã về" không render và mọi lần
+                // Post đều bị 409 PHYSICAL_RETURN_REQUIRED.
+                'reversal_documents.physical_return_status',
+                'reversal_documents.condition_status',
+                'reversal_documents.cancelled_at',
+                'reversal_documents.cancel_reason',
                 'reversal_documents.created_at',
                 'reversal_documents.created_by',
                 'app_user.display_name as created_by_name',
@@ -46,6 +54,12 @@ class ReversalDocumentController extends Controller
                 DB::raw('(SELECT COALESCE(SUM(rl.quantity), 0) FROM reversal_lines rl WHERE rl.reversal_document_id = reversal_documents.id) as total_qty'),
             ])
             ->orderByDesc('reversal_documents.created_at');
+
+        // WWHN-242 · defense-in-depth data scope. `reversal_documents` được đọc bằng
+        // query builder thô nên không có global scope của model che. Lọc ngay trong
+        // query (không lọc sau phản hồi) để `meta.total` của phân trang cũng đúng theo
+        // phạm vi kho của actor.
+        $this->applyWarehouseScope($query);
 
         if ($request->filled('status')) {
             $query->where('reversal_documents.status', $request->input('status'));
@@ -81,6 +95,14 @@ class ReversalDocumentController extends Controller
                 'reversal_documents.correction_chain_id',
                 'reversal_documents.posted_at as reversed_at',
                 'reversal_documents.posted_by',
+                // ERD bảng 33 + BR-REV-06/07: hai cột này là điều kiện Post của Reverse
+                // Issue. Không chiếu ra thì REV-00/REV-01 không bao giờ thấy bước
+                // CONFIRMED, nút "Xác nhận hàng vật lý đã về" không render và mọi lần
+                // Post đều bị 409 PHYSICAL_RETURN_REQUIRED.
+                'reversal_documents.physical_return_status',
+                'reversal_documents.condition_status',
+                'reversal_documents.cancelled_at',
+                'reversal_documents.cancel_reason',
                 'reversal_documents.created_at',
                 'reversal_documents.created_by',
                 'app_user.display_name as created_by_name',
@@ -435,5 +457,34 @@ class ReversalDocumentController extends Controller
         }
 
         return (string) $id;
+    }
+
+    /**
+     * WWHN-242 · warehouse data scope cho danh sách reversal.
+     *
+     * `null` = không giới hạn (super admin hoặc role gán scope rỗng theo
+     * `User::warehouseScopeIds()`); `[]` = có giới hạn nhưng không kho nào ⇒ fail-closed
+     * về tập rỗng, không phải mở toàn bộ. `EnforceReversalWarehouseScope` chặn ở tầng
+     * route cho các thao tác theo id; hàm này là lớp thứ hai cho danh sách.
+     */
+    private function applyWarehouseScope(\Illuminate\Database\Query\Builder $query): void
+    {
+        $user = auth('api')->user();
+        if (! $user instanceof \Modules\Auth\Models\User) {
+            return;
+        }
+
+        $warehouseIds = $user->warehouseScopeIds();
+        if ($warehouseIds === null) {
+            return;
+        }
+
+        if ($warehouseIds === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->whereIn('reversal_documents.warehouse_id', $warehouseIds);
     }
 }

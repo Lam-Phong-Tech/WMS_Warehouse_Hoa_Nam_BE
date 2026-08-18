@@ -58,6 +58,9 @@
         "verify:stock-write-path": [
             "@php scripts/verify-canonical-stock-write-path.php"
         ],
+        "verify:wwhn236": [
+            "@php -r \"passthru('node scripts/verify-wwhn236-adjustment-disposition.mjs --emit-lock', $c); exit($c);\""
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

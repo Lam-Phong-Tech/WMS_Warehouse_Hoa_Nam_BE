@@ -9,18 +9,20 @@ Task: WWHN-309 - [BE] Hoàn thiện tài liệu kiến trúc/API/vận hành.
 
 | Chỉ số | Giá trị |
 | --- | --- |
-| Số operation `/api/v1` | 226 |
-| Số permission code đang gác route | 56 |
-| Operation có mặt trong OpenAPI | 226/226 |
-| Operation có optimistic locking If-Match | 41 |
-| Operation bị siết data scope theo kho | 36 |
-| Endpoint public (không cần JWT) | 7 |
+| Số operation `/api/v1` | 231 |
+| Số permission code đang gác route | 57 |
+| Operation có mặt trong OpenAPI | 231/231 |
+| Operation có optimistic locking If-Match | 58 |
+| Operation bị siết data scope theo kho | 43 |
+| Endpoint public (không cần JWT) | 9 |
 
 Endpoint public được allowlist tường minh trong generator:
 
 - `GET /api/v1/health`
 - `GET /api/v1/pv/catalog`
 - `GET /api/v1/pv/industries`
+- `GET /api/v1/pv/products`
+- `GET /api/v1/pv/products/{skuId}`
 - `GET /api/v1/pv/recommendations`
 - `GET /api/v1/pv/tags`
 - `POST /api/v1/auth/login`
@@ -36,7 +38,7 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/v1/catalog-masters/{masterType}` | `catalog.view` | - | - | Danh sách catalog master theo loại (Annex C) |
 | POST | `/api/v1/catalog-masters/{masterType}` | `catalog.manage` | - | - | Tạo catalog master theo loại (Annex C) |
-| PATCH | `/api/v1/catalog-masters/{masterType}/{id}` | `catalog.manage` | - | - | Cập nhật catalog master theo loại (Annex C) |
+| PATCH | `/api/v1/catalog-masters/{masterType}/{id}` | `catalog.manage` | có | - | Cập nhật catalog master theo loại (Annex C) |
 | GET | `/api/v1/defects` | `defect.view` | - | - | Danh sách bệnh/lỗi bảo hành (Annex C) |
 | POST | `/api/v1/defects` | `defect.manage` | - | - | Tạo bệnh/lỗi bảo hành (Annex C) |
 | GET | `/api/v1/defects/{id}` | `defect.view` | - | - | Chi tiết bệnh/lỗi bảo hành (Annex C) |
@@ -49,13 +51,16 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | POST | `/api/v1/putaway-tasks` | `putaway.manage` hoặc `container.manage` | - | - | Tạo tác vụ xếp BOX vào TRAY (Annex C) |
 | POST | `/api/v1/putaway-tasks/{id}/cancel` | `putaway.manage` hoặc `container.manage` | có | - | Huỷ tác vụ xếp BOX vào TRAY (Annex C) |
 | POST | `/api/v1/putaway-tasks/{id}/confirm` | `putaway.manage` hoặc `container.manage` | có | - | Xác nhận xếp BOX vào TRAY (Annex C) |
-| GET | `/api/v1/reversal-documents` | `inventory.view` | - | - | Danh sách phiếu reversal và correction |
-| POST | `/api/v1/reversal-documents` | `inventory.reversal.post` | có | - | Tạo reversal append-only cho movement đã post |
-| GET | `/api/v1/reversal-documents/{id}` | `inventory.view` | - | - | Chi tiết phiếu reversal và correction chain |
-| POST | `/api/v1/reversal-documents/{id}/cancel` | `inventory.reversal.post` | có | - | Huỷ Reversal khi còn DRAFT |
-| POST | `/api/v1/reversal-documents/{id}/confirm` | `inventory.reversal.post` | có | - | Xác nhận hàng vật lý quay lại kho cho Reversal |
-| GET | `/api/v1/reversal-documents/{id}/lines` | `inventory.view` | - | - | Danh sách dòng movement được reversal |
-| POST | `/api/v1/reversal-documents/{id}/post` | `inventory.reversal.post` | có | - | Post Reversal và ghi movement append-only |
+| GET | `/api/v1/pv-admin/resources/{resourceType}` | `pv.master.manage` | - | - | GET /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController index |
+| POST | `/api/v1/pv-admin/resources/{resourceType}` | `pv.master.manage` | - | - | POST /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController store |
+| PATCH | `/api/v1/pv-admin/resources/{resourceType}/{id}` | `pv.master.manage` | có | - | PATCH /api/v1/pv-admin/resources/{resourceType}/{id} - Modules Warehouse Http Controllers PvAdminResourceController update |
+| GET | `/api/v1/reversal-documents` | `inventory.view` | - | có | Danh sách phiếu reversal và correction |
+| POST | `/api/v1/reversal-documents` | `inventory.reversal.post` | có | có | Tạo reversal append-only cho movement đã post |
+| GET | `/api/v1/reversal-documents/{id}` | `inventory.view` | - | có | Chi tiết phiếu reversal và correction chain |
+| POST | `/api/v1/reversal-documents/{id}/cancel` | `inventory.reversal.post` | có | có | Huỷ Reversal khi còn DRAFT |
+| POST | `/api/v1/reversal-documents/{id}/confirm` | `inventory.reversal.post` | có | có | Xác nhận hàng vật lý quay lại kho cho Reversal |
+| GET | `/api/v1/reversal-documents/{id}/lines` | `inventory.view` | - | có | Danh sách dòng movement được reversal |
+| POST | `/api/v1/reversal-documents/{id}/post` | `inventory.reversal.post` | có | có | Post Reversal và ghi movement append-only |
 | POST | `/api/v1/scan-batches/classify` | `scan.execute` hoặc `scan.classify` | - | - | Phân loại lô mã quét (Annex C) |
 | GET | `/api/v1/warranty-component-issues` | `warranty.component_issue` | - | - | Danh sách phiếu xuất linh kiện bảo hành (Annex C) |
 | POST | `/api/v1/warranty-component-issues` | `warranty.component_issue` | - | - | Tạo phiếu xuất linh kiện bảo hành (Annex C) |
@@ -148,11 +153,11 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | GET | `/api/v1/inventory/balances` | `inventory.view` | - | có | Tồn kho hiện tại theo kho và SKU |
 | GET | `/api/v1/inventory/balances/{id}/subledger` | `inventory.view` | - | có | Chi tiết subledger item và container của một số dư tồn |
 | GET | `/api/v1/inventory/trace/{code}` | `inventory.trace` | - | có | Truy vết tồn kho theo mã vật lý (Annex C) |
-| GET | `/api/v1/stock-movements` | `inventory.view` | - | có | Danh sách giao dịch kho |
-| GET | `/api/v1/stock-movements/{id}` | `inventory.view` | - | có | Chi tiết giao dịch kho |
-| GET | `/api/v1/stock-movements/{id}/trace-source` | `inventory.trace` | - | có | Truy vết nguồn phát sinh giao dịch kho |
-| GET | `/api/v1/stock-movements/reversible` | `inventory.reversal.post` | - | có | Danh sách giao dịch kho |
-| GET | `/api/v1/stock-movements/trace-by-code` | `inventory.trace` | - | có | Danh sách giao dịch kho |
+| GET | `/api/v1/stock-movements` | `inventory.view` | - | có | Lịch sử biến động tồn (phân trang, filter theo warehouse_id/product_id/movement_type) |
+| GET | `/api/v1/stock-movements/{id}` | `inventory.view` | - | có | Chi tiết 1 movement |
+| GET | `/api/v1/stock-movements/{id}/trace-source` | `inventory.trace` | - | có | Truy vết chứng từ gốc, correction chain đầy đủ và net effect của một movement |
+| GET | `/api/v1/stock-movements/reversible` | `inventory.reversal.post` | - | có | Lookup posted movements that can still be reversed, with dependency guard preflight |
+| GET | `/api/v1/stock-movements/trace-by-code` | `inventory.trace` | - | có | Truy vết từ mã vật lý (physical code) → item/container/SKU → movement chain |
 
 ### 08. Catalog Master
 
@@ -160,19 +165,19 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/v1/brands` | `catalog.view` | - | - | Danh sách thương hiệu |
 | POST | `/api/v1/brands` | `catalog.manage` | - | - | Tạo thương hiệu mới |
-| PATCH | `/api/v1/brands/{id}` | `catalog.manage` | - | - | Cập nhật thương hiệu |
+| PATCH | `/api/v1/brands/{id}` | `catalog.manage` | có | - | Cập nhật thương hiệu |
 | GET | `/api/v1/package-variants` | `catalog.view` | - | - | Danh sách quy cách đóng gói |
 | POST | `/api/v1/package-variants` | `catalog.manage` | - | - | Tạo quy cách đóng gói mới |
-| PATCH | `/api/v1/package-variants/{id}` | `catalog.manage` | - | - | Cập nhật quy cách đóng gói |
+| PATCH | `/api/v1/package-variants/{id}` | `catalog.manage` | có | - | Cập nhật quy cách đóng gói |
 | GET | `/api/v1/power-sources` | `catalog.view` | - | - | Danh sách nguồn điện |
 | POST | `/api/v1/power-sources` | `catalog.manage` | - | - | Tạo nguồn điện mới |
-| PATCH | `/api/v1/power-sources/{id}` | `catalog.manage` | - | - | Cập nhật nguồn điện |
+| PATCH | `/api/v1/power-sources/{id}` | `catalog.manage` | có | - | Cập nhật nguồn điện |
 | GET | `/api/v1/product-categories` | `catalog.view` | - | - | Danh sách danh mục sản phẩm |
 | POST | `/api/v1/product-categories` | `catalog.manage` | - | - | Tạo danh mục sản phẩm mới |
-| PATCH | `/api/v1/product-categories/{id}` | `catalog.manage` | - | - | Cập nhật danh mục sản phẩm |
+| PATCH | `/api/v1/product-categories/{id}` | `catalog.manage` | có | - | Cập nhật danh mục sản phẩm |
 | GET | `/api/v1/product-models` | `catalog.view` | - | - | Danh sách model sản phẩm |
 | POST | `/api/v1/product-models` | `catalog.manage` | - | - | Tạo model sản phẩm mới |
-| PATCH | `/api/v1/product-models/{id}` | `catalog.manage` | - | - | Cập nhật model sản phẩm |
+| PATCH | `/api/v1/product-models/{id}` | `catalog.manage` | có | - | Cập nhật model sản phẩm |
 
 ### 09. Stock In (Inbound)
 
@@ -185,7 +190,7 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | POST | `/api/v1/inbound-documents/{id}/boxes` | `inbound.scan` | - | có | Tạo phiếu nhập mới |
 | POST | `/api/v1/inbound-documents/{id}/cancel` | `inbound.cancel` hoặc `inbound.create` | có | có | Cancel phiếu DRAFT/SCANNING |
 | POST | `/api/v1/inbound-documents/{id}/post-receipt` | `inbound.post` | có | có | Full Post Receipt SCANNING -> POSTED |
-| POST | `/api/v1/inbound-documents/{id}/reversals` | `inventory.reversal.post` | - | có | Hoàn tác nhập kho cho phiếu nhập (Annex C) |
+| POST | `/api/v1/inbound-documents/{id}/reversals` | `inventory.reversal.post` | có | có | Hoàn tác nhập kho cho phiếu nhập (Annex C) |
 | POST | `/api/v1/inbound-documents/{id}/reverse` | `inventory.reversal.post` | có | có | Reversal/Correction cho phiếu nhập POSTED |
 | POST | `/api/v1/inbound-documents/{id}/scan` | `inbound.scan` | có | có | Quét hàng cho phiếu DRAFT/SCANNING (stock-neutral) |
 | GET | `/api/v1/inbound-documents/{id}/scan-entries` | `inbound.view` | - | có | Danh sách mã đã quét của phiếu nhập |
@@ -198,15 +203,15 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/v1/outbound-documents` | `outbound.view` | - | có | Danh sách phiếu xuất |
 | GET | `/api/v1/outbound-documents/{id}` | `outbound.view` | - | có | Chi tiết phiếu xuất |
-| POST | `/api/v1/outbound-documents/{id}/cancel` | `outbound.cancel` | - | có | Huỷ phiếu xuất |
+| POST | `/api/v1/outbound-documents/{id}/cancel` | `outbound.cancel` | có | có | Huỷ phiếu xuất |
 | PUT | `/api/v1/outbound-documents/{id}/items/{itemId}/rfid` | `physical_code.assign_rfid` | - | có | Gắn RFID cho item của phiếu xuất |
-| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview` | `packing_label.preview` hoặc `label.print` | - | có | Preview Packing Label trước khi hoàn tất |
-| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/print` | `packing_label.print` hoặc `label.print` | - | có | In Packing Label của phiếu xuất |
-| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/ready` | `packing_label.ready` hoặc `label.print` | - | có | Đóng băng Packing Label sẵn sàng in |
-| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint` | `packing_label.reprint` hoặc `label.reprint` | - | có | In lại Packing Label sau hoàn tất |
+| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview` | `packing_label.preview` hoặc `label.print` | có | có | Preview Packing Label trước khi hoàn tất |
+| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/print` | `packing_label.print` hoặc `label.print` | có | có | In Packing Label của phiếu xuất |
+| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/ready` | `packing_label.ready` hoặc `label.print` | có | có | Đóng băng Packing Label sẵn sàng in |
+| POST | `/api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint` | `packing_label.reprint` hoặc `label.reprint` | có | có | In lại Packing Label sau hoàn tất |
 | POST | `/api/v1/outbound-documents/{id}/post-issue` | `outbound.post` | có | có | Ghi nhận xuất kho cho phiếu xuất |
-| POST | `/api/v1/outbound-documents/{id}/reversals` | `inventory.reversal.post` | - | có | Hoàn tác xuất kho cho phiếu xuất (Annex C) |
-| POST | `/api/v1/outbound-documents/{id}/reverse` | `inventory.reversal.post` | - | có | Hoàn tác xuất kho cho phiếu xuất |
+| POST | `/api/v1/outbound-documents/{id}/reversals` | `inventory.reversal.post` | có | có | Hoàn tác xuất kho cho phiếu xuất (Annex C) |
+| POST | `/api/v1/outbound-documents/{id}/reverse` | `inventory.reversal.post` | có | có | Hoàn tác xuất kho cho phiếu xuất |
 | POST | `/api/v1/outbound-documents/{id}/scan` | `outbound.scan` | có | có | Quét hàng cho phiếu xuất |
 | POST | `/api/v1/outbound-documents/{id}/scans` | `outbound.scan` | có | có | Quét hàng cho phiếu xuất (Annex C) |
 | POST | `/api/v1/outbound-documents/{id}/unmatch` | `outbound.scan` | - | có | Gỡ item đã match khỏi phiếu xuất |
@@ -270,7 +275,7 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | GET | `/api/v1/warranty-cases/{id}/attachments` | `warranty.view` hoặc `warranty.manage` | - | - | Danh sách tệp đính kèm của hồ sơ bảo hành |
 | POST | `/api/v1/warranty-cases/{id}/attachments` | `warranty.manage` | - | - | Tải lên tệp đính kèm cho hồ sơ bảo hành |
 | GET | `/api/v1/warranty-cases/{id}/events` | `warranty.view` hoặc `warranty.manage` | - | - | Lịch sử sự kiện của hồ sơ bảo hành |
-| POST | `/api/v1/warranty-cases/{id}/status` | `warranty.manage` | có | - | Chuyển trạng thái hồ sơ bảo hành (Annex C) |
+| POST | `/api/v1/warranty-cases/{id}/status` | `warranty.manage` | có | - | Annex C transitionWarrantyStatus — chuyển trạng thái / hiệu chỉnh case bảo hành |
 | POST | `/api/v1/warranty-cases/{id}/temp-only` | `warranty.temp_only` | - | - | Đánh dấu hồ sơ bảo hành chỉ xử lý tạm |
 
 ### 14. Component Issue
@@ -340,8 +345,8 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | POST | `/api/v1/label-snapshots` | `label.print` | - | - | Tạo snapshot nhãn mới |
 | GET | `/api/v1/label-snapshots/{id}` | `label.print` | - | - | Chi tiết snapshot nhãn |
 | POST | `/api/v1/label-snapshots/{id}/apply` | `label.print` | có | - | Tạo snapshot nhãn mới |
-| POST | `/api/v1/label-snapshots/{id}/print` | `label.print` | - | - | In nhãn từ snapshot |
-| POST | `/api/v1/label-snapshots/{id}/reprint` | `label.reprint` | - | - | In lại nhãn từ snapshot |
+| POST | `/api/v1/label-snapshots/{id}/print` | `label.print` | có | - | In nhãn từ snapshot |
+| POST | `/api/v1/label-snapshots/{id}/reprint` | `label.reprint` | có | - | In lại nhãn từ snapshot |
 | GET | `/api/v1/printer-configs` | `label.print` | - | - | Danh sách cấu hình máy in |
 | POST | `/api/v1/printer-configs` | `label.print` | - | - | Tạo cấu hình máy in mới |
 | PATCH | `/api/v1/printer-configs/{id}` | `label.print` | - | - | Cập nhật cấu hình máy in |
@@ -352,7 +357,9 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/v1/pv/catalog` | _public_ | - | - | Danh mục PV công khai |
 | GET | `/api/v1/pv/industries` | _public_ | - | - | Danh sách ngành hàng PV |
-| PATCH | `/api/v1/pv/products/{id}/publish` | `pv.publish` hoặc `sku.manage` | có | - | Publish/gỡ SKU khỏi App PV |
+| GET | `/api/v1/pv/products` | _public_ | - | - | GET /api/v1/pv/products - Modules Warehouse Http Controllers PvPublicCatalogController listProducts |
+| PATCH | `/api/v1/pv/products/{id}/publish` | `pv.publish` | có | - | Publish/gỡ SKU khỏi App PV |
+| GET | `/api/v1/pv/products/{skuId}` | _public_ | - | - | GET /api/v1/pv/products/{skuId} - Modules Warehouse Http Controllers PvPublicCatalogController showProduct |
 | GET | `/api/v1/pv/recommendations` | _public_ | - | - | Gợi ý PV theo tiêu chí lọc |
 | GET | `/api/v1/pv/tags` | _public_ | - | - | Danh sách tag PV |
 
@@ -413,12 +420,13 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | `physical_code.assign_rfid` | 5 |
 | `putaway.manage` | 9 |
 | `putaway.view` | 3 |
+| `pv.master.manage` | 3 |
 | `pv.publish` | 1 |
 | `report.export` | 10 |
 | `report.view` | 14 |
 | `scan.classify` | 2 |
 | `scan.execute` | 2 |
-| `sku.manage` | 12 |
+| `sku.manage` | 11 |
 | `sku.view` | 4 |
 | `warehouse.manage` | 2 |
 | `warehouse.view` | 2 |

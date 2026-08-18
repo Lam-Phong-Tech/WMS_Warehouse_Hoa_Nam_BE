@@ -80,6 +80,10 @@ chừng cho **mọi** test chứ không riêng WWHN-299. Vì vậy workflow
 PostgreSQL 16 và **fail nếu `MANIFEST.json` không có `db_driver = pgsql`** — đó là nơi
 bản PG chính thức được tạo theo exact SHA.
 
+Đã kiểm chứng nguyên nhân là ở migration đó chứ không phải tranh chấp DB dùng chung:
+chạy lại trên một database PostgreSQL **riêng** (`hoa_nam_wwhn299`) vẫn hỏng y hệt ở
+cùng một trigger, cả 21 test đều dừng ngay trong `setUp`.
+
 PostgreSQL quan trọng vì đó là nơi trigger `trg_erd_migration_commit_evidence` (COMMIT
 bắt buộc reconciliation `PASS` + có checksum) và các CHECK constraint của ERD thực sự chạy.
 

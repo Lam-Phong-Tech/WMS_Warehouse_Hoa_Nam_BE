@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0.0",
+  "dispositionId": "DISP-STK-230",
+  "dispositionVersion": "1.0.0",
+  "dispositionPath": "docs/decision-records/DISP-STK-230-scope-disposition.md",
+  "optionChosen": "B",
+  "optionStatement": "Park/de-scope WWHN-230 + WWHN-58 khoi Beta implementation; WWHN-232 chuyen thanh absence & substitution test.",
+  "controllingRequirement": "REQ-SRS-037",
+  "controllingBaseline": {
+    "documentId": "HN-SRS-FRD-001",
+    "version": "1.12",
+    "adoptionIssue": "WWHN-334",
+    "adoptionStatus": "Done",
+    "note": "Hieu luc den tu adoption cua SRS/FRD v1.12 tai WWHN-334, khong den tu mot Decision ID doc lap."
+  },
+  "impactedIssues": ["WWHN-230", "WWHN-58", "WWHN-232"],
+  "relatedGovernanceIssues": {
+    "WWHN-25": "DEC-STK-001 mo hinh kiem ke A — In Progress, effective date NULL",
+    "WWHN-26": "DEC-REV-001 reversal append-only — In Progress",
+    "WWHN-108": "Ghi nhan trong review register DEV230-P1-01; BAS xac nhan lai canonical status truoc khi dong",
+    "WWHN-218": "HARDEN — nguon cua DEC-STK-002 canonical stock write path",
+    "WWHN-219": "DISP-ADJ-001 apply-adjustment la ten hanh dong, khong phai endpoint"
+  },
+  "status": "PROPOSED",
+  "effectiveDate": null,
+  "exactCommitSha": {
+    "backend": null,
+    "frontend": null,
+    "note": "Dien exact SHA cua candidate tai thoi diem sign-off. Verifier chay --require-signoff se fail neu con null."
+  },
+  "signOff": {
+    "baMain": { "role": "BA Main", "decision": null, "date": null, "commentUrl": null },
+    "pmApprover": { "role": "PM/Approver", "decision": null, "date": null, "commentUrl": null },
+    "techLead": { "role": "Tech Lead", "decision": null, "date": null, "commentUrl": null },
+    "qa1": { "role": "QA1", "decision": null, "date": null, "commentUrl": null },
+    "bas": { "role": "BAS", "decision": null, "date": null, "commentUrl": null }
+  },
+  "reopenGate": "Chi mo lai khi (1) WWHN-25 dong voi GO/CONDITIONAL GO va (2) baseline SRS phat hanh version moi ha REQ-SRS-037 khoi Must. Khi do phat hanh DISP-STK-230 v2.0.0, khong sua de ban 1.0.0.",
+  "machineGates": [
+    "node scripts/verify-wwhn-230-closure.mjs",
+    "php vendor/bin/phpunit --filter Wwhn230StocktakeScopeDisposition",
+    "npm run wwhn-230:verify (FE)",
+    "npm run check:api-mapping (FE)"
+  ]
+}

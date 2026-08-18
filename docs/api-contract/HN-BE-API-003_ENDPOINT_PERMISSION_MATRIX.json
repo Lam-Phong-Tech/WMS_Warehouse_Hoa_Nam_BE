@@ -4,12 +4,14 @@
   "task": "WWHN-309",
   "generator": "scripts/generate-endpoint-permission-matrix.mjs",
   "openapi_version": "2.0.0",
-  "total_operations": 226,
-  "total_permissions": 56,
+  "total_operations": 231,
+  "total_permissions": 57,
   "public_allowlist": [
     "GET /api/v1/health",
     "GET /api/v1/pv/catalog",
     "GET /api/v1/pv/industries",
+    "GET /api/v1/pv/products",
+    "GET /api/v1/pv/products/{skuId}",
     "GET /api/v1/pv/recommendations",
     "GET /api/v1/pv/tags",
     "POST /api/v1/auth/login",
@@ -51,7 +53,7 @@
       "permissions": [
         "catalog.manage"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -216,6 +218,45 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/pv-admin/resources/{resourceType}",
+      "tag": "00. Platform",
+      "summary": "GET /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController index",
+      "auth": "JWT",
+      "permissions": [
+        "pv.master.manage"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pv-admin/resources/{resourceType}",
+      "tag": "00. Platform",
+      "summary": "POST /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController store",
+      "auth": "JWT",
+      "permissions": [
+        "pv.master.manage"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/pv-admin/resources/{resourceType}/{id}",
+      "tag": "00. Platform",
+      "summary": "PATCH /api/v1/pv-admin/resources/{resourceType}/{id} - Modules Warehouse Http Controllers PvAdminResourceController update",
+      "auth": "JWT",
+      "permissions": [
+        "pv.master.manage"
+      ],
+      "if_match": true,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/reversal-documents",
       "tag": "00. Platform",
       "summary": "Danh sách phiếu reversal và correction",
@@ -224,7 +265,7 @@
         "inventory.view"
       ],
       "if_match": false,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -237,7 +278,7 @@
         "inventory.reversal.post"
       ],
       "if_match": true,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -250,7 +291,7 @@
         "inventory.view"
       ],
       "if_match": false,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -263,7 +304,7 @@
         "inventory.reversal.post"
       ],
       "if_match": true,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -276,7 +317,7 @@
         "inventory.reversal.post"
       ],
       "if_match": true,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -289,7 +330,7 @@
         "inventory.view"
       ],
       "if_match": false,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -302,7 +343,7 @@
         "inventory.reversal.post"
       ],
       "if_match": true,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -1039,7 +1080,7 @@
       "method": "GET",
       "path": "/api/v1/stock-movements",
       "tag": "07. Inventory",
-      "summary": "Danh sách giao dịch kho",
+      "summary": "Lịch sử biến động tồn (phân trang, filter theo warehouse_id/product_id/movement_type)",
       "auth": "JWT",
       "permissions": [
         "inventory.view"
@@ -1052,7 +1093,7 @@
       "method": "GET",
       "path": "/api/v1/stock-movements/{id}",
       "tag": "07. Inventory",
-      "summary": "Chi tiết giao dịch kho",
+      "summary": "Chi tiết 1 movement",
       "auth": "JWT",
       "permissions": [
         "inventory.view"
@@ -1065,7 +1106,7 @@
       "method": "GET",
       "path": "/api/v1/stock-movements/{id}/trace-source",
       "tag": "07. Inventory",
-      "summary": "Truy vết nguồn phát sinh giao dịch kho",
+      "summary": "Truy vết chứng từ gốc, correction chain đầy đủ và net effect của một movement",
       "auth": "JWT",
       "permissions": [
         "inventory.trace"
@@ -1078,7 +1119,7 @@
       "method": "GET",
       "path": "/api/v1/stock-movements/reversible",
       "tag": "07. Inventory",
-      "summary": "Danh sách giao dịch kho",
+      "summary": "Lookup posted movements that can still be reversed, with dependency guard preflight",
       "auth": "JWT",
       "permissions": [
         "inventory.reversal.post"
@@ -1091,7 +1132,7 @@
       "method": "GET",
       "path": "/api/v1/stock-movements/trace-by-code",
       "tag": "07. Inventory",
-      "summary": "Danh sách giao dịch kho",
+      "summary": "Truy vết từ mã vật lý (physical code) → item/container/SKU → movement chain",
       "auth": "JWT",
       "permissions": [
         "inventory.trace"
@@ -1135,7 +1176,7 @@
       "permissions": [
         "catalog.manage"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -1174,7 +1215,7 @@
       "permissions": [
         "catalog.manage"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -1213,7 +1254,7 @@
       "permissions": [
         "catalog.manage"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -1252,7 +1293,7 @@
       "permissions": [
         "catalog.manage"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -1291,7 +1332,7 @@
       "permissions": [
         "catalog.manage"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -1396,7 +1437,7 @@
       "permissions": [
         "inventory.reversal.post"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -1500,7 +1541,7 @@
       "permissions": [
         "outbound.cancel"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -1527,7 +1568,7 @@
         "packing_label.preview",
         "label.print"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -1541,7 +1582,7 @@
         "packing_label.print",
         "label.print"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -1555,7 +1596,7 @@
         "packing_label.ready",
         "label.print"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -1569,7 +1610,7 @@
         "packing_label.reprint",
         "label.reprint"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -1595,7 +1636,7 @@
       "permissions": [
         "inventory.reversal.post"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -1608,7 +1649,7 @@
       "permissions": [
         "inventory.reversal.post"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": true,
       "in_openapi": true
     },
@@ -2255,7 +2296,7 @@
       "method": "POST",
       "path": "/api/v1/warranty-cases/{id}/status",
       "tag": "13. Warranty",
-      "summary": "Chuyển trạng thái hồ sơ bảo hành (Annex C)",
+      "summary": "Annex C transitionWarrantyStatus — chuyển trạng thái / hiệu chỉnh case bảo hành",
       "auth": "JWT",
       "permissions": [
         "warranty.manage"
@@ -2780,7 +2821,7 @@
       "permissions": [
         "label.print"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -2793,7 +2834,7 @@
       "permissions": [
         "label.reprint"
       ],
-      "if_match": false,
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -2859,16 +2900,37 @@
       "in_openapi": true
     },
     {
+      "method": "GET",
+      "path": "/api/v1/pv/products",
+      "tag": "21. Public Catalog",
+      "summary": "GET /api/v1/pv/products - Modules Warehouse Http Controllers PvPublicCatalogController listProducts",
+      "auth": "public",
+      "permissions": [],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
       "method": "PATCH",
       "path": "/api/v1/pv/products/{id}/publish",
       "tag": "21. Public Catalog",
       "summary": "Publish/gỡ SKU khỏi App PV",
       "auth": "JWT",
       "permissions": [
-        "pv.publish",
-        "sku.manage"
+        "pv.publish"
       ],
       "if_match": true,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pv/products/{skuId}",
+      "tag": "21. Public Catalog",
+      "summary": "GET /api/v1/pv/products/{skuId} - Modules Warehouse Http Controllers PvPublicCatalogController showProduct",
+      "auth": "public",
+      "permissions": [],
+      "if_match": false,
       "data_scope": false,
       "in_openapi": true
     },

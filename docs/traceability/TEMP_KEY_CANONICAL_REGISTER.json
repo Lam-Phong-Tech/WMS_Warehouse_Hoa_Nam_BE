@@ -1,0 +1,189 @@
+{
+  "schemaVersion": "1.0.0",
+  "registerId": "HN-TRACE-TEMPKEY-001",
+  "backlogItem": "DEV230-P1-04",
+  "jira": "WWHN-230",
+  "updatedAt": "2026-08-18",
+  "purpose": "Map temp key (HN-*) trong task description sang exact Jira key canonical, de dependency cua mot task khong con tro vao dinh danh khong ton tai tren Jira. Moi dong CONFIRMED phai co evidenceFile trong repo chua dong thoi ca tempKey lan jiraKey; verify-wwhn-230-closure.mjs kiem lai dieu do.",
+  "statusLegend": {
+    "CONFIRMED": "Co it nhat mot file trong repo ghi tuong minh cap (tempKey, jiraKey) o dang 'Task cha' hoac 'WWHN-N / HN-X'.",
+    "CANDIDATE": "Co dau vet lien he nhung khong phai mot cau khang dinh tuong duong; BA/BAS phai xac nhan tren Jira truoc khi dung lam dependency gate.",
+    "RETIRED": "Temp key da khai tu, khong duoc dung lam dependency moi.",
+    "UNRESOLVED": "Khong co nguon nao trong repo. Phai lay tu Jira. Khong duoc suy dien."
+  },
+  "entries": [
+    {
+      "tempKey": "HN-INV-001",
+      "jiraKey": "WWHN-48",
+      "title": "[INVENTORY] So du, movement khong chinh sua va API doi soat",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-205.md",
+      "note": "Dependency truc tiep cua WWHN-230 theo review register DEV230-P1-04. Scope tong quat cua ledger/invariant; khac HN-IN-003 (rieng inbound) va HN-OUT-003 (rieng outbound)."
+    },
+    {
+      "tempKey": "HN-IN-001",
+      "jiraKey": "WWHN-41",
+      "title": "[INBOUND] Tao/chinh/duyet chung tu nhap",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-184.md"
+    },
+    {
+      "tempKey": "HN-IN-002",
+      "jiraKey": "WWHN-42",
+      "title": "[INBOUND] Quet/ghi nhan item & component serial/quantity",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-187.md"
+    },
+    {
+      "tempKey": "HN-IN-003",
+      "jiraKey": "WWHN-43",
+      "title": "[INBOUND] Ghi nhan nhap kho (Post Receipt) atomic, idempotent va co audit",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-190.md"
+    },
+    {
+      "tempKey": "HN-IN-004",
+      "jiraKey": "WWHN-44",
+      "title": "[INBOUND] Putaway co ban, khong mo rong bin/ke",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-193.md"
+    },
+    {
+      "tempKey": "HN-OUT-001",
+      "jiraKey": "WWHN-45",
+      "title": "[OUTBOUND] Tao chung tu va chon che do nhap tay/quet ma",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-195.md"
+    },
+    {
+      "tempKey": "HN-OUT-002",
+      "jiraKey": "WWHN-46",
+      "title": "[OUTBOUND] Lay hang/quet ma va chong ghi nhan trung",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-198.md"
+    },
+    {
+      "tempKey": "HN-OUT-003",
+      "jiraKey": "WWHN-47",
+      "title": "[OUTBOUND] Ghi nhan xuat kho (Post Issue) atomic, khong am ton va idempotent",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-201.md"
+    },
+    {
+      "tempKey": "HN-DATA-001",
+      "jiraKey": "WWHN-56",
+      "title": "[DATA] Import master/SKU/item kiem tra thu khong ghi du lieu",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-224.md"
+    },
+    {
+      "tempKey": "HN-SEC-001",
+      "jiraKey": "WWHN-54",
+      "title": "[HARDEN] Phan quyen, idempotency, concurrency va audit tang cuong",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-218.md"
+    },
+    {
+      "tempKey": "HN-DEC-003",
+      "jiraKey": "WWHN-25",
+      "title": "[DEC-STK-001] Lap Decision Record ve mo hinh kiem ke A",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/decision-records/DEC-STK-001.md",
+      "note": "Governance gate cua WWHN-230. Van In Progress, effective date NULL."
+    },
+    {
+      "tempKey": "HN-FE-003",
+      "jiraKey": "WWHN-49",
+      "title": "[FE][INBOUND] UI chung tu, quet ma, ghi nhan nhap kho va putaway",
+      "status": "CONFIRMED",
+      "evidenceFile": "docs/docs_task_jira/WWHN-207.md"
+    },
+    {
+      "tempKey": "HN-MC-001",
+      "jiraKey": "WWHN-14",
+      "title": "Master/catalog baseline",
+      "status": "CANDIDATE",
+      "evidenceFile": null,
+      "note": "WWHN-178.md ghi 'Baseline dependency: HN-MC-001 / WWHN-14 / WWHN-100 / WWHN-101' — la mot chuoi phu thuoc, khong phai cau khang dinh tuong duong. BA/BAS phai xac nhan tren Jira."
+    },
+    {
+      "tempKey": "HN-UAT-003",
+      "jiraKey": null,
+      "title": "UAT defect register pattern",
+      "status": "RETIRED",
+      "evidenceFile": null,
+      "note": "WWHN-211.md ghi ro 'temp key da khai tu'. WWHN-292 tro toi WWHN-76/WWHN-78 nhung khong phai quan he tuong duong."
+    },
+    {
+      "tempKey": "HN-HO-001",
+      "jiraKey": null,
+      "title": "Handover backend",
+      "status": "CANDIDATE",
+      "evidenceFile": null,
+      "note": "WWHN-309.md ghi 'Parent: WWHN-83 · Dependency: HN-HO-001-ST01'. Day la dependency subtask token, khong chung minh HN-HO-001 == WWHN-83."
+    },
+    {
+      "tempKey": "HN-DEC-002",
+      "jiraKey": null,
+      "status": "UNRESOLVED",
+      "evidenceFile": null,
+      "note": "WWHN-201.md: 'Task cha WWHN-47 va dependency HN-DEC-002/HN-DEC-005 khong co trong repo'. Da mo open point BE1-ISS-OP-01 cho BA/PM."
+    },
+    {
+      "tempKey": "HN-DEC-005",
+      "jiraKey": null,
+      "status": "UNRESOLVED",
+      "evidenceFile": null,
+      "note": "Cung nguon voi HN-DEC-002."
+    },
+    {
+      "tempKey": "HN-TEC-001",
+      "jiraKey": null,
+      "status": "UNRESOLVED",
+      "evidenceFile": null,
+      "note": "Dependency cua WWHN-204; khong co nguon canonical trong repo."
+    },
+    {
+      "tempKey": "HN-FND-001",
+      "jiraKey": null,
+      "status": "UNRESOLVED",
+      "evidenceFile": null,
+      "note": "WWHN-195.md ghi khong tim thay trong repo."
+    },
+    {
+      "tempKey": "HN-PIN-06",
+      "jiraKey": null,
+      "status": "UNRESOLVED",
+      "evidenceFile": null,
+      "note": "WWHN-195.md ghi khong tim thay trong repo."
+    },
+    {
+      "tempKey": "HN-QA-003",
+      "jiraKey": null,
+      "status": "UNRESOLVED",
+      "evidenceFile": null,
+      "note": "Dependency cua WWHN-218."
+    },
+    {
+      "tempKey": "HN-PV-202",
+      "jiraKey": null,
+      "status": "UNRESOLVED",
+      "evidenceFile": null,
+      "note": "Xuat hien o WWHN-150.md."
+    }
+  ],
+  "epicTempKeys": {
+    "note": "Epic temp key khong duoc map suy dien. Chi ghi nhan noi xuat hien.",
+    "HN-EPIC-01": "DEC-STK-001 (Epic Temp Key) — UNRESOLVED",
+    "HN-EPIC-03": "WWHN-218/219 — UNRESOLVED",
+    "HN-EPIC-05": "WWHN-207 — UNRESOLVED",
+    "HN-EPIC-06": "WWHN-199 — UNRESOLVED",
+    "HN-EPIC-07": "WWHN-204/205/211 — UNRESOLVED"
+  },
+  "notTempKeys": {
+    "HN-BE-001": "Document ID cua docs/HN-BE-001_BACKEND_STANDARD.md, khong phai Jira temp key.",
+    "HN-WMS-ERD-DD-001": "Document ID cua ERD.",
+    "HN-SRS-FRD-001": "Document ID cua SRS/FRD.",
+    "HN-BA-MASTER-DEVTEST-001": "Document ID baseline BA."
+  }
+}

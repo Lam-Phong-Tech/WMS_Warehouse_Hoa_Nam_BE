@@ -1,21 +1,21 @@
 psql:<stdin>:29: ERROR:  relation "reversal_lines" does not exist
 LINE 4: FROM reversal_lines rl
              ^
-psql:<stdin>:43: ERROR:  relation "stock_movements" does not exist
-LINE 4: FROM stock_movements mv
+psql:<stdin>:43: ERROR:  column mv.item_id does not exist
+LINE 1: SELECT mv.item_id,
+               ^
+psql:<stdin>:67: ERROR:  relation "reversal_lines" does not exist
+LINE 8: FROM reversal_lines rl
              ^
-psql:<stdin>:67: ERROR:  relation "stock_movements" does not exist
-LINE 2: FROM stock_movements mv
-             ^
-psql:<stdin>:92: ERROR:  relation "stock_movements" does not exist
-LINE 2: FROM stock_movements origin
-             ^
-psql:<stdin>:106: ERROR:  relation "inventory_balances" does not exist
-LINE 2: FROM inventory_balances ib
-             ^
-psql:<stdin>:129: ERROR:  relation "inventory_balances" does not exist
-LINE 8:       FROM inventory_balances
-                   ^
+psql:<stdin>:92: ERROR:  relation "reversal_lines" does not exist
+LINE 4:                FROM reversal_lines rl
+                            ^
+psql:<stdin>:106: ERROR:  column ib.quantity does not exist
+LINE 3: WHERE ib.quantity < 0
+              ^
+psql:<stdin>:129: ERROR:  column "sku_id" does not exist
+LINE 7: FROM (SELECT warehouse_id, sku_id, stock_status, SUM(quantit...
+                                   ^
  indexname | indexdef 
 -----------+----------
 (0 rows)

@@ -1,1 +1,8 @@
-Could not open input file: vendor/bin/phpunit
+
+Warning: require(C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\bin/../autoload.php): Failed to open stream: No such file or directory in C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\phpunit\phpunit\phpunit on line 72
+
+Fatal error: Uncaught Error: Failed opening required 'C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\bin/../autoload.php' (include_path='.;C:/laragon/etc/php/pear') in C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\phpunit\phpunit\phpunit:72
+Stack trace:
+#0 C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\bin\phpunit(122): include()
+#1 {main}
+  thrown in C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\phpunit\phpunit\phpunit on line 72

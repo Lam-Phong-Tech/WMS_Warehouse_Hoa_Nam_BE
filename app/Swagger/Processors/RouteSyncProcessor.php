@@ -56,10 +56,17 @@ class RouteSyncProcessor
     ];
 
     private const ROUTE_SUMMARIES = [
+        // WWHN-249 — Annex C: listPvProducts / getPvProduct là path canonical của
+        // App PV; /pv/catalog và /pv/tags là alias lịch sử dùng chung read model.
+        'get api/v1/pv/products' => 'Danh mục sản phẩm App PV công khai',
+        'get api/v1/pv/products/{skuId}' => 'Chi tiết sản phẩm App PV công khai',
         'get api/v1/pv/catalog' => 'Danh mục PV công khai',
         'get api/v1/pv/industries' => 'Danh sách ngành hàng PV',
         'get api/v1/pv/tags' => 'Danh sách tag PV',
         'get api/v1/pv/recommendations' => 'Gợi ý PV theo tiêu chí lọc',
+        'get api/v1/pv-admin/resources/{resourceType}' => 'PV Admin — danh sách master App PV theo resource_type',
+        'post api/v1/pv-admin/resources/{resourceType}' => 'PV Admin — tạo master App PV theo resource_type',
+        'patch api/v1/pv-admin/resources/{resourceType}/{id}' => 'PV Admin — cập nhật master App PV (bắt buộc If-Match)',
         'post api/v1/inbound-documents/{id}/scan' => 'Quét hàng cho phiếu nhập',
         'post api/v1/inbound-documents/{id}/post-receipt' => 'Ghi nhận nhập kho cho phiếu nhập',
         'post api/v1/inbound-documents/{id}/reverse' => 'Hoàn tác nhập kho cho phiếu nhập',
@@ -594,12 +601,29 @@ class RouteSyncProcessor
             return $cache[$action] = $flags;
         }
 
-        preg_match_all('/\$this->([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $source, $matches);
-        foreach (array_unique($matches[1] ?? []) as $helper) {
-            if ($helper === $method || ! method_exists($class, $helper)) {
-                continue;
+        // WWHN-249 (DEV249-P1-06): quét ĐỆ QUY theo chuỗi `$this->helper()` thay vì
+        // chỉ một tầng. PvAdminResourceController::update() gọi updateSimpleMaster()
+        // rồi mới tới assertIfMatch(), nên với cách quét một tầng header If-Match
+        // bắt buộc của updatePvAdminResource không được khai trong OpenAPI và ma
+        // trận endpoint — FE/QA đọc contract sẽ tưởng PATCH không cần If-Match rồi
+        // ăn 428 lúc chạy thật.
+        $seen = [$method => true];
+        $pending = [$source];
+        while ($pending !== []) {
+            $current = array_pop($pending);
+            preg_match_all('/\$this->([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $current, $matches);
+            foreach (array_unique($matches[1] ?? []) as $helper) {
+                if (isset($seen[$helper]) || ! method_exists($class, $helper)) {
+                    continue;
+                }
+                $seen[$helper] = true;
+                $helperSource = $this->methodSource($class, $helper);
+                if ($helperSource === null) {
+                    continue;
+                }
+                $source .= "\n".$helperSource;
+                $pending[] = $helperSource;
             }
-            $source .= "\n".($this->methodSource($class, $helper) ?? '');
         }
 
         if (str_contains($source, 'IdempotencyKeyGuard::require')) {

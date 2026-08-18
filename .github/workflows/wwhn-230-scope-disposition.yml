@@ -1,0 +1,103 @@
+name: WWHN-230 Stocktake Scope Disposition
+
+# DISP-STK-230 parks WWHN-230 / WWHN-58 out of Beta implementation because REQ-SRS-037
+# ("Must") forbids every Stocktake surface. A disposition written only in prose leaves
+# nothing for CI to check, which is exactly why the same finding kept reappearing. This
+# workflow is the machine form: it proves the surface is absent at the exact SHA, and it
+# fails if the baseline the rule leans on ever stops saying it.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'docs/decision-records/DISP-STK-230-*'
+      - 'docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json'
+      - 'docs/contracts/HoaNam_Current_Baseline_Contract.json'
+      - 'docs/HN_SRS_FRD_v1.12_FULL.md'
+      - 'docs/HoaNam_ERD_Moi_Nhat.md'
+      - 'tests/Feature/Wwhn230StocktakeScopeDispositionTest.php'
+      - 'scripts/verify-wwhn-230-closure.mjs'
+      - 'Modules/Warehouse/routes/**'
+      - 'Modules/Warehouse/app/Http/Controllers/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'Modules/Auth/database/seeders/**'
+      - 'storage/api-docs/api-docs.json'
+      - '.github/workflows/wwhn-230-scope-disposition.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'docs/decision-records/DISP-STK-230-*'
+      - 'docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json'
+      - 'docs/contracts/HoaNam_Current_Baseline_Contract.json'
+      - 'docs/HN_SRS_FRD_v1.12_FULL.md'
+      - 'docs/HoaNam_ERD_Moi_Nhat.md'
+      - 'tests/Feature/Wwhn230StocktakeScopeDispositionTest.php'
+      - 'scripts/verify-wwhn-230-closure.mjs'
+      - 'Modules/Warehouse/routes/**'
+      - 'Modules/Warehouse/app/Http/Controllers/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'Modules/Auth/database/seeders/**'
+      - 'storage/api-docs/api-docs.json'
+      - '.github/workflows/wwhn-230-scope-disposition.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scope-disposition:
+    name: Absence and substitution proof at exact SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN230-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Style check on the new test lock
+        run: vendor/bin/pint --test tests/Feature/Wwhn230StocktakeScopeDispositionTest.php
+
+      - name: Test lock — route, permission, schema, spec and substitution
+        run: php vendor/bin/phpunit --filter Wwhn230StocktakeScopeDisposition
+
+      - name: Sibling Stocktake locks stay green
+        run: php vendor/bin/phpunit --filter 'Wwhn219ApplyAdjustmentDisposition|Wwhn180PermissionAliasContract'
+
+      - name: Closure gate and evidence
+        run: node scripts/verify-wwhn-230-closure.mjs
+
+      - name: Upload WWHN-230 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-230-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-230/
+          retention-days: 90

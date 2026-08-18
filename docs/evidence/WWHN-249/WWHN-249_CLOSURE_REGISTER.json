@@ -1,0 +1,166 @@
+{
+  "task": "WWHN-249",
+  "title": "App PV — mặt công khai vs mặt xác thực, endpoint Annex C và bằng chứng đóng task",
+  "canonical_branch": "m1",
+  "canonical_branch_note": "Không có nhánh riêng cho task này. Pin cũ m1-be-2 trên Jira KHÔNG còn là nguồn canonical: implementation thật nằm trên m1.",
+  "pinned_candidate": {
+    "backend_repo": "WMS_Warehouse_Hoa_Nam_BE",
+    "backend_branch": "m1",
+    "backend_sha": "231740fe991fea35005bdf195d6e4f88fa16569e",
+    "frontend_repo": "WMS_Warehouse_Hoa_Nam_FE",
+    "frontend_branch": "m1",
+    "frontend_sha": "e02d4185608e7bb661481968a902b71c81386362",
+    "sha_note": "SHA chụp tại thời điểm dựng evidence. Phải chốt lại đúng SHA của commit đóng task trước khi dán comment sign-off — không dán SHA của task khác."
+  },
+  "baseline_sources": [
+    "docs/HN_SRS_FRD_v1.12_FULL.md (§3 ma trận actor, §8.1 nhóm PV, §12 bảng Security, Annex C)",
+    "docs/HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html (SCR-PV-01/02, SCR-PV-ADM-01)",
+    "docs/HoaNam_ERD_Moi_Nhat.md (bảng 51,52,53,54,55,56,57)",
+    "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md"
+  ],
+  "annex_c_operations": [
+    { "operation_id": "listPvProducts", "method": "GET", "path": "/api/v1/pv/products", "security": "PUBLIC_ANONYMOUS", "errors": [400, 404, 429, 500], "status": "IMPLEMENTED" },
+    { "operation_id": "getPvProduct", "method": "GET", "path": "/api/v1/pv/products/{skuId}", "security": "PUBLIC_ANONYMOUS", "errors": [400, 404, 429, 500], "status": "IMPLEMENTED" },
+    { "operation_id": "listPvIndustries", "method": "GET", "path": "/api/v1/pv/industries", "security": "PUBLIC_ANONYMOUS", "errors": [400, 404, 429, 500], "status": "IMPLEMENTED" },
+    { "operation_id": "listPvRecommendations", "method": "GET", "path": "/api/v1/pv/recommendations", "security": "PUBLIC_ANONYMOUS", "errors": [400, 404, 429, 500], "status": "IMPLEMENTED" },
+    { "operation_id": "publishPvProduct", "method": "PATCH", "path": "/api/v1/pv/products/{id}/publish", "security": "pv.publish", "errors": [400, 401, 403, 404, 409, 412, 422, 428, 500], "status": "IMPLEMENTED" },
+    { "operation_id": "listPvAdminResources", "method": "GET", "path": "/api/v1/pv-admin/resources/{resourceType}", "security": "pv.master.manage", "errors": [400, 401, 403, 404, 409, 412, 422, 428, 500], "status": "IMPLEMENTED" },
+    { "operation_id": "createPvAdminResource", "method": "POST", "path": "/api/v1/pv-admin/resources/{resourceType}", "security": "pv.master.manage", "errors": [400, 401, 403, 404, 409, 412, 422, 428, 500], "status": "IMPLEMENTED" },
+    { "operation_id": "updatePvAdminResource", "method": "PATCH", "path": "/api/v1/pv-admin/resources/{resourceType}/{id}", "security": "pv.master.manage", "if_match": true, "errors": [400, 401, 403, 404, 409, 412, 422, 428, 500], "status": "IMPLEMENTED" }
+  ],
+  "declared_public_surface": [
+    "POST /api/v1/auth/login",
+    "POST /api/v1/auth/refresh",
+    "GET /api/v1/health",
+    "GET /api/v1/pv/products",
+    "GET /api/v1/pv/products/{skuId}",
+    "GET /api/v1/pv/industries",
+    "GET /api/v1/pv/recommendations",
+    "GET /api/v1/pv/catalog",
+    "GET /api/v1/pv/tags"
+  ],
+  "register": [
+    {
+      "id": "DEV249-P1-01",
+      "severity": "P1",
+      "owner": "BA + BAS",
+      "status": "READY_FOR_APPROVAL",
+      "issue": "Actor/use-case/permission matrix chưa baselined.",
+      "what_dev_delivered": "Ma trận endpoint x permission sinh TỪ route table thật (231 operation), có cột public/If-Match/data-scope; nhóm PV đầy đủ 9 dòng. Ánh xạ §3 -> permission key ghi tại PV_SURFACE_EVIDENCE.md §2.",
+      "evidence": [
+        "docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md",
+        "docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.json",
+        "docs/evidence/WWHN-249/PV_SURFACE_EVIDENCE.md"
+      ],
+      "still_required_from_owner": "BA/BAS duyệt ma trận và xử lý D-01, D-04."
+    },
+    {
+      "id": "DEV249-P1-02",
+      "severity": "P1",
+      "owner": "DEV + Tech Lead",
+      "status": "FIXED",
+      "issue": "Jira pin m1-be-2 nhưng implementation lại nằm ở m1.",
+      "what_dev_delivered": "Chốt canonical branch = m1 (không tạo nhánh riêng). Toàn bộ 8 operation Annex C của PV tồn tại và chạy được trên m1; pin SHA tại pinned_candidate.",
+      "evidence": ["docs/evidence/WWHN-249/PV_SURFACE_EVIDENCE.md §1"],
+      "still_required_from_owner": "Tech Lead đổi source pin trên Jira từ m1-be-2 sang m1 + SHA đóng task."
+    },
+    {
+      "id": "DEV249-P1-03",
+      "severity": "P1",
+      "owner": "DEV -> Tech Lead/BA/QA",
+      "status": "FIXED",
+      "issue": "PV routes public trong khi parent yêu cầu login/assignment/permission.",
+      "what_dev_delivered": "Tách tường minh hai nửa: 4 GET PUBLIC_ANONYMOUS theo Annex C/§12 (kèm throttle:pv-public, DTO chỉ đọc, cache <=60s, data_as_of) và nhóm xác thực pv.publish / pv.master.manage. Thêm guard FAIL-CLOSED: tập route ẩn danh của toàn hệ thống phải bằng đúng danh sách đã chốt, thêm route public mới mà không khai báo sẽ đỏ test. Đồng bộ PUBLIC_ALLOWLIST của generator ma trận.",
+      "evidence": [
+        "tests/Feature/Wwhn249PvSurfaceGovernanceTest.php",
+        "scripts/generate-endpoint-permission-matrix.mjs (PUBLIC_ALLOWLIST)",
+        "Modules/Warehouse/routes/api.php"
+      ]
+    },
+    {
+      "id": "DEV249-P1-04",
+      "severity": "P1",
+      "owner": "DEV -> BA/FE/QA",
+      "status": "FIXED",
+      "issue": "Chưa thấy queue/detail/allowed-action/403/409 implementation đầy đủ.",
+      "what_dev_delivered": "Đủ 8 operation Annex C: queue = listPvProducts / listPvAdminResources, detail = getPvProduct, allowed-action = create/update PV Admin + publish tách quyền. Error set khoá bằng test: public 400/404/429, admin 401/403/404/409/412/422/428.",
+      "evidence": [
+        "tests/Feature/Wwhn252PvContractTest.php",
+        "tests/Feature/Wwhn249PvSurfaceGovernanceTest.php",
+        "storage/api-docs/api-docs.json"
+      ]
+    },
+    {
+      "id": "DEV249-P1-05",
+      "severity": "P1",
+      "owner": "QA1 -> BA/PM",
+      "status": "READY_FOR_QA1",
+      "issue": "QA1 Permission/filter/state vẫn Blocked/Pending, không evidence.",
+      "what_dev_delivered": "Bằng chứng tự động tại SHA pin: 47 test PV/contract PASS (45 pass, 2 skip là cổng chỉ chạy trên PostgreSQL), gồm chứng minh KHÔNG có stock side-effect (chụp ledger trước/sau lưu lượng public).",
+      "evidence": ["docs/evidence/WWHN-249/PV_SURFACE_EVIDENCE.md §4"],
+      "still_required_from_owner": "QA1 retest độc lập trên build thật tại exact SHA: auth, assignment, positive/negative filter, detail field, 403, 409, pagination, no stock side-effect. Bằng chứng tự động KHÔNG thay QA1."
+    },
+    {
+      "id": "DEV249-P1-06",
+      "severity": "P1",
+      "owner": "DEV -> Tech Lead/FE/QA",
+      "status": "PARTIAL",
+      "issue": "0 attachment, 0 PR/commit, không build ID, không Postman handoff.",
+      "what_dev_delivered": "OpenAPI sinh lại (231 operation) khai đúng security: [] cho 4 GET public và bearerAuth cho phần còn lại; sửa RouteSyncProcessor để header If-Match bắt buộc của updatePvAdminResource hiện ra trong contract (trước đó bị bỏ sót vì chỉ quét helper 1 tầng); ma trận endpoint x permission sinh lại; đăng ký 5 operation mới vào baseline contract.",
+      "evidence": [
+        "storage/api-docs/api-docs.json",
+        "docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md",
+        "docs/contracts/HoaNam_Current_Baseline_Contract.json"
+      ],
+      "still_required_from_owner": "Pin PR/commit + build/run ID lên Jira và gửi Postman/OpenAPI cho FE/QA — đây là thao tác trên Jira/CI, không phải nội dung để duyệt."
+    },
+    {
+      "id": "DEV249-P2-01",
+      "severity": "P2",
+      "owner": "PM / BAS",
+      "status": "OPEN",
+      "issue": "Description ghi BE2/Duy Khánh trong khi assignee thực tế là Quang.",
+      "what_dev_delivered": "Không có phần DEV. Cần ghi chú current owner + supersession, giữ nguyên vết vai trò lịch sử.",
+      "evidence": []
+    }
+  ],
+  "deviations": [
+    {
+      "id": "D-01",
+      "severity": "P2",
+      "status": "NEEDS_BA_DISPOSITION",
+      "title": "§3 cho NV kho (V*) và Lãnh đạo (V) mức xem trên dòng PV master, nhưng Annex C chỉ khai một key pv.master.manage",
+      "implemented": "Enforce theo Annex C (fail-closed): cả ba operation pv-admin đều đòi pv.master.manage. Nhu cầu chỉ-xem của hai vai trò này được phục vụ bằng nhóm endpoint PV public (dữ liệu đã publish).",
+      "action": "Nếu BA muốn mức xem thật sự trên dữ liệu chưa publish thì phải bổ sung key pv.master.view vào Annex C — đó là thay đổi contract, không phải sửa code."
+    },
+    {
+      "id": "D-02",
+      "severity": "P2",
+      "status": "ACCEPTED",
+      "title": "GET /pv/catalog và GET /pv/tags là alias ngoài Annex C",
+      "implemented": "Giữ lại để client đang chạy không vỡ; dùng chung read model chỉ-đọc; được khai tường minh trong allowlist và trong guard fail-closed nên không phải endpoint public lọt lưới.",
+      "action": "BA quyết định giữ hay gỡ ở revision Annex C kế tiếp."
+    },
+    {
+      "id": "D-03",
+      "severity": "P3",
+      "status": "ACCEPTED",
+      "title": "operationId trong OpenAPI runtime sinh theo route (get_api_v1_pv_products) chứ không phải tên Annex C (listPvProducts)",
+      "implemented": "Bảng ánh xạ operationId Annex C <-> operationId runtime nằm ở annex_c_operations của file này và tại PV_SURFACE_EVIDENCE.md §3.",
+      "action": "Đổi quy ước operationId là thay đổi toàn cục của bộ sinh contract, không nằm trong phạm vi WWHN-249."
+    },
+    {
+      "id": "D-04",
+      "severity": "P1",
+      "status": "OPEN",
+      "title": "Seed thiếu pv.master.manage cho vai trò WAREHOUSE_MANAGER",
+      "implemented": "CHƯA SỬA. SRS §3 dòng 'PV Industry/Tag/Product Mapping/Recommendation Rule manage' cho Quản lý kho mức A, nhưng Modules/Auth/database/seeders/AuthDatabaseSeeder.php chỉ cấp pv.master.manage cho ADMIN. Hệ quả: QL kho gọi /pv-admin/resources bị 403 dù ma trận quyền nói được.",
+      "action": "Thêm 'pv.master.manage' vào mảng permissions của ROLES['WAREHOUSE_MANAGER'] (cạnh 'pv.publish'), rồi chạy lại seeder và bổ sung test RBAC. Thay đổi cấp quyền phải do người quyết định và duyệt, không tự động áp."
+    }
+  ],
+  "truth_boundary": [
+    "Bằng chứng trong file này là test tự động + contract artifact trên máy dev; KHÔNG phải UAT và KHÔNG thay QA1 (WWHN-250).",
+    "2 test skip là cổng chỉ chạy trên PostgreSQL — không được coi là PASS.",
+    "Nhánh m1 tại thời điểm dựng evidence còn 2 test đỏ THUỘC LUỒNG KHÁC (WWHN-236 apply-adjustment/Postman artifact và pin nguồn của WWHN-252 read model); chúng không nằm trong phạm vi WWHN-249 và phải do chính luồng đó đóng."
+  ]
+}

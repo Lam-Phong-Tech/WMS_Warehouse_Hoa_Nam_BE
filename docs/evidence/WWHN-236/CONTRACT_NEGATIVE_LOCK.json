@@ -1,0 +1,80 @@
+{
+  "document": "CONTRACT_NEGATIVE_LOCK",
+  "task": "WWHN-236",
+  "disposition": "DISP-STK-236",
+  "register_item": "DEV236-P1-05",
+  "controlling_source": "REQ-SRS-037 / HN_SRS_FRD_v1.12_FULL.md (WWHN-334)",
+  "statement": "Disposition là DEFERRED, nên nghĩa vụ contract của DEV236-P1-05 là nghĩa vụ PHỦ ĐỊNH: OpenAPI runtime, permission matrix, baseline contract và route source không được khai apply-adjustment/stocktake/variance. Artifact task-scoped historical được phép giữ nguyên dấu vết cũ và chỉ bị supersede bằng decision record.",
+  "forbidden_fragments": [
+    "stocktake",
+    "adjustment",
+    "variance"
+  ],
+  "excluded_tables": [
+    "stocktake_session",
+    "stocktake_snapshot",
+    "stocktake_count",
+    "stocktake_variance"
+  ],
+  "result": "PASS",
+  "failures": [],
+  "notes": [
+    "[SPEC-HISTORICAL] docs/api-contract/WWHN-150-scan-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.",
+    "[SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.json → /api/v1/stocktake/sessions/{id}/apply-adjustment, enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.",
+    "[SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung."
+  ],
+  "checks": {
+    "disposition_sha256": "63ef90e5493c4aa6a78ba68cb3bc68926d851105430780fb1caaa6c89f29d3b5",
+    "baseline_contract_sha256": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+    "forbidden_path_fragments": [
+      "stocktake",
+      "adjustment",
+      "variance",
+      "recount",
+      "cycle-count",
+      "physical-count",
+      "transfer-orders",
+      "stock-requests",
+      "inventory-reservations",
+      "inventory-snapshots",
+      "safe-stock",
+      "close-remainder"
+    ],
+    "movement_types": [
+      "OPENING",
+      "RECEIPT",
+      "ISSUE",
+      "COMPONENT_ISSUE",
+      "REVERSAL"
+    ],
+    "storage_api_docs_api_docs_yaml_path_count": 84,
+    "storage_api_docs_api_docs_yaml_sha256": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
+    "storage_api_docs_api_docs_json_path_count": 183,
+    "storage_api_docs_api_docs_json_sha256": "f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593",
+    "permission_matrix_sha256": "af6f898400b4e3aba8ca9ed588d9e8bd4019aef032b124602c1e43c35c93ed75",
+    "route_files_scanned": 11,
+    "movement_type_check_constraint": [
+      "OPENING",
+      "RECEIPT",
+      "ISSUE",
+      "COMPONENT_ISSUE",
+      "REVERSAL"
+    ],
+    "stocktake_tables_created_then_dropped": [
+      "stocktake_session",
+      "stocktake_snapshot",
+      "stocktake_count",
+      "stocktake_variance"
+    ],
+    "historical_spec_drift": [
+      "docs/api-contract/WWHN-150-scan-openapi.yaml → enum:STOCKTAKE",
+      "docs/api-contract/WWHN-180-posting-openapi.json → /api/v1/stocktake/sessions/{id}/apply-adjustment, enum:STOCKTAKE",
+      "docs/api-contract/WWHN-180-posting-openapi.yaml → enum:STOCKTAKE"
+    ],
+    "historical_spec_allowlist": {
+      "docs/api-contract/WWHN-180-posting-openapi.json": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "docs/api-contract/WWHN-180-posting-openapi.yaml": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "docs/api-contract/WWHN-150-scan-openapi.yaml": "3d01d8750f19f2e8a4a9c7aaafda0ee51615fb6b300771e9cc8ac5bbef982a08"
+    }
+  }
+}

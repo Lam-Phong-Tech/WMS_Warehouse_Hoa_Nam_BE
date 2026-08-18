@@ -1,7 +1,72 @@
 
-Warning: require(C:\LAM_PHONG_TECH\hn_be_wwhn239_wt/vendor/autoload.php): Failed to open stream: No such file or directory in C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\artisan on line 10
+ INFO Preparing database. 
 
-Fatal error: Uncaught Error: Failed opening required 'C:\LAM_PHONG_TECH\hn_be_wwhn239_wt/vendor/autoload.php' (include_path='.;C:/laragon/etc/php/pear') in C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\artisan:10
-Stack trace:
-#0 {main}
-  thrown in C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\artisan on line 10
+ Creating migration table .. 18.26ms DONE
+
+﻿ INFO Running migrations. 
+
+ 0001_01_01_000001_create_cache_table .. 47.49ms DONE
+ 0001_01_01_000002_create_jobs_table .. 55.87ms DONE
+ 2026_01_01_000010_create_idempotency_keys_table .. 58.95ms DONE
+ 2026_01_01_000020_create_app_user_table .. 30.44ms DONE
+ 2026_01_01_000021_create_role_table .. 18.66ms DONE
+ 2026_01_01_000022_create_permission_table .. 19.84ms DONE
+ 2026_01_01_000023_create_user_role_table .. 26.63ms DONE
+ 2026_01_01_000024_create_role_permission_table .. 28.44ms DONE
+ 2026_01_01_000025_create_refresh_tokens_table .. 30.39ms DONE
+ 2026_01_01_000030_create_product_masters_table .. 28.83ms DONE
+ 2026_01_01_000030_create_warehouses_table .. 22.38ms DONE
+ 2026_01_01_000031_create_products_table .. 35.93ms DONE
+ 2026_01_01_000032_create_stock_documents_table .. 89.40ms DONE
+ 2026_01_01_000033_create_stock_document_lines_table .. 31.52ms DONE
+ 2026_01_01_000034_create_inventory_balances_table .. 36.14ms DONE
+ 2026_01_01_000035_create_stock_movements_table .. 69.10ms DONE
+ 2026_01_01_000036_create_document_status_history_table .. 31.68ms DONE
+ 2026_01_01_000040_create_audit_log_table .. 39.68ms DONE
+ 2026_01_01_000041_create_safe_stock_configs_table .. 26.91ms DONE
+ 2026_01_01_000042_create_safe_stock_alerts_history_table .. 28.23ms DONE
+ 2026_01_01_000043_create_inventory_serials_table .. 34.76ms DONE
+﻿ 2026_01_01_000044_create_hoanam_erd_extension_tables .. 1 giây DONE
+ 2026_01_01_000044_create_physical_codes_table .. 39.82ms DONE
+ 2026_01_01_000045_create_import_batches_table .. 41.97ms DONE
+ 2026_01_01_000046_create_containers_table .. 63.02ms DONE
+ 2026_01_01_000047_create_item_instances_table .. 63.27ms DONE
+ 2026_01_01_000048_create_container_items_table .. 34.27ms DONE
+ 2026_07_30_000001_create_document_status_transitions_table .. 44.09ms DONE
+ 2026_07_30_000002_create_inventory_reservations_table .. 36.99ms DONE
+ 2026_07_30_000003_create_inventory_report_snapshots_table .. 48.07ms DONE
+ 2026_07_30_000004_create_stock_requests_table .. 74.14ms DONE
+ 2026_07_30_000005_create_stock_request_lines_table .. 30.11ms DONE
+ 2026_07_30_000006_create_in_transit_ledger_table .. 51.01ms DONE
+ 2026_07_31_000001_create_agencies_table .. 21.89ms DONE
+ 2026_07_31_000002_create_defect_catalogs_table .. 22.73ms DONE
+ 2026_08_02_000001_add_single_active_warehouse_guard .. 9.67ms DONE
+ 2026_08_02_000002_safe_guard_products_to_sku_rename .. 5.98ms DONE
+ 2026_08_02_190000_expand_idempotency_operation_columns .. 20.11ms DONE
+ 2026_08_03_000001_create_audit_outbox_table .. 28.43ms DONE
+ 2026_08_03_000100_harden_stocktake_three_layer_contract .. 524.11ms DONE
+ 2026_08_03_000200_allow_completed_idempotency_lease_release .. 10.60ms DONE
+ 2026_08_03_000210_harden_sku_component_container_contract .. 149.92ms DONE
+ 2026_08_04_000220_harden_wwhn172_serial_and_code_uniqueness .. 222.42ms DONE
+
+   Illuminate\Contracts\Filesystem\FileNotFoundException 
+
+  File does not exist at path C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\Modules/Warehouse\database/migrations/2026_08_09_000300_create_products_compatibility_view.php.
+
+  at C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\laravel\framework\src\Illuminate\Filesystem\Filesystem.php:127
+    123▕                 return require $__path;
+    124▕             })();
+    125▕         }
+    126▕ 
+  ➜ 127▕         throw new FileNotFoundException("File does not exist at path {$path}.");
+    128▕     }
+    129▕ 
+    130▕     /**
+    131▕      * Require the given file once.
+
+  1   C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\laravel\framework\src\Illuminate\Database\Migrations\Migrator.php:550
+      Illuminate\Filesystem\Filesystem::getRequire("C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\Modules/Warehouse\database/migrations/2026_08_09_000300_create_products_compatibility_view.php")
+
+  2   C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\vendor\laravel\framework\src\Illuminate\Database\Migrations\Migrator.php:236
+      Illuminate\Database\Migrations\Migrator::resolvePath("C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\Modules/Warehouse\database/migrations/2026_08_09_000300_create_products_compatibility_view.php")
+
