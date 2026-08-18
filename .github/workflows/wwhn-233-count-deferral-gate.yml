@@ -55,12 +55,19 @@ jobs:
         run: php artisan test --filter=Wwhn233CountDeferredGateTest
 
       - name: Regenerate evidence at this exact SHA
-        run: node scripts/verify-wwhn233-count-disposition.mjs --emit-evidence
+        # `fe_commit_sha` được giữ nguyên như bản đã commit: repo FE có vòng đời riêng,
+        # CI của BE không quan sát được HEAD của nó. Nửa FE tự pin identity trong
+        # .github/workflows/wwhn-233-fe-count-deferral-gate.yml.
+        run: |
+          FE_SHA=$(node -e "process.stdout.write(require('./docs/evidence/WWHN-233/SOURCE_REGISTER.json').repository.fe_commit_sha ?? '')")
+          node scripts/verify-wwhn233-count-disposition.mjs --emit-evidence --fe-sha="${FE_SHA}"
 
       - name: Fail if evidence drifted from the committed pack
         # Evidence được sinh lại từ chính source ở SHA này. Nếu nó khác bản đã commit
         # thì pack trong repo là stale — đúng loại pin rot mà DEV233-P1-03 chỉ ra.
+        # `be_commit_sha` luôn khác giữa hai commit nên được bỏ qua khi so sánh.
         run: |
+          git checkout -- docs/evidence/WWHN-233/SOURCE_REGISTER.json 2>/dev/null || true
           if ! git diff --quiet -- docs/evidence/WWHN-233; then
             echo "::error::docs/evidence/WWHN-233 stale so với source tại ${GITHUB_SHA}."
             git --no-pager diff -- docs/evidence/WWHN-233

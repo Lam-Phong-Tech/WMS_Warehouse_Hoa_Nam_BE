@@ -41,9 +41,10 @@
   },
   "checks_passed": [
     "[DISP-CONTENT] DISP-STK-233 neo REQ-SRS-037 + DEFERRED + WWHN-59 + WWHN-235 + DISP-STK-236",
-    "[ANTI-DANGLING] docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md: toàn bộ 9 artifact được cam kết đều tồn tại.",
+    "[ANTI-DANGLING] docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md: toàn bộ 15 artifact được cam kết đều tồn tại.",
+    "[ANTI-DANGLING] docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md: toàn bộ 10 artifact được cam kết đều tồn tại.",
     "[BASELINE-FRAGMENTS] forbidden_path_fragments phủ đủ recount, cycle-count, physical-count",
-    "[BASELINE-OPERATIONS] 51 operation được khai, zero thuộc bề mặt bị cấm.",
+    "[BASELINE-OPERATIONS] 56 operation được khai, zero thuộc bề mặt bị cấm.",
     "[BASELINE-PERMISSIONS] 31 permission, zero capability kiểm kê.",
     "[OPENAPI] 84 path runtime, zero path count/recount/variance/adjustment.",
     "[DEC-STK-001] DEC-STK-001 vẫn PROPOSED / Effective date = NULL",
@@ -53,5 +54,5 @@
     "[CHAIN-236] verify-wwhn236-adjustment-disposition.mjs PASS."
   ],
   "warnings": [],
-  "verified_at_commit": "f81f7b780e08e19886628ac85b2f7574be34cec5"
+  "verified_at_commit": "696868ce44ccccca51884c3c1ac7e9f41fd405b8"
 }

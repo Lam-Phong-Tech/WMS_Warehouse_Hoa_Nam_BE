@@ -26,14 +26,14 @@
       "id": "BASELINE-CONTRACT",
       "path": "docs/contracts/HoaNam_Current_Baseline_Contract.json",
       "role": "MACHINE-GATE",
-      "sha256": "1483eaa201203db7f4da26976f882584079288c126ce3d8f528f47fd37d770bb",
+      "sha256": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
       "anchors_present": true
     },
     {
       "id": "OPENAPI-RUNTIME",
       "path": "storage/api-docs/api-docs.yaml",
       "role": "RUNTIME-SURFACE",
-      "sha256": "3cd4cdfa2a8ae67476fd08f61224ae25497de7dd160d626e6c75bb68109f047a",
+      "sha256": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
       "anchors_present": true
     }
   ],
@@ -46,13 +46,13 @@
     },
     {
       "path": "docs/api-contract/WWHN-180-posting-openapi.json",
-      "sha256": "acd9611aab2984779ea39bde919be7d81e226d4f1fd7b4725a9874b28a6fe4f1",
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
       "status": "PRESENT_HISTORICAL",
       "rule": "Không được trích làm controlling contract (DISP-STK-233 §3)."
     },
     {
       "path": "docs/api-contract/WWHN-180-posting-openapi.yaml",
-      "sha256": "acd9611aab2984779ea39bde919be7d81e226d4f1fd7b4725a9874b28a6fe4f1",
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
       "status": "PRESENT_HISTORICAL",
       "rule": "Không được trích làm controlling contract (DISP-STK-233 §3)."
     },
@@ -85,7 +85,7 @@
   },
   "repository": {
     "branch": "m1",
-    "be_commit_sha": "f81f7b780e08e19886628ac85b2f7574be34cec5",
-    "fe_commit_sha": null
+    "be_commit_sha": "696868ce44ccccca51884c3c1ac7e9f41fd405b8",
+    "fe_commit_sha": "194b0076f53417e9a9d0258e12d3f8d3b3bae3d7"
   }
 }

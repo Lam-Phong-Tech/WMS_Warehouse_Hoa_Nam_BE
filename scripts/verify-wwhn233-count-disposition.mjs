@@ -30,6 +30,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EMIT = process.argv.includes("--emit-evidence");
 
+/**
+ * SHA của repo FE tại thời điểm sinh evidence. Truyền vào thay vì sửa tay sau khi
+ * emit — sửa tay sẽ làm SHA256SUMS stale ngay trong chính pack vừa sinh.
+ */
+const FE_SHA = (process.argv.find((arg) => arg.startsWith("--fe-sha=")) ?? "").slice("--fe-sha=".length) || null;
+
 const failures = [];
 const warnings = [];
 const checks = [];
@@ -150,6 +156,7 @@ const HISTORICAL = [
     "scripts/verify-wwhn-233-closure.mjs",
     "scripts/verify-wwhn-236-closure.mjs",
     "src/test/wwhn-233-count-deferral-gate.test.ts",
+    "src/test/wwhn-236-adjustment-deferral-gate.test.ts",
   ]);
 
   const SKIP = [
@@ -401,7 +408,7 @@ if (EMIT) {
   sourceRegister.status = "PROPOSED";
   sourceRegister.jira = { task: "WWHN-233", parent: "WWHN-59", qa_gate: "WWHN-235", decision_gate: "WWHN-25" };
   sourceRegister.disposition = { id: "DISP-STK-233", path: DISPOSITION_233, result: "DEFERRED_NO_CODE" };
-  sourceRegister.repository = { branch: "m1", be_commit_sha: gitSha, fe_commit_sha: null };
+  sourceRegister.repository = { branch: "m1", be_commit_sha: gitSha, fe_commit_sha: FE_SHA };
   writeFileSync(join(dir, "SOURCE_REGISTER.json"), `${JSON.stringify(sourceRegister, null, 2)}\n`, "utf8");
 
   const negativeLock = {
