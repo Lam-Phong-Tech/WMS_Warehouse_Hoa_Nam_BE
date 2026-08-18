@@ -70,6 +70,12 @@ return [
                     base_path('Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/AlignedLabelLogReportController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php'),
+                    // WWHN-240/DEV240-P1-02C: cùng lỗi lớp với WWHN-184 — annotation
+                    // trace-source (correction chain + net effect) đã có sẵn trên controller
+                    // nhưng file không nằm trong danh sách scan, nên RouteSyncProcessor sinh
+                    // skeleton chung chung và FE/QA không có schema để khoá contract.
+                    // KHÔNG được bỏ dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/StockMovementController.php'),
                     // WWHN-244/DEV244-P1-05: ma tran trang thai + guard cua Flow 04 duoc
                     // khai ngay tren controller that (transitionWarrantyStatus). Thieu dong
                     // duoi, RouteSyncProcessor tu sinh skeleton requestBody {} rong nen FE/QA

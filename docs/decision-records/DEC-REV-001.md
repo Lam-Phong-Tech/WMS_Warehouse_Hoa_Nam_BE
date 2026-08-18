@@ -190,3 +190,22 @@ No branch URL, local path, abbreviated SHA, BE self-review or CI-only result may
 | PM/PO | Nguyễn Quang Đức | `APPROVED` / `REJECTED` / `CHANGES REQUIRED` | `PENDING` | WWHN-26 |
 
 Closure is fail-closed until the required independent results include exact commit SHA, release path, manifest SHA-256, reviewer, date and evidence.
+
+## 13. Đính chính contract theo SRS v1.12 (WWHN-240 · DEV240-P1-01)
+
+Bản ghi này viết theo SRS/FRD v1.4. Baseline hiện hành là **SRS/FRD v1.12**, và bốn điểm ở
+§5/§3 đã lỗi thời so với baseline lẫn runtime nhánh `m1`:
+
+| # | Ghi trong bản này | Baseline v1.12 + runtime | Kết luận |
+|---|---|---|---|
+| 1 | `POST /api/v1/reversals` | `POST /api/v1/reversal-documents`, `POST /api/v1/{inbound\|outbound}-documents/{id}/reversals` | SRS v1.12 §6 thắng |
+| 2 | permission `stock.reversal.create` | `inventory.reversal.post` | SRS v1.12 §6/§8.1 thắng |
+| 3 | `reversal_of_movement_id` (§3.4) | `original_movement_id` + `correction_chain_id` | ERD/§7 Data Dictionary thắng |
+| 4 | `IDEMPOTENCY_ERROR` / `NO_PERMISSION` / `ORIGINAL_NOT_FOUND` | catalog §8.2 hiện hành | §8.2 thắng (đã đóng ở WWHN-289) |
+
+**Nội dung nghiệp vụ Option B (append-only, movement gốc bất biến, không có generic
+stock-edit) KHÔNG đổi** và đã được adopt trong SRS v1.12 §5.5 BR-REV-01..12. Vì vậy việc
+phê duyệt formal bản ghi này không kéo theo thay đổi code nào.
+
+Chi tiết và ranh giới phụ thuộc của WWHN-240:
+`docs/decision-records/DISPOSITION-WWHN-239-REVERSAL-CANDIDATE.md`.

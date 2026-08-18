@@ -1,0 +1,1690 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "WMS_HoaNam API",
+        "version": "2.0.0",
+        "x-slice": "WWHN-240 DEV240-P1-02C — trich xuat tu storage/api-docs/api-docs.json sau khi chay php artisan l5-swagger:generate"
+    },
+    "paths": {
+        "/api/v1/stock-movements/{id}/trace-source": {
+            "get": {
+                "tags": [
+                    "07. Inventory"
+                ],
+                "summary": "Truy vết chứng từ gốc, correction chain đầy đủ và net effect của một movement",
+                "description": "WWHN-240 / BR-REV-11 + §13.10 RPT-MOV-01: \"report hiển thị movement gốc, toàn bộ Reversal chain và net effect; không ẩn hoặc sửa lịch sử\". `correction_chain.nodes` là chuỗi append-only đã sắp xếp theo thời gian, gồm movement gốc (`role=ORIGINAL`, `depth=0`) và MỌI reversal tham chiếu nó — kể cả reversal của reversal theo BR-REV-08. `net_effect` tính từ ledger `stock_movements` nên luôn khớp cột NET của RPT-XNT-01. Data scope: EnforceInventoryWarehouseScope trả 403 khi movement thuộc kho ngoài scope hiệu lực, và trace yêu cầu ĐỒNG THỜI `inventory.trace` lẫn `inventory.view`.",
+                "operationId": "stock_movement_trace_source",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "stock_movements.id",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chứng từ gốc + lịch sử trạng thái + correction chain đầy đủ + net effect",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/StockMovementTraceSource"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Thiếu inventory.trace/inventory.view, hoặc movement nằm ngoài warehouse data scope (error.code = ACCESS_DENIED)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy movement",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/inventory-xnt": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "RPT-XNT-01 Nhập-Xuất-Tồn theo authoritative ledger",
+                "description": "§13.10 RPT-XNT-01 + BR-RPT-01: closing = opening + posted receipt - posted issue - component issue + posted reversal. Kỳ inclusive theo Asia/Ho_Chi_Minh. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).",
+                "operationId": "report_inventory_xnt_current",
+                "parameters": [
+                    {
+                        "name": "from_date",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to_date",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "category_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "XNT — ba tầng cột gross / reversal / net theo BR-RPT-01..07",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/XntReport"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Thiếu report.view hoặc warehouse_id nằm ngoài warehouse data scope (error.code = ACCESS_DENIED)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "from_date/to_date hoặc filter không hợp lệ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/inventory-xnt-enhanced": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "RPT-XNT-01 Nhập-Xuất-Tồn chi tiết theo movement type",
+                "description": "Cùng builder và cùng contract với /reports/inventory-xnt; alias giữ cho client đang dùng.",
+                "operationId": "report_xnt_enhanced",
+                "parameters": [
+                    {
+                        "name": "from_date",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to_date",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "category_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "XNT chi tiết — cùng schema XntReport với /reports/inventory-xnt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/XntReport"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Thiếu report.view hoặc warehouse_id ngoài data scope (ACCESS_DENIED)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/inventory-xnt/export-excel": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Xuất XLSX/PDF Nhập-Xuất-Tồn",
+                "description": "BR-EXP-01..05: cùng bộ lọc với /reports/inventory-xnt, audit, tên file có timestamp.",
+                "operationId": "report_xnt_export",
+                "parameters": [
+                    {
+                        "name": "format",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "default": "xlsx",
+                            "enum": [
+                                "xlsx",
+                                "pdf"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "from_date",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to_date",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "category_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File XLSX/PDF",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/movement-trace": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "RPT-MOV-01 lịch sử nhập/xuất/Reversal",
+                "description": "§13.10 RPT-MOV-01: movement_id, source_document, movement_type, SKU/item, qty, actor, time, reversal_chain. Hiển thị gross + chain, không bao giờ ẩn movement gốc. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).",
+                "operationId": "report_movement_trace",
+                "parameters": [
+                    {
+                        "name": "from_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "item_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "code_value",
+                        "in": "query",
+                        "description": "Mã vật lý (Barcode/QR/RFID) của Item hoặc Container",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "source_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "source_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "movement_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "OPENING",
+                                "RECEIPT",
+                                "ISSUE",
+                                "COMPONENT_ISSUE",
+                                "REVERSAL"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Movement trace — mỗi dòng giữ nguyên bút toán gross; original_movement_id/correction_chain_id là khoá ghép chuỗi; summary.net_effect = SUM(qty_delta) của toàn kỳ (net effect theo BR-REV-11). Chi tiết một chain đọc ở GET /stock-movements/{id}/trace-source.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Thiếu report.view hoặc warehouse_id ngoài warehouse data scope (ACCESS_DENIED)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Filter không hợp lệ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ApiSuccessEnvelope": {
+                "title": "Success envelope",
+                "description": "Envelope thành công chuẩn. `data` phụ thuộc endpoint; `links` chỉ có khi phân trang.",
+                "required": [
+                    "success",
+                    "data",
+                    "meta"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "data": {
+                        "description": "Payload nghiệp vụ: object, array hoặc null.",
+                        "nullable": true
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/ApiMeta"
+                    },
+                    "links": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ApiLinks"
+                            }
+                        ],
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "ApiErrorEnvelope": {
+                "title": "Error envelope",
+                "description": "Envelope lỗi chuẩn. `error_code` và `error.code` LUÔN bằng nhau: `error_code` là khoá FE hiện dùng, `error.code` là dạng lồng theo Annex C. Không client nào được coi một trong hai là optional.",
+                "required": [
+                    "success",
+                    "message",
+                    "error_code",
+                    "error"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "message": {
+                        "description": "Thông điệp tiếng Việt hiển thị được cho người dùng; không chứa stack trace hay secret.",
+                        "type": "string"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "example": "BUSINESS_RULE_ERROR"
+                    },
+                    "errors": {
+                        "description": "Bản đồ lỗi theo field (tương thích Laravel validation).",
+                        "type": "object",
+                        "additionalProperties": true
+                    },
+                    "error": {
+                        "$ref": "#/components/schemas/ApiErrorDetail"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/ApiMeta"
+                    }
+                },
+                "type": "object"
+            },
+            "ApiErrorDetail": {
+                "title": "Error detail",
+                "required": [
+                    "code"
+                ],
+                "properties": {
+                    "code": {
+                        "description": "Mã lỗi nghiệp vụ, xem docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md",
+                        "type": "string",
+                        "example": "STATE_CONFLICT"
+                    },
+                    "details": {
+                        "description": "Chi tiết theo field hoặc theo dòng; rỗng khi lỗi không gắn field.",
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "type": "object"
+            },
+            "ApiMeta": {
+                "title": "Meta envelope",
+                "description": "Luôn có request_id và timestamp. Các khoá phân trang chỉ xuất hiện ở response danh sách có phân trang.",
+                "required": [
+                    "request_id",
+                    "timestamp"
+                ],
+                "properties": {
+                    "request_id": {
+                        "description": "Định danh request để đối chiếu log/audit.",
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "timestamp": {
+                        "description": "Thời điểm server trả lời (ISO-8601, Asia/Ho_Chi_Minh).",
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "current_page": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "last_page": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "total": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "from": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "to": {
+                        "type": "integer",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "ApiLinks": {
+                "title": "Links envelope",
+                "description": "Chỉ có ở response danh sách phân trang (respondPaginated).",
+                "properties": {
+                    "first": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "last": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "prev": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "next": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "XntReportLine": {
+                "title": "Dòng báo cáo Nhập-Xuất-Tồn (RPT-XNT-01)",
+                "description": "Ba tầng cột theo BR-RPT-01..07 (\"hiển thị gross/net\"):\n\n- GROSS  (`*_gross`): lượng đã Post trong kỳ, KHÔNG trừ reversal. Không bao giờ ẩn lịch sử (BR-REV-11).\n- REVERSAL (`*_reversal`): phần của cột gross tương ứng đã bị đảo, quy về CÙNG CHIỀU DƯƠNG với cột gross.\n- NET (`*_net`): `gross - reversal`, là con số nghiệp vụ dùng đối soát kỳ.\n\nViệc phân loại một REVERSAL vào cột Nhập hay cột Xuất căn cứ `movement_type` của\ngiao dịch GỐC trong correction chain, không căn cứ dấu của `qty_delta` (đảo một\nISSUE và đảo một COMPONENT_ISSUE đều cho `qty_delta` dương).\n\nBất biến: `closing == opening + receipt_net - issue_net - component_issue_net + reversal_unlinked_net`\nvà cũng `== opening + receipt - issue - component_issue + reversal_net`.",
+                "required": [
+                    "warehouse_code",
+                    "product_code",
+                    "product_name",
+                    "stock_status",
+                    "opening",
+                    "receipt",
+                    "receipt_gross",
+                    "receipt_reversal",
+                    "receipt_net",
+                    "issue",
+                    "issue_gross",
+                    "issue_reversal",
+                    "issue_net",
+                    "component_issue",
+                    "component_issue_gross",
+                    "component_issue_reversal",
+                    "component_issue_net",
+                    "reversal_unlinked_net",
+                    "reversal_net",
+                    "closing"
+                ],
+                "properties": {
+                    "warehouse_code": {
+                        "description": "WWHN-240 — Catalog schema cho ngữ nghĩa gross / reversal / net effect.\n\nLÝ DO TỒN TẠI (DEV240-P1-02C): trước WWHN-240, hai contract quan trọng nhất của\nluồng đảo giao dịch chỉ có `description` bằng văn xuôi, không có `content`:\n\n- `GET /api/v1/reports/inventory-xnt` chỉ khai `response 200 description: 'XNT'`,\n  nên không client nào suy được cột nào là gross, cột nào đã trừ reversal.\n- `GET /api/v1/stock-movements/{id}/trace-source` nằm ngoài danh sách scan của\n  `config/l5-swagger.php`, nên annotation thật KHÔNG bao giờ được publish và\n  `RouteSyncProcessor` sinh ra một skeleton chung chung thay cho contract.\n\nKhai một lần ở đây, controller chỉ `$ref` tới, nên contract không thể lệch khỏi\nruntime mà không sửa cùng một chỗ.\n\nNguồn nghiệp vụ: SRS/FRD v1.12 §5.5 (BR-REV-01..12, đặc biệt BR-REV-08/BR-REV-11),\n§13.10 RPT-XNT-01 và RPT-MOV-01, BR-RPT-01..07, DEC-REV-001 / WWHN-26.",
+                        "type": "string",
+                        "example": "KHO-HN-01"
+                    },
+                    "product_code": {
+                        "type": "string",
+                        "example": "DCH-DRILL-DJZ10A-220V-V1"
+                    },
+                    "product_name": {
+                        "type": "string",
+                        "example": "Máy khoan DJZ10A 220V"
+                    },
+                    "stock_status": {
+                        "type": "string",
+                        "example": "AVAILABLE",
+                        "enum": [
+                            "AVAILABLE",
+                            "NON_SELLABLE",
+                            "DEFECTIVE",
+                            "QUARANTINE"
+                        ]
+                    },
+                    "opening": {
+                        "description": "NET — tồn đầu kỳ, đã gồm mọi reversal Post trước from_date.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 100
+                    },
+                    "receipt": {
+                        "description": "GROSS — bí danh tương thích của receipt_gross.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 30
+                    },
+                    "receipt_gross": {
+                        "description": "GROSS — tổng RECEIPT đã Post trong kỳ.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 30
+                    },
+                    "receipt_reversal": {
+                        "description": "REVERSAL — lượng RECEIPT đã bị đảo, chiều dương.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 4
+                    },
+                    "receipt_net": {
+                        "description": "NET — receipt_gross - receipt_reversal.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 26
+                    },
+                    "issue": {
+                        "description": "GROSS — bí danh tương thích của issue_gross.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 20
+                    },
+                    "issue_gross": {
+                        "description": "GROSS — tổng ISSUE đã Post trong kỳ.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 20
+                    },
+                    "issue_reversal": {
+                        "description": "REVERSAL — lượng ISSUE đã bị đảo, chiều dương.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 6
+                    },
+                    "issue_net": {
+                        "description": "NET — issue_gross - issue_reversal.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 14
+                    },
+                    "component_issue": {
+                        "description": "GROSS — bí danh tương thích của component_issue_gross.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 5
+                    },
+                    "component_issue_gross": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 5
+                    },
+                    "component_issue_reversal": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 0
+                    },
+                    "component_issue_net": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 5
+                    },
+                    "reversal_unlinked_net": {
+                        "description": "REVERSAL — qty_delta của reversal không truy được movement gốc (dữ liệu migrate/OPENING). Vẫn vào closing để báo cáo khớp ledger.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 0
+                    },
+                    "reversal_net": {
+                        "description": "REVERSAL — tổng qty_delta CÓ DẤU của mọi REVERSAL trong kỳ = -receipt_reversal + issue_reversal + component_issue_reversal + reversal_unlinked_net.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 2
+                    },
+                    "closing": {
+                        "description": "NET — tồn cuối kỳ.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 117
+                    }
+                },
+                "type": "object"
+            },
+            "XntReport": {
+                "title": "Báo cáo Nhập-Xuất-Tồn (RPT-XNT-01)",
+                "description": "Kỳ inclusive theo Asia/Ho_Chi_Minh. `data_scope`/`scope_warehouse_ids` cho biết payload đã bị cắt theo warehouse data-scope nào.",
+                "required": [
+                    "from_date",
+                    "to_date",
+                    "formula",
+                    "formula_net",
+                    "column_semantics",
+                    "lines"
+                ],
+                "properties": {
+                    "from_date": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-08-01"
+                    },
+                    "to_date": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-08-18"
+                    },
+                    "formula": {
+                        "description": "Công thức theo cột GROSS, giữ nguyên từ baseline trước WWHN-240.",
+                        "type": "string",
+                        "example": "Closing = Opening + Receipt - Issue - Component Issue + Reversal"
+                    },
+                    "formula_net": {
+                        "description": "Công thức theo cột NET; tương đương công thức gross.",
+                        "type": "string",
+                        "example": "Closing = Opening + Receipt Net - Issue Net - Component Issue Net + Unlinked Reversal Net; Receipt Net = Receipt Gross - Receipt Reversal; Issue Net = Issue Gross - Issue Reversal; Component Issue Net = Component Issue Gross - Component Issue Reversal"
+                    },
+                    "column_semantics": {
+                        "description": "Bản đồ tên cột → nhãn GROSS / REVERSAL / NET kèm định nghĩa.",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "data_scope": {
+                        "type": "string",
+                        "example": "WAREHOUSE_SCOPED",
+                        "nullable": true,
+                        "enum": [
+                            "GLOBAL",
+                            "WAREHOUSE_SCOPED"
+                        ]
+                    },
+                    "scope_warehouse_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "nullable": true
+                    },
+                    "lines": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/XntReportLine"
+                        }
+                    },
+                    "pagination": {
+                        "properties": {
+                            "current_page": {
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "per_page": {
+                                "type": "integer",
+                                "example": 50
+                            },
+                            "total": {
+                                "type": "integer",
+                                "example": 128
+                            },
+                            "last_page": {
+                                "type": "integer",
+                                "example": 3
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "CorrectionChainNode": {
+                "title": "Một mắt xích trong correction chain",
+                "description": "Movement gốc và toàn bộ Reversal append-only tham chiếu nó. BR-REV-01: movement gốc bất biến, không bao giờ bị ẩn hay sửa.",
+                "required": [
+                    "id",
+                    "movement_type",
+                    "role",
+                    "depth",
+                    "is_subject",
+                    "occurred_at",
+                    "qty_delta"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "movement_no": {
+                        "type": "string",
+                        "example": "MV-20260818-A1B2C3D4",
+                        "nullable": true
+                    },
+                    "movement_type": {
+                        "type": "string",
+                        "example": "RECEIPT",
+                        "enum": [
+                            "OPENING",
+                            "RECEIPT",
+                            "ISSUE",
+                            "COMPONENT_ISSUE",
+                            "REVERSAL"
+                        ]
+                    },
+                    "role": {
+                        "description": "ORIGINAL = gốc của chain (depth 0); REVERSAL = movement đối ứng append-only.",
+                        "type": "string",
+                        "example": "ORIGINAL",
+                        "enum": [
+                            "ORIGINAL",
+                            "REVERSAL"
+                        ]
+                    },
+                    "depth": {
+                        "description": "Khoảng cách tới movement gốc; 0 là gốc.",
+                        "type": "integer",
+                        "example": 0
+                    },
+                    "is_subject": {
+                        "description": "true đúng tại movement được truy vết trong URL.",
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "occurred_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "warehouse_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "warehouse_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "product_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "product_code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "stock_status": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "item_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "quantity": {
+                        "description": "Số lượng tuyệt đối của bút toán.",
+                        "type": "number",
+                        "format": "float",
+                        "nullable": true
+                    },
+                    "qty_delta": {
+                        "description": "Biến động CÓ DẤU lên tồn. Reversal luôn ngược dấu với movement nó đảo.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 10
+                    },
+                    "qty_before": {
+                        "type": "number",
+                        "format": "float",
+                        "nullable": true
+                    },
+                    "qty_after": {
+                        "type": "number",
+                        "format": "float",
+                        "nullable": true
+                    },
+                    "source_type": {
+                        "type": "string",
+                        "example": "REVERSAL_DOCUMENT",
+                        "nullable": true
+                    },
+                    "source_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "stock_document_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "original_movement_id": {
+                        "description": "Cha trực tiếp trong chain. BR-REV-08: reversal tiếp theo trỏ vào movement gần nhất, nên giá trị này có thể là một REVERSAL khác.",
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "correction_chain_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "actor": {
+                        "description": "display_name của người thực hiện; null nếu movement do job hệ thống sinh.",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "reversal_document_no": {
+                        "type": "string",
+                        "example": "REV-20260818103000-XY7Q2M",
+                        "nullable": true
+                    },
+                    "reversal_status": {
+                        "type": "string",
+                        "nullable": true,
+                        "enum": [
+                            "DRAFT",
+                            "CONFIRMED",
+                            "POSTED",
+                            "CANCELLED"
+                        ]
+                    },
+                    "reason_code": {
+                        "type": "string",
+                        "example": "CORRECTION",
+                        "nullable": true
+                    },
+                    "reason_text": {
+                        "type": "string",
+                        "example": "Giao nhầm Item",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "CorrectionChain": {
+                "title": "Correction chain đầy đủ (BR-REV-11)",
+                "required": [
+                    "root_movement_id",
+                    "node_count",
+                    "reversal_count",
+                    "nodes"
+                ],
+                "properties": {
+                    "correction_chain_id": {
+                        "description": "null khi movement chưa từng bị đảo.",
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "root_movement_id": {
+                        "description": "Movement gốc của chain; bằng chính movement đang tra khi nó chưa bị đảo.",
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "node_count": {
+                        "type": "integer",
+                        "example": 3
+                    },
+                    "reversal_count": {
+                        "type": "integer",
+                        "example": 2
+                    },
+                    "max_depth": {
+                        "type": "integer",
+                        "example": 2
+                    },
+                    "truncated": {
+                        "description": "true nếu chain sâu hơn trần an toàn 32 mắt xích và đã bị cắt.",
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "nodes": {
+                        "description": "Sắp xếp tăng dần theo occurred_at rồi id.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CorrectionChainNode"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "ReversalNetEffect": {
+                "title": "Net effect của correction chain",
+                "description": "Tính hoàn toàn từ ledger `stock_movements` (DEC-INV-001: ledger là nguồn tồn chuẩn),\nnên luôn khớp với báo cáo XNT và với /reports/movement-trace.\n\n- `net_qty_delta` = tổng qty_delta CÓ DẤU của toàn chain (tác động ròng còn lại lên tồn).\n- `reversed_qty`  = |qty_delta gốc - net_qty_delta| (một reversal-của-reversal sẽ LÀM GIẢM con số này).\n- `remaining_reversible_qty` = |qty_delta gốc| - reversed_qty. Đây là số HIỂN THỊ; guard\n  khi Post Reversal vẫn revalidate lại trong transaction theo BR-REV-05/BR-REV-09.",
+                "required": [
+                    "basis",
+                    "original_movement_id",
+                    "original_movement_type",
+                    "original_qty",
+                    "original_qty_delta",
+                    "reversed_qty",
+                    "remaining_reversible_qty",
+                    "net_qty_delta",
+                    "fully_reversed",
+                    "reversal_count"
+                ],
+                "properties": {
+                    "basis": {
+                        "description": "Nguồn tính net effect. LEDGER = stock_movements append-only.",
+                        "type": "string",
+                        "example": "LEDGER",
+                        "enum": [
+                            "LEDGER"
+                        ]
+                    },
+                    "original_movement_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "original_movement_type": {
+                        "type": "string",
+                        "example": "RECEIPT",
+                        "enum": [
+                            "OPENING",
+                            "RECEIPT",
+                            "ISSUE",
+                            "COMPONENT_ISSUE",
+                            "REVERSAL"
+                        ]
+                    },
+                    "original_qty": {
+                        "description": "Trị tuyệt đối của qty_delta gốc.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 10
+                    },
+                    "original_qty_delta": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 10
+                    },
+                    "reversed_qty": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 3
+                    },
+                    "remaining_reversible_qty": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 7
+                    },
+                    "net_qty_delta": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 7
+                    },
+                    "fully_reversed": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "reversal_count": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "subject_reversed_qty": {
+                        "description": "Lượng đã đảo tính riêng cho movement đang tra (không phải cho gốc chain).",
+                        "type": "number",
+                        "format": "float",
+                        "example": 3
+                    }
+                },
+                "type": "object"
+            },
+            "StockMovementTraceSource": {
+                "title": "Trace-source của một movement (RPT-MOV-01 / BR-REV-11)",
+                "description": "Trả movement gốc, TOÀN BỘ reversal chain và net effect. Các khoá `original_movement`/`reversal_movement` giữ lại nguyên hình dạng cũ để client hiện hành không vỡ; consumer mới đọc `correction_chain` + `net_effect`.",
+                "required": [
+                    "movement",
+                    "correction_chain",
+                    "net_effect"
+                ],
+                "properties": {
+                    "movement": {
+                        "description": "Movement đang tra, kèm product/warehouse/creator.",
+                        "type": "object",
+                        "additionalProperties": true
+                    },
+                    "document": {
+                        "description": "Chứng từ nguồn (stock_documents) nếu movement sinh từ Post phiếu.",
+                        "type": "object",
+                        "nullable": true,
+                        "additionalProperties": true
+                    },
+                    "status_history": {
+                        "description": "Lịch sử chuyển trạng thái của chứng từ nguồn.",
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "nullable": true
+                    },
+                    "original_movement": {
+                        "description": "Cha TRỰC TIẾP; null khi movement này không phải reversal.",
+                        "type": "object",
+                        "nullable": true,
+                        "additionalProperties": true
+                    },
+                    "root_movement": {
+                        "description": "Gốc của chain sau khi đi ngược hết BR-REV-08.",
+                        "type": "object",
+                        "nullable": true,
+                        "additionalProperties": true
+                    },
+                    "reversal_movement": {
+                        "description": "DEPRECATED — chỉ là phần tử đầu của reversal_movements; giữ cho client cũ.",
+                        "type": "object",
+                        "nullable": true,
+                        "additionalProperties": true
+                    },
+                    "reversal_movements": {
+                        "description": "Mọi reversal trực tiếp của movement đang tra.",
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "correction_chain": {
+                        "$ref": "#/components/schemas/CorrectionChain"
+                    },
+                    "net_effect": {
+                        "$ref": "#/components/schemas/ReversalNetEffect"
+                    }
+                },
+                "type": "object"
+            }
+        }
+    }
+}

@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\HoaNamErdSchema;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,14 @@ use OpenApi\Attributes as OA;
 class StockMovementController extends Controller
 {
     use ApiResponse;
+
+    /**
+     * WWHN-240 / BR-REV-04, BR-REV-08: correction chain là append-only và một Reversal có
+     * thể tham chiếu chính một Reversal trước đó. Trần độ sâu để việc đi ngược/duyệt xuôi
+     * không lặp vô hạn nếu dữ liệu cũ có vòng; vượt trần thì báo cờ `truncated` thay vì
+     * âm thầm trả chain thiếu.
+     */
+    private const MAX_CORRECTION_CHAIN_DEPTH = 32;
 
     #[OA\Get(
         path: '/api/v1/stock-movements',
@@ -75,14 +84,23 @@ class StockMovementController extends Controller
     #[OA\Get(
         path: '/api/v1/stock-movements/{id}/trace-source',
         operationId: 'stock_movement_trace_source',
-        summary: 'Truy vết chứng từ gốc, lịch sử duyệt/hạch toán, và reversal/correction liên quan tới movement này',
+        summary: 'Truy vết chứng từ gốc, correction chain đầy đủ và net effect của một movement',
+        description: 'WWHN-240 / BR-REV-11 + §13.10 RPT-MOV-01: "report hiển thị movement gốc, toàn bộ Reversal chain và net effect; không ẩn hoặc sửa lịch sử". `correction_chain.nodes` là chuỗi append-only đã sắp xếp theo thời gian, gồm movement gốc (`role=ORIGINAL`, `depth=0`) và MỌI reversal tham chiếu nó — kể cả reversal của reversal theo BR-REV-08. `net_effect` tính từ ledger `stock_movements` nên luôn khớp cột NET của RPT-XNT-01. Data scope: EnforceInventoryWarehouseScope trả 403 khi movement thuộc kho ngoài scope hiệu lực, và trace yêu cầu ĐỒNG THỜI `inventory.trace` lẫn `inventory.view`.',
         security: [['bearerAuth' => []]],
         tags: ['07. Inventory'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, description: 'stock_movements.id', schema: new OA\Schema(type: 'string', format: 'uuid'))],
         responses: [
-            new OA\Response(response: 200, description: 'Chứng từ gốc + lịch sử trạng thái + movement gốc (nếu đây là reversal) + reversal (nếu movement này đã bị đảo ngược)'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 404, description: 'Không tìm thấy movement'),
+            new OA\Response(
+                response: 200,
+                description: 'Chứng từ gốc + lịch sử trạng thái + correction chain đầy đủ + net effect',
+                content: new OA\JsonContent(allOf: [
+                    new OA\Schema(ref: '#/components/schemas/ApiSuccessEnvelope'),
+                    new OA\Schema(properties: [new OA\Property(property: 'data', ref: '#/components/schemas/StockMovementTraceSource')]),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Chưa xác thực', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')),
+            new OA\Response(response: 403, description: 'Thiếu inventory.trace/inventory.view, hoặc movement nằm ngoài warehouse data scope (error.code = ACCESS_DENIED)', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')),
+            new OA\Response(response: 404, description: 'Không tìm thấy movement', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')),
         ]
     )]
     public function traceSource(string $id)
@@ -93,16 +111,209 @@ class StockMovementController extends Controller
             return $this->respondNotFound('Không tìm thấy movement.');
         }
 
-        $original = $movement->original_movement_id ? StockMovement::find($movement->original_movement_id) : null;
-        $reversal = StockMovement::where('original_movement_id', $movement->id)->first();
+        // BR-REV-11: một movement có thể bị đảo NHIỀU lần (BR-REV-05 cho phép đảo từng
+        // phần). Bản cũ chỉ trả `->first()`, nên mọi reversal thứ hai trở đi biến mất khỏi
+        // trace và net effect không thể tính được từ response.
+        $directReversals = StockMovement::where('original_movement_id', $movement->id)
+            ->orderBy('occurred_at')->orderBy('id')->get();
+
+        $chain = $this->correctionChain($movement);
 
         return $this->respondSuccess([
             'movement' => $movement,
             'document' => $movement->document,
             'status_history' => $movement->document?->statusHistory,
-            'original_movement' => $original,
-            'reversal_movement' => $reversal,
+            'original_movement' => $movement->original_movement_id ? StockMovement::find($movement->original_movement_id) : null,
+            'root_movement' => $chain['root_movement_id'] === (string) $movement->id
+                ? $movement
+                : StockMovement::find($chain['root_movement_id']),
+            // DEPRECATED nhưng vẫn giữ nguyên hình dạng cũ cho client hiện hành.
+            'reversal_movement' => $directReversals->first(),
+            'reversal_movements' => $directReversals->values(),
+            'correction_chain' => $chain['chain'],
+            'net_effect' => $chain['net_effect'],
         ]);
+    }
+
+    /**
+     * WWHN-240 DEV240-P1-02B: dựng correction chain đầy đủ quanh một movement.
+     *
+     * Đi NGƯỢC theo `original_movement_id` tới movement gốc (BR-REV-08 cho phép một
+     * Reversal tham chiếu một Reversal khác), rồi duyệt XUÔI theo bề rộng để gom mọi
+     * movement đối ứng. Toàn bộ truy vấn dùng Eloquent nên global scope
+     * `ScopesWarehouseData` vẫn có hiệu lực — không mắt xích nào rò ra ngoài data scope.
+     *
+     * @return array{root_movement_id: string, chain: array<string, mixed>, net_effect: array<string, mixed>}
+     */
+    private function correctionChain(StockMovement $subject): array
+    {
+        $rootId = (string) $subject->id;
+        $cursor = $subject->original_movement_id;
+        $guard = 0;
+        $truncated = false;
+        while ($cursor !== null) {
+            if ($guard++ >= self::MAX_CORRECTION_CHAIN_DEPTH) {
+                $truncated = true;
+                break;
+            }
+            $parent = StockMovement::select(['id', 'original_movement_id', 'warehouse_id'])->find($cursor);
+            if ($parent === null) {
+                break;
+            }
+            $rootId = (string) $parent->id;
+            $cursor = $parent->original_movement_id;
+        }
+
+        $ids = [$rootId];
+        $frontier = [$rootId];
+        $guard = 0;
+        while ($frontier !== []) {
+            if ($guard++ >= self::MAX_CORRECTION_CHAIN_DEPTH) {
+                $truncated = true;
+                break;
+            }
+            $children = StockMovement::whereIn('original_movement_id', $frontier)
+                ->pluck('id')->map(fn ($value): string => (string) $value)->all();
+            $children = array_values(array_diff($children, $ids));
+            if ($children === []) {
+                break;
+            }
+            $ids = array_merge($ids, $children);
+            $frontier = $children;
+        }
+
+        $movements = StockMovement::with(['creator:user_id,display_name', 'warehouse', 'product'])
+            ->whereIn('id', $ids)
+            ->orderBy('occurred_at')->orderBy('id')->get();
+
+        $reversalDocs = $this->reversalDocumentContext($movements);
+
+        $depthOf = [$rootId => 0];
+        // $movements đã sắp theo thời gian nên cha thường đứng trước con; vẫn lặp nhiều
+        // vòng phòng khi occurred_at trùng nhau làm thứ tự không phản ánh quan hệ cha-con.
+        for ($pass = 0; $pass < self::MAX_CORRECTION_CHAIN_DEPTH; $pass++) {
+            $changed = false;
+            foreach ($movements as $row) {
+                $id = (string) $row->id;
+                $parentId = $row->original_movement_id === null ? null : (string) $row->original_movement_id;
+                if ($parentId !== null && isset($depthOf[$parentId]) && ! isset($depthOf[$id])) {
+                    $depthOf[$id] = $depthOf[$parentId] + 1;
+                    $changed = true;
+                }
+            }
+            if (! $changed) {
+                break;
+            }
+        }
+
+        $subjectId = (string) $subject->id;
+        $nodes = $movements->map(function (StockMovement $row) use ($depthOf, $rootId, $subjectId, $reversalDocs): array {
+            $id = (string) $row->id;
+            $doc = $row->source_type === 'REVERSAL_DOCUMENT' && $row->source_id !== null
+                ? ($reversalDocs[(string) $row->source_id] ?? null)
+                : null;
+
+            return [
+                'id' => $id,
+                'movement_no' => $row->movement_no === null ? null : (string) $row->movement_no,
+                'movement_type' => (string) $row->movement_type,
+                'role' => $id === $rootId ? 'ORIGINAL' : 'REVERSAL',
+                'depth' => (int) ($depthOf[$id] ?? 0),
+                'is_subject' => $id === $subjectId,
+                'occurred_at' => $row->occurred_at?->toIso8601String(),
+                'warehouse_id' => $row->warehouse_id === null ? null : (string) $row->warehouse_id,
+                'warehouse_code' => $row->warehouse?->code === null ? null : (string) $row->warehouse->code,
+                'product_id' => $row->product_id === null ? null : (string) $row->product_id,
+                'product_code' => $row->product?->sku_code === null ? null : (string) $row->product->sku_code,
+                'stock_status' => $row->stock_status === null ? null : (string) $row->stock_status,
+                'item_id' => $row->item_id === null ? null : (string) $row->item_id,
+                'quantity' => $row->quantity === null ? null : (float) $row->quantity,
+                'qty_delta' => (float) $row->qty_delta,
+                'qty_before' => $row->qty_before === null ? null : (float) $row->qty_before,
+                'qty_after' => $row->qty_after === null ? null : (float) $row->qty_after,
+                'source_type' => $row->source_type === null ? null : (string) $row->source_type,
+                'source_id' => $row->source_id === null ? null : (string) $row->source_id,
+                'stock_document_id' => $row->stock_document_id === null ? null : (string) $row->stock_document_id,
+                'original_movement_id' => $row->original_movement_id === null ? null : (string) $row->original_movement_id,
+                'correction_chain_id' => $row->correction_chain_id === null ? null : (string) $row->correction_chain_id,
+                'actor' => $row->creator?->display_name === null ? null : (string) $row->creator->display_name,
+                'reversal_document_no' => $doc?->document_no === null ? null : (string) $doc->document_no,
+                'reversal_status' => $doc?->status === null ? null : (string) $doc->status,
+                'reason_code' => $doc?->reason_code === null ? null : (string) $doc->reason_code,
+                'reason_text' => $doc?->reason_text === null ? null : (string) $doc->reason_text,
+            ];
+        })->values()->all();
+
+        $root = collect($nodes)->firstWhere('id', $rootId);
+        $rootDelta = (float) ($root['qty_delta'] ?? 0.0);
+        $netDelta = (float) array_sum(array_column($nodes, 'qty_delta'));
+        $originalQty = abs($rootDelta);
+        // Reversal luôn ngược dấu movement nó đảo, nên phần đã đảo chính là khoảng cách
+        // giữa bút toán gốc và tác động ròng còn lại. Một reversal-của-reversal sẽ tự động
+        // LÀM GIẢM con số này, đúng ngữ nghĩa BR-REV-08.
+        $reversedQty = abs($rootDelta - $netDelta);
+        $subjectDelta = abs((float) $subject->qty_delta);
+        $subjectReversed = abs((float) collect($nodes)->where('original_movement_id', $subjectId)->sum('qty_delta'));
+
+        return [
+            'root_movement_id' => $rootId,
+            'chain' => [
+                'correction_chain_id' => collect($nodes)->pluck('correction_chain_id')->filter()->first(),
+                'root_movement_id' => $rootId,
+                'node_count' => count($nodes),
+                'reversal_count' => max(0, count($nodes) - 1),
+                'max_depth' => $depthOf === [] ? 0 : max($depthOf),
+                'truncated' => $truncated,
+                'nodes' => $nodes,
+            ],
+            'net_effect' => [
+                'basis' => 'LEDGER',
+                'original_movement_id' => $rootId,
+                'original_movement_type' => (string) ($root['movement_type'] ?? $subject->movement_type),
+                'original_qty' => $originalQty,
+                'original_qty_delta' => $rootDelta,
+                'reversed_qty' => $reversedQty,
+                'remaining_reversible_qty' => max(0.0, $originalQty - $reversedQty),
+                'net_qty_delta' => $netDelta,
+                'fully_reversed' => $originalQty > 0.0 && $reversedQty >= $originalQty - 1e-9,
+                'reversal_count' => max(0, count($nodes) - 1),
+                'subject_reversed_qty' => $subjectDelta === 0.0 ? $subjectReversed : min($subjectReversed, $subjectDelta),
+            ],
+        ];
+    }
+
+    /**
+     * Reason code/text và trạng thái phiếu Reversal cho từng mắt xích.
+     *
+     * `reversal_document` là bảng vật lý trên SQLite và là view tương thích trên
+     * PostgreSQL (tên số nhiều thì ngược lại), nên phải dò bằng
+     * `HoaNamErdSchema::relationExists()` — `Schema::hasTable()` trả false cho view.
+     *
+     * @param  \Illuminate\Support\Collection<int, StockMovement>  $movements
+     * @return array<string, object>
+     */
+    private function reversalDocumentContext($movements): array
+    {
+        $documentIds = $movements
+            ->where('source_type', 'REVERSAL_DOCUMENT')
+            ->pluck('source_id')
+            ->filter()
+            ->map(fn ($value): string => (string) $value)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($documentIds === [] || ! HoaNamErdSchema::relationExists('reversal_document')) {
+            return [];
+        }
+
+        // select('*') có chủ đích: view tương thích giữa hai driver không đảm bảo cùng một
+        // tập cột, nên đọc mềm rồi truy cập bằng `?->` thay vì liệt kê cột cứng.
+        return DB::table('reversal_document')
+            ->whereIn('reversal_document_id', $documentIds)
+            ->get()
+            ->keyBy('reversal_document_id')
+            ->all();
     }
 
     #[OA\Get(
