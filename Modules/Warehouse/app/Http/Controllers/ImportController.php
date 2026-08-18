@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Exceptions\ImportConcurrencyException;
+use Modules\Warehouse\Exceptions\ImportReportPersistenceException;
 use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportErrorFileService;
@@ -37,7 +38,10 @@ class ImportController extends Controller
         responses: [
             new OA\Response(response: 200, description: 'XLSX template'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
+            // DEV224-P1-04R: quyền chuẩn của cả nhóm import là `sku.manage` — đúng thứ
+            // route middleware thực thi. Chuỗi `product.manage` cũ là drift tài liệu:
+            // client đọc Swagger sẽ đi xin nhầm quyền, còn FE/QA thì test nhầm ma trận.
+            new OA\Response(response: 403, description: 'Missing sku.manage permission'),
         ]
     )]
     public function downloadTemplate(): BinaryFileResponse
@@ -57,6 +61,9 @@ class ImportController extends Controller
         description: 'Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. '
             .'Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; '
             .'kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. '
+            .'DEV224-P1-05R: Import báo cáo là OUTPUT BẮT BUỘC — nó được ghi TRONG cùng transaction với phần ghi SKU/audit, '
+            .'nên không tồn tại trạng thái "đã ghi SKU nhưng không có báo cáo". Ghi/đọc báo cáo hỏng thì transaction rollback '
+            .'và API trả 503 SKU_IMPORT_REPORT_PERSISTENCE_FAILED, KHÔNG trả 200 thiếu import_report_id. '
             .'WWHN-331 FE331-P1-03R3: mọi response đều mang khối `data.constraints` (max_rows, max_file_size_kb, '
             .'allowed_extensions, error_file_expiry_hours, idempotency_window_hours, idempotency_identity, decision_ref) — '
             .'đây là hạn mức máy chủ ĐANG áp dụng, đọc từ hợp đồng đã duyệt `warehouse.sku_import` (DEC-IMP-001). Client '
@@ -85,14 +92,20 @@ class ImportController extends Controller
             )
         ),
         responses: [
-            new OA\Response(response: 200, description: 'Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true)'),
+            new OA\Response(response: 200, description: 'Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true). '
+                .'Response luôn có `data.import_report_id` khác null (trừ ca duplicate, khi đó là id của lần import GỐC).'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
+            new OA\Response(response: 403, description: 'Missing sku.manage permission'),
             new OA\Response(response: 409, description: 'CONCURRENCY_CONFLICT — một lần import COMMIT trùng ĐỦ định danh '
                 .'(file_sha256 + actor_id + options_fingerprint) đang chạy và request này không giành được khoá tuần tự '
                 .'hoá trong `lock.wait_seconds`. Không có SKU nào được tạo/cập nhật, không có Import báo cáo nào được ghi '
                 .'(DEV330-P1-07R3, SRS NFR-SRS-003 / AC-GWT-CONC-001). Client thử lại sau khi lần chạy hiện tại kết thúc.'),
-            new OA\Response(response: 422, description: 'File/row validation failed; no business side effect'),
+            new OA\Response(response: 422, description: 'File/row validation failed; no business side effect. Với lỗi ở tầng DÒNG, '
+                .'Import báo cáo REJECTED vẫn được ghi và `data.import_report_id` khác null để tải file lỗi CSV.'),
+            new OA\Response(response: 503, description: 'SKU_IMPORT_REPORT_PERSISTENCE_FAILED — không ghi/không đọc được Import báo cáo '
+                .'(`import_reports`), là output BẮT BUỘC của WWHN-224. Toàn bộ transaction đã rollback: `committed=false`, '
+                .'`partial_write=false`, `import_report_id=null`, `retryable=true`, kèm header `Retry-After`. Không có SKU nào được '
+                .'tạo/cập nhật, không audit nghiệp vụ nào còn lại (DEV224-P1-05R).'),
         ]
     )]
     public function importExcel(Request $request): JsonResponse
@@ -150,14 +163,18 @@ class ImportController extends Controller
                 );
             }
 
-            $report = $this->persistReport($result, $actorId, $requestId, $file->getClientOriginalName(), $updateExisting);
-            $result['import_report_id'] = $report?->import_report_id;
+            // DEV224-P1-05R: Import báo cáo đã được ImportService ghi TRONG cùng
+            // transaction với SKU/audit, nên đến được đây nghĩa là báo cáo chắc chắn tồn
+            // tại. Controller không còn ghi báo cáo sau khi transaction đã commit — đó
+            // chính là chỗ cũ khiến "ghi SKU" và "ghi báo cáo" không thể nguyên tử.
+            $reportId = is_string($result['import_report_id'] ?? null) ? $result['import_report_id'] : null;
             $hasRowErrors = $result['row_errors'] !== [];
 
             if ($hasRowErrors) {
                 // WWHN-330 P1-01: sinh sẵn + lưu file lỗi CSV (đã sanitize) ngay khi có row lỗi,
                 // để GET .../import-reports/{id}/error-file phục vụ file thật thay vì phải tính
                 // lại; sinh file lỗi không được làm hỏng response import chính nên chỉ log khi fail.
+                $report = $reportId === null ? null : ImportReport::query()->find($reportId);
                 if ($report !== null) {
                     $this->attachErrorFile(
                         $report,
@@ -233,6 +250,39 @@ class ImportController extends Controller
                     'lock_wait_seconds' => $e->waitedSeconds,
                 ], $updateExisting)],
             );
+        } catch (ImportReportPersistenceException $e) {
+            // DEV224-P1-05R — Import báo cáo là OUTPUT BẮT BUỘC của WWHN-224, không phải
+            // metadata tuỳ nghi. Hành vi cũ (nuốt lỗi, vẫn trả 200 với
+            // import_report_id=null) sai ở ba tầng cùng lúc: mất truy vết của một lần ghi
+            // dữ liệu thật; response nói "thành công" nhưng thiếu chính output mà task
+            // này sinh ra; và cửa sổ idempotent mất bản ghi COMMITTED nên chính lần gửi
+            // lại của người dùng sẽ import lần hai.
+            //
+            // Nay lỗi ném ra TỪ BÊN TRONG transaction ghi SKU/audit nên rollback là của
+            // chính DB, không phải bồi thường thủ công: không SKU nào được tạo/sửa,
+            // không audit nghiệp vụ nào còn lại, không báo cáo nửa vời.
+            //
+            // Vì sao 503 chứ không 409/500: đây là sự cố KHẢ DỤNG của một phụ thuộc bắt
+            // buộc (kho báo cáo), server-side và tự hết khi phụ thuộc đó trở lại — khác
+            // hẳn 409 CONCURRENCY_CONFLICT (tranh chấp nghiệp vụ, DEV330-P1-07R3) và
+            // khác 500 INTERNAL_ERROR (lỗi không lường trước, không hứa hẹn thử lại
+            // được). §8.2 chưa liệt kê 503; mã này do DEV224-P1-05R chỉ định và kèm
+            // `Retry-After`, đã ghi vào DEC-IMP-001 §10 như một yêu cầu bổ sung baseline.
+            return $this->respondError(
+                'Không lưu được Import báo cáo; toàn bộ giao dịch import đã rollback, không có SKU nào được tạo/cập nhật. Vui lòng thử lại.',
+                [],
+                503,
+                'SKU_IMPORT_REPORT_PERSISTENCE_FAILED',
+                ['data' => $this->withContract([
+                    // `dry_run` phải có mặt: client cần biết lần chạy vừa hỏng là kiểm
+                    // tra thử hay import thật để hiển thị đúng thông điệp thử lại.
+                    'dry_run' => $dryRun,
+                    'committed' => false,
+                    'partial_write' => false,
+                    'import_report_id' => null,
+                    'retryable' => true,
+                ], $updateExisting)],
+            )->header('Retry-After', (string) SkuImportContract::lockWaitSeconds());
         } catch (\InvalidArgumentException $e) {
             return $this->respondError(
                 $e->getMessage(),
@@ -271,57 +321,6 @@ class ImportController extends Controller
         }
 
         return $result;
-    }
-
-    /**
-     * Import báo cáo (WWHN-224) là metadata truy vết, không phải nguồn sự thật nghiệp vụ.
-     * Nếu import thật đã commit SKU thành công nhưng riêng bước ghi report lỗi, request
-     * vẫn phải trả kết quả thành công — nếu không client có thể tưởng import thất bại và
-     * gửi lại, gây DUPLICATE_CODE giả trên dữ liệu đã thực sự được tạo đúng.
-     *
-     * @param  array<string, mixed>  $result
-     */
-    private function persistReport(array $result, ?string $actorId, ?string $requestId, ?string $fileName, bool $updateExisting): ?ImportReport
-    {
-        $dryRun = (bool) ($result['dry_run'] ?? false);
-        $hasErrors = ($result['row_errors'] ?? []) !== [];
-        $status = match (true) {
-            $hasErrors => 'REJECTED',
-            $dryRun => 'VALID',
-            default => 'COMMITTED',
-        };
-
-        try {
-            return ImportReport::query()->create([
-                'import_type' => 'SKU',
-                'mode' => $dryRun ? 'DRY_RUN' : 'COMMIT',
-                'status' => $status,
-                'file_name' => $fileName,
-                'file_sha256' => $result['file_sha256'],
-                'template_version' => $result['template_version'] ?? null,
-                'total_rows' => $result['total_rows'] ?? 0,
-                'valid_rows' => $result['valid_rows'] ?? 0,
-                'error_rows' => $result['error_rows'] ?? 0,
-                'inserted_rows' => $dryRun ? ($result['would_insert_rows'] ?? 0) : ($result['inserted_rows'] ?? 0),
-                'updated_rows' => $dryRun ? ($result['would_update_rows'] ?? 0) : ($result['updated_rows'] ?? 0),
-                'row_errors' => $result['row_errors'] ?? [],
-                'actor_id' => $actorId,
-                'request_id' => $requestId,
-                // WWHN-331 FE331-P1-02R3: lưu vân tay tùy chọn để lần nộp sau so được
-                // ĐỦ định danh (file + actor + tùy chọn), không chỉ trùng nội dung file.
-                'options_fingerprint' => SkuImportContract::optionsFingerprint($updateExisting),
-            ]);
-        } catch (Throwable $e) {
-            Log::error('IMPORT_REPORT_WRITE_FAILED', [
-                'request_id' => $requestId,
-                'file_sha256' => $result['file_sha256'] ?? null,
-                'mode' => $dryRun ? 'DRY_RUN' : 'COMMIT',
-                'exception' => $e::class,
-                'message' => $e->getMessage(),
-            ]);
-
-            return null;
-        }
     }
 
     /**

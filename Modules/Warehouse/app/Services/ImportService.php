@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Exceptions\ImportConcurrencyException;
+use Modules\Warehouse\Exceptions\ImportReportPersistenceException;
 use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Models\ProductMaster;
@@ -23,7 +24,10 @@ use Throwable;
 
 class ImportService
 {
-    public function __construct(private readonly ProductRepositoryInterface $products) {}
+    public function __construct(
+        private readonly ProductRepositoryInterface $products,
+        private readonly ImportReportWriter $reportWriter,
+    ) {}
 
     public const TEMPLATE_VERSION = 'WWHN-172-SKU-IMPORT-v1.1.0';
 
@@ -237,7 +241,16 @@ class ImportService
 
         [$records, $errors] = $this->validateRows($rows, $map);
         if ($errors !== []) {
-            return $this->result(count($rows), count($records), $errors, 0, 0, false, $checksum, $map, $dryRun);
+            // Lỗi ở tầng file/dòng phát hiện TRƯỚC transaction: không có gì để rollback,
+            // nhưng Import báo cáo REJECTED vẫn là output bắt buộc — nó là thứ neo file
+            // lỗi CSV mà người dùng tải về.
+            return $this->withReport(
+                $this->result(count($rows), count($records), $errors, 0, 0, false, $checksum, $map, $dryRun),
+                $actorId,
+                $requestId,
+                $originalName,
+                $updateExisting,
+            );
         }
 
         return DB::transaction(function () use (
@@ -277,7 +290,13 @@ class ImportService
             }
 
             if ($dbErrors !== []) {
-                return $this->result(count($rows), count($records) - count($dbErrors), $dbErrors, 0, 0, false, $checksum, $map, $dryRun);
+                return $this->withReport(
+                    $this->result(count($rows), count($records) - count($dbErrors), $dbErrors, 0, 0, false, $checksum, $map, $dryRun),
+                    $actorId,
+                    $requestId,
+                    $originalName,
+                    $updateExisting,
+                );
             }
 
             $wouldInsert = 0;
@@ -309,7 +328,13 @@ class ImportService
                     reason: 'WWHN-224 dry-run check, no business row written',
                 );
 
-                return $this->result(count($rows), count($records), [], $wouldInsert, $wouldUpdate, false, $checksum, $map, true);
+                return $this->withReport(
+                    $this->result(count($rows), count($records), [], $wouldInsert, $wouldUpdate, false, $checksum, $map, true),
+                    $actorId,
+                    $requestId,
+                    $originalName,
+                    $updateExisting,
+                );
             }
 
             $inserted = 0;
@@ -371,8 +396,44 @@ class ImportService
                 reason: 'WWHN-172 import summary in same transaction',
             );
 
-            return $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map, false);
+            // DEV224-P1-05R — Import báo cáo được ghi Ở ĐÂY, tức bên trong đúng
+            // transaction vừa ghi SKU + audit, và là hành động cuối cùng trước khi
+            // commit. Nhờ vậy hai mệnh đề sau không bao giờ tách rời nhau được:
+            // "SKU đã ghi" và "có báo cáo truy vết của lần ghi đó". Ghi báo cáo hỏng →
+            // ném exception → transaction rollback → SKU/audit biến mất cùng nó, và
+            // controller trả 503 thay vì 200 thiếu output.
+            return $this->withReport(
+                $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map, false),
+                $actorId,
+                $requestId,
+                $originalName,
+                $updateExisting,
+            );
         }, 3);
+    }
+
+    /**
+     * DEV224-P1-05R — gắn Import báo cáo (output bắt buộc) vào kết quả import.
+     *
+     * Trả về chính `$result` kèm `import_report_id`. Không có nhánh "ghi không được thì
+     * thôi": `ImportReportWriter::write()` ném `ImportReportPersistenceException`, và vì
+     * mọi lời gọi ở nhánh có ghi dữ liệu đều nằm TRONG `DB::transaction()`, exception đó
+     * kéo theo rollback toàn bộ SKU/audit của lần chạy.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function withReport(
+        array $result,
+        ?string $actorId,
+        ?string $requestId,
+        ?string $originalName,
+        bool $updateExisting,
+    ): array {
+        $report = $this->reportWriter->write($result, $actorId, $requestId, $originalName, $updateExisting);
+        $result['import_report_id'] = (string) $report->import_report_id;
+
+        return $result;
     }
 
     /**
@@ -400,6 +461,31 @@ class ImportService
             return null;
         }
 
+        try {
+            return $this->queryRecentDuplicateReport($checksum, $actorId, $optionsFingerprint);
+        } catch (Throwable $e) {
+            // DEV224-P1-05R — `import_reports` không đọc được thì KHÔNG được chạy tiếp.
+            //
+            // Bảng này chính là bộ nhớ của cơ chế idempotent: mất nó thì "file này đã
+            // import chưa" luôn trả lời là "chưa", nên một lần gửi lại bình thường của
+            // người dùng sẽ import lần hai trên dữ liệu đã ghi đúng. Đây đúng là dạng
+            // fail-open mà DEV330-P1-07R3 đã phải bỏ ở phía khoá — không được để nó
+            // quay lại qua cửa sau là truy vấn báo cáo.
+            Log::error('IMPORT_REPORT_LOOKUP_FAILED_FAIL_CLOSED', [
+                'actor_id' => $actorId,
+                'file_sha256' => $checksum,
+                'exception' => $e::class,
+            ]);
+
+            throw new ImportReportPersistenceException(
+                'Không truy vấn được Import báo cáo để kiểm tra trùng lặp; từ chối import để không ghi trùng.',
+                previous: $e,
+            );
+        }
+    }
+
+    private function queryRecentDuplicateReport(string $checksum, string $actorId, string $optionsFingerprint): ?ImportReport
+    {
         return ImportReport::query()
             ->where('import_type', 'SKU')
             ->where('mode', 'COMMIT')

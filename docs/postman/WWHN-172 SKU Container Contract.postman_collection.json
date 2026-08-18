@@ -330,6 +330,62 @@
           "event": [{"listen": "test", "script": {"exec": ["pm.test('200 detail', () => pm.response.to.have.status(200));"]}}]
         }
       ]
+    },
+    {
+      "name": "SKU import — hợp đồng P1 đóng 18/08 (WWHN-224)",
+      "description": "DEV224-P1-04R/P1-05R. Ba bất biến kiểm được qua HTTP: (1) mọi lần chạy được xử lý đều trả import_report_id thật và tra cứu lại được; (2) checksum file gửi lên khớp file_sha256 trong Import báo cáo; (3) hợp đồng công bố nêu đúng quyền sku.manage và có mã 503 cho ca mất Import báo cáo. Nhánh 503 không kích hoạt được từ ngoài bằng HTTP (phải bơm lỗi kho báo cáo) nên được phủ bằng tests/Feature/Wwhn224P1ClosureTest.php với bằng chứng rollback ở tầng DB — xem docs/evidence/WWHN-224/QA2_RUNBOOK.md.",
+      "item": [
+        {
+          "name": "Commit thật: Import báo cáo là output bắt buộc",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-excel",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {"key": "file", "type": "file", "src": "WWHN-172-SKU-import-template-v1.1.0.xlsx"},
+                {"key": "dry_run", "value": "false", "type": "text"}
+              ]
+            }
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 commit', () => pm.response.to.have.status(200));",
+            "const j=pm.response.json();",
+            "pm.test('DEV224-P1-05R: import_report_id la output bat buoc', () => pm.expect(j.data.import_report_id).to.be.a('string'));",
+            "pm.collectionVariables.set('p1_report_id', j.data.import_report_id);",
+            "pm.collectionVariables.set('p1_file_sha256', j.data.file_sha256);"
+          ]}}]
+        },
+        {
+          "name": "Đối soát báo cáo vừa ghi (checksum + số liệu)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-reports/{{p1_report_id}}"
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 report detail', () => pm.response.to.have.status(200));",
+            "const d=pm.response.json().data;",
+            "pm.test('bao cao COMMITTED cua dung lan chay do', () => { pm.expect(d.mode).to.eql('COMMIT'); pm.expect(d.status).to.eql('COMMITTED'); });",
+            "pm.test('checksum doi soat khop', () => pm.expect(d.file_sha256).to.eql(pm.collectionVariables.get('p1_file_sha256')));"
+          ]}}]
+        },
+        {
+          "name": "Hợp đồng công bố: quyền sku.manage + mã 503 (DEV224-P1-04R)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/docs"
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 spec', () => pm.response.to.have.status(200));",
+            "const op=pm.response.json().paths['/api/v1/skus/import-excel'].post;",
+            "pm.test('403 noi dung quyen route thuc thi (sku.manage)', () => { pm.expect(op.responses['403'].description).to.include('sku.manage'); pm.expect(op.responses['403'].description).to.not.include('product.manage'); });",
+            "pm.test('503 mat Import bao cao duoc cong bo', () => pm.expect(op.responses['503'].description).to.include('SKU_IMPORT_REPORT_PERSISTENCE_FAILED'));"
+          ]}}]
+        }
+      ]
     }
   ]
 }

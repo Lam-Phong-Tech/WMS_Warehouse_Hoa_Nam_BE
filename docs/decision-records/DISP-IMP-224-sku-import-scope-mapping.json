@@ -1,0 +1,226 @@
+{
+  "disposition_id": "DISP-IMP-224",
+  "title": "Phạm vi và mapping của import tương tác — SKU-only",
+  "status": "PROPOSED_BY_DEV_PENDING_BA_DATA_OWNER_APPROVAL",
+  "revision": "1.0",
+  "raised_for": ["DEV224-P1-01R"],
+  "jira": {
+    "task": "WWHN-224",
+    "parent": "WWHN-56",
+    "approval_ticket": "WWHN-225",
+    "qa_ticket": "WWHN-226"
+  },
+  "authority": {
+    "in_scope_basis": "SRS §13.12 — dòng dataset SKU của Import Package v1.2",
+    "out_of_scope_basis": "SRS §13.12 — 'No public/admin import endpoint exists in MVP' áp cho gói migration/cutover; 5 dataset còn lại chỉ đi qua controlled job/script có dry-run + reconciliation + Data Owner ký",
+    "permission": "sku.manage",
+    "note": "Bốn tệp baseline (SRS v1.12, Wireframe v3.20, ERD, Techstack Guide) KHÔNG mô tả luồng import SKU tương tác; khoảng trống này đã ghi ở DEC-IMP-001 §9 và là lý do phải có disposition này thay vì suy diễn từ mô tả task cha."
+  },
+  "in_scope_dataset": "SKU",
+  "template_version": "WWHN-172-SKU-IMPORT-v1.1.0",
+  "template_columns": [
+    "sku_code",
+    "sku_name",
+    "unit",
+    "sku_type",
+    "brand_code",
+    "category_code",
+    "model_code",
+    "power_or_voltage",
+    "package_variant",
+    "version_code",
+    "published_to_app",
+    "is_serial_tracked",
+    "status"
+  ],
+  "accepted_columns": [
+    "code",
+    "sku_code",
+    "name",
+    "sku_name",
+    "unit",
+    "sku_type",
+    "brand_code",
+    "category_code",
+    "model_code",
+    "power_or_voltage",
+    "package_variant",
+    "version",
+    "version_code",
+    "published_to_app",
+    "is_serial_tracked",
+    "status"
+  ],
+  "field_mapping": [
+    {
+      "column": "sku_code",
+      "legacy_alias": "code",
+      "target": "sku.sku_code",
+      "type": "string(100)",
+      "required": true,
+      "default": null,
+      "rule": "Viết hoa; regex ^[A-Z0-9](?:[A-Z0-9._-]*[A-Z0-9])?$; trùng trong file -> DUPLICATE_SKU_CODE_IN_FILE; trùng SKU ACTIVE trong DB -> DUPLICATE_CODE trừ khi update_existing=true",
+      "error_codes": ["INVALID_CODE_FORMAT", "DUPLICATE_SKU_CODE_IN_FILE", "DUPLICATE_CODE", "INACTIVE_SKU_CONFLICT"],
+      "owner": "BA + Data Owner"
+    },
+    {
+      "column": "sku_name",
+      "legacy_alias": "name",
+      "target": "sku.sku_name",
+      "type": "string(255)",
+      "required": true,
+      "default": null,
+      "rule": "Bắt buộc, tối đa 255 ký tự",
+      "error_codes": ["INVALID_NAME"],
+      "owner": "BA"
+    },
+    {
+      "column": "unit",
+      "legacy_alias": null,
+      "target": "sku.unit",
+      "type": "string",
+      "required": false,
+      "default": "cái",
+      "rule": "Bỏ trống thì lấy mặc định 'cái'",
+      "error_codes": [],
+      "owner": "BA"
+    },
+    {
+      "column": "sku_type",
+      "legacy_alias": null,
+      "target": "sku.sku_type",
+      "type": "enum",
+      "required": false,
+      "default": "PRODUCT",
+      "rule": "PRODUCT | COMPONENT",
+      "error_codes": ["INVALID_ENUM"],
+      "owner": "BA"
+    },
+    {
+      "column": "brand_code",
+      "legacy_alias": null,
+      "target": "sku.brand_id",
+      "type": "fk_lookup",
+      "required": false,
+      "default": null,
+      "rule": "Tra Product Master master_type=BRAND, status=ACTIVE; không thấy -> lỗi, KHÔNG tự tạo master",
+      "error_codes": ["UNKNOWN_MASTER_CODE"],
+      "owner": "Data Owner"
+    },
+    {
+      "column": "category_code",
+      "legacy_alias": null,
+      "target": "sku.category_id",
+      "type": "fk_lookup",
+      "required": false,
+      "default": null,
+      "rule": "Tra Product Master master_type=CATEGORY, status=ACTIVE",
+      "error_codes": ["UNKNOWN_MASTER_CODE"],
+      "owner": "Data Owner"
+    },
+    {
+      "column": "model_code",
+      "legacy_alias": null,
+      "target": "sku.model_id",
+      "type": "fk_lookup",
+      "required": false,
+      "default": null,
+      "rule": "Tra Product Master master_type=MODEL, status=ACTIVE",
+      "error_codes": ["UNKNOWN_MASTER_CODE"],
+      "owner": "Data Owner"
+    },
+    {
+      "column": "power_or_voltage",
+      "legacy_alias": null,
+      "target": "sku.power_or_voltage",
+      "type": "string",
+      "required": false,
+      "default": null,
+      "rule": "Text tự do",
+      "error_codes": [],
+      "owner": "BA"
+    },
+    {
+      "column": "package_variant",
+      "legacy_alias": null,
+      "target": "sku.package_variant",
+      "type": "enum_dynamic",
+      "required": false,
+      "default": null,
+      "rule": "Đọc package_variants ACTIVE tại thời điểm chạy; danh sách dự phòng khi bảng rỗng: BARE|KIT|SET|BODY_ONLY",
+      "error_codes": ["INVALID_ENUM"],
+      "owner": "Data Owner"
+    },
+    {
+      "column": "version_code",
+      "legacy_alias": "version",
+      "target": "sku.version_code",
+      "type": "string(30)",
+      "required": false,
+      "default": null,
+      "rule": "Giá trị nghiệp vụ dạng text; KHÁC cột `version` số nguyên dùng cho optimistic lock",
+      "error_codes": ["INVALID_VERSION_CODE"],
+      "owner": "BA"
+    },
+    {
+      "column": "published_to_app",
+      "legacy_alias": null,
+      "target": "sku.published_to_app",
+      "type": "boolean_strict",
+      "required": false,
+      "default": false,
+      "rule": "Nhận 1|true|yes|y và 0|false|no|n (không phân biệt hoa thường); rỗng = false; giá trị khác -> lỗi",
+      "error_codes": ["INVALID_BOOLEAN"],
+      "owner": "BA"
+    },
+    {
+      "column": "is_serial_tracked",
+      "legacy_alias": null,
+      "target": "sku.is_serial_tracked",
+      "type": "boolean_strict",
+      "required": false,
+      "default": false,
+      "rule": "Cùng bộ alias với published_to_app",
+      "error_codes": ["INVALID_BOOLEAN"],
+      "owner": "BA + Data Owner"
+    },
+    {
+      "column": "status",
+      "legacy_alias": null,
+      "target": "sku.status",
+      "type": "enum",
+      "required": false,
+      "default": "ACTIVE",
+      "rule": "ACTIVE | INACTIVE; import KHÔNG được tự kích hoạt lại SKU đang INACTIVE",
+      "error_codes": ["INVALID_ENUM", "INACTIVE_SKU_CONFLICT"],
+      "owner": "BA"
+    }
+  ],
+  "out_of_scope_datasets": {
+    "PHYSICAL_CODE": {
+      "reason": "Thuộc gói migration/cutover §13.12; sinh mã vật lý cần dry-run + reconciliation + Data Owner ký, không phải thao tác admin tương tác",
+      "expansion_gate": "WWHN-225 phải có mapping + phê duyệt trước khi mở code"
+    },
+    "ITEM": {
+      "reason": "Item instance gắn serial/điều kiện/lô nhập; tạo hàng loạt qua endpoint tương tác sẽ tạo tồn kho không có chứng từ",
+      "expansion_gate": "WWHN-225 + đánh giá tác động tồn kho"
+    },
+    "CONTAINER": {
+      "reason": "Container/tray mapping đổi quan hệ chứa, không đổi tồn; vẫn cần reconciliation theo §13.12",
+      "expansion_gate": "WWHN-225"
+    },
+    "OPENING_BALANCE": {
+      "reason": "Tồn đầu kỳ chỉ vào hệ thống qua controlled job có QL kho ký kết quả đối soát (§13.12 Reconciliation PASS)",
+      "expansion_gate": "Không mở qua endpoint tương tác trong MVP"
+    },
+    "AGENCY": {
+      "reason": "Master đại lý thuộc gói migration; không có yêu cầu MVP cho import tương tác",
+      "expansion_gate": "WWHN-225"
+    }
+  },
+  "approval": {
+    "ba": {"name": null, "date": null, "jira_comment": null},
+    "data_owner": {"name": null, "date": null, "jira_comment": null},
+    "note": "Ô trống có chủ đích. DEV không tự điền thay BA/Data Owner; register này là bản trình, không phải bản đã duyệt."
+  }
+}
