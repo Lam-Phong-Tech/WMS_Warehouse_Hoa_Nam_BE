@@ -249,6 +249,8 @@ const afterLegacy = measure('C-legacy-new-index', QUERY_LEGACY);
 const afterOptimized = measure('D-optimized-new-index', QUERY_OPTIMIZED);
 const afterLegacyFiltered = measure('G-legacy-filtered-new-index', QUERY_LEGACY_FILTERED);
 const afterOptimizedFiltered = measure('H-optimized-filtered-new-index', QUERY_OPTIMIZED_FILTERED);
+const xntLegacy = measure('I-xnt-legacy', QUERY_XNT_LEGACY);
+const xntOptimized = measure('J-xnt-optimized', QUERY_XNT_OPTIMIZED);
 
 const indexSizes = psql(
   `SELECT indexrelname, pg_size_pretty(pg_relation_size(indexrelid)) AS size
@@ -277,6 +279,8 @@ const result = {
     legacy: QUERY_LEGACY,
     optimized: QUERY_OPTIMIZED,
     legacy_filtered: QUERY_LEGACY_FILTERED,
+    xnt_legacy: QUERY_XNT_LEGACY,
+    xnt_optimized: QUERY_XNT_OPTIMIZED,
     optimized_filtered: QUERY_OPTIMIZED_FILTERED,
   },
   indexes: { baseline: BASELINE_INDEX, added: NEW_INDEX },
@@ -289,6 +293,8 @@ const result = {
     beforeOptimizedFiltered,
     afterLegacyFiltered,
     afterOptimizedFiltered,
+    xntLegacy,
+    xntOptimized,
   ],
   index_sizes: indexSizes.trim(),
   verdict: {
@@ -303,6 +309,9 @@ const result = {
     ),
     filtered_blocks_before_index: beforeOptimizedFiltered.shared_hit_blocks,
     filtered_blocks_after_index: afterOptimizedFiltered.shared_hit_blocks,
+    xnt_legacy_ms: xntLegacy.median_execution_ms,
+    xnt_optimized_ms: xntOptimized.median_execution_ms,
+    xnt_speedup_x: Number((xntLegacy.median_execution_ms / xntOptimized.median_execution_ms).toFixed(2)),
     query_count_before: 1,
     query_count_after: 1,
     note: 'Số câu truy vấn không đổi (1 aggregate mỗi lần dựng báo cáo); thay đổi nằm ở hình dạng plan và ở index cho nhánh có filter.',
