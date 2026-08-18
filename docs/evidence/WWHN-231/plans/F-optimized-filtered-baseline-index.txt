@@ -1,0 +1,33 @@
+                                                                              QUERY PLAN                                                                               
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join  (cost=542.84..576.33 rows=4 width=138) (actual time=1.819..1.824 rows=1 loops=1)
+   Buffers: shared hit=311
+   ->  Nested Loop Left Join  (cost=542.70..575.68 rows=4 width=131) (actual time=1.799..1.803 rows=1 loops=1)
+         Buffers: shared hit=309
+         ->  Hash Left Join  (cost=542.42..542.49 rows=4 width=94) (actual time=1.747..1.751 rows=1 loops=1)
+               Hash Cond: (stock_movements.warehouse_id = w.id)
+               Buffers: shared hit=306
+               ->  HashAggregate  (cost=541.40..541.45 rows=4 width=82) (actual time=1.649..1.650 rows=1 loops=1)
+                     Group Key: stock_movements.stock_status
+                     Batches: 1  Memory Usage: 24kB
+                     Buffers: shared hit=305
+                     ->  Index Scan using idx_sm_wh_product_time on stock_movements  (cost=0.42..539.15 rows=299 width=58) (actual time=0.024..1.488 rows=300 loops=1)
+                           Index Cond: ((warehouse_id = 'a95dcb8a-ebb2-02ef-eedb-10d5538edeb9'::uuid) AND (product_id = '46d46a75-9bf6-cbed-05d7-bcdcb911a4f8'::uuid))
+                           Buffers: shared hit=305
+               ->  Hash  (cost=1.01..1.01 rows=1 width=28) (actual time=0.044..0.044 rows=1 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     Buffers: shared hit=1
+                     ->  Seq Scan on warehouses w  (cost=0.00..1.01 rows=1 width=28) (actual time=0.014..0.015 rows=1 loops=1)
+                           Buffers: shared hit=1
+         ->  Index Scan using products_pkey on products p  (cost=0.28..8.29 rows=1 width=53) (actual time=0.046..0.047 rows=1 loops=1)
+               Index Cond: (id = stock_movements.product_id)
+               Buffers: shared hit=3
+   ->  Index Scan using product_categories_pkey on product_categories pc  (cost=0.14..0.16 rows=1 width=23) (actual time=0.017..0.017 rows=1 loops=1)
+         Index Cond: (id = p.category_id)
+         Buffers: shared hit=2
+ Planning:
+   Buffers: shared hit=267
+ Planning Time: 1.838 ms
+ Execution Time: 1.972 ms
+(29 rows)
+

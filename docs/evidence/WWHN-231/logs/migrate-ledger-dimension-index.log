@@ -1,0 +1,5 @@
+
+ INFO Running migrations. 
+
+ 2026_08_19_010000_add_ledger_dimension_index_to_stock_movements .. 21.39ms DONE
+

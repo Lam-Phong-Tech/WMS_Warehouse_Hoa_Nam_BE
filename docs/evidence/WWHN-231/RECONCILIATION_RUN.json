@@ -1,0 +1,60 @@
+{
+  "task": "WWHN-231",
+  "register_items": [
+    "DEV231-P0-02",
+    "DEV231-P1-04",
+    "DEV231-P1-06"
+  ],
+  "database": "hoa_nam_audit",
+  "postgres_version": "16.14",
+  "steps": [
+    {
+      "label": "migrate-ledger-dimension-index",
+      "command": "php artisan migrate --path=Modules/Warehouse/database/migrations/2026_08_19_010000_add_ledger_dimension_index_to_stock_movements.php --force",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-231/logs/migrate-ledger-dimension-index.log"
+    },
+    {
+      "label": "inventory-reconcile-dry-run",
+      "command": "php artisan inventory:reconcile --dry-run",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-231/logs/inventory-reconcile-dry-run.log"
+    },
+    {
+      "label": "phpunit-wwhn231-sqlite",
+      "command": "php vendor/bin/phpunit --filter Wwhn231StockNeutralLedgerTest",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-231/logs/phpunit-wwhn231-sqlite.log"
+    }
+  ],
+  "index_definition": "CREATE INDEX idx_sm_ledger_dimension ON public.stock_movements USING btree (warehouse_id, product_id, stock_status) INCLUDE (qty_delta, occurred_at)",
+  "stock_state_before": {
+    "movement_count": 0,
+    "movement_delta_sum": 0,
+    "balance_rows": 0,
+    "ledger_dimensions": 0,
+    "balance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ledger_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stock_state_after": {
+    "movement_count": 0,
+    "movement_delta_sum": 0,
+    "balance_rows": 0,
+    "ledger_dimensions": 0,
+    "balance_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ledger_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stock_neutral": true,
+  "reconciliation_caveat": "DB_EMPTY — database này chưa có dữ liệu tồn kho nên mismatch=0 không mang thông tin. Bằng chứng đối soát trên dữ liệu thật (có lệch cấy sẵn) nằm ở Wwhn231StockNeutralLedgerTest::test_detected_divergence_creates_incident_without_touching_stock",
+  "reconciliation": {
+    "formula": "variance = inventory_balances.on_hand_qty - SUM(stock_movements.qty_delta)",
+    "dimension": [
+      "warehouse_id",
+      "product_id",
+      "stock_status"
+    ],
+    "mismatch_count": 0,
+    "mismatches": [],
+    "mismatch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

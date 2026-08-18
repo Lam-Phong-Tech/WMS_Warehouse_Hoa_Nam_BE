@@ -119,10 +119,11 @@ const stockNeutral =
   before.ledger_sha256 === after.ledger_sha256;
 console.log(`      stock-neutral: ${stockNeutral ? 'PASS' : 'FAIL'}`);
 
-console.log('[5/5] Bộ test khoá phạm vi trên PostgreSQL');
-const suite = run('phpunit-wwhn231-pgsql', 'php', ['vendor/bin/phpunit', '--filter', 'Wwhn231StockNeutralLedgerTest'], {
-  env: PG_ENV,
-});
+// Bộ test chạy trên sqlite — đúng driver mà CI current-baseline-doc-contract.yml dùng.
+// Trên PostgreSQL mọi test có RefreshDatabase hiện đỏ từ trước vì migration
+// 2026_08_19_000100 (WWHN-252); xem docs/evidence/WWHN-231/BASELINE_ISOLATION.md §3.
+console.log('[5/5] Bộ test khoá phạm vi trên baseline sqlite');
+const suite = run('phpunit-wwhn231-sqlite', 'php', ['vendor/bin/phpunit', '--filter', 'Wwhn231StockNeutralLedgerTest']);
 
 const divergences = psql(
   `SELECT b.warehouse_id, b.product_id, b.stock_status, b.on_hand_qty, COALESCE(l.ledger_qty, 0) AS ledger_qty,
@@ -162,6 +163,12 @@ const result = {
   stock_state_before: before,
   stock_state_after: after,
   stock_neutral: stockNeutral,
+  // Trung thực về sức nặng của bằng chứng: mismatch = 0 trên một database rỗng là kết quả
+  // rỗng, không phải bằng chứng đối soát đúng.
+  reconciliation_caveat:
+    before.ledger_dimensions === 0 && before.balance_rows === 0
+      ? 'DB_EMPTY — database này chưa có dữ liệu tồn kho nên mismatch=0 không mang thông tin. Bằng chứng đối soát trên dữ liệu thật (có lệch cấy sẵn) nằm ở Wwhn231StockNeutralLedgerTest::test_detected_divergence_creates_incident_without_touching_stock'
+      : null,
   reconciliation: {
     formula: 'variance = inventory_balances.on_hand_qty - SUM(stock_movements.qty_delta)',
     dimension: ['warehouse_id', 'product_id', 'stock_status'],

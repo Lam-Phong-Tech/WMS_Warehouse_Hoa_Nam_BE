@@ -1,0 +1,48 @@
+{
+  "task": "WWHN-231",
+  "register_item": "DEV231-P1-02",
+  "disposition": "DISP-STK-231 v1.0.0 — re-scope sang doi soat ledger stock-neutral + toi uu truy van",
+  "branch": "m1",
+  "candidate": {
+    "backend": {
+      "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+      "sha": "a16d1d63df7370e3fe40a2c1c846404d190324cd",
+      "short_sha": "a16d1d6",
+      "subject": "fix(WWHN-231): dong bo aggregate ledger stock-neutral va index doi soat",
+      "files": [
+        "Modules/Warehouse/app/Services/LedgerReconciliationService.php",
+        "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php",
+        "Modules/Warehouse/database/migrations/2026_08_19_010000_add_ledger_dimension_index_to_stock_movements.php",
+        "app/Console/Commands/ReconcileInventoryBalances.php",
+        "tests/Feature/Wwhn231StockNeutralLedgerTest.php",
+        "scripts/wwhn231-ledger-benchmark.mjs",
+        "scripts/run-wwhn-231-evidence.mjs",
+        "scripts/verify-wwhn-231-closure.mjs"
+      ]
+    },
+    "frontend": {
+      "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+      "sha": "7968fa8d88ed1b5c85be277c23b3850bdbb0cdeb",
+      "short_sha": "7968fa8",
+      "subject": "docs(WWHN-231): go apply-adjustment khoi mo ta be mat doi ton o FE",
+      "files": ["src/shared/api/wms-contract.ts"]
+    }
+  },
+  "predecessor_note": {
+    "issue": "Commit c855851 (WWHN-254, 2026-08-18 22:40:39 +0700) da commit OperationalReportController voi loi goi Modules\\Warehouse\\Services\\LedgerReconciliationService trong khi file service van con untracked, nen HEAD truoc a16d1d6 tham chieu mot class khong ton tai trong git.",
+    "resolution": "a16d1d6 dua service, migration, test va script vao repo; tu SHA nay tro di HEAD nhat quan.",
+    "impact": "Bat ky ban build nao lay HEAD trong khoang c855851..a16d1d6 se fail khi dung /api/v1/reports/inventory-balance."
+  },
+  "verification_at_this_sha": {
+    "scope_lock_suite": "php vendor/bin/phpunit --filter Wwhn231StockNeutralLedgerTest — 9/9 PASS (sqlite)",
+    "related_report_suite": "php vendor/bin/phpunit --filter \"Xnt|XNT|Report|Wwhn231\" — 134/134 PASS (sqlite)",
+    "closure_verifier": "node scripts/verify-wwhn-231-closure.mjs — 25/25 PASS",
+    "benchmark": "node scripts/wwhn231-ledger-benchmark.mjs — PostgreSQL 16.14, 600.000 movements",
+    "runtime_evidence": "node scripts/run-wwhn-231-evidence.mjs — stock_neutral PASS",
+    "baseline_isolation": "docs/evidence/WWHN-231/BASELINE_ISOLATION.md"
+  },
+  "ci": {
+    "workflow_run_id": null,
+    "note": "Dien Run ID sau khi CI chay tai dung SHA nay; xem DEV231-P1-07."
+  }
+}

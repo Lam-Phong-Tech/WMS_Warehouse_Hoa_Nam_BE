@@ -1,0 +1,81 @@
+{
+  "task": "WWHN-231",
+  "register_item": "DEV231-P1-05",
+  "disposition": "NO CONTRACT CHANGE",
+  "statement": "WWHN-231 khong them, sua hay xoa endpoint, request/response field, error code, header hay permission nao. Thay doi chi nam o tang truy van (hinh dang SQL + index doc) va o tang bang chung/test.",
+  "controlling_requirement": "REQ-SRS-037 (Must) + SRS §7.5 Reconciliation Controls + REQ-SRS-031",
+  "endpoints_touched_by_this_task": [
+    {
+      "path": "/api/v1/reports/inventory-balance",
+      "change": "NONE - cung tap field, cung filter, cung phan trang; chi doi hinh dang query ben trong buildInventoryBalanceUncached",
+      "response_contract_lock": "tests/Feature/ReportFlow06ContractTest.php + tests/Feature/ReportFlow06IntegrationTest.php (169 test PASS tai SHA candidate)"
+    },
+    {
+      "path": "/api/v1/reports/inventory-reconciliation",
+      "change": "NONE - van tra formula/dimension/checks/summary/rows/mismatches nhu cu",
+      "response_contract_lock": "tests/Feature/Wwhn231StockNeutralLedgerTest::test_reconciliation_report_and_command_are_read_only assert du 4 check cua §7.5"
+    }
+  ],
+  "artifacts_not_modified": {
+    "note": "Digest lay tai commit HEAD cua nhanh m1 truoc khi commit WWHN-231; WWHN-231 khong sua file nao trong danh sach nay.",
+    "files": [
+      {
+        "path": "storage/api-docs/api-docs.json",
+        "sha256_head": "f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593",
+        "sha256_worktree": "f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593",
+        "identical": true
+      },
+      {
+        "path": "storage/api-docs/api-docs.yaml",
+        "sha256_head": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
+        "sha256_worktree": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
+        "identical": true
+      },
+      {
+        "path": "docs/contracts/HoaNam_Current_Baseline_Contract.json",
+        "sha256_head": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+        "sha256_worktree": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+        "identical": true
+      }
+    ],
+    "postman": {
+      "disposition": "N/A - khong collection nao can cap nhat vi khong co thay doi contract",
+      "collections_reviewed": [
+        "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json",
+        "docs/postman/WMS_HoaNam API Scenario Testing - TEST.postman_collection.json"
+      ],
+      "caveat": "File DEV collection dang co thay doi chua commit tren worktree KHONG thuoc WWHN-231 (phien lam viec song song tren cung nhanh m1). WWHN-231 khong cham file nay; xem git diff cua commit WWHN-231 de doi chieu."
+    }
+  },
+  "openapi_runtime_negative_proof": {
+    "source": "storage/api-docs/api-docs.json (sinh tu route that)",
+    "total_paths": 183,
+    "forbidden_path_fragments_checked": [
+      "stocktake",
+      "adjustment",
+      "variance",
+      "transfer-orders",
+      "stock-requests",
+      "inventory-reservations",
+      "inventory-snapshots",
+      "safe-stock",
+      "close-remainder"
+    ],
+    "matching_paths": [],
+    "verdict": "PASS - zero path sua ton truc tiep tren be mat API"
+  },
+  "files_changed_by_this_task": [
+    "Modules/Warehouse/app/Services/LedgerReconciliationService.php",
+    "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php",
+    "Modules/Warehouse/database/migrations/2026_08_19_010000_add_ledger_dimension_index_to_stock_movements.php",
+    "app/Console/Commands/ReconcileInventoryBalances.php",
+    "tests/Feature/Wwhn231StockNeutralLedgerTest.php",
+    "scripts/wwhn231-ledger-benchmark.mjs",
+    "scripts/run-wwhn-231-evidence.mjs",
+    "scripts/verify-wwhn-231-closure.mjs",
+    "docs/decision-records/DISP-STK-231-ledger-rescope.md",
+    "docs/evidence/WWHN-231/**",
+    "docs/docs_task_jira/WWHN-231_SIGNOFF_COMMENTS.md",
+    "FE: src/shared/api/wms-contract.ts (chi sua comment mo ta - khong doi hanh vi)"
+  ]
+}

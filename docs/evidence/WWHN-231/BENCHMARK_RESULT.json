@@ -1,0 +1,208 @@
+{
+  "task": "WWHN-231",
+  "register_item": "DEV231-P1-03",
+  "generated_by": "scripts/wwhn231-ledger-benchmark.mjs",
+  "postgres_version": "server_version \n----------------\n 16.14\n(1 row)",
+  "dataset": {
+    "database": "wwhn231_bench",
+    "stock_movements_rows": 600000,
+    "products": 2000,
+    "warehouses": 1,
+    "stock_statuses": 4,
+    "dimension_cardinality": 8000,
+    "deterministic": "khoá md5(seq) + generate_series, không dùng random()"
+  },
+  "repeat_per_measurement": 5,
+  "queries": {
+    "legacy": "SELECT m.warehouse_id, m.product_id, m.stock_status,\n       w.code AS warehouse_code, p.code AS product_code, p.name AS product_name,\n       p.category_id, pc.category_name,\n       SUM(m.qty_delta) AS ledger_qty, MAX(m.occurred_at) AS movement_updated_at\nFROM stock_movements m\nLEFT JOIN warehouses w ON w.id = m.warehouse_id\nLEFT JOIN products p ON p.id = m.product_id\nLEFT JOIN product_categories pc ON pc.id = p.category_id\nGROUP BY m.warehouse_id, m.product_id, m.stock_status, w.code, p.code, p.name, p.category_id, pc.category_name",
+    "optimized": "SELECT agg.warehouse_id, agg.product_id, agg.stock_status, agg.ledger_qty, agg.movement_updated_at,\n       w.code AS warehouse_code, p.code AS product_code, p.name AS product_name,\n       p.category_id, pc.category_name\nFROM (\n    SELECT warehouse_id, product_id, stock_status,\n           SUM(qty_delta) AS ledger_qty, MAX(occurred_at) AS movement_updated_at\n    FROM stock_movements\n    GROUP BY warehouse_id, product_id, stock_status\n) agg\nLEFT JOIN warehouses w ON w.id = agg.warehouse_id\nLEFT JOIN products p ON p.id = agg.product_id\nLEFT JOIN product_categories pc ON pc.id = p.category_id",
+    "legacy_filtered": "SELECT m.warehouse_id, m.product_id, m.stock_status,\n       w.code AS warehouse_code, p.code AS product_code, p.name AS product_name,\n       p.category_id, pc.category_name,\n       SUM(m.qty_delta) AS ledger_qty, MAX(m.occurred_at) AS movement_updated_at\nFROM stock_movements m\nLEFT JOIN warehouses w ON w.id = m.warehouse_id\nLEFT JOIN products p ON p.id = m.product_id\nLEFT JOIN product_categories pc ON pc.id = p.category_id\nWHERE m.warehouse_id = md5('w1')::uuid AND m.product_id = md5('p7')::uuid\nGROUP BY m.warehouse_id, m.product_id, m.stock_status, w.code, p.code, p.name, p.category_id, pc.category_name",
+    "xnt_legacy": "SELECT m.warehouse_id, m.product_id, m.stock_status,\n       w.code AS warehouse_code, p.code AS product_code, p.name AS product_name,\n       SUM(CASE WHEN m.occurred_at < '2026-08-01 00:00:00' OR (m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'OPENING') THEN m.qty_delta ELSE 0 END) AS opening,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'RECEIPT' THEN m.qty_delta ELSE 0 END) AS receipt,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'ISSUE' THEN -m.qty_delta ELSE 0 END) AS issue,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'COMPONENT_ISSUE' THEN -m.qty_delta ELSE 0 END) AS component_issue,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'REVERSAL' THEN m.qty_delta ELSE 0 END) AS reversal_net\nFROM stock_movements m\nLEFT JOIN warehouses w ON w.id = m.warehouse_id\nLEFT JOIN products p ON p.id = m.product_id\nWHERE m.occurred_at <= '2026-08-31 23:59:59'\nGROUP BY m.warehouse_id, m.product_id, m.stock_status, w.code, p.code, p.name",
+    "xnt_optimized": "SELECT agg.*, w.code AS warehouse_code, p.code AS product_code, p.name AS product_name\nFROM (\n    SELECT m.warehouse_id, m.product_id, m.stock_status,\n       SUM(CASE WHEN m.occurred_at < '2026-08-01 00:00:00' OR (m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'OPENING') THEN m.qty_delta ELSE 0 END) AS opening,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'RECEIPT' THEN m.qty_delta ELSE 0 END) AS receipt,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'ISSUE' THEN -m.qty_delta ELSE 0 END) AS issue,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'COMPONENT_ISSUE' THEN -m.qty_delta ELSE 0 END) AS component_issue,\n       SUM(CASE WHEN m.occurred_at BETWEEN '2026-08-01 00:00:00' AND '2026-08-31 23:59:59' AND m.movement_type = 'REVERSAL' THEN m.qty_delta ELSE 0 END) AS reversal_net\n    FROM stock_movements m\n    WHERE m.occurred_at <= '2026-08-31 23:59:59'\n    GROUP BY m.warehouse_id, m.product_id, m.stock_status\n) agg\nLEFT JOIN warehouses w ON w.id = agg.warehouse_id\nLEFT JOIN products p ON p.id = agg.product_id",
+    "optimized_filtered": "SELECT agg.warehouse_id, agg.product_id, agg.stock_status, agg.ledger_qty, agg.movement_updated_at,\n       w.code AS warehouse_code, p.code AS product_code, p.name AS product_name,\n       p.category_id, pc.category_name\nFROM (\n    SELECT warehouse_id, product_id, stock_status,\n           SUM(qty_delta) AS ledger_qty, MAX(occurred_at) AS movement_updated_at\n    FROM stock_movements\n    WHERE warehouse_id = md5('w1')::uuid AND product_id = md5('p7')::uuid\n    GROUP BY warehouse_id, product_id, stock_status\n) agg\nLEFT JOIN warehouses w ON w.id = agg.warehouse_id\nLEFT JOIN products p ON p.id = agg.product_id\nLEFT JOIN product_categories pc ON pc.id = p.category_id"
+  },
+  "indexes": {
+    "baseline": "CREATE INDEX IF NOT EXISTS idx_sm_wh_product_time ON stock_movements (warehouse_id, product_id, occurred_at)",
+    "added": "CREATE INDEX IF NOT EXISTS idx_sm_ledger_dimension ON stock_movements (warehouse_id, product_id, stock_status) INCLUDE (qty_delta, occurred_at)"
+  },
+  "measurements": [
+    {
+      "label": "A-legacy-baseline-index",
+      "runs_ms": [
+        2209.736,
+        1913.937,
+        1897.577,
+        1819.344,
+        1816.54
+      ],
+      "median_execution_ms": 1897.577,
+      "median_planning_ms": 2.186,
+      "plan_file": "docs/evidence/WWHN-231/plans/A-legacy-baseline-index.txt",
+      "shared_hit_blocks": 607339,
+      "scan_node": "Index Scan",
+      "aggregate_node": "GroupAggregate"
+    },
+    {
+      "label": "B-optimized-baseline-index",
+      "runs_ms": [
+        88.729,
+        94.836,
+        87.984,
+        88.067,
+        93.136
+      ],
+      "median_execution_ms": 88.729,
+      "median_planning_ms": 1.739,
+      "plan_file": "docs/evidence/WWHN-231/plans/B-optimized-baseline-index.txt",
+      "shared_hit_blocks": 8847,
+      "scan_node": "Seq Scan",
+      "aggregate_node": "HashAggregate"
+    },
+    {
+      "label": "C-legacy-new-index",
+      "runs_ms": [
+        1260.71,
+        1236.97,
+        1265.295,
+        1257.105,
+        1239.314
+      ],
+      "median_execution_ms": 1257.105,
+      "median_planning_ms": 2.189,
+      "plan_file": "docs/evidence/WWHN-231/plans/C-legacy-new-index.txt",
+      "shared_hit_blocks": 12298,
+      "scan_node": "Index Only Scan",
+      "aggregate_node": "GroupAggregate"
+    },
+    {
+      "label": "D-optimized-new-index",
+      "runs_ms": [
+        101.708,
+        89.263,
+        92.726,
+        96.866,
+        101.771
+      ],
+      "median_execution_ms": 96.866,
+      "median_planning_ms": 2.773,
+      "plan_file": "docs/evidence/WWHN-231/plans/D-optimized-new-index.txt",
+      "shared_hit_blocks": 8495,
+      "scan_node": "Seq Scan",
+      "aggregate_node": "HashAggregate"
+    },
+    {
+      "label": "E-legacy-filtered-baseline-index",
+      "runs_ms": [
+        1.467,
+        1.881,
+        2.504,
+        2.657,
+        1.457
+      ],
+      "median_execution_ms": 1.881,
+      "median_planning_ms": 1.929,
+      "plan_file": "docs/evidence/WWHN-231/plans/E-legacy-filtered-baseline-index.txt",
+      "shared_hit_blocks": 310,
+      "scan_node": "Index Scan",
+      "aggregate_node": "HashAggregate"
+    },
+    {
+      "label": "F-optimized-filtered-baseline-index",
+      "runs_ms": [
+        1.152,
+        1.497,
+        2.307,
+        1.972,
+        2.446
+      ],
+      "median_execution_ms": 1.972,
+      "median_planning_ms": 2.401,
+      "plan_file": "docs/evidence/WWHN-231/plans/F-optimized-filtered-baseline-index.txt",
+      "shared_hit_blocks": 311,
+      "scan_node": "Index Scan",
+      "aggregate_node": "HashAggregate"
+    },
+    {
+      "label": "G-legacy-filtered-new-index",
+      "runs_ms": [
+        0.894,
+        0.481,
+        0.55,
+        0.704,
+        0.731
+      ],
+      "median_execution_ms": 0.704,
+      "median_planning_ms": 2.783,
+      "plan_file": "docs/evidence/WWHN-231/plans/G-legacy-filtered-new-index.txt",
+      "shared_hit_blocks": 12,
+      "scan_node": "Index Only Scan",
+      "aggregate_node": "HashAggregate"
+    },
+    {
+      "label": "H-optimized-filtered-new-index",
+      "runs_ms": [
+        0.244,
+        0.241,
+        0.288,
+        0.31,
+        0.266
+      ],
+      "median_execution_ms": 0.266,
+      "median_planning_ms": 2.783,
+      "plan_file": "docs/evidence/WWHN-231/plans/H-optimized-filtered-new-index.txt",
+      "shared_hit_blocks": 13,
+      "scan_node": "Index Only Scan",
+      "aggregate_node": "GroupAggregate"
+    },
+    {
+      "label": "I-xnt-legacy",
+      "runs_ms": [
+        1667.654,
+        1660.034,
+        1585.474,
+        1629.853,
+        1633.312
+      ],
+      "median_execution_ms": 1633.312,
+      "median_planning_ms": 2.812,
+      "plan_file": "docs/evidence/WWHN-231/plans/I-xnt-legacy.txt",
+      "shared_hit_blocks": 610293,
+      "scan_node": "Index Scan",
+      "aggregate_node": "GroupAggregate"
+    },
+    {
+      "label": "J-xnt-optimized",
+      "runs_ms": [
+        152.041,
+        158.097,
+        148.254,
+        215.083,
+        152.891
+      ],
+      "median_execution_ms": 152.891,
+      "median_planning_ms": 1.956,
+      "plan_file": "docs/evidence/WWHN-231/plans/J-xnt-optimized.txt",
+      "shared_hit_blocks": 8846,
+      "scan_node": "Seq Scan",
+      "aggregate_node": "HashAggregate"
+    }
+  ],
+  "index_sizes": "indexrelname       | size  \n-------------------------+-------\n idx_sm_ledger_dimension | 49 MB\n idx_sm_wh_product_time  | 34 MB\n stock_movements_pkey    | 23 MB\n(3 rows)",
+  "verdict": {
+    "full_scan_legacy_ms": 1897.577,
+    "full_scan_optimized_ms": 88.729,
+    "full_scan_speedup_x": 21.39,
+    "filtered_legacy_ms": 1.881,
+    "filtered_optimized_before_index_ms": 1.972,
+    "filtered_optimized_after_index_ms": 0.266,
+    "filtered_index_speedup_x": 7.41,
+    "filtered_blocks_before_index": 311,
+    "filtered_blocks_after_index": 13,
+    "xnt_legacy_ms": 1633.312,
+    "xnt_optimized_ms": 152.891,
+    "xnt_speedup_x": 10.68,
+    "query_count_before": 1,
+    "query_count_after": 1,
+    "note": "Số câu truy vấn không đổi (1 aggregate mỗi lần dựng báo cáo); thay đổi nằm ở hình dạng plan và ở index cho nhánh có filter."
+  }
+}

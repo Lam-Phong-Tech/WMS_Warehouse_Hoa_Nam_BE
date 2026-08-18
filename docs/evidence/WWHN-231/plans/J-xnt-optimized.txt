@@ -1,0 +1,41 @@
+                                                                            QUERY PLAN                                                                            
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Left Join  (cost=31564.40..31786.89 rows=8000 width=235) (actual time=149.743..151.424 rows=2000 loops=1)
+   Hash Cond: (m.product_id = p.id)
+   Buffers: shared hit=8846
+   ->  Hash Left Join  (cost=31498.40..31699.84 rows=8000 width=214) (actual time=149.201..150.414 rows=2000 loops=1)
+         Hash Cond: (m.warehouse_id = w.id)
+         Buffers: shared hit=8825
+         ->  Finalize HashAggregate  (cost=31497.38..31677.38 rows=8000 width=202) (actual time=149.140..150.033 rows=2000 loops=1)
+               Group Key: m.warehouse_id, m.product_id, m.stock_status
+               Batches: 1  Memory Usage: 1681kB
+               Buffers: shared hit=8824
+               ->  Gather  (cost=29197.38..30977.38 rows=16000 width=202) (actual time=139.502..142.179 rows=6000 loops=1)
+                     Workers Planned: 2
+                     Workers Launched: 2
+                     Buffers: shared hit=8824
+                     ->  Partial HashAggregate  (cost=28197.38..28377.38 rows=8000 width=202) (actual time=135.443..136.892 rows=2000 loops=3)
+                           Group Key: m.warehouse_id, m.product_id, m.stock_status
+                           Batches: 1  Memory Usage: 1681kB
+                           Buffers: shared hit=8824
+                           Worker 0:  Batches: 1  Memory Usage: 1681kB
+                           Worker 1:  Batches: 1  Memory Usage: 1681kB
+                           ->  Parallel Seq Scan on stock_movements m  (cost=0.00..11949.00 rows=249975 width=67) (actual time=0.017..32.876 rows=200000 loops=3)
+                                 Filter: (occurred_at <= '2026-08-31 23:59:59'::timestamp without time zone)
+                                 Buffers: shared hit=8824
+         ->  Hash  (cost=1.01..1.01 rows=1 width=28) (actual time=0.023..0.024 rows=1 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               Buffers: shared hit=1
+               ->  Seq Scan on warehouses w  (cost=0.00..1.01 rows=1 width=28) (actual time=0.015..0.016 rows=1 loops=1)
+                     Buffers: shared hit=1
+   ->  Hash  (cost=41.00..41.00 rows=2000 width=37) (actual time=0.497..0.498 rows=2000 loops=1)
+         Buckets: 2048  Batches: 1  Memory Usage: 153kB
+         Buffers: shared hit=21
+         ->  Seq Scan on products p  (cost=0.00..41.00 rows=2000 width=37) (actual time=0.005..0.168 rows=2000 loops=1)
+               Buffers: shared hit=21
+ Planning:
+   Buffers: shared hit=285
+ Planning Time: 1.789 ms
+ Execution Time: 152.891 ms
+(37 rows)
+

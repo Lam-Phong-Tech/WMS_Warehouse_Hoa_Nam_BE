@@ -1,0 +1,38 @@
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=46.38..47.38 rows=80 width=138) (actual time=0.412..0.414 rows=1 loops=1)
+   Group Key: m.stock_status, w.code, p.code, p.name, p.category_id, pc.category_name
+   Batches: 1  Memory Usage: 32kB
+   Buffers: shared hit=12
+   ->  Nested Loop Left Join  (cost=8.73..40.42 rows=298 width=114) (actual time=0.147..0.303 rows=300 loops=1)
+         Buffers: shared hit=12
+         ->  Nested Loop Left Join  (cost=8.73..35.68 rows=298 width=102) (actual time=0.138..0.247 rows=300 loops=1)
+               Buffers: shared hit=11
+               ->  Index Only Scan using idx_sm_ledger_dimension on stock_movements m  (cost=0.42..22.39 rows=298 width=58) (actual time=0.068..0.104 rows=300 loops=1)
+                     Index Cond: ((warehouse_id = 'a95dcb8a-ebb2-02ef-eedb-10d5538edeb9'::uuid) AND (product_id = '46d46a75-9bf6-cbed-05d7-bcdcb911a4f8'::uuid))
+                     Heap Fetches: 0
+                     Buffers: shared hit=7
+               ->  Materialize  (cost=8.31..9.58 rows=1 width=60) (actual time=0.000..0.000 rows=1 loops=300)
+                     Buffers: shared hit=4
+                     ->  Hash Right Join  (cost=8.31..9.57 rows=1 width=60) (actual time=0.062..0.066 rows=1 loops=1)
+                           Hash Cond: (pc.id = p.category_id)
+                           Buffers: shared hit=4
+                           ->  Seq Scan on product_categories pc  (cost=0.00..1.20 rows=20 width=23) (actual time=0.004..0.005 rows=20 loops=1)
+                                 Buffers: shared hit=1
+                           ->  Hash  (cost=8.29..8.29 rows=1 width=53) (actual time=0.034..0.035 rows=1 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                 Buffers: shared hit=3
+                                 ->  Index Scan using products_pkey on products p  (cost=0.28..8.29 rows=1 width=53) (actual time=0.026..0.027 rows=1 loops=1)
+                                       Index Cond: (id = '46d46a75-9bf6-cbed-05d7-bcdcb911a4f8'::uuid)
+                                       Buffers: shared hit=3
+         ->  Materialize  (cost=0.00..1.02 rows=1 width=28) (actual time=0.000..0.000 rows=1 loops=300)
+               Buffers: shared hit=1
+               ->  Seq Scan on warehouses w  (cost=0.00..1.01 rows=1 width=28) (actual time=0.004..0.004 rows=1 loops=1)
+                     Filter: (id = 'a95dcb8a-ebb2-02ef-eedb-10d5538edeb9'::uuid)
+                     Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=319
+ Planning Time: 2.323 ms
+ Execution Time: 0.704 ms
+(34 rows)
+

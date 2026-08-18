@@ -1,0 +1,49 @@
+                                                                                          QUERY PLAN                                                                                          
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=12.32..120841.44 rows=600000 width=138) (actual time=19.671..1234.322 rows=2000 loops=1)
+   Group Key: m.warehouse_id, m.product_id, m.stock_status, w.code, p.code, p.name, p.category_id, pc.category_name
+   Buffers: shared hit=12298
+   ->  Incremental Sort  (cost=12.32..98341.44 rows=600000 width=114) (actual time=19.162..1081.710 rows=600000 loops=1)
+         Sort Key: m.warehouse_id, m.product_id, m.stock_status, w.code, p.code, p.name, p.category_id, pc.category_name
+         Presorted Key: m.warehouse_id, m.product_id, m.stock_status
+         Full-sort Groups: 2000  Sort Method: quicksort  Average Memory: 34kB  Peak Memory: 34kB
+         Pre-sorted Groups: 2000  Sort Method: quicksort  Average Memory: 67kB  Peak Memory: 67kB
+         Buffers: shared hit=12298
+         ->  Nested Loop Left Join  (cost=0.99..71994.98 rows=600000 width=114) (actual time=18.665..554.450 rows=600000 loops=1)
+               Buffers: shared hit=12295
+               ->  Nested Loop Left Join  (cost=0.84..57398.77 rows=600000 width=107) (actual time=18.646..379.852 rows=600000 loops=1)
+                     Buffers: shared hit=12255
+                     ->  Merge Left Join  (cost=0.55..41812.57 rows=600000 width=70) (actual time=18.620..182.345 rows=600000 loops=1)
+                           Merge Cond: (m.warehouse_id = w.id)
+                           Buffers: shared hit=6255
+                           ->  Index Only Scan using idx_sm_ledger_dimension on stock_movements m  (cost=0.42..34304.43 rows=600000 width=58) (actual time=0.053..87.350 rows=600000 loops=1)
+                                 Heap Fetches: 0
+                                 Buffers: shared hit=6253
+                           ->  Index Scan using warehouses_pkey on warehouses w  (cost=0.12..8.14 rows=1 width=28) (actual time=0.027..0.027 rows=1 loops=1)
+                                 Buffers: shared hit=2
+                     ->  Memoize  (cost=0.29..0.31 rows=1 width=53) (actual time=0.000..0.000 rows=1 loops=600000)
+                           Cache Key: m.product_id
+                           Cache Mode: logical
+                           Hits: 598000  Misses: 2000  Evictions: 0  Overflows: 0  Memory Usage: 325kB
+                           Buffers: shared hit=6000
+                           ->  Index Scan using products_pkey on products p  (cost=0.28..0.30 rows=1 width=53) (actual time=0.004..0.004 rows=1 loops=2000)
+                                 Index Cond: (id = m.product_id)
+                                 Buffers: shared hit=6000
+               ->  Memoize  (cost=0.15..0.17 rows=1 width=23) (actual time=0.000..0.000 rows=1 loops=600000)
+                     Cache Key: p.category_id
+                     Cache Mode: logical
+                     Hits: 599980  Misses: 20  Evictions: 0  Overflows: 0  Memory Usage: 3kB
+                     Buffers: shared hit=40
+                     ->  Index Scan using product_categories_pkey on product_categories pc  (cost=0.14..0.16 rows=1 width=23) (actual time=0.002..0.002 rows=1 loops=20)
+                           Index Cond: (id = p.category_id)
+                           Buffers: shared hit=40
+ Planning:
+   Buffers: shared hit=328
+ Planning Time: 2.189 ms
+ JIT:
+   Functions: 30
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 1.251 ms, Inlining 0.000 ms, Optimization 0.557 ms, Emission 17.994 ms, Total 19.803 ms
+ Execution Time: 1257.105 ms
+(45 rows)
+
