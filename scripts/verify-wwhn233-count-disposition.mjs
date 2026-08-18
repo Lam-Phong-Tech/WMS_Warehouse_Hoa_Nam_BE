@@ -395,20 +395,49 @@ if (EMIT) {
   const dir = join(ROOT, "docs/evidence/WWHN-233");
   mkdirSync(dir, { recursive: true });
 
-  const gitSha = (() => {
+  const git = (args) => {
     try {
-      return execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, stdio: "pipe" }).toString().trim();
+      return execFileSync("git", args, { cwd: ROOT, stdio: "pipe" }).toString().trim() || null;
     } catch {
       return null;
     }
-  })();
+  };
+
+  /**
+   * Nhiều nhánh Stocktake chạy song song trên cùng `m1`, nên `HEAD` tại thời điểm
+   * emit thường là commit của task khác. Pin theo commit **cuối cùng chạm artifact
+   * của WWHN-233** thay vì theo HEAD: đó mới là "exact implementation SHA" mà
+   * DEV233-P1-02 hỏi. `head_sha_at_emit` giữ lại để truy vết bối cảnh.
+   */
+  const OWNED_PATHS = [
+    "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+    "scripts/verify-wwhn233-count-disposition.mjs",
+    "tests/Feature/Wwhn233CountDeferredGateTest.php",
+    ".github/workflows/wwhn-233-count-deferral-gate.yml",
+  ];
+  const gitSha = git(["log", "-1", "--format=%H", "--", ...OWNED_PATHS]);
+  const headSha = git(["rev-parse", "HEAD"]);
 
   sourceRegister.register_id = "WWHN-233-SOURCE-REGISTER";
   sourceRegister.version = "1.0.0";
   sourceRegister.status = "PROPOSED";
   sourceRegister.jira = { task: "WWHN-233", parent: "WWHN-59", qa_gate: "WWHN-235", decision_gate: "WWHN-25" };
   sourceRegister.disposition = { id: "DISP-STK-233", path: DISPOSITION_233, result: "DEFERRED_NO_CODE" };
-  sourceRegister.repository = { branch: "m1", be_commit_sha: gitSha, fe_commit_sha: FE_SHA };
+  // `head_sha_at_emit` cố ý KHÔNG được ghi vào pack: nó đổi mỗi lần nhánh dùng chung
+  // nhận commit của task khác, và sẽ làm bước kiểm tra drift trong CI đỏ vĩnh viễn.
+  // Chỉ log ra để người chạy thấy bối cảnh.
+  if (headSha !== gitSha) {
+    console.log(`[wwhn-233] HEAD tại thời điểm emit là ${headSha} (commit của nhánh khác); pin theo ${gitSha}.`);
+  }
+
+  sourceRegister.repository = {
+    branch: "m1",
+    be_commit_sha: gitSha,
+    be_commit_sha_meaning:
+      "Commit cuối cùng chạm artifact của WWHN-233, không phải HEAD của nhánh dùng chung — " +
+      "nhiều nhánh Stocktake commit song song vào m1.",
+    fe_commit_sha: FE_SHA,
+  };
   writeFileSync(join(dir, "SOURCE_REGISTER.json"), `${JSON.stringify(sourceRegister, null, 2)}\n`, "utf8");
 
   const negativeLock = {

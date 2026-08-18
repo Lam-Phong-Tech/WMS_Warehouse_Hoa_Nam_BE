@@ -36,8 +36,10 @@
   },
 
   "evidence_candidate": {
-    "sha": "PENDING_COMMIT",
-    "note": "Điền exact SHA của commit docs/evidence WWHN-299 ngay sau khi commit, rồi cập nhật lại file này.",
+    "sha": "ee9e334a6b8f4d750c14f83f547f8670c17ac31a",
+    "short_sha": "ee9e334",
+    "subject": "docs(WWHN-299): dong P1/P2 cua danh gia 60/100 va pin nguon evidence",
+    "note": "Commit này chỉ chứa docs/evidence/test/workflow của WWHN-299 — không lẫn thay đổi của ticket khác. Bản thân file pin được cập nhật ở commit kế tiếp nên nội dung sha ở đây trỏ tới commit cha của nó.",
     "files": [
       "docs/evidence/WWHN-299/WWHN-299_DEFECT_FIX_REGISTER.md",
       "docs/evidence/WWHN-299/WWHN-299_SOURCE_PIN.json",

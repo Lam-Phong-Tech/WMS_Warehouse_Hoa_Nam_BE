@@ -65,9 +65,10 @@ jobs:
       - name: Fail if evidence drifted from the committed pack
         # Evidence được sinh lại từ chính source ở SHA này. Nếu nó khác bản đã commit
         # thì pack trong repo là stale — đúng loại pin rot mà DEV233-P1-03 chỉ ra.
-        # `be_commit_sha` luôn khác giữa hai commit nên được bỏ qua khi so sánh.
+        #
+        # `be_commit_sha` ổn định giữa các lần chạy vì nó được pin theo commit cuối
+        # cùng chạm artifact của WWHN-233, không theo HEAD của nhánh dùng chung.
         run: |
-          git checkout -- docs/evidence/WWHN-233/SOURCE_REGISTER.json 2>/dev/null || true
           if ! git diff --quiet -- docs/evidence/WWHN-233; then
             echo "::error::docs/evidence/WWHN-233 stale so với source tại ${GITHUB_SHA}."
             git --no-pager diff -- docs/evidence/WWHN-233
