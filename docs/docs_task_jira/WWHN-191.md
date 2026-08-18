@@ -231,3 +231,35 @@ Repo/branch tại thời điểm rà soát: `WMS_Warehouse_Hoa_Nam_BE`, branch `
 - Repo `WMS_Warehouse_Hoa_Nam_FE` (branch `m1`), file `src/modules/inventory/services/inventoryService.ts`, hàm `normalizeBalance()`: **không đọc** các trường `ledger_total`, `variance`, `reserved_qty`, `incident_id`, `incident_status` từ response `GET /inventory/balances` — đây chính là các trường "hỗ trợ đối soát" (core deliverable của WWHN-191, không phải trường phụ). Chỉ `reconciliation_status`/`mismatch_reason` được đọc (qua field `reconcile`/`reconcileNote`). Đã thêm 5 trường trên vào type `InventoryBalanceRow` và pass-through trong `normalizeBalance()` (bổ sung dữ liệu, **không đổi UI hiện có** — có hiển thị thành cột bảng hay không là quyết định UX cần FE lead xác nhận, ghi ở phần role comment bên dưới). Đồng thời `PhysicalCodeTraceResult` thiếu field `resolved_by` (BE trả về nhưng FE type không khai) — đã bổ sung (type là passthrough trực tiếp từ `http.get<PhysicalCodeTraceResult>()`, không cần sửa logic).
 - Đã sửa fixture `BalanceDetailModal.test.tsx` (thiếu 5 field mới, TS bắt lỗi ngay). Verify: `npm run typecheck` sạch; `npx vitest run src/modules/inventory` → **4 file, 33/33 test pass**.
 - **Phát hiện phụ, không sửa (ngoài phạm vi BE2/DEV191)**: endpoint `GET /reports/inventory-reconciliation` (một trong các output "báo cáo đối soát" liệt kê ở mục 1 phần đầu file) có hằng số `API_ENDPOINTS.INVENTORY_RECONCILIATION` khai trong FE nhưng **không có service function/hook/page nào gọi** — dead contract, chưa được FE wiring. Ghi nhận để FE1/BA xác nhận có nằm trong scope UI đối soát hay chưa tới lượt làm.
+
+### 9. Đóng register DEV191-P1/P2 — cập nhật 2026-08-19 (vòng 3)
+
+Nguyên nhân gốc của 67/100 không phải "thiếu evidence" mà là **evidence toàn bằng câu chữ**:
+SHA, hash OpenAPI, run CI, vị trí test đều được *mô tả* trong file `.md`. Nhánh `m1` là nhánh
+dùng chung, `m1` đi tiếp mỗi ngày, OpenAPI tái sinh mỗi lần app boot, run CI thuộc ticket khác —
+nên reviewer đọc lại không có cách nào phân biệt "đúng" với "đã mục". Vòng này chuyển từng mục
+register thành **phép kiểm chạy được, fail-closed**.
+
+Cổng: `node scripts/verify-wwhn-191-closure.mjs` (refresh pin: `--refresh`).
+
+| Mục | Trạng thái | Bằng chứng kiểm lại được |
+|---|---|---|
+| DEV191-P1-01R | **ĐÓNG** | `docs/evidence/WWHN-191/CANDIDATE_MANIFEST.json`. Cổng kiểm bằng `git merge-base`: source `46249187…` → merge `741a6cf…` → candidate `7dacc8e531a8bb2252e3f055d81baef63989d90f`, và supersession `origin/m1-be-2@6081649…` nằm trọn trong `m1`. Candidate **không** phải HEAD: nó là commit cuối chạm vào tập artifact của task, nên `m1` chạy tiếp cho task khác mà pin vẫn đúng. `pull_request = N/A` bắt buộc khai `independent_review { reviewer, scope, status }` — bỏ trống là fail. |
+| DEV191-P1-02R | **CHỜ DEVOPS** | Đã có gate riêng đúng tên/scope: `.github/workflows/wwhn-191-movement-balance-gate.yml`, matrix **sqlite + PostgreSQL 16**, upload artifact gắn `GITHUB_SHA`/`GITHUB_RUN_ID`. Không còn mượn run của WWHN-211. Còn thiếu đúng một việc thuộc DevOps: push + `gh workflow run wwhn-191-movement-balance-gate.yml --ref 7dacc8e…` rồi điền `manifest.ci_run`. Cổng từ chối mọi `ci_run.head_sha ≠ candidate_sha` — chính lỗi "mượn evidence" review đã bắt. |
+| DEV191-P1-03R | **SẴN SÀNG CHO QA1** | `docs/evidence/WWHN-191/QA_RETEST_PLAN.md`: ánh xạ đủ 8 kịch bản register sang test/lệnh chạy được, cộng 8 kịch bản trace/reversal thuộc output này, kèm yêu cầu ghi build/SHA/env/DB engine. Cổng fail nếu plan thiếu bất kỳ kịch bản nào. WWHN-192 vẫn cần QA Lead/PM giao việc — nhưng không còn "blocked vì không biết chạy gì". |
+| DEV191-P1-04R | **ĐÓNG (phần DEV)** | `docs/evidence/WWHN-191/CONTRACT_PIN.json`: 8 endpoint + operationId + permission + ranh giới ledger/projection. Cổng đối chiếu từng endpoint với `storage/api-docs/api-docs.json` — pin trỏ vào endpoint không tồn tại hoặc lệch `operationId` là fail. Đây là pin **kiểm được**, thay cho SHA256 của file OpenAPI vốn tái sinh mỗi lần boot. Còn lại là 5 chữ ký vai trò (BA/Tech/FE1/QA1/DevOps) đã khai sẵn trong `role_signoff_required`. |
+| DEV191-P2-01R | **ĐÓNG** | Thêm 4 positive test vào đúng `tests/Feature/Wwhn191BalanceMovementProjectionTest.php`: trace-by-code theo mã SKU (kèm case-insensitive, BR-TRACE-06), theo mã container, parity Annex C `GET /inventory/trace/{code}` vs `trace-by-code`, và `/reversible` cho movement RECEIPT (`reversible_qty` = full qty, `dependency_guard` null). Nhánh ITEM/ISSUE serial-tracked đã ở WWHN-207 nên không trùng. Cổng kiểm sự tồn tại của 11 test theo tên. |
+| DEV191-P2-02R | **CHỜ PM** | Metadata Jira (unified DEV vs historical BE2) là governance, không có phần code. Kiến nghị: giữ nguyên nhãn BE2 làm historical trace và ghi một dòng disposition trong Description, vì `provenance.note` trong manifest đã ghi rõ owner-transfer. |
+
+**Kết quả chạy thật tại candidate `7dacc8e`**
+
+- `tests/Feature/Wwhn191BalanceMovementProjectionTest.php`: **14/14 passed, 111 assertions** trên sqlite **và** trên PostgreSQL 16.14 thật (`wms_hoanam_testing`, `--configuration=phpunit.pgsql.xml`).
+- Batch đúng bằng scope của gate (7 file: WWHN-191, WWHN-211 scope, WWHN-204 reconciliation coverage, WWHN-207 outbound, WWHN-219 reconcile command, WWHN-180 idempotency/atomicity, PostReceipt concurrency): **49/49 passed, 295 assertions** trên sqlite.
+- `./vendor/bin/pint --test tests/Feature/Wwhn191BalanceMovementProjectionTest.php`: sạch. Hai controller trong scope đang đỏ pint từ baseline trước và **không** bị task này sửa — gate cố ý chỉ format-check file thuộc phạm vi WWHN-191 để không kéo báo đỏ của người khác vào.
+- FE (`WMS_Warehouse_Hoa_Nam_FE`, branch `m1`): `npx vitest run src/modules/inventory` → **5 file, 38/38 passed**; `normalizeBalance()` đã đọc đủ `ledger_total`/`variance`/`reserved_qty`/`incident_id`/`incident_status` đúng như `CONTRACT_PIN.json` khai.
+
+**Bẫy đã xử lý khi làm vòng này (ghi lại để task sau không lặp)**
+
+- `phpunit.pgsql.xml` khai `DB_HOST=postgres force="true"` cho docker-compose local; `force="true"` khiến env của job CI **không** override được. Gate phải `sed` file trong bước riêng, nếu không job PostgreSQL sẽ không kết nối được service container.
+- Pin theo HEAD là sai trên nhánh dùng chung: trong lúc làm vòng này đã có 3 commit của task khác (WWHN-201, WWHN-273, WWHN-295) chen vào `m1`. Vì vậy `--refresh` tính candidate bằng `git log -1 -- <tập artifact>` chứ không phải `git rev-parse HEAD`.
+- Cổng chạy ngay **trong** CI run tạo ra evidence → không được đòi `ci_run` đã tồn tại, nếu không deadlock. Trong CI cổng đổi sang đối chiếu `GITHUB_SHA == candidate_sha`.
