@@ -394,9 +394,18 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
         $create->assertCreated();
         $caseId = (string) $create->json('data.id');
 
+        // DEC-WAR-STATE-001: rời CHECKING bắt buộc có confirmed_defect, COMPLETED bắt buộc
+        // ghi kết quả xử lý và RETURNED bắt buộc ghi biên bản bàn giao (đều vào `note`).
+        // Fixture cũ chỉ gửi `status` — hợp lệ trước khi guard tồn tại, nay chặn 422 và
+        // làm hỏng chính happy path mà test này cần dựng để đo turnaround.
         $version = 1;
-        foreach (['CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED'] as $target) {
-            $this->patchJson("/api/v1/warranty-cases/{$caseId}", ['status' => $target],
+        foreach ([
+            ['status' => 'CHECKING'],
+            ['status' => 'REPAIRING', 'confirmed_defect' => 'Chay cuon day motor'],
+            ['status' => 'COMPLETED', 'note' => 'Da thay cuon day, chay thu dat'],
+            ['status' => 'RETURNED', 'note' => 'Ban giao khach, ky nhan 09:15'],
+        ] as $payload) {
+            $this->patchJson("/api/v1/warranty-cases/{$caseId}", $payload,
                 $headers + ['If-Match' => (string) $version])->assertOk();
             $version++;
         }

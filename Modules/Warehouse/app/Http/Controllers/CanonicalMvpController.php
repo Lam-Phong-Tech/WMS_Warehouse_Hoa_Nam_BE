@@ -362,13 +362,20 @@ class CanonicalMvpController extends Controller
         }
 
         $page = $query->orderByDesc($orderBy)->paginate($this->perPage($request));
-        if ($piiHidden) {
-            $page->getCollection()->transform(function (object $row) use ($masked): object {
-                foreach ($masked as $field) {
-                    if (isset($row->{$field})) {
-                        $row->{$field} = $this->maskPii($field, (string) $row->{$field});
+        if ($masked !== []) {
+            // §13.8 · WWHN-247: bề mặt đọc danh sách phải khai báo trạng thái mask
+            // giống bề mặt chi tiết (`casePayload.pii_masked`). Thiếu cờ này, client
+            // không có cách nào biết giá trị đang cầm là thô hay đã mask nên buộc
+            // phải đoán từ danh sách quyền phía mình — đúng lớp lỗi mà §13.8 cấm.
+            $page->getCollection()->transform(function (object $row) use ($masked, $piiHidden): object {
+                if ($piiHidden) {
+                    foreach ($masked as $field) {
+                        if (isset($row->{$field})) {
+                            $row->{$field} = $this->maskPii($field, (string) $row->{$field});
+                        }
                     }
                 }
+                $row->pii_masked = $piiHidden;
 
                 return $row;
             });

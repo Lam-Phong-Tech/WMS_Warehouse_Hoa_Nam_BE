@@ -20,11 +20,21 @@ class CurrentBaselineOperationsController extends Controller
 {
     use ApiResponse;
 
+    /**
+     * WWHN-247: bản sao thứ hai của state machine bảo hành. Nó KHÔNG được route nào trỏ
+     * tới (updateWarrantyCase/storeWarrantyCase ở lớp này là handler chết — route thật đi
+     * qua CurrentBaselineWarrantyController), nhưng vẫn phải trùng khít ma trận đã chốt:
+     * hai bản khác nhau là cái bẫy khiến lần sửa sau "sửa đúng file sai" và status enum
+     * lại lệch giữa FE/BE.
+     *
+     * Nguồn chốt: DEC-WAR-STATE-001 + SRS §6, khoá bằng
+     * Wwhn247WarrantyStateMachineParityTest::test_duplicate_matrix_matches_the_routed_one.
+     */
     private const WARRANTY_TRANSITIONS = [
         'RECEIVED' => ['CHECKING', 'CANCELLED'],
-        'CHECKING' => ['REPAIRING', 'CANCELLED'],
+        'CHECKING' => ['REPAIRING', 'COMPLETED', 'CANCELLED'],
         'REPAIRING' => ['COMPLETED', 'CANCELLED'],
-        'COMPLETED' => ['RETURNED'],
+        'COMPLETED' => ['RETURNED', 'CANCELLED'],
         'RETURNED' => [],
         'CANCELLED' => [],
     ];

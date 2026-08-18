@@ -152,10 +152,13 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
             ->assertStatus(412)
             ->assertJsonPath('error.code', 'STALE_VERSION');
 
+        // DEC-WAR-STATE-001: rời CHECKING bắt buộc kèm confirmed_defect. Payload của lần
+        // gọi đầu và lần retry phải GIỐNG HỆT, nếu không idempotency trả 409 thay vì replay.
         $key = ['Idempotency-Key' => 'warranty-update-replay-0001'];
+        $repairPayload = ['status' => 'REPAIRING', 'confirmed_defect' => 'Chay cuon day motor'];
         $update = $this->patchJson(
             "/api/v1/warranty-cases/{$caseId}",
-            ['status' => 'REPAIRING'],
+            $repairPayload,
             $headers + $key + ['If-Match' => '2']
         );
         $update->assertOk()
@@ -166,7 +169,7 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
         // không tạo event mới và không tăng version (kể cả If-Match đã cũ).
         $retry = $this->patchJson(
             "/api/v1/warranty-cases/{$caseId}",
-            ['status' => 'REPAIRING'],
+            $repairPayload,
             $headers + $key + ['If-Match' => '2']
         );
         $retry->assertOk()
