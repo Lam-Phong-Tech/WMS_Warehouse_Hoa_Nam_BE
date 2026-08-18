@@ -1,0 +1,23 @@
+$ node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock
+(cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE)
+
+WWHN-237 / DISP-STK-237 — Variance query/report disposition gate
+
+  PASS [DISP-CONTENT] DISP-STK-237 neo REQ-SRS-037 + DEFERRED + WWHN-238 + WWHN-60 + WWHN-25
+  PASS [BASELINE] REQ-SRS-037 còn hiệu lực trong SRS/FRD v1.12
+  PASS [BASELINE-ERD] ERD §0.1 vẫn loại Variance_Line/Stocktake_* khỏi baseline
+  PASS [DEC-STK-001] DEC-STK-001 vẫn là bản nháp chưa có effective date
+  PASS [REPORT-REGISTRY] report registry + hub + export path: 65 literal, zero mã variance/kiểm kê
+  PASS [REPORT-KPI] dashboardQuick không có field stocktake_variance
+  PASS [RECONCILIATION-ALIVE] RPT-INV-01 vẫn tính variance ledger-vs-balance và trả reconciliation_status
+  PASS [ROUTE] 195 route: zero bề mặt variance/stocktake/adjustment
+  PASS [OPENAPI-RUNTIME] OpenAPI runtime: 183 path, zero bề mặt variance
+  PASS [CONTRACT-SURFACE] 30 contract artifact: zero bề mặt bị cấm ngoài 1 artifact historical đã có disposition
+  PASS [BASELINE-CONTRACT] baseline contract vẫn khai forbidden fragment + excluded table kiểm kê
+  NOTE [CONTRACT-HISTORICAL] docs/postman/WWHN-180 Canonical Contract.postman_collection.json → stocktake, apply-adjustment — historical, superseded bởi DISP-STK-236 §3 / DISP-STK-237 §4; không sửa nội dung.
+
+  lock → docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json
+
+OK — 11 check pass, 1 note.
+
+EXIT_CODE=0

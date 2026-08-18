@@ -221,12 +221,23 @@ class Flow05InventoryControlAlignmentTest extends TestCase
      * Phạm vi cố ý loại trừ `docs/api-contract/*.yaml|json` ở gốc: đó là bản ghi lịch sử
      * của WWHN-150/180 đã superseded, giữ lại để truy vết, không nằm trong bộ bàn giao
      * hiện hành (xem docs/evidence/WWHN-254/README.md).
+     *
+     * WWHN-237 / DISP-STK-237 §4: cùng lý lẽ đó áp cho phần còn lại của pack immutable
+     * WWHN-180 nằm trong `docs/postman`. `DISP-STK-236 §3` đã chốt một immutable handoff
+     * chỉ được superseded bằng decision record trỏ tới nó, **không bao giờ bằng cách sửa
+     * nội dung** — nên guard này không được đòi sửa chúng. Danh sách miễn là hằng số
+     * tường minh: thêm phần tử là một thay đổi source có review, không phải im lặng.
      */
     public function test_published_contract_artifacts_carry_no_stocktake_capability(): void
     {
         $roots = [
             base_path('docs/postman'),
             base_path('docs/api-contract/releases'),
+        ];
+
+        $historicalAllowlist = [
+            'docs/postman/WWHN-180 Canonical Contract.postman_collection.json',
+            'docs/postman/WWHN-180 Canonical Contract.postman_environment.json',
         ];
 
         $offenders = [];
@@ -239,6 +250,11 @@ class Flow05InventoryControlAlignmentTest extends TestCase
             $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
             foreach ($files as $file) {
                 if (! $file->isFile()) {
+                    continue;
+                }
+
+                $relative = str_replace('\\', '/', substr($file->getPathname(), strlen(base_path()) + 1));
+                if (in_array($relative, $historicalAllowlist, true)) {
                     continue;
                 }
 

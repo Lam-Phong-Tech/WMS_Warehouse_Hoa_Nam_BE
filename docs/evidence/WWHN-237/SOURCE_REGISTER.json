@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0.0",
+  "jira_key": "WWHN-237",
+  "parent_key": "WWHN-60",
+  "qa_gate": "WWHN-238",
+  "disposition": "DISP-STK-237",
+  "disposition_result": "DEFERRED_NO_CODE",
+  "status": "PROPOSED",
+  "approval_status": "PENDING_APPROVER_AUTHORED_DISPOSITION",
+  "controlling_requirement": {
+    "id": "REQ-SRS-037",
+    "priority": "Must",
+    "statement": "Không expose Stocktake/Variance, menu/API/permission/entity/report hoặc action sửa tồn trực tiếp.",
+    "acceptance_criteria": "AC-SRS-037",
+    "test_case": "TC-SRS-037",
+    "business_rules": "BR-NOSTK-01..03",
+    "adoption_issue": "WWHN-334"
+  },
+  "repositories": {
+    "backend": {
+      "branch": "m1",
+      "commit_sha": "d52727cec7e48ab09dff020fd968f1129fcc51c5",
+      "working_tree_clean": false
+    },
+    "frontend": {
+      "branch": "m1",
+      "commit_sha": "0eda8248ea121be10518f6e3edda0d2ca74b9c26",
+      "working_tree_clean": false
+    }
+  },
+  "baselines": {
+    "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+    "docs/HoaNam_ERD_Moi_Nhat.md": "30badd145e3eba41d080492b07e995d92dacbc370d304c60c015adeddfa8c33b",
+    "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md": "232e4d313a0bd4ff6f70f42ab679bab63d559d07e2b33a994dfbfcfd27ac9b5b",
+    "docs/contracts/HoaNam_Current_Baseline_Contract.json": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+    "docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md": "c16a5e82a1bb46cb830e5b479f89ca85c721c8ec74210bfc1cc24c854f004f64"
+  },
+  "baseline_hash_rule": "Digest ghi tại thời điểm chạy, không dán tay. Guard xác minh bằng anchor text của REQ-SRS-037 và ERD §0.1; digest chỉ để QA1 tái lập đúng bản đã kiểm.",
+  "environment": {
+    "node": "v22.17.1",
+    "platform": "win32",
+    "php_test_driver": "phpunit.xml ép DB_CONNECTION=sqlite :memory:. Muốn chạy PostgreSQL phải set env trước vì <env> không có force=true."
+  },
+  "commands": [
+    {
+      "id": "be-disposition-gate",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "command": "node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock",
+      "covers": "DEV237-P1-02, DEV237-P1-03",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/be-disposition-gate.txt"
+    },
+    {
+      "id": "be-regression-test",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "command": "php artisan test --filter=\"Wwhn237VarianceReportDeferredGateTest|Flow05InventoryControlAlignmentTest\"",
+      "covers": "DEV237-P1-04 (N1..N6, R1..R4)",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/be-regression-test.txt"
+    },
+    {
+      "id": "be-sibling-disposition-gates",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "command": "node scripts/verify-wwhn236-adjustment-disposition.mjs",
+      "covers": "không hồi quy disposition anh em (WWHN-236)",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/be-sibling-disposition-gates.txt"
+    },
+    {
+      "id": "fe-closure-gate",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_FE\\WMS_Warehouse_Hoa_Nam_FE",
+      "command": "node scripts/verify-wwhn-237-closure.mjs",
+      "covers": "DEV237-P1-02, DEV237-P1-05 (nửa FE)",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/fe-closure-gate.txt"
+    },
+    {
+      "id": "fe-guard-test",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_FE\\WMS_Warehouse_Hoa_Nam_FE",
+      "command": "node node_modules/vitest/vitest.mjs run src/test/wwhn-237-variance-report-guard.test.ts",
+      "covers": "DEV237-P1-04 (N8)",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/fe-guard-test.txt"
+    },
+    {
+      "id": "fe-api-mapping",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_FE\\WMS_Warehouse_Hoa_Nam_FE",
+      "command": "npm run check:api-mapping",
+      "covers": "không hồi quy guard no-Stocktake của WWHN-296",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/fe-api-mapping.txt"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "status": "PASS"
+  }
+}

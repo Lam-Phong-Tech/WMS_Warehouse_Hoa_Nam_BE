@@ -1,0 +1,17 @@
+$ node node_modules/vitest/vitest.mjs run src/test/wwhn-237-variance-report-guard.test.ts
+(cwd: C:\LAM_PHONG_TECH\HoaNam_FE\WMS_Warehouse_Hoa_Nam_FE)
+
+
+ RUN  v4.1.10 C:/LAM_PHONG_TECH/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE
+
+ ✓ src/test/wwhn-237-variance-report-guard.test.ts (6 tests) 14ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  23:38:31
+   Duration  1.79s (transform 118ms, setup 534ms, import 45ms, tests 14ms, environment 1.02s)
+
+JSON report written to C:/LAM_PHONG_TECH/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE/test-results/vitest-results.json
+JUNIT report written to C:/LAM_PHONG_TECH/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE/test-results/vitest-junit.xml
+
+EXIT_CODE=0

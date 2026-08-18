@@ -1,0 +1,13 @@
+$ npm run check:api-mapping
+(cwd: C:\LAM_PHONG_TECH\HoaNam_FE\WMS_Warehouse_Hoa_Nam_FE)
+
+
+> wms-hoa-nam-frontend@0.0.0 check:api-mapping
+> node scripts/check-api-mapping.mjs
+
+[api-mapping] docs/api-evidence/M1_API_MAPPING.md: 31 endpoint rows
+[api-mapping] docs/api-evidence/M2_DEPENDENCY_LIST.md: 10 endpoint rows
+[api-mapping] docs/api-evidence/M3_DEPENDENCY_LIST.md: 15 endpoint rows
+[api-mapping] PASS: 56 documented rows checked (4 explicitly fail-closed); current MVP paths and permissions are internally consistent.
+
+EXIT_CODE=0

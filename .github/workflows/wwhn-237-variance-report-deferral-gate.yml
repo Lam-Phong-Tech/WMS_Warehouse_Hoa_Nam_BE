@@ -1,0 +1,71 @@
+name: WWHN-237 variance query/report deferral gate
+
+# DISP-STK-237 — WWHN-60 / WWHN-237 / WWHN-238 là DEFERRED — NO CODE theo REQ-SRS-037.
+#
+# DISP-STK-236 khoá *hành động* Apply Adjustment, DISP-STK-233 khoá *count/recount*.
+# Gate này khoá chiều còn lại mà REQ-SRS-037 cũng cấm nhưng chưa tầng nào canh:
+# **truy vấn và báo cáo variance** — report code, mục /reports/hub, cột export và
+# field KPI dashboard.
+#
+# Ranh giới bắt buộc giữ đúng: variance của *reconciliation* (balance vs ledger) là
+# cơ chế thay thế mà chính AC-SRS-037 chỉ định, nên gate có cả nghĩa vụ dương — nếu
+# ai đó gỡ luôn RPT-INV-01 để "cho sạch" thì gate cũng đỏ.
+#
+# Fail-closed BẤT KỂ trạng thái phê duyệt: kể cả khi DISP-STK-237 còn PROPOSED.
+
+on:
+  push:
+    branches: [m1]
+  pull_request:
+    branches: [m1]
+  workflow_dispatch:
+
+jobs:
+  variance-report-deferral-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin exact identity
+        run: echo "Exact commit: ${GITHUB_SHA}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Static disposition gate (registry / hub / export / KPI / contract surface)
+        run: node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp -n .env.example .env || true
+          php artisan key:generate --force
+
+      - name: Runtime gate — absence + reconciliation/reversal regression
+        run: php artisan test --filter="Wwhn237VarianceReportDeferredGateTest|Flow05InventoryControlAlignmentTest"
+
+      - name: Fail if the contract negative lock drifted from the committed pack
+        # Lock được sinh lại từ chính source ở SHA này. Khác bản đã commit nghĩa là
+        # pack trong repo stale — cùng loại pin rot mà DEV233-P1-03 đã chỉ ra.
+        run: |
+          if ! git diff --quiet -- docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json; then
+            echo "::error::docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json stale so với source tại ${GITHUB_SHA}."
+            git --no-pager diff -- docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wwhn-237-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-237
+          if-no-files-found: error
