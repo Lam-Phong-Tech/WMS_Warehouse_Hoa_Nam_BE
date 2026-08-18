@@ -1,11 +1,33 @@
 name: Flow 06 Exact SHA
 
+# WWHN-254 / DEV254-P1-02:
+# 1. `workflow_dispatch` cho phép chạy lại gate tại **đúng một SHA candidate** đã pin
+#    trên Jira. Trước đây gate chỉ chạy theo `push` + path filter nên một candidate đã
+#    pin không thể có bằng chứng PASS nếu commit đó không đụng đúng file trong filter.
+# 2. Path filter mở rộng sang toàn bộ surface báo cáo tích hợp (OperationalReportController,
+#    ReportExportFileName, cấu hình scan Swagger, routes) — phần code đã thay đổi sau khi
+#    candidate cũ được pin mà gate không hề chạy lại.
+# 3. Bước setup PHP có retry: run 32041944243 fail ở setup do codeload trả 429/503 khi
+#    tải action, không phải do code. Hạ tầng flake không được đọc thành "gate đỏ".
+
 on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: 'Exact commit SHA cần chứng minh (bỏ trống = HEAD của ref đang chọn)'
+        required: false
+        type: string
   push:
     branches: [m1]
     paths:
       - 'app/Support/HoaNamErdSchema.php'
+      - 'app/Support/ReportExportFileName.php'
+      - 'app/Swagger/**'
+      - 'config/l5-swagger.php'
+      - 'config/cors.php'
+      - 'routes/api.php'
       - 'Modules/Warehouse/app/Http/Controllers/Aligned*.php'
+      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
       - 'Modules/Warehouse/app/Services/Aligned*.php'
       - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
       - 'Modules/Warehouse/database/migrations/2026_08_10_000766_backfill_structured_erd_payload_columns.php'
@@ -14,6 +36,11 @@ on:
       - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
       - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
       - 'tests/Feature/ReportFlow06ContractTest.php'
+      - 'tests/Feature/ReportFlow06IntegrationTest.php'
+      - 'tests/Feature/ReportFlow06DocsAlignmentTest.php'
+      - 'tests/Feature/Wwhn254ReportEvidenceTest.php'
+      - 'tests/Feature/Flow05InventoryControlAlignmentTest.php'
+      - 'docs/postman/**'
       - 'docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md'
       - 'docs/HoaNam_ERD_Moi_Nhat.md'
       - 'docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md'
@@ -23,7 +50,13 @@ on:
     branches: [m1]
     paths:
       - 'app/Support/HoaNamErdSchema.php'
+      - 'app/Support/ReportExportFileName.php'
+      - 'app/Swagger/**'
+      - 'config/l5-swagger.php'
+      - 'config/cors.php'
+      - 'routes/api.php'
       - 'Modules/Warehouse/app/Http/Controllers/Aligned*.php'
+      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
       - 'Modules/Warehouse/app/Services/Aligned*.php'
       - 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php'
       - 'Modules/Warehouse/database/migrations/2026_08_10_000766_backfill_structured_erd_payload_columns.php'
@@ -32,6 +65,11 @@ on:
       - 'tests/Feature/Flow06PackingLabelAlignmentTest.php'
       - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
       - 'tests/Feature/ReportFlow06ContractTest.php'
+      - 'tests/Feature/ReportFlow06IntegrationTest.php'
+      - 'tests/Feature/ReportFlow06DocsAlignmentTest.php'
+      - 'tests/Feature/Wwhn254ReportEvidenceTest.php'
+      - 'tests/Feature/Flow05InventoryControlAlignmentTest.php'
+      - 'docs/postman/**'
       - 'docs/DR_HN_20260815_PACKING_LABEL_RFID_FLOW06.md'
       - 'docs/HoaNam_ERD_Moi_Nhat.md'
       - 'docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md'
@@ -45,7 +83,7 @@ jobs:
   flow06:
     name: Flow 06 contract / migration / RBAC surface
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -76,31 +114,75 @@ jobs:
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
     steps:
+      # Checkout đúng SHA candidate khi chạy tay; ngược lại giữ nguyên hành vi cũ.
       - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+        with:
+          ref: ${{ github.event.inputs.candidate_sha || github.sha }}
+
+      - name: Pin resolved identity
+        id: identity
+        run: |
+          RESOLVED="$(git rev-parse HEAD)"
+          REQUESTED="${{ github.event.inputs.candidate_sha }}"
+          if [ -n "${REQUESTED}" ] && [ "${RESOLVED}" != "$(git rev-parse "${REQUESTED}")" ]; then
+            echo "::error::Requested SHA ${REQUESTED} khong khop HEAD da checkout ${RESOLVED}"
+            exit 1
+          fi
+          echo "resolved_sha=${RESOLVED}" >> "$GITHUB_OUTPUT"
+          echo "requested_sha=${REQUESTED:-none}" >> "$GITHUB_OUTPUT"
+          echo "Resolved SHA: ${RESOLVED}"
+
+      # Hạ tầng GitHub từng trả 429/503 khi tải action (run 32041944243). Thử lại 3 lần
+      # trước khi kết luận, để flake mạng không bị đọc nhầm thành gate đỏ.
+      - name: Setup PHP 8.3 (attempt 1)
+        id: php1
+        continue-on-error: true
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, pgsql, pdo_pgsql, bcmath
           coverage: none
           tools: composer:v2
+      - name: Setup PHP 8.3 (attempt 2)
+        id: php2
+        if: steps.php1.outcome == 'failure'
+        continue-on-error: true
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+      - name: Setup PHP 8.3 (attempt 3)
+        if: steps.php1.outcome == 'failure' && steps.php2.outcome == 'failure'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
       - name: Flow 06 Pint / syntax
         run: |
           vendor/bin/pint --test \
             app/Support/HoaNamErdSchema.php \
+            app/Support/ReportExportFileName.php \
             Modules/Warehouse/app/Services/AlignedOutboundStockService.php \
             Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php \
             Modules/Warehouse/app/Http/Controllers/AlignedOutboundDocumentController.php \
             Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php \
             Modules/Warehouse/app/Http/Controllers/AlignedLabelLogReportController.php \
             Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php \
+            Modules/Warehouse/app/Http/Controllers/OperationalReportController.php \
             Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php \
             Modules/Warehouse/database/migrations/2026_08_10_000766_backfill_structured_erd_payload_columns.php \
             Modules/Warehouse/database/migrations/2026_08_10_0007699_prepare_legacy_label_snapshot_check.php \
             Modules/Warehouse/database/migrations/2026_08_15_140000_align_packing_label_to_outbound_document.php \
             tests/Feature/Flow06PackingLabelAlignmentTest.php \
-            tests/Feature/Flow06WarrantyReportAlignmentTest.php
+            tests/Feature/Flow06WarrantyReportAlignmentTest.php \
+            tests/Feature/Wwhn254ReportEvidenceTest.php
       - name: Current-baseline documentation semantics
         run: |
           ! grep -Fq '01 nhãn/item' docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md
@@ -109,6 +191,14 @@ jobs:
           grep -Fq 'UNIQUE(outbound_document_id)' docs/HoaNam_ERD_Moi_Nhat.md
           grep -Fq 'customer_phone' docs/HoaNam_ERD_Moi_Nhat.md
           grep -Fq "REPORT_EXPORT: 'report.export'" docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md
+      # REQ-SRS-037 / AC-SRS-037: contract artifact công bố ra ngoài cũng là "capability
+      # legacy". Không được tồn tại collection/environment Stocktake trong bộ bàn giao.
+      - name: REQ-SRS-037 no-Stocktake in published contract artifacts
+        run: |
+          if find docs/postman docs/api-contract -type f 2>/dev/null | grep -i stocktake; then
+            echo "::error::Con contract artifact Stocktake - vi pham REQ-SRS-037."
+            exit 1
+          fi
       - name: Prepare runtime
         run: |
           cp .env.example .env
@@ -117,7 +207,9 @@ jobs:
       - name: Migrate and seed PostgreSQL
         run: php artisan migrate:fresh --seed --force
       - name: Flow 06 business / report alignment tests
-        run: php artisan test --filter '/(Flow06PackingLabelAlignmentTest|Flow06WarrantyReportAlignmentTest|ReportFlow06ContractTest)/'
+        run: php artisan test --filter '/(Flow06PackingLabelAlignmentTest|Flow06WarrantyReportAlignmentTest|ReportFlow06ContractTest|ReportFlow06IntegrationTest|ReportFlow06DocsAlignmentTest|Wwhn254ReportEvidenceTest)/'
+      - name: REQ-SRS-037 removal baseline
+        run: php artisan test --filter '/(Flow05InventoryControlAlignmentTest)/'
       - name: Route and Swagger parity
         run: |
           php artisan test --filter '/(SwaggerRouteSyncTest)/'
@@ -125,12 +217,25 @@ jobs:
       - name: Exact SHA evidence summary
         run: |
           mkdir -p artifacts/flow06
-          printf 'flow=06-report\nsha=%s\nbranch=%s\nresult=PASS\ndb=postgres16\n' "${GITHUB_SHA}" "${GITHUB_REF_NAME}" > artifacts/flow06/manifest.txt
-          sha256sum artifacts/flow06/manifest.txt > artifacts/flow06/SHA256SUMS
+          OPENAPI_HASH="$(sha256sum storage/api-docs/api-docs.json | cut -d' ' -f1)"
+          POSTMAN_HASH="$(find docs/postman -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)"
+          {
+            printf 'flow=06-report\n'
+            printf 'requested_sha=%s\n' "${{ steps.identity.outputs.requested_sha }}"
+            printf 'resolved_sha=%s\n' "${{ steps.identity.outputs.resolved_sha }}"
+            printf 'branch=%s\n' "${GITHUB_REF_NAME}"
+            printf 'run_id=%s\n' "${GITHUB_RUN_ID}"
+            printf 'result=PASS\n'
+            printf 'db=postgres16\n'
+            printf 'openapi_sha256=%s\n' "${OPENAPI_HASH}"
+            printf 'postman_set_sha256=%s\n' "${POSTMAN_HASH}"
+          } > artifacts/flow06/manifest.txt
+          cp storage/api-docs/api-docs.json artifacts/flow06/api-docs.json
+          sha256sum artifacts/flow06/manifest.txt artifacts/flow06/api-docs.json > artifacts/flow06/SHA256SUMS
           cat artifacts/flow06/manifest.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: flow06-exact-sha-${{ github.sha }}
+          name: flow06-exact-sha-${{ steps.identity.outputs.resolved_sha }}
           path: artifacts/flow06
           if-no-files-found: error
           retention-days: 30

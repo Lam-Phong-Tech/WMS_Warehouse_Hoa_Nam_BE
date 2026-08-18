@@ -211,6 +211,66 @@ class Flow05InventoryControlAlignmentTest extends TestCase
         }
     }
 
+    /**
+     * AC-SRS-037 nói "deployment v1.12 không chứa capability legacy". Contract artifact
+     * được bàn giao ra ngoài (Postman handover set + release contract đang hiệu lực)
+     * cũng là một phần deployment: QA/FE đọc chúng như hợp đồng thật. Guard cũ chỉ soi
+     * route/permission/schema nên bộ `docs/postman` vẫn còn collection Stocktake của
+     * WWHN-131 và request scan gửi `context=STOCKTAKE` — thứ runtime nay trả 422.
+     *
+     * Phạm vi cố ý loại trừ `docs/api-contract/*.yaml|json` ở gốc: đó là bản ghi lịch sử
+     * của WWHN-150/180 đã superseded, giữ lại để truy vết, không nằm trong bộ bàn giao
+     * hiện hành (xem docs/evidence/WWHN-254/README.md).
+     */
+    public function test_published_contract_artifacts_carry_no_stocktake_capability(): void
+    {
+        $roots = [
+            base_path('docs/postman'),
+            base_path('docs/api-contract/releases'),
+        ];
+
+        $offenders = [];
+        foreach ($roots as $root) {
+            if (! is_dir($root)) {
+                continue;
+            }
+
+            /** @var iterable<\SplFileInfo> $files */
+            $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+            foreach ($files as $file) {
+                if (! $file->isFile()) {
+                    continue;
+                }
+
+                if (stripos($file->getFilename(), 'stocktake') !== false) {
+                    $offenders[] = $file->getPathname().' (tên file)';
+
+                    continue;
+                }
+
+                // Chỉ soi surface THỰC THI, cùng quy ước với guard controller ở trên:
+                // path, biến/khoá, tag. Câu văn mô tả "đã gỡ Stocktake theo REQ-SRS-037"
+                // là bằng chứng tuân thủ, không phải capability.
+                $source = (string) file_get_contents($file->getPathname());
+                // `"stocktake` / `{{stocktake` = khoá JSON, tên tag hoặc biến Postman;
+                // `/stocktake` = path. Từ "stocktake" trần trong một câu mô tả không khớp.
+                foreach (['/stocktake', '"stocktake', "'stocktake", '{{stocktake'] as $needle) {
+                    if (stripos($source, $needle) !== false) {
+                        $offenders[] = $file->getPathname()." (surface [{$needle}])";
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            "REQ-SRS-037: contract artifact bàn giao còn Stocktake:\n".implode("\n", $offenders)
+        );
+    }
+
     // ── §6 Reversal lifecycle ─────────────────────────────────────────────────
 
     public function test_reversal_lifecycle_routes_require_reversal_post_permission(): void

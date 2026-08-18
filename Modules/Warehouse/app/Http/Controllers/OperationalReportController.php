@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Services\LedgerReconciliationService;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -62,6 +63,43 @@ class OperationalReportController extends Controller
      * to bằng cả báo cáo tồn kho.
      */
     private const DASHBOARD_WARNING_LIMIT = 50;
+
+    /**
+     * WWHN-240 / BR-REV-04, BR-REV-08: correction chain là append-only và một Reversal có
+     * thể tham chiếu chính một Reversal trước đó. Trần độ sâu để việc đi ngược chuỗi không
+     * lặp vô hạn nếu dữ liệu cũ có vòng.
+     */
+    private const MAX_CORRECTION_CHAIN_DEPTH = 32;
+
+    /** WWHN-240: khung rỗng của breakdown reversal theo movement_type của giao dịch gốc. */
+    private const EMPTY_XNT_REVERSAL = ['RECEIPT' => 0.0, 'ISSUE' => 0.0, 'COMPONENT_ISSUE' => 0.0, 'UNLINKED' => 0.0];
+
+    /**
+     * WWHN-240 / BR-RPT-01..07 ("hiển thị gross/net") + BR-REV-11 ("report hiển thị movement
+     * gốc, toàn bộ Reversal chain và net effect"): khai báo ngay trong payload cột nào là
+     * GROSS, cột nào là REVERSAL và cột nào là NET, để FE/BA/QA đọc cùng một baseline thay
+     * vì suy diễn từ tên cột.
+     *
+     * @var array<string, string>
+     */
+    private const XNT_COLUMN_SEMANTICS = [
+        'opening' => 'NET — tồn đầu kỳ, đã gồm mọi reversal đã Post trước from_date',
+        'receipt' => 'GROSS — bí danh tương thích của receipt_gross',
+        'receipt_gross' => 'GROSS — tổng RECEIPT đã Post trong kỳ, chưa trừ reversal',
+        'receipt_reversal' => 'REVERSAL — lượng RECEIPT trong kỳ đã bị đảo, quy về chiều dương của cột Nhập',
+        'receipt_net' => 'NET — receipt_gross - receipt_reversal',
+        'issue' => 'GROSS — bí danh tương thích của issue_gross',
+        'issue_gross' => 'GROSS — tổng ISSUE đã Post trong kỳ, chưa trừ reversal',
+        'issue_reversal' => 'REVERSAL — lượng ISSUE trong kỳ đã bị đảo, quy về chiều dương của cột Xuất',
+        'issue_net' => 'NET — issue_gross - issue_reversal',
+        'component_issue' => 'GROSS — bí danh tương thích của component_issue_gross',
+        'component_issue_gross' => 'GROSS — tổng COMPONENT_ISSUE đã Post trong kỳ',
+        'component_issue_reversal' => 'REVERSAL — lượng COMPONENT_ISSUE đã bị đảo, quy về chiều dương',
+        'component_issue_net' => 'NET — component_issue_gross - component_issue_reversal',
+        'reversal_unlinked_net' => 'REVERSAL — qty_delta của reversal không truy được movement gốc (dữ liệu migrate/OPENING); vẫn vào closing để báo cáo khớp ledger',
+        'reversal_net' => 'REVERSAL — tổng qty_delta có dấu của mọi REVERSAL trong kỳ; bằng -receipt_reversal + issue_reversal + component_issue_reversal + reversal_unlinked_net',
+        'closing' => 'NET — opening + receipt_net - issue_net - component_issue_net + reversal_unlinked_net',
+    ];
 
     private const EXPORT_ROW_LIMIT = 10000;
 
@@ -286,7 +324,7 @@ class OperationalReportController extends Controller
 
     // ── Inventory Balance ────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'RPT-INV-01 tồn kho hiện tại kèm đối soát ledger', description: '§13.10 RPT-INV-01. Filter SKU/category/status + as_of (inclusive). Khi as_of ở quá khứ, báo cáo là ảnh chụp theo ledger và reconciliation_status = NOT_APPLICABLE.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'as_of', in: 'query', description: 'Mốc chốt số liệu, inclusive (Asia/Ho_Chi_Minh)', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'RPT-INV-01 tồn kho hiện tại kèm đối soát ledger', description: '§13.10 RPT-INV-01. Filter SKU/category/status + as_of (inclusive). Khi as_of ở quá khứ, báo cáo là ảnh chụp theo ledger và reconciliation_status = NOT_APPLICABLE. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'as_of', in: 'query', description: 'Mốc chốt số liệu, inclusive (Asia/Ho_Chi_Minh)', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
     public function inventoryBalance(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildInventoryBalance($request), $request));
@@ -312,7 +350,7 @@ class OperationalReportController extends Controller
 
     // ── XNT ──────────────────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt_current', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn theo authoritative ledger', description: '§13.10 RPT-XNT-01 + BR-RPT-01: closing = opening + posted receipt - posted issue - component issue + posted reversal. Kỳ inclusive theo Asia/Ho_Chi_Minh.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'XNT')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt', operationId: 'report_inventory_xnt_current', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn theo authoritative ledger', description: '§13.10 RPT-XNT-01 + BR-RPT-01: closing = opening + posted receipt - posted issue - component issue + posted reversal. Kỳ inclusive theo Asia/Ho_Chi_Minh. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'XNT — ba tầng cột gross / reversal / net theo BR-RPT-01..07', content: new OA\JsonContent(allOf: [new OA\Schema(ref: '#/components/schemas/ApiSuccessEnvelope'), new OA\Schema(properties: [new OA\Property(property: 'data', ref: '#/components/schemas/XntReport')])])), new OA\Response(response: 401, description: 'Chưa xác thực', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 403, description: 'Thiếu report.view hoặc warehouse_id nằm ngoài warehouse data scope (error.code = ACCESS_DENIED)', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 422, description: 'from_date/to_date hoặc filter không hợp lệ', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope'))])]
     public function inventoryXnt(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildXnt($request), $request, 'lines'));
@@ -324,7 +362,7 @@ class OperationalReportController extends Controller
         return $this->exportXnt($request, 'bao-cao-xnt');
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_xnt_enhanced', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn chi tiết theo movement type', description: 'Cùng builder và cùng contract với /reports/inventory-xnt; alias giữ cho client đang dùng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'XNT chi tiết')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_xnt_enhanced', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn chi tiết theo movement type', description: 'Cùng builder và cùng contract với /reports/inventory-xnt; alias giữ cho client đang dùng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'XNT chi tiết — cùng schema XntReport với /reports/inventory-xnt', content: new OA\JsonContent(allOf: [new OA\Schema(ref: '#/components/schemas/ApiSuccessEnvelope'), new OA\Schema(properties: [new OA\Property(property: 'data', ref: '#/components/schemas/XntReport')])])), new OA\Response(response: 401, description: 'Chưa xác thực', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 403, description: 'Thiếu report.view hoặc warehouse_id ngoài data scope (ACCESS_DENIED)', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope'))])]
     public function inventoryXntEnhanced(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildXnt($request), $request, 'lines'));
@@ -338,7 +376,7 @@ class OperationalReportController extends Controller
 
     // ── Document History ─────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/document-history', operationId: 'report_document_history', summary: 'RPT-IO-01 lịch sử phiếu nhập/xuất kèm tầng dòng', description: '§13.10 RPT-IO-01. Mỗi phiếu kèm rows[].lines[] gồm expected/scanned/posted; posted lấy từ movement authoritative (DEC-INV-001). Filter: date, SKU, status, agency recipient.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all'])), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Lịch sử phiếu')])]
+    #[OA\Get(path: '/api/v1/reports/document-history', operationId: 'report_document_history', summary: 'RPT-IO-01 lịch sử phiếu nhập/xuất kèm tầng dòng', description: '§13.10 RPT-IO-01. Mỗi phiếu kèm rows[].lines[] gồm expected/scanned/posted; posted lấy từ movement authoritative (DEC-INV-001). Filter: date, SKU, status, agency recipient. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'doc_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['inbound', 'outbound', 'all'])), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Lịch sử phiếu')])]
     public function documentHistory(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildDocumentHistory($request), $request));
@@ -374,7 +412,7 @@ class OperationalReportController extends Controller
 
     // ── Outbound by Agency ───────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/outbound-by-agency', operationId: 'report_outbound_by_agency', summary: 'RPT-RECIPIENT-01 xuất kho theo nơi nhận', description: '§13.10 RPT-RECIPIENT-01: source_request_no, outbound_no, receiver/agency, address, contact đã mask, SKU/qty, posted_at. Agency chỉ là chiều nơi nhận, không phải chủ tồn. contact_masked chỉ hiện đầy đủ khi actor có warranty.pii.view.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Xuất theo nơi nhận')])]
+    #[OA\Get(path: '/api/v1/reports/outbound-by-agency', operationId: 'report_outbound_by_agency', summary: 'RPT-RECIPIENT-01 xuất kho theo nơi nhận', description: '§13.10 RPT-RECIPIENT-01: source_request_no, outbound_no, receiver/agency, address, contact đã mask, SKU/qty, posted_at. Agency chỉ là chiều nơi nhận, không phải chủ tồn. contact_masked chỉ hiện đầy đủ khi actor có warranty.pii.view. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'agency_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Xuất theo nơi nhận')])]
     public function outboundByAgency(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildOutboundByAgency($request), $request));
@@ -400,7 +438,7 @@ class OperationalReportController extends Controller
 
     // ── Movement Trace ───────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/movement-trace', operationId: 'report_movement_trace', summary: 'RPT-MOV-01 lịch sử nhập/xuất/Reversal', description: '§13.10 RPT-MOV-01: movement_id, source_document, movement_type, SKU/item, qty, actor, time, reversal_chain. Hiển thị gross + chain, không bao giờ ẩn movement gốc.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'item_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'code_value', in: 'query', description: 'Mã vật lý (Barcode/QR/RFID) của Item hoặc Container', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'source_type', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'source_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Movement trace')])]
+    #[OA\Get(path: '/api/v1/reports/movement-trace', operationId: 'report_movement_trace', summary: 'RPT-MOV-01 lịch sử nhập/xuất/Reversal', description: '§13.10 RPT-MOV-01: movement_id, source_document, movement_type, SKU/item, qty, actor, time, reversal_chain. Hiển thị gross + chain, không bao giờ ẩn movement gốc. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'item_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'code_value', in: 'query', description: 'Mã vật lý (Barcode/QR/RFID) của Item hoặc Container', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'source_type', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'source_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'movement_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'])), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200)), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Movement trace — mỗi dòng giữ nguyên bút toán gross; original_movement_id/correction_chain_id là khoá ghép chuỗi; summary.net_effect = SUM(qty_delta) của toàn kỳ (net effect theo BR-REV-11). Chi tiết một chain đọc ở GET /stock-movements/{id}/trace-source.', content: new OA\JsonContent(ref: '#/components/schemas/ApiSuccessEnvelope')), new OA\Response(response: 401, description: 'Chưa xác thực', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 403, description: 'Thiếu report.view hoặc warehouse_id ngoài warehouse data scope (ACCESS_DENIED)', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 422, description: 'Filter không hợp lệ', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope'))])]
     public function movementTrace(Request $request)
     {
         return $this->respondSuccess($this->paginateReport($this->buildMovementTrace($request), $request));
@@ -497,7 +535,7 @@ class OperationalReportController extends Controller
 
         // WWHN-328 DEV328-P1-01/P1-04: data-scope được giải NGAY TẠI ĐÂY, trước cache.
         // Nếu để sau, một cache hit sẽ nuốt mất 403 của warehouse_id ngoài scope.
-        $scope = $this->dashboardWarehouseScope($request);
+        $scope = $this->reportWarehouseScope($request);
 
         $key = CacheKey::of('warehouse:report:dashboard-quick', [
             'from' => $from,
@@ -521,7 +559,14 @@ class OperationalReportController extends Controller
     }
 
     /**
-     * WWHN-328: warehouse data-scope hiệu lực của dashboard.
+     * WWHN-328 (dashboard), mở rộng cho WWHN-254 DEV254-P1-03: warehouse data-scope
+     * hiệu lực cho **mọi** báo cáo có chiều kho, không riêng dashboard.
+     *
+     * Trước WWHN-254, chỉ `/reports/dashboard-quick` áp scope; các route `/reports/*`
+     * còn lại chỉ có `permission:report.view|report.export` nên người dùng bị giới hạn
+     * kho vẫn đọc và export được tồn, XNT, lịch sử chứng từ, movement của toàn hệ thống.
+     * Đó là vi phạm AC-SRS-032 ("dữ liệu đúng scope") và BR-EXP-01..05 ("export dùng
+     * cùng filter/scope với màn hình").
      *
      * null  = GLOBAL (super-admin, hoặc role gắn scope_ref rỗng) — giữ nguyên hành vi cũ.
      * list  = WAREHOUSE_SCOPED, lấy đúng nguồn `scope_ref` mà EnforceInventoryWarehouseScope
@@ -533,7 +578,7 @@ class OperationalReportController extends Controller
      *
      * @return list<string>|null
      */
-    private function dashboardWarehouseScope(Request $request): ?array
+    private function reportWarehouseScope(Request $request): ?array
     {
         $validated = $request->validate([
             'warehouse_id' => ['nullable', 'uuid'],
@@ -639,8 +684,16 @@ class OperationalReportController extends Controller
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
 
+        // DEV254-P1-03: scope giải trước cache. Nếu giải sau, một cache hit của người
+        // dùng GLOBAL sẽ trả nguyên payload toàn hệ thống cho người bị giới hạn kho —
+        // và 403 của warehouse_id ngoài scope cũng bị cache nuốt mất.
+        $scope = $this->reportWarehouseScope($request);
+
         $key = CacheKey::of('warehouse:report:inventory-balance', [
             'f' => CacheKey::hashFilters($validated),
+            // Scope BẮT BUỘC nằm trong key: hai người dùng khác data-scope không được
+            // dùng chung entry.
+            'scope' => $scope === null ? 'global' : CacheKey::hashFilters($scope),
         ], $this->cacheService()->currentVersion('stock:version'));
 
         // Report tồn kho — cùng strategy với InventoryBalanceController::index (short
@@ -649,8 +702,24 @@ class OperationalReportController extends Controller
         return $this->cacheService()->rememberStampede(
             $key,
             CacheTtl::seconds('report'),
-            fn (): array => $this->buildInventoryBalanceUncached($request, $validated)
+            fn (): array => $this->buildInventoryBalanceUncached($request, $validated, $scope)
         );
+    }
+
+    /**
+     * Gắn nhãn scope vào payload báo cáo để FE/QA đọc được ngay bản ghi đã bị cắt theo
+     * kho nào — không phải suy đoán từ số dòng.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>|null  $scope
+     * @return array<string, mixed>
+     */
+    private function withScopeMeta(array $payload, ?array $scope): array
+    {
+        $payload['data_scope'] = $scope === null ? 'GLOBAL' : 'WAREHOUSE_SCOPED';
+        $payload['scope_warehouse_ids'] = $scope;
+
+        return $payload;
     }
 
     private function cacheService(): CacheService
@@ -658,7 +727,10 @@ class OperationalReportController extends Controller
         return app(CacheService::class);
     }
 
-    private function buildInventoryBalanceUncached(Request $request, array $validated): array
+    /**
+     * @param  list<string>|null  $scope  null = GLOBAL; [] = fail-closed.
+     */
+    private function buildInventoryBalanceUncached(Request $request, array $validated, ?array $scope = null): array
     {
         $asOf = ! empty($validated['as_of']) ? Carbon::parse($validated['as_of'])->toDateString() : null;
 
@@ -667,44 +739,65 @@ class OperationalReportController extends Controller
             ->leftJoin('products as p', 'p.id', '=', 'b.product_id')
             ->leftJoin('product_categories as pc', 'pc.id', '=', 'p.category_id')
             ->select('b.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'p.category_id', 'pc.category_name');
-        $movementQuery = DB::table('stock_movements as m')
-            ->leftJoin('warehouses as w', 'w.id', '=', 'm.warehouse_id')
-            ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
-            ->leftJoin('product_categories as pc', 'pc.id', '=', 'p.category_id')
-            ->select('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'p.category_id', 'pc.category_name')
-            ->selectRaw('SUM(m.qty_delta) AS ledger_qty')
-            ->selectRaw('MAX(m.occurred_at) AS movement_updated_at')
-            ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code', 'p.code', 'p.name', 'p.category_id', 'pc.category_name');
+        // WWHN-231: nhánh ledger đi qua LedgerReconciliationService (aggregate-then-join)
+        // thay vì join master data TRƯỚC GROUP BY. Cùng tập dòng, nhưng aggregate chỉ chạm
+        // stock_movements nên planner dùng được index dimension thay vì gom theo 8 cột
+        // (4 cột text) trên toàn bộ ledger — xem docs/evidence/WWHN-231/BENCHMARK.md.
+        $ledgerFilters = [];
+
+        // DEV254-P1-03: cắt theo data-scope TRƯỚC mọi filter do người dùng gửi lên.
+        if ($scope !== null) {
+            $balanceQuery->whereIn('b.warehouse_id', $scope);
+            $ledgerFilters['warehouse_ids'] = $scope;
+        }
 
         foreach (['warehouse_id', 'product_id', 'stock_status'] as $filter) {
             if ($request->filled($filter)) {
                 $balanceQuery->where("b.{$filter}", $request->input($filter));
-                $movementQuery->where("m.{$filter}", $request->input($filter));
+                $ledgerFilters[$filter] = (string) $request->input($filter);
             }
         }
         if (! empty($validated['category_id'])) {
             $balanceQuery->where('p.category_id', $validated['category_id']);
-            $movementQuery->where('p.category_id', $validated['category_id']);
         }
         if ($asOf !== null) {
             // DEC-INV-001: ledger là source of truth nên as_of chỉ cắt được trên
             // movement; balance projection luôn là trạng thái hiện tại.
-            $movementQuery->where('m.occurred_at', '<=', "{$asOf} 23:59:59");
+            $ledgerFilters['occurred_to'] = "{$asOf} 23:59:59";
         }
+        $keyword = null;
         if ($request->filled('keyword')) {
             $keyword = '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%';
             $balanceQuery->where(function ($q) use ($keyword): void {
                 $q->whereRaw('LOWER(p.code) LIKE ?', [$keyword])
                     ->orWhereRaw('LOWER(p.name) LIKE ?', [$keyword]);
             });
-            $movementQuery->where(function ($q) use ($keyword): void {
-                $q->whereRaw('LOWER(p.code) LIKE ?', [$keyword])
-                    ->orWhereRaw('LOWER(p.name) LIKE ?', [$keyword]);
-            });
+        }
+
+        // Filter theo thuộc tính SKU (category/keyword) đẩy thành subquery trên product_id.
+        // Bản cũ lọc qua LEFT JOIN products nên dòng ledger có product_id không khớp master
+        // cũng bị loại; IN (SELECT id FROM products WHERE …) cho đúng cùng tập dòng đó.
+        $categoryId = $validated['category_id'] ?? null;
+        if ($categoryId !== null || $keyword !== null) {
+            $ledgerFilters['product_id_in'] = function ($q) use ($categoryId, $keyword): void {
+                $q->select('id')->from('products');
+                if ($categoryId !== null) {
+                    $q->where('category_id', $categoryId);
+                }
+                if ($keyword !== null) {
+                    $q->where(function ($inner) use ($keyword): void {
+                        $inner->whereRaw('LOWER(code) LIKE ?', [$keyword])
+                            ->orWhereRaw('LOWER(name) LIKE ?', [$keyword]);
+                    });
+                }
+            };
         }
 
         $balances = $balanceQuery->get()->keyBy(fn ($r) => $this->dimensionKey($r->warehouse_id, $r->product_id, $r->stock_status));
-        $movements = $movementQuery->get()->keyBy(fn ($r) => $this->dimensionKey($r->warehouse_id, $r->product_id, $r->stock_status));
+        $movements = app(LedgerReconciliationService::class)
+            ->ledgerAggregateWithMasterQuery($ledgerFilters)
+            ->get()
+            ->keyBy(fn ($r) => $this->dimensionKey($r->warehouse_id, $r->product_id, $r->stock_status));
         $keys = $balances->keys()->merge($movements->keys())->unique()->values();
 
         // §13.10 RPT-INV-01: serial_qty/box_qty là subledger (Item_Instance /
@@ -775,7 +868,7 @@ class OperationalReportController extends Controller
             ];
         })->sortBy(['warehouse_code', 'product_code', 'stock_status'])->values();
 
-        return [
+        return $this->withScopeMeta([
             'data_as_of' => now()->toIso8601String(),
             'as_of' => $asOf,
             // Chỉ có ý nghĩa khi as_of nằm ở quá khứ; FE dùng cờ này để đổi nhãn cột
@@ -788,7 +881,7 @@ class OperationalReportController extends Controller
                 'mismatch_count' => $rows->where('reconciliation_status', 'MISMATCH')->count(),
             ],
             'rows' => $rows->all(),
-        ];
+        ], $scope);
     }
 
     /**
@@ -868,6 +961,7 @@ class OperationalReportController extends Controller
             'category_id' => ['nullable', 'uuid'],
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
+        $scope = $this->reportWarehouseScope($request);
         $fromTs = "{$from} 00:00:00";
         $toTs = "{$to} 23:59:59";
 
@@ -882,6 +976,9 @@ class OperationalReportController extends Controller
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'COMPONENT_ISSUE' THEN -m.qty_delta ELSE 0 END) AS component_issue", [$fromTs, $toTs])
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'REVERSAL' THEN m.qty_delta ELSE 0 END) AS reversal_net", [$fromTs, $toTs])
             ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code', 'p.code', 'p.name');
+        if ($scope !== null) {
+            $query->whereIn('m.warehouse_id', $scope);
+        }
         if (! empty($validated['category_id'])) {
             $query->where('p.category_id', $validated['category_id']);
         }
@@ -899,12 +996,30 @@ class OperationalReportController extends Controller
             });
         }
 
-        $lines = $query->get()->map(function ($row): array {
+        // WWHN-240 DEV240-P1-02A: một cột `reversal_net` gộp chung đảo-nhập (qty_delta < 0)
+        // và đảo-xuất (qty_delta > 0) thì hai chiều triệt tiêu lẫn nhau nên không đọc được
+        // nhập/xuất THỰC của kỳ. BR-RPT-01..07 yêu cầu "hiển thị gross/net" và BR-REV-11 yêu
+        // cầu net effect, nên tách lượng đã đảo theo movement_type của giao dịch GỐC.
+        $reversalBreakdown = $this->xntReversalBreakdown($request, $validated, $fromTs, $toTs, $scope);
+
+        $lines = $query->get()->map(function ($row) use ($reversalBreakdown): array {
+            $breakdown = $reversalBreakdown[$this->dimensionKey($row->warehouse_id, $row->product_id, $row->stock_status)]
+                ?? self::EMPTY_XNT_REVERSAL;
+
             $opening = (float) $row->opening;
-            $receipt = (float) $row->receipt;
-            $issue = (float) $row->issue;
-            $component = (float) $row->component_issue;
-            $reversal = (float) $row->reversal_net;
+            $receiptGross = (float) $row->receipt;
+            $issueGross = (float) $row->issue;
+            $componentGross = (float) $row->component_issue;
+            $reversalNet = (float) $row->reversal_net;
+
+            $receiptReversal = $breakdown['RECEIPT'];
+            $issueReversal = $breakdown['ISSUE'];
+            $componentReversal = $breakdown['COMPONENT_ISSUE'];
+            $unlinkedReversalNet = $breakdown['UNLINKED'];
+
+            $receiptNet = $receiptGross - $receiptReversal;
+            $issueNet = $issueGross - $issueReversal;
+            $componentNet = $componentGross - $componentReversal;
 
             return [
                 'warehouse_code' => (string) $row->warehouse_code,
@@ -912,35 +1027,197 @@ class OperationalReportController extends Controller
                 'product_name' => (string) $row->product_name,
                 'stock_status' => (string) $row->stock_status,
                 'opening' => $opening,
-                'receipt' => $receipt,
-                'issue' => $issue,
-                'component_issue' => $component,
-                'reversal_net' => $reversal,
-                'closing' => $opening + $receipt - $issue - $component + $reversal,
+                // GROSS — giữ nguyên tên cột cũ làm bí danh để client hiện hành không vỡ.
+                'receipt' => $receiptGross,
+                'receipt_gross' => $receiptGross,
+                'issue' => $issueGross,
+                'issue_gross' => $issueGross,
+                'component_issue' => $componentGross,
+                'component_issue_gross' => $componentGross,
+                // REVERSAL — quy về cùng chiều dương với cột gross tương ứng.
+                'receipt_reversal' => $receiptReversal,
+                'issue_reversal' => $issueReversal,
+                'component_issue_reversal' => $componentReversal,
+                'reversal_unlinked_net' => $unlinkedReversalNet,
+                'reversal_net' => $reversalNet,
+                // NET — con số nghiệp vụ dùng để đối soát kỳ.
+                'receipt_net' => $receiptNet,
+                'issue_net' => $issueNet,
+                'component_issue_net' => $componentNet,
+                // Bằng đúng công thức gross cũ: opening + receipt - issue - component + reversal_net.
+                'closing' => $opening + $receiptNet - $issueNet - $componentNet + $unlinkedReversalNet,
             ];
         })->sortBy(['warehouse_code', 'product_code', 'stock_status'])->values()->all();
 
-        return [
+        return $this->withScopeMeta([
             'from_date' => $from,
             'to_date' => $to,
             'formula' => 'Closing = Opening + Receipt - Issue - Component Issue + Reversal',
+            'formula_net' => 'Closing = Opening + Receipt Net - Issue Net - Component Issue Net + Unlinked Reversal Net; Receipt Net = Receipt Gross - Receipt Reversal; Issue Net = Issue Gross - Issue Reversal; Component Issue Net = Component Issue Gross - Component Issue Reversal',
+            'column_semantics' => self::XNT_COLUMN_SEMANTICS,
             'lines' => $lines,
-        ];
+        ], $scope);
+    }
+
+    /**
+     * WWHN-240 DEV240-P1-02A: tổng lượng đã đảo trong kỳ, tách theo movement_type của
+     * giao dịch GỐC trong correction chain (RECEIPT / ISSUE / COMPONENT_ISSUE).
+     *
+     * Bắt buộc đi theo `original_movement_id` chứ không suy từ dấu của `qty_delta`: đảo một
+     * ISSUE và đảo một COMPONENT_ISSUE đều cho qty_delta dương, đoán theo dấu thì hai cột
+     * nghiệp vụ khác nhau sẽ bị gộp làm một.
+     *
+     * @param  array<string, mixed>  $validated
+     * @param  list<string>|null  $scope  null = GLOBAL; phải cắt cùng scope với query chính.
+     * @return array<string, array{RECEIPT: float, ISSUE: float, COMPONENT_ISSUE: float, UNLINKED: float}>
+     */
+    private function xntReversalBreakdown(Request $request, array $validated, string $fromTs, string $toTs, ?array $scope): array
+    {
+        $query = DB::table('stock_movements as m')
+            ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
+            ->where('m.movement_type', 'REVERSAL')
+            ->whereBetween('m.occurred_at', [$fromTs, $toTs])
+            ->select('m.warehouse_id', 'm.product_id', 'm.stock_status', 'm.original_movement_id')
+            ->selectRaw('SUM(m.qty_delta) AS reversal_delta')
+            ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status', 'm.original_movement_id');
+        if ($scope !== null) {
+            $query->whereIn('m.warehouse_id', $scope);
+        }
+        if (! empty($validated['category_id'])) {
+            $query->where('p.category_id', $validated['category_id']);
+        }
+        if ($request->filled('warehouse_id')) {
+            $query->where('m.warehouse_id', $request->input('warehouse_id'));
+        }
+        if ($request->filled('product_id')) {
+            $query->where('m.product_id', $request->input('product_id'));
+        }
+        if ($request->filled('keyword')) {
+            $kw = '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%';
+            $query->where(function ($q) use ($kw): void {
+                $q->whereRaw('LOWER(p.code) LIKE ?', [$kw])
+                    ->orWhereRaw('LOWER(p.name) LIKE ?', [$kw]);
+            });
+        }
+
+        $rows = $query->get();
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $rootTypes = $this->resolveCorrectionRootTypes(
+            $rows->pluck('original_movement_id')->filter()->map(fn ($id): string => (string) $id)->unique()->values()->all()
+        );
+
+        $breakdown = [];
+        foreach ($rows as $row) {
+            $key = $this->dimensionKey($row->warehouse_id, $row->product_id, $row->stock_status);
+            if (! isset($breakdown[$key])) {
+                $breakdown[$key] = self::EMPTY_XNT_REVERSAL;
+            }
+            $delta = (float) $row->reversal_delta;
+            $rootType = $row->original_movement_id === null
+                ? null
+                : ($rootTypes[(string) $row->original_movement_id] ?? null);
+
+            if ($rootType === 'RECEIPT') {
+                // Đảo một RECEIPT mang qty_delta âm; đổi dấu để cùng chiều với cột "Nhập".
+                $breakdown[$key]['RECEIPT'] += -$delta;
+            } elseif ($rootType === 'ISSUE') {
+                $breakdown[$key]['ISSUE'] += $delta;
+            } elseif ($rootType === 'COMPONENT_ISSUE') {
+                $breakdown[$key]['COMPONENT_ISSUE'] += $delta;
+            } else {
+                // Không truy được gốc (dữ liệu migrate, gốc là OPENING, hoặc chain đứt):
+                // vẫn phải cộng vào closing, nếu không báo cáo sẽ lệch với ledger.
+                $breakdown[$key]['UNLINKED'] += $delta;
+            }
+        }
+
+        return $breakdown;
+    }
+
+    /**
+     * WWHN-240 / BR-REV-08: "không reverse trực tiếp một Reversal POSTED... tạo một Reversal
+     * mới tham chiếu movement gần nhất trong chain". Vì vậy `original_movement_id` của một
+     * REVERSAL có thể lại trỏ tới một REVERSAL khác. Hàm này đi ngược tới movement gốc để
+     * biết lượng đảo thuộc cột Nhập hay cột Xuất.
+     *
+     * @param  list<string>  $movementIds
+     * @return array<string, string> movement_id => movement_type của giao dịch gốc
+     */
+    private function resolveCorrectionRootTypes(array $movementIds): array
+    {
+        $rootType = [];
+        $parentOf = [];
+        $visited = [];
+        $pending = $movementIds;
+        $hops = 0;
+
+        while ($pending !== [] && $hops++ < self::MAX_CORRECTION_CHAIN_DEPTH) {
+            $rows = DB::table('stock_movements')
+                ->whereIn('id', $pending)
+                ->get(['id', 'movement_type', 'original_movement_id']);
+            $next = [];
+            foreach ($rows as $row) {
+                $id = (string) $row->id;
+                $visited[$id] = true;
+                if ((string) $row->movement_type !== 'REVERSAL') {
+                    $rootType[$id] = (string) $row->movement_type;
+
+                    continue;
+                }
+                if ($row->original_movement_id === null) {
+                    continue;
+                }
+                $parent = (string) $row->original_movement_id;
+                $parentOf[$id] = $parent;
+                if (! isset($visited[$parent])) {
+                    $next[] = $parent;
+                }
+            }
+            $pending = array_values(array_unique($next));
+        }
+
+        foreach (array_keys($parentOf) as $id) {
+            $cursor = $id;
+            $depth = 0;
+            while (isset($parentOf[$cursor]) && $depth++ < self::MAX_CORRECTION_CHAIN_DEPTH) {
+                $cursor = $parentOf[$cursor];
+            }
+            if (isset($rootType[$cursor])) {
+                $rootType[$id] = $rootType[$cursor];
+            }
+        }
+
+        return $rootType;
     }
 
     private function exportXnt(Request $request, string $prefix)
     {
         $report = $this->buildXnt($request);
+        // BR-EXP-01..05: file xuất phải cùng bộ cột với màn hình, nên mang đủ ba tầng
+        // gross / reversal / net thay vì một cột "Hoàn đảo" gộp hai chiều.
         $rows = array_map(fn (array $row): array => [
             $row['warehouse_code'], $row['product_code'], $row['product_name'], $row['stock_status'], $row['opening'],
-            $row['receipt'], $row['issue'], $row['component_issue'], $row['reversal_net'], $row['closing'],
+            $row['receipt_gross'], $row['receipt_reversal'], $row['receipt_net'],
+            $row['issue_gross'], $row['issue_reversal'], $row['issue_net'],
+            $row['component_issue_gross'], $row['component_issue_reversal'], $row['component_issue_net'],
+            $row['reversal_net'], $row['closing'],
         ], $report['lines']);
+        $headers = [
+            'Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Đầu kỳ',
+            'Nhập (gross)', 'Đảo nhập', 'Nhập thuần',
+            'Xuất (gross)', 'Đảo xuất', 'Xuất thuần',
+            'Xuất linh kiện (gross)', 'Đảo xuất linh kiện', 'Xuất linh kiện thuần',
+            'Reversal net', 'Cuối kỳ',
+        ];
 
         if ($request->query('format') === 'pdf') {
-            return $this->exportPdf('Nhập-Xuất-Tồn', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Đầu kỳ', 'Nhập', 'Xuất', 'Xuất linh kiện', 'Hoàn đảo', 'Cuối kỳ'], $rows, "{$prefix}-{$report['from_date']}-{$report['to_date']}", 'inventory-xnt', $request);
+            return $this->exportPdf('Nhập-Xuất-Tồn', $headers, $rows, "{$prefix}-{$report['from_date']}-{$report['to_date']}", 'inventory-xnt', $request);
         }
 
-        return $this->exportRows($request, 'XNT', ['Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Đầu kỳ', 'Nhập', 'Xuất', 'Xuất linh kiện', 'Hoàn đảo', 'Cuối kỳ'], $rows, "{$prefix}-{$report['from_date']}-{$report['to_date']}.xlsx", 'inventory-xnt');
+        return $this->exportRows($request, 'XNT', $headers, $rows, "{$prefix}-{$report['from_date']}-{$report['to_date']}.xlsx", 'inventory-xnt');
     }
 
     private function buildDocumentHistory(Request $request): array
@@ -954,6 +1231,7 @@ class OperationalReportController extends Controller
             'product_id' => ['nullable', 'uuid'],
             'agency_id' => ['nullable', 'uuid'],
         ]);
+        $scope = $this->reportWarehouseScope($request);
         $docType = $validated['doc_type'] ?? 'all';
         $query = DB::table('stock_documents as sd')
             ->leftJoin('warehouses as sw', 'sw.id', '=', 'sd.src_warehouse_id')
@@ -965,6 +1243,14 @@ class OperationalReportController extends Controller
             ->whereBetween('sd.doc_date', [$from, $to])
             ->select('sd.*', 'sw.code as src_warehouse_code', 'dw.code as dst_warehouse_code', 'a.agency_name',
                 'cu.display_name as creator_name', 'pu.display_name as poster_name');
+        // Chứng từ có hai đầu kho; chỉ cần một đầu nằm trong scope là người dùng có
+        // quyền thấy dòng đó (đúng như /inbound-documents, /outbound-documents).
+        if ($scope !== null) {
+            $query->where(function ($q) use ($scope): void {
+                $q->whereIn('sd.src_warehouse_id', $scope)
+                    ->orWhereIn('sd.dst_warehouse_id', $scope);
+            });
+        }
         if ($docType !== 'all') {
             $query->where('sd.doc_type', $docType === 'inbound' ? 'receipt' : 'issue');
         }
@@ -1015,7 +1301,7 @@ class OperationalReportController extends Controller
         ])->all();
         $statuses = collect($rows)->countBy('status');
 
-        return [
+        return $this->withScopeMeta([
             'period' => ['from_date' => $from, 'to_date' => $to],
             'doc_type_filter' => $docType,
             'summary' => [
@@ -1023,7 +1309,7 @@ class OperationalReportController extends Controller
                 'posted' => (int) ($statuses['POSTED'] ?? 0), 'cancelled' => (int) ($statuses['CANCELLED'] ?? 0),
             ],
             'rows' => $rows,
-        ];
+        ], $scope);
     }
 
     /**
@@ -1076,6 +1362,7 @@ class OperationalReportController extends Controller
             'product_id' => ['nullable', 'uuid'],
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
+        $scope = $this->reportWarehouseScope($request);
         // §13.10 RPT-RECIPIENT-01: cột bắt buộc gồm source_request_no, address và
         // contact đã mask — source_request_no là khoá trace về toa nguồn.
         $query = DB::table('stock_documents as sd')
@@ -1086,6 +1373,11 @@ class OperationalReportController extends Controller
             ->where('sd.doc_type', 'issue')->where('sd.status', 'POSTED')
             ->whereBetween('sd.doc_date', [$from, $to])
             ->select('sd.id', 'sd.doc_no', 'sd.doc_date', 'sd.posted_at', 'sd.agency_id', 'sd.recipient_name', 'sd.recipient_address', 'a.agency_code', 'a.agency_name', 'a.phone as agency_phone', 'orq.request_no as source_request_no', 'p.code as product_code', 'p.name as product_name', 'l.product_id', 'l.qty_planned', 'l.scanned_qty');
+        // RPT-RECIPIENT-01: đại lý chỉ là chiều người nhận, kho xuất mới là chiều
+        // data-scope (src_warehouse_id của phiếu issue).
+        if ($scope !== null) {
+            $query->whereIn('sd.src_warehouse_id', $scope);
+        }
         if (! empty($validated['agency_id'])) {
             $query->where('sd.agency_id', $validated['agency_id']);
         }
@@ -1139,7 +1431,7 @@ class OperationalReportController extends Controller
             return $row;
         })->all();
 
-        return [
+        return $this->withScopeMeta([
             'period' => ['from_date' => $from, 'to_date' => $to],
             'summary' => [
                 'total_agencies' => count($byAgency),
@@ -1148,7 +1440,7 @@ class OperationalReportController extends Controller
             ],
             'by_agency' => $byAgency,
             'rows' => $publicRows,
-        ];
+        ], $scope);
     }
 
     private function buildMovementTrace(Request $request): array
@@ -1159,6 +1451,7 @@ class OperationalReportController extends Controller
             'movement_type' => ['nullable', 'in:'.implode(',', self::MOVEMENT_TYPES)], 'code_value' => ['nullable', 'string', 'max:255'],
             'source_type' => ['nullable', 'string', 'max:80'], 'source_id' => ['nullable', 'uuid'],
         ]);
+        $scope = $this->reportWarehouseScope($request);
         // §13.10 RPT-MOV-01 yêu cầu cột actor — join app_user như document-history.
         $query = DB::table('stock_movements as m')
             ->leftJoin('warehouses as w', 'w.id', '=', 'm.warehouse_id')
@@ -1166,6 +1459,9 @@ class OperationalReportController extends Controller
             ->leftJoin('app_user as au', 'au.user_id', '=', 'm.created_by')
             ->whereBetween('m.occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->select('m.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'au.username as actor_username', 'au.display_name as actor_display_name');
+        if ($scope !== null) {
+            $query->whereIn('m.warehouse_id', $scope);
+        }
         foreach (['warehouse_id', 'product_id', 'item_id', 'movement_type', 'source_type', 'source_id'] as $filter) {
             if (! empty($validated[$filter])) {
                 $query->where("m.{$filter}", $validated[$filter]);
@@ -1227,7 +1523,7 @@ class OperationalReportController extends Controller
         ])->all();
         $collection = collect($rows);
 
-        $report = [
+        $report = $this->withScopeMeta([
             'period' => ['from_date' => $from, 'to_date' => $to],
             'formula' => 'net_effect = SUM(qty_delta); reversal/correction append-only, không sửa movement gốc',
             'summary' => [
@@ -1236,7 +1532,7 @@ class OperationalReportController extends Controller
                 'reversal_count' => (int) ($aggregate->reversal_count ?? $collection->where('movement_type', 'REVERSAL')->count()),
             ],
             'rows' => $rows,
-        ];
+        ], $scope);
         if ($pagination !== null) {
             $report['pagination'] = $pagination;
         }

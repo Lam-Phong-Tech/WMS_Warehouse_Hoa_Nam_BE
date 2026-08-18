@@ -42,7 +42,7 @@
           {"key": "Content-Type", "value": "application/json", "type": "text"}
         ],
         "url": {"raw": "{{baseUrl}}/api/v1/scan/classify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "scan", "classify"]},
-        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"STOCKTAKE\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
+        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"INVENTORY\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
       },
       "response": [],
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
@@ -69,7 +69,7 @@
           {"key": "Content-Type", "value": "application/json", "type": "text"}
         ],
         "url": {"raw": "{{baseUrl}}/api/v1/scan/classify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "scan", "classify"]},
-        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"STOCKTAKE\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
+        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"INVENTORY\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
       },
       "response": [],
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
@@ -96,7 +96,7 @@
           {"key": "Content-Type", "value": "application/json", "type": "text"}
         ],
         "url": {"raw": "{{baseUrl}}/api/v1/scan/classify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "scan", "classify"]},
-        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"STOCKTAKE\",\n  \"warehouse_id\": \"{{mismatchWarehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
+        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"INVENTORY\",\n  \"warehouse_id\": \"{{mismatchWarehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
       },
       "response": [],
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('status 409', () => pm.response.to.have.status(409));", "pm.test('explicit code', () => pm.expect(pm.response.json().error_code).to.eql('SCAN_WAREHOUSE_MISMATCH'));", "pm.test('no stock effect payload', () => pm.expect(pm.response.json().data).to.eql(undefined));"]}}]
@@ -110,7 +110,7 @@
           {"key": "Content-Type", "value": "application/json", "type": "text"}
         ],
         "url": {"raw": "{{baseUrl}}/api/v1/scan/classify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "scan", "classify"]},
-        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"UNKNOWN-WWHN-150-CI\",\n  \"context\": \"STOCKTAKE\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
+        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"UNKNOWN-WWHN-150-CI\",\n  \"context\": \"INVENTORY\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
       },
       "response": [],
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('status 404', () => pm.response.to.have.status(404));", "pm.test('explicit code', () => pm.expect(pm.response.json().error_code).to.eql('SCAN_CODE_NOT_FOUND'));"]}}]
@@ -124,7 +124,7 @@
           {"key": "Content-Type", "value": "application/json", "type": "text"}
         ],
         "url": {"raw": "{{baseUrl}}/api/v1/scan/classify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "scan", "classify"]},
-        "body": {"mode": "raw", "raw": "{\n  \"context\": \"STOCKTAKE\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
+        "body": {"mode": "raw", "raw": "{\n  \"context\": \"INVENTORY\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
       },
       "response": [],
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('status 422', () => pm.response.to.have.status(422));"]}}]
@@ -149,7 +149,7 @@
           {"key": "Content-Type", "value": "application/json", "type": "text"}
         ],
         "url": {"raw": "{{baseUrl}}/api/v1/scan/classify", "host": ["{{baseUrl}}"], "path": ["api", "v1", "scan", "classify"]},
-        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"STOCKTAKE\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
+        "body": {"mode": "raw", "raw": "{\n  \"raw_code\": \"HN-PV-2026-00001\",\n  \"context\": \"INVENTORY\",\n  \"warehouse_id\": \"{{warehouseId}}\"\n}", "options": {"raw": {"language": "json"}}}
       },
       "response": [],
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('status 403', () => pm.response.to.have.status(403));"]}}]
