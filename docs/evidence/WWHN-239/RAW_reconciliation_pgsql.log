@@ -1,0 +1,22 @@
+psql:<stdin>:29: ERROR:  relation "reversal_lines" does not exist
+LINE 4: FROM reversal_lines rl
+             ^
+psql:<stdin>:43: ERROR:  relation "stock_movements" does not exist
+LINE 4: FROM stock_movements mv
+             ^
+psql:<stdin>:67: ERROR:  relation "stock_movements" does not exist
+LINE 2: FROM stock_movements mv
+             ^
+psql:<stdin>:92: ERROR:  relation "stock_movements" does not exist
+LINE 2: FROM stock_movements origin
+             ^
+psql:<stdin>:106: ERROR:  relation "inventory_balances" does not exist
+LINE 2: FROM inventory_balances ib
+             ^
+psql:<stdin>:129: ERROR:  relation "inventory_balances" does not exist
+LINE 8:       FROM inventory_balances
+                   ^
+ indexname | indexdef 
+-----------+----------
+(0 rows)
+

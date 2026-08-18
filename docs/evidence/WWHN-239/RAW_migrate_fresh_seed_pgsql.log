@@ -1,0 +1,7 @@
+
+Warning: require(C:\LAM_PHONG_TECH\hn_be_wwhn239_wt/vendor/autoload.php): Failed to open stream: No such file or directory in C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\artisan on line 10
+
+Fatal error: Uncaught Error: Failed opening required 'C:\LAM_PHONG_TECH\hn_be_wwhn239_wt/vendor/autoload.php' (include_path='.;C:/laragon/etc/php/pear') in C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\artisan:10
+Stack trace:
+#0 {main}
+  thrown in C:\LAM_PHONG_TECH\hn_be_wwhn239_wt\artisan on line 10
