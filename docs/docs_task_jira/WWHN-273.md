@@ -17,6 +17,7 @@
 | Diễn tập rollback (BE half của WWHN-72) | cùng workflow → `migrate:reset` → `migrate` → `db:seed` | PASS, chain gỡ và dựng lại được |
 | Readiness trước cutover | `php artisan wms:golive-check --json=...` (WWHN-300) | `overall=pass`, evidence JSON |
 | Smoke runtime đã serve | `php artisan serve` + curl | `/api/v1/health` 200 `status=ok`; `/api/health` 404; `/api/v1/skus` không token = 401 |
+| Smoke nghiệp vụ theo AC của WWHN-72 | cùng bước smoke, sau `POST /api/v1/auth/login` | `auth` 200 + access token; `skus`, `inbound-documents`, `outbound-documents`, `inventory/balances`, `reports/hub` = 200 |
 | Auth/session/RBAC/OpenAPI | `BackendMigrationSeedHealthTest`, `AuthSessionPersistenceTest`, `AuthorizationTest`, `SwaggerRouteSyncTest` | PASS |
 | Hợp đồng của chính gate | `tests/Feature/Wwhn273ReleaseSignoffContractTest.php` | PASS — gate không bị gỡ bước trong im lặng |
 
@@ -29,6 +30,8 @@
 | `migrate:reset` (gỡ toàn bộ chain) | cùng DB | PASS |
 | `migrate` + `db:seed` sau rollback | cùng DB | PASS |
 | `wms:golive-check` | cùng DB | `migrations.applied`, `schema.canonical_relations`, `seed.identity_markers`, `security.route_default_deny`, `core.*` = OK |
+| Smoke HTTP trên runtime đã serve | `php artisan serve` trên cùng DB | `/api/v1/health` = 200 `"status":"ok"`; `/api/health` = 404; `/api/v1/skus` không token = 401 |
+| Smoke nghiệp vụ có token | login `admin@gmail.com` | `skus`, `inbound-documents`, `outbound-documents`, `inventory/balances`, `reports/hub` = 200 |
 
 Lần chạy PostgreSQL thực hiện trên snapshot `git archive HEAD` (SHA `624af01`) với `vendor/` junction về repo chính: file migration và `docs/HoaNam_ERD_Moi_Nhat.md` lấy từ snapshot, class PHP autoload qua `vendor/` nên đến từ working tree. Ghi rõ để reviewer không hiểu nhầm đây là bằng chứng của một job CI.
 
@@ -45,6 +48,7 @@ Lần chạy PostgreSQL thực hiện trên snapshot `git archive HEAD` (SHA `62
 | W273-P1-01 | P1 | Gate chỉ kiểm health trong tiến trình phpunit; Beta/UAT lại poll qua HTTP. Một cấu hình route/nginx sai vẫn xanh gate cũ. | Thêm smoke trên runtime đã `serve`: `/api/v1/health` 200 + `status=ok`, `/api/health` phải 404, `/api/v1/skus` không token phải 401. | BE1 |
 | W273-P1-02 | P1 | Gate không chạy `wms:golive-check`, nên readiness (migration pending, default-deny, idempotency store, backlog audit/đối soát) không được kiểm trước khi tuyên bố backend sẵn sàng. | Thêm bước golive-check kèm evidence JSON vào artifact. | BE1 |
 | W273-P1-03 | P1 | WWHN-273 không có tài liệu evidence trong source (khác WWHN-274 phía FE), reviewer không có chỗ đối chiếu AC ↔ bằng chứng. | File này + manifest `artifacts/wwhn-273/release-signoff.txt`. | BE1 |
+| W273-P1-04 | P1 | AC của WWHN-72 yêu cầu "Smoke auth/master/inbound/outbound/inventory/kiểm kê pass", nhưng gate BE không gọi một endpoint nghiệp vụ nào qua HTTP — chỉ có phpunit in-process. | Thêm smoke có token: `auth/login` → `skus` / `inbound-documents` / `outbound-documents` / `inventory/balances` / `reports/hub` phải trả 200 trên DB đã migrate + seed. **Kiểm kê (Stocktake) không được hiện thực**: SRS v1.12 + Techstack baseline loại Stocktake/Variance/Adjustment khỏi MVP, đường sửa sai là Reversal append-only. BE không tự sinh màn hình/API ngoài baseline; câu chữ "kiểm kê" trong AC của task cha cần PM/PO + QA disposition. | BE1 (smoke) + PM/PO/QA (câu chữ kiểm kê) |
 | W273-P2-01 | P2 | Hợp đồng của gate nằm trong một file YAML: gỡ một bước không làm test nào đỏ. | `tests/Feature/Wwhn273ReleaseSignoffContractTest.php` khoá các bước bắt buộc + hai khẳng định runtime, và chính nó nằm trong suite mà gate chạy. | BE1 |
 | W273-P2-02 | P2 | `wms:golive-check` báo WARN `migrations.reversible`: nhiều migration có `down()` rỗng (fail-forward). | Có chủ đích: quyền rollback quá các bước fail-forward thuộc về restore-from-backup của DevOps (WWHN-272), runbook `docs/evidence/WWHN-300/CUTOVER_ROLLBACK_RUNBOOK.md` đã ghi. Không sửa code, giữ WARN để reviewer thấy. | DO + BE1 |
 
@@ -62,5 +66,6 @@ Lần chạy PostgreSQL thực hiện trên snapshot `git archive HEAD` (SHA `62
 - [ ] `rollback_drill` trong manifest = PASS.
 - [ ] `golive_check` trong manifest = `pass`.
 - [ ] `legacy_health=/api/health:REJECTED` và smoke ghi `legacy_health_http=404`, `protected_no_token_http=401`.
+- [ ] `served-smoke.txt` có `auth_login=200` và 200 cho `skus`/`inbound-documents`/`outbound-documents`/`inventory/balances`/`reports/hub`.
 - [ ] `openapi_sha256` khớp `storage/api-docs/api-docs.json` của cùng SHA.
 - [ ] Không có dòng nào trong evidence tự nhận sign-off của QA1 hoặc DevOps.

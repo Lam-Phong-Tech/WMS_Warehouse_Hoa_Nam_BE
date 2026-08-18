@@ -53,6 +53,11 @@ jobs:
       APP_BUILD_REF: ${{ github.ref }}
       SMOKE_HOST: 127.0.0.1
       SMOKE_PORT: '8000'
+      # Ephemeral credential for the CI-only seeded database, same class as the
+      # JWT secret above. The seeded admin identity is asserted by
+      # BackendMigrationSeedHealthTest, so the release smoke can log in as it.
+      CI_DEMO_PASSWORD: WWHN273-CI-Demo-Login-2026
+      SMOKE_LOGIN_EMAIL: admin@gmail.com
 
     steps:
       - name: Checkout exact m1 SHA
@@ -121,8 +126,10 @@ jobs:
 
       # phpunit proves the health contract in-process. Beta/UAT polls it over
       # HTTP, so the release gate also proves the served runtime: the canonical
-      # probe answers, the legacy unversioned probe does not exist, and a
-      # protected endpoint still fails closed without a token.
+      # probe answers, the legacy unversioned probe does not exist, a protected
+      # endpoint still fails closed without a token, and the auth/master/inbound/
+      # outbound/inventory smoke WWHN-72 asks for actually returns 200 against
+      # the migrated and seeded database.
       - name: Served runtime smoke (canonical health, legacy 404, default deny)
         run: |
           set -euo pipefail
@@ -146,6 +153,24 @@ jobs:
             exit 1
           fi
           printf 'legacy_health_http=%s\nprotected_no_token_http=%s\n' "$legacy_code" "$protected_code" > artifacts/wwhn-273/served-smoke.txt
+          token="$(curl -s -X POST "http://$SMOKE_HOST:$SMOKE_PORT/api/v1/auth/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$SMOKE_LOGIN_EMAIL\",\"password\":\"$CI_DEMO_PASSWORD\"}" \
+            | php -r 'echo json_decode(stream_get_contents(STDIN), true)["data"]["access_token"] ?? "";')"
+          if [ -z "$token" ]; then
+            echo 'Release smoke failed: /api/v1/auth/login returned no access token' >&2
+            exit 1
+          fi
+          echo 'auth_login=200' >> artifacts/wwhn-273/served-smoke.txt
+          for path in /api/v1/skus /api/v1/inbound-documents /api/v1/outbound-documents /api/v1/inventory/balances /api/v1/reports/hub; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "http://$SMOKE_HOST:$SMOKE_PORT$path")"
+            if [ "$code" != '200' ]; then
+              echo "Release smoke failed: GET $path returned HTTP $code" >&2
+              exit 1
+            fi
+            printf 'smoke%s=%s\n' "$path" "$code" >> artifacts/wwhn-273/served-smoke.txt
+          done
+          cat artifacts/wwhn-273/served-smoke.txt
 
       - name: Regenerate OpenAPI
         run: php artisan l5-swagger:generate
@@ -167,7 +192,7 @@ jobs:
           golive_check=${golive_overall}
           health=/api/v1/health
           legacy_health=/api/health:REJECTED
-          served_smoke=health200+legacy404+protected401
+          served_smoke=health200+legacy404+protected401+auth_master_inbound_outbound_inventory200
           openapi_sha256=${openapi_sha256}
           result=SOURCE_CONTROLLED_PASS_IF_JOB_GREEN
           qa1_signoff=NOT_CLAIMED_BY_BE

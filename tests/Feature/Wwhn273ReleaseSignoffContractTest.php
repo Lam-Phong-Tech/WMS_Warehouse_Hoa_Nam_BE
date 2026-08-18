@@ -85,6 +85,48 @@ class Wwhn273ReleaseSignoffContractTest extends TestCase
         );
     }
 
+    public function test_release_workflow_smokes_auth_master_inbound_outbound_and_inventory(): void
+    {
+        $workflow = $this->readBaseFile(self::WORKFLOW);
+
+        $this->assertStringContainsString('/api/v1/auth/login', $workflow, 'WWHN-72 yêu cầu smoke auth');
+
+        // Đúng bộ mặt nghiệp vụ mà AC của task cha liệt kê: master, inbound,
+        // outbound, inventory (kiểm kê nằm ngoài MVP hiện tại, xem task doc).
+        foreach ([
+            '/api/v1/skus',
+            '/api/v1/inbound-documents',
+            '/api/v1/outbound-documents',
+            '/api/v1/inventory/balances',
+        ] as $path) {
+            $this->assertStringContainsString($path, $workflow, "Smoke release thiếu {$path}");
+        }
+
+        $this->assertMatchesRegularExpression(
+            '/code.*!=.*200/s',
+            $workflow,
+            'Smoke phải fail khi một endpoint nghiệp vụ không trả 200'
+        );
+    }
+
+    public function test_smoked_endpoints_are_registered_routes(): void
+    {
+        $uris = collect(Route::getRoutes()->getRoutes())
+            ->map(static fn ($route): string => $route->uri())
+            ->all();
+
+        foreach ([
+            'api/v1/auth/login',
+            'api/v1/skus',
+            'api/v1/inbound-documents',
+            'api/v1/outbound-documents',
+            'api/v1/inventory/balances',
+            'api/v1/reports/hub',
+        ] as $uri) {
+            $this->assertContains($uri, $uris, "Smoke trỏ tới route không tồn tại: {$uri}");
+        }
+    }
+
     public function test_canonical_health_route_is_versioned_and_legacy_path_is_not_registered(): void
     {
         $uris = collect(Route::getRoutes()->getRoutes())
