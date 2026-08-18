@@ -1,0 +1,54 @@
+{
+  "task": "WWHN-268",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "branch": "m1",
+  "purpose": "Phạm vi regression backend cho vòng sửa lỗi/retest. Manifest này là hợp đồng: Wwhn268RegressionContractTest bắt buộc mọi vùng phải có class test có thật, nên phạm vi không thể âm thầm co lại giữa các lần chạy.",
+  "truthBoundary": "Đây là phạm vi test in-process trên DB test. Nó KHÔNG thay thế bằng chứng regression của QA1 (WWHN-264) chạy trên build đã deploy.",
+  "areas": {
+    "stock": {
+      "description": "Nhập/xuất, ledger, projection tồn, idempotency và concurrency của mọi hành động đổi tồn (SRS §5.1, §5.2, §7.1, §9).",
+      "testClasses": [
+        "Tests\\Feature\\StockDocumentCanonicalFlowTest",
+        "Tests\\Feature\\StockDocumentIdempotencyTest",
+        "Tests\\Feature\\StockDocumentConcurrencyGuardTest",
+        "Tests\\Feature\\Wwhn191BalanceMovementProjectionTest",
+        "Tests\\Feature\\Wwhn201PostIssueAtomicNonNegativeStockTest",
+        "Tests\\Feature\\Wwhn289StockInvariantProofTest"
+      ]
+    },
+    "reversal": {
+      "description": "Reversal append-only, dependency guard, net effect và data scope (SRS §5.5 BR-REV-01..12).",
+      "testClasses": [
+        "Tests\\Feature\\Wwhn207InboundReversalFlowTest",
+        "Tests\\Feature\\Wwhn239ReversalItemLevelClosureTest",
+        "Tests\\Feature\\Wwhn240ReversalNetEffectContractTest",
+        "Tests\\Feature\\Wwhn242ReversalScopeAndProjectionTest"
+      ]
+    },
+    "warranty": {
+      "description": "Vòng đời case bảo hành, TEMP_ONLY, idempotency và stock-neutral (SRS §5.4).",
+      "testClasses": [
+        "Tests\\Feature\\WarrantyFlow04ApiSurfaceTest",
+        "Tests\\Feature\\WarrantyIdempotencyKeyContractTest",
+        "Tests\\Feature\\WarrantyStatusOnlyContractTest",
+        "Tests\\Feature\\Wwhn219WarrantyTempOnlyAuditTest"
+      ]
+    },
+    "pv": {
+      "description": "Bề mặt App PV chỉ đọc: chỉ sản phẩm đã publish và available_qty, truy cập ẩn danh (SRS §3, §8.4).",
+      "testClasses": [
+        "Tests\\Feature\\Wwhn252PvContractTest",
+        "Tests\\Feature\\Wwhn268RegressionContractTest"
+      ]
+    },
+    "report": {
+      "description": "Báo cáo vận hành, XNT, lịch sử chứng từ, export và data scope (SRS §5.6 BR-RPT/BR-EXP, §13.10).",
+      "testClasses": [
+        "Tests\\Feature\\ReportFlow06ContractTest",
+        "Tests\\Feature\\ReportFlow06IntegrationTest",
+        "Tests\\Feature\\ReportFlow06DocsAlignmentTest"
+      ]
+    }
+  }
+}

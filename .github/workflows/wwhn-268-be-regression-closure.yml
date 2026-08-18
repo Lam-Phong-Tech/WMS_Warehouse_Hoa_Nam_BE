@@ -1,0 +1,126 @@
+name: WWHN-268 BE regression closure
+
+# Nửa backend của vòng sửa lỗi WWHN-70 / HN-QA-005-ST01.
+# Register review đòi CI log truy được theo exact SHA vì log local Windows không
+# đủ cho Beta sign-off. Job này chạy trên PostgreSQL 16 (đúng engine production)
+# và xuất kết quả JSON làm artifact cho QA1 đối chiếu.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-268/**'
+      - 'docs/docs_task_jira/WWHN-268_BE_REGRESSION_RECEIPT.md'
+      - 'tests/Feature/Wwhn268RegressionContractTest.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'Modules/Auth/app/Http/Middleware/CheckPermission.php'
+      - 'app/Traits/ApiResponse.php'
+      - 'app/Http/Middleware/ApiConventionMiddleware.php'
+      - '.github/workflows/wwhn-268-be-regression-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-268/**'
+      - 'tests/Feature/Wwhn268RegressionContractTest.php'
+      - '.github/workflows/wwhn-268-be-regression-closure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression-closure:
+    name: Regression scope + error contract closure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn268
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn268"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      CI_DEMO_PASSWORD: WWHN268-CI-Only-2026
+      JWT_SECRET: WWHN268-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn268
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Ghi nhận identity của lượt chạy
+        run: |
+          {
+            echo "### WWHN-268 BE run identity"
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- run: \`${GITHUB_RUN_ID}\` (attempt ${GITHUB_RUN_ATTEMPT})"
+            echo "- engine: PostgreSQL 16"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Style check trên nguồn của WWHN-268
+        run: vendor/bin/pint --test tests/Feature/Wwhn268RegressionContractTest.php
+
+      - name: Manifest phạm vi regression phải đủ 5 vùng
+        run: |
+          set -euo pipefail
+          scope='docs/evidence/WWHN-268/BE_REGRESSION_SCOPE.json'
+          test -s "$scope"
+          php -r '$d=json_decode(file_get_contents("docs/evidence/WWHN-268/BE_REGRESSION_SCOPE.json"), true, 512, JSON_THROW_ON_ERROR); foreach (["stock","reversal","warranty","pv","report"] as $a) { if (empty($d["areas"][$a]["testClasses"])) { fwrite(STDERR, "Vùng $a rỗng\n"); exit(1); } } echo "scope ok\n";'
+
+      - name: Biên nhận BE phải giữ điểm mở, không tự đóng
+        run: |
+          set -euo pipefail
+          receipt='docs/docs_task_jira/WWHN-268_BE_REGRESSION_RECEIPT.md'
+          test -s "$receipt"
+          grep -Fq 'BE268-D02' "$receipt"
+          grep -Fq 'CHỜ QA1 CHẠY ĐỘC LẬP' "$receipt"
+
+      - name: Migrate + seed
+        run: |
+          php artisan migrate:fresh --seed --force
+
+      - name: Hợp đồng regression WWHN-268
+        run: php artisan test --filter=Wwhn268RegressionContractTest
+
+      - name: Regression theo phạm vi đã khai (stock / reversal / warranty / pv / report)
+        run: |
+          set -euo pipefail
+          php artisan test \
+            --filter='StockDocument|Wwhn191BalanceMovementProjectionTest|Wwhn201PostIssueAtomicNonNegativeStockTest|Wwhn289StockInvariantProofTest|Wwhn207InboundReversalFlowTest|Wwhn239ReversalItemLevelClosureTest|Wwhn240ReversalNetEffectContractTest|Wwhn242ReversalScopeAndProjectionTest|Warranty|Wwhn219WarrantyTempOnlyAuditTest|Wwhn252PvContractTest|ReportFlow06'
+
+      - name: Upload bằng chứng WWHN-268
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-268-be-evidence-${{ github.sha }}
+          path: |
+            docs/evidence/WWHN-268/**
+            build/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
