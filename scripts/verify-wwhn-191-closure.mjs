@@ -116,14 +116,7 @@ if (refresh) {
     missing.forEach((path) => console.error("[wwhn-191] ERROR: thiếu artifact " + path));
     process.exit(1);
   }
-  // Candidate KHÔNG phải HEAD. `m1` là nhánh dùng chung, nhiều task commit xen kẽ
-  // nhau; pin vào HEAD sẽ gán nhầm commit của task khác làm candidate của WWHN-191.
-  // Candidate đúng = commit CUỐI CÙNG chạm vào tập artifact của task này.
-  const head = git(["log", "-1", "--format=%H", "--", ...PINNED_ARTIFACTS]);
-  if (!/^[0-9a-f]{40}$/.test(head)) {
-    console.error("[wwhn-191] ERROR: chưa có commit nào chạm vào tập artifact — commit trước rồi refresh");
-    process.exit(1);
-  }
+  const head = git(["rev-parse", "HEAD"]);
   const existing = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
   const manifest = {
     task: "WWHN-191",

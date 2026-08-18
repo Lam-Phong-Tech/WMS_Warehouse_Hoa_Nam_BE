@@ -1,0 +1,97 @@
+== WWHN-290 closure verification ==
+
+-- 0. Evidence set present --
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_PINS.json
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_DEFECT_CLOSURE_REGISTER.md
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_DATA_IMPACT_INDEPENDENT_VERIFICATION.md
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_QA1_REGRESSION_HANDOFF.md
+  PASS  WWHN-290_PINS.json parses as JSON
+
+-- 1. DEV290-P1-02 branch canonicalisation --
+  PASS  origin/m1-be-2 HEAD matches pin (60816499066f9f493596e326dc41116ef32f5c4b)
+  PASS  origin/m1-be-2 is a strict ancestor of m1 — no port/merge required
+  PASS  m1 is behind origin/m1-be-2 by 0 commits
+  INFO  m1 is ahead by 726 commits
+
+-- 2. DEV290-P2-01 repository / branch reference --
+  PASS  branch 'm1ee' does not exist, as recorded
+
+-- 3. DEV290-P1-03 approved contract target --
+  PASS  storage/api-docs/api-docs.json is openapi 3.0.0 / info.version 2.0.0 with non-empty paths
+  INFO  live contract blob   : bc8e1615c89b7fe11c181add129872451eacf2e6
+  INFO  live contract sha256 : 34a93d91e6ebd15bed16316f8b8be25887528e53edf6450694df6d85f14ef105
+  INFO  pin-time blob        : c262a0d3c1525807e50ec88e436d8b5459e8ac0d (lineage only; see PINS.json contract.lineage_note)
+
+-- 4. DEV290-P1-05 change-range data / runtime impact --
+  INFO  files changed by the WWHN-290 range 57370ed..f894232:
+          .github/workflows/wwhn-290-closure.yml
+          docs/evidence/wwhn-290/WWHN-290_DEFECT_CLOSURE_REGISTER.md
+          tests/Feature/Wwhn290ClosureEvidenceTest.php
+  PASS  range touches no runtime, migration, seeder or contract path — NO DATA CHANGE / N/A is verified, not asserted
+  PASS  range changes the OpenAPI contract file 0 times — no contract delta attributable to WWHN-290
+
+-- 4b. Per-attributed-commit scope (m1 is a shared, interleaved branch) --
+  PASS  commit 4559d53 touches no guarded path
+  PASS  commit f748edb touches no guarded path
+  PASS  commit 96e545d touches no guarded path
+  PASS  commit f894232 touches no guarded path
+  PASS  commit c1ce7bf touches no guarded path
+  PASS  commit f97edcd touches no guarded path
+  INFO  commit c4b4bea mentions WWHN-290 but is not in the pinned commit list — append it to WWHN-290_PINS.json
+  PASS  commit ea3d935 is evidence-only pin maintenance — exempt from attribution
+  PASS  commit 1c050d0 is evidence-only pin maintenance — exempt from attribution
+
+-- 5. Cross-document pin equality (anti-drift) --
+  PASS  m1-be-2 HEAD in WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md matches PINS.json
+  PASS  FE consumer revision in WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md matches PINS.json
+  PASS  FE consumer revision in WWHN-290_DEFECT_CLOSURE_REGISTER.md matches PINS.json
+  PASS  change-range base in WWHN-290_DEFECT_CLOSURE_REGISTER.md matches PINS.json
+  PASS  change-range final in WWHN-290_DEFECT_CLOSURE_REGISTER.md matches PINS.json
+  PASS  change-range final in WWHN-290_DATA_IMPACT_INDEPENDENT_VERIFICATION.md matches PINS.json
+
+-- 6. Fail-closed defect-input disposition --
+  PASS  register pins DEV290-P1-01
+  PASS  register pins DEV290-P1-02
+  PASS  register pins DEV290-P1-03
+  PASS  register pins DEV290-P1-04
+  PASS  register pins DEV290-P1-05
+  PASS  register pins DEV290-P2-01
+  PASS  register does not self-sign QA1
+  PASS  no DEV-authored QA1 PASS claim
+
+-- 7. DEV290-P1-02R frozen candidate (immutable closure package) --
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_BRANCH_DECISION_RECORD.md
+  PASS  decision record states DEC-BR-290-001
+  PASS  decision record states PENDING_PM_TECHLEAD_SIGNOFF
+  PASS  decision record states frozen candidate
+  INFO  package digest source: working tree
+  INFO  package digest       : d0a211d5dc7e4f4abae83a8e5eae613a0badd1412f3b4e420241c4e8d69f617d
+  PASS  frozen closure package digest matches the pin - the reviewed package is byte-identical
+  INFO  frozen candidate SHA not recorded yet - it is written by the evidence-only commit that follows the freeze
+
+-- 8. DEV290-P1-03R contract consumers pinned to one source --
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_CONTRACT_CONSUMER_MATRIX.md
+151 requests, all inside api/v1
+  PASS  postman contract collection targets /api/v1 only (documented exception: api/health)
+  PASS  postman local environment baseUrl ends at /api/v1
+  PASS  range changes contract and postman consumer artifacts 0 times
+  PASS  FE consumer revision 6ed417e carries the FE consumer confirmation
+
+-- 9. DEV290-P1-06 source and traceability baseline --
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_SOURCE_TRACEABILITY_SUPERSESSION.md
+  PASS  baseline SRS identity is live (HN-SRS-FRD-001 / VERSION 1.12)
+  PASS  SRS supersession register still records BRD v3.9 -> BRD v3.20
+  PASS  traceability record quotes BRD Hoa Nam v3.20
+  PASS  traceability record quotes BRD v3.9
+  PASS  range changes baseline documents 0 times - no repo-side baseline drift attributable to this ticket
+
+-- 10. DEV290-P1-05R exact-SHA gate run and failed-check disposition --
+  PASS  present: docs/evidence/wwhn-290/WWHN-290_EXACT_SHA_GATE_RUN.md
+  PASS  gate run record states DISPOSITION
+  PASS  gate run record states WWHN-290 Exact SHA Closure
+  PASS  gate separates the blocking closure job from the non-blocking PostgreSQL diagnostic
+
+== summary ==
+RESULT=PASS — every WWHN-290 claim re-derived from the live repository.
+Human gates still required: PM/Tech Lead (branch+contract), QA1 (WWHN-291), Data/Tech (data impact).

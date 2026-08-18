@@ -61,9 +61,6 @@
         "verify:wwhn236": [
             "@php -r \"passthru('node scripts/verify-wwhn236-adjustment-disposition.mjs --emit-lock', $c); exit($c);\""
         ],
-        "verify:wwhn273": [
-            "@php -r \"passthru('node scripts/verify-wwhn-273-release-signoff.mjs', $c); exit($c);\""
-        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

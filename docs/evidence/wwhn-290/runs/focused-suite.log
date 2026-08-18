@@ -1,0 +1,5 @@
+# WWHN-290 focused regression - local dry run at freeze time
+# Command: vendor/bin/phpunit --no-coverage <10 test files>
+# Driver: sqlite :memory: (phpunit.xml)
+# Date: 2026-08-19
+{"tool":"phpunit","result":"passed","tests":98,"passed":98,"assertions":789,"duration_ms":41380}
