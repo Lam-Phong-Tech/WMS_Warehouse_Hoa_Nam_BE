@@ -62,7 +62,10 @@ Tài liệu này chỉ nói về **register R3**. Lịch sử R1/R2 (review 47/1
 | BE `phpunit` (full suite) | **761 test — 734 pass, 0 fail, 27 skip**, 8 642 assertions |
 | BE `pint --test` các file thuộc WWHN-330 R3 | **PASS** |
 | FE `vitest run src/modules/master-data` | **24/24 pass** |
-| FE `typecheck` / `lint` / `vitest run` / `build` | xem mục "Gate FE" bên dưới |
+| FE `npm run typecheck` | **PASS** |
+| FE `npm run lint` | **0 error**, 25 warning (pre-existing, không ở file WWHN-330); `eslint` riêng 4 tệp thay đổi: **0 cảnh báo** |
+| FE `npx vitest run` (full) | **69 file — 526/526 pass** |
+| FE `npm run build` | **ĐỎ** ở `src/modules/reverse/components/ReversalDetailModal.tsx` (`TS6133 'staleRecovered'`) — tệp **không thuộc** WWHN-330/331, phiên làm việc khác đang sửa dở trên cùng nhánh `m1`. Không đụng vào để tránh xung đột; chạy lại sau khi phiên kia xong |
 
 **Ghi chú trung thực:** `pint --test` trên toàn repo vẫn đỏ ở các file **không thuộc**
 WWHN-330/331 (debt có sẵn: `ItemInstanceController`, `StockDocumentService`, một số
@@ -75,8 +78,8 @@ ticket; cần một task dọn Pint riêng.
 
 | Repo | Nhánh | SHA candidate | Ghi chú |
 |---|---|---|---|
-| `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `<SHA-BE>` | |
-| `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `<SHA-FE>` | |
+| `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `6916df47b5d9186b799e4a79c64c1b0556b7388d` | |
+| `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `6c096808447ec6935a0ebe6ac3950c032084f4ab` | |
 
 **Baseline đánh giá:** `m1` là nguồn chuẩn duy nhất. `m1-be-2` đã được xác nhận là nhánh
 superseded, ancestor thuần của `m1`, và nằm trong `LEGACY_SOURCES_EXCLUDED.txt` của gate

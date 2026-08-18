@@ -3,8 +3,9 @@
 Dán thẳng lên Jira WWHN-330. Mỗi vai trò chỉ đăng **một** comment gộp đủ mọi mục cần xác
 nhận — không đăng nhiều lần cho từng hạng mục.
 
-> **Trước khi đăng:** thay `<SHA-BE>` / `<SHA-FE>` bằng SHA 40 ký tự thật của commit chốt
-> trên nhánh `m1`. Không đăng khi chưa có SHA thật.
+> **SHA candidate đã pin sẵn trong các comment bên dưới** (không còn chỗ trống phải điền):
+> BE `6916df47b5d9186b799e4a79c64c1b0556b7388d`, FE `6c096808447ec6935a0ebe6ac3950c032084f4ab`,
+> cả hai trên nhánh `m1`. Đối chiếu từng tệp bằng `R3_CHANGE_MANIFEST.md` (sha256 từng tệp).
 
 Bản này thay thế bộ comment của vòng review trước (47/100): register **R3** bổ sung
 DEV330-P1-06R3 và DEV330-P1-07R3, và mở rộng phạm vi P1-01/P1-02. Căn cứ kỹ thuật:
@@ -20,7 +21,7 @@ Tôi đã đọc code + evidence trên nhánh `m1` và **xác nhận 5 điểm**
 
 1. **Baseline đánh giá (đóng DEV330-P1-04R3)**: nguồn code chính thức của WWHN-330 là
    `WMS_Warehouse_Hoa_Nam_BE` / `WMS_Warehouse_Hoa_Nam_FE`, nhánh **`m1`**, SHA
-   `<SHA-BE>` / `<SHA-FE>`. `m1-be-2` là nhánh superseded (ancestor thuần của `m1`, nằm
+   `6916df47b5d9186b799e4a79c64c1b0556b7388d` / `6c096808447ec6935a0ebe6ac3950c032084f4ab`. `m1-be-2` là nhánh superseded (ancestor thuần của `m1`, nằm
    trong `LEGACY_SOURCES_EXCLUDED.txt` của gate WWHN-219) — **không** dùng làm nguồn
    review. Comment "BE2 code baseline for review" trỏ `m1-be-2` được thay thế bởi comment
    này. Commit trên `m1` có thể mang tiêu đề task khác do nhiều phiên làm việc song song;
@@ -98,7 +99,7 @@ Không phát sinh việc mới từ phía PM.
 **[QA1] Xác nhận phạm vi kiểm thử WWHN-330 / WWHN-332**
 
 Tôi **xác nhận đã đọc** evidence R3 và `docs/evidence/WWHN-330/QA_RUNBOOK.md`, và **đồng ý
-phạm vi test độc lập** sẽ chạy trên đúng SHA `<SHA-BE>` / `<SHA-FE>` nhánh `m1`, gồm 6
+phạm vi test độc lập** sẽ chạy trên đúng SHA `6916df47b5d9186b799e4a79c64c1b0556b7388d` / `6c096808447ec6935a0ebe6ac3950c032084f4ab` nhánh `m1`, gồm 6
 nhóm: (1) file lỗi CSV — schema §13.12, sanitize/che PII, hạn dùng logic; (2) retention vật
 lý — `import:purge-error-files` dry-run/chạy thật/idempotent, file mồ côi, bản ghi audit,
 lịch chạy; (3) biên hạn mức 1000/1001/sparse/20k + file 10 MB thật + đo hiệu năng trên môi
@@ -115,8 +116,8 @@ Tôi **chưa ký nghiệm thu kết quả** — WWHN-332 giữ nguyên trạng t
 
 **[DEV] Xác nhận bàn giao WWHN-330 register R3**
 
-Tôi **xác nhận đã hoàn thành và tự kiểm chứng** trên nhánh `m1` (SHA `<SHA-BE>` /
-`<SHA-FE>`):
+Tôi **xác nhận đã hoàn thành và tự kiểm chứng** trên nhánh `m1` (SHA `6916df47b5d9186b799e4a79c64c1b0556b7388d` /
+`6c096808447ec6935a0ebe6ac3950c032084f4ab`):
 
 - **P1-01R3**: gỡ hằng số hết hạn chết; tách hạn dùng logic khỏi retention vật lý; thêm
   quét file mồ côi + audit lần purge; file lỗi theo schema SRS §13.12.
@@ -130,7 +131,13 @@ Tôi **xác nhận đã hoàn thành và tự kiểm chứng** trên nhánh `m1`
 - **Tự báo 3 lỗi của chính bản trước đã sửa**: DEC-IMP-001 Rev.1 trích số benchmark không
   khớp artifact; artifact tự mâu thuẫn sqlite/pgsql; hạn mức bị nhân bản giữa hai tầng.
 - **Test đã chạy**: BE full suite **761 test — 734 pass, 0 fail, 27 skip**; bộ R3 mới
-  14/14; benchmark 6/6; regression import 44/44. FE typecheck/lint/test/build pass.
+  14/14; benchmark 6/6; regression import 44/44. FE `typecheck` pass, `lint` 0 error,
+  `vitest run` **526/526 pass**.
+- **Một gate chưa xanh, báo rõ**: `npm run build` của FE đỏ ở
+  `src/modules/reverse/components/ReversalDetailModal.tsx` (`TS6133 'staleRecovered'`) —
+  tệp **không thuộc** WWHN-330/331, đang được một phiên làm việc khác sửa dở trên cùng
+  nhánh `m1`. Tôi không đụng vào tệp đó để tránh xung đột; cần chạy lại build sau khi
+  phiên kia hoàn tất.
 
 Bàn giao cho **QA1 (WWHN-332)** kiểm thử độc lập theo `QA_RUNBOOK.md`.
 
