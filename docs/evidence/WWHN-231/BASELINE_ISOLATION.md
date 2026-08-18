@@ -67,3 +67,23 @@ Vì vậy gate QA của `WWHN-231` chốt trên **baseline sqlite** (đúng driv
 Riêng các bước PostgreSQL **không cần** `RefreshDatabase` đã chạy được và đã thu evidence:
 migration index (`logs/migrate-ledger-dimension-index.log`), đối soát dry-run
 (`logs/inventory-reconcile-dry-run.log`), benchmark (`BENCHMARK_RESULT.json`).
+
+## 4. Xác nhận độc lập từ CI (push `d52727c`, 2026-08-18)
+
+Lần push đầu tiên sau 27 commit của nhiều phiên song song cho **26 run / 4 success / 22 fail**.
+Toàn bộ 22 fail quy về đúng **hai** nguyên nhân, và cả hai nằm ngoài `WWHN-231`:
+
+| Nguyên nhân | Bước fail | Run mẫu | Thuộc về |
+|---|---|---|---|
+| Pint format | `Flow 06 Pint / syntax` — `AlignedImportMatchReportController.php` (`fully_qualified_strict_types`, `unary_operator_spaces`, `not_operator_with_successor_space`, `ordered_imports`) | `32160962133` | task khác trên cùng nhánh |
+| Migrate PostgreSQL | `Migrate + seed` / `Prepare application on PostgreSQL 16` — `SQLSTATE[42804] column "created_by" is of type uuid but expression is of type text` trong `hn_erd_mirror_pv_industries` | `32160962077`, `32160962122`, `32160962054` | `WWHN-252` (`b90d5ef`) |
+
+Hai đối chứng cho `WWHN-231`:
+
+- `vendor/bin/pint --test` trên đúng 5 file PHP của task này → **passed**.
+- Lỗi migrate trên CI **trùng khít** lỗi đo được ở máy local (§3), tức nó tái lập độc lập với
+  môi trường và không phụ thuộc thay đổi nào của `WWHN-231`.
+
+Vì `WWHN-252` chặn mọi job PostgreSQL của toàn nhánh, gate CI xanh cho `WWHN-231` chỉ có thể
+đóng sau khi `WWHN-252` được sửa. Đây là phụ thuộc phải ghi lên Jira, không phải hạng mục
+`WWHN-231` tự đóng được.

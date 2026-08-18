@@ -4,7 +4,7 @@ Mỗi vai trò **một comment duy nhất**, đã gộp đủ các mục registe
 Nội dung là **xác nhận (đọc + duyệt)**, không phát sinh việc mới.
 
 Exact SHA candidate: BE `a16d1d6` / FE `7968fa8` (chi tiết: `docs/evidence/WWHN-231/EXACT_SHA.json`).
-Trước khi dán chỉ cần thay `<CI_RUN_ID>` bằng Run ID thật.
+Evidence SHA (nơi CI chạy): `d52727c`.
 
 ---
 
@@ -88,7 +88,12 @@ DevOps/DBA xác nhận WWHN-231 tại BE a16d1d6:
 2. Index decision: đồng ý giữ idx_sm_ledger_dimension (warehouse_id, product_id, stock_status)
    INCLUDE (qty_delta, occurred_at) — 49 MB/600k dòng, ledger là append-only ghi thưa nên chi phí
    ghi chấp nhận được; với nhánh gom toàn bảng planner giữ nguyên plan cũ nên index không gây hại.
-3. P1-07: CI chạy tại đúng SHA này — run <CI_RUN_ID>.
+3. P1-07: CI đã chạy tại evidence SHA d52727c (26 run). 4 xanh, 22 đỏ và toàn bộ 22 đỏ quy về
+   hai nguyên nhân NGOÀI WWHN-231: (a) Pint format ở AlignedImportMatchReportController.php của
+   task khác — run 32160962133; (b) bước Migrate+seed trên PostgreSQL vỡ vì migration
+   2026_08_19_000100 của WWHN-252 (SQLSTATE 42804 uuid/text trong hn_erd_mirror_pv_industries) —
+   run 32160962077 / 32160962122 / 32160962054. Pint trên 5 file PHP của WWHN-231 passed.
+   Xác nhận CI xanh cho WWHN-231 phụ thuộc WWHN-252; chi tiết BASELINE_ISOLATION.md §4.
 
 Xác nhận, không yêu cầu thay đổi hạ tầng.
 ```

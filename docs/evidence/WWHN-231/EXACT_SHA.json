@@ -25,7 +25,9 @@
       "sha": "7968fa8d88ed1b5c85be277c23b3850bdbb0cdeb",
       "short_sha": "7968fa8",
       "subject": "docs(WWHN-231): go apply-adjustment khoi mo ta be mat doi ton o FE",
-      "files": ["src/shared/api/wms-contract.ts"]
+      "files": [
+        "src/shared/api/wms-contract.ts"
+      ]
     }
   },
   "predecessor_note": {
@@ -42,7 +44,36 @@
     "baseline_isolation": "docs/evidence/WWHN-231/BASELINE_ISOLATION.md"
   },
   "ci": {
-    "workflow_run_id": null,
-    "note": "Dien Run ID sau khi CI chay tai dung SHA nay; xem DEV231-P1-07."
-  }
+    "branch": "m1",
+    "head_sha": "d52727c",
+    "pushed_at": "2026-08-18",
+    "total_runs": 26,
+    "success": [
+      "Foundation Inbound Readiness",
+      "WWHN-134 Reversal Decision Contract Exact-SHA Gate",
+      "Auth Session Persistence Gate",
+      "WWHN-211 Inventory Closure"
+    ],
+    "failing_runs_root_cause": [
+      {
+        "cause": "Pint format gate",
+        "detail": "Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php — fully_qualified_strict_types, unary_operator_spaces, not_operator_with_successor_space, ordered_imports",
+        "owner": "ngoai WWHN-231 (file cua task khac tren cung nhanh)",
+        "proof_run": 32160962133,
+        "proof_step": "Flow 06 Pint / syntax",
+        "wwhn231_files": "vendor/bin/pint --test tren 5 file cua WWHN-231 => passed"
+      },
+      {
+        "cause": "Migrate + seed tren PostgreSQL",
+        "detail": "SQLSTATE[42804] column \"created_by\" is of type uuid but expression is of type text — PL/pgSQL hn_erd_mirror_pv_industries, phat sinh tu \"update pv_industry set version = 1 where version is null\" cua migration 2026_08_19_000100 (commit b90d5ef, WWHN-252)",
+        "owner": "WWHN-252",
+        "proof_run": 32160962077,
+        "proof_step": "Migrate + seed",
+        "note": "Chan MOI workflow chay PostgreSQL tren nhanh, khong rieng WWHN-231; trung khop voi phat hien local tai BASELINE_ISOLATION.md §3"
+      }
+    ],
+    "wwhn231_specific_failures": "khong co — khong workflow nao do vi thay doi cua WWHN-231",
+    "note": "Day la lan push dau tien sau 27 commit cua nhieu phien lam viec song song tren m1, nen ket qua CI phan anh trang thai nhanh chung chu khong rieng task nay."
+  },
+  "evidence_sha": "d52727c — commit docs/evidence, la SHA ma CI chay"
 }
