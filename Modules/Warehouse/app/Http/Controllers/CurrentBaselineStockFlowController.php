@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\IdempotentEnvelope;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -380,6 +381,9 @@ class CurrentBaselineStockFlowController extends Controller
                 return [200, $this->envelope('Reversal command processed; original document remains POSTED.', $result)];
             }
         );
+
+        // WWHN-234 F-09 / TC-P1-029: reversal replay cũng phải lộ ở body.
+        $body = IdempotentEnvelope::withReplayFlag($body, $replay);
 
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
     }

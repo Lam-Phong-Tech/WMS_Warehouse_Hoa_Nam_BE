@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\ConflictCode;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -70,7 +71,7 @@ class CurrentBaselineContainerController extends Controller
                 ->where('version', $expectedVersion)
                 ->update($updates);
             if ($affected !== 1) {
-                ApiError::abort(409, 'VERSION_CONFLICT', 'Container changed concurrently.');
+                ApiError::abort(409, ConflictCode::CONCURRENCY, 'Container changed concurrently.');
             }
 
             $after = DB::table('containers')->where('container_id', $id)->first();

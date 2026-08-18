@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
+use App\Support\ConflictCode;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -559,7 +560,7 @@ class ContainerService
     private function assertExpectedVersion(int $actual, int $expected): void
     {
         if ($actual !== $expected) {
-            ApiError::abort(409, 'CONTAINER_VERSION_CONFLICT', 'Container đã thay đổi bởi request khác.', [
+            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Container đã thay đổi bởi request khác.', [
                 'expected_version' => $expected,
                 'actual_version' => $actual,
             ]);

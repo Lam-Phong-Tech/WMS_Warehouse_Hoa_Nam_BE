@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
+use App\Support\ConflictCode;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
@@ -115,6 +116,7 @@ class CurrentBaselineReversalService
         ]);
 
         $stagedByMovement = [];
+        $stagedItemIds = [];
         foreach ($lines as $index => $lineInput) {
             $movement = DB::table('stock_movements')
                 ->where('id', $lineInput['movement_id'])
@@ -156,7 +158,9 @@ class CurrentBaselineReversalService
                     ApiError::abort(422, 'REVERSAL_ITEM_REQUIRED', 'PRODUCT/serial reversal phải chỉ rõ item_id và quantity=1 cho từng line.');
                 }
                 $this->assertItemBelongsToOriginal((string) $itemId, (string) $movement->stock_document_line_id, $documentType, $skuId);
+                $this->assertItemNotAlreadyReversed((string) $itemId, (string) $movement->id, $stagedItemIds);
                 $this->assertItemDependency((string) $itemId, $documentType);
+                $stagedItemIds[(string) $itemId] = true;
             } else {
                 if (! empty($itemId)) {
                     ApiError::abort(422, 'QUANTITY_MODE_ITEM_FORBIDDEN', 'SKU quantity-mode không được gán item_id tùy ý khi reversal.');
@@ -285,7 +289,19 @@ class CurrentBaselineReversalService
                 ->where('rd.reversal_document_id', '!=', $reversalId)
                 ->sum(DB::raw('COALESCE(rl.quantity_to_reverse, rl.reversal_qty)'));
             if ($postedElsewhere + $qty > abs((int) $original->quantity)) {
-                ApiError::abort(409, 'REVERSAL_CONCURRENT_CONFLICT', 'Movement đã bị reversal bởi request cạnh tranh; reload reversible_qty.');
+                ApiError::abort(409, ConflictCode::CONCURRENCY, 'Movement đã bị reversal bởi request cạnh tranh; reload reversible_qty.');
+            }
+
+            // Re-check dưới lock: hai DRAFT song song có thể cùng khai một item;
+            // chỉ request Post trước mới được giữ hiệu lực (BR-REV-05 ở grain ITEM).
+            // Thua race đúng nghĩa (WWHN-234 · lớp CONCURRENCY): client reload rồi thử
+            // lại với CÙNG Idempotency-Key, không sinh key mới.
+            if ($line->item_id !== null
+                && $this->postedReversalLineForItem((string) $line->item_id, (string) $original->id, $reversalId) !== null) {
+                ApiError::abort(409, ConflictCode::CONCURRENCY, 'Item đã được đảo bởi một reversal POSTED khác; reload reversible_qty.', [
+                    'item_id' => (string) $line->item_id,
+                    'original_movement_id' => (string) $original->id,
+                ]);
             }
 
             $sign = $documentType === 'receipt' ? -1 : 1;
@@ -421,7 +437,7 @@ class CurrentBaselineReversalService
             'updated_at' => now(),
         ]);
         if ($affected !== 1) {
-            ApiError::abort(409, 'VERSION_CONFLICT', 'Balance thay đổi đồng thời; retry sau reload.');
+            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Balance thay đổi đồng thời; retry sau reload.');
         }
 
         $movementId = (string) Str::uuid();
@@ -515,12 +531,66 @@ class CurrentBaselineReversalService
             ApiError::abort(422, 'ITEM_NOT_FOUND', 'Không tìm thấy item reversal.');
         }
 
-        if ($documentType === 'receipt' && ! in_array($item->item_status, ['IN_STOCK', 'NEW', 'ADJUSTED_OUT'], true)) {
-            ApiError::abort(409, 'REVERSAL_DEPENDENCY_EXISTS', 'Receipt item đã Issue/Warranty; phải đảo dependency theo thứ tự ngược.');
+        if ($documentType === 'receipt' && ! in_array($item->item_status, ['IN_STOCK', 'NEW'], true)) {
+            ApiError::abort(409, ConflictCode::DOWNSTREAM_DEPENDENCY, 'Receipt item không còn ở trạng thái IN_STOCK/NEW (đã Issue/Warranty hoặc đã đảo); phải đảo dependency theo thứ tự ngược.');
         }
         if ($documentType === 'issue' && ! in_array($item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true)) {
-            ApiError::abort(409, 'REVERSAL_DEPENDENCY_EXISTS', 'Issue item đang ở downstream state không thể nhận return trực tiếp.');
+            ApiError::abort(409, ConflictCode::DOWNSTREAM_DEPENDENCY, 'Issue item đang ở downstream state không thể nhận return trực tiếp.');
         }
+    }
+
+    /**
+     * BR-REV-05 / BR-REV-08 ở grain ITEM (WWHN-239 · DEV239-P1-04 "duplicate movement = 0").
+     *
+     * CurrentBaselineStockService::postStockDocument ghi MỘT movement cho mỗi
+     * stock_document_line với quantity = qty_planned, nên một line serial-tracked
+     * gồm N item chỉ sinh một movement quantity=N. Guard reversible_qty tính theo
+     * tổng quantity vì thế KHÔNG chặn được việc khai cùng một item_id nhiều lần
+     * trong hạn mức N đó. Một item vật lý chỉ tồn tại một lần: mỗi item chỉ được
+     * đảo đúng một lần trên một movement gốc, nếu không ledger sinh hai movement
+     * REVERSAL cho cùng một serial và balance bị trừ/cộng hai lần.
+     *
+     * Guard này là điều kiện enforcement đứng sau preflight
+     * `GET /stock-movements/reversible` (StockMovementController::buildItemCandidateMap
+     * chỉ chào item IN_STOCK/NEW); backend phải là nguồn chuẩn, không phụ thuộc UI.
+     *
+     * @param  array<string, bool>  $stagedItemIds
+     */
+    private function assertItemNotAlreadyReversed(string $itemId, string $movementId, array $stagedItemIds): void
+    {
+        if (isset($stagedItemIds[$itemId])) {
+            ApiError::abort(422, 'REVERSAL_ITEM_DUPLICATED', 'Cùng một item không được khai nhiều dòng trong một reversal.', [
+                'item_id' => $itemId,
+            ]);
+        }
+
+        $existing = $this->postedReversalLineForItem($itemId, $movementId, null);
+        if ($existing !== null) {
+            ApiError::abort(409, 'REVERSAL_ITEM_ALREADY_REVERSED', 'Item này đã được đảo trong một reversal POSTED; append-only không cho đảo lại cùng một item (BR-REV-08).', [
+                'item_id' => $itemId,
+                'original_movement_id' => $movementId,
+                'posted_reversal_document_id' => (string) $existing->reversal_document_id,
+            ]);
+        }
+    }
+
+    /**
+     * Dòng reversal đã POSTED của đúng cặp (item, movement gốc), bỏ qua chính
+     * reversal đang xử lý. Trả null nghĩa là item còn nguyên quyền đảo.
+     */
+    private function postedReversalLineForItem(string $itemId, string $movementId, ?string $excludeReversalId): ?object
+    {
+        $query = DB::table('reversal_line as rl')
+            ->join('reversal_document as rd', 'rd.reversal_document_id', '=', 'rl.reversal_document_id')
+            ->where('rl.item_id', $itemId)
+            ->where('rl.original_movement_id', $movementId)
+            ->where('rd.status', 'POSTED');
+
+        if ($excludeReversalId !== null) {
+            $query->where('rd.reversal_document_id', '!=', $excludeReversalId);
+        }
+
+        return $query->first(['rl.reversal_line_id', 'rl.reversal_document_id']);
     }
 
     private function returnCondition(string $documentType, array $payload): string

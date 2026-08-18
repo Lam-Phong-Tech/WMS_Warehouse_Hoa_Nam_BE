@@ -34,10 +34,10 @@ class IdempotencyStore
      * payload hash; FE cũng đã map sẵn mã này
      * (`src/shared/api/wwhn-153-final-signoff.ts`).
      */
-    public const CONFLICT_PAYLOAD_DIFFERS = 'IDEMPOTENCY_CONFLICT';
+    public const CONFLICT_PAYLOAD_DIFFERS = ConflictCode::IDEMPOTENCY;
 
     /** Tranh chấp lease là xung đột đồng thời, không phải sai payload. */
-    public const CONFLICT_LEASE_BUSY = 'CONCURRENCY_CONFLICT';
+    public const CONFLICT_LEASE_BUSY = ConflictCode::CONCURRENCY;
 
     /**
      * @param  callable():array{0:int,1:array}  $fn

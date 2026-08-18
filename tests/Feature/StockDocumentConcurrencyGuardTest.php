@@ -26,7 +26,11 @@ class StockDocumentConcurrencyGuardTest extends TestCase
 
         $this->assertStringContainsString('lockForUpdate()', $stock);
         $this->assertStringContainsString("where('version',", $stock);
-        $this->assertStringContainsString('VERSION_CONFLICT', $stock);
+        // WWHN-234 DEV234-P1-02: mất CAS trên inventory_balances phải trả đúng lớp
+        // §8.2 CONCURRENCY_CONFLICT. Mã cũ 'VERSION_CONFLICT' không có trong contract
+        // và FE không map, nên request thua race chỉ hiện lỗi chung (trái AC-GWT-CONC-001).
+        $this->assertStringContainsString('ConflictCode::CONCURRENCY', $stock);
+        $this->assertStringNotContainsString("'VERSION_CONFLICT'", $stock);
         $this->assertStringContainsString('lockForUpdate()', $flow);
         $this->assertStringContainsString('If-Match', $flow);
         $this->assertStringContainsString('STALE_VERSION', $flow);
@@ -38,7 +42,9 @@ class StockDocumentConcurrencyGuardTest extends TestCase
 
         $this->assertStringContainsString('lockForUpdate()', $reversal);
         $this->assertStringContainsString('REVERSAL_QTY_EXCEEDED', $reversal);
-        $this->assertStringContainsString('REVERSAL_CONCURRENT_CONFLICT', $reversal);
+        // WWHN-234 DEV234-P1-02: reversal thua race dùng chung đúng một lớp §8.2.
+        $this->assertStringContainsString('ConflictCode::CONCURRENCY', $reversal);
+        $this->assertStringNotContainsString("'REVERSAL_CONCURRENT_CONFLICT'", $reversal);
         $this->assertStringContainsString('original_movement_id', $reversal);
         $this->assertStringContainsString('correction_chain_id', $reversal);
         $this->assertStringContainsString('REVERSAL_OF_REVERSAL_FORBIDDEN', $reversal);

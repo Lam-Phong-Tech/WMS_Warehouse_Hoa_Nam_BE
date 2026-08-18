@@ -1,0 +1,223 @@
+{
+  "ticket": "WWHN-234",
+  "register_item": "DEV234-P1-02 / DEV234-P1-03",
+  "purpose": "Ánh xạ máy-đọc-được giữa ma trận TC của SRS §13.3 và test thực thi trong repo BE. Trước đây chỉ 1/32 TC được test gọi tên, nên không ai xác minh được claim 'đã test'.",
+  "source_matrix": "HN_SRS_FRD_v1.12_FULL.md §13.3 Stock-changing Action Test Design Matrix",
+  "matrix_total": 32,
+  "numbering_gap": {
+    "ids": "TC-P1-017..TC-P1-024",
+    "note": "Không tồn tại trong SRS §13.3. Nhóm action COMPONENT_ISSUE_POST — một action đổi tồn thật — không có hàng nào trong ma trận. Ghi nhận cho BA ở finding F-07."
+  },
+  "runner": "php artisan test --filter \"<test_class>\"",
+  "coverage": [
+    {
+      "tc": "TC-P1-001", "action": "POST_RECEIPT", "dimension": "POSITIVE", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn289StockInvariantProofTest::test_retry_dimension_three_identical_post_receipts_produce_exactly_one_movement",
+        "Tests\\Feature\\StockDocumentCanonicalFlowTest::test_scan_is_stock_neutral_and_full_post_is_exact",
+        "Tests\\Feature\\PostReceiptAuditLogTest::test_post_receipt_writes_single_audit_log_row_and_replay_does_not_duplicate_it"
+      ]
+    },
+    {
+      "tc": "TC-P1-002", "action": "POST_RECEIPT", "dimension": "NEGATIVE", "status": "COVERED",
+      "tests": ["Tests\\Feature\\StockDocumentCanonicalFlowTest::test_scan_is_stock_neutral_and_full_post_is_exact"],
+      "note": "422 FULL_POST_REQUIRED khi scanned_qty != qty_planned; không tạo movement."
+    },
+    {
+      "tc": "TC-P1-003", "action": "POST_RECEIPT", "dimension": "PERMISSION", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn289SecurityRegressionProofTest::test_unauthorized_dimension_anonymous_call_to_stock_endpoint_is_rejected",
+        "Tests\\Feature\\Wwhn289SecurityRegressionProofTest::test_unauthorized_dimension_underprivileged_caller_is_rejected_without_stock_effect",
+        "Tests\\Feature\\Wwhn289SecurityRegressionProofTest::test_data_scope_dimension_scoped_user_cannot_create_stock_effect_outside_scope"
+      ]
+    },
+    {
+      "tc": "TC-P1-004", "action": "POST_RECEIPT", "dimension": "INVALID_STATE", "status": "COVERED",
+      "tests": ["Tests\\Feature\\PostReceiptConcurrencyBehaviorTest::test_repost_with_current_version_after_already_posted_is_rejected_by_state_guard"]
+    },
+    {
+      "tc": "TC-P1-005", "action": "POST_RECEIPT", "dimension": "RETRY_SAME_KEY", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn289StockInvariantProofTest::test_retry_dimension_three_identical_post_receipts_produce_exactly_one_movement",
+        "Tests\\Feature\\PostReceiptAuditLogTest::test_post_receipt_writes_single_audit_log_row_and_replay_does_not_duplicate_it"
+      ]
+    },
+    {
+      "tc": "TC-P1-006", "action": "POST_RECEIPT", "dimension": "SAME_KEY_DIFF_PAYLOAD", "status": "COVERED",
+      "tests": ["Tests\\Feature\\Wwhn289StockInvariantProofTest::test_idempotency_dimension_same_key_with_different_payload_is_rejected"]
+    },
+    {
+      "tc": "TC-P1-007", "action": "POST_RECEIPT", "dimension": "CONCURRENCY", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\PostReceiptConcurrencyBehaviorTest::test_stale_version_racer_is_rejected_after_winner_commits_and_stock_effect_applies_once",
+        "Tests\\Feature\\Wwhn219RuntimeConcurrencyTest::test_multi_connection_races_preserve_ledger_balance_and_audit_invariants",
+        "Tests\\Feature\\InboundScanRuntimeConcurrencyTest::test_inbound_scan_multi_connection_races_reject_exactly_one_writer_with_no_side_effect"
+      ],
+      "note": "Wwhn219 và InboundScanRuntime chạy race đa kết nối thật, không phải mô phỏng."
+    },
+    {
+      "tc": "TC-P1-008", "action": "POST_RECEIPT", "dimension": "ROLLBACK", "status": "COVERED",
+      "tests": ["Tests\\Feature\\Wwhn289StockInvariantProofTest::test_rollback_dimension_injected_failure_rolls_back_document_movement_and_balance"]
+    },
+
+    {
+      "tc": "TC-P1-009", "action": "POST_ISSUE", "dimension": "POSITIVE", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn201PostIssueAtomicNonNegativeStockTest::test_second_post_issue_is_rejected_with_insufficient_stock_when_first_post_already_consumed_the_shared_balance",
+        "Tests\\Feature\\PostIssueAuditLogTest::test_post_issue_writes_single_audit_log_row_and_replay_does_not_duplicate_it"
+      ]
+    },
+    {
+      "tc": "TC-P1-010", "action": "POST_ISSUE", "dimension": "NEGATIVE", "status": "COVERED",
+      "tests": ["Tests\\Feature\\Wwhn201PostIssueAtomicNonNegativeStockTest::test_second_post_issue_is_rejected_with_insufficient_stock_when_first_post_already_consumed_the_shared_balance"]
+    },
+    {
+      "tc": "TC-P1-011", "action": "POST_ISSUE", "dimension": "PERMISSION", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\OutboundPermissionTest::test_viewer_role_can_read_but_not_intake_or_scan_or_post",
+        "Tests\\Feature\\OutboundPermissionTest::test_warehouse_staff_can_intake_and_scan_but_not_post_or_cancel",
+        "Tests\\Feature\\OutboundPermissionTest::test_403_response_does_not_leak_stack_trace_or_secrets"
+      ]
+    },
+    {
+      "tc": "TC-P1-012", "action": "POST_ISSUE", "dimension": "INVALID_STATE", "status": "COVERED",
+      "tests": ["Tests\\Feature\\PostIssueConcurrencyBehaviorTest::test_repost_with_current_version_after_already_posted_is_rejected_by_state_guard"]
+    },
+    {
+      "tc": "TC-P1-013", "action": "POST_ISSUE", "dimension": "RETRY_SAME_KEY", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn234PostIssueIdempotencyPayloadTest::test_post_issue_replay_is_decided_by_idempotency_key_before_optimistic_lock",
+        "Tests\\Feature\\Wwhn201PostIssueAtomicNonNegativeStockTest::test_replaying_post_issue_with_same_idempotency_key_returns_identical_result_without_creating_a_second_movement"
+      ],
+      "closed_by": "WWHN-234",
+      "note": "Trước WWHN-234 đường Post Issue KHÔNG phát data.replayed (finding F-09) vì nó chạy qua AlignedOutboundFlowController chứ không phải CurrentBaselineStockFlowController."
+    },
+    {
+      "tc": "TC-P1-014", "action": "POST_ISSUE", "dimension": "SAME_KEY_DIFF_PAYLOAD", "status": "COVERED",
+      "tests": ["Tests\\Feature\\Wwhn234PostIssueIdempotencyPayloadTest::test_post_issue_with_same_key_and_different_payload_conflicts_without_second_write"],
+      "closed_by": "WWHN-234",
+      "note": "Khoảng trống trước đây: endpoint không đọc body nên bị tưởng là 'không có payload để khác nhau'."
+    },
+    {
+      "tc": "TC-P1-015", "action": "POST_ISSUE", "dimension": "CONCURRENCY", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\PostIssueConcurrencyBehaviorTest::test_stale_version_racer_is_rejected_after_winner_commits_and_stock_effect_applies_once",
+        "Tests\\Feature\\Wwhn201PostIssueAtomicNonNegativeStockTest::test_second_post_issue_is_rejected_with_insufficient_stock_when_first_post_already_consumed_the_shared_balance",
+        "Tests\\Feature\\Wwhn219RuntimeConcurrencyTest::test_multi_connection_races_preserve_ledger_balance_and_audit_invariants"
+      ]
+    },
+    {
+      "tc": "TC-P1-016", "action": "POST_ISSUE", "dimension": "ROLLBACK", "status": "PARTIAL",
+      "tests": ["Tests\\Feature\\Wwhn201PostIssueAtomicNonNegativeStockTest"],
+      "gap": "Chưa có test inject lỗi *sau* bước movement/balance riêng cho Post Issue; hiện chỉ chứng minh gián tiếp qua nhánh INSUFFICIENT_STOCK (không có write nào lọt). Đề xuất QA1 bổ sung tương tự Wwhn289 rollback dimension."
+    },
+
+    {
+      "tc": "TC-P1-025", "action": "POST_REVERSAL", "dimension": "POSITIVE", "status": "COVERED",
+      "tests": ["Tests\\Feature\\Wwhn207InboundReversalFlowTest::test_reverse_inbound_partial_quantity_decreases_balance_and_creates_reversal_movement"]
+    },
+    {
+      "tc": "TC-P1-026", "action": "POST_REVERSAL", "dimension": "NEGATIVE", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn207InboundReversalFlowTest::test_reverse_inbound_rejects_quantity_above_reversible_and_invalid_movement",
+        "Tests\\Feature\\Flow05InventoryControlAlignmentTest::test_quantity_mode_receipt_reversal_is_blocked_when_stock_was_consumed_downstream"
+      ]
+    },
+    {
+      "tc": "TC-P1-027", "action": "POST_REVERSAL", "dimension": "PERMISSION", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn207InboundReversalFlowTest::test_reverse_inbound_requires_reversal_post_permission",
+        "Tests\\Feature\\Flow05InventoryControlAlignmentTest::test_reversal_lifecycle_routes_require_reversal_post_permission",
+        "Tests\\Feature\\Wwhn242ReversalScopeAndProjectionTest::test_lifecycle_write_outside_scope_is_denied_without_any_stock_effect"
+      ]
+    },
+    {
+      "tc": "TC-P1-028", "action": "POST_REVERSAL", "dimension": "INVALID_STATE", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn207InboundReversalFlowTest::test_reverse_inbound_full_quantity_then_second_reverse_is_rejected",
+        "Tests\\Feature\\Wwhn239ReversalItemLevelClosureTest::test_dependency_guard_blocks_receipt_reversal_when_item_moved_downstream"
+      ]
+    },
+    {
+      "tc": "TC-P1-029", "action": "POST_REVERSAL", "dimension": "RETRY_SAME_KEY", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn207InboundReversalFlowTest::test_reverse_inbound_replays_idempotently_without_double_effect",
+        "Tests\\Feature\\Wwhn239ReversalItemLevelClosureTest::test_same_key_replay_returns_the_first_result_without_second_write"
+      ]
+    },
+    {
+      "tc": "TC-P1-030", "action": "POST_REVERSAL", "dimension": "SAME_KEY_DIFF_PAYLOAD", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn289StockInvariantProofTest::test_idempotency_dimension_same_key_with_different_payload_is_rejected",
+        "Tests\\Feature\\Wwhn239ReversalItemLevelClosureTest::test_same_key_with_different_payload_conflicts_without_write"
+      ]
+    },
+    {
+      "tc": "TC-P1-031", "action": "POST_REVERSAL", "dimension": "CONCURRENCY", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn289StockInvariantProofTest::test_concurrent_dimension_duplicate_reversal_of_the_same_movement_is_blocked",
+        "Tests\\Feature\\Wwhn239ReversalItemLevelClosureTest::test_double_reverse_of_the_same_serial_item_is_blocked_and_creates_no_duplicate_movement"
+      ]
+    },
+    {
+      "tc": "TC-P1-032", "action": "POST_REVERSAL", "dimension": "ROLLBACK", "status": "COVERED",
+      "tests": ["Tests\\Feature\\Wwhn239ReversalItemLevelClosureTest::test_failed_line_rolls_back_the_whole_reversal_document"]
+    },
+
+    {
+      "tc": "TC-P1-033", "action": "MIGRATION_COMMIT", "dimension": "POSITIVE", "status": "COVERED",
+      "tests": ["Tests\\Feature\\MigrationFinalDataLoadTest::test_commit_writes_opening_balance_and_reconciles"]
+    },
+    {
+      "tc": "TC-P1-034", "action": "MIGRATION_COMMIT", "dimension": "NEGATIVE", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\MigrationFinalDataLoadTest::test_changed_package_after_dry_run_blocks_commit",
+        "Tests\\Feature\\Wwhn260MigrationPackClosureTest::test_unknown_classification_code_is_rejected_as_unknown_fk_instead_of_silently_dropped"
+      ]
+    },
+    {
+      "tc": "TC-P1-035", "action": "MIGRATION_COMMIT", "dimension": "PERMISSION", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\MigrationFinalDataLoadTest::test_operator_without_required_permission_is_rejected",
+        "Tests\\Feature\\MigrationFinalDataLoadTest::test_commit_is_blocked_when_approver_is_the_operator"
+      ]
+    },
+    {
+      "tc": "TC-P1-036", "action": "MIGRATION_COMMIT", "dimension": "INVALID_STATE", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\MigrationFinalDataLoadTest::test_commit_is_blocked_without_passed_dry_run",
+        "Tests\\Feature\\MigrationFinalDataLoadTest::test_commit_is_blocked_without_approval_reference"
+      ]
+    },
+    {
+      "tc": "TC-P1-037", "action": "MIGRATION_COMMIT", "dimension": "RETRY_SAME_KEY", "status": "COVERED",
+      "tests": ["Tests\\Feature\\MigrationFinalDataLoadTest::test_commit_rerun_with_same_run_code_is_idempotent"]
+    },
+    {
+      "tc": "TC-P1-038", "action": "MIGRATION_COMMIT", "dimension": "SAME_KEY_DIFF_PAYLOAD", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\MigrationFinalDataLoadTest::test_changed_manifest_metadata_after_dry_run_blocks_commit",
+        "Tests\\Feature\\Wwhn260MigrationPackClosureTest::test_the_same_package_cannot_be_committed_twice_under_a_different_run_code"
+      ]
+    },
+    {
+      "tc": "TC-P1-039", "action": "MIGRATION_COMMIT", "dimension": "CONCURRENCY", "status": "GAP",
+      "tests": [],
+      "gap": "Không có test chạy hai commit song song trên cùng migration_run_id. Rủi ro thực tế thấp (job cutover chạy một lần, có approver gate và fail-closed khi package đổi), nhưng đây là ô trống thật của ma trận §13.3 — QA1 phải ghi nhận, không được coi là đã phủ."
+    },
+    {
+      "tc": "TC-P1-040", "action": "MIGRATION_COMMIT", "dimension": "ROLLBACK", "status": "COVERED",
+      "tests": [
+        "Tests\\Feature\\Wwhn172MigrationSafetyTest::test_seed_reconciliation_is_fail_closed_without_partial_write",
+        "Tests\\Feature\\MigrationFinalDataLoadTest::test_dry_run_passes_and_writes_no_business_data"
+      ]
+    }
+  ],
+  "summary": {
+    "covered": 30,
+    "partial": 1,
+    "gap": 1,
+    "partial_ids": ["TC-P1-016"],
+    "gap_ids": ["TC-P1-039"]
+  }
+}

@@ -7,7 +7,7 @@
     "shape": "{success:false, message, error_code, errors, error:{code, details}, meta:{request_id, timestamp}}",
     "note": "error_code và error.code luôn bằng nhau; client không được coi khoá nào là optional."
   },
-  "total_codes": 243,
+  "total_codes": 248,
   "codes": [
     {
       "code": "BAD_REQUEST",
@@ -23,7 +23,7 @@
         400
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:571"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:579"
     },
     {
       "code": "INVALID_HEADER",
@@ -31,7 +31,23 @@
         400
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:184"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:206"
+    },
+    {
+      "code": "INVALID_PATH",
+      "http_status": [
+        400
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php:95"
+    },
+    {
+      "code": "INVALID_QUERY",
+      "http_status": [
+        400
+      ],
+      "occurrences": 7,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php:25"
     },
     {
       "code": "MALFORMED_JSON",
@@ -39,7 +55,7 @@
         400
       ],
       "occurrences": 1,
-      "first_seen": "app/Http/Middleware/ApiConventionMiddleware.php:33"
+      "first_seen": "app/Http/Middleware/ApiConventionMiddleware.php:34"
     },
     {
       "code": "UNAUTHENTICATED",
@@ -62,7 +78,7 @@
       "http_status": [
         403
       ],
-      "occurrences": 2,
+      "occurrences": 3,
       "first_seen": "Modules/Warehouse/app/Http/Middleware/EnforceInboundWarehouseScope.php:84"
     },
     {
@@ -103,7 +119,7 @@
         404
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:74"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:75"
     },
     {
       "code": "DOCUMENT_LINE_NOT_FOUND",
@@ -135,7 +151,7 @@
         404
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:350"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:372"
     },
     {
       "code": "OUTBOUND_MATCH_NOT_FOUND",
@@ -167,7 +183,7 @@
       "http_status": [
         404
       ],
-      "occurrences": 37,
+      "occurrences": 44,
       "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:36"
     },
     {
@@ -176,7 +192,7 @@
         404
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:223"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:227"
     },
     {
       "code": "SCAN_CODE_NOT_FOUND",
@@ -217,7 +233,7 @@
         409
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:233"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:243"
     },
     {
       "code": "AGENCY_CODE_IMMUTABLE_AFTER_USE",
@@ -233,7 +249,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:339"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:340"
     },
     {
       "code": "BOX_IN_OTHER_ACTIVE_RECEIPT",
@@ -260,6 +276,14 @@
       "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:112"
     },
     {
+      "code": "CONCURRENCY_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 8,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:74"
+    },
+    {
       "code": "CONTAINER_CLOSED",
       "http_status": [
         409
@@ -273,7 +297,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:553"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:554"
     },
     {
       "code": "CONTAINER_IMMUTABLE",
@@ -281,7 +305,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:79"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:80"
     },
     {
       "code": "CONTAINER_NOT_EDITABLE",
@@ -297,7 +321,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:157"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:158"
     },
     {
       "code": "CONTAINER_SUBLEDGER_CHANGED",
@@ -306,14 +330,6 @@
       ],
       "occurrences": 1,
       "first_seen": "Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:131"
-    },
-    {
-      "code": "CONTAINER_VERSION_CONFLICT",
-      "http_status": [
-        409
-      ],
-      "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:562"
     },
     {
       "code": "DEFECT_CODE_IMMUTABLE_AFTER_USE",
@@ -328,8 +344,8 @@
       "http_status": [
         409
       ],
-      "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:502"
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:518"
     },
     {
       "code": "DUPLICATE_CODE_VALUE",
@@ -369,7 +385,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:627"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:628"
     },
     {
       "code": "DUPLICATE_OUTBOUND_REQUEST_NO",
@@ -385,7 +401,7 @@
         409
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:158"
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:159"
     },
     {
       "code": "IMPORT_HAS_BLOCKING_ERRORS",
@@ -401,7 +417,7 @@
         409
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:310"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:320"
     },
     {
       "code": "ITEM_ALREADY_IN_CONTAINER",
@@ -417,7 +433,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:543"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:544"
     },
     {
       "code": "ITEM_ALREADY_RECEIVING",
@@ -425,7 +441,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:572"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:573"
     },
     {
       "code": "LABEL_SNAPSHOT_STALE",
@@ -489,7 +505,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:398"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:399"
     },
     {
       "code": "PHYSICAL_CODE_ALREADY_ASSIGNED",
@@ -514,7 +530,7 @@
         422
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:51"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:52"
     },
     {
       "code": "PHYSICAL_RETURN_REQUIRED",
@@ -522,7 +538,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:265"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:269"
     },
     {
       "code": "PRINT_FAILED",
@@ -530,7 +546,7 @@
         409
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:841"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:849"
     },
     {
       "code": "PUTAWAY_DRAFT_EXISTS",
@@ -549,20 +565,12 @@
       "first_seen": "Modules/Auth/app/Http/Controllers/RoleController.php:196"
     },
     {
-      "code": "REVERSAL_CONCURRENT_CONFLICT",
+      "code": "REVERSAL_ITEM_ALREADY_REVERSED",
       "http_status": [
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:288"
-    },
-    {
-      "code": "REVERSAL_DEPENDENCY_EXISTS",
-      "http_status": [
-        409
-      ],
-      "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:519"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:569"
     },
     {
       "code": "REVERSAL_NOT_DRAFT",
@@ -570,7 +578,7 @@
         409
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:262"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:266"
     },
     {
       "code": "REVERSAL_NOT_PENDING_RETURN",
@@ -578,7 +586,7 @@
         409
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:227"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:231"
     },
     {
       "code": "REVERSAL_OF_REVERSAL_FORBIDDEN",
@@ -586,7 +594,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:277"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:281"
     },
     {
       "code": "REVERSAL_POSTED_IMMUTABLE",
@@ -594,7 +602,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:624"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:694"
     },
     {
       "code": "SCAN_CODE_INACTIVE",
@@ -698,7 +706,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:297"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:298"
     },
     {
       "code": "SERIAL_NOT_CONTAINERIZABLE",
@@ -706,7 +714,7 @@
         409
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:264"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:265"
     },
     {
       "code": "SKU_CODE_DUPLICATE",
@@ -753,7 +761,7 @@
       "http_status": [
         409
       ],
-      "occurrences": 39,
+      "occurrences": 41,
       "first_seen": "Modules/Warehouse/app/Exceptions/WarehouseException.php:18"
     },
     {
@@ -773,14 +781,6 @@
       "first_seen": "bootstrap/app.php:123"
     },
     {
-      "code": "VERSION_CONFLICT",
-      "http_status": [
-        409
-      ],
-      "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:73"
-    },
-    {
       "code": "WAREHOUSE_INACTIVE",
       "http_status": [
         409
@@ -793,7 +793,7 @@
       "http_status": [
         412
       ],
-      "occurrences": 23,
+      "occurrences": 24,
       "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:15"
     },
     {
@@ -874,7 +874,15 @@
         422
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php:1268"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php:1564"
+    },
+    {
+      "code": "BUSINESS_RULE_VIOLATION",
+      "http_status": [
+        422
+      ],
+      "occurrences": 8,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/PvAdminResourceController.php:455"
     },
     {
       "code": "CANCEL_REASON_REQUIRED",
@@ -882,7 +890,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:297"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:347"
     },
     {
       "code": "COMPONENT_BOX_INSUFFICIENT",
@@ -954,7 +962,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:402"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:403"
     },
     {
       "code": "COMPONENT_SKU_REQUIRED",
@@ -986,7 +994,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:253"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:254"
     },
     {
       "code": "CONTAINER_ITEM_XOR",
@@ -1002,7 +1010,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:411"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:412"
     },
     {
       "code": "CONTAINER_PRIMARY_SKU_MISMATCH",
@@ -1018,7 +1026,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:386"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:387"
     },
     {
       "code": "CONTAINER_WAREHOUSE_MISMATCH",
@@ -1026,7 +1034,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:403"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:404"
     },
     {
       "code": "DEACTIVATION_REASON_REQUIRED",
@@ -1058,7 +1066,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:315"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:316"
     },
     {
       "code": "DUPLICATE_PHYSICAL_CODE",
@@ -1074,7 +1082,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:172"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:173"
     },
     {
       "code": "EMPTY_EXCEL_FILE",
@@ -1082,7 +1090,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:575"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:583"
     },
     {
       "code": "EMPTY_UPDATE",
@@ -1138,7 +1146,7 @@
         422
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:178"
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:179"
     },
     {
       "code": "INSUFFICIENT_STOCK",
@@ -1178,7 +1186,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:356"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:357"
     },
     {
       "code": "INVALID_CONTAINER_QUANTITY",
@@ -1186,7 +1194,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:307"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:308"
     },
     {
       "code": "INVALID_CONTAINER_STATUS",
@@ -1194,7 +1202,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:368"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:369"
     },
     {
       "code": "INVALID_CONTAINER_TYPE",
@@ -1202,7 +1210,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:361"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:362"
     },
     {
       "code": "INVALID_EXCEL_TEMPLATE",
@@ -1210,7 +1218,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:582"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:590"
     },
     {
       "code": "INVALID_PHYSICAL_CODE",
@@ -1242,7 +1250,7 @@
         422
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:155"
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:156"
     },
     {
       "code": "INVALID_RETURN_CONDITION",
@@ -1250,7 +1258,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:232"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:233"
     },
     {
       "code": "INVALID_SKU_CODE",
@@ -1274,14 +1282,14 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:577"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:578"
     },
     {
       "code": "INVALID_VERSION",
       "http_status": [
         422
       ],
-      "occurrences": 21,
+      "occurrences": 22,
       "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:72"
     },
     {
@@ -1290,7 +1298,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:259"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:260"
     },
     {
       "code": "ITEM_NOT_AVAILABLE",
@@ -1298,7 +1306,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:529"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:530"
     },
     {
       "code": "ITEM_NOT_FOUND",
@@ -1314,7 +1322,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:467"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:483"
     },
     {
       "code": "ITEM_NOT_MATCHED_IN_DOCUMENT",
@@ -1330,7 +1338,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:560"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:561"
     },
     {
       "code": "ITEM_REQUIRED",
@@ -1338,7 +1346,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:58"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:59"
     },
     {
       "code": "ITEM_SKU_MISMATCH",
@@ -1362,7 +1370,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:367"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:377"
     },
     {
       "code": "MASTER_NOT_ACTIVE",
@@ -1378,7 +1386,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:246"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:247"
     },
     {
       "code": "NO_STOCK_DOCUMENT",
@@ -1386,7 +1394,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:373"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:395"
     },
     {
       "code": "NO_UPDATABLE_FIELDS",
@@ -1394,7 +1402,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:429"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:439"
     },
     {
       "code": "ORIGINAL_MOVEMENT_INVALID",
@@ -1402,7 +1410,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:126"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:128"
     },
     {
       "code": "OUTBOUND_RECIPIENT_REQUIRED",
@@ -1474,7 +1482,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:395"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:396"
     },
     {
       "code": "PHYSICAL_CODE_ITEM_MISMATCH",
@@ -1482,7 +1490,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:509"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:510"
     },
     {
       "code": "PHYSICAL_CODE_TARGET_MISMATCH",
@@ -1506,7 +1514,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:506"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:507"
     },
     {
       "code": "PHYSICAL_RETURN_CONFIRMATION_REQUIRED",
@@ -1514,7 +1522,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:218"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:222"
     },
     {
       "code": "PII_EXPORT_REASON_INVALID",
@@ -1530,7 +1538,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:539"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:540"
     },
     {
       "code": "PRIMARY_SKU_REQUIRED",
@@ -1538,7 +1546,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:45"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:46"
     },
     {
       "code": "PRODUCT_ITEM_MATCH_REQUIRED",
@@ -1546,7 +1554,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:136"
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:137"
     },
     {
       "code": "PRODUCT_NOT_ACTIVE",
@@ -1554,7 +1562,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:519"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:520"
     },
     {
       "code": "PRODUCT_REQUIRED",
@@ -1562,7 +1570,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:513"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:514"
     },
     {
       "code": "PRODUCT_SKU_REQUIRED",
@@ -1586,7 +1594,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:60"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:61"
     },
     {
       "code": "QUANTITY_MODE_ITEM_FORBIDDEN",
@@ -1594,7 +1602,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:162"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:166"
     },
     {
       "code": "QUANTITY_REQUIRED",
@@ -1626,7 +1634,15 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:533"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:603"
+    },
+    {
+      "code": "REVERSAL_ITEM_DUPLICATED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:562"
     },
     {
       "code": "REVERSAL_ITEM_REQUIRED",
@@ -1634,7 +1650,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:156"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:158"
     },
     {
       "code": "REVERSAL_LINES_REQUIRED",
@@ -1642,7 +1658,7 @@
         422
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:83"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:84"
     },
     {
       "code": "REVERSAL_QTY_EXCEEDED",
@@ -1650,7 +1666,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:141"
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:143"
     },
     {
       "code": "RFID_HARDWARE_UID_REQUIRED",
@@ -1698,7 +1714,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:281"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:282"
     },
     {
       "code": "SERIAL_QUANTITY_MUST_BE_ONE",
@@ -1730,7 +1746,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:273"
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:274"
     },
     {
       "code": "SKU_CODE_REQUIRED",
@@ -1762,7 +1778,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:206"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:240"
     },
     {
       "code": "SKU_IMPORT_ROW_LIMIT_EXCEEDED",
@@ -1770,7 +1786,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:193"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:202"
     },
     {
       "code": "SKU_NAME_REQUIRED",
@@ -1802,7 +1818,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:236"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:246"
     },
     {
       "code": "TRAY_NOT_USABLE",
@@ -1833,7 +1849,7 @@
       "http_status": [
         422
       ],
-      "occurrences": 6,
+      "occurrences": 9,
       "first_seen": "app/Repositories/BaseRepository.php:367"
     },
     {
@@ -1858,7 +1874,7 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:63"
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:64"
     },
     {
       "code": "WARRANTY_CASE_CODE_EXISTS",
@@ -1866,7 +1882,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:120"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:135"
     },
     {
       "code": "WARRANTY_CASE_NOT_ACTIVE",
@@ -1882,7 +1898,23 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:452"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:533"
+    },
+    {
+      "code": "WARRANTY_DIAGNOSIS_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:354"
+    },
+    {
+      "code": "WARRANTY_HANDOVER_NOTE_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:375"
     },
     {
       "code": "WARRANTY_ITEM_NOT_ELIGIBLE",
@@ -1890,7 +1922,7 @@
         422
       ],
       "occurrences": 4,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:226"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:236"
     },
     {
       "code": "WARRANTY_ITEM_NOT_FOUND",
@@ -1898,14 +1930,22 @@
         422
       ],
       "occurrences": 2,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:405"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:486"
+    },
+    {
+      "code": "WARRANTY_TREATMENT_RESULT_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:365"
     },
     {
       "code": "PRECONDITION_REQUIRED",
       "http_status": [
         428
       ],
-      "occurrences": 21,
+      "occurrences": 22,
       "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:67"
     },
     {

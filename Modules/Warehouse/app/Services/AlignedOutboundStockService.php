@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
+use App\Support\ConflictCode;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -191,7 +192,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
                 'updated_at' => now(),
             ]);
         if ($updated !== 1) {
-            ApiError::abort(409, 'VERSION_CONFLICT', 'Inventory balance changed concurrently; retry against fresh state.');
+            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Inventory balance changed concurrently; retry against fresh state.');
         }
 
         $movementId = (string) Str::uuid();

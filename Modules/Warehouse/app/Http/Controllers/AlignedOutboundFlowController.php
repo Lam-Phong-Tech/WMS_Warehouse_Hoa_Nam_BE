@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\IdempotentEnvelope;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -502,6 +503,11 @@ class AlignedOutboundFlowController extends Controller
             }
         );
 
+        // WWHN-234 F-09 / TC-P1-013: Post Issue chạy qua controller này chứ không phải
+        // CurrentBaselineStockFlowController, nên nó đã bỏ sót cờ replayed ở body mà
+        // đường Post Receipt có. Người dùng bấm "Hoàn tất xuất" lần hai sau timeout mạng
+        // nhận response 200 giống hệt lần đầu và tưởng vừa trừ tồn thêm một lần nữa.
+        $body = IdempotentEnvelope::withReplayFlag($body, $replay);
         $response = response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
         $version = data_get($body, 'data.version');
         if ($version !== null) {

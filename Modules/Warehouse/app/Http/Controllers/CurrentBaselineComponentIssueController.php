@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\IdempotentEnvelope;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -165,6 +166,9 @@ class CurrentBaselineComponentIssueController extends Controller
                 return [200, $this->envelope('Component Issue posted.', $result)];
             }
         );
+
+        // WWHN-234 F-09: Component Issue Post là action đổi tồn, cùng hợp đồng replay.
+        $body = IdempotentEnvelope::withReplayFlag($body, $replay);
 
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
     }

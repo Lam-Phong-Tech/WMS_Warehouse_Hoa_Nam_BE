@@ -43,6 +43,30 @@ const STATUS_MEANING = {
   503: "SERVICE_UNAVAILABLE - dependency bắt buộc không sẵn sàng",
 };
 
+/**
+ * WWHN-234: bốn lớp xung đột 409 của SRS §8.2 được phát qua hằng
+ * `App\Support\ConflictCode` chứ không phải string literal, nên regex literal bên dưới
+ * không nhìn thấy chúng. Nếu bỏ qua, catalog *im lặng* báo thiếu đúng những mã quan
+ * trọng nhất và reviewer sẽ tưởng đường ghi tồn không phát `CONCURRENCY_CONFLICT`.
+ *
+ * Bảng này đọc thẳng từ file hằng để không trở thành bản chép tay thứ hai.
+ *
+ * @type {Record<string, string>}
+ */
+const CONFLICT_CODE_CONSTANTS = (() => {
+  const file = join(root, "app/Support/ConflictCode.php");
+  if (!existsSync(file)) return {};
+  const source = readFileSync(file, "utf8");
+  /** @type {Record<string, string>} */
+  const map = {};
+  for (const m of source.matchAll(
+    /public const ([A-Z][A-Z0-9_]*)\s*=\s*'([A-Z][A-Z0-9_]{2,60})'/g,
+  )) {
+    map[m[1]] = m[2];
+  }
+  return map;
+})();
+
 /** @type {Map<string, {code: string, statuses: Set<number>, hits: number, first: string}>} */
 const catalog = new Map();
 
@@ -79,6 +103,22 @@ for (const dir of scanRoots) {
       const status = Number(m[1]);
       if (!(status in STATUS_MEANING)) continue;
       record(m[2], status, rel + ":" + lineOf(source, m.index));
+    }
+
+    // ApiError::abort(409, ConflictCode::CONCURRENCY, ...) — xem CONFLICT_CODE_CONSTANTS.
+    for (const m of source.matchAll(
+      /(\d{3})\s*,\s*ConflictCode::([A-Z][A-Z0-9_]*)/g,
+    )) {
+      const status = Number(m[1]);
+      if (!(status in STATUS_MEANING)) continue;
+      const resolved = CONFLICT_CODE_CONSTANTS[m[2]];
+      if (!resolved) {
+        throw new Error(
+          `${rel}:${lineOf(source, m.index)} dùng ConflictCode::${m[2]} nhưng hằng đó ` +
+            "không tồn tại trong app/Support/ConflictCode.php.",
+        );
+      }
+      record(resolved, status, rel + ":" + lineOf(source, m.index));
     }
 
     // respondConflict(..., 'CODE') -> 409

@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
+use App\Support\ConflictCode;
 use App\Support\Cache\CacheService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -822,7 +823,7 @@ class CurrentBaselineStockService
             ->whereNotIn('i.item_status', ['IN_STOCK', 'NEW', 'ADJUSTED_OUT'])
             ->exists();
         if ($blocked) {
-            ApiError::abort(409, 'REVERSAL_DEPENDENCY_EXISTS', 'Receipt có item đã Issue/Warranty; phải đảo dependency theo thứ tự ngược.');
+            ApiError::abort(409, ConflictCode::DOWNSTREAM_DEPENDENCY, 'Receipt có item đã Issue/Warranty; phải đảo dependency theo thứ tự ngược.');
         }
     }
 
@@ -902,7 +903,7 @@ class CurrentBaselineStockService
             'updated_at' => now(),
         ]);
         if ($updated !== 1) {
-            ApiError::abort(409, 'VERSION_CONFLICT', 'Inventory balance changed concurrently; retry against fresh state.');
+            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Inventory balance changed concurrently; retry against fresh state.');
         }
 
         $movementId = (string) Str::uuid();
