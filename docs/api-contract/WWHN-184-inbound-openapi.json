@@ -1,0 +1,1157 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "WWHN-184 Inbound Document API Contract",
+        "version": "1.0.0",
+        "description": "Chứng từ/trạng thái nhập kho (BE1, task cha WWHN-41). Trích xuất trực tiếp từ storage/api-docs/api-docs.json đã compile lại tại commit 157968b (DEV184-P1-01R) — không phải bản viết tay riêng, nên không thể lệch khỏi nguồn OpenAPI thật đang publish."
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080",
+            "description": "Configured API server"
+        }
+    ],
+    "security": [
+        {
+            "bearerAuth": []
+        }
+    ],
+    "tags": [
+        {
+            "name": "09. Stock In (Inbound)"
+        }
+    ],
+    "paths": {
+        "/api/v1/inbound-documents": {
+            "get": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Danh sách phiếu nhập kho (phân trang, tìm kiếm, lọc trạng thái)",
+                "description": "Phiếu nhập kho (doc_type=receipt).\n\nBaseline hiện hành chỉ có state machine DRAFT -> SCANNING -> POSTED/CANCELLED.\nKhông tồn tại approval workflow hoặc vòng đời nhận hàng một phần; chỉ dùng Full Post.\nRuntime write actions được route tới CurrentBaselineDocumentController /\nCurrentBaselineStockFlowController; các annotation dưới đây chỉ mô tả contract thật\nđể RouteSyncProcessor giữ schema chi tiết khi đồng bộ OpenAPI theo Laravel route list.",
+                "operationId": "stock_in_list",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "DRAFT",
+                                "SCANNING",
+                                "POSTED",
+                                "CANCELLED"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Danh sách phiếu nhập kho"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.view"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Tạo phiếu nhập kho DRAFT",
+                "description": "Tạo chứng từ DRAFT và các dòng Expected. DRAFT chưa làm thay đổi tồn kho. Idempotency-Key là tuỳ chọn khi tạo.",
+                "operationId": "stock_in_create",
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "dst_warehouse_id",
+                                    "lines"
+                                ],
+                                "properties": {
+                                    "doc_no": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 80
+                                    },
+                                    "doc_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "nullable": true
+                                    },
+                                    "dst_warehouse_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "source_name": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 255
+                                    },
+                                    "note": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    },
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "product_id",
+                                                "qty_planned"
+                                            ],
+                                            "properties": {
+                                                "product_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "import_batch_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
+                                                "qty_planned": {
+                                                    "type": "integer",
+                                                    "example": 10,
+                                                    "minimum": 1
+                                                },
+                                                "note": {
+                                                    "type": "string",
+                                                    "nullable": true,
+                                                    "maxLength": 2000
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tạo phiếu nhập DRAFT thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.create"
+                    },
+                    "409": {
+                        "description": "Xung đột Idempotency-Key"
+                    },
+                    "422": {
+                        "description": "Kho/SKU/dòng dữ liệu không hợp lệ"
+                    },
+                    "200": {
+                        "description": "Thành công"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}": {
+            "get": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Chi tiết phiếu nhập kho và các dòng Expected/Scanned",
+                "operationId": "stock_in_detail",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chi tiết phiếu nhập kho"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.view"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Sửa phiếu DRAFT/SCANNING và hiệu chỉnh Expected an toàn",
+                "description": "Bắt buộc If-Match. Khi SCANNING đã có scan evidence, line ID/SKU/import batch phải giữ nguyên; chỉ được hiệu chỉnh Expected/ghi chú và Expected không được nhỏ hơn scanned_qty. Không xoá/recreate scan evidence.",
+                "operationId": "stock_in_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "doc_no": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 80
+                                    },
+                                    "doc_date": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "nullable": true
+                                    },
+                                    "source_name": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 255
+                                    },
+                                    "note": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    },
+                                    "lines": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "product_id",
+                                                "qty_planned"
+                                            ],
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
+                                                "product_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "import_batch_id": {
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
+                                                "qty_planned": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "note": {
+                                                    "type": "string",
+                                                    "nullable": true,
+                                                    "maxLength": 2000
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "nullable": true,
+                                        "minItems": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cập nhật phiếu nhập kho thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.create"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ/dòng"
+                    },
+                    "409": {
+                        "description": "State conflict hoặc cố thay đổi cấu trúc dòng đã có scan evidence"
+                    },
+                    "412": {
+                        "description": "If-Match không khớp version hiện tại"
+                    },
+                    "422": {
+                        "description": "Expected nhỏ hơn scanned_qty hoặc dữ liệu không hợp lệ"
+                    },
+                    "428": {
+                        "description": "Thiếu If-Match"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/boxes": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Tạo phiếu nhập mới",
+                "operationId": "post_api_v1_inbound__documents_id_boxes",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "example": [],
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Thành công"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/cancel": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Cancel phiếu DRAFT/SCANNING",
+                "description": "Cancel là trạng thái kết thúc và stock-neutral. Bắt buộc If-Match và lý do.",
+                "operationId": "stock_in_cancel",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cancel phiếu thành công"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.cancel hoặc inbound.create (route nhận cả hai — Annex C khai inbound.create, baseline seed cấp inbound.cancel riêng cho WAREHOUSE_APPROVER/KEEPER; xem docs/DR_HN_20260817_FLOW02_OPEN_DECISIONS.md)"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "Chứng từ không còn DRAFT/SCANNING"
+                    },
+                    "412": {
+                        "description": "If-Match không khớp"
+                    },
+                    "428": {
+                        "description": "Thiếu If-Match"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/post-receipt": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Full Post Receipt SCANNING -> POSTED",
+                "description": "Chỉ Post khi mọi dòng scanned_qty = qty_planned. Bắt buộc If-Match + Idempotency-Key. Đây là bước duy nhất của inbound làm tăng tồn; retry cùng key không được tăng tồn lần hai.",
+                "operationId": "stock_in_post_receipt",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "example": [],
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Full Post Receipt thành công, phiếu POSTED"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ"
+                    },
+                    "409": {
+                        "description": "State/idempotency conflict"
+                    },
+                    "412": {
+                        "description": "If-Match không khớp"
+                    },
+                    "422": {
+                        "description": "Chưa scan đủ chính xác toàn bộ dòng"
+                    },
+                    "428": {
+                        "description": "Thiếu If-Match/điều kiện bắt buộc"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/reversals": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Hoàn tác nhập kho cho phiếu nhập (Annex C)",
+                "operationId": "post_api_v1_inbound__documents_id_reversals",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "example": [],
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Thành công"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/reverse": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Reversal/Correction cho phiếu nhập POSTED",
+                "description": "Không sửa/xóa chứng từ POSTED. Sai giao dịch được xử lý bằng reversal aggregate liên kết movement gốc. Bắt buộc If-Match + Idempotency-Key.",
+                "operationId": "stock_in_reverse",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "example": [],
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Reversal command thành công; chứng từ gốc vẫn POSTED"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inventory.reversal.post"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ/movement"
+                    },
+                    "409": {
+                        "description": "State/idempotency/dependency conflict"
+                    },
+                    "412": {
+                        "description": "If-Match không khớp"
+                    },
+                    "422": {
+                        "description": "Reversal payload hoặc quantity không hợp lệ"
+                    },
+                    "428": {
+                        "description": "Thiếu If-Match/điều kiện bắt buộc"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/scan": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Quét hàng cho phiếu DRAFT/SCANNING (stock-neutral)",
+                "description": "Bắt buộc If-Match. Scan hợp lệ chuyển/giữ phiếu ở SCANNING, tăng scanned_qty nhưng không tạo stock movement và không đổi inventory balance. Scan vượt Expected bị từ chối.",
+                "operationId": "stock_in_scan",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "line_id",
+                                    "qty"
+                                ],
+                                "properties": {
+                                    "line_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "qty": {
+                                        "type": "integer",
+                                        "example": 1,
+                                        "minimum": 1
+                                    },
+                                    "code_value": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "item_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "container_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Scan hợp lệ; stock_effect=NONE"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.scan"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy chứng từ/dòng"
+                    },
+                    "409": {
+                        "description": "State/version conflict"
+                    },
+                    "412": {
+                        "description": "If-Match không khớp"
+                    },
+                    "422": {
+                        "description": "Scan sai SKU/mã/BOX hoặc vượt Expected"
+                    },
+                    "428": {
+                        "description": "Thiếu If-Match"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/scan-entries": {
+            "get": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Danh sách mã đã quét của phiếu nhập",
+                "operationId": "get_api_v1_inbound__documents_id_scan__entries",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Thành công"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/scans": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Quét hàng cho phiếu nhập (Annex C)",
+                "operationId": "post_api_v1_inbound__documents_id_scans",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "example": [],
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Thành công"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt"
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ"
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/inbound-documents/{id}/unscan": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Gỡ một dòng đã quét khỏi phiếu DRAFT/SCANNING (stock-neutral)",
+                "description": "ERD bảng 28: inbound_scan_entries.status ACTIVE -> REMOVED để sửa mã quét sai trước Post; scanned_qty của line giảm tương ứng. Bắt buộc If-Match. Không tạo/không đảo stock movement. Sau Post phải dùng Reversal thay vì gỡ.",
+                "operationId": "stock_in_unscan",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "inbound_scan_entry_id"
+                                ],
+                                "properties": {
+                                    "inbound_scan_entry_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Đã gỡ dòng quét; stock_effect=NONE"
+                    },
+                    "401": {
+                        "description": "Chưa xác thực"
+                    },
+                    "403": {
+                        "description": "Không có permission inbound.scan"
+                    },
+                    "404": {
+                        "description": "Không tìm thấy phiếu/dòng quét"
+                    },
+                    "409": {
+                        "description": "Phiếu không còn DRAFT/SCANNING hoặc dòng quét không còn ACTIVE"
+                    },
+                    "412": {
+                        "description": "If-Match không khớp version hiện tại"
+                    },
+                    "422": {
+                        "description": "Payload không hợp lệ"
+                    },
+                    "428": {
+                        "description": "Thiếu If-Match"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    }
+}
