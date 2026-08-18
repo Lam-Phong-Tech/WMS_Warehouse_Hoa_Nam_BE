@@ -1,16 +1,14 @@
 openapi: 3.0.3
 info:
   title: WWHN-195 Outbound Document API Contract
-  version: 1.0.0
+  version: 1.2.0
   description: >-
-    Chứng từ/chế độ/trạng thái xuất kho (BE1). Outbound document luôn sinh từ một
-    outbound_request (toa xuất) đã OPEN — không nhận lines thủ công. Chế độ nhập
-    tay/quét mã không phải một field enum tường minh: FE gửi item_id (nhập tay)
-    hoặc code_value (quét mã/barcode/RFID) trong cùng payload /scan; server tự
-    resolve item tương ứng. State machine dùng chung với inbound trên bảng
-    stock_documents: DRAFT -> SCANNING -> POSTED, hoặc -> CANCELLED (terminal).
-    Chỉ Post Issue mới thay đổi tồn kho (stock_effect=DECREASE); Scan/Unmatch
-    stock_effect=NONE.
+    Chứng từ/chế độ/trạng thái xuất kho (BE1). Outbound document luôn sinh từ một outbound_request
+    (toa xuất) đã OPEN — không nhận lines thủ công. Chế độ nhập tay/quét mã không phải một field
+    enum tường minh: FE gửi item_id (nhập tay) hoặc code_value (quét mã/barcode/RFID) trong cùng
+    payload /scan; server tự resolve item tương ứng. State machine dùng chung với inbound trên bảng
+    stock_documents: DRAFT -> SCANNING -> POSTED, hoặc -> CANCELLED (terminal). Chỉ Post Issue mới
+    thay đổi tồn kho (stock_effect=DECREASE); Scan/Unmatch stock_effect=NONE.
 servers:
   - url: http://127.0.0.1:8000
     description: Local/CI; thay bằng environment URL đã duyệt.
@@ -32,390 +30,787 @@ components:
       name: id
       in: path
       required: true
-      schema: { type: string, format: uuid }
+      schema:
+        type: string
+        format: uuid
     IfMatch:
       name: If-Match
       in: header
       required: true
       description: >-
-        Version hiện tại của document (số nguyên, không phải ETag chuẩn RFC).
-        Bắt buộc cho mọi mutation trên document đã tồn tại. Thiếu -> 428
-        PRECONDITION_REQUIRED; sai/khác version hiện tại -> 412 PRECONDITION_FAILED.
-      schema: { type: string, example: '1' }
+        Version hiện tại của document (số nguyên, không phải ETag chuẩn RFC). Bắt buộc cho mọi
+        mutation trên document đã tồn tại. Thiếu -> 428 PRECONDITION_REQUIRED; sai/khác version hiện
+        tại -> 412 PRECONDITION_FAILED.
+      schema:
+        type: string
+        example: '1'
     IdempotencyKeyRequired:
       name: Idempotency-Key
       in: header
       required: true
       description: Bắt buộc cho Post Issue/Reverse — key ổn định cho một hành động thay đổi tồn kho.
-      schema: { type: string, minLength: 8, maxLength: 100 }
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 100
   schemas:
     Error:
       type: object
-      required: [success, error]
+      required:
+        - success
+        - error
       properties:
-        success: { type: boolean, enum: [false] }
-        message: { type: string }
+        success:
+          type: boolean
+          enum:
+            - false
+        message:
+          type: string
         error:
           type: object
-          required: [code]
+          required:
+            - code
           properties:
-            code: { type: string }
-            details: { type: array, items: { type: object, additionalProperties: true } }
+            code:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
     StoreOutboundDocumentRequest:
       type: object
-      required: [src_warehouse_id, outbound_request_id]
+      required:
+        - src_warehouse_id
+        - outbound_request_id
       description: >-
-        `lines` bị cấm tuyệt đối (BP-WMS-04/05) — mọi dòng được hydrate tự động
-        từ outbound_request_lines của outbound_request_id.
+        `lines` bị cấm tuyệt đối (BP-WMS-04/05) — mọi dòng được hydrate tự động từ
+        outbound_request_lines của outbound_request_id.
       properties:
-        doc_no: { type: string, maxLength: 80, nullable: true }
-        doc_date: { type: string, format: date, nullable: true }
-        src_warehouse_id: { type: string, format: uuid }
-        outbound_request_id: { type: string, format: uuid }
-        agency_id: { type: string, format: uuid, nullable: true }
-        recipient_name: { type: string, maxLength: 200, nullable: true }
-        recipient_address: { type: string, maxLength: 2000, nullable: true }
-        note: { type: string, maxLength: 2000, nullable: true }
+        doc_no:
+          type: string
+          maxLength: 80
+          nullable: true
+        doc_date:
+          type: string
+          format: date
+          nullable: true
+        src_warehouse_id:
+          type: string
+          format: uuid
+        outbound_request_id:
+          type: string
+          format: uuid
+        agency_id:
+          type: string
+          format: uuid
+          nullable: true
+        recipient_name:
+          type: string
+          maxLength: 200
+          nullable: true
+        recipient_address:
+          type: string
+          maxLength: 2000
+          nullable: true
+        note:
+          type: string
+          maxLength: 2000
+          nullable: true
     UpdateOutboundDocumentRequest:
       type: object
       properties:
-        doc_no: { type: string, maxLength: 80 }
-        doc_date: { type: string, format: date }
-        agency_id: { type: string, format: uuid, nullable: true }
-        recipient_name: { type: string, maxLength: 200, nullable: true }
-        recipient_address: { type: string, maxLength: 2000, nullable: true }
-        note: { type: string, maxLength: 2000, nullable: true }
+        doc_no:
+          type: string
+          maxLength: 80
+        doc_date:
+          type: string
+          format: date
+        agency_id:
+          type: string
+          format: uuid
+          nullable: true
+        recipient_name:
+          type: string
+          maxLength: 200
+          nullable: true
+        recipient_address:
+          type: string
+          maxLength: 2000
+          nullable: true
+        note:
+          type: string
+          maxLength: 2000
+          nullable: true
         lines:
           type: array
-          description: Chỉ cho phép khi document KHÔNG sinh từ outbound_request (source_request_immutable nếu có).
+          description: >-
+            Chỉ cho phép khi document KHÔNG sinh từ outbound_request (source_request_immutable nếu
+            có).
           items:
             type: object
             properties:
-              product_id: { type: string, format: uuid }
-              qty_planned: { type: integer, minimum: 1 }
-              note: { type: string, nullable: true }
+              product_id:
+                type: string
+                format: uuid
+              qty_planned:
+                type: integer
+                minimum: 1
+              note:
+                type: string
+                nullable: true
     OutboundScanRequest:
       type: object
-      required: [line_id]
+      required:
+        - line_id
       description: >-
-        Chế độ nhập tay: gửi `item_id`. Chế độ quét mã: gửi `code_value` (server tự
-        resolve item qua physical_codes). Có thể gửi cả hai để server đối chiếu
-        khớp nhau (mismatch -> 422 PHYSICAL_CODE_ITEM_MISMATCH).
+        Chế độ nhập tay: gửi `item_id`. Chế độ quét mã: gửi `code_value` (server tự resolve item qua
+        physical_codes). Có thể gửi cả hai để server đối chiếu khớp nhau (mismatch -> 422
+        PHYSICAL_CODE_ITEM_MISMATCH).
       properties:
-        line_id: { type: string, format: uuid }
-        quantity: { type: integer, minimum: 1 }
-        qty: { type: integer, minimum: 1, description: 'Alias của quantity.' }
-        item_id: { type: string, format: uuid, nullable: true, description: 'Chế độ nhập tay.' }
-        code_value: { type: string, maxLength: 200, nullable: true, description: 'Chế độ quét mã (barcode/QR/RFID).' }
-        container_id: { type: string, format: uuid, nullable: true }
-        printer_config_id: { type: string, format: uuid, nullable: true }
+        line_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+        qty:
+          type: integer
+          minimum: 1
+          description: Alias của quantity.
+        item_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Chế độ nhập tay.
+        code_value:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: Chế độ quét mã (barcode/QR/RFID).
+        container_id:
+          type: string
+          format: uuid
+          nullable: true
+        printer_config_id:
+          type: string
+          format: uuid
+          nullable: true
     OutboundScanResult:
       type: object
       properties:
-        document_id: { type: string, format: uuid }
-        line_id: { type: string, format: uuid }
-        sku_id: { type: string, format: uuid }
-        item_id: { type: string, format: uuid, nullable: true }
-        quantity: { type: integer }
-        required_quantity: { type: integer }
-        scanned_quantity: { type: integer }
-        status: { type: string, enum: [SCANNING] }
-        stock_effect: { type: string, enum: [NONE] }
-        movement_created: { type: boolean, enum: [false] }
-        version: { type: integer }
-        label_snapshot_id: { type: string, format: uuid, nullable: true }
-        label_status: { type: string, enum: [PENDING_PRINT, PRINTED, PRINT_FAILED], nullable: true }
+        document_id:
+          type: string
+          format: uuid
+        line_id:
+          type: string
+          format: uuid
+        sku_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+          nullable: true
+        quantity:
+          type: integer
+        required_quantity:
+          type: integer
+        scanned_quantity:
+          type: integer
+        status:
+          type: string
+          enum:
+            - SCANNING
+        stock_effect:
+          type: string
+          enum:
+            - NONE
+        movement_created:
+          type: boolean
+          enum:
+            - false
+        version:
+          type: integer
+        label_snapshot_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID của Packing Label cấp lô; null khi phiếu chưa full match (chưa có nhãn).
+        label_status:
+          type: string
+          enum:
+            - NOT_CREATED
+            - DRAFT
+            - PREVIEWED
+            - READY_TO_PRINT
+            - PRINTED
+            - PRINT_FAILED
+          nullable: true
+          description: >-
+            NOT_CREATED khi chưa full match. Khi full match, server tạo/đảm bảo nhãn ở DRAFT — KHÔNG
+            tự động in. PRINTED chỉ đạt được qua chuỗi preview -> ready -> print.
+        packing_label_ready:
+          type: boolean
+          description: true khi phiếu đã full match và Packing Label DRAFT đã được đảm bảo tồn tại.
+        rfid_required:
+          type: boolean
+          enum:
+            - false
+          description: RFID là OPTIONAL và không gate scan lẫn Post Issue (DEC-RFID-FALLBACK-001).
+      description: >-
+        Kết quả match một item vào dòng outbound. Nhãn là cấp LÔ/PHIẾU: đúng 01 Packing Label cho
+        mỗi outbound_document, chỉ sinh khi toàn phiếu đã full match, và sinh ở trạng thái DRAFT.
     OutboundUnmatchRequest:
       type: object
-      required: [outbound_item_match_id]
+      required:
+        - outbound_item_match_id
       properties:
-        outbound_item_match_id: { type: string, format: uuid }
-        reason: { type: string, maxLength: 2000, nullable: true }
+        outbound_item_match_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 2000
+          nullable: true
     OutboundCancelRequest:
       type: object
-      required: [reason]
+      required:
+        - reason
       properties:
-        reason: { type: string, maxLength: 2000 }
+        reason:
+          type: string
+          maxLength: 2000
     PostIssueResult:
       type: object
       properties:
-        document_id: { type: string, format: uuid }
-        status: { type: string, enum: [POSTED] }
-        movement_ids: { type: array, items: { type: string, format: uuid } }
-        stock_effect: { type: string, enum: [DECREASE] }
-        version: { type: integer }
+        document_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - POSTED
+        movement_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        stock_effect:
+          type: string
+          enum:
+            - DECREASE
+        version:
+          type: integer
+        packing_label_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Packing Label cấp lô đã PRINTED + đã dán, dùng làm gate của lần Post này.
+        packing_label_applied:
+          type: boolean
+          description: Luôn true khi Post thành công — đã xác nhận dán nhãn trước khi trừ tồn.
     ReverseOutboundRequest:
       type: object
       properties:
-        reversal_document_id: { type: string, format: uuid, nullable: true, description: 'Xác nhận pending return đã tạo trước đó.' }
-        reason_code: { type: string, maxLength: 80, nullable: true }
-        reason: { type: string, maxLength: 2000, description: 'Bắt buộc nếu không gửi reversal_document_id.' }
-        condition_status: { type: string, enum: [SELLABLE, DEFECTIVE, NON_SELLABLE], description: 'Bắt buộc cho outbound reversal khi không gửi reversal_document_id.' }
-        physical_return_confirmed: { type: boolean, description: 'true để post ngay; false/omit -> DRAFT/PENDING_RETURN, stock_effect=NONE.' }
+        reversal_document_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Xác nhận pending return đã tạo trước đó.
+        reason_code:
+          type: string
+          maxLength: 80
+          nullable: true
+        reason:
+          type: string
+          maxLength: 2000
+          description: Bắt buộc nếu không gửi reversal_document_id.
+        condition_status:
+          type: string
+          enum:
+            - SELLABLE
+            - DEFECTIVE
+            - NON_SELLABLE
+          description: Bắt buộc cho outbound reversal khi không gửi reversal_document_id.
+        physical_return_confirmed:
+          type: boolean
+          description: true để post ngay; false/omit -> DRAFT/PENDING_RETURN, stock_effect=NONE.
         lines:
           type: array
-          description: 'Bắt buộc nếu không gửi reversal_document_id. PRODUCT/serial-tracked line yêu cầu item_id + quantity=1.'
+          description: >-
+            Bắt buộc nếu không gửi reversal_document_id. PRODUCT/serial-tracked line yêu cầu item_id
+            + quantity=1.
           items:
             type: object
-            required: [movement_id, quantity]
+            required:
+              - movement_id
+              - quantity
             properties:
-              movement_id: { type: string, format: uuid }
-              quantity: { type: integer, minimum: 1 }
-              item_id: { type: string, format: uuid, nullable: true }
+              movement_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+              item_id:
+                type: string
+                format: uuid
+                nullable: true
     OutboundDocument:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        doc_type: { type: string, enum: [issue] }
-        doc_no: { type: string }
-        doc_date: { type: string, format: date }
-        status: { type: string, enum: [DRAFT, SCANNING, POSTED, CANCELLED] }
-        src_warehouse_id: { type: string, format: uuid }
-        outbound_request_id: { type: string, format: uuid }
-        agency_id: { type: string, format: uuid, nullable: true }
-        recipient_name: { type: string, nullable: true }
-        recipient_address: { type: string, nullable: true }
-        version: { type: integer }
+        id:
+          type: string
+          format: uuid
+        doc_type:
+          type: string
+          enum:
+            - issue
+        doc_no:
+          type: string
+        doc_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - SCANNING
+            - POSTED
+            - CANCELLED
+        src_warehouse_id:
+          type: string
+          format: uuid
+        outbound_request_id:
+          type: string
+          format: uuid
+        agency_id:
+          type: string
+          format: uuid
+          nullable: true
+        recipient_name:
+          type: string
+          nullable: true
+        recipient_address:
+          type: string
+          nullable: true
+        version:
+          type: integer
         lines:
           type: array
           items:
             type: object
             properties:
-              id: { type: string, format: uuid }
-              line_no: { type: integer }
-              product_id: { type: string, format: uuid }
-              outbound_request_line_id: { type: string, format: uuid, nullable: true }
-              qty_planned: { type: integer }
-              qty_actual: { type: integer }
-              scanned_qty: { type: integer }
+              id:
+                type: string
+                format: uuid
+              line_no:
+                type: integer
+              product_id:
+                type: string
+                format: uuid
+              outbound_request_line_id:
+                type: string
+                format: uuid
+                nullable: true
+              qty_planned:
+                type: integer
+              qty_actual:
+                type: integer
+              scanned_qty:
+                type: integer
   responses:
     Unauthenticated:
       description: Chưa xác thực
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     Forbidden:
       description: Không có permission `outbound.*` tương ứng
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     Conflict:
       description: State/version/idempotency conflict
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     Validation:
       description: Lỗi validate hoặc business rule
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     PreconditionRequired:
       description: Thiếu header If-Match
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
 paths:
   /api/v1/outbound-documents:
     get:
       operationId: listOutboundDocuments
-      tags: [Outbound Document]
+      tags:
+        - Outbound Document
       summary: Danh sách outbound document (label/RFID progress kèm theo)
       x-permission: outbound.view
       responses:
-        '200': { description: OK }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-    post:
-      operationId: storeOutboundDocument
-      tags: [Outbound Document]
-      summary: Tạo outbound document từ toa xuất (BP-WMS-04/05)
-      x-permission: outbound.create
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/StoreOutboundDocumentRequest' } } }
-      responses:
-        '201':
-          description: Document DRAFT được tạo; ETag = version hiện tại
-          headers:
-            ETag: { schema: { type: string, example: '"1"' } }
-          content: { application/json: { schema: { $ref: '#/components/schemas/OutboundDocument' } } }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409':
-          description: 'OUTBOUND_REQUEST_ALREADY_USED — toa đã gắn document DRAFT/SCANNING/POSTED khác'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '422':
-          description: 'lines bị cấm (prohibited) | OUTBOUND_REQUEST_NOT_ACTIVE | OUTBOUND_REQUEST_EMPTY | WAREHOUSE_NOT_ACTIVE | PRODUCT_SKU_REQUIRED'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '200':
+          description: OK
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/v1/outbound-documents/{id}:
     get:
       operationId: showOutboundDocument
-      tags: [Outbound Document]
+      tags:
+        - Outbound Document
       summary: Chi tiết outbound document
       x-permission: outbound.view
-      parameters: [{ $ref: '#/components/parameters/DocumentId' }]
-      responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/OutboundDocument' } } } }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { description: RESOURCE_NOT_FOUND }
-    patch:
-      operationId: updateOutboundDocument
-      tags: [Outbound Document]
-      summary: Cập nhật outbound document (chỉ DRAFT/SCANNING)
-      x-permission: outbound.create
-      parameters: [{ $ref: '#/components/parameters/DocumentId' }, { $ref: '#/components/parameters/IfMatch' }]
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateOutboundDocumentRequest' } } }
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
       responses:
         '200':
           description: OK
-          headers: { ETag: { schema: { type: string } } }
-          content: { application/json: { schema: { $ref: '#/components/schemas/OutboundDocument' } } }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { description: RESOURCE_NOT_FOUND }
-        '409':
-          description: 'STATE_CONFLICT | SOURCE_REQUEST_IMMUTABLE | SCANNED_DOCUMENT_IMMUTABLE | SCANNED_LINE_STRUCTURE_IMMUTABLE'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '412': { description: PRECONDITION_FAILED — version mismatch, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '422': { $ref: '#/components/responses/Validation' }
-        '428': { $ref: '#/components/responses/PreconditionRequired' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboundDocument'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: RESOURCE_NOT_FOUND
   /api/v1/outbound-documents/{id}/cancel:
     post:
       operationId: cancelOutboundDocument
-      tags: [Outbound Document]
+      tags:
+        - Outbound Document
       summary: Hủy outbound document (chỉ DRAFT/SCANNING; CANCELLED là terminal)
       x-permission: outbound.cancel
-      parameters: [{ $ref: '#/components/parameters/DocumentId' }, { $ref: '#/components/parameters/IfMatch' }]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/OutboundCancelRequest' } } }
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundCancelRequest'
       responses:
         '200':
           description: >-
-            CANCELLED. Nếu document gắn outbound_request và không còn phiếu
-            active/POSTED nào khác dùng toa, toa tự trả về OPEN.
-          headers: { ETag: { schema: { type: string } } }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { description: RESOURCE_NOT_FOUND }
-        '409': { description: STATE_CONFLICT, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '412': { description: PRECONDITION_FAILED }
-        '428': { $ref: '#/components/responses/PreconditionRequired' }
+            CANCELLED. Nếu document gắn outbound_request và không còn phiếu active/POSTED nào khác
+            dùng toa, toa tự trả về OPEN.
+          headers:
+            ETag:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: RESOURCE_NOT_FOUND
+        '409':
+          description: STATE_CONFLICT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '412':
+          description: PRECONDITION_FAILED
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
   /api/v1/outbound-documents/{id}/scan:
     post:
       operationId: scanOutboundDocument
-      tags: [Outbound Scan]
+      tags:
+        - Outbound Scan
       summary: Match item vào dòng outbound — chế độ nhập tay (item_id) hoặc quét mã (code_value)
       description: >-
-        stock_effect luôn NONE. Nếu item PRODUCT match thành công, server tự tạo
-        label_snapshot và cố gắng dispatch in ngay (label_status trả kèm trong
-        response; PRINT_FAILED không chặn scan, nhưng label PRINTED là điều kiện
-        bắt buộc trước Post Issue).
+        stock_effect luôn NONE. Packing Label (controlling: DR-HN-20260817-OUTBOUND-FLOW03, SRS
+        §5.2/§6/§15, AC-GWT-OUTBOUND-REQUEST-001): nhãn ở cấp lô — đúng 01 Packing Label cho mỗi
+        outbound_document, KHÔNG phải mỗi item. Chỉ khi toàn bộ dòng đã scan đủ (full match) server
+        mới tạo/đảm bảo nhãn, và tạo ở trạng thái DRAFT; server KHÔNG tự dispatch lệnh in tại bước
+        scan. Lifecycle bắt buộc: DRAFT -> PREVIEWED -> READY_TO_PRINT -> PRINTED (PRINT_FAILED khi
+        in lỗi, retry dùng lại đúng snapshot cũ), qua các endpoint POST
+        /outbound-documents/{id}/packing-labels/{labelId}/{preview,ready,print,reprint}. Từ
+        READY_TO_PRINT trở đi snapshot đóng băng: gỡ/sửa match sau đó bị chặn 409
+        PACKING_LABEL_ALREADY_CREATED. Post Issue vẫn yêu cầu nhãn PRINTED và đã xác nhận dán.
       x-permission: outbound.scan
-      parameters: [{ $ref: '#/components/parameters/DocumentId' }, { $ref: '#/components/parameters/IfMatch' }]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/OutboundScanRequest' } } }
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundScanRequest'
       responses:
         '200':
           description: OK
-          headers: { ETag: { schema: { type: string } } }
-          content: { application/json: { schema: { $ref: '#/components/schemas/OutboundScanResult' } } }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { description: 'RESOURCE_NOT_FOUND | DOCUMENT_LINE_NOT_FOUND' }
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboundScanResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: RESOURCE_NOT_FOUND | DOCUMENT_LINE_NOT_FOUND
         '409':
-          description: 'STATE_CONFLICT | DUPLICATE_ITEM_IN_DOCUMENT | ITEM_ALREADY_MATCHED | DUPLICATE_ITEM_MATCH'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '412': { description: PRECONDITION_FAILED }
+          description: >-
+            STATE_CONFLICT | DUPLICATE_ITEM_IN_DOCUMENT | ITEM_ALREADY_MATCHED |
+            DUPLICATE_ITEM_MATCH
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '412':
+          description: PRECONDITION_FAILED
         '422':
           description: >-
-            SCAN_EXCEEDS_REQUIRED | SKU_NOT_ACTIVE | PRODUCT_SKU_REQUIRED |
-            ITEM_REQUIRED | SERIAL_QUANTITY_MUST_BE_ONE | INSUFFICIENT_STOCK |
-            ITEM_NOT_AVAILABLE | PHYSICAL_CODE_NOT_FOUND | PHYSICAL_CODE_UNASSIGNED |
-            PHYSICAL_CODE_ITEM_MISMATCH | ITEM_SKU_MISMATCH | OUTBOUND_REQUEST_REQUIRED
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '428': { $ref: '#/components/responses/PreconditionRequired' }
+            SCAN_EXCEEDS_REQUIRED | SKU_NOT_ACTIVE | PRODUCT_SKU_REQUIRED | ITEM_REQUIRED |
+            SERIAL_QUANTITY_MUST_BE_ONE | INSUFFICIENT_STOCK | ITEM_NOT_AVAILABLE |
+            PHYSICAL_CODE_NOT_FOUND | PHYSICAL_CODE_UNASSIGNED | PHYSICAL_CODE_ITEM_MISMATCH |
+            ITEM_SKU_MISMATCH | OUTBOUND_REQUEST_REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
   /api/v1/outbound-documents/{id}/unmatch:
     post:
       operationId: unmatchOutboundItem
-      tags: [Outbound Scan]
+      tags:
+        - Outbound Scan
       summary: Gỡ item đã match trước Post ("Gỡ trước Post") — stock-neutral
       x-permission: outbound.scan
-      parameters: [{ $ref: '#/components/parameters/DocumentId' }, { $ref: '#/components/parameters/IfMatch' }]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/OutboundUnmatchRequest' } } }
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundUnmatchRequest'
       responses:
         '200':
-          description: 'Match chuyển ACTIVE -> REMOVED; item có thể scan lại vào phiếu này hoặc phiếu khác.'
-          headers: { ETag: { schema: { type: string } } }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { description: 'RESOURCE_NOT_FOUND | OUTBOUND_MATCH_NOT_FOUND' }
-        '409': { description: 'STATE_CONFLICT | MATCH_NOT_ACTIVE', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '412': { description: PRECONDITION_FAILED }
-        '428': { $ref: '#/components/responses/PreconditionRequired' }
+          description: Match chuyển ACTIVE -> REMOVED; item có thể scan lại vào phiếu này hoặc phiếu khác.
+          headers:
+            ETag:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: RESOURCE_NOT_FOUND | OUTBOUND_MATCH_NOT_FOUND
+        '409':
+          description: STATE_CONFLICT | MATCH_NOT_ACTIVE | PACKING_LABEL_ALREADY_CREATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '412':
+          description: PRECONDITION_FAILED
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+      description: >-
+        Gỡ item đã match trước Post — stock-neutral. Nếu phiếu đã full match và đang có Packing
+        Label ở DRAFT/PREVIEWED (chưa đóng băng), nhãn đó bị huỷ kèm audit PACKING_LABEL_DISCARDED
+        và sẽ được tạo lại khi full match lần sau. Từ READY_TO_PRINT trở đi snapshot đã đóng băng
+        nên gỡ match bị chặn.
   /api/v1/outbound-documents/{id}/post-issue:
     post:
       operationId: postIssue
-      tags: [Outbound Posting]
+      tags:
+        - Outbound Posting
       summary: Post Issue atomically — full-post exact-match, thay đổi tồn kho đúng một lần
       description: >-
-        Yêu cầu mọi dòng scanned_qty == qty_planned (FULL_POST_REQUIRED), mọi
-        PRODUCT unit có item match ACTIVE (PRODUCT_ITEM_MATCH_REQUIRED) và label
-        PRINTED (LABEL_NOT_PRINTED). Theo SRS v1.12 REQ-SRS-011 /
-        DEC-RFID-FALLBACK-001, RFID là OPTIONAL (barcode/QR là định danh hợp lệ) —
-        Post Issue KHÔNG gate theo RFID hardware_uid; gate ITEM_RFID_REQUIRED cũ
-        (ERD proposal v1.6) đã bị gỡ khỏi baseline hiện hành. Idempotent theo
+        Yêu cầu mọi dòng scanned_qty == qty_planned (FULL_POST_REQUIRED), mọi PRODUCT unit có item
+        match ACTIVE (PRODUCT_ITEM_MATCH_REQUIRED), và 01 Packing Label cấp lô đã PRINTED
+        (LABEL_NOT_PRINTED) + đã xác nhận dán (PACKING_LABEL_NOT_APPLIED) + snapshot còn khớp nội
+        dung phiếu (409 LABEL_SNAPSHOT_STALE). Theo SRS v1.12 REQ-SRS-011 / DEC-RFID-FALLBACK-001,
+        RFID là OPTIONAL (barcode/QR là định danh hợp lệ) — Post Issue KHÔNG gate theo RFID
+        hardware_uid; gate ITEM_RFID_REQUIRED cũ đã bị gỡ khỏi baseline hiện hành. Idempotent theo
         Idempotency-Key; version bump và stock effect nằm trong cùng transaction.
       x-permission: outbound.post
       x-stock-effect: DECREASE
-      parameters: [{ $ref: '#/components/parameters/DocumentId' }, { $ref: '#/components/parameters/IfMatch' }, { $ref: '#/components/parameters/IdempotencyKeyRequired' }]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
       responses:
         '200':
           description: POSTED — committed đúng một lần, hoặc response gốc được replay nguyên trạng
           headers:
-            ETag: { schema: { type: string } }
-            Idempotent-Replay: { schema: { type: string, enum: ['true', 'false'] } }
-          content: { application/json: { schema: { $ref: '#/components/schemas/PostIssueResult' } } }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { description: RESOURCE_NOT_FOUND }
+            ETag:
+              schema:
+                type: string
+            Idempotent-Replay:
+              schema:
+                type: string
+                enum:
+                  - 'true'
+                  - 'false'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostIssueResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: RESOURCE_NOT_FOUND
         '409':
-          description: 'STATE_CONFLICT (không phải SCANNING) | idempotency key dùng lại với payload khác'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '412': { description: PRECONDITION_FAILED }
+          description: >-
+            STATE_CONFLICT (không phải SCANNING) | LABEL_SNAPSHOT_STALE (nội dung phiếu đổi sau khi
+            in nhãn) | idempotency key dùng lại với payload khác
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '412':
+          description: PRECONDITION_FAILED
         '422':
-          description: 'FULL_POST_REQUIRED | OUTBOUND_REQUEST_REQUIRED | PRODUCT_ITEM_MATCH_REQUIRED | LABEL_NOT_PRINTED | INSUFFICIENT_STOCK | INSUFFICIENT_AVAILABLE_STOCK (RFID không phải gate — DEC-RFID-FALLBACK-001)'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '428': { $ref: '#/components/responses/PreconditionRequired' }
+          description: >-
+            FULL_POST_REQUIRED | OUTBOUND_REQUEST_REQUIRED | PRODUCT_ITEM_MATCH_REQUIRED |
+            PACKING_LABEL_REQUIRED | LABEL_NOT_PRINTED | PACKING_LABEL_NOT_APPLIED |
+            INSUFFICIENT_STOCK | INSUFFICIENT_AVAILABLE_STOCK (RFID không phải gate —
+            DEC-RFID-FALLBACK-001)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
   /api/v1/outbound-documents/{id}/reverse:
     post:
       operationId: reverseOutbound
-      tags: [Outbound Reversal]
+      tags:
+        - Outbound Reversal
       summary: Reversal có kiểm soát cho outbound đã POSTED — original document giữ nguyên POSTED
       description: >-
-        Nếu physical_return_confirmed != true, reversal dừng ở DRAFT/PENDING_RETURN
-        với stock_effect=NONE (chờ xác nhận hàng vật lý đã về kho); gửi lại với
-        reversal_document_id + physical_return_confirmed=true để Post.
+        Nếu physical_return_confirmed != true, reversal dừng ở DRAFT/PENDING_RETURN với
+        stock_effect=NONE (chờ xác nhận hàng vật lý đã về kho); gửi lại với reversal_document_id +
+        physical_return_confirmed=true để Post.
       x-permission: inventory.reversal.post
-      parameters: [{ $ref: '#/components/parameters/DocumentId' }, { $ref: '#/components/parameters/IfMatch' }, { $ref: '#/components/parameters/IdempotencyKeyRequired' }]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKeyRequired'
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/ReverseOutboundRequest' } } }
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReverseOutboundRequest'
       responses:
-        '200': { description: 'Reversal command processed; original document remains POSTED' }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { description: 'RESOURCE_NOT_FOUND | REVERSAL_NOT_FOUND' }
+        '200':
+          description: Reversal command processed; original document remains POSTED
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: RESOURCE_NOT_FOUND | REVERSAL_NOT_FOUND
         '409':
-          description: 'STATE_CONFLICT | ALREADY_FULLY_REVERSED | REVERSAL_DEPENDENCY_EXISTS | REVERSAL_CONCURRENT_CONFLICT'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '412': { description: PRECONDITION_FAILED }
+          description: >-
+            STATE_CONFLICT | ALREADY_FULLY_REVERSED | REVERSAL_DEPENDENCY_EXISTS |
+            REVERSAL_CONCURRENT_CONFLICT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '412':
+          description: PRECONDITION_FAILED
         '422':
-          description: 'REVERSAL_ITEM_REQUIRED | REVERSAL_QTY_EXCEEDED | INVALID_RETURN_CONDITION | RETURN_CONDITION_REQUIRED | ITEM_SKU_MISMATCH | ITEM_NOT_IN_ORIGINAL_TRANSACTION'
-          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-        '428': { $ref: '#/components/responses/PreconditionRequired' }
-x-document-version: 1.0.0
-x-contract-status: PROPOSED
+          description: >-
+            REVERSAL_ITEM_REQUIRED | REVERSAL_QTY_EXCEEDED | INVALID_RETURN_CONDITION |
+            RETURN_CONDITION_REQUIRED | ITEM_SKU_MISMATCH | ITEM_NOT_IN_ORIGINAL_TRANSACTION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+x-document-version: 1.2.0
+x-contract-status: LOCKED_CANDIDATE
 x-approval-status: PENDING_BA_SIGN_OFF
 x-note: >-
-  WWHN-195 gốc trên Jira trống nội dung tại thời điểm soạn tài liệu này
-  (2026-08-15); tài liệu này được suy ra từ code baseline thực tế (routes/api.php,
-  CurrentBaselineDocumentController, CurrentBaselineStockFlowController,
-  CurrentBaselineStockService) đã verify bằng test HTTP end-to-end. Cần BA
-  đối chiếu lại với Jira gốc trước khi coi là baseline chính thức.
+  v1.1.0 (WWHN-201/DEV201-P1-04R): gỡ POST /outbound-documents và PATCH /outbound-documents/{id} vì
+  §8.1 không cho tạo/sửa phiếu xuất trực tiếp (phiếu chỉ sinh từ Confirm toa) và routes thật không
+  khai hai endpoint đó. Bổ sung x-error-contract theo DEC-OUT-STOCK-HTTP-001: không đủ tồn = 422
+  INSUFFICIENT_STOCK, không phải 409. Tập path/method trong file này được sinh và kiểm tra lại từ
+  `php artisan route:list` nên không thể mô tả endpoint không tồn tại. Postman
+  WWHN-195-outbound.postman_collection.json bind cùng revision; hash cả ba artifact nằm trong
+  WWHN-201-outbound-contract-lock.json. v1.2.0 (WWHN-198/DEV198-P1-06): đồng bộ MỘT controlling
+  behavior về Packing Label theo DR-HN-20260817 + SRS §5.2/§6/§15 — nhãn cấp lô
+  (01/outbound_document), chỉ sinh khi full match và sinh ở DRAFT, KHÔNG auto-dispatch in, lifecycle
+  DRAFT/PREVIEWED/READY_TO_PRINT/PRINTED/PRINT_FAILED, đóng băng từ READY_TO_PRINT; bản 1.1.0 còn mô
+  tả hành vi cũ (nhãn mỗi item + tự in, PENDING_PRINT) của controller đã bị
+  Flow06AlignmentServiceProvider override. Chi tiết máy đọc được nằm ở x-packing-label-contract;
+  sinh lại bằng scripts/wwhn198-packing-label-contract-sync.mjs.
+x-ticket: WWHN-201
+x-decision: DEC-OUT-STOCK-HTTP-001
+x-error-contract:
+  '409':
+    - STATE_CONFLICT
+    - IDEMPOTENCY_CONFLICT
+    - CONCURRENCY_CONFLICT
+    - DOWNSTREAM_DEPENDENCY_EXISTS
+  '412':
+    - STALE_VERSION
+  '422':
+    - INSUFFICIENT_STOCK
+    - INSUFFICIENT_AVAILABLE_STOCK
+  '428':
+    - PRECONDITION_REQUIRED
+x-removed-in-1.1.0:
+  - POST /api/v1/outbound-documents
+  - PATCH /api/v1/outbound-documents/{id}
+x-packing-label-contract:
+  cardinality: ONE_PER_OUTBOUND_DOCUMENT
+  created_at: FULL_MATCH
+  created_status: DRAFT
+  auto_dispatch_print: false
+  lifecycle:
+    - DRAFT
+    - PREVIEWED
+    - READY_TO_PRINT
+    - PRINTED
+    - PRINT_FAILED
+  frozen_from: READY_TO_PRINT
+  post_issue_gate:
+    - PRINTED
+    - APPLIED
+    - SNAPSHOT_CURRENT
+  controlling_decision: DR-HN-20260817-OUTBOUND-FLOW03
+  runtime_handler: AlignedOutboundFlowController@outboundScan
+  superseded_behavior: >-
+    CurrentBaselineStockFlowController@outboundScan (nhãn mỗi item + auto dispatch in,
+    PENDING_PRINT) — không còn được route tới sau Flow06AlignmentServiceProvider.
+  ticket: WWHN-198
+  finding: DEV198-P1-06
+x-tickets:
+  - WWHN-201
+  - WWHN-198

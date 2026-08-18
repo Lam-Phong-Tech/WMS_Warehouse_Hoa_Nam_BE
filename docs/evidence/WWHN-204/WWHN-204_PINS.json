@@ -1,0 +1,121 @@
+{
+  "$comment": [
+    "WWHN-204 — nguồn duy nhất của mọi SHA/pin dùng trong evidence pack.",
+    "Bài học WWHN-290 (pin rot): m1 là nhánh DÙNG CHUNG, HEAD đổi nhiều lần trong ngày do các",
+    "ticket khác. Vì vậy ở đây chỉ pin (a) commit BẤT BIẾN đã thuộc về WWHN-204, và (b) INVARIANT",
+    "kiểm chứng lại được bất kể HEAD trôi tới đâu. Không pin HEAD tuyệt đối, không pin blob hash",
+    "của file mà ticket khác regenerate.",
+    "Verifier: node scripts/verify-wwhn-204-closure.mjs"
+  ],
+  "ticket": "WWHN-204",
+  "ticket_title": "[DEV] Triển khai ledger/số dư/truy vấn/đối soát",
+  "parent": "WWHN-48",
+  "epic": "HN-EPIC-07",
+  "role": "BE2",
+  "candidate_branch": {
+    "repo": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "decision": "m1 LÀ candidate branch của WWHN-204. Không port/cherry-pick sang m1-be-2.",
+    "reason": "m1-be-2 là ancestor thuần của m1 (merge-base == HEAD của m1-be-2, m1 behind 0). Port ngược về một nhánh cũ hơn không thêm gì và làm mất 719 commit."
+  },
+  "immutable_commits": {
+    "wwhn204_implementation": {
+      "sha": "7a78477424cc5b4e0685a0fa702dd085ee9f882e",
+      "committed_at": "2026-08-15T13:40:28+07:00",
+      "contains": [
+        "Modules/Warehouse/database/migrations/2026_08_15_000100_enforce_stock_movements_append_only_trigger.php",
+        "tests/Feature/Wwhn204LedgerReconciliationCoverageTest.php",
+        "docs/docs_task_jira/WWHN-204.md"
+      ]
+    },
+    "m1_be_2_head": {
+      "sha": "60816499066f9f493596e326dc41116ef32f5c4b",
+      "ref": "origin/m1-be-2"
+    },
+    "wwhn204_p1_closure_code": {
+      "sha": "da1c5aff2993982b532d7303f840b210048226e2",
+      "subject": "fix(WWHN-204): dung lai projection tu ledger bat bien va cuong che append-only tren ca hai driver",
+      "contains": [
+        "Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php",
+        "Modules/Warehouse/database/migrations/2026_08_19_050100_enforce_stock_movements_append_only_on_sqlite.php",
+        "app/Console/Commands/ReconcileInventoryBalances.php",
+        "tests/Feature/Wwhn204LedgerProjectionRebuildTest.php",
+        "scripts/verify-wwhn-204-closure.mjs",
+        "scripts/collect-wwhn204-pg-evidence.sh"
+      ]
+    },
+    "fe_head_at_signoff": {
+      "sha": "6ed417e9291297a20505a45909102ed3349b2de0",
+      "note": "Chỉ để tham chiếu — WWHN-204 KHÔNG có thay đổi FE nào."
+    }
+  },
+  "invariants": [
+    {
+      "id": "INV-BRANCH-01",
+      "statement": "merge-base(m1, origin/m1-be-2) bằng đúng HEAD của origin/m1-be-2",
+      "command": "git merge-base m1 origin/m1-be-2",
+      "expect": "60816499066f9f493596e326dc41116ef32f5c4b"
+    },
+    {
+      "id": "INV-BRANCH-02",
+      "statement": "m1 không behind m1-be-2 một commit nào (m1 chứa trọn m1-be-2)",
+      "command": "git rev-list --count m1..origin/m1-be-2",
+      "expect": "0"
+    },
+    {
+      "id": "INV-BRANCH-03",
+      "statement": "Commit hiện thực WWHN-204 nằm trên m1",
+      "command": "git merge-base --is-ancestor 7a78477424cc5b4e0685a0fa702dd085ee9f882e m1",
+      "expect": "exit 0"
+    },
+    {
+      "id": "INV-BRANCH-04",
+      "statement": "Commit hiện thực WWHN-204 KHÔNG có trên m1-be-2 — nên nếu chọn m1-be-2 làm candidate thì WWHN-204 coi như chưa được triển khai",
+      "command": "git merge-base --is-ancestor 7a78477424cc5b4e0685a0fa702dd085ee9f882e origin/m1-be-2",
+      "expect": "exit != 0"
+    },
+    {
+      "id": "INV-LEDGER-01",
+      "statement": "Append-only cưỡng chế ở tầng DB trên CẢ HAI driver",
+      "artifacts": [
+        "Modules/Warehouse/database/migrations/2026_08_15_000100_enforce_stock_movements_append_only_trigger.php",
+        "Modules/Warehouse/database/migrations/2026_08_19_050100_enforce_stock_movements_append_only_on_sqlite.php"
+      ]
+    },
+    {
+      "id": "INV-LEDGER-02",
+      "statement": "Rebuild không ghi ledger — không có INSERT/UPDATE/DELETE stock_movements trong InventoryProjectionRebuildService",
+      "artifacts": ["Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php"]
+    },
+    {
+      "id": "INV-NOSTK-01",
+      "statement": "Rebuild không phơi lên HTTP — REQ-SRS-037 / AC-SRS-037 vẫn đúng",
+      "test": "tests/Feature/Wwhn204LedgerProjectionRebuildTest.php::test_rebuild_is_not_exposed_as_any_http_route"
+    }
+  ],
+  "baseline_sources": {
+    "controlling_business": "BRD Hòa Nam v3.20 (SRC-002)",
+    "controlling_srs": "HN_SRS_FRD_v1.12_FULL.md (SRS/FRD v1.12)",
+    "superseded_and_must_not_be_cited": [
+      "BRD v3.7 / v3.9 / v3.10 — SRS v1.12 §1.6 Supersession Register: HISTORICAL / SUPERSEDED",
+      "Handoff v3.10 reference — SRS v1.12 §1.6: REMOVED / NO ARTIFACT"
+    ],
+    "inventory_authority": "DEC-INV-001 (SRS v1.12 §7.1); §1.6 ghi 'Balance/Movement/subledger without authority definition → DEC-INV-001 (SUPERSEDED)'"
+  },
+  "decision_records": [
+    "docs/decision-records/DISP-INV-204-projection-rebuild.md"
+  ],
+  "evidence": {
+    "pg_run": "docs/evidence/WWHN-204/logs/pg-append-only.log",
+    "pg_suite": "docs/evidence/WWHN-204/logs/pg-suite.log",
+    "sqlite_suite": "docs/evidence/WWHN-204/logs/sqlite-focused.log",
+    "qa1_runbook": "docs/evidence/WWHN-204/QA1_RUNBOOK.md",
+    "closure_register": "docs/evidence/WWHN-204/DEFECT_CLOSURE_REGISTER.md"
+  },
+  "environment": {
+    "postgres": "PostgreSQL 16.14 on x86_64-pc-linux-musl (container wms_warehouse_hoa_nam_be-postgres-1)",
+    "evidence_database": "hn_wwhn204",
+    "test_database": "hn_wwhn204_test",
+    "php": "8.3.30"
+  }
+}
