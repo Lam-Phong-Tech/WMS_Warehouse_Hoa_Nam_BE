@@ -153,7 +153,7 @@ use OpenApi\Attributes as OA;
     responses: [
         new OA\Response(response: 200, description: 'Cancel phiếu thành công'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có permission inbound.cancel'),
+        new OA\Response(response: 403, description: 'Không có permission inbound.cancel hoặc inbound.create (route nhận cả hai — Annex C khai inbound.create, baseline seed cấp inbound.cancel riêng cho WAREHOUSE_APPROVER/KEEPER; xem docs/DR_HN_20260817_FLOW02_OPEN_DECISIONS.md)'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
         new OA\Response(response: 409, description: 'Chứng từ không còn DRAFT/SCANNING'),
         new OA\Response(response: 412, description: 'If-Match không khớp'),

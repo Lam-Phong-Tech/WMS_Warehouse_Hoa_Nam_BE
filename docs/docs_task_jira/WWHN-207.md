@@ -97,7 +97,7 @@ Route thực thi xác nhận qua `php artisan route:list` và đọc trực ti�
 | POST | `/inbound-documents` | `CurrentBaselineDocumentController::storeInbound` | `inbound.create` + `EnsureCanonicalInboundWarehouse` |
 | GET | `/inbound-documents/{id}` | `InboundDocumentController::show` | `inbound.view` |
 | PATCH | `/inbound-documents/{id}` | `CurrentBaselineDocumentController::updateInbound` | `inbound.create` + `EnsureCanonicalInboundWarehouse` |
-| POST | `/inbound-documents/{id}/cancel` | `CurrentBaselineDocumentController::cancelInbound` | `inbound.cancel` |
+| POST | `/inbound-documents/{id}/cancel` | `CurrentBaselineDocumentController::cancelInbound` | `inbound.cancel\|inbound.create` (route nhận cả hai, xem DR_HN_20260817_FLOW02_OPEN_DECISIONS.md) |
 | POST | `/inbound-documents/{id}/boxes` | `CurrentBaselineInboundBoxController::store` | `inbound.scan` |
 | POST | `/inbound-documents/{id}/scan` | `CurrentBaselineStockFlowController::inboundScan` | `inbound.scan` + `EnsureInboundComponentBox` |
 | POST | `/inbound-documents/{id}/post-receipt` | `CurrentBaselineStockFlowController::postReceipt` | `inbound.post` |

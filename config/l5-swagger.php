@@ -57,6 +57,12 @@ return [
                     base_path('Modules/Warehouse/app/Http/Controllers/WarehouseController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/ImportController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/ImportReportController.php'),
+                    // WWHN-184/DEV184-P1-01R: thiếu dòng này khiến RouteSyncProcessor
+                    // không thấy annotation thật của Inbound, tự sinh skeleton chung
+                    // chung ("Không có quyền truy cập", request body {} rỗng) thay vì
+                    // contract thật (If-Match/Idempotency-Key bắt buộc, reason, permission
+                    // inbound.cancel|inbound.create...). KHÔNG được bỏ dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'),
                     // Flow 06 · Báo cáo: contract (filter §13.10 + schema Annex C) được
                     // khai ngay trên controller thật. KHÔNG được bỏ 4 dòng dưới, nếu không
                     // Swagger publish toàn bộ endpoint báo cáo mà không có query parameter.

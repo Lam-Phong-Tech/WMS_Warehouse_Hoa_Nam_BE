@@ -47,6 +47,36 @@ class SwaggerRouteSyncTest extends TestCase
     }
 
     /**
+     * WWHN-184/DEV184-P1-01R: `InboundDocumentController.php` từng bị thiếu khỏi
+     * `config/l5-swagger.php` annotations[], khiến RouteSyncProcessor tự sinh
+     * skeleton chung chung ("Không có quyền truy cập", requestBody rỗng) thay vì
+     * contract thật (If-Match/Idempotency-Key bắt buộc, reason, permission
+     * inbound.cancel|inbound.create). Test này khoá lại để không tái phát.
+     */
+    public function test_inbound_cancel_operation_carries_real_contract_not_generic_skeleton(): void
+    {
+        Artisan::call('l5-swagger:generate');
+
+        $swagger = json_decode((string) file_get_contents(storage_path('api-docs/api-docs.json')), true, flags: JSON_THROW_ON_ERROR);
+        $cancel = $swagger['paths']['/api/v1/inbound-documents/{id}/cancel']['post'] ?? null;
+
+        $this->assertNotNull($cancel, 'stock_in_cancel operation missing from generated OpenAPI');
+        $this->assertSame('stock_in_cancel', $cancel['operationId'] ?? null);
+
+        $forbidden = $cancel['responses']['403']['description'] ?? '';
+        $this->assertStringContainsString('inbound.cancel', $forbidden);
+        $this->assertStringContainsString('inbound.create', $forbidden);
+        $this->assertNotSame('Không có quyền truy cập', $forbidden);
+
+        $ifMatchParam = collect($cancel['parameters'] ?? [])->firstWhere('name', 'If-Match');
+        $this->assertNotNull($ifMatchParam, 'If-Match header contract missing from stock_in_cancel');
+        $this->assertTrue($ifMatchParam['required'] ?? false);
+
+        $reasonProps = $cancel['requestBody']['content']['application/json']['schema']['properties'] ?? [];
+        $this->assertArrayHasKey('reason', $reasonProps);
+    }
+
+    /**
      * @return array<int, string>
      */
     private function routeOperations(): array
