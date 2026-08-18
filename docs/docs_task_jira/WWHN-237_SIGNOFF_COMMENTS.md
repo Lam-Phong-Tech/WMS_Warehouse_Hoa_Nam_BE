@@ -1,12 +1,12 @@
 # WWHN-237 — bộ comment xác nhận (sign-off) cho Jira
 
 Mỗi vai trò **một comment duy nhất**, phạm vi chỉ là *đọc + duyệt*, không phát sinh việc mới.
-Dán nguyên khối trích dẫn, thay `<...>` bằng giá trị thật trước khi post.
+Dán nguyên khối trích dẫn. Chỉ còn hai chỗ QA1 phải tự điền: driver (`<sqlite|pgsql>`) và kết quả (`<PASS|FAIL>`).
 
 **Định danh dùng chung cho mọi comment** (lấy từ `docs/evidence/WWHN-237/SOURCE_REGISTER.json`):
 
-- BE SHA: `<be_commit_sha>` — branch `m1`
-- FE SHA: `<fe_commit_sha>` — branch `m1`
+- BE SHA: `62dcbc104290eced035e4288fe46f869238bafcd` (evidence pin: `897710e`) — branch `m1`
+- FE SHA: `29c6fd4` trong lịch sử `m1` (HEAD quan sát khi chốt: `0eda8248ea121be10518f6e3edda0d2ca74b9c26`)
 - Disposition: `DISP-STK-237` v1.0.0 — `docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md`
 - Evidence: `docs/evidence/WWHN-237/` (`SOURCE_REGISTER.json`, `CONTRACT_NEGATIVE_LOCK.json`, `SHA256SUMS`, `logs/`)
 - Kết quả gate: BE 11 check + 10 test · FE 17 check + 6 test · runner 6/6 lệnh PASS
@@ -17,7 +17,7 @@ Dán nguyên khối trích dẫn, thay `<...>` bằng giá trị thật trước
 
 > **DEV CLOSURE — WWHN-237**
 >
-> Tôi xác nhận đã xử lý register 32/100 tại source trên nhánh `m1`, BE `<be_commit_sha>` / FE `<fe_commit_sha>`:
+> Tôi xác nhận đã xử lý register 32/100 tại source trên nhánh `m1`, BE `62dcbc10` / FE `29c6fd4`:
 >
 > - `DEV237-P1-01`: source conflict được chốt bằng `DISP-STK-237` — **Option A: DEFERRED / NO CODE**, neo vào `REQ-SRS-037` (Must, adopt tại WWHN-334), kèm thang authority, điều kiện re-enable và cập nhật affected ticket.
 > - `DEV237-P1-02`: route/permission/entity vốn đã zero; task này gỡ nốt tàn dư **hợp đồng** còn sót — folder `12. Stocktake` trong Postman DEV và criticalFlow `APPLY_ADJUSTMENT` + enum `SCAN_CLASSIFY.context = STOCKTAKE` trong `WMS_FE_CONTRACT_BASELINE.json`. Guard `Flow05...test_published_contract_artifacts_carry_no_stocktake_capability` **đang đỏ sẵn trên m1** trước task này, nay xanh.
@@ -67,7 +67,7 @@ Dán nguyên khối trích dẫn, thay `<...>` bằng giá trị thật trước
 
 > **TECH LEAD SIGN-OFF — WWHN-237**
 >
-> Tôi xác nhận đã đọc và duyệt trên BE `<be_commit_sha>` / FE `<fe_commit_sha>`:
+> Tôi xác nhận đã đọc và duyệt trên BE `62dcbc10` / FE `29c6fd4`:
 >
 > - Bằng chứng absence phủ đủ tầng: route, report registry/hub/export, KPI dashboard, permission seed, schema, OpenAPI runtime, bộ contract bàn giao và hợp đồng FE — `CONTRACT_NEGATIVE_LOCK.json` + `FE_CLOSURE_IDENTITY.json`.
 > - Ranh giới kỹ thuật đúng: **variance của reconciliation (balance vs ledger) được giữ nguyên** vì `AC-SRS-037` chỉ định đó là cơ chế thay thế; gate có check dương `RECONCILIATION-ALIVE` nên không ai gỡ nhầm.
@@ -88,7 +88,7 @@ Dán nguyên khối trích dẫn, thay `<...>` bằng giá trị thật trước
 >
 > - `WWHN-238` chuyển **DEFERRED / N-A cho MVP v1.12** — không để `Blocked`, không để `Pending`. Lý do: capability cần test đã bị `REQ-SRS-037` loại khỏi phạm vi, không có build nào sẽ chứa nó.
 > - Phạm vi QA thay thế là **negative gate + regression**, đã có ma trận chạy được N1..N8 (capability vắng mặt) và R1..R4 (reconciliation + Reversal còn sống) tại `docs/evidence/WWHN-237/QA_DISPOSITION_WWHN-238.md`.
-> - Kết quả chạy trên BE `<be_commit_sha>` / FE `<fe_commit_sha>`, driver `<sqlite|pgsql>`: **`<PASS|FAIL>`** — raw log kèm exit code tại `docs/evidence/WWHN-237/logs/`, tổng hợp tại `SOURCE_REGISTER.json`.
+> - Kết quả chạy trên BE `62dcbc10` / FE `29c6fd4`, driver `<sqlite|pgsql>`: **`<PASS|FAIL>`** — raw log kèm exit code tại `docs/evidence/WWHN-237/logs/`, tổng hợp tại `SOURCE_REGISTER.json`.
 > - Tôi không dùng kết quả của `WWHN-236` / `WWHN-235` thay cho `WWHN-238`.
 >
 > Điều kiện mở lại phạm vi test dương: đúng bộ 4 điều kiện tại `DISP-STK-237 §2`.
@@ -99,7 +99,7 @@ Dán nguyên khối trích dẫn, thay `<...>` bằng giá trị thật trước
 
 > **FE1 SIGN-OFF — WWHN-237**
 >
-> Tôi xác nhận đã đọc và duyệt trên FE `<fe_commit_sha>` / BE `<be_commit_sha>`:
+> Tôi xác nhận đã đọc và duyệt trên FE `29c6fd4` / BE `62dcbc10`:
 >
 > - Hợp đồng FE hiện hành là `docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json` **sau khi** gỡ criticalFlow `APPLY_ADJUSTMENT` (permission `stocktake.adjust`) và sửa `SCAN_CLASSIFY.context` về đúng enum runtime `INBOUND, OUTBOUND, INVENTORY, TRACE, WARRANTY_RECEIVE, WARRANTY_TEMP_ONLY`.
 > - FE **không** suy diễn lại contract Stocktake từ artifact lịch sử (WWHN-180 pack, WWHN-150 scan OpenAPI, OpenAPI Changelog BE1 v1.0.1, Swagger Standard cũ); khối `removedFromMvp` trong file hợp đồng ghi rõ điều này.
@@ -123,6 +123,6 @@ Dán nguyên khối trích dẫn, thay `<...>` bằng giá trị thật trước
 
 ## Ghi chú khi post
 
-- `<be_commit_sha>` / `<fe_commit_sha>` lấy từ `SOURCE_REGISTER.json → repositories.*.commit_sha`, **không** dùng URL nhánh động khi dẫn link file — dùng `blob/<sha>/<path>`.
+- SHA đầy đủ lấy từ `SOURCE_REGISTER.json → repositories.*.commit_sha`; khi dẫn link file dùng `blob/<sha>/<path>`, **không** dùng URL nhánh động.
 - QA1 phải điền `<PASS|FAIL>` và driver thật; không post comment QA khi chưa có log tương ứng trong `logs/`.
 - Không vai trò nào ghi `APPROVED` / `Done` / `100%` cho `WWHN-237` trước khi PM/PO ghi effective date.
