@@ -1,0 +1,3 @@
+warehouse_code,sku_code,stock_status,quantity,source,owner_confirmation
+KHO-TONG-HN,HN-MK-260-V1,AVAILABLE,2,CUTOVER_COUNT,QL_KHO
+KHO-TONG-HN,HN-PK-260-V1,AVAILABLE,5,CUTOVER_COUNT,QL_KHO

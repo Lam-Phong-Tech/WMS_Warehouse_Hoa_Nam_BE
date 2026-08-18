@@ -53,6 +53,12 @@ cũ là mô tả không khớp chính hình dạng vật lý mà chính tài li�
                                      49. component_issue_lines         `UNIQUE(outbound_request_id,line_no)`,
                                                                        `UNIQUE(component_issue_document_id,line_no)`. Cùng ràng buộc đã có ở
                                                                        cột "Index khuyến nghị", không đổi ràng buộc.
+
+  ERD-AMD-007         18/08/2026     58. migration_runs                Bổ sung `duplicate_rows integer NOT NULL DEFAULT 0`. SRS §13.12 lấy      WWHN-260 /
+                                                                       "valid + invalid + duplicate = input row count" làm tiêu chí dry-run     SRS §13.12 /
+                                                                       PASS và Data Dictionary yêu cầu lưu cả ba số; trước đó dòng trùng bị    §14 DD
+                                                                       gộp vào `error_rows` nên bất biến không kiểm lại được từ dữ liệu đã
+                                                                       lưu. Không đổi business semantics.
   ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Bản trong `WMS_Warehouse_Hoa_Nam_BE/docs/` và `WMS_Warehouse_Hoa_Nam_FE/docs/` phải giống hệt
@@ -2680,6 +2686,8 @@ Controlled dry-run/commit/reconcile/rollback evidence. **\[BASELINE + TECH-PROPO
   **valid_rows**              integer               No             DEFAULT 0                                                   Hợp lệ.
 
   **error_rows**              integer               No             DEFAULT 0                                                   Lỗi.
+
+  **duplicate_rows**          integer               No             DEFAULT 0                                                   Trùng (ERD-AMD-007).
 
   **reconciliation_status**   varchar(20)           Yes            CHECK PASS/FAIL/PENDING                                     Đối soát.
 

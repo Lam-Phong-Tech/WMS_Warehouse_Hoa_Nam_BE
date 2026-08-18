@@ -540,36 +540,34 @@ class CurrentBaselineOperationsController extends Controller
         }
     }
 
+    /**
+     * WWHN-252: `/pv/catalog` là path lịch sử; giữ nguyên handler để không phá
+     * pin route của DocumentationBaselineContractTest, nhưng thân hàm chuyển
+     * hẳn sang read model canonical của Annex C (`listPvProducts`) để hai path
+     * không bao giờ trả hai sự thật khác nhau.
+     *
+     * Ba lỗi hợp đồng của bản cũ được đóng nhờ chuyển hướng này:
+     * 1. INNER JOIN pv_product_profile → SKU đã publish nhưng chưa có hồ sơ PV
+     *    biến mất khỏi catalog, trong khi REQ-SRS-036/DEC-CATALOG-001 nói publish
+     *    không phụ thuộc bất cứ dữ liệu nào khác.
+     * 2. Cộng `inventory_balances.quantity` (mirror của on_hand_qty) thay vì
+     *    `available_qty` mà REQ-SRS-018 chỉ đích danh.
+     * 3. Không phát stock_status/stock_label/data_as_of (DEC-CATALOG-001, NFR-SRS-016).
+     */
     public function pvCatalog(Request $request)
     {
-        $query = DB::table('pv_product_profile as p')
-            ->join('sku as s', 's.sku_id', '=', 'p.product_id')
-            ->leftJoin('inventory_balances as b', function ($join): void {
-                $join->on('b.product_id', '=', 's.sku_id')->where('b.stock_status', '=', 'AVAILABLE');
-            })
-            ->where('p.published', true)
-            ->where('s.status', 'ACTIVE')
-            ->selectRaw('p.profile_id, p.display_name, p.description, p.sort_order, p.last_inventory_sync_at, s.sku_id, s.sku_code, s.sku_name, COALESCE(SUM(b.quantity), 0) as available_qty')
-            ->groupBy('p.profile_id', 'p.display_name', 'p.description', 'p.sort_order', 'p.last_inventory_sync_at', 's.sku_id', 's.sku_code', 's.sku_name')
-            ->orderBy('p.sort_order');
-        $this->applyKeyword($query, $request, ['p.display_name', 'p.description', 's.sku_code', 's.sku_name']);
-
-        return $this->respondPaginated($query->paginate($this->perPage($request)));
+        return app(PvPublicCatalogController::class)->listProducts($request);
     }
 
+    /**
+     * WWHN-252: bản cũ JOIN thẳng r.product_id = s.sku_id nên MỌI rule chọn theo
+     * category_id hoặc tag_id (ERD bảng 57 cho phép cả ba selector) bị loại âm
+     * thầm, và response trả `r.*` — tức nội dung rule nội bộ — thay vì sản phẩm
+     * được gợi ý. Chuyển sang read model canonical (Annex C listPvRecommendations).
+     */
     public function pvRecommendations(Request $request)
     {
-        $validated = $request->validate(['industry_id' => ['required', 'uuid']]);
-
-        return $this->respondPaginated(DB::table('pv_recommendation_rule as r')
-            ->join('sku as s', 's.sku_id', '=', 'r.product_id')
-            ->join('pv_product_profile as p', 'p.product_id', '=', 's.sku_id')
-            ->where('r.industry_id', $validated['industry_id'])
-            ->where('r.status', 'ACTIVE')
-            ->where('s.status', 'ACTIVE')
-            ->where('p.published', true)
-            ->orderBy('r.priority')
-            ->paginate($this->perPage($request), ['r.*', 'p.profile_id', 'p.display_name']));
+        return app(PvPublicCatalogController::class)->listRecommendations($request);
     }
 
     private function readOutboundWorkbook(string $path, string $fileName): array

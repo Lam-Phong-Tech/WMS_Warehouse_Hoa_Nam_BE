@@ -28,7 +28,11 @@ class CurrentBaselineFlowContractSourceTest extends TestCase
         $this->assertStringContainsString('PENDING_RETURN', $reversal);
         $this->assertStringContainsString('PHYSICAL_RETURN_REQUIRED', $reversal);
         $this->assertStringContainsString('REVERSAL_QTY_EXCEEDED', $reversal);
-        $this->assertStringContainsString('REVERSAL_DEPENDENCY_EXISTS', $reversal);
+        // WWHN-234 DEV234-P1-02: BR-REV-04 và TC-REV-02 chỉ đích danh
+        // 409 DOWNSTREAM_DEPENDENCY_EXISTS. Trước đây nhánh quantity trả đúng mã đó còn
+        // nhánh item trả 'REVERSAL_DEPENDENCY_EXISTS' — cùng một tình huống, hai mã.
+        $this->assertStringContainsString('ConflictCode::DOWNSTREAM_DEPENDENCY', $reversal);
+        $this->assertStringNotContainsString("'REVERSAL_DEPENDENCY_EXISTS'", $reversal);
         $this->assertStringContainsString('REVERSAL_OF_REVERSAL_FORBIDDEN', $reversal);
         $this->assertStringContainsString("'original_document_status' => 'POSTED'", $reversal);
     }
@@ -64,8 +68,18 @@ class CurrentBaselineFlowContractSourceTest extends TestCase
         $this->assertStringContainsString('LABEL_PII_FORBIDDEN', $operations);
         $this->assertStringContainsString('PRINT_FAILED', $operations);
         $this->assertStringContainsString('agent_endpoint', $operations);
-        $this->assertStringContainsString("where('s.status', 'ACTIVE')", $operations);
-        $this->assertStringContainsString("where('p.published', true)", $operations);
+
+        // WWHN-252: luật hiển thị App PV chuyển từ CurrentBaselineOperationsController
+        // sang read model canonical (Annex C listPvProducts), nên pin phải theo nó.
+        // Nguồn "đã publish" là sku.published_to_app chứ không còn là
+        // pv_product_profile.published: trên PostgreSQL view `sku` chiếu thẳng
+        // pv_product_profiles.published nên hai giá trị luôn khớp, còn trên sqlite
+        // chỉ published_to_app mới có dữ liệu. Điều kiện active + published vẫn là
+        // bất biến được khoá, chỉ đổi chỗ ở.
+        $readModel = $this->source('Modules/Warehouse/app/Services/PvCatalogReadModel.php');
+        $this->assertStringContainsString("where('s.status', 'ACTIVE')", $readModel);
+        $this->assertStringContainsString("where('s.published_to_app', true)", $readModel);
+        $this->assertStringContainsString('PvPublicCatalogController', $operations);
     }
 
     public function test_component_issue_is_warranty_only_scan_first_and_atomic(): void

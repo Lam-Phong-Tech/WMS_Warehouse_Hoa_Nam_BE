@@ -1,0 +1,113 @@
+{
+    "verified_run_code": "WWHN260-REJ#DRY_RUN",
+    "migration_run_id": "948e4d9a-b969-46c6-ac1b-f7d64777edda",
+    "mode": "DRY_RUN",
+    "status": "FAILED",
+    "package_version": "1.2",
+    "mapping_version": "1.0",
+    "source_file_name": "HoaNam_Import_Package_v1.2_WWHN260_REJECTED_SAMPLE.zip",
+    "source_checksum": "a57458d0b120706dc24f850b7351241d83e53c56663ad10c2050820b15d11063",
+    "timing": {
+        "started_at": "2026-08-18T22:37:53+07:00",
+        "finished_at": "2026-08-18T22:37:53+07:00",
+        "duration_ms": 0
+    },
+    "counts": {
+        "total": 15,
+        "valid": 11,
+        "invalid": 3,
+        "duplicate": 1
+    },
+    "rejected_rows": {
+        "total": 6,
+        "by_dataset": {
+            "AGENCY": 3,
+            "OPENING_BALANCE": 2,
+            "SKU": 1
+        },
+        "by_error_code": {
+            "DUPLICATE_CODE": 1,
+            "INVALID_ENUM": 2,
+            "RECON_MISMATCH": 1,
+            "REQUIRED": 1,
+            "UNKNOWN_FK": 1
+        },
+        "owners": {
+            "AGENCY": "BAS / Kinh doanh (chủ dữ liệu đại lý)",
+            "SKU": "BAS / Danh mục sản phẩm (chủ dữ liệu SKU)",
+            "PHYSICAL_CODE": "BE2 / Quản trị mã vật lý",
+            "CONTAINER": "QL kho (chủ dữ liệu thùng/khay)",
+            "ITEM": "QL kho (chủ dữ liệu item/serial)",
+            "OPENING_BALANCE": "QL kho (chủ dữ liệu tồn đầu kỳ)"
+        },
+        "error_file": "docs/evidence/WWHN-260/09-rejected-rows.csv",
+        "error_file_rows": 6
+    },
+    "checks": [
+        {
+            "check": "RUN_REACHED_EXPECTED_TERMINAL_STATUS",
+            "expected": "PASSED",
+            "actual": "FAILED",
+            "status": "FAIL"
+        },
+        {
+            "check": "RECONCILIATION_PASSED",
+            "expected": "PASS",
+            "actual": "FAIL",
+            "status": "FAIL"
+        },
+        {
+            "check": "RUN_RECORDS_SOURCE_VERSION_CHECKSUM_AND_ID",
+            "expected": "source_file_name + package_version + source_checksum + migration_run_id",
+            "actual": "đủ 4 trường",
+            "status": "PASS"
+        },
+        {
+            "check": "VALID_PLUS_INVALID_PLUS_DUPLICATE_EQUALS_INPUT",
+            "expected": 15,
+            "actual": 15,
+            "status": "PASS"
+        },
+        {
+            "check": "STORED_COUNTS_MATCH_ERROR_TABLE",
+            "expected": "invalid=3, duplicate=1",
+            "actual": "invalid=3, duplicate=1",
+            "status": "PASS"
+        },
+        {
+            "check": "PACKAGE_CHECKSUM_RECOMPUTED",
+            "expected": "a57458d0b120706dc24f850b7351241d83e53c56663ad10c2050820b15d11063",
+            "actual": "a57458d0b120706dc24f850b7351241d83e53c56663ad10c2050820b15d11063",
+            "status": "PASS"
+        },
+        {
+            "check": "PACKAGE_ROW_COUNT_MATCHES_RUN",
+            "expected": 15,
+            "actual": 15,
+            "status": "PASS",
+            "by_dataset": {
+                "AGENCY": 3,
+                "SKU": 3,
+                "PHYSICAL_CODE": 3,
+                "CONTAINER": 1,
+                "ITEM": 2,
+                "OPENING_BALANCE": 3
+            },
+            "file_checksums": {
+                "AGENCY": "969cab2964d449622842a48aa2260acc45e1e7b296d52f5cf35ae18af0949877",
+                "CONTAINER": "5ec7e75c7cf41eb21654607bc535f1515aecf04d11af2b50dd535ad1e617d041",
+                "ITEM": "a863c325935279daecdd5841b6a1c1ddc8af700d8052c0fa5bd0644b0347d38e",
+                "OPENING_BALANCE": "cf0b86245ddaec3f2288310128bda4953b5e932f9335dd8d7f7dd8b678668769",
+                "PHYSICAL_CODE": "da788486d17377840316b0dc3069127df4a851f51ccdd35f7f8514463f8c0635",
+                "SKU": "f4e7337cc2fa134de1cd1c3a57ae7b63b5de09d209c57915dfff9dda614488df"
+            }
+        },
+        {
+            "check": "AT_MOST_ONE_LIVE_COMMIT_PER_CHECKSUM",
+            "expected": "<= 1",
+            "actual": 0,
+            "status": "PASS"
+        }
+    ],
+    "verdict": "FAIL"
+}

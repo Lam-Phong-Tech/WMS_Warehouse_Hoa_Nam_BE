@@ -35,6 +35,8 @@ use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductMasterController;
 use Modules\Warehouse\Http\Controllers\PutawayController;
+use Modules\Warehouse\Http\Controllers\PvAdminResourceController;
+use Modules\Warehouse\Http\Controllers\PvPublicCatalogController;
 use Modules\Warehouse\Http\Controllers\ReversalDocumentController;
 use Modules\Warehouse\Http\Controllers\ScanController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
@@ -43,6 +45,7 @@ use Modules\Warehouse\Http\Controllers\WmsContractController;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
+use Modules\Warehouse\Http\Middleware\EnforceReversalWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
 use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 
@@ -52,10 +55,18 @@ Route::prefix('v1')->group(function (): void {
     // trong error set của chúng — trước đây không có limiter nào nên 429 là mã
     // lỗi công bố nhưng không thể xảy ra. Ngưỡng tại config/rate_limit.php.
     Route::middleware('throttle:pv-public')->group(function (): void {
-        Route::get('pv/catalog', [CurrentBaselineOperationsController::class, 'pvCatalog']);
-        Route::get('pv/industries', [CanonicalMvpController::class, 'pvIndustries']);
-        Route::get('pv/tags', [CanonicalMvpController::class, 'pvTags']);
+        // WWHN-252 / Annex C: path CANONICAL của App PV là /pv/products và
+        // /pv/products/{sku_id} (operationId listPvProducts / getPvProduct,
+        // security: []). Trước đây surface chỉ có /pv/catalog nên FE không có
+        // hợp đồng nào để wire vào — đó là gốc của FE252-P1-02/P1-07.
+        Route::get('pv/products', [PvPublicCatalogController::class, 'listProducts']);
+        Route::get('pv/products/{skuId}', [PvPublicCatalogController::class, 'showProduct']);
+        Route::get('pv/industries', [PvPublicCatalogController::class, 'listIndustries']);
         Route::get('pv/recommendations', [CurrentBaselineOperationsController::class, 'pvRecommendations']);
+
+        // Path lịch sử, giữ để client cũ không vỡ; thân hàm đã trỏ về cùng read model.
+        Route::get('pv/catalog', [CurrentBaselineOperationsController::class, 'pvCatalog']);
+        Route::get('pv/tags', [CanonicalMvpController::class, 'pvTags']);
     });
 
     Route::middleware('auth:api')->group(function (): void {
@@ -146,10 +157,17 @@ Route::prefix('v1')->group(function (): void {
         Route::get('stock-movements/{id}/trace-source', [StockMovementController::class, 'traceSource'])
             ->middleware(['permission:inventory.trace', EnforceInventoryWarehouseScope::class]);
 
-        Route::get('reversal-documents', [ReversalDocumentController::class, 'index'])->middleware('permission:inventory.view');
-        Route::post('reversal-documents', [ReversalDocumentController::class, 'store'])->middleware('permission:inventory.reversal.post');
-        Route::get('reversal-documents/{id}', [ReversalDocumentController::class, 'show'])->middleware('permission:inventory.view');
-        Route::get('reversal-documents/{id}/lines', [ReversalDocumentController::class, 'lines'])->middleware('permission:inventory.view');
+        // WWHN-242: nhóm reversal-documents phải chịu warehouse data scope như nhóm
+        // inventory (WWHN-211) và inbound (WWHN-289). Thiếu nó thì actor có
+        // inventory.reversal.post ghi được stock effect sang kho ngoài phạm vi.
+        Route::get('reversal-documents', [ReversalDocumentController::class, 'index'])
+            ->middleware(['permission:inventory.view', EnforceReversalWarehouseScope::class]);
+        Route::post('reversal-documents', [ReversalDocumentController::class, 'store'])
+            ->middleware(['permission:inventory.reversal.post', EnforceReversalWarehouseScope::class]);
+        Route::get('reversal-documents/{id}', [ReversalDocumentController::class, 'show'])
+            ->middleware(['permission:inventory.view', EnforceReversalWarehouseScope::class]);
+        Route::get('reversal-documents/{id}/lines', [ReversalDocumentController::class, 'lines'])
+            ->middleware(['permission:inventory.view', EnforceReversalWarehouseScope::class]);
 
         Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:inventory.view');
 
@@ -364,13 +382,31 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('package-variants/{id}', [CurrentBaselineMasterController::class, 'updatePackageVariant'])->middleware('permission:catalog.manage');
 
         // Annex C publishPvProduct — quyền pv.publish tách khỏi sku.manage theo §3.
+        // WWHN-252 (FE252-P1-03): alternative `|sku.manage` biến việc tách quyền
+        // thành hình thức — ai sửa được SKU là publish được lên mặt công khai.
+        // §3 xếp publish vào cột App PV với permission key riêng nên gate phải
+        // đúng một quyền.
         Route::patch('pv/products/{id}/publish', [ProductController::class, 'publishPvProduct'])
-            ->middleware('permission:pv.publish|sku.manage');
+            ->middleware('permission:pv.publish');
+
+        // Annex C listPvAdminResources / createPvAdminResource / updatePvAdminResource
+        // (REQ-SRS-033) — PV Industry/Tag/Product Mapping/Recommendation Rule.
+        Route::get('pv-admin/resources/{resourceType}', [PvAdminResourceController::class, 'index'])
+            ->middleware('permission:pv.master.manage');
+        Route::post('pv-admin/resources/{resourceType}', [PvAdminResourceController::class, 'store'])
+            ->middleware('permission:pv.master.manage');
+        Route::patch('pv-admin/resources/{resourceType}/{id}', [PvAdminResourceController::class, 'update'])
+            ->middleware('permission:pv.master.manage');
 
         // SRS §6 Reversal state model: DRAFT → (confirm) → post/cancel.
-        Route::post('reversal-documents/{id}/confirm', [ReversalDocumentController::class, 'confirm'])->middleware('permission:inventory.reversal.post');
-        Route::post('reversal-documents/{id}/post', [ReversalDocumentController::class, 'post'])->middleware('permission:inventory.reversal.post');
-        Route::post('reversal-documents/{id}/cancel', [ReversalDocumentController::class, 'cancel'])->middleware('permission:inventory.reversal.post');
+        // WWHN-242: ba thao tác này đổi trạng thái/stock effect nên bắt buộc chịu
+        // warehouse data scope, không chỉ function permission.
+        Route::post('reversal-documents/{id}/confirm', [ReversalDocumentController::class, 'confirm'])
+            ->middleware(['permission:inventory.reversal.post', EnforceReversalWarehouseScope::class]);
+        Route::post('reversal-documents/{id}/post', [ReversalDocumentController::class, 'post'])
+            ->middleware(['permission:inventory.reversal.post', EnforceReversalWarehouseScope::class]);
+        Route::post('reversal-documents/{id}/cancel', [ReversalDocumentController::class, 'cancel'])
+            ->middleware(['permission:inventory.reversal.post', EnforceReversalWarehouseScope::class]);
 
         // Annex C assignItemRfid — RFID là tùy chọn, không phải gate Post Issue.
         Route::put('outbound-documents/{id}/items/{itemId}/rfid', [CurrentBaselinePhysicalCodeController::class, 'assignOutboundItemRfid'])

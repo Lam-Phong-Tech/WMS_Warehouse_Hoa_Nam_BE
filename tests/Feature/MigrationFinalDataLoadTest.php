@@ -4,17 +4,33 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Modules\Auth\Models\Permission;
+use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Agency;
 use Modules\Warehouse\Models\Sku;
 use Tests\TestCase;
 
 /**
  * WWHN-299 — lần nạp dữ liệu cuối (REQ-SRS-021 / AC-SRS-021, SRS §13.12,
  * DEC-MIG-API-001, ERD bảng 58-59).
+ *
+ * Nhóm test được bổ sung sau đánh giá 60/100 phủ đúng ba defect đã đóng:
+ *   - DEV299-P1-01 rollback có khả năng đảo ngược master (khôi phục bản ghi bị
+ *     ghi đè, loại bỏ bản ghi mới, chứng minh không còn tồn dư);
+ *   - DEV299-P1-02 thẩm quyền duyệt và separation of duty;
+ *   - DEV299-P1-03 manifest nằm trong checksum nguồn.
  */
 class MigrationFinalDataLoadTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** Quyền tối thiểu của cutover operator theo config/final_data_load.php. */
+    private const OPERATOR_PERMISSIONS = ['warehouse.view', 'inventory.view'];
+
+    /** Quyền Data Owner được ký duyệt opening balance (SRS §13.12 "QL kho signs result"). */
+    private const APPROVER_PERMISSIONS = ['warehouse.manage', 'inventory.view', 'warehouse.view'];
 
     private string $packagePath;
 
@@ -23,22 +39,11 @@ class MigrationFinalDataLoadTest extends TestCase
         parent::setUp();
 
         $this->ensureActiveWarehouse('HN-WH-01', 'Kho tổng Hòa Nam');
-        User::query()->create([
-            'username' => 'cutover-operator',
-            'display_name' => 'Cutover Operator',
-            'email' => 'cutover-operator@hoanam.com',
-            'password_hash' => bcrypt('Cntt@1234'),
-            'status' => 'ACTIVE',
-            'version' => 1,
-        ]);
-        User::query()->create([
-            'username' => 'data-owner',
-            'display_name' => 'Data Owner',
-            'email' => 'data-owner@hoanam.com',
-            'password_hash' => bcrypt('Cntt@1234'),
-            'status' => 'ACTIVE',
-            'version' => 1,
-        ]);
+
+        $this->seedActor('cutover-operator', 'Cutover Operator', self::OPERATOR_PERMISSIONS);
+        $this->seedActor('data-owner', 'Data Owner', self::APPROVER_PERMISSIONS);
+        // NV kho: có quyền vận hành nhưng KHÔNG phải Data Owner của tồn đầu.
+        $this->seedActor('warehouse-staff', 'Warehouse Staff', self::OPERATOR_PERMISSIONS);
 
         $this->packagePath = storage_path('framework/testing/import-package-'.uniqid());
         $this->writePackage();
@@ -73,13 +78,7 @@ class MigrationFinalDataLoadTest extends TestCase
 
     public function test_commit_is_blocked_without_passed_dry_run(): void
     {
-        $this->artisan('migration:final-load', [
-            '--mode' => 'COMMIT',
-            '--package' => $this->packagePath,
-            '--run-code' => 'CUTOVER-NO-DRYRUN',
-            '--executed-by' => 'cutover-operator',
-            '--approved-by' => 'data-owner',
-        ])->assertExitCode(1);
+        $this->commit('CUTOVER-NO-DRYRUN')->assertExitCode(1);
 
         $this->assertDatabaseMissing('migration_runs', ['migration_run_code' => 'CUTOVER-NO-DRYRUN#COMMIT']);
         $this->assertSame(0, DB::table('stock_movements')->count());
@@ -97,6 +96,73 @@ class MigrationFinalDataLoadTest extends TestCase
         ])->assertExitCode(1);
 
         $this->assertSame(0, DB::table('stock_movements')->count());
+    }
+
+    /** DEV299-P1-02: user ACTIVE nhưng không phải Data Owner thì không mở được COMMIT. */
+    public function test_commit_is_blocked_when_approver_is_not_a_data_owner(): void
+    {
+        $this->dryRun('CUTOVER-WEAK-APPROVER');
+
+        $this->artisan('migration:final-load', [
+            '--mode' => 'COMMIT',
+            '--package' => $this->packagePath,
+            '--run-code' => 'CUTOVER-WEAK-APPROVER',
+            '--executed-by' => 'cutover-operator',
+            '--approved-by' => 'warehouse-staff',
+            '--approval-ref' => 'WWHN-298#SIGNOFF-1',
+        ])->assertExitCode(1);
+
+        $this->assertDatabaseMissing('migration_runs', ['migration_run_code' => 'CUTOVER-WEAK-APPROVER#COMMIT']);
+        $this->assertSame(0, DB::table('stock_movements')->count());
+    }
+
+    /** DEV299-P1-02: separation of duty — operator không tự duyệt được. */
+    public function test_commit_is_blocked_when_approver_is_the_operator(): void
+    {
+        $this->dryRun('CUTOVER-SELF-APPROVE');
+
+        $this->artisan('migration:final-load', [
+            '--mode' => 'COMMIT',
+            '--package' => $this->packagePath,
+            '--run-code' => 'CUTOVER-SELF-APPROVE',
+            '--executed-by' => 'data-owner',
+            '--approved-by' => 'data-owner',
+            '--approval-ref' => 'WWHN-298#SIGNOFF-1',
+        ])->assertExitCode(1);
+
+        $this->assertDatabaseMissing('migration_runs', ['migration_run_code' => 'CUTOVER-SELF-APPROVE#COMMIT']);
+        $this->assertSame(0, DB::table('stock_movements')->count());
+    }
+
+    /** DEV299-P1-02: phải pin được "duyệt theo văn bản nào", không chỉ "ai duyệt". */
+    public function test_commit_is_blocked_without_approval_reference(): void
+    {
+        $this->dryRun('CUTOVER-NO-REF');
+
+        $this->artisan('migration:final-load', [
+            '--mode' => 'COMMIT',
+            '--package' => $this->packagePath,
+            '--run-code' => 'CUTOVER-NO-REF',
+            '--executed-by' => 'cutover-operator',
+            '--approved-by' => 'data-owner',
+        ])->assertExitCode(1);
+
+        $this->assertDatabaseMissing('migration_runs', ['migration_run_code' => 'CUTOVER-NO-REF#COMMIT']);
+    }
+
+    /** DEV299-P1-02: operator không đủ quyền bị chặn trước khi tạo bất kỳ run nào. */
+    public function test_operator_without_required_permission_is_rejected(): void
+    {
+        $this->seedActor('outsider', 'Outsider', []);
+
+        $this->artisan('migration:final-load', [
+            '--mode' => 'DRY_RUN',
+            '--package' => $this->packagePath,
+            '--run-code' => 'CUTOVER-OUTSIDER',
+            '--executed-by' => 'outsider',
+        ])->assertExitCode(1);
+
+        $this->assertSame(0, DB::table('migration_runs')->count());
     }
 
     public function test_commit_writes_opening_balance_and_reconciles(): void
@@ -121,6 +187,12 @@ class MigrationFinalDataLoadTest extends TestCase
         $this->assertSame(2, (clone $balances)->count());
         $this->assertSame(3, (int) (clone $balances)->sum('on_hand_qty'));
         $this->assertSame(3, (int) (clone $balances)->sum('available_qty'));
+
+        // Mã quyết định duyệt phải đi vào evidence của run, không chỉ nằm ở console.
+        $note = (string) DB::table('migration_runs')
+            ->where('migration_run_code', 'CUTOVER-2026#COMMIT')
+            ->value('note');
+        $this->assertStringContainsString('APPROVAL_REF=WWHN-298#SIGNOFF-1', $note);
     }
 
     public function test_commit_rerun_with_same_run_code_is_idempotent(): void
@@ -147,6 +219,47 @@ class MigrationFinalDataLoadTest extends TestCase
 
         $this->assertDatabaseMissing('migration_runs', ['migration_run_code' => 'CUTOVER-2026#COMMIT']);
         $this->assertSame(0, DB::table('stock_movements')->count());
+    }
+
+    /**
+     * DEV299-P1-03: đổi metadata manifest (không đụng byte nào của CSV) vẫn phải
+     * làm checksum khác và chặn COMMIT.
+     */
+    public function test_changed_manifest_metadata_after_dry_run_blocks_commit(): void
+    {
+        $this->dryRun('CUTOVER-MANIFEST');
+
+        $manifest = json_decode((string) file_get_contents($this->packagePath.'/manifest.json'), true);
+        $manifest['source_file_name'] = 'HoaNam_Import_Package_v1.2_KHAC.zip';
+        file_put_contents(
+            $this->packagePath.'/manifest.json',
+            json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+
+        $this->commit('CUTOVER-MANIFEST')->assertExitCode(1);
+
+        $this->assertDatabaseMissing('migration_runs', ['migration_run_code' => 'CUTOVER-MANIFEST#COMMIT']);
+        $this->assertSame(0, DB::table('stock_movements')->count());
+    }
+
+    /**
+     * DEV299-P1-03: format lại manifest (thụt lề, đổi thứ tự khoá) không đổi nội
+     * dung normative nên KHÔNG được coi là package khác.
+     */
+    public function test_reformatting_manifest_does_not_change_checksum(): void
+    {
+        $this->dryRun('CUTOVER-REFORMAT');
+
+        $manifest = json_decode((string) file_get_contents($this->packagePath.'/manifest.json'), true);
+        $manifest = array_reverse($manifest, true);
+        file_put_contents($this->packagePath.'/manifest.json', json_encode($manifest, JSON_UNESCAPED_UNICODE));
+
+        $this->commit('CUTOVER-REFORMAT')->assertExitCode(0);
+
+        $this->assertDatabaseHas('migration_runs', [
+            'migration_run_code' => 'CUTOVER-REFORMAT#COMMIT',
+            'status' => 'COMMITTED',
+        ]);
     }
 
     public function test_dry_run_reports_row_level_errors_with_masked_pii(): void
@@ -205,11 +318,7 @@ class MigrationFinalDataLoadTest extends TestCase
         $this->dryRun('CUTOVER-2026');
         $this->commit('CUTOVER-2026')->assertExitCode(0);
 
-        $this->artisan('migration:final-load', [
-            '--mode' => 'ROLLBACK',
-            '--run-code' => 'CUTOVER-2026',
-            '--executed-by' => 'cutover-operator',
-        ])->assertExitCode(0);
+        $this->rollback('CUTOVER-2026')->assertExitCode(0);
 
         $this->assertDatabaseHas('migration_runs', [
             'migration_run_code' => 'CUTOVER-2026#ROLLBACK',
@@ -224,7 +333,117 @@ class MigrationFinalDataLoadTest extends TestCase
         // Ledger append-only: movement gốc vẫn còn, hiệu ứng ròng bằng 0.
         $this->assertSame(0, (int) DB::table('stock_movements')->sum('qty_delta'));
         $this->assertSame(2, DB::table('stock_movements')->where('movement_type', 'REVERSAL')->count());
-        $this->assertDatabaseHas('containers', ['container_code' => 'CTN-900', 'status' => 'CLOSED']);
+    }
+
+    /**
+     * DEV299-P1-01: SRS §13.12 đòi "no subset master/opening/movement remains".
+     * Master do run tạo mới phải biến mất hẳn khi khoá ngoại cho phép.
+     */
+    public function test_rollback_removes_masters_created_by_the_run(): void
+    {
+        $this->dryRun('CUTOVER-2026');
+        $this->commit('CUTOVER-2026')->assertExitCode(0);
+
+        $this->assertDatabaseHas('agencies', ['agency_code' => 'AG-900']);
+        $this->assertDatabaseHas('sku', ['sku_code' => 'HN-MK-001-V1']);
+        $this->assertDatabaseHas('containers', ['container_code' => 'CTN-900']);
+
+        $this->rollback('CUTOVER-2026')->assertExitCode(0);
+
+        $this->assertDatabaseMissing('agencies', ['agency_code' => 'AG-900']);
+        $this->assertDatabaseMissing('physical_codes', ['code_value' => 'HN-CTN-900']);
+        $this->assertDatabaseMissing('containers', ['container_code' => 'CTN-900']);
+        $this->assertDatabaseMissing('item_instances', ['serial_number' => 'SN0001']);
+        $this->assertDatabaseMissing('import_batches', ['import_batch_code' => 'BATCH-900']);
+        $this->assertSame(0, DB::table('inventory_balances')->count());
+
+        $result = json_decode((string) DB::table('migration_runs')
+            ->where('migration_run_code', 'CUTOVER-2026#ROLLBACK')
+            ->value('reconciliation_result'), true);
+
+        $this->assertSame(0, $result['residual_master_rows']);
+        $this->assertSame([], $result['master_rollback']['retained_rows']);
+        $this->assertSame([], $result['master_rollback']['missing_rows']);
+    }
+
+    /**
+     * DEV299-P1-01: `stock_movements` là append-only (DEC-REV-001) nên OPENING và
+     * REVERSAL của run vẫn giữ khoá ngoại tới SKU — SKU mới không xoá cứng được.
+     * Rollback phải disposition nó về INACTIVE và nói rõ lý do trong evidence,
+     * chứ không được im lặng để lại một SKU ACTIVE do cutover sinh ra.
+     */
+    public function test_rollback_disposes_ledger_pinned_masters_instead_of_leaving_them_active(): void
+    {
+        $this->dryRun('CUTOVER-2026');
+        $this->commit('CUTOVER-2026')->assertExitCode(0);
+        $this->rollback('CUTOVER-2026')->assertExitCode(0);
+
+        $this->assertDatabaseHas('sku', ['sku_code' => 'HN-MK-001-V1', 'status' => 'INACTIVE']);
+        $this->assertDatabaseHas('sku', ['sku_code' => 'HN-PK-002-V1', 'status' => 'INACTIVE']);
+        $this->assertSame(0, DB::table('sku')->where('status', 'ACTIVE')->count());
+
+        $result = json_decode((string) DB::table('migration_runs')
+            ->where('migration_run_code', 'CUTOVER-2026#ROLLBACK')
+            ->value('reconciliation_result'), true);
+
+        $this->assertSame('PASS', $result['status']);
+        $this->assertCount(2, $result['master_rollback']['disposed_rows']);
+        foreach ($result['master_rollback']['disposed_rows'] as $row) {
+            $this->assertSame('sku', $row['table']);
+            $this->assertSame('LEDGER_PINNED', $row['reason']);
+            $this->assertSame('INACTIVE', $row['status_value']);
+        }
+    }
+
+    /**
+     * DEV299-P1-01: master đã tồn tại trước cutover bị package ghi đè phải trở
+     * lại đúng giá trị cũ, không phải giữ giá trị của package.
+     */
+    public function test_rollback_restores_masters_overwritten_by_the_package(): void
+    {
+        Sku::query()->create([
+            'sku_code' => 'HN-MK-001-V1',
+            'sku_name' => 'Tên cũ',
+            'sku_type' => 'PRODUCT',
+            'unit' => 'bộ',
+            'is_serial_tracked' => true,
+            'version_code' => 'V0',
+            'status' => 'INACTIVE',
+        ]);
+        Agency::query()->create([
+            'agency_code' => 'AG-900',
+            'agency_name' => 'Đại lý cũ',
+            'phone' => '0900000000',
+            'address' => 'Địa chỉ cũ',
+            'status' => 'INACTIVE',
+        ]);
+
+        $this->dryRun('CUTOVER-2026');
+        $this->commit('CUTOVER-2026')->assertExitCode(0);
+
+        $this->assertSame('Máy khoan mẫu', Sku::query()->where('sku_code', 'HN-MK-001-V1')->value('sku_name'));
+
+        $this->rollback('CUTOVER-2026')->assertExitCode(0);
+
+        $sku = Sku::query()->where('sku_code', 'HN-MK-001-V1')->first();
+        $this->assertNotNull($sku, 'SKU có trước cutover không được biến mất khi rollback.');
+        $this->assertSame('Tên cũ', $sku->sku_name);
+        $this->assertSame('bộ', $sku->unit);
+        $this->assertSame('V0', $sku->version_code);
+        $this->assertSame('INACTIVE', $sku->status);
+
+        $agency = Agency::query()->where('agency_code', 'AG-900')->first();
+        $this->assertNotNull($agency);
+        $this->assertSame('Đại lý cũ', $agency->agency_name);
+        $this->assertSame('INACTIVE', $agency->status);
+
+        $result = json_decode((string) DB::table('migration_runs')
+            ->where('migration_run_code', 'CUTOVER-2026#ROLLBACK')
+            ->value('reconciliation_result'), true);
+
+        $this->assertSame('PASS', $result['status']);
+        $this->assertSame(0, $result['residual_master_rows']);
+        $this->assertGreaterThanOrEqual(2, $result['master_rollback']['restored_rows']);
     }
 
     public function test_unknown_operator_is_rejected_before_any_run_is_created(): void
@@ -276,7 +495,56 @@ class MigrationFinalDataLoadTest extends TestCase
             '--run-code' => $runCode,
             '--executed-by' => 'cutover-operator',
             '--approved-by' => 'data-owner',
+            '--approval-ref' => 'WWHN-298#SIGNOFF-1',
         ]);
+    }
+
+    private function rollback(string $runCode)
+    {
+        return $this->artisan('migration:final-load', [
+            '--mode' => 'ROLLBACK',
+            '--run-code' => $runCode,
+            '--executed-by' => 'cutover-operator',
+        ]);
+    }
+
+    /**
+     * Tạo user + role + permission thật thay vì user trần: cổng thẩm quyền của
+     * job đọc `permissionCodes()`, nên fixture phải đi qua đúng đường RBAC.
+     *
+     * @param  array<int, string>  $permissions
+     */
+    private function seedActor(string $username, string $displayName, array $permissions): User
+    {
+        $user = User::query()->create([
+            'username' => $username,
+            'display_name' => $displayName,
+            'email' => $username.'@hoanam.com',
+            'password_hash' => bcrypt('Cntt@1234'),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+
+        $role = Role::query()->create([
+            'role_code' => strtoupper(str_replace('-', '_', $username)),
+            'role_name' => $displayName,
+            'scope_type' => 'SYSTEM',
+            'status' => 'ACTIVE',
+        ]);
+
+        foreach ($permissions as $key) {
+            $permission = Permission::query()->firstOrCreate(
+                ['permission_key' => $key],
+                ['permission_name' => $key, 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE'],
+            );
+            $role->permissions()->attach($permission->permission_id, [
+                'role_permission_id' => (string) Str::uuid(),
+            ]);
+        }
+
+        $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
+
+        return $user;
     }
 
     private function writePackage(): void

@@ -1,0 +1,3 @@
+sku_code,sku_name,sku_type,unit,is_serial_tracked,version_code,status
+HN-MK-260-V1,May khoan cutover 260,PRODUCT,cai,TRUE,V1,ACTIVE
+HN-PK-260-V1,Phu kien cutover 260,COMPONENT,cai,FALSE,V1,ACTIVE

@@ -1,0 +1,137 @@
+{
+    "migration_run_id": "948e4d9a-b969-46c6-ac1b-f7d64777edda",
+    "migration_run_code": "WWHN260-REJ#DRY_RUN",
+    "mode": "DRY_RUN",
+    "status": "FAILED",
+    "package_version": "1.2",
+    "mapping_version": "1.0",
+    "source_file_name": "HoaNam_Import_Package_v1.2_WWHN260_REJECTED_SAMPLE.zip",
+    "source_checksum": "a57458d0b120706dc24f850b7351241d83e53c56663ad10c2050820b15d11063",
+    "manifest_checksum": "7fc366c8ab0f8f788814d1ea816d5f3a2001fda0ea3239ab5997a931cda250bf",
+    "manifest": {
+        "package_version": "1.2",
+        "source_file_name": "HoaNam_Import_Package_v1.2_WWHN260_REJECTED_SAMPLE.zip",
+        "datasets": {
+            "AGENCY": "agency.csv",
+            "CONTAINER": "container.csv",
+            "ITEM": "item.csv",
+            "OPENING_BALANCE": "opening_balance.csv",
+            "PHYSICAL_CODE": "physical_code.csv",
+            "SKU": "sku.csv"
+        }
+    },
+    "file_checksums": {
+        "AGENCY": "969cab2964d449622842a48aa2260acc45e1e7b296d52f5cf35ae18af0949877",
+        "CONTAINER": "5ec7e75c7cf41eb21654607bc535f1515aecf04d11af2b50dd535ad1e617d041",
+        "ITEM": "a863c325935279daecdd5841b6a1c1ddc8af700d8052c0fa5bd0644b0347d38e",
+        "OPENING_BALANCE": "cf0b86245ddaec3f2288310128bda4953b5e932f9335dd8d7f7dd8b678668769",
+        "PHYSICAL_CODE": "da788486d17377840316b0dc3069127df4a851f51ccdd35f7f8514463f8c0635",
+        "SKU": "f4e7337cc2fa134de1cd1c3a57ae7b63b5de09d209c57915dfff9dda614488df"
+    },
+    "source_files": {
+        "AGENCY": "agency.csv",
+        "CONTAINER": "container.csv",
+        "ITEM": "item.csv",
+        "OPENING_BALANCE": "opening_balance.csv",
+        "PHYSICAL_CODE": "physical_code.csv",
+        "SKU": "sku.csv"
+    },
+    "counts": {
+        "total": 15,
+        "valid": 11,
+        "invalid": 3,
+        "duplicate": 1,
+        "invariant_holds": true,
+        "by_dataset": {
+            "AGENCY": 3,
+            "SKU": 3,
+            "PHYSICAL_CODE": 3,
+            "CONTAINER": 1,
+            "ITEM": 2,
+            "OPENING_BALANCE": 3
+        }
+    },
+    "timing": {
+        "started_at": "2026-08-18T22:37:53+07:00",
+        "finished_at": "2026-08-18T22:37:53+07:00",
+        "duration_ms": 19,
+        "duration_source": "MONOTONIC_CLOCK"
+    },
+    "reconciliation": {
+        "status": "FAIL",
+        "scope": "SOURCE",
+        "checks": [
+            {
+                "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
+                "sku_code": "HN-MK-260-V1",
+                "expected": 3,
+                "actual": 2,
+                "status": "FAIL",
+                "message": "SKU serial-tracked HN-MK-260-V1: opening 3 vs số Item 2."
+            }
+        ]
+    },
+    "errors": [
+        {
+            "dataset": "AGENCY",
+            "row_no": 3,
+            "field_name": "agency_name",
+            "error_code": "REQUIRED",
+            "severity": "ERROR",
+            "message": "Thiếu giá trị bắt buộc cho agency_name.",
+            "raw_value_masked": null,
+            "suggested_action": "Bổ sung giá trị trong Import Package rồi chạy lại dry-run."
+        },
+        {
+            "dataset": "AGENCY",
+            "row_no": 3,
+            "field_name": "status",
+            "error_code": "INVALID_ENUM",
+            "severity": "ERROR",
+            "message": "status phải thuộc: ACTIVE/INACTIVE.",
+            "raw_value_masked": "KHONG_HOP_LE",
+            "suggested_action": "Sửa giá trị về đúng enum baseline rồi chạy lại dry-run."
+        },
+        {
+            "dataset": "AGENCY",
+            "row_no": 4,
+            "field_name": "agency_code",
+            "error_code": "DUPLICATE_CODE",
+            "severity": "CRITICAL",
+            "message": "Giá trị agency_code bị lặp trong package (đã xuất hiện ở dòng 2).",
+            "raw_value_masked": "AG-260-01",
+            "suggested_action": "Loại bỏ dòng trùng hoặc hợp nhất trước khi chạy lại dry-run."
+        },
+        {
+            "dataset": "SKU",
+            "row_no": 4,
+            "field_name": "sku_type",
+            "error_code": "INVALID_ENUM",
+            "severity": "ERROR",
+            "message": "sku_type phải thuộc: PRODUCT/COMPONENT.",
+            "raw_value_masked": "GADGET",
+            "suggested_action": "Sửa giá trị về đúng enum baseline rồi chạy lại dry-run."
+        },
+        {
+            "dataset": "OPENING_BALANCE",
+            "row_no": 4,
+            "field_name": "warehouse_code",
+            "error_code": "UNKNOWN_FK",
+            "severity": "CRITICAL",
+            "message": "Không tìm thấy tham chiếu warehouse_code=KHO-KHONG-TON-TAI trong package hoặc baseline hiện tại.",
+            "raw_value_masked": "KHO-KHONG-TON-TAI",
+            "suggested_action": "Bổ sung bản ghi nguồn hoặc sửa mã tham chiếu rồi chạy lại dry-run."
+        },
+        {
+            "dataset": "OPENING_BALANCE",
+            "row_no": null,
+            "field_name": "quantity",
+            "error_code": "RECON_MISMATCH",
+            "severity": "CRITICAL",
+            "message": "SKU serial-tracked HN-MK-260-V1: opening 3 không khớp số Item 2.",
+            "raw_value_masked": null,
+            "suggested_action": "Đối chiếu lại nguồn opening balance đã duyệt với danh sách Item."
+        }
+    ],
+    "replayed": false
+}

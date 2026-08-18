@@ -1,0 +1,9 @@
+{
+    "migration_run_id": null,
+    "migration_run_code": "WWHN260-REH-2",
+    "mode": "COMMIT",
+    "status": "BLOCKED",
+    "error_code": "PACKAGE_ALREADY_COMMITTED",
+    "message": "COMMIT bị chặn: package (checksum b3f71d06184e9a2a6c0816a67d3a761b90942278f6a319126fbcac18c7be86ab) đã được nạp ở run WWHN260-REH#COMMIT và chưa rollback.",
+    "replayed": false
+}

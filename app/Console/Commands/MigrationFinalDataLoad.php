@@ -2,10 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Support\Migration\CutoverAuthority;
+use App\Support\Migration\CutoverAuthorityException;
 use App\Support\Migration\FinalDataLoadService;
 use App\Support\Migration\ImportPackage;
 use Illuminate\Console\Command;
-use Modules\Auth\Models\User;
 use RuntimeException;
 use Throwable;
 
@@ -16,7 +17,7 @@ use Throwable;
  * chạy job này trong window đã duyệt và nộp file evidence sinh ra ở --output.
  *
  *   php artisan migration:final-load --mode=DRY_RUN  --package=... --run-code=... --executed-by=admin
- *   php artisan migration:final-load --mode=COMMIT   --package=... --run-code=... --executed-by=admin --approved-by=manager01
+ *   php artisan migration:final-load --mode=COMMIT   --package=... --run-code=... --executed-by=admin --approved-by=manager01 --approval-ref=WWHN-298#123456
  *   php artisan migration:final-load --mode=ROLLBACK --run-code=... --executed-by=admin
  */
 class MigrationFinalDataLoad extends Command
@@ -27,10 +28,16 @@ class MigrationFinalDataLoad extends Command
         {--run-code= : Mã run của lần nạp cuối; DRY_RUN/COMMIT/ROLLBACK dùng chung mã này}
         {--executed-by= : username của cutover operator}
         {--approved-by= : username của Data Owner đã ký duyệt (bắt buộc cho COMMIT)}
+        {--approval-ref= : Mã quyết định/biên bản ký duyệt opening balance (bắt buộc cho COMMIT)}
         {--note= : Ghi chú cutover}
         {--output= : Ghi báo cáo JSON evidence vào file}';
 
     protected $description = 'Thực hiện/xác minh lần nạp dữ liệu cuối: dry-run, commit, reconcile và rollback có kiểm soát';
+
+    public function __construct(private readonly CutoverAuthority $authority)
+    {
+        parent::__construct();
+    }
 
     public function handle(FinalDataLoadService $service): int
     {
@@ -44,16 +51,20 @@ class MigrationFinalDataLoad extends Command
             return $this->failWith('MIGRATION_RUN_CODE_INVALID', '--run-code bắt buộc, tối đa 60 ký tự và không chứa ký tự "#".');
         }
 
-        $executedBy = $this->resolveUser((string) $this->option('executed-by'));
-        if ($executedBy === null) {
-            return $this->failWith('MIGRATION_OPERATOR_UNKNOWN', '--executed-by phải là username hợp lệ và đang ACTIVE.');
+        try {
+            $operator = $this->authority->resolveOperator((string) $this->option('executed-by'));
+        } catch (CutoverAuthorityException $denied) {
+            return $this->failWith($denied->errorCode, $denied->getMessage());
         }
+        $executedBy = $operator['id'];
 
         try {
             $report = match ($mode) {
                 'ROLLBACK' => $service->rollback($runCode, $executedBy, $this->option('note')),
-                default => $this->runPackageMode($service, $mode, $runCode, $executedBy),
+                default => $this->runPackageMode($service, $mode, $runCode, $operator),
             };
+        } catch (CutoverAuthorityException $denied) {
+            return $this->failWith($denied->errorCode, $denied->getMessage());
         } catch (RuntimeException $error) {
             return $this->failWith('MIGRATION_PACKAGE_INVALID', $error->getMessage());
         } catch (Throwable $error) {
@@ -72,8 +83,11 @@ class MigrationFinalDataLoad extends Command
             : self::FAILURE;
     }
 
-    /** @return array<string, mixed>|int */
-    private function runPackageMode(FinalDataLoadService $service, string $mode, string $runCode, string $executedBy): array|int
+    /**
+     * @param  array{id:string, username:string, permissions:list<string>}  $operator
+     * @return array<string, mixed>|int
+     */
+    private function runPackageMode(FinalDataLoadService $service, string $mode, string $runCode, array $operator): array|int
     {
         $packagePath = (string) $this->option('package');
         if ($packagePath === '' || ! is_dir($packagePath)) {
@@ -83,26 +97,25 @@ class MigrationFinalDataLoad extends Command
         $package = ImportPackage::load($packagePath);
 
         if ($mode === 'DRY_RUN') {
-            return $service->dryRun($package, $runCode, $executedBy, $this->option('note'));
+            return $service->dryRun($package, $runCode, $operator['id'], $this->option('note'));
         }
 
-        $approvedBy = $this->resolveUser((string) $this->option('approved-by'));
-        if ($approvedBy === null) {
-            return $this->failWith('MIGRATION_APPROVER_REQUIRED', 'COMMIT bắt buộc --approved-by là username Data Owner hợp lệ.');
-        }
+        // DEV299-P1-02: approver phải là Data Owner thật, không được trùng
+        // operator, và phải kèm mã quyết định duyệt opening balance.
+        $approver = $this->authority->resolveApprover(
+            (string) $this->option('approved-by'),
+            $operator['id'],
+            $this->option('approval-ref'),
+        );
 
-        return $service->commit($package, $runCode, $executedBy, $approvedBy, $this->option('note'));
-    }
-
-    private function resolveUser(string $username): ?string
-    {
-        if ($username === '') {
-            return null;
-        }
-
-        $user = User::query()->where('username', $username)->where('status', 'ACTIVE')->first();
-
-        return $user === null ? null : (string) $user->getKey();
+        return $service->commit(
+            $package,
+            $runCode,
+            $operator['id'],
+            $approver['id'],
+            $this->option('note'),
+            $approver['approval_ref'],
+        );
     }
 
     private function writeReport(array $report): void

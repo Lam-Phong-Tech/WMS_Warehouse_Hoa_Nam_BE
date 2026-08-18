@@ -1,0 +1,4 @@
+agency_code,agency_name,phone,address,status
+AG-260-01,Dai ly dien tu Hoa Nam,0909009900,Ha Noi,ACTIVE
+AG-260-02,,0912345678,Hai Phong,KHONG_HOP_LE
+AG-260-01,Dai ly trung ma,0909009901,Ha Noi,ACTIVE

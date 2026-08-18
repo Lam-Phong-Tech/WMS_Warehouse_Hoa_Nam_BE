@@ -1121,6 +1121,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -1373,6 +1381,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -4448,6 +4464,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -6186,6 +6210,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -6280,6 +6312,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -6535,6 +6575,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -6717,6 +6765,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -6817,6 +6873,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -6917,6 +6981,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -7017,6 +7089,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -7213,6 +7293,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -7307,6 +7395,14 @@ paths:
             type: string
             maxLength: 100
             minLength: 8
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -8738,6 +8834,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -9510,6 +9614,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -10022,6 +10134,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -10621,6 +10741,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -11966,8 +12094,8 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController index'
-      operationId: get_api_v1_pv__admin_resources_resourcetype
+      summary: 'PV Admin — danh sách master App PV (industry/tag/rule/profile)'
+      operationId: listPvAdminResources
       parameters:
         -
           name: resourceType
@@ -11975,13 +12103,43 @@ paths:
           required: true
           schema:
             type: string
+            enum:
+              - industries
+              - tags
+              - recommendation-rules
+              - product-profiles
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
       responses:
         200:
-          description: 'Thành công'
+          description: PVAdminResourcePage
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Không có quyền pv.master.manage'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'resource_type không hợp lệ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -11990,18 +12148,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         401:
           description: 'Chưa xác thực'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        403:
-          description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
             application/json:
               schema:
@@ -12042,8 +12188,8 @@ paths:
     post:
       tags:
         - '00. Platform'
-      summary: 'POST /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController store'
-      operationId: post_api_v1_pv__admin_resources_resourcetype
+      summary: 'PV Admin — tạo master App PV'
+      operationId: createPvAdminResource
       parameters:
         -
           name: resourceType
@@ -12060,6 +12206,30 @@ paths:
               example: []
               additionalProperties: true
       responses:
+        201:
+          description: PVAdminResource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Không có quyền pv.master.manage'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'STATE_CONFLICT (priority trùng trong ngành)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'VALIDATION_ERROR / BUSINESS_RULE_VIOLATION'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         200:
           description: 'Thành công'
           content:
@@ -12078,32 +12248,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        403:
-          description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         404:
           description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        409:
-          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
           content:
             application/json:
               schema:
@@ -12127,8 +12279,8 @@ paths:
     patch:
       tags:
         - '00. Platform'
-      summary: 'PATCH /api/v1/pv-admin/resources/{resourceType}/{id} - Modules Warehouse Http Controllers PvAdminResourceController update'
-      operationId: patch_api_v1_pv__admin_resources_resourcetype_id
+      summary: 'PV Admin — cập nhật master App PV (bắt buộc If-Match)'
+      operationId: updatePvAdminResource
       parameters:
         -
           name: resourceType
@@ -12142,6 +12294,14 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       requestBody:
         required: false
         content:
@@ -12152,11 +12312,47 @@ paths:
               additionalProperties: true
       responses:
         200:
-          description: 'Thành công'
+          description: PVAdminResource
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Không có quyền pv.master.manage'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: RESOURCE_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: STATE_CONFLICT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: STALE_VERSION
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'VALIDATION_ERROR / BUSINESS_RULE_VIOLATION'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'PRECONDITION_REQUIRED (thiếu If-Match)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -12165,42 +12361,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         401:
           description: 'Chưa xác thực'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        403:
-          description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        409:
-          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        412:
-          description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        428:
-          description: 'Thiếu điều kiện If-Match bắt buộc'
           content:
             application/json:
               schema:
@@ -12287,18 +12447,24 @@ paths:
     get:
       tags:
         - '21. Public Catalog'
-      summary: 'Danh sách ngành hàng PV'
-      operationId: get_api_v1_pv_industries
+      summary: 'App PV — danh sách ngành nghề ACTIVE dùng cho filter/gợi ý'
+      operationId: listPvIndustries
       parameters: []
       responses:
         200:
-          description: 'Thành công'
+          description: PVIndustryPage
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         400:
-          description: 'Yêu cầu không đúng định dạng'
+          description: INVALID_QUERY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
           content:
             application/json:
               schema:
@@ -12356,18 +12522,77 @@ paths:
     get:
       tags:
         - '21. Public Catalog'
-      summary: 'GET /api/v1/pv/products - Modules Warehouse Http Controllers PvPublicCatalogController listProducts'
-      operationId: get_api_v1_pv_products
-      parameters: []
+      summary: 'App PV — danh sách sản phẩm đã publish (ẩn danh, read-only)'
+      operationId: listPvProducts
+      parameters:
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: industry_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: tag_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: brand_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: category_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: power_source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: in_stock
+          in: query
+          schema:
+            type: boolean
       responses:
         200:
-          description: 'Thành công'
+          description: PVProductPage
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         400:
-          description: 'Yêu cầu không đúng định dạng'
+          description: INVALID_QUERY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
           content:
             application/json:
               schema:
@@ -12518,8 +12743,8 @@ paths:
     get:
       tags:
         - '21. Public Catalog'
-      summary: 'GET /api/v1/pv/products/{skuId} - Modules Warehouse Http Controllers PvPublicCatalogController showProduct'
-      operationId: get_api_v1_pv_products_skuid
+      summary: 'App PV — chi tiết sản phẩm đã publish (ẩn danh, read-only)'
+      operationId: getPvProduct
       parameters:
         -
           name: skuId
@@ -12527,15 +12752,28 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: 'Thành công'
+          description: PVProduct
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         400:
-          description: 'Yêu cầu không đúng định dạng'
+          description: INVALID_PATH
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'RESOURCE_NOT_FOUND (kể cả khi SKU tồn tại nhưng chưa publish)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
           content:
             application/json:
               schema:
@@ -12548,12 +12786,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
           description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
             application/json:
               schema:
@@ -12593,18 +12825,31 @@ paths:
     get:
       tags:
         - '21. Public Catalog'
-      summary: 'Gợi ý PV theo tiêu chí lọc'
-      operationId: get_api_v1_pv_recommendations
-      parameters: []
+      summary: 'App PV — gợi ý sản phẩm theo ngành nghề (rule ACTIVE, theo priority)'
+      operationId: listPvRecommendations
+      parameters:
+        -
+          name: industry_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         200:
-          description: 'Thành công'
+          description: 'PVProductPage (kèm recommendation_priority)'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         400:
-          description: 'Yêu cầu không đúng định dạng'
+          description: INVALID_QUERY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
           content:
             application/json:
               schema:
@@ -12890,7 +13135,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'RPT-IO-01 lịch sử phiếu nhập/xuất kèm tầng dòng'
-      description: '§13.10 RPT-IO-01. Mỗi phiếu kèm rows[].lines[] gồm expected/scanned/posted; posted lấy từ movement authoritative (DEC-INV-001). Filter: date, SKU, status, agency recipient.'
+      description: '§13.10 RPT-IO-01. Mỗi phiếu kèm rows[].lines[] gồm expected/scanned/posted; posted lấy từ movement authoritative (DEC-INV-001). Filter: date, SKU, status, agency recipient. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).'
       operationId: report_document_history
       parameters:
         -
@@ -13631,7 +13876,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'RPT-INV-01 tồn kho hiện tại kèm đối soát ledger'
-      description: '§13.10 RPT-INV-01. Filter SKU/category/status + as_of (inclusive). Khi as_of ở quá khứ, báo cáo là ảnh chụp theo ledger và reconciliation_status = NOT_APPLICABLE.'
+      description: '§13.10 RPT-INV-01. Filter SKU/category/status + as_of (inclusive). Khi as_of ở quá khứ, báo cáo là ảnh chụp theo ledger và reconciliation_status = NOT_APPLICABLE. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).'
       operationId: report_inventory_balance
       parameters:
         -
@@ -14095,7 +14340,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'RPT-XNT-01 Nhập-Xuất-Tồn theo authoritative ledger'
-      description: '§13.10 RPT-XNT-01 + BR-RPT-01: closing = opening + posted receipt - posted issue - component issue + posted reversal. Kỳ inclusive theo Asia/Ho_Chi_Minh.'
+      description: '§13.10 RPT-XNT-01 + BR-RPT-01: closing = opening + posted receipt - posted issue - component issue + posted reversal. Kỳ inclusive theo Asia/Ho_Chi_Minh. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).'
       operationId: report_inventory_xnt_current
       parameters:
         -
@@ -14150,17 +14395,18 @@ paths:
             minimum: 1
       responses:
         200:
-          description: XNT
+          description: 'XNT — ba tầng cột gross / reversal / net theo BR-RPT-01..07'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessEnvelope'
-        400:
-          description: 'Yêu cầu không đúng định dạng'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
+                allOf:
+                  -
+                    $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  -
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/XntReport'
+                    type: object
         401:
           description: 'Chưa xác thực'
           content:
@@ -14168,7 +14414,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
-          description: 'Không có quyền truy cập'
+          description: 'Thiếu report.view hoặc warehouse_id nằm ngoài warehouse data scope (error.code = ACCESS_DENIED)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'from_date/to_date hoặc filter không hợp lệ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
           content:
             application/json:
               schema:
@@ -14187,12 +14445,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
           content:
             application/json:
               schema:
@@ -14272,17 +14524,18 @@ paths:
             minimum: 1
       responses:
         200:
-          description: 'XNT chi tiết'
+          description: 'XNT chi tiết — cùng schema XntReport với /reports/inventory-xnt'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessEnvelope'
-        400:
-          description: 'Yêu cầu không đúng định dạng'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
+                allOf:
+                  -
+                    $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  -
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/XntReport'
+                    type: object
         401:
           description: 'Chưa xác thực'
           content:
@@ -14290,7 +14543,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
-          description: 'Không có quyền truy cập'
+          description: 'Thiếu report.view hoặc warehouse_id ngoài data scope (ACCESS_DENIED)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
           content:
             application/json:
               schema:
@@ -14819,7 +15078,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'RPT-MOV-01 lịch sử nhập/xuất/Reversal'
-      description: '§13.10 RPT-MOV-01: movement_id, source_document, movement_type, SKU/item, qty, actor, time, reversal_chain. Hiển thị gross + chain, không bao giờ ẩn movement gốc.'
+      description: '§13.10 RPT-MOV-01: movement_id, source_document, movement_type, SKU/item, qty, actor, time, reversal_chain. Hiển thị gross + chain, không bao giờ ẩn movement gốc. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).'
       operationId: report_movement_trace
       parameters:
         -
@@ -14895,17 +15154,11 @@ paths:
             minimum: 1
       responses:
         200:
-          description: 'Movement trace'
+          description: 'Movement trace — mỗi dòng giữ nguyên bút toán gross; original_movement_id/correction_chain_id là khoá ghép chuỗi; summary.net_effect = SUM(qty_delta) của toàn kỳ (net effect theo BR-REV-11). Chi tiết một chain đọc ở GET /stock-movements/{id}/trace-source.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
-        400:
-          description: 'Yêu cầu không đúng định dạng'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         401:
           description: 'Chưa xác thực'
           content:
@@ -14913,7 +15166,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
-          description: 'Không có quyền truy cập'
+          description: 'Thiếu report.view hoặc warehouse_id ngoài warehouse data scope (ACCESS_DENIED)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Filter không hợp lệ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
           content:
             application/json:
               schema:
@@ -14932,12 +15197,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
           content:
             application/json:
               schema:
@@ -15089,7 +15348,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'RPT-RECIPIENT-01 xuất kho theo nơi nhận'
-      description: '§13.10 RPT-RECIPIENT-01: source_request_no, outbound_no, receiver/agency, address, contact đã mask, SKU/qty, posted_at. Agency chỉ là chiều nơi nhận, không phải chủ tồn. contact_masked chỉ hiện đầy đủ khi actor có warranty.pii.view.'
+      description: '§13.10 RPT-RECIPIENT-01: source_request_no, outbound_no, receiver/agency, address, contact đã mask, SKU/qty, posted_at. Agency chỉ là chiều nơi nhận, không phải chủ tồn. contact_masked chỉ hiện đầy đủ khi actor có warranty.pii.view. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).'
       operationId: report_outbound_by_agency
       parameters:
         -
@@ -18272,26 +18531,9 @@ paths:
     get:
       tags:
         - '07. Inventory'
-      summary: 'Danh sách giao dịch kho'
-      operationId: get_api_v1_stock__movements
+      summary: 'Lịch sử biến động tồn (phân trang, filter theo warehouse_id/product_id/movement_type)'
+      operationId: stock_movement_list
       parameters:
-        -
-          name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-        -
-          name: per_page
-          in: query
-          schema:
-            type: integer
-            default: 15
-        -
-          name: keyword
-          in: query
-          schema:
-            type: string
         -
           name: warehouse_id
           in: query
@@ -18309,19 +18551,30 @@ paths:
           in: query
           schema:
             type: string
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
       responses:
         200:
-          description: 'Thành công'
+          description: 'Danh sách movement'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
-        400:
-          description: 'Yêu cầu không đúng định dạng'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         401:
           description: 'Chưa xác thực'
           content:
@@ -18329,7 +18582,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
-          description: 'Không có quyền truy cập'
+          description: 'Không có quyền inventory.view'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
           content:
             application/json:
               schema:
@@ -18377,21 +18636,31 @@ paths:
     get:
       tags:
         - '07. Inventory'
-      summary: 'Danh sách giao dịch kho'
-      operationId: get_api_v1_stock__movements_reversible
+      summary: 'Lookup posted movements that can still be reversed, with dependency guard preflight'
+      operationId: stock_movement_reversible
       parameters:
         -
-          name: page
+          name: search
           in: query
           schema:
-            type: integer
-            default: 1
+            type: string
+        -
+          name: reversible_only
+          in: query
+          schema:
+            type: boolean
         -
           name: per_page
           in: query
           schema:
             type: integer
             default: 15
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
         -
           name: keyword
           in: query
@@ -18416,19 +18685,19 @@ paths:
             type: string
       responses:
         200:
-          description: 'Thành công'
+          description: 'Reversible movements with lines, quantities, and dependency guard results'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
-        400:
-          description: 'Yêu cầu không đúng định dạng'
+        401:
+          description: Unauthenticated
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        401:
-          description: 'Chưa xác thực'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
           content:
             application/json:
               schema:
@@ -18482,9 +18751,15 @@ paths:
     get:
       tags:
         - '07. Inventory'
-      summary: 'Danh sách giao dịch kho'
-      operationId: get_api_v1_stock__movements_trace__by__code
+      summary: 'Truy vết từ mã vật lý (physical code) → item/container/SKU → movement chain'
+      operationId: stock_movement_trace_by_physical_code
       parameters:
+        -
+          name: code
+          in: query
+          required: true
+          schema:
+            type: string
         -
           name: page
           in: query
@@ -18521,11 +18796,17 @@ paths:
             type: string
       responses:
         200:
-          description: 'Thành công'
+          description: 'Trace chain: physical_code → resolved object → movements → reversal/correction'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        404:
+          description: 'Physical code not found'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -18540,12 +18821,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
           description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
             application/json:
               schema:
@@ -18587,8 +18862,8 @@ paths:
     get:
       tags:
         - '07. Inventory'
-      summary: 'Chi tiết giao dịch kho'
-      operationId: get_api_v1_stock__movements_id
+      summary: 'Chi tiết 1 movement'
+      operationId: stock_movement_detail
       parameters:
         -
           name: id
@@ -18596,33 +18871,34 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: 'Thành công'
+          description: 'Chi tiết movement'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
-        400:
-          description: 'Yêu cầu không đúng định dạng'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         401:
           description: 'Chưa xác thực'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        403:
-          description: 'Không có quyền truy cập'
+        404:
+          description: 'Không tìm thấy movement'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
           content:
             application/json:
               schema:
@@ -18664,28 +18940,32 @@ paths:
     get:
       tags:
         - '07. Inventory'
-      summary: 'Truy vết nguồn phát sinh giao dịch kho'
-      operationId: get_api_v1_stock__movements_id_trace__source
+      summary: 'Truy vết chứng từ gốc, correction chain đầy đủ và net effect của một movement'
+      description: 'WWHN-240 / BR-REV-11 + §13.10 RPT-MOV-01: "report hiển thị movement gốc, toàn bộ Reversal chain và net effect; không ẩn hoặc sửa lịch sử". `correction_chain.nodes` là chuỗi append-only đã sắp xếp theo thời gian, gồm movement gốc (`role=ORIGINAL`, `depth=0`) và MỌI reversal tham chiếu nó — kể cả reversal của reversal theo BR-REV-08. `net_effect` tính từ ledger `stock_movements` nên luôn khớp cột NET của RPT-XNT-01. Data scope: EnforceInventoryWarehouseScope trả 403 khi movement thuộc kho ngoài scope hiệu lực, và trace yêu cầu ĐỒNG THỜI `inventory.trace` lẫn `inventory.view`.'
+      operationId: stock_movement_trace_source
       parameters:
         -
           name: id
           in: path
+          description: stock_movements.id
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: 'Thành công'
+          description: 'Chứng từ gốc + lịch sử trạng thái + correction chain đầy đủ + net effect'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiSuccessEnvelope'
-        400:
-          description: 'Yêu cầu không đúng định dạng'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
+                allOf:
+                  -
+                    $ref: '#/components/schemas/ApiSuccessEnvelope'
+                  -
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StockMovementTraceSource'
+                    type: object
         401:
           description: 'Chưa xác thực'
           content:
@@ -18693,13 +18973,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
-          description: 'Không có quyền truy cập'
+          description: 'Thiếu inventory.trace/inventory.view, hoặc movement nằm ngoài warehouse data scope (error.code = ACCESS_DENIED)'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          description: 'Không tìm thấy movement'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
           content:
             application/json:
               schema:

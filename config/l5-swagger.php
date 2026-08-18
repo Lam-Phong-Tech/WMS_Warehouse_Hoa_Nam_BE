@@ -81,6 +81,15 @@ return [
                     // duoi, RouteSyncProcessor tu sinh skeleton requestBody {} rong nen FE/QA
                     // khong doc duoc DEC-WAR-STATE-001 tu OpenAPI. KHONG duoc bo dong duoi.
                     base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php'),
+                    // WWHN-252/FE252-P1-02: cùng lỗi lớp với WWHN-184 và WWHN-240 —
+                    // annotation của nhóm App PV (listPvProducts / getPvProduct /
+                    // listPvIndustries + listPvAdminResources / create / update) nằm
+                    // ngay trên controller thật. Thiếu hai dòng dưới thì
+                    // RouteSyncProcessor sinh summary skeleton dạng
+                    // "GET /api/v1/... - Modules Warehouse Http Controllers ..." và FE
+                    // không có param/schema nào để wire. KHÔNG được bỏ hai dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/PvAdminResourceController.php'),
                 ],
             ],
         ],

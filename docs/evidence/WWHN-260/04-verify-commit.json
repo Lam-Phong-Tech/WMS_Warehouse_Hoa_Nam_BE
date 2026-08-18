@@ -1,0 +1,135 @@
+{
+    "verified_run_code": "WWHN260-REH#COMMIT",
+    "migration_run_id": "b7defcd8-b360-4503-a349-3123837e66d9",
+    "mode": "COMMIT",
+    "status": "COMMITTED",
+    "package_version": "1.2",
+    "mapping_version": "1.0",
+    "source_file_name": "HoaNam_Import_Package_v1.2_WWHN260_REHEARSAL.zip",
+    "source_checksum": "b3f71d06184e9a2a6c0816a67d3a761b90942278f6a319126fbcac18c7be86ab",
+    "timing": {
+        "started_at": "2026-08-18T22:37:48+07:00",
+        "finished_at": "2026-08-18T22:37:48+07:00",
+        "duration_ms": 0
+    },
+    "counts": {
+        "total": 11,
+        "valid": 11,
+        "invalid": 0,
+        "duplicate": 0
+    },
+    "rejected_rows": {
+        "total": 0,
+        "by_dataset": [],
+        "by_error_code": [],
+        "owners": {
+            "AGENCY": "BAS / Kinh doanh (chủ dữ liệu đại lý)",
+            "SKU": "BAS / Danh mục sản phẩm (chủ dữ liệu SKU)",
+            "PHYSICAL_CODE": "BE2 / Quản trị mã vật lý",
+            "CONTAINER": "QL kho (chủ dữ liệu thùng/khay)",
+            "ITEM": "QL kho (chủ dữ liệu item/serial)",
+            "OPENING_BALANCE": "QL kho (chủ dữ liệu tồn đầu kỳ)"
+        }
+    },
+    "checks": [
+        {
+            "check": "RUN_REACHED_EXPECTED_TERMINAL_STATUS",
+            "expected": "COMMITTED",
+            "actual": "COMMITTED",
+            "status": "PASS"
+        },
+        {
+            "check": "RECONCILIATION_PASSED",
+            "expected": "PASS",
+            "actual": "PASS",
+            "status": "PASS"
+        },
+        {
+            "check": "RUN_RECORDS_SOURCE_VERSION_CHECKSUM_AND_ID",
+            "expected": "source_file_name + package_version + source_checksum + migration_run_id",
+            "actual": "đủ 4 trường",
+            "status": "PASS"
+        },
+        {
+            "check": "VALID_PLUS_INVALID_PLUS_DUPLICATE_EQUALS_INPUT",
+            "expected": 11,
+            "actual": 11,
+            "status": "PASS"
+        },
+        {
+            "check": "STORED_COUNTS_MATCH_ERROR_TABLE",
+            "expected": "invalid=0, duplicate=0",
+            "actual": "invalid=0, duplicate=0",
+            "status": "PASS"
+        },
+        {
+            "check": "PACKAGE_CHECKSUM_RECOMPUTED",
+            "expected": "b3f71d06184e9a2a6c0816a67d3a761b90942278f6a319126fbcac18c7be86ab",
+            "actual": "b3f71d06184e9a2a6c0816a67d3a761b90942278f6a319126fbcac18c7be86ab",
+            "status": "PASS"
+        },
+        {
+            "check": "PACKAGE_ROW_COUNT_MATCHES_RUN",
+            "expected": 11,
+            "actual": 11,
+            "status": "PASS",
+            "by_dataset": {
+                "AGENCY": 1,
+                "SKU": 2,
+                "PHYSICAL_CODE": 3,
+                "CONTAINER": 1,
+                "ITEM": 2,
+                "OPENING_BALANCE": 2
+            },
+            "file_checksums": {
+                "AGENCY": "e44a66663c30cbad44261d02a3277ebfeae8f4afc8cefa8c781516371561b0dd",
+                "CONTAINER": "5ec7e75c7cf41eb21654607bc535f1515aecf04d11af2b50dd535ad1e617d041",
+                "ITEM": "a863c325935279daecdd5841b6a1c1ddc8af700d8052c0fa5bd0644b0347d38e",
+                "OPENING_BALANCE": "a0af604a84cced7414c43ca95538cf7e6b3f30502af5d34bdded1e1f2ecbaebf",
+                "PHYSICAL_CODE": "da788486d17377840316b0dc3069127df4a851f51ccdd35f7f8514463f8c0635",
+                "SKU": "48d7624fa7211dcce6093242323f46b6602646e7363fdb31ae2a01af219be02c"
+            }
+        },
+        {
+            "check": "AT_MOST_ONE_LIVE_COMMIT_PER_CHECKSUM",
+            "expected": "<= 1",
+            "actual": 1,
+            "status": "PASS"
+        },
+        {
+            "check": "RUN_WRITES_ONLY_OPENING_MOVEMENTS",
+            "expected": 0,
+            "actual": 0,
+            "status": "PASS"
+        },
+        {
+            "check": "BALANCE_EQUALS_LEDGER",
+            "scope": "01a01585-7e8d-70ae-b965-473832aec8b9|01a01585-8a10-73de-9d48-6ad5ac573e06|AVAILABLE",
+            "expected": 2,
+            "actual": 2,
+            "status": "PASS"
+        },
+        {
+            "check": "BALANCE_EQUALS_LEDGER",
+            "scope": "01a01585-7e8d-70ae-b965-473832aec8b9|01a01585-8a12-7308-817f-facd970e7b88|AVAILABLE",
+            "expected": 5,
+            "actual": 5,
+            "status": "PASS"
+        },
+        {
+            "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
+            "scope": "01a01585-8a10-73de-9d48-6ad5ac573e06",
+            "expected": 2,
+            "actual": 2,
+            "status": "PASS"
+        },
+        {
+            "check": "CONTAINER_MAPPING_NO_EXTRA_STOCK",
+            "expected": 0,
+            "actual": 0,
+            "containers_created": 1,
+            "status": "PASS"
+        }
+    ],
+    "verdict": "PASS"
+}

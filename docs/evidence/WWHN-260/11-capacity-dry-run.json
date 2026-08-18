@@ -1,0 +1,55 @@
+{
+    "migration_run_id": "62ccb25f-6467-4665-85ce-f5df0f305f20",
+    "migration_run_code": "WWHN260-CAPACITY#DRY_RUN",
+    "mode": "DRY_RUN",
+    "status": "PASSED",
+    "package_version": "1.2",
+    "mapping_version": "1.0",
+    "source_file_name": "HoaNam_Import_Package_v1.2_WWHN260_CAPACITY.zip",
+    "source_checksum": "3eba35ea8ef111b266abb7a0f968765f9310a1df04880b279c39c15aca79fe98",
+    "manifest_checksum": "2012dd94a7e7f3dcc3d32df0f19f8c1490d46c6bc58795be8ffb18669365bd7f",
+    "manifest": {
+        "package_version": "1.2",
+        "source_file_name": "HoaNam_Import_Package_v1.2_WWHN260_CAPACITY.zip",
+        "datasets": {
+            "OPENING_BALANCE": "opening_balance.csv",
+            "PHYSICAL_CODE": "physical_code.csv",
+            "SKU": "sku.csv"
+        }
+    },
+    "file_checksums": {
+        "OPENING_BALANCE": "d6995d54f31074775c1926c96dd767363f46972a01f3c540b3766ce106223ba9",
+        "PHYSICAL_CODE": "3cb132d5a7acf6544e9d240dcd8a5e372887f4c6b51811d72c347f4d4f3ba22f",
+        "SKU": "194a1c460c61ab74824fd7adea48cfd264fe493f9a7c6897ef0f6aaf5b040242"
+    },
+    "source_files": {
+        "OPENING_BALANCE": "opening_balance.csv",
+        "PHYSICAL_CODE": "physical_code.csv",
+        "SKU": "sku.csv"
+    },
+    "counts": {
+        "total": 30000,
+        "valid": 30000,
+        "invalid": 0,
+        "duplicate": 0,
+        "invariant_holds": true,
+        "by_dataset": {
+            "SKU": 10000,
+            "PHYSICAL_CODE": 10000,
+            "OPENING_BALANCE": 10000
+        }
+    },
+    "timing": {
+        "started_at": "2026-08-18T22:38:37+07:00",
+        "finished_at": "2026-08-18T22:38:37+07:00",
+        "duration_ms": 353,
+        "duration_source": "MONOTONIC_CLOCK"
+    },
+    "reconciliation": {
+        "status": "PASS",
+        "scope": "SOURCE",
+        "checks": []
+    },
+    "errors": [],
+    "replayed": false
+}

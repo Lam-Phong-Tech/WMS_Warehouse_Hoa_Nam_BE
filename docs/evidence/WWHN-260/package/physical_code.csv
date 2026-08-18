@@ -1,0 +1,4 @@
+code_value,code_type,carrier_type,hardware_uid,target_legacy_key,status
+HN-ITEM-260001,ITEM,BARCODE,,LEG-260-001,ACTIVE
+HN-ITEM-260002,ITEM,BARCODE,,LEG-260-002,ACTIVE
+HN-CTN-260001,CONTAINER,QR,,,ACTIVE

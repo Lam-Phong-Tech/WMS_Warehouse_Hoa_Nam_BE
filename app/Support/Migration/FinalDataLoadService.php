@@ -2,7 +2,10 @@
 
 namespace App\Support\Migration;
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Agency;
@@ -55,6 +58,8 @@ class FinalDataLoadService
      */
     public function dryRun(ImportPackage $package, string $runCode, string $executedBy, ?string $note = null): array
     {
+        $this->resetLookupCache();
+
         $existing = $this->findRun($runCode, 'DRY_RUN');
         if ($existing !== null) {
             return $this->replayGuard($existing, $package->checksum);
@@ -85,8 +90,11 @@ class FinalDataLoadService
         string $runCode,
         string $executedBy,
         string $approvedBy,
-        ?string $note = null
+        ?string $note = null,
+        ?string $approvalRef = null
     ): array {
+        $this->resetLookupCache();
+
         $existing = $this->findRun($runCode, 'COMMIT');
         if ($existing !== null) {
             return $this->replayGuard($existing, $package->checksum);
@@ -102,7 +110,17 @@ class FinalDataLoadService
                 'COMMIT bị chặn: package đã thay đổi sau dry-run; phải chạy lại DRY_RUN với run code mới.');
         }
 
-        $run = $this->startRun($runCode, 'COMMIT', $package, $executedBy, $note, $approvedBy);
+        // DEV260-P1-06: idempotency theo run code không đủ để chặn double effect.
+        // Cùng một package chạy lại dưới run code KHÁC sẽ sinh business_key khác
+        // và cộng tồn đầu lần thứ hai. Cutover chỉ được nạp một lần cho mỗi
+        // checksum; muốn nạp lại phải rollback lần trước.
+        $committed = $this->committedRunForChecksum($package->checksum, $runCode);
+        if ($committed !== null) {
+            return $this->blockedReport($runCode, 'COMMIT', 'PACKAGE_ALREADY_COMMITTED',
+                "COMMIT bị chặn: package (checksum {$package->checksum}) đã được nạp ở run {$committed->migration_run_code} và chưa rollback.");
+        }
+
+        $run = $this->startRun($runCode, 'COMMIT', $package, $executedBy, $this->noteWithApproval($note, $approvalRef), $approvedBy);
         $errors = new MigrationErrorBag;
         $resolved = $this->validate($package, $errors);
 
@@ -118,8 +136,11 @@ class FinalDataLoadService
 
         try {
             $reconciliation = DB::transaction(function () use ($package, $run, $resolved, $executedBy): array {
-                $this->writeMasters($package, $run, $resolved);
-                $this->writeOpeningBalance($package, $run, $executedBy);
+                // DEV299-P1-01: mọi lần chạm master đều để lại snapshot trước/sau
+                // trong cùng transaction, nên rollback có đường quay lại thật.
+                $journal = new MasterStateJournal($run, $executedBy);
+                $this->writeMasters($package, $run, $resolved, $journal);
+                $this->writeOpeningBalance($package, $run, $executedBy, $journal);
                 $result = $this->committedReconciliation($package, $run, $resolved);
                 if ($result['status'] !== 'PASS') {
                     throw new MigrationReconciliationException($result);
@@ -201,15 +222,29 @@ class FinalDataLoadService
 
         $result = DB::transaction(function () use ($target, $runId, $executedBy): array {
             $reversed = $this->reverseOpeningMovements((string) $target->id, $runId, $executedBy);
-            $closed = $this->closeMigratedMasters((string) $target->id);
+            // DEV299-P1-01: khôi phục master bị package ghi đè và loại bỏ master
+            // do run tạo mới. SRS §13.12 đòi chứng minh "no subset master/
+            // opening/movement remains", không phải chỉ đóng trạng thái.
+            $masters = MasterStateJournal::restore((string) $target->id);
+            $disposed = array_map(
+                static fn (array $row): string => $row['table'].'|'.$row['id'],
+                $masters['disposed_rows']
+            );
             $residual = $this->residualOpeningQuantity((string) $target->id);
+            $residualMasters = MasterStateJournal::residualCreatedRows((string) $target->id, $disposed)
+                + $this->residualMigrationTaggedRows((string) $target->id, $disposed);
+            $clean = $residual === 0
+                && $residualMasters === 0
+                && $masters['retained_rows'] === []
+                && $masters['missing_rows'] === [];
 
             return [
-                'status' => $residual === 0 ? 'PASS' : 'FAIL',
+                'status' => $clean ? 'PASS' : 'FAIL',
                 'scope' => 'ROLLBACK',
                 'reversed_movements' => $reversed,
-                'closed_masters' => $closed,
+                'master_rollback' => $masters,
                 'residual_opening_qty' => $residual,
+                'residual_master_rows' => $residualMasters,
             ];
         });
 
@@ -311,6 +346,15 @@ class FinalDataLoadService
                 $ok = $enum('status', self::MASTER_STATUSES) && $ok;
                 $ok = $this->requireBoolean($dataset, $rowNo, $data, 'is_serial_tracked', $errors) && $ok;
                 $ok = ! $duplicate('sku_code', $data['sku_code'] ?? '') && $ok;
+                // Cột phân loại là tuỳ chọn, nhưng nếu package khai thì mã phải
+                // tồn tại trong master: nạp SKU với brand/category/model không
+                // giải được sẽ tạo catalog câm sau cutover (DEV260-P1-03).
+                $ok = $reference('brand_code', 'UNKNOWN_FK',
+                    fn (string $v): bool => $this->masterId('brands', 'brand_code', $v) !== null, false) && $ok;
+                $ok = $reference('category_code', 'UNKNOWN_FK',
+                    fn (string $v): bool => $this->masterId('product_categories', 'category_code', $v) !== null, false) && $ok;
+                $ok = $reference('model_code', 'UNKNOWN_FK',
+                    fn (string $v): bool => $this->masterId('product_models', 'model_code', $v) !== null, false) && $ok;
                 if ($ok) {
                     $resolved['sku'][$data['sku_code']] = true;
                     $resolved['sku_serial'][$data['sku_code']] = $this->boolean($data['is_serial_tracked']);
@@ -573,8 +617,55 @@ class FinalDataLoadService
         }
 
         $checks = array_merge($checks, $this->sourceReconciliation($package, $resolved, new MigrationErrorBag)['checks']);
+        $checks = array_merge($checks, $this->containerMappingChecks($package, $runId));
 
         return ['status' => $this->aggregate($checks), 'scope' => 'COMMITTED', 'checks' => $checks];
+    }
+
+    /**
+     * SRS §13.12 — "container mapping creates no extra stock".
+     *
+     * Container/Item của package chỉ là subledger định danh; toàn bộ hiệu ứng tồn
+     * của run phải đúng bằng tổng lượng của dataset OPENING_BALANCE, và mọi
+     * movement của run phải là `OPENING`. Nếu một ngày nào đó mapping container
+     * sinh thêm movement, hai check này đỏ ngay trong transaction COMMIT nên
+     * cutover bị chặn thay vì phát hiện sau khi đã ghi tồn.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function containerMappingChecks(ImportPackage $package, string $runId): array
+    {
+        $sourceTotal = 0;
+        foreach ($package->rows('OPENING_BALANCE') as $row) {
+            $quantity = (string) ($row['data']['quantity'] ?? '');
+            $sourceTotal += ctype_digit($quantity) ? (int) $quantity : 0;
+        }
+
+        $runMovements = DB::table('stock_movements')
+            ->where('source_type', 'MIGRATION_RUN')
+            ->where('source_id', $runId);
+
+        $ledgerTotal = (int) (clone $runMovements)->sum('qty_delta');
+        $nonOpening = (int) (clone $runMovements)->where('movement_type', '!=', 'OPENING')->count();
+        $containerCount = count($package->rows('CONTAINER'));
+
+        return [
+            [
+                'check' => 'CONTAINER_MAPPING_NO_EXTRA_STOCK',
+                'container_rows' => $containerCount,
+                'expected' => $sourceTotal,
+                'actual' => $ledgerTotal,
+                'status' => $sourceTotal === $ledgerTotal ? 'PASS' : 'FAIL',
+                'message' => "Tổng tồn ghi bởi run {$ledgerTotal} vs tổng lượng nguồn {$sourceTotal} ({$containerCount} dòng CONTAINER không được sinh thêm tồn).",
+            ],
+            [
+                'check' => 'RUN_WRITES_ONLY_OPENING_MOVEMENTS',
+                'expected' => 0,
+                'actual' => $nonOpening,
+                'status' => $nonOpening === 0 ? 'PASS' : 'FAIL',
+                'message' => "Số movement khác OPENING do run tạo: {$nonOpening} (phải bằng 0).",
+            ],
+        ];
     }
 
     /** @param list<array<string, mixed>> $checks */
@@ -591,66 +682,111 @@ class FinalDataLoadService
 
     // -------------------------------------------------------------------- writes
 
-    private function writeMasters(ImportPackage $package, string $runId, array $resolved): void
+    private function writeMasters(ImportPackage $package, string $runId, array $resolved, MasterStateJournal $journal): void
     {
         foreach ($package->rows('AGENCY') as $row) {
             $data = $row['data'];
-            Agency::updateOrCreate(['agency_code' => $data['agency_code']], [
+            $this->upsertMaster(Agency::class, ['agency_code' => $data['agency_code']], [
                 'agency_name' => $data['agency_name'],
                 'phone' => $data['phone'] !== '' ? $data['phone'] : null,
                 'address' => $data['address'] !== '' ? $data['address'] : null,
                 'status' => $data['status'],
-            ]);
+            ], $journal);
         }
 
         foreach ($package->rows('SKU') as $row) {
             $data = $row['data'];
-            Sku::updateOrCreate(['sku_code' => $data['sku_code']], [
+            $attributes = [
                 'sku_name' => $data['sku_name'],
                 'sku_type' => $data['sku_type'],
                 'unit' => $data['unit'],
                 'is_serial_tracked' => $this->boolean($data['is_serial_tracked']),
                 'version_code' => $data['version_code'],
                 'status' => $data['status'],
-            ]);
+            ];
+            // Cột phân loại của §13.12 chỉ được ghi khi package có khai; không
+            // khai thì giữ nguyên giá trị hiện hữu thay vì xoá trắng.
+            foreach ([
+                'brand_id' => ['brands', 'brand_code', 'brand_code'],
+                'category_id' => ['product_categories', 'category_code', 'category_code'],
+                'model_id' => ['product_models', 'model_code', 'model_code'],
+            ] as $target => [$table, $column, $source]) {
+                if (($data[$source] ?? '') !== '') {
+                    $attributes[$target] = $this->masterId($table, $column, $data[$source]);
+                }
+            }
+
+            $this->upsertMaster(Sku::class, ['sku_code' => $data['sku_code']], $attributes, $journal);
         }
 
         foreach ($package->rows('PHYSICAL_CODE') as $row) {
             $data = $row['data'];
-            PhysicalCode::updateOrCreate(['code_value' => $data['code_value']], [
+            $this->upsertMaster(PhysicalCode::class, ['code_value' => $data['code_value']], [
                 'code_type' => $data['code_type'],
                 'carrier_type' => $data['carrier_type'],
                 'hardware_uid' => $data['hardware_uid'] !== '' ? $data['hardware_uid'] : null,
                 'status' => $data['status'],
-            ]);
+            ], $journal);
         }
 
         foreach ($package->rows('CONTAINER') as $row) {
             $data = $row['data'];
-            $container = Container::updateOrCreate(['container_code' => $data['container_code']], [
+            $this->upsertMaster(Container::class, ['container_code' => $data['container_code']], [
                 'container_type' => $data['type'],
                 'physical_code_id' => $data['physical_code'] !== '' ? $this->physicalCodeId($data['physical_code']) : null,
                 'primary_sku_id' => $data['primary_sku'] !== '' ? $this->skuId($data['primary_sku']) : null,
                 'parent_container_id' => $data['parent_tray'] !== '' ? $this->containerId($data['parent_tray']) : null,
                 'status' => $data['status'],
-            ]);
-            $container->forceFill(['migration_run_id' => $runId])->save();
+            ], $journal, ['migration_run_id' => $runId]);
         }
 
         foreach ($package->rows('ITEM') as $row) {
             $data = $row['data'];
-            $item = ItemInstance::updateOrCreate(['serial_number' => $data['serial_number'] !== '' ? $data['serial_number'] : $data['legacy_item_key']], [
+            $this->upsertMaster(ItemInstance::class, [
+                'serial_number' => $data['serial_number'] !== '' ? $data['serial_number'] : $data['legacy_item_key'],
+            ], [
                 'sku_id' => $this->skuId($data['sku_code']),
                 'physical_code_id' => $data['code_value'] !== '' ? $this->physicalCodeId($data['code_value']) : null,
                 'item_status' => 'IN_STOCK',
                 'item_condition' => $data['condition'],
-                'import_batch_id' => $data['import_batch'] !== '' ? $this->ensureImportBatch($data['import_batch'], $runId) : null,
-            ]);
-            $item->forceFill(['migration_run_id' => $runId])->save();
+                'import_batch_id' => $data['import_batch'] !== '' ? $this->ensureImportBatch($data['import_batch'], $runId, $journal) : null,
+            ], $journal, ['migration_run_id' => $runId]);
         }
     }
 
-    private function writeOpeningBalance(ImportPackage $package, string $runId, string $executedBy): void
+    /**
+     * Ghi một master theo khoá tự nhiên, chụp nguyên trạng trước đó vào nhật ký
+     * rồi mới ghi đè (DEV299-P1-01).
+     *
+     * `$extra` là các cột chỉ hệ thống mới đặt được (`migration_run_id`) nên
+     * chúng đi qua `forceFill` chứ không nằm trong `$fillable`.
+     *
+     * @param  class-string<Model>  $modelClass
+     * @param  array<string, mixed>  $keys
+     * @param  array<string, mixed>  $values
+     * @param  array<string, mixed>  $extra
+     */
+    private function upsertMaster(
+        string $modelClass,
+        array $keys,
+        array $values,
+        MasterStateJournal $journal,
+        array $extra = []
+    ): Model {
+        $existing = $modelClass::query()->where($keys)->first();
+        $before = $existing === null ? null : $existing->getAttributes();
+
+        $model = $modelClass::updateOrCreate($keys, $values);
+        if ($extra !== []) {
+            $model->forceFill($extra)->save();
+        }
+
+        $journal->recordModel($model, $before);
+
+        return $model;
+    }
+
+    private function writeOpeningBalance(ImportPackage $package, string $runId, string $executedBy, MasterStateJournal $journal): void
     {
         foreach ($package->rows('OPENING_BALANCE') as $row) {
             $data = $row['data'];
@@ -665,7 +801,7 @@ class FinalDataLoadService
                 continue;
             }
 
-            $balance = $this->lockBalance($warehouseId, $skuId, $stockStatus, true);
+            $balance = $this->lockBalance($warehouseId, $skuId, $stockStatus, true, $journal);
             $before = (int) $balance->quantity;
             $after = $before + $quantity;
 
@@ -750,13 +886,36 @@ class FinalDataLoadService
         return $reversed;
     }
 
-    /** @return array<string, int> */
-    private function closeMigratedMasters(string $targetRunId): array
+    /**
+     * Số bản ghi còn mang dấu vết `migration_run_id` của run sau khi rollback.
+     * Đây là kênh kiểm tra độc lập với nhật ký snapshot: nhật ký sai hoặc thiếu
+     * thì cột trace vẫn tố cáo phần tồn dư.
+     */
+    private function residualMigrationTaggedRows(string $targetRunId, array $disposedKeys = []): int
     {
-        return [
-            'containers' => DB::table('containers')->where('migration_run_id', $targetRunId)->update(['status' => 'CLOSED']),
-            'item_instances' => DB::table('item_instances')->where('migration_run_id', $targetRunId)->update(['item_status' => 'ADJUSTED_OUT']),
-        ];
+        $disposedKeys = array_flip($disposedKeys);
+        $total = 0;
+
+        foreach (['containers', 'item_instances', 'import_batches'] as $table) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'migration_run_id')) {
+                continue;
+            }
+
+            $primaryKey = match ($table) {
+                'containers' => 'container_id',
+                'item_instances' => 'item_id',
+                default => 'import_batch_id',
+            };
+
+            $ids = DB::table($table)->where('migration_run_id', $targetRunId)->pluck($primaryKey);
+            foreach ($ids as $id) {
+                if (! isset($disposedKeys[$table.'|'.$id])) {
+                    $total++;
+                }
+            }
+        }
+
+        return $total;
     }
 
     /** Tổng hiệu ứng tồn kho còn lại của run: 0 nghĩa là không còn opening tồn dư. */
@@ -773,8 +932,13 @@ class FinalDataLoadService
         return $opening + $reversed;
     }
 
-    private function lockBalance(?string $warehouseId, ?string $skuId, string $stockStatus, bool $createIfMissing): object
-    {
+    private function lockBalance(
+        ?string $warehouseId,
+        ?string $skuId,
+        string $stockStatus,
+        bool $createIfMissing,
+        ?MasterStateJournal $journal = null
+    ): object {
         $query = fn () => DB::table('inventory_balances')
             ->where('warehouse_id', $warehouseId)
             ->where('stock_status', $stockStatus)
@@ -789,8 +953,9 @@ class FinalDataLoadService
             throw new RuntimeException('MIGRATION_BALANCE_MISSING: không tìm thấy inventory_balances để đảo.');
         }
 
+        $balanceId = (string) Str::uuid();
         DB::table('inventory_balances')->insert([
-            'id' => (string) Str::uuid(),
+            'id' => $balanceId,
             'warehouse_id' => $warehouseId,
             'product_id' => $skuId,
             'sku_id' => $skuId,
@@ -804,7 +969,12 @@ class FinalDataLoadService
             'updated_at' => now(),
         ]);
 
-        return $query()->first();
+        $created = $query()->first();
+        // Dòng balance do chính cutover tạo ra cũng vào nhật ký, để rollback
+        // không để lại bản ghi tồn mồ côi (SRS §13.12).
+        $journal?->record('inventory_balances', 'id', $balanceId, null, (array) $created);
+
+        return $created;
     }
 
     private function insertMovement(array $attributes): void
@@ -819,10 +989,15 @@ class FinalDataLoadService
         ]);
     }
 
-    private function ensureImportBatch(string $code, string $runId): string
+    private function ensureImportBatch(string $code, string $runId, MasterStateJournal $journal): string
     {
-        $batch = ImportBatch::firstOrCreate(['import_batch_code' => $code], ['status' => 'ACTIVE']);
+        $existing = ImportBatch::query()->where('import_batch_code', $code)->first();
+        $before = $existing === null ? null : $existing->getAttributes();
+
+        $batch = $existing ?? ImportBatch::firstOrCreate(['import_batch_code' => $code], ['status' => 'ACTIVE']);
         $batch->forceFill(['migration_run_id' => $runId])->save();
+
+        $journal->recordModel($batch, $before);
 
         return (string) $batch->import_batch_id;
     }
@@ -858,6 +1033,8 @@ class FinalDataLoadService
             'created_at' => now(),
         ]);
 
+        $this->runStartedAt[$id] = hrtime(true);
+
         return $id;
     }
 
@@ -868,6 +1045,9 @@ class FinalDataLoadService
             'total_rows' => $counts['total'],
             'valid_rows' => $counts['valid'],
             'error_rows' => $counts['invalid'],
+            // ERD-AMD-007: dòng trùng có ô riêng nên bất biến §13.12
+            // (valid + invalid + duplicate = total) kiểm lại được từ DB.
+            'duplicate_rows' => $counts['duplicate'] ?? 0,
             'reconciliation_status' => $reconciliation['status'],
             'reconciliation_result' => json_encode($reconciliation, JSON_UNESCAPED_UNICODE),
             'finished_at' => now(),
@@ -886,18 +1066,47 @@ class FinalDataLoadService
         }
     }
 
-    /** @return array{total:int, valid:int, invalid:int} */
+    /**
+     * Đếm dòng theo bất biến của SRS §13.12: `valid + invalid + duplicate` phải
+     * bằng đúng số dòng input. Trước WWHN-260, dòng trùng bị gộp vào `invalid`
+     * nên bất biến ba số không kiểm chứng lại được từ báo cáo (DEV260-P1-04).
+     *
+     * @return array{total:int, valid:int, invalid:int, duplicate:int, invariant_holds:bool, by_dataset:array<string,int>}
+     */
     private function countRows(ImportPackage $package, MigrationErrorBag $errors): array
     {
         $total = $package->totalRows();
-        $invalid = count($errors->blockingRowKeys());
+        $duplicate = count($errors->duplicateRowKeys());
+        $invalid = count($errors->invalidRowKeys());
+        $valid = max(0, $total - $invalid - $duplicate);
 
-        return ['total' => $total, 'valid' => max(0, $total - $invalid), 'invalid' => $invalid];
+        return [
+            'total' => $total,
+            'valid' => $valid,
+            'invalid' => $invalid,
+            'duplicate' => $duplicate,
+            'invariant_holds' => $valid + $invalid + $duplicate === $total,
+            'by_dataset' => $package->rowCounts(),
+        ];
     }
 
     private function findRun(string $runCode, string $mode): ?object
     {
         return DB::table('migration_runs')->where('migration_run_code', $this->runCode($runCode, $mode))->first();
+    }
+
+    /**
+     * Run COMMIT khác đã nạp đúng package này và chưa bị rollback — cơ sở chặn
+     * double effect khi ai đó chạy lại cùng package dưới run code mới.
+     */
+    private function committedRunForChecksum(string $checksum, string $runCode): ?object
+    {
+        return DB::table('migration_runs')
+            ->where('mode', 'COMMIT')
+            ->where('status', 'COMMITTED')
+            ->where('source_checksum', $checksum)
+            ->where('migration_run_code', '!=', $this->runCode($runCode, 'COMMIT'))
+            ->first();
     }
 
     /** Replay idempotent nếu run đã kết thúc với cùng checksum; chặn nếu checksum khác. */
@@ -923,10 +1132,44 @@ class FinalDataLoadService
                 'total' => (int) $existing->total_rows,
                 'valid' => (int) $existing->valid_rows,
                 'invalid' => (int) $existing->error_rows,
+                'duplicate' => (int) ($existing->duplicate_rows ?? 0),
             ],
             'reconciliation' => json_decode((string) $existing->reconciliation_result, true) ?: ['status' => $existing->reconciliation_status],
             'errors' => [],
             'replayed' => true,
+        ];
+    }
+
+    /**
+     * Thời lượng thực của run. Mốc thời gian lấy đúng cái đã ghi ở
+     * `migration_runs`; riêng thời lượng đo bằng đồng hồ đơn điệu vì cột
+     * timestamptz chỉ có độ phân giải giây.
+     *
+     * @return array{started_at: ?string, finished_at: ?string, duration_ms: ?int, duration_source: string}
+     */
+    private function timing(string $runId): array
+    {
+        $run = DB::table('migration_runs')->where('id', $runId)->first(['started_at', 'finished_at']);
+        if ($run === null || $run->started_at === null || $run->finished_at === null) {
+            return ['started_at' => null, 'finished_at' => null, 'duration_ms' => null, 'duration_source' => 'NONE'];
+        }
+
+        $started = Carbon::parse($run->started_at);
+        $finished = Carbon::parse($run->finished_at);
+
+        // Cột timestamptz chỉ có độ phân giải giây, nên một dry-run 300 ms sẽ báo
+        // duration_ms = 0 và evidence "runtime phù hợp cutover window"
+        // (DEV260-P1-06) mất ý nghĩa. Thời lượng vì thế đo bằng đồng hồ đơn điệu
+        // trong tiến trình; mốc thời gian vẫn lấy đúng cái đã lưu ở DB.
+        $measured = isset($this->runStartedAt[$runId])
+            ? (int) round((hrtime(true) - $this->runStartedAt[$runId]) / 1000000)
+            : null;
+
+        return [
+            'started_at' => $started->toIso8601String(),
+            'finished_at' => $finished->toIso8601String(),
+            'duration_ms' => $measured ?? max(0, (int) round($started->diffInMilliseconds($finished))),
+            'duration_source' => $measured === null ? 'DB_TIMESTAMP_SECONDS' : 'MONOTONIC_CLOCK',
         ];
     }
 
@@ -959,10 +1202,19 @@ class FinalDataLoadService
             'mode' => $mode,
             'status' => $status,
             'package_version' => $package->packageVersion,
+            // DEV260-P1-02: evidence phải nói rõ nó được sinh dưới mapping nào.
+            'mapping_version' => (string) config('migration_mapping.mapping_version', ''),
             'source_file_name' => $package->sourceFileName,
             'source_checksum' => $package->checksum,
+            // DEV299-P1-03: manifest nằm trong checksum tổng, và được nêu riêng
+            // để reviewer đối chiếu được identity nguồn chứ không chỉ nội dung.
+            'manifest_checksum' => $package->manifestChecksum,
+            'manifest' => $package->manifest,
             'file_checksums' => $package->fileChecksums,
+            'source_files' => $package->fileNames,
             'counts' => $counts,
+            // DEV260-P1-06: thời lượng thực đo để đối chiếu với cutover window.
+            'timing' => $this->timing($runId),
             'reconciliation' => $reconciliation,
             'errors' => $errors,
             'replayed' => false,
@@ -993,6 +1245,23 @@ class FinalDataLoadService
         );
     }
 
+    /**
+     * Pin mã quyết định/biên bản duyệt opening balance vào evidence của run
+     * (DEV299-P1-02). `approved_by` chỉ trả lời "ai duyệt"; trước đây không có
+     * chỗ nào trả lời "duyệt theo văn bản nào".
+     */
+    private function noteWithApproval(?string $note, ?string $approvalRef): ?string
+    {
+        $approvalRef = trim((string) $approvalRef);
+        if ($approvalRef === '') {
+            return $note;
+        }
+
+        $note = trim((string) $note);
+
+        return 'APPROVAL_REF='.$approvalRef.($note === '' ? '' : ' | '.$note);
+    }
+
     private function runCode(string $base, string $mode): string
     {
         return str_contains($base, '#') ? $base : $base.'#'.$mode;
@@ -1005,18 +1274,67 @@ class FinalDataLoadService
 
     // ------------------------------------------------------------------- lookups
 
+    /**
+     * Cache tra cứu trong phạm vi một run.
+     *
+     * NFR-SRS-017 đòi dry-run chịu được ≥10.000 dòng/file; trước đây mỗi dòng
+     * opening/item gọi lại `SELECT` cho cùng một mã kho/SKU nên chi phí là O(số
+     * dòng) truy vấn. Chỉ cache **kết quả tìm thấy**: một mã chưa tồn tại lúc
+     * validate có thể tồn tại sau khi masters được ghi, nên cache miss không
+     * được ghi nhớ.
+     *
+     * @var array<string, string>
+     */
+    private array $lookupCache = [];
+
+    /**
+     * Mốc đồng hồ đơn điệu theo run — nguồn của `timing.duration_ms` khi báo cáo
+     * được sinh trong cùng tiến trình đã chạy run (DEV260-P1-06).
+     *
+     * @var array<string, int|float>
+     */
+    private array $runStartedAt = [];
+
+    private function resetLookupCache(): void
+    {
+        $this->lookupCache = [];
+    }
+
+    private function cachedId(string $bucket, string $key, callable $resolver): ?string
+    {
+        if ($key === '') {
+            return null;
+        }
+
+        $cacheKey = $bucket.'|'.$key;
+        if (isset($this->lookupCache[$cacheKey])) {
+            return $this->lookupCache[$cacheKey];
+        }
+
+        $id = $resolver($key);
+        if ($id !== null) {
+            $this->lookupCache[$cacheKey] = $id;
+        }
+
+        return $id;
+    }
+
     private function warehouseId(string $code): ?string
     {
-        $warehouse = Warehouse::query()->where('code', $code)->first();
+        return $this->cachedId('warehouse', $code, static function (string $value): ?string {
+            $warehouse = Warehouse::query()->where('code', $value)->first();
 
-        return $warehouse === null ? null : (string) $warehouse->getKey();
+            return $warehouse === null ? null : (string) $warehouse->getKey();
+        });
     }
 
     private function skuId(string $code): ?string
     {
-        $sku = Sku::query()->where('sku_code', $code)->first();
+        return $this->cachedId('sku', $code, static function (string $value): ?string {
+            $sku = Sku::query()->where('sku_code', $value)->first();
 
-        return $sku === null ? null : (string) $sku->sku_id;
+            return $sku === null ? null : (string) $sku->sku_id;
+        });
     }
 
     private function skuIsSerialTracked(string $code): bool
@@ -1028,15 +1346,29 @@ class FinalDataLoadService
 
     private function physicalCodeId(string $codeValue): ?string
     {
-        $code = PhysicalCode::query()->where('code_value', $codeValue)->first();
+        return $this->cachedId('physical_code', $codeValue, static function (string $value): ?string {
+            $code = PhysicalCode::query()->where('code_value', $value)->first();
 
-        return $code === null ? null : (string) $code->physical_code_id;
+            return $code === null ? null : (string) $code->physical_code_id;
+        });
     }
 
     private function containerId(string $code): ?string
     {
-        $container = Container::query()->where('container_code', $code)->first();
+        return $this->cachedId('container', $code, static function (string $value): ?string {
+            $container = Container::query()->where('container_code', $value)->first();
 
-        return $container === null ? null : (string) $container->container_id;
+            return $container === null ? null : (string) $container->container_id;
+        });
+    }
+
+    /** Tra cứu master phân loại (brands / product_categories / product_models). */
+    private function masterId(string $table, string $column, string $code): ?string
+    {
+        return $this->cachedId($table, $code, static function (string $value) use ($table, $column): ?string {
+            $id = DB::table($table)->where($column, $value)->value('id');
+
+            return $id === null ? null : (string) $id;
+        });
     }
 }

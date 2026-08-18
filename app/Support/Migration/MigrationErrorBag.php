@@ -56,6 +56,40 @@ class MigrationErrorBag
         return $keys;
     }
 
+    /**
+     * Khoá dòng bị loại vì trùng (error_code DUPLICATE*), tách khỏi nhóm invalid.
+     *
+     * SRS §13.12 yêu cầu "valid + invalid + duplicate = input row count", nên một
+     * dòng chỉ được đếm ở đúng một nhóm. Dòng vừa trùng vừa sai định dạng được
+     * xếp vào invalid: remediation của nó là sửa dữ liệu, không phải khử trùng.
+     *
+     * @return array<string, bool>
+     */
+    public function duplicateRowKeys(): array
+    {
+        $duplicate = [];
+        $other = [];
+        foreach ($this->errors as $error) {
+            if ($error['severity'] === 'WARNING' || $error['row_no'] === null) {
+                continue;
+            }
+            $key = $error['dataset'].'#'.$error['row_no'];
+            if (str_starts_with((string) $error['error_code'], 'DUPLICATE')) {
+                $duplicate[$key] = true;
+            } else {
+                $other[$key] = true;
+            }
+        }
+
+        return array_diff_key($duplicate, $other);
+    }
+
+    /** Dòng bị loại vì lý do khác trùng lặp. @return array<string, bool> */
+    public function invalidRowKeys(): array
+    {
+        return array_diff_key($this->blockingRowKeys(), $this->duplicateRowKeys());
+    }
+
     public function countBySeverity(string $severity): int
     {
         return count(array_filter($this->errors, static fn (array $e): bool => $e['severity'] === $severity));

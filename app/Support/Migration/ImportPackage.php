@@ -13,9 +13,21 @@ use RuntimeException;
  *                     "datasets": {"SKU": "sku.csv", ...}}
  *   - mỗi dataset là một file CSV có header đúng cột bắt buộc của §13.12.
  *
- * Checksum của package là sha256 trên danh sách "dataset:sha256(file)" đã sắp xếp,
- * nên đổi bất kỳ file nào sau dry-run đều làm checksum khác và buộc rerun
- * (SRS §13.12: "File changed after dry-run requires a new checksum and rerun").
+ * Checksum của package (DEV299-P1-03) phủ **cả manifest lẫn dữ liệu**:
+ *
+ *     sha256( "manifest:" + sha256(manifest đã chuẩn hoá) + LF
+ *             + "DATASET:sha256(file)" đã sắp xếp )
+ *
+ * Trước đây checksum chỉ băm danh sách hash file, nên sửa `source_file_name`,
+ * `package_version` hay ánh xạ dataset -> file (trỏ sang một file khác có cùng
+ * nội dung) sau dry-run vẫn cho ra checksum cũ và COMMIT vẫn chạy: identity của
+ * nguồn không được bảo vệ đúng như SRS §13.12 ("File changed after dry-run
+ * requires a new checksum and rerun") yêu cầu.
+ *
+ * Chuẩn hoá manifest = chỉ giữ các trường normative (`package_version`,
+ * `source_file_name`, `datasets` đã ksort) rồi encode JSON ổn định, nên format
+ * lại file (thụt lề, thứ tự khoá, xuống dòng) KHÔNG làm hỏng checksum, còn đổi
+ * nội dung normative thì chắc chắn làm hỏng.
  */
 class ImportPackage
 {
@@ -30,6 +42,22 @@ class ImportPackage
     ];
 
     /**
+     * Cột tuỳ chọn theo SRS §13.12. Dataset SKU của §13.12 liệt kê
+     * "brand/category/model" bên cạnh nhóm cột bắt buộc: nếu package có các cột
+     * này thì migration phải map sang FK master thật, nếu không catalog sau
+     * cutover mất phân loại (DEV260-P1-03 — full dataset coverage, không chỉ
+     * cột định danh).
+     */
+    public const DATASET_OPTIONAL_COLUMNS = [
+        'SKU' => ['brand_code', 'category_code', 'model_code'],
+        'PHYSICAL_CODE' => [],
+        'ITEM' => [],
+        'CONTAINER' => [],
+        'OPENING_BALANCE' => [],
+        'AGENCY' => [],
+    ];
+
+    /**
      * Thứ tự nạp: master trước, identity giữa, tồn đầu cuối cùng — mọi FK phải
      * tồn tại trước khi dataset phụ thuộc được ghi.
      */
@@ -41,14 +69,16 @@ class ImportPackage
         public readonly string $packageVersion,
         public readonly string $sourceFileName,
         public readonly string $checksum,
+        public readonly string $manifestChecksum,
+        public readonly array $manifest,
         public readonly array $fileChecksums,
+        public readonly array $fileNames,
         private readonly array $rows,
-    ) {
-    }
+    ) {}
 
     public static function load(string $directory): self
     {
-        $directory = rtrim($directory, "/\\");
+        $directory = rtrim($directory, '/\\');
         $manifestPath = $directory.'/manifest.json';
         if (! is_file($manifestPath)) {
             throw new RuntimeException("PACKAGE_MANIFEST_MISSING: không tìm thấy {$manifestPath}");
@@ -72,6 +102,7 @@ class ImportPackage
 
         $rows = [];
         $fileChecksums = [];
+        $fileNames = [];
         foreach (self::DATASET_ORDER as $dataset) {
             if (! isset($datasets[$dataset])) {
                 continue;
@@ -81,24 +112,67 @@ class ImportPackage
                 throw new RuntimeException("PACKAGE_FILE_MISSING: {$dataset} -> {$path}");
             }
             $fileChecksums[$dataset] = hash_file('sha256', $path);
+            $fileNames[$dataset] = (string) $datasets[$dataset];
             $rows[$dataset] = self::readCsv($dataset, $path);
         }
 
         ksort($fileChecksums);
-        $checksum = hash('sha256', implode("\n", array_map(
+        ksort($fileNames);
+
+        $sourceFileName = (string) ($manifest['source_file_name'] ?? basename($directory));
+
+        // DEV299-P1-03: manifest là một phần của identity nguồn, không phải
+        // metadata tự do — nên nó nằm trong checksum cùng với hash từng file.
+        $normalizedManifest = self::normalizeManifest($version, $sourceFileName, $datasets);
+        $manifestChecksum = hash('sha256', (string) json_encode(
+            $normalizedManifest,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ));
+
+        $datasetLines = array_map(
             static fn (string $dataset, string $hash): string => $dataset.':'.$hash,
             array_keys($fileChecksums),
             $fileChecksums
+        );
+
+        $checksum = hash('sha256', implode("\n", array_merge(
+            ['manifest:'.$manifestChecksum],
+            $datasetLines
         )));
 
         return new self(
             $directory,
             $version,
-            (string) ($manifest['source_file_name'] ?? basename($directory)),
+            $sourceFileName,
             $checksum,
+            $manifestChecksum,
+            $normalizedManifest,
             $fileChecksums,
+            $fileNames,
             $rows,
         );
+    }
+
+    /**
+     * Chỉ giữ phần normative của manifest và sắp xếp ổn định, để checksum bám
+     * nội dung chứ không bám cách format file.
+     *
+     * @param  array<string, mixed>  $datasets
+     * @return array{package_version:string, source_file_name:string, datasets:array<string, string>}
+     */
+    private static function normalizeManifest(string $version, string $sourceFileName, array $datasets): array
+    {
+        $normalizedDatasets = [];
+        foreach ($datasets as $dataset => $file) {
+            $normalizedDatasets[(string) $dataset] = trim((string) $file);
+        }
+        ksort($normalizedDatasets);
+
+        return [
+            'package_version' => $version,
+            'source_file_name' => $sourceFileName,
+            'datasets' => $normalizedDatasets,
+        ];
     }
 
     /** @return list<string> */
@@ -116,6 +190,28 @@ class ImportPackage
     public function totalRows(): int
     {
         return array_sum(array_map('count', $this->rows));
+    }
+
+    /**
+     * Số dòng input theo từng dataset — cơ sở kiểm bất biến
+     * "valid + invalid + duplicate = input row count" (SRS §13.12) ở mức file.
+     *
+     * @return array<string, int>
+     */
+    public function rowCounts(): array
+    {
+        $counts = [];
+        foreach ($this->datasets() as $dataset) {
+            $counts[$dataset] = count($this->rows[$dataset]);
+        }
+
+        return $counts;
+    }
+
+    /** Tên file nguồn của dataset — cột `source_file` của error file §13.12. */
+    public function fileName(string $dataset): string
+    {
+        return $this->fileNames[$dataset] ?? $this->sourceFileName;
     }
 
     /** @return list<array{row_no:int, data:array<string, string>}> */

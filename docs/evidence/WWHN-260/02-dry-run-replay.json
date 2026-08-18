@@ -1,0 +1,29 @@
+{
+    "migration_run_id": "ac4c1832-2b97-4da1-8248-36e930c34a87",
+    "migration_run_code": "WWHN260-REH#DRY_RUN",
+    "mode": "DRY_RUN",
+    "status": "PASSED",
+    "source_checksum": "b3f71d06184e9a2a6c0816a67d3a761b90942278f6a319126fbcac18c7be86ab",
+    "counts": {
+        "total": 11,
+        "valid": 11,
+        "invalid": 0,
+        "duplicate": 0
+    },
+    "reconciliation": {
+        "status": "PASS",
+        "scope": "SOURCE",
+        "checks": [
+            {
+                "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
+                "sku_code": "HN-MK-260-V1",
+                "expected": 2,
+                "actual": 2,
+                "status": "PASS",
+                "message": "SKU serial-tracked HN-MK-260-V1: opening 2 vs số Item 2."
+            }
+        ]
+    },
+    "errors": [],
+    "replayed": true
+}
