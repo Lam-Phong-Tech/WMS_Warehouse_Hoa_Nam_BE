@@ -52,7 +52,28 @@ Reviewer command — it prints the guarded intersection and exits non-zero if it
 bash scripts/verify-wwhn290-closure.sh
 ```
 
-Section `-- 4. DEV290-P1-05 change-range data / runtime impact --` of that output is the evidence for this item.
+Sections `-- 4.` and `-- 4b.` of that output are the evidence for this item.
+
+### 3.1 Why the claim is also verified per commit
+
+`m1` is a shared branch and WWHN-290 commits are **interleaved** with other tickets — `WWHN-273`, `WWHN-328`
+and others land between them, and some of those do change runtime and contract files. A contiguous
+`base..final` range is therefore not sufficient on its own: it could silently absorb another ticket's runtime
+change, or be diluted by it.
+
+So the guarded-path check runs twice: once over the contiguous range, and once **per commit attributed to
+WWHN-290**, listed authoritatively in `WWHN-290_PINS.json` → `change_range.commits`:
+
+| Attributed commit | Subject | Guarded-path files |
+|---|---|---|
+| `4559d53452b4b323746ad29e34be4cac1379c996` | `docs(WWHN-290): add fail-closed defect and data closure register` | **0** |
+| `f748edba19b9c34b269cd1798ede2bc177203370` | `test(WWHN-290): guard closure evidence and contract pin` | **0** |
+| `96e545dcc7112576ae4ae00e783bfd642a114399` | `test(WWHN-290): align evidence guard markers` | **0** |
+| `f8942321f2a673137eb9e16c9fc86d013140f84a` | `ci(WWHN-290): add exact-SHA closure gate` | **0** |
+| `c1ce7bf1d4a18d2a428a46f10ea2e025cffd646c` | `docs(WWHN-290): close P1-02/03/04/05 and P2-01 with re-derivable evidence` | **0** |
+
+The verifier additionally reports any commit on the branch whose message mentions WWHN-290 but is absent from
+that list, so the attributed set cannot quietly become incomplete.
 
 ## 4. Impact disposition per SRS v1.12 categories
 

@@ -88,6 +88,19 @@ class Wwhn290ClosureEvidenceTest extends TestCase
         $this->assertSame(40, strlen((string) ($pins['change_range']['final'] ?? '')));
         $this->assertSame(40, strlen((string) ($pins['superseded_branch']['head'] ?? '')));
         $this->assertSame(40, strlen((string) ($pins['fe_consumer']['revision_reviewed'] ?? '')));
+
+        // m1 is shared, so the ticket's commits are listed explicitly rather than inferred
+        // from a contiguous range that other tickets land inside.
+        $commits = $pins['change_range']['commits'] ?? [];
+        $this->assertNotEmpty($commits, 'The attributed WWHN-290 commit list must not be empty.');
+        foreach ($commits as $commit) {
+            $this->assertMatchesRegularExpression(
+                '/^[0-9a-f]{40}$/',
+                (string) $commit,
+                "Attributed commit must be a full 40-character SHA, got: {$commit}"
+            );
+        }
+        $this->assertContains($pins['change_range']['final'], $commits, 'The final candidate must appear in the attributed commit list.');
     }
 
     /**

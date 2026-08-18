@@ -130,6 +130,42 @@ else
 fi
 echo
 
+echo '-- 4b. Per-attributed-commit scope (m1 is a shared, interleaved branch) --'
+ATTRIBUTED="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); echo implode(" ", $d["change_range"]["commits"] ?? []);' "$PINS")"
+for c in $ATTRIBUTED; do
+  if git rev-parse --verify --quiet "$c" >/dev/null; then
+    hits="$(git show --pretty=format: --name-only "$c" | grep -E '^(app/|Modules/[^/]+/app/|Modules/[^/]+/database/|database/(migrations|seeders)/|storage/api-docs/)' || true)"
+    if [ -z "$hits" ]; then
+      pass "commit ${c:0:7} touches no guarded path"
+    else
+      fail "commit ${c:0:7} touches guarded paths:"
+      printf '%s\n' "$hits" | sed 's/^/          /'
+    fi
+  else
+    fail "attributed commit ${c} is not resolvable in this clone"
+  fi
+done
+
+# Completeness signal: any WWHN-290 commit on the branch that the pins file does not list.
+# Pin-maintenance commits that touch nothing but this ticket's own evidence directory are
+# exempt: they cannot carry data impact, and the commit that records the list can never
+# contain its own hash.
+if git rev-parse --verify --quiet "$BASE" >/dev/null; then
+  while read -r found; do
+    [ -z "$found" ] && continue
+    case " $ATTRIBUTED " in
+      *" $found "*) continue ;;
+    esac
+    outside="$(git show --pretty=format: --name-only "$found" | grep -v '^$' | grep -v "^${EVIDENCE_DIR}/" || true)"
+    if [ -z "$outside" ]; then
+      pass "commit ${found:0:7} is evidence-only pin maintenance — exempt from attribution"
+    else
+      info "commit ${found:0:7} mentions WWHN-290 but is not in the pinned commit list — append it to WWHN-290_PINS.json"
+    fi
+  done <<< "$(git log --format='%H' --grep='WWHN-290' "${BASE}..HEAD" || true)"
+fi
+echo
+
 echo '-- 5. Cross-document pin equality (anti-drift) --'
 check_marker() {
   local file="$1" value="$2" label="$3"

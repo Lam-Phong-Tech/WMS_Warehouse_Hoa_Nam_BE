@@ -31,9 +31,10 @@
         "final": "f8942321f2a673137eb9e16c9fc86d013140f84a",
         "commits": [
             "4559d53452b4b323746ad29e34be4cac1379c996",
-            "f748edb",
-            "96e545d",
-            "f8942321f2a673137eb9e16c9fc86d013140f84a"
+            "f748edba19b9c34b269cd1798ede2bc177203370",
+            "96e545dcc7112576ae4ae00e783bfd642a114399",
+            "f8942321f2a673137eb9e16c9fc86d013140f84a",
+            "c1ce7bf1d4a18d2a428a46f10ea2e025cffd646c"
         ],
         "runtime_paths_touched": 0,
         "contract_file_touched": 0,
@@ -43,7 +44,9 @@
             "Modules/Warehouse/database/",
             "database/seeders/",
             "storage/api-docs/"
-        ]
+        ],
+        "attribution_note": "m1 is shared and WWHN-290 commits are interleaved with other tickets, so the data-impact claim is verified TWICE: over the contiguous base..final range, and per attributed commit. The commits list is the authoritative set of WWHN-290-attributed commits on m1; each is checked individually for guarded-path changes so an unrelated ticket landing in between can never dilute or inflate this ticket claim.",
+        "latest_evidence_commit": "c1ce7bf1d4a18d2a428a46f10ea2e025cffd646c"
     },
     "contract": {
         "approved_openapi_version": "2.0.0",
