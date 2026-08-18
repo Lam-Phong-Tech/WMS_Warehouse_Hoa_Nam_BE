@@ -1,19 +1,5 @@
 name: WWHN-290 Exact SHA Closure
 
-# Cấu trúc hai job là CỐ Ý (DEV290-P1-05R).
-#
-# Vòng review trước yêu cầu "green exact-SHA gate". Phiên bản một-job trước đây không bao giờ
-# xanh được vì nó phụ thuộc vào `migrate:fresh --seed` trên PostgreSQL của TOÀN dự án, mà bước
-# đó đang đỏ do một defect thuộc ticket khác (xem WWHN-290_EXACT_SHA_GATE_RUN.md, mục DISPOSITION).
-# Cách xử lý sai là im lặng bỏ bước PostgreSQL đi; cách xử lý đúng là:
-#
-#   * job `closure` (CHẶN)      - kiểm mọi thứ WWHN-290 thực sự sở hữu, chạy trên sqlite theo đúng
-#                                 driver mặc định của phpunit.xml. Job này phải xanh.
-#   * job `postgres-diagnostic` - vẫn chạy PostgreSQL thật, nhưng KHÔNG chặn closure của ticket này
-#     (KHÔNG CHẶN)                và luôn in disposition nêu đích danh chỗ hỏng thuộc về ai.
-#
-# Nhờ vậy cổng không giấu lỗi hạ tầng, cũng không quy lỗi của ticket khác vào WWHN-290.
-
 on:
   push:
     branches: [m1]
@@ -21,7 +7,6 @@ on:
       - 'docs/evidence/wwhn-290/**'
       - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
       - 'scripts/verify-wwhn290-closure.sh'
-      - 'scripts/wwhn290-check-postman-namespace.php'
       - 'tests/Feature/ReportFlow06ContractTest.php'
       - 'tests/Feature/ReportFlow06IntegrationTest.php'
       - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
@@ -35,7 +20,6 @@ on:
       - 'Modules/Warehouse/app/Services/**'
       - 'Modules/Warehouse/database/migrations/**'
       - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/**'
       - '.github/workflows/wwhn-290-closure.yml'
   pull_request:
     branches: [m1]
@@ -43,9 +27,19 @@ on:
       - 'docs/evidence/wwhn-290/**'
       - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
       - 'scripts/verify-wwhn290-closure.sh'
-      - 'scripts/wwhn290-check-postman-namespace.php'
+      - 'tests/Feature/ReportFlow06ContractTest.php'
+      - 'tests/Feature/ReportFlow06IntegrationTest.php'
+      - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
+      - 'tests/Feature/WarrantyFlow04ApiSurfaceTest.php'
+      - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
+      - 'tests/Feature/AuthorizationTest.php'
+      - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
+      - 'tests/Feature/BackendMigrationSeedHealthTest.php'
+      - 'tests/Feature/SwaggerRouteSyncTest.php'
+      - 'Modules/Warehouse/app/Http/Controllers/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'Modules/Warehouse/database/migrations/**'
       - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/**'
       - '.github/workflows/wwhn-290-closure.yml'
 
 permissions:
@@ -56,123 +50,6 @@ jobs:
     name: Defect / contract / data / regression closure
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      APP_ENV: testing
-      APP_DEBUG: 'false'
-      CACHE_STORE: array
-      SESSION_DRIVER: array
-      QUEUE_CONNECTION: sync
-      AUDIT_WRITE_POLICY: outbox_required
-      CI_DEMO_PASSWORD: WWHN290-CI-Only-2026
-      JWT_SECRET: WWHN290-CI-JWT-Exact-SHA-2026
-      DB_CONNECTION: sqlite
-      DB_DATABASE: ':memory:'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Full history is required: the closure verifier re-derives the m1-be-2 ancestry proof,
-          # the WWHN-290 change-range scope and the frozen-candidate digest from real git objects.
-          fetch-depth: 0
-
-      - name: Fetch the superseded BE2 branch for the ancestry proof
-        run: git fetch origin m1-be-2:refs/remotes/origin/m1-be-2 || echo "m1-be-2 unavailable; verifier will report INFO"
-
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
-          coverage: none
-          tools: composer:v2
-
-      - name: Install locked dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Closure evidence style and syntax
-        run: |
-          set -euo pipefail
-          vendor/bin/pint --test tests/Feature/Wwhn290ClosureEvidenceTest.php scripts/wwhn290-check-postman-namespace.php
-          bash -n scripts/verify-wwhn290-closure.sh
-          php -l scripts/wwhn290-check-postman-namespace.php
-
-      - name: Independent closure verification
-        run: bash scripts/verify-wwhn290-closure.sh
-
-      - name: Fail-closed evidence markers
-        run: |
-          set -euo pipefail
-          evidence='docs/evidence/wwhn-290/WWHN-290_DEFECT_CLOSURE_REGISTER.md'
-          test -s "$evidence"
-          for marker in DEV290-P1-01 DEV290-P1-02 DEV290-P1-03 DEV290-P1-04 DEV290-P1-05 DEV290-P1-06 NO-VERIFIED-UAT-DEFECT-INPUT; do
-            grep -Fq "$marker" "$evidence"
-          done
-          grep -Fq 'FAIL-CLOSED / NEEDS OWNER DISPOSITION' "$evidence"
-          grep -Fq 'does **not** claim QA1 PASS' "$evidence"
-          for artifact in \
-            docs/evidence/wwhn-290/WWHN-290_BRANCH_DECISION_RECORD.md \
-            docs/evidence/wwhn-290/WWHN-290_CONTRACT_CONSUMER_MATRIX.md \
-            docs/evidence/wwhn-290/WWHN-290_SOURCE_TRACEABILITY_SUPERSESSION.md \
-            docs/evidence/wwhn-290/WWHN-290_EXACT_SHA_GATE_RUN.md; do
-            test -s "$artifact"
-          done
-
-      - name: Pin approved OpenAPI target
-        run: |
-          php -r '$d=json_decode(file_get_contents("storage/api-docs/api-docs.json"), true, 512, JSON_THROW_ON_ERROR); if (($d["openapi"] ?? null) !== "3.0.0" || ($d["info"]["version"] ?? null) !== "2.0.0") { fwrite(STDERR, "WWHN-290 OpenAPI target mismatch\n"); exit(1); } echo "OpenAPI target 2.0.0 verified\n";'
-
-      - name: Prepare runtime
-        run: |
-          cp .env.example .env
-          php artisan key:generate
-          php artisan config:clear
-
-      - name: WWHN-290 focused regression suite (sqlite driver from phpunit.xml)
-        run: >-
-          php artisan test --filter
-          '/(Wwhn290ClosureEvidenceTest|ReportFlow06ContractTest|ReportFlow06IntegrationTest|Flow06WarrantyReportAlignmentTest|WarrantyFlow04ApiSurfaceTest|WarrantyIdempotencyKeyContractTest|AuthorizationTest|InventoryReconciliationIntegrityTest|BackendMigrationSeedHealthTest|SwaggerRouteSyncTest)/'
-
-      - name: Exact SHA evidence summary
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/wwhn-290
-          openapi_sha256="$(sha256sum storage/api-docs/api-docs.json | awk '{print $1}')"
-          frozen="$(php -r '$d=json_decode(file_get_contents("docs/evidence/wwhn-290/WWHN-290_PINS.json"), true); echo $d["frozen_candidate"]["sha"] ?: "PENDING_FREEZE_COMMIT";')"
-          cat > artifacts/wwhn-290/manifest.txt <<EOF
-          jira=WWHN-290
-          branch=${GITHUB_REF_NAME}
-          sha=${GITHUB_SHA}
-          frozen_candidate=${frozen}
-          openapi_version=2.0.0
-          openapi_sha256=${openapi_sha256}
-          test_driver=sqlite
-          result=PASS
-          closure_verifier=PASS
-          defect_input=NO_CODE_CHANGE_NA_BA_QA_CONFIRMED
-          superseded_branch=m1-be-2@60816499066f9f493596e326dc41116ef32f5c4b:STRICT_ANCESTOR
-          runtime_paths_changed_by_ticket=0
-          contract_delta_by_ticket=0
-          postgres_migrate_seed=SEE_POSTGRES_DIAGNOSTIC_JOB
-          qa1_signoff=NOT_CLAIMED_BY_DEV
-          pm_techlead_signoff=NOT_CLAIMED_BY_DEV
-          data_tech_signoff=NOT_CLAIMED_BY_DEV
-          ba_bas_source_signoff=NOT_CLAIMED_BY_DEV
-          EOF
-          sha256sum artifacts/wwhn-290/manifest.txt > artifacts/wwhn-290/SHA256SUMS
-          cat artifacts/wwhn-290/manifest.txt
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wwhn-290-exact-sha-${{ github.sha }}
-          path: artifacts/wwhn-290
-          if-no-files-found: error
-          retention-days: 30
-
-  postgres-diagnostic:
-    name: PostgreSQL migrate/seed diagnostic (non-blocking)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # KHÔNG chặn closure của WWHN-290: bước này đo sức khoẻ migrate/seed dùng chung của cả dự án.
-    # Khi nó đỏ, disposition bên dưới phải nêu đích danh migration/ticket sở hữu chỗ hỏng.
-    continue-on-error: true
     services:
       postgres:
         image: postgres:16
@@ -204,6 +81,13 @@ jobs:
       DB_PASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history is required: the closure verifier re-derives the m1-be-2 ancestry
+          # proof and the WWHN-290 change-range scope from real git objects.
+          fetch-depth: 0
+
+      - name: Fetch the superseded BE2 branch for the ancestry proof
+        run: git fetch origin m1-be-2:refs/remotes/origin/m1-be-2 || echo "m1-be-2 unavailable; verifier will report INFO"
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -215,6 +99,27 @@ jobs:
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Closure evidence style and syntax
+        run: vendor/bin/pint --test tests/Feature/Wwhn290ClosureEvidenceTest.php
+
+      - name: Independent closure verification
+        run: bash scripts/verify-wwhn290-closure.sh
+
+      - name: Fail-closed evidence markers
+        run: |
+          set -euo pipefail
+          evidence='docs/evidence/wwhn-290/WWHN-290_DEFECT_CLOSURE_REGISTER.md'
+          test -s "$evidence"
+          for marker in DEV290-P1-01 DEV290-P1-02 DEV290-P1-03 DEV290-P1-04 DEV290-P1-05 DEV290-P2-01 NO-VERIFIED-UAT-DEFECT-INPUT; do
+            grep -Fq "$marker" "$evidence"
+          done
+          grep -Fq 'FAIL-CLOSED / NEEDS OWNER DISPOSITION' "$evidence"
+          grep -Fq 'does **not** claim QA1 PASS' "$evidence"
+
+      - name: Pin approved OpenAPI target
+        run: |
+          php -r '$d=json_decode(file_get_contents("storage/api-docs/api-docs.json"), true, 512, JSON_THROW_ON_ERROR); if (($d["openapi"] ?? null) !== "3.0.0" || ($d["info"]["version"] ?? null) !== "2.0.0") { fwrite(STDERR, "WWHN-290 OpenAPI target mismatch\n"); exit(1); } echo "OpenAPI target 2.0.0 verified\n";'
+
       - name: Prepare runtime
         run: |
           cp .env.example .env
@@ -222,35 +127,46 @@ jobs:
           php artisan config:clear
 
       - name: Migrate and seed PostgreSQL
-        id: pg
-        continue-on-error: true
         run: php artisan migrate:fresh --seed --force
 
+      - name: WWHN-290 focused regression suite
+        run: >-
+          php artisan test --filter
+          '/(Wwhn290ClosureEvidenceTest|ReportFlow06ContractTest|ReportFlow06IntegrationTest|Flow06WarrantyReportAlignmentTest|WarrantyFlow04ApiSurfaceTest|WarrantyIdempotencyKeyContractTest|AuthorizationTest|InventoryReconciliationIntegrityTest|BackendMigrationSeedHealthTest|SwaggerRouteSyncTest)/'
+
       - name: Regenerate Swagger and re-check target
-        if: steps.pg.outcome == 'success'
         run: |
           php artisan l5-swagger:generate
           php -r '$d=json_decode(file_get_contents("storage/api-docs/api-docs.json"), true, 512, JSON_THROW_ON_ERROR); if (($d["info"]["version"] ?? null) !== "2.0.0") { fwrite(STDERR, "Generated OpenAPI version drifted\n"); exit(1); }'
 
-      - name: DISPOSITION of this diagnostic
-        if: always()
+      - name: Exact SHA evidence summary
         run: |
           set -euo pipefail
-          mkdir -p artifacts/wwhn-290-pg
-          {
-            echo "jira=WWHN-290"
-            echo "job=postgres-diagnostic"
-            echo "blocking_for_wwhn_290=false"
-            echo "sha=${GITHUB_SHA}"
-            echo "migrate_seed_outcome=${{ steps.pg.outcome }}"
-            echo "attribution=WWHN-290 changes 0 migration/seeder files; the owning ticket of any failure here is named in docs/evidence/wwhn-290/WWHN-290_EXACT_SHA_GATE_RUN.md section DISPOSITION"
-          } > artifacts/wwhn-290-pg/disposition.txt
-          cat artifacts/wwhn-290-pg/disposition.txt
+          mkdir -p artifacts/wwhn-290
+          openapi_sha256="$(sha256sum storage/api-docs/api-docs.json | awk '{print $1}')"
+          cat > artifacts/wwhn-290/manifest.txt <<EOF
+          jira=WWHN-290
+          branch=${GITHUB_REF_NAME}
+          sha=${GITHUB_SHA}
+          openapi_version=2.0.0
+          openapi_sha256=${openapi_sha256}
+          db=postgres16
+          result=PASS
+          closure_verifier=PASS
+          defect_input=NO_CODE_CHANGE_NA_BA_QA_CONFIRMED
+          superseded_branch=m1-be-2@60816499066f9f493596e326dc41116ef32f5c4b:STRICT_ANCESTOR
+          runtime_paths_changed_by_ticket=0
+          contract_delta_by_ticket=0
+          qa1_signoff=NOT_CLAIMED_BY_DEV
+          pm_techlead_signoff=NOT_CLAIMED_BY_DEV
+          data_tech_signoff=NOT_CLAIMED_BY_DEV
+          EOF
+          sha256sum artifacts/wwhn-290/manifest.txt > artifacts/wwhn-290/SHA256SUMS
+          cat artifacts/wwhn-290/manifest.txt
 
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: wwhn-290-postgres-diagnostic-${{ github.sha }}
-          path: artifacts/wwhn-290-pg
+          name: wwhn-290-exact-sha-${{ github.sha }}
+          path: artifacts/wwhn-290
           if-no-files-found: error
           retention-days: 30

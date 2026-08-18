@@ -2,13 +2,7 @@
     "jira": "WWHN-290",
     "parent": "WWHN-77",
     "qa_ticket": "WWHN-291",
-    "pinned_at": "2026-08-19",
-    "review_round": {
-        "round": 3,
-        "score_before": "64/100",
-        "register": "P0/P1/P2 EXACT FIX ACTION REGISTER - REVISED",
-        "new_item_in_this_round": "DEV290-P1-06"
-    },
+    "pinned_at": "2026-08-18",
     "pin_policy": "Every SHA/version quoted in any WWHN-290 markdown artifact MUST equal the value recorded here. Wwhn290ClosureEvidenceTest enforces cross-document equality so a hand-copied pin can never rot silently again.",
     "canonical_source": {
         "be_repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
@@ -21,55 +15,13 @@
             "m1ee"
         ]
     },
-    "frozen_candidate": {
-        "policy": "The closure package is frozen by a fixed commit plus a content digest. The digest is a sha256 over the manifest of 'sha256(file)  path' lines, sorted by path, computed from the frozen commit's own git objects. Later commits on the shared m1 branch therefore cannot rot it, which is the failure mode that made the revision-1 blob pin worthless within hours.",
-        "sha": null,
-        "sha_note": "Written by the evidence-only commit that immediately follows the freeze commit: a commit can never contain its own hash.",
-        "effective_date": "2026-08-19",
-        "package_digest": "d0a211d5dc7e4f4abae83a8e5eae613a0badd1412f3b4e420241c4e8d69f617d",
-        "package_files": [
-            ".github/workflows/wwhn-290-closure.yml",
-            "docs/evidence/wwhn-290/WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md",
-            "docs/evidence/wwhn-290/WWHN-290_BRANCH_DECISION_RECORD.md",
-            "docs/evidence/wwhn-290/WWHN-290_CONTRACT_CONSUMER_MATRIX.md",
-            "docs/evidence/wwhn-290/WWHN-290_DATA_IMPACT_INDEPENDENT_VERIFICATION.md",
-            "docs/evidence/wwhn-290/WWHN-290_DEFECT_CLOSURE_REGISTER.md",
-            "docs/evidence/wwhn-290/WWHN-290_QA1_REGRESSION_HANDOFF.md",
-            "docs/evidence/wwhn-290/WWHN-290_SIGNOFF_COMMENTS.md",
-            "docs/evidence/wwhn-290/WWHN-290_SOURCE_TRACEABILITY_SUPERSESSION.md",
-            "scripts/verify-wwhn290-closure.sh",
-            "scripts/wwhn290-check-postman-namespace.php",
-            "tests/Feature/Wwhn290ClosureEvidenceTest.php"
-        ],
-        "excluded_from_digest": [
-            "docs/evidence/wwhn-290/WWHN-290_PINS.json",
-            "docs/evidence/wwhn-290/WWHN-290_EXACT_SHA_GATE_RUN.md",
-            "docs/evidence/wwhn-290/runs/"
-        ],
-        "excluded_note": "The pins file holds the digest and cannot contain it; the gate-run record and raw logs are append-only run evidence written after the freeze."
-    },
-    "branch_decision": {
-        "id": "DEC-BR-290-001",
-        "record": "docs/evidence/wwhn-290/WWHN-290_BRANCH_DECISION_RECORD.md",
-        "decision": "m1 is the canonical BE implementation and closure source for WWHN-290",
-        "owner_roles": [
-            "PM/PO",
-            "Tech Lead"
-        ],
-        "effective_date": "2026-08-19",
-        "effective_sha": null,
-        "effective_sha_note": "Equals frozen_candidate.sha; written by the same evidence-only commit.",
-        "supersedes": "m1-be-2@60816499066f9f493596e326dc41116ef32f5c4b (STRICT_ANCESTOR, superseded by containment)",
-        "port_option_rejected_because": "merge-base(m1, m1-be-2) equals the m1-be-2 HEAD, so a port/merge is a no-op and would create a second, older copy of the closure source.",
-        "signoff_state": "PENDING_PM_TECHLEAD_SIGNOFF"
-    },
     "superseded_branch": {
         "name": "m1-be-2",
         "head": "60816499066f9f493596e326dc41116ef32f5c4b",
         "relation_to_m1": "STRICT_ANCESTOR",
         "merge_base_with_m1": "60816499066f9f493596e326dc41116ef32f5c4b",
+        "m1_commits_ahead": 669,
         "m1_commits_behind": 0,
-        "m1_commits_ahead_note": "Deliberately not pinned: m1 is shared and this number grows daily; the invariant that matters is behind = 0. The verifier prints the live value.",
         "openapi_version": "1.0.0",
         "port_or_merge_required": false,
         "rationale": "merge-base(m1, m1-be-2) equals the m1-be-2 HEAD itself, therefore m1 already contains every m1-be-2 commit. There is no divergence to reconcile and no closure source to port."
@@ -101,100 +53,29 @@
         "approved_openapi_version": "2.0.0",
         "openapi_spec_version": "3.0.0",
         "namespace": "/api/v1",
-        "approved_source": "storage/api-docs/api-docs.json",
         "blob_at_pin_time": "c262a0d3c1525807e50ec88e436d8b5459e8ac0d",
         "sha256_at_pin_time": "f91b786c1f0590805ff94089c78ada0e604d274df801dbb7efeff359b199ce87",
         "lineage_note": "The approved contract TARGET for WWHN-290 is info.version 2.0.0 and it is asserted live against the working tree. The blob identity above is the observed value at pin time ONLY and is deliberately not treated as a closure assertion. m1 is a shared branch and the contract file is regenerated by other tickets: WWHN-328 moved it from c262a0d3 to 50b81fd5 to publish dashboard data-scope fields, and it moved again within the same day, each time keeping info.version at 2.0.0. WWHN-290 therefore pins a RANGE INVARIANT - its own commit range changes the contract file zero times, which stays true forever - instead of an absolute blob that any concurrent ticket rots within hours."
     },
-    "contract_consumers": {
-        "ba_document_contract": {
-            "artifact": "HN_OpenAPI_v1_7.yaml",
-            "version": "1.7.0-ba",
-            "authority": "SRS/FRD v1.12 section 1.6 Supersession Register",
-            "approval_ticket": "WWHN-334",
-            "stored_in_repo": false,
-            "note": "Requirement layer owned by BA. It does not compete with the generated implementation contract; mixing the two layers is what produced the 1.0.0 vs 2.0.0 argument in the review."
-        },
-        "postman_collection": "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json",
-        "postman_local_environment": "docs/postman/WMS_HoaNam - Local.postman_environment.json",
-        "postman_ci_environment": "docs/postman/WMS_HoaNam - CI.postman_environment.json",
-        "qa_scenario_collection": "docs/postman/WMS_HoaNam API Scenario Testing - TEST.postman_collection.json",
-        "namespace_exceptions": [
-            "api/health"
-        ],
-        "namespace_exception_note": "The platform health endpoint sits outside the versioned business namespace by design and the FE declares it separately through VITE_API_HEALTH_PATH.",
-        "historical_not_closure_evidence": [
-            "storage/api-docs/api-docs.json@m1-be-2 (info.version 1.0.0, ancestor revision of the same file)",
-            "docs/api-contract/releases/WWHN-155/1.0.0/openapi.yaml",
-            "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/openapi.yaml",
-            "docs/api-contract/WWHN-1xx-*.yaml|json per-ticket lineage"
-        ]
-    },
     "fe_consumer": {
         "repo_branch": "m1",
-        "revision_reviewed": "6ed417e9291297a20505a45909102ed3349b2de0",
-        "local_path": "../../HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE",
-        "evidence": "docs/evidence/wwhn-290/WWHN-290_FE_CONSUMER_CONFIRMATION.md",
-        "verifier": "node scripts/verify-wwhn-290-consumer.mjs",
-        "code_invariant": "src/shared/config/env.ts pins CANONICAL_API_BASE_PATH = /api/v1 and refuses any VITE_API_BASE_URL that does not end there.",
+        "revision_reviewed": "3ddce525e2e3b3af29723d1ec97e3fc9eff175b3",
         "superseded_revisions_quoted_in_earlier_artifacts": [
             "9076cbdc3cd7a3599a17171b9ce11b26dfcbfc2c",
-            "6ffab3a7fb7b10aad1cccfba8d11720295d1b4c8",
-            "3ddce525e2e3b3af29723d1ec97e3fc9eff175b3"
+            "6ffab3a7fb7b10aad1cccfba8d11720295d1b4c8"
         ],
-        "note": "Round 2 pinned 3ddce52 as the reviewed FE revision. Round 3 moves the pin forward to the FE commit that actually carries the FE consumer confirmation document, so the pinned revision and the evidence it is supposed to contain can never disagree."
-    },
-    "source_traceability": {
-        "review_item": "DEV290-P1-06",
-        "parent_ticket": "WWHN-77",
-        "parent_ticket_quoted_source": "BRD v3.9",
-        "current_business_source": "BRD Hoa Nam v3.20",
-        "current_requirement_source": "SRS/FRD v1.12",
-        "srs_doc": "docs/HN_SRS_FRD_v1.12_FULL.md",
-        "srs_document_id": "HN-SRS-FRD-001",
-        "srs_version_marker": "VERSION 1.12",
-        "authority": "SRS/FRD v1.12 section 1.6 Supersession Register records 'BRD v3.9 -> BRD v3.20 = HISTORICAL / SUPERSEDED'.",
-        "approval_events": {
-            "brd": "WWHN-333",
-            "srs": "WWHN-334"
-        },
-        "baseline_doc_sha256_at_pin_time": {
-            "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
-            "docs/HoaNam_ERD_Moi_Nhat.md": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
-            "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md": "232e4d313a0bd4ff6f70f42ab679bab63d559d07e2b33a994dfbfcfd27ac9b5b"
-        },
-        "baseline_hash_note": "Lineage only. These working copies are edited by other tickets (WWHN-310 was updating the ERD while this package was written), so identity is asserted through live markers (document id + version marker + the supersession row) instead of absolute hashes.",
-        "repo_may_not_change_baseline": true,
-        "observed_drift_reported_to_ba": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md exists in two different revisions across the BE and FE repositories; reported, deliberately not merged by DEV."
-    },
-    "gate": {
-        "workflow": ".github/workflows/wwhn-290-closure.yml",
-        "workflow_name": "WWHN-290 Exact SHA Closure",
-        "blocking_job": "closure",
-        "blocking_job_driver": "sqlite",
-        "diagnostic_job": "postgres-diagnostic",
-        "diagnostic_job_blocking": false,
-        "run_record": "docs/evidence/wwhn-290/WWHN-290_EXACT_SHA_GATE_RUN.md",
-        "focused_suite_filter": "Wwhn290ClosureEvidenceTest|ReportFlow06ContractTest|ReportFlow06IntegrationTest|Flow06WarrantyReportAlignmentTest|WarrantyFlow04ApiSurfaceTest|WarrantyIdempotencyKeyContractTest|AuthorizationTest|InventoryReconciliationIntegrityTest|BackendMigrationSeedHealthTest|SwaggerRouteSyncTest",
-        "external_blocker": {
-            "symptom": "php artisan migrate:fresh --seed on PostgreSQL fails with SQLSTATE[42804] column \"created_by\" is of type uuid but expression is of type text, inside PL/pgSQL function hn_erd_mirror_pv_industries().",
-            "surfaced_by_migration": "Modules/Warehouse/database/migrations/2026_08_19_000100_add_optimistic_lock_to_pv_master_tables.php",
-            "root_cause_migration": "Modules/Warehouse/database/migrations/2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync.php",
-            "owner_ticket": "WWHN-289",
-            "owner_note": "The repair migration 2026_08_19_000050_repair_erd_mirror_projection_casts.php is authored under WWHN-289 (DEV289-P1-02R) and was still uncommitted while this package was frozen. WWHN-290 changes 0 migrations and must not adopt this fix, because DEV290-P1-05R requires this ticket to prove NO DATA/MIGRATION CHANGE.",
-            "blocking_for_wwhn_290": false
-        }
+        "note": "The BE register and the FE handoff previously quoted two DIFFERENT FE revisions. That contradiction is resolved here: one FE consumer revision, recorded once, referenced by both documents."
     },
     "defect_input": {
         "status": "NO CODE CHANGE / N/A",
-        "disposition_source": "BA/QA UAT confirmation comment on WWHN-290 (comment 15609)",
+        "disposition_source": "BA/QA UAT confirmation comment on WWHN-290 (nguyen hung)",
         "speculative_fix_allowed": false
     },
     "independent_gates": {
-        "DEV290-P1-02R": "PM / Tech Lead",
-        "DEV290-P1-03R": "Tech Lead (contract) + FE1 consumer",
-        "DEV290-P1-04R": "QA1 on WWHN-291",
-        "DEV290-P1-05R": "Data / Tech / DevOps reviewer",
-        "DEV290-P1-06": "BA / BAS (+ PM)"
+        "DEV290-P1-02": "PM / Tech Lead",
+        "DEV290-P1-03": "Tech Lead (contract) + FE1 consumer",
+        "DEV290-P1-04": "QA1 on WWHN-291",
+        "DEV290-P1-05": "Data / Tech / DevOps reviewer",
+        "DEV290-P2-01": "PM / Reviewer"
     }
 }

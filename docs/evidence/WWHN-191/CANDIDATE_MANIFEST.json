@@ -1,0 +1,66 @@
+{
+  "task": "WWHN-191",
+  "title": "Candidate manifest — output \"Movement/balance hỗ trợ\" (projection ledger / hỗ trợ đối soát)",
+  "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+  "branch": "m1",
+  "canonical_branch": "m1",
+  "provenance": {
+    "source_fix_sha": "46249187e4e78a9559bc8f2ef81239ed4f5e5438",
+    "source_fix_subject": "[BE2] Trien khai projection ledger/ho tro doi soat",
+    "absorbing_merge_sha": "741a6cfdef2b64de53bb57984b7f1607b8b8c328",
+    "absorbing_merge_subject": "Merge branch 'm1-be-2' into m1",
+    "superseded_branch": {
+      "name": "origin/m1-be-2",
+      "tip_sha": "60816499066f9f493596e326dc41116ef32f5c4b",
+      "statement": "m1-be-2 da bi m1 supersede hoan toan: tip cua no la to tien cua m1 HEAD (git merge-base --is-ancestor origin/m1-be-2 HEAD -> true), khong con commit nao dung ngoai m1. Canonical source duy nhat cua candidate nay la m1."
+    },
+    "note": "Owner-transfer: task mo duoi vai tro BE2, hien do DEV thong nhat tiep quan. Khong dung moving HEAD lam candidate - candidate_sha duoi day la SHA co dinh."
+  },
+  "candidate_sha": "7dacc8e531a8bb2252e3f055d81baef63989d90f",
+  "candidate_subject": "fix(WWHN-191): pin candidate theo commit cuoi cham artifact, khong theo HEAD",
+  "candidate_committed_at": "2026-08-19T01:03:12+07:00",
+  "generator": "scripts/verify-wwhn-191-closure.mjs --refresh",
+  "pull_request": "N/A",
+  "independent_review": {
+    "reviewer": "Tech Lead (WWHN-191, DEV191-P1-01R)",
+    "scope": "Pin canonical provenance sau owner-transfer: source_fix_sha / absorbing_merge_sha / candidate_sha + supersession m1-be-2 -> m1; xac nhan ranh gioi ledger/projection o CONTRACT_PIN.json",
+    "status": "PENDING",
+    "recorded_at": null,
+    "where": "Jira WWHN-191 comment"
+  },
+  "ci_run": null,
+  "artifacts": [
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/InventoryBalanceController.php",
+      "sha256": "f359813be76d08a82c1a5d5329947497a0e95138d3eb8716b8ad85c68a8d4820"
+    },
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/StockMovementController.php",
+      "sha256": "2e461966e4666b39eb73c6a1d6bd6864ed7157e800d314a516c55cb73adac8d8"
+    },
+    {
+      "path": "Modules/Warehouse/routes/api.php",
+      "sha256": "88dde3a72402750df15fca970d1d5830450cb567c07169977dc180da434a66b9"
+    },
+    {
+      "path": "tests/Feature/Wwhn191BalanceMovementProjectionTest.php",
+      "sha256": "782d54ad093c766fad293e247a26775caec232c20c13f2a755eef24eef051dce"
+    },
+    {
+      "path": "docs/evidence/WWHN-191/CONTRACT_PIN.json",
+      "sha256": "cf4247062cf8514451c0ed71032b3c74b10117d970883ed605ca402dfc31a589"
+    },
+    {
+      "path": "docs/evidence/WWHN-191/QA_RETEST_PLAN.md",
+      "sha256": "7500ed8c34dfabf5b7aa286a98b1c69b7ba3c4116d06bdeb13c22f69fd59efc2"
+    },
+    {
+      "path": "scripts/verify-wwhn-191-closure.mjs",
+      "sha256": "889dd8cfe78a774505ee1167b77106ee9bc57dac4737c47260e3d9b79da2a8b9"
+    },
+    {
+      "path": ".github/workflows/wwhn-191-movement-balance-gate.yml",
+      "sha256": "976391f732a818af0a4f5c35418db421c24bd5b67c3d0ded372581dbc6fff8ac"
+    }
+  ]
+}

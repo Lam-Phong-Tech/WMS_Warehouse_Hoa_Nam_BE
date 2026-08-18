@@ -78,11 +78,8 @@ Closure-evidence verification, independent of any database:
 bash scripts/verify-wwhn290-closure.sh
 ```
 
-Cổng CI `.github/workflows/wwhn-290-closure.yml` chạy đúng bộ test trên **sqlite** (driver mặc định của
-`phpunit.xml`) trong job **chặn** `closure`, và chạy `migrate:fresh --seed` PostgreSQL 16 trong job **không
-chặn** `postgres-diagnostic`. Lý do tách: bước PostgreSQL dùng chung của dự án đang hỏng vì một defect
-thuộc ticket khác — chi tiết và quy trách nhiệm ở `WWHN-290_EXACT_SHA_GATE_RUN.md` mục `DISPOSITION`.
-QA1 có thể đóng dựa trên một CI run xanh của job `closure` tại đúng frozen candidate, thay cho chạy tay.
+The CI workflow `.github/workflows/wwhn-290-closure.yml` runs the same suite on PostgreSQL 16 against the exact
+commit and uploads an exact-SHA manifest artifact, so QA1 may also close on a green CI run instead of a local one.
 
 ## 6. If QA1 chooses Option B, record this
 
@@ -101,21 +98,3 @@ snapshots, or reconciliation runs — there is no defect and no data write in th
 attached later, that scope returns in full and this handoff is superseded.
 
 DEV does not sign this gate.
-
-## 8. Chạy tại đúng frozen candidate (yêu cầu mới của `DEV290-P1-04R`)
-
-Review vòng 3 yêu cầu QA1 ghi nhận `NO QUALIFYING DEFECT / REGRESSION N/A` **tại exact SHA**. SHA đó là
-`frozen_candidate.sha` trong `WWHN-290_PINS.json` — một chỗ duy nhất, có test chặn lệch.
-
-```bash
-git fetch origin m1
-SHA=$(php -r 'echo json_decode(file_get_contents("docs/evidence/wwhn-290/WWHN-290_PINS.json"), true)["frozen_candidate"]["sha"];')
-git checkout "$SHA"
-composer install --no-interaction
-bash scripts/verify-wwhn290-closure.sh
-php artisan test --filter '/(Wwhn290ClosureEvidenceTest|ReportFlow06ContractTest|ReportFlow06IntegrationTest|Flow06WarrantyReportAlignmentTest|WarrantyFlow04ApiSurfaceTest|WarrantyIdempotencyKeyContractTest|AuthorizationTest|InventoryReconciliationIntegrityTest|BackendMigrationSeedHealthTest|SwaggerRouteSyncTest)/'
-```
-
-Kết quả DEV đo được tại frozen candidate nằm ở `WWHN-290_EXACT_SHA_GATE_RUN.md` kèm log thô trong
-`docs/evidence/wwhn-290/runs/`. Đó là **dry run của DEV**, không phải chữ ký QA1 — QA1 vẫn phải tự chạy
-hoặc tự đối chiếu CI run rồi comment trên `WWHN-291`.

@@ -1,6 +1,6 @@
 # WWHN-290 — Defect closure register and QA handoff
 
-- Date: 2026-08-19 (revision 3 — responds to the 64/100 REVISED register; revision 2 responded to 66/100)
+- Date: 2026-08-18 (revision 2 — responds to the 66/100 review)
 - Jira: `WWHN-290` — `[BE] Khắc phục lỗi dữ liệu/báo cáo/tính năng`
 - Parent: `WWHN-77`
 - Branch policy: `m1` only. `m1-be-2` is a **strict ancestor** of `m1` and is superseded by containment — see `WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md`.
@@ -10,7 +10,7 @@
 |---|---|
 | Change-range base | `57370ed29f0749235c06ab8aef2990ff6bac6a0f` |
 | Change-range final (BE candidate) | `f8942321f2a673137eb9e16c9fc86d013140f84a` |
-| FE consumer revision reviewed | `6ed417e9291297a20505a45909102ed3349b2de0` |
+| FE consumer revision reviewed | `3ddce525e2e3b3af29723d1ec97e3fc9eff175b3` |
 | Approved OpenAPI target | `3.0.0` spec / `info.version` **`2.0.0`**, namespace `/api/v1` |
 | OpenAPI blob observed at pin time | `c262a0d3c1525807e50ec88e436d8b5459e8ac0d` (lineage only — see §3.1) |
 
@@ -23,39 +23,9 @@
 | `WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md` | `DEV290-P1-02`, `DEV290-P1-03`, `DEV290-P2-01` |
 | `WWHN-290_DATA_IMPACT_INDEPENDENT_VERIFICATION.md` | `DEV290-P1-05` |
 | `WWHN-290_QA1_REGRESSION_HANDOFF.md` | `DEV290-P1-04` |
-| `WWHN-290_BRANCH_DECISION_RECORD.md` | `DEV290-P1-02R` — quyết định nhánh + frozen candidate |
-| `WWHN-290_CONTRACT_CONSUMER_MATRIX.md` | `DEV290-P1-03R` — khoá contract + ma trận consumer |
-| `WWHN-290_SOURCE_TRACEABILITY_SUPERSESSION.md` | `DEV290-P1-06` — nguồn kiểm soát hiện hành |
-| `WWHN-290_EXACT_SHA_GATE_RUN.md` + `runs/` | `DEV290-P1-05R` — kết quả cổng tại frozen candidate + disposition check đỏ |
-| `WWHN-290_FE_CONSUMER_CONFIRMATION.md` (repo FE) | `DEV290-P1-03R` — phía consumer |
 | `scripts/verify-wwhn290-closure.sh` | one-command independent re-derivation of all of the above |
 | `tests/Feature/Wwhn290ClosureEvidenceTest.php` | regression guard, pin equality |
 | `.github/workflows/wwhn-290-closure.yml` | exact-SHA CI gate |
-
-
-### 0.1 Bản đồ đóng cho *REVISED register* (review vòng 3 — 64/100)
-
-Register bản sửa đổi đổi tên các mục thành `…R` và **thêm mới `DEV290-P1-06`**. Bảng này là bản đồ 1-1
-giữa yêu cầu của reviewer và bằng chứng tương ứng. Cột cuối nói rõ ai còn phải ký — DEV không ký hộ.
-
-| Item | Yêu cầu của reviewer | Bằng chứng trong gói này | Kiểm tự động | Chữ ký còn thiếu |
-|---|---|---|---|---|
-| `DEV290-P1-01R` | Giữ disposition "no qualifying defect", chỉ reopen nếu có defect thật | §2 dưới đây (`NO-VERIFIED-UAT-DEFECT-INPUT`, `NO CODE CHANGE / N/A`) | verifier mục 6 | — (BA đã đóng ở comment 15609) |
-| `DEV290-P1-02R` | PM/Tech formalize `m1` là canonical với effective SHA/date/supersedes; **pin frozen candidate** | `WWHN-290_BRANCH_DECISION_RECORD.md` (`DEC-BR-290-001`) + `frozen_candidate` trong `WWHN-290_PINS.json` | verifier mục 1 và 7 | PM/PO + Tech Lead |
-| `DEV290-P1-03R` | Khoá **một** approved OpenAPI source; pin Postman + QA + FE consumer cùng version | `WWHN-290_CONTRACT_CONSUMER_MATRIX.md` + `contract_consumers` + `WWHN-290_FE_CONSUMER_CONFIRMATION.md` (repo FE) | verifier mục 3 và 8; FE `yarn wwhn-290:verify` | Tech Lead |
-| `DEV290-P1-04R` | QA1 ghi nhận độc lập `NO QUALIFYING DEFECT / REGRESSION N/A` tại exact SHA | `WWHN-290_QA1_REGRESSION_HANDOFF.md` (chạy tại `frozen_candidate.sha`) | verifier mục 6 | QA1 (trên `WWHN-291`) |
-| `DEV290-P1-05R` | Xác nhận NO DATA/MIGRATION/REPORT CHANGE; **chạy/đính kèm closure run xanh tại frozen candidate**; **disposition các project check đỏ** | `WWHN-290_DATA_IMPACT_INDEPENDENT_VERIFICATION.md` + `WWHN-290_EXACT_SHA_GATE_RUN.md` + log thô trong `runs/` | verifier mục 4, 4b và 10; cổng `WWHN-290 Exact SHA Closure` | Data / Tech / DevOps |
-| `DEV290-P1-06` | BA/BAS cập nhật current controlled source + supersession (parent còn ghi BRD v3.9) | `WWHN-290_SOURCE_TRACEABILITY_SUPERSESSION.md` | verifier mục 9 (đọc thẳng §1.6 của SRS) | BA/BAS + PM |
-| `DEV290-P2-01` | Đã gỡ khỏi register hiện hành | giữ lại như lineage ở §3 của `WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md` | verifier mục 2 | — |
-
-Hai thay đổi bản chất so với vòng trước, không phải viết lại lời văn:
-
-1. **Frozen candidate có thật.** Gói closure được đóng băng bằng một commit cố định cộng `package_digest`
-   tính trên chính object của commit đó, nên review lặp lại được dù `m1` chạy tiếp mỗi ngày.
-2. **Cổng exact-SHA xanh được.** Cổng cũ không bao giờ xanh vì phụ thuộc `migrate:fresh --seed`
-   PostgreSQL dùng chung đang hỏng bởi ticket khác. Nay cổng tách job chặn (thứ WWHN-290 sở hữu) khỏi job
-   chẩn đoán PostgreSQL không chặn, và chỗ hỏng được quy trách nhiệm đích danh trong
-   `WWHN-290_EXACT_SHA_GATE_RUN.md`.
 
 ## 1. Baseline reviewed
 
@@ -97,7 +67,7 @@ namespace `/api/v1`.
 - Backward-compatibility impact: **NONE**.
 - `m1-be-2` publishes `1.0.0`, but as an ancestor revision of the same file, not a competing approved contract.
   An older `m1-be-2` OpenAPI must not be used as WWHN-290 closure evidence.
-- FE consumer baseline: `6ed417e9291297a20505a45909102ed3349b2de0` on FE `m1`. FE1 has confirmed on the ticket
+- FE consumer baseline: `3ddce525e2e3b3af29723d1ec97e3fc9eff175b3` on FE `m1`. FE1 has confirmed on the ticket
   that no breaking payload/endpoint/enum change requires FE adaptation.
 
 ### 3.1 Defect found and fixed in this revision — pin rot
