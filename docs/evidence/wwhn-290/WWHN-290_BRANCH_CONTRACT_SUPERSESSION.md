@@ -47,7 +47,7 @@ was a WWHN-290 closure source.
 | BE2 implementation branch `m1-be-2` @ `60816499066f9f493596e326dc41116ef32f5c4b` | BE implementation branch `m1` (repo `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE`), which strictly contains it | **SUPERSEDED BY CONTAINMENT, effective 2026-08-18**; requires PM/Tech Lead confirmation on WWHN-290 |
 | OpenAPI `info.version = 1.0.0` as published on `m1-be-2` | OpenAPI `info.version = 2.0.0` on `m1`, namespace `/api/v1` | **HISTORICAL / SUPERSEDED**; `1.0.0` is an ancestor revision of `2.0.0`, not a competing contract |
 | Review reference `FE/tree/m1ee/m1` (`DEV290-P2-01`) | BE canonical `WMS_Warehouse_Hoa_Nam_BE@m1`; FE `WMS_Warehouse_Hoa_Nam_FE@m1` is **consumer evidence only** | **REMOVED / NO ARTIFACT** — branch `m1ee` does not exist in either repository |
-| Two different FE consumer revisions quoted by the BE register (`9076cbd…`) and the FE handoff (`6ffab3a…`) | Single FE consumer revision `3ddce525e2e3b3af29723d1ec97e3fc9eff175b3` recorded once in `WWHN-290_PINS.json` | **SUPERSEDED / CONTRADICTION RESOLVED** |
+| Two different FE consumer revisions quoted by the BE register (`9076cbd…`) and the FE handoff (`6ffab3a…`) | Single FE consumer revision `6ed417e9291297a20505a45909102ed3349b2de0` recorded once in `WWHN-290_PINS.json` | **SUPERSEDED / CONTRADICTION RESOLVED** |
 
 ### 3.1 Branch reference correction — `DEV290-P2-01`
 

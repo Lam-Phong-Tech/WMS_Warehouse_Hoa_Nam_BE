@@ -207,6 +207,210 @@ else
 fi
 echo
 
+echo '-- 7. DEV290-P1-02R frozen candidate (immutable closure package) --'
+DECISION="${EVIDENCE_DIR}/WWHN-290_BRANCH_DECISION_RECORD.md"
+FROZEN_SHA="$(pin frozen_candidate.sha)"
+PINNED_DIGEST="$(pin frozen_candidate.package_digest)"
+PACKAGE_FILES="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); echo implode("\n", $d["frozen_candidate"]["package_files"] ?? []);' "$PINS")"
+
+if [ -s "$DECISION" ]; then
+  pass "present: $DECISION"
+else
+  fail "missing branch decision record: $DECISION"
+fi
+for marker in 'DEC-BR-290-001' 'PENDING_PM_TECHLEAD_SIGNOFF' 'frozen candidate'; do
+  if grep -Fq "$marker" "$DECISION" 2>/dev/null; then
+    pass "decision record states ${marker}"
+  else
+    fail "decision record is missing ${marker}"
+  fi
+done
+
+# The digest is recomputed from the frozen commit's own objects once the candidate SHA is
+# recorded, so later commits on the shared m1 branch can never rot it. Before the freeze
+# commit exists, the same digest is computed from the working tree - which is exactly what
+# the freeze commit will contain.
+digest_source='working tree'
+manifest_tmp="$(mktemp)"
+digest_ok=1
+if [ -n "$FROZEN_SHA" ] && git rev-parse --verify --quiet "$FROZEN_SHA" >/dev/null; then
+  digest_source="frozen candidate ${FROZEN_SHA:0:7}"
+fi
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if [ "$digest_source" = 'working tree' ]; then
+    if [ ! -f "$f" ]; then
+      fail "package file missing from working tree: $f"
+      digest_ok=0
+      continue
+    fi
+    h="$(sha256sum "$f" | awk '{print $1}')"
+  else
+    if ! git cat-file -e "${FROZEN_SHA}:${f}" 2>/dev/null; then
+      fail "package file missing at frozen candidate: $f"
+      digest_ok=0
+      continue
+    fi
+    h="$(git cat-file blob "${FROZEN_SHA}:${f}" | sha256sum | awk '{print $1}')"
+  fi
+  printf '%s  %s\n' "$h" "$f" >> "$manifest_tmp"
+done <<< "$PACKAGE_FILES"
+
+if [ "$digest_ok" = '1' ]; then
+  ACTUAL_DIGEST="$(sort "$manifest_tmp" | sha256sum | awk '{print $1}')"
+  info "package digest source: ${digest_source}"
+  info "package digest       : ${ACTUAL_DIGEST}"
+  if [ "$ACTUAL_DIGEST" = "$PINNED_DIGEST" ]; then
+    pass 'frozen closure package digest matches the pin - the reviewed package is byte-identical'
+  else
+    fail "frozen package digest mismatch: pinned ${PINNED_DIGEST}, recomputed ${ACTUAL_DIGEST}"
+  fi
+fi
+rm -f "$manifest_tmp"
+
+if [ -n "$FROZEN_SHA" ]; then
+  if git rev-parse --verify --quiet "$FROZEN_SHA" >/dev/null; then
+    if git merge-base --is-ancestor "$FROZEN_SHA" HEAD; then
+      pass "frozen candidate ${FROZEN_SHA:0:7} is contained in the current branch"
+    else
+      fail "frozen candidate ${FROZEN_SHA} is not contained in the current branch"
+    fi
+  else
+    fail "frozen candidate ${FROZEN_SHA} is not resolvable in this clone"
+  fi
+  DECISION_SHA="$(pin branch_decision.effective_sha)"
+  if [ "$DECISION_SHA" = "$FROZEN_SHA" ]; then
+    pass 'branch decision effective SHA equals the frozen candidate'
+  else
+    fail "branch decision effective SHA (${DECISION_SHA}) differs from the frozen candidate (${FROZEN_SHA})"
+  fi
+else
+  info 'frozen candidate SHA not recorded yet - it is written by the evidence-only commit that follows the freeze'
+fi
+echo
+
+echo '-- 8. DEV290-P1-03R contract consumers pinned to one source --'
+MATRIX="${EVIDENCE_DIR}/WWHN-290_CONTRACT_CONSUMER_MATRIX.md"
+if [ -s "$MATRIX" ]; then pass "present: $MATRIX"; else fail "missing contract consumer matrix: $MATRIX"; fi
+
+POSTMAN_COLLECTION="$(pin contract_consumers.postman_collection)"
+POSTMAN_LOCAL_ENV="$(pin contract_consumers.postman_local_environment)"
+NAMESPACE="$(pin contract.namespace)"
+
+if [ -f "$POSTMAN_COLLECTION" ]; then
+  if php -f scripts/wwhn290-check-postman-namespace.php -- "$POSTMAN_COLLECTION" 'api/v1' 'api/health'; then
+    pass "postman contract collection targets ${NAMESPACE} only (documented exception: api/health)"
+  else
+    fail "postman contract collection leaves the approved namespace ${NAMESPACE}"
+  fi
+else
+  fail "pinned postman collection not found: ${POSTMAN_COLLECTION}"
+fi
+
+if [ -f "$POSTMAN_LOCAL_ENV" ]; then
+  # Git Bash rewrites a leading-slash argument into a Windows path before it reaches php.exe,
+  # so the namespace is passed without its leading slash and re-attached inside PHP.
+  if php -r '$d = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); foreach ($d["values"] ?? [] as $v) { if (($v["key"] ?? "") === "baseUrl") { exit(str_ends_with(rtrim($v["value"], "/"), "/".$argv[2]) ? 0 : 1); } } exit(1);' "$POSTMAN_LOCAL_ENV" "${NAMESPACE#/}"; then
+    pass "postman local environment baseUrl ends at ${NAMESPACE}"
+  else
+    fail "postman local environment baseUrl does not end at ${NAMESPACE}"
+  fi
+else
+  fail "pinned postman environment not found: ${POSTMAN_LOCAL_ENV}"
+fi
+
+# Range invariant for consumer artifacts: this ticket must not have edited them.
+if git rev-parse --verify --quiet "$BASE" >/dev/null && git rev-parse --verify --quiet "$FINAL" >/dev/null; then
+  consumer_touched="$(git diff --name-only "$BASE" "$FINAL" -- docs/postman storage/api-docs | wc -l | tr -d ' ')"
+  if [ "$consumer_touched" = '0' ]; then
+    pass 'range changes contract and postman consumer artifacts 0 times'
+  else
+    fail "range changes ${consumer_touched} consumer artifact file(s)"
+  fi
+fi
+
+FE_REV="$(pin fe_consumer.revision_reviewed)"
+FE_REPO_DIR="$(pin fe_consumer.local_path)"
+if [ -d "${FE_REPO_DIR}/.git" ]; then
+  if git -C "$FE_REPO_DIR" rev-parse --verify --quiet "$FE_REV" >/dev/null; then
+    if git -C "$FE_REPO_DIR" cat-file -e "${FE_REV}:docs/evidence/wwhn-290/WWHN-290_FE_CONSUMER_CONFIRMATION.md" 2>/dev/null; then
+      pass "FE consumer revision ${FE_REV:0:7} carries the FE consumer confirmation"
+    else
+      fail "FE consumer revision ${FE_REV} does not contain the FE consumer confirmation document"
+    fi
+  else
+    fail "FE consumer revision ${FE_REV} is not resolvable in ${FE_REPO_DIR}"
+  fi
+else
+  info "FE repository not available at ${FE_REPO_DIR}; the FE side is verified by 'yarn wwhn-290:verify' in that repo"
+fi
+echo
+
+echo '-- 9. DEV290-P1-06 source and traceability baseline --'
+TRACE="${EVIDENCE_DIR}/WWHN-290_SOURCE_TRACEABILITY_SUPERSESSION.md"
+SRS_DOC="$(pin source_traceability.srs_doc)"
+if [ -s "$TRACE" ]; then pass "present: $TRACE"; else fail "missing source traceability record: $TRACE"; fi
+
+if [ -f "$SRS_DOC" ]; then
+  if grep -Fq "$(pin source_traceability.srs_document_id)" "$SRS_DOC" && grep -Fq "$(pin source_traceability.srs_version_marker)" "$SRS_DOC"; then
+    pass "baseline SRS identity is live ($(pin source_traceability.srs_document_id) / $(pin source_traceability.srs_version_marker))"
+  else
+    fail 'baseline SRS document no longer declares the pinned identity'
+  fi
+  if grep -F 'BRD v3.9' "$SRS_DOC" | grep -Fq 'BRD v3.20'; then
+    pass 'SRS supersession register still records BRD v3.9 -> BRD v3.20'
+  else
+    fail 'SRS supersession register no longer records BRD v3.9 -> BRD v3.20 - the DEV290-P1-06 authority is gone'
+  fi
+else
+  fail "baseline SRS document not found: ${SRS_DOC}"
+fi
+
+for marker in "$(pin source_traceability.current_business_source)" "$(pin source_traceability.parent_ticket_quoted_source)"; do
+  if grep -Fq "$marker" "$TRACE"; then
+    pass "traceability record quotes ${marker}"
+  else
+    fail "traceability record is missing ${marker}"
+  fi
+done
+
+if git rev-parse --verify --quiet "$BASE" >/dev/null && git rev-parse --verify --quiet "$FINAL" >/dev/null; then
+  baseline_touched="$(git diff --name-only "$BASE" "$FINAL" -- docs/HN_SRS_FRD_v1.12_FULL.md docs/HoaNam_ERD_Moi_Nhat.md docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md | wc -l | tr -d ' ')"
+  if [ "$baseline_touched" = '0' ]; then
+    pass 'range changes baseline documents 0 times - no repo-side baseline drift attributable to this ticket'
+  else
+    fail "range changes ${baseline_touched} baseline document(s) - a repo artifact must not move the controlled baseline"
+  fi
+fi
+echo
+
+echo '-- 10. DEV290-P1-05R exact-SHA gate run and failed-check disposition --'
+GATE_RUN="${EVIDENCE_DIR}/WWHN-290_EXACT_SHA_GATE_RUN.md"
+WORKFLOW='.github/workflows/wwhn-290-closure.yml'
+if [ -s "$GATE_RUN" ]; then
+  pass "present: $GATE_RUN"
+  for marker in 'DISPOSITION' 'WWHN-290 Exact SHA Closure'; do
+    if grep -Fq "$marker" "$GATE_RUN"; then
+      pass "gate run record states ${marker}"
+    else
+      fail "gate run record is missing ${marker}"
+    fi
+  done
+else
+  fail "missing exact-SHA gate run record: $GATE_RUN"
+fi
+
+if [ -f "$WORKFLOW" ]; then
+  if grep -Fq 'postgres-diagnostic' "$WORKFLOW" && grep -Fq 'continue-on-error' "$WORKFLOW"; then
+    pass 'gate separates the blocking closure job from the non-blocking PostgreSQL diagnostic'
+  else
+    fail 'gate no longer separates blocking closure from the PostgreSQL diagnostic job'
+  fi
+else
+  fail "missing workflow: $WORKFLOW"
+fi
+echo
+
 echo '== summary =='
 if [ "$failures" -eq 0 ]; then
   echo 'RESULT=PASS — every WWHN-290 claim re-derived from the live repository.'

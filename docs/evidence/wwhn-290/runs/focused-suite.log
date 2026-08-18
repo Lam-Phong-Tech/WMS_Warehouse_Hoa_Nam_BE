@@ -1,0 +1,133 @@
+# WWHN-290 — log thô bộ regression tập trung tại frozen candidate
+# Runner : vendor/bin/phpunit --no-coverage --testdox <10 file test>
+# Driver : sqlite :memory: (phpunit.xml mặc định)
+# Ngày   : 2026-08-19
+# Lý do liệt kê file thay vì --filter: xem WWHN-290_EXACT_SHA_GATE_RUN.md §2.1
+
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\phpunit.xml
+
+Time: 00:44.079, Memory: 128.00 MB
+
+Authorization (Tests\Feature\Authorization)
+ ✔ Sku manage endpoints with different users
+ ✔ Master view endpoints follow catalog view permission
+ ✔ 403 response format is correct
+ ✔ Super admin bypasses sku and master permissions
+ ✔ User with no permission gets 403 on all endpoints
+
+Backend Migration Seed Health (Tests\Feature\BackendMigrationSeedHealth)
+ ✔ Migrations and seed are idempotent and create required markers
+ ✔ Versioned health endpoint returns 200 with canonical contract after seed
+ ✔ Versioned health endpoint returns secret safe 503 when seed is missing
+ ✔ Invalid request id is replaced and remains consistent
+ ✔ Legacy unversioned health endpoint is not exposed
+ ✔ Health endpoint rejects mutating http methods
+ ✔ Seed markers are directly queryable for deployment evidence
+
+Flow06Warranty Report Alignment (Tests\Feature\Flow06WarrantyReportAlignment)
+ ✔ Warranty report uses current status lifecycle
+ ✔ Warranty report routes resolve to aligned controller
+
+Inventory Reconciliation Integrity (Tests\Feature\InventoryReconciliationIntegrity)
+ ✔ Reconciliation detects ledger dimension without balance
+ ✔ Reconciliation detects balance dimension without ledger
+
+Report Flow06Contract (Tests\Feature\ReportFlow06Contract)
+ ✔ Flow 06 routes cover all baseline reports and export permission
+ ✔ Xnt uses canonical movement semantics and exact formula
+ ✔ Report catalog has exact eight mvp business reports
+
+Report Flow06Integration (Tests\Feature\ReportFlow06Integration)
+ ✔ Inventory balance returns rows with reconciliation
+ ✔ Inventory balance keyword filter
+ ✔ Inventory balance keyword case insensitive
+ ✔ Inventory balance export returns xlsx
+ ✔ Xnt computes opening receipt issue closing
+ ✔ Xnt keyword filters by product
+ ✔ Xnt enhanced same as xnt
+ ✔ Xnt export returns xlsx
+ ✔ Document history returns inbound and outbound
+ ✔ Document history filters by doc type
+ ✔ Document history includes actor names
+ ✔ Document history export returns xlsx
+ ✔ Movement trace returns movements with summary
+ ✔ Movement trace filters by movement type
+ ✔ Import match returns batches with summary
+ ✔ Import match keyword filter
+ ✔ Import match error status filter
+ ✔ Import match includes actor names
+ ✔ Label log returns packing label rows
+ ✔ Label log aggregates by outbound document
+ ✔ Label log export returns xlsx
+ ✔ Outbound by agency returns agency summary
+ ✔ Outbound by agency by agency at top level
+ ✔ Outbound by agency filters by agency
+ ✔ Outbound by agency keyword filter
+ ✔ Warranty defects returns cases with defect breakdown
+ ✔ Warranty defects filters by status
+ ✔ Warranty defects export returns xlsx
+ ✔ Reconciliation opening plus receipt minus issue equals closing
+ ✔ Reconciliation balance vs ledger match
+ ✔ Reconciliation detects mismatch
+ ✔ Dashboard quick returns aggregated summary
+ ✔ Dashboard quick returns zeroed aggregate for empty period
+ ✔ Dashboard quick rejects reversed date range
+ ✔ Dashboard quick rejects future from date without to date
+ ✔ Dashboard quick rejects reversed range via from to alias
+ ✔ Dashboard quick excludes opening movements from flow kpis
+ ✔ Dashboard quick requires authentication
+ ✔ Dashboard quick requires report view permission
+ ✔ Hub returns eight mvp reports
+ ✔ Pagination returns subset when per page specified
+ ✔ Pagination page 2 returns correct slice
+ ✔ No pagination when per page not sent
+ ✔ Movement trace paginates in sql but summary covers whole period
+ ✔ Inventory ledger report returns signed movement rows
+ ✔ Report by code dispatches every hub report
+ ✔ Report by code rejects unknown code
+ ✔ Create report export requires idempotency key and returns job
+ ✔ Create report export is audited
+ ✔ Reports require authentication
+ ✔ Export requires report export permission
+
+Swagger Route Sync (Tests\Feature\SwaggerRouteSync)
+ ✔ Generated swagger matches real api v1 routes
+ ✔ Generated swagger summaries are human readable
+ ✔ Inbound cancel operation carries real contract not generic skeleton
+
+Warranty Flow04Api Surface (Tests\Feature\WarrantyFlow04ApiSurface)
+ ✔ Warranty case exposes erd intake diagnosis and cancel fields
+ ✔ Warranty attachment upload list download and logical delete
+ ✔ Component issue detail route and warranty case filter
+ ✔ Warranty report masks pii and traces component issues
+ ✔ Warranty events follow erd taxonomy and responses carry etag
+
+Warranty Idempotency Key Contract (Tests\Feature\WarrantyIdempotencyKeyContract)
+ ✔ Missing idempotency key returns 428 without warranty effect
+ ✔ Short and oversized idempotency keys return 422 without warranty effect
+ ✔ Boundary idempotency keys are accepted
+ ✔ Warranty intake accepts missing key and replays when key supplied
+ ✔ Warranty update without key relies on if match and replays with key
+
+Wwhn290Closure Evidence (Tests\Feature\Wwhn290ClosureEvidence)
+ ✔ Evidence set is complete
+ ✔ Pins file declares every required pin
+ ✔ Documents quote the same pins as the pins file
+ ✔ All review items are dispositioned
+ ✔ Branch supersession is recorded with containment proof
+ ✔ Data impact records a measurable no change claim
+ ✔ Openapi target is exactly version 2 0 0
+ ✔ Closure package does not claim independent qa pass
+ ✔ Round three artifacts exist
+ ✔ Frozen candidate is pinned and immutable
+ ✔ Branch decision record is owned and not self signed
+ ✔ Contract consumers are pinned to one source
+ ✔ Source traceability is anchored to the live baseline
+ ✔ Gate run record dispositions failed project checks
+ ✔ Register dispositions the revised review items
+
+OK (98 tests, 789 assertions)
+{"tool":"phpunit","result":"passed","tests":98,"passed":98,"assertions":789,"duration_ms":44080}
