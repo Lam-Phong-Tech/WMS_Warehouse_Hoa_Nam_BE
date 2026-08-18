@@ -15,24 +15,56 @@ on:
   push:
     branches: [m1]
     paths:
+      # DEV309-P1-03: bộ path này phải phủ TOÀN BỘ artifact bàn giao. Trước đây
+      # thiếu docs/api-contract, docs/architecture, docs/ops, OpenAPI và các
+      # generator, nên sửa hợp đồng API xong mà workflow evidence không hề chạy.
       - 'README.md'
       - 'routes/console.php'
       - 'app/Console/Commands/ExportPermissionCatalog.php'
+      - 'app/Swagger/**'
       - 'docs/permissions/**'
+      - 'docs/api-contract/**'
+      - 'docs/architecture/**'
+      - 'docs/ops/**'
+      - 'docs/evidence/WWHN-309/**'
       - 'docs/docs_task_jira/WWHN-309.md'
+      - 'docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md'
+      - 'storage/api-docs/**'
+      - 'scripts/generate-error-code-catalog.mjs'
+      - 'scripts/generate-endpoint-permission-matrix.mjs'
+      - 'scripts/generate-api-contract-metrics.mjs'
+      - 'scripts/verify-wwhn-309-handover-contract.mjs'
+      - 'scripts/verify-wwhn-309-candidate-pin.mjs'
       - 'tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php'
       - 'tests/Feature/Wwhn309ScheduledOperationsTest.php'
+      - 'tests/Feature/CurrentBaselineIfMatchContractTest.php'
       - '.github/workflows/wwhn-309-backend-handover-evidence.yml'
   pull_request:
     branches: [m1]
     paths:
+      # DEV309-P1-03: bộ path này phải phủ TOÀN BỘ artifact bàn giao. Trước đây
+      # thiếu docs/api-contract, docs/architecture, docs/ops, OpenAPI và các
+      # generator, nên sửa hợp đồng API xong mà workflow evidence không hề chạy.
       - 'README.md'
       - 'routes/console.php'
       - 'app/Console/Commands/ExportPermissionCatalog.php'
+      - 'app/Swagger/**'
       - 'docs/permissions/**'
+      - 'docs/api-contract/**'
+      - 'docs/architecture/**'
+      - 'docs/ops/**'
+      - 'docs/evidence/WWHN-309/**'
       - 'docs/docs_task_jira/WWHN-309.md'
+      - 'docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md'
+      - 'storage/api-docs/**'
+      - 'scripts/generate-error-code-catalog.mjs'
+      - 'scripts/generate-endpoint-permission-matrix.mjs'
+      - 'scripts/generate-api-contract-metrics.mjs'
+      - 'scripts/verify-wwhn-309-handover-contract.mjs'
+      - 'scripts/verify-wwhn-309-candidate-pin.mjs'
       - 'tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php'
       - 'tests/Feature/Wwhn309ScheduledOperationsTest.php'
+      - 'tests/Feature/CurrentBaselineIfMatchContractTest.php'
       - '.github/workflows/wwhn-309-backend-handover-evidence.yml'
 
 permissions:
@@ -176,6 +208,15 @@ jobs:
           # README lệch .env.example, stocktake tái xuất hiện, secret trong tài liệu.
           node scripts/verify-wwhn-309-handover-contract.mjs 2>&1 \
             | tee artifacts/wwhn-309/logs/handover-contract-gate.log
+
+      - name: Candidate pin integrity (exit code is the gate)
+        run: |
+          set -euo pipefail
+          # DEV309-P1-01: pin cua goi ban giao phai kiem lai duoc, khong phai mot dong
+          # chu trong Jira. Cong nay do ngay khi co commit sau candidate SHA cham vao
+          # artifact ban giao (pin muc) hoac khi noi dung artifact lech SHA-256 da pin.
+          node scripts/verify-wwhn-309-candidate-pin.mjs 2>&1 | tee artifacts/wwhn-309/logs/candidate-pin.log
+          cp docs/evidence/WWHN-309/CANDIDATE_MANIFEST.json artifacts/wwhn-309/candidate-manifest.json
 
       - name: Health contract evidence
         run: |

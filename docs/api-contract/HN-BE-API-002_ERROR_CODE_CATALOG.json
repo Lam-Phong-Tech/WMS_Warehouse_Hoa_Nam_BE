@@ -7,7 +7,7 @@
     "shape": "{success:false, message, error_code, errors, error:{code, details}, meta:{request_id, timestamp}}",
     "note": "error_code và error.code luôn bằng nhau; client không được coi khoá nào là optional."
   },
-  "total_codes": 248,
+  "total_codes": 246,
   "codes": [
     {
       "code": "BAD_REQUEST",
@@ -183,8 +183,8 @@
       "http_status": [
         404
       ],
-      "occurrences": 44,
-      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:36"
+      "occurrences": 43,
+      "first_seen": "app/Traits/ApiResponse.php:104"
     },
     {
       "code": "REVERSAL_NOT_FOUND",
@@ -793,8 +793,8 @@
       "http_status": [
         412
       ],
-      "occurrences": 24,
-      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:15"
+      "occurrences": 22,
+      "first_seen": "Modules/Auth/app/Http/Controllers/UserController.php:214"
     },
     {
       "code": "ACTIVE_WAREHOUSE_BASELINE_VIOLATION",
@@ -874,7 +874,7 @@
         422
       ],
       "occurrences": 3,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php:1564"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php:1593"
     },
     {
       "code": "BUSINESS_RULE_VIOLATION",
@@ -1289,8 +1289,8 @@
       "http_status": [
         422
       ],
-      "occurrences": 22,
-      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:72"
+      "occurrences": 21,
+      "first_seen": "Modules/Auth/app/Http/Controllers/UserController.php:211"
     },
     {
       "code": "INVENTORY_SERIAL_NOT_FOUND",
@@ -1621,14 +1621,6 @@
       "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php:514"
     },
     {
-      "code": "RESOURCE_ID_REQUIRED",
-      "http_status": [
-        422
-      ],
-      "occurrences": 1,
-      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:25"
-    },
-    {
       "code": "RETURN_CONDITION_REQUIRED",
       "http_status": [
         422
@@ -1945,8 +1937,8 @@
       "http_status": [
         428
       ],
-      "occurrences": 22,
-      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:67"
+      "occurrences": 21,
+      "first_seen": "app/Support/IdempotencyKeyGuard.php:25"
     },
     {
       "code": "TOO_MANY_REQUESTS",
@@ -1971,14 +1963,6 @@
       ],
       "occurrences": 1,
       "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:395"
-    },
-    {
-      "code": "VERSION_CONTRACT_MISSING",
-      "http_status": [
-        500
-      ],
-      "occurrences": 1,
-      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:28"
     },
     {
       "code": "HEALTH_CHECK_DEGRADED",

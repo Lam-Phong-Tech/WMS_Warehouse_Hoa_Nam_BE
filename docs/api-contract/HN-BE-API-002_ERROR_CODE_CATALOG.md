@@ -38,7 +38,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | 500 | `INTERNAL_SERVER_ERROR` | lỗi ngoài dự kiến, giao dịch đã rollback |
 | 503 | `SERVICE_UNAVAILABLE` | dependency bắt buộc không sẵn sàng |
 
-## 3. Danh mục error code (248 mã)
+## 3. Danh mục error code (246 mã)
 
 ### HTTP 400
 
@@ -80,7 +80,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `OUTBOUND_MATCH_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:170` |
 | `PHYSICAL_CODE_NOT_FOUND` | 5 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:344` |
 | `PUTAWAY_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/PutawayController.php:203` |
-| `RESOURCE_NOT_FOUND` | 44 | `app/Http/Middleware/CurrentBaselineIfMatch.php:36` |
+| `RESOURCE_NOT_FOUND` | 43 | `app/Traits/ApiResponse.php:104` |
 | `REVERSAL_NOT_FOUND` | 2 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:227` |
 | `SCAN_CODE_NOT_FOUND` | 3 | `Modules/Warehouse/app/Services/ScanClassificationService.php:66` |
 | `SKU_NOT_FOUND` | 5 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineItemIdentityController.php:44` |
@@ -171,7 +171,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 
 | Error code | Số lần dùng | Vị trí đầu tiên |
 | --- | --- | --- |
-| `STALE_VERSION` | 24 | `app/Http/Middleware/CurrentBaselineIfMatch.php:15` |
+| `STALE_VERSION` | 22 | `Modules/Auth/app/Http/Controllers/UserController.php:214` |
 
 ### HTTP 422
 
@@ -189,7 +189,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `BOX_REQUIRED` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:110` |
 | `BOX_SKU_MISMATCH` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:109` |
 | `BRAND_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:86` |
-| `BUSINESS_RULE_ERROR` | 3 | `Modules/Warehouse/app/Http/Controllers/OperationalReportController.php:1564` |
+| `BUSINESS_RULE_ERROR` | 3 | `Modules/Warehouse/app/Http/Controllers/OperationalReportController.php:1593` |
 | `BUSINESS_RULE_VIOLATION` | 8 | `Modules/Warehouse/app/Http/Controllers/PvAdminResourceController.php:455` |
 | `CANCEL_REASON_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:347` |
 | `COMPONENT_BOX_INSUFFICIENT` | 1 | `Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:38` |
@@ -241,7 +241,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `INVALID_SKU_CODE` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:397` |
 | `INVALID_SKU_NAME` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:407` |
 | `INVALID_UUID` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:578` |
-| `INVALID_VERSION` | 22 | `app/Http/Middleware/CurrentBaselineIfMatch.php:72` |
+| `INVALID_VERSION` | 21 | `Modules/Auth/app/Http/Controllers/UserController.php:211` |
 | `INVENTORY_SERIAL_NOT_FOUND` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:260` |
 | `ITEM_NOT_AVAILABLE` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:530` |
 | `ITEM_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:210` |
@@ -283,7 +283,6 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `QUANTITY_MODE_ITEM_FORBIDDEN` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:166` |
 | `QUANTITY_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:218` |
 | `REPORT_EXPORT_ROW_LIMIT_EXCEEDED` | 5 | `Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php:514` |
-| `RESOURCE_ID_REQUIRED` | 1 | `app/Http/Middleware/CurrentBaselineIfMatch.php:25` |
 | `RETURN_CONDITION_REQUIRED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:603` |
 | `REVERSAL_ITEM_DUPLICATED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:562` |
 | `REVERSAL_ITEM_REQUIRED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:158` |
@@ -328,7 +327,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 
 | Error code | Số lần dùng | Vị trí đầu tiên |
 | --- | --- | --- |
-| `PRECONDITION_REQUIRED` | 22 | `app/Http/Middleware/CurrentBaselineIfMatch.php:67` |
+| `PRECONDITION_REQUIRED` | 21 | `app/Support/IdempotencyKeyGuard.php:25` |
 
 ### HTTP 429
 
@@ -342,7 +341,6 @@ Không client nào được coi một trong hai là optional. `message` không b
 | --- | --- | --- |
 | `INTERNAL_SERVER_ERROR` | 2 | `bootstrap/app.php:144` |
 | `OUTBOUND_MATCH_MISSING` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:395` |
-| `VERSION_CONTRACT_MISSING` | 1 | `app/Http/Middleware/CurrentBaselineIfMatch.php:28` |
 
 ### HTTP 503
 

@@ -148,7 +148,9 @@ Mọi thao tác ghi tồn chạy trong `DB::transaction()`. Đọc bản ghi b�
 - Endpoint bắt buộc mà thiếu header → **428 `PRECONDITION_REQUIRED`**.
 - Post thành công → `version` tăng 1.
 
-Hiện được kiểm ở **tầng controller** (các helper `assertVersion` / `assertVersionIfProvided` / `expectedVersion`). Middleware `App\Http\Middleware\CurrentBaselineIfMatch` cài đặt cùng contract ở tầng route nhưng **chưa được gắn vào route nào**; nó vẫn được giữ và có contract test riêng (`tests/Feature/CurrentBaselineIfMatchContractTest.php`). Ai gắn nó vào route phải kiểm tra không double-increment `version` với helper của controller.
+Enforcement nằm **duy nhất ở tầng controller** (các helper `assertVersion` / `assertVersionIfProvided` / `expectedVersion`). Không còn middleware optimistic locking ở tầng route: `App\Http\Middleware\CurrentBaselineIfMatch` đã được **gỡ** theo `DEC-API-IFMATCH-001` — nó không gắn vào route nào nhưng lại là nguồn duy nhất của hai error code (`RESOURCE_ID_REQUIRED`, `VERSION_CONTRACT_MISSING`) được publish cho FE/QA mà không đường chạy nào trả về được. `tests/Feature/CurrentBaselineIfMatchContractTest.php` giữ nguyên tên file và nay khoá chính trạng thái đó.
+
+Muốn đưa optimistic locking về tầng route thì phải làm đủ điều kiện trong `DEC-API-IFMATCH-001`, quan trọng nhất là gỡ helper ở đúng các controller đó để `version` không tăng hai lần cho một request.
 
 ### 6.3. Idempotency — `Idempotency-Key`
 
@@ -156,7 +158,7 @@ Hiện được kiểm ở **tầng controller** (các helper `assertVersion` / 
 - `require()` → thiếu header là **428**; `optional()` → thiếu header vẫn chạy (áp dụng cho nhóm warranty stock-neutral theo Annex C §8.1).
 - `App\Support\IdempotencyStore`: gửi lại **cùng key + cùng payload** trả về kết quả lần đầu (replay); **cùng key + payload khác** trả **409**.
 
-Từ WWHN-309, hai header này được **tự động khai vào OpenAPI** dựa trên chính source của action (`RouteSyncProcessor::contractHeaders`), nên contract không còn lệch runtime: 27 operation khai `Idempotency-Key`, 41 operation khai `If-Match`.
+Từ WWHN-309, hai header này được **tự động khai vào OpenAPI** dựa trên chính source của action (`RouteSyncProcessor::contractHeaders`), nên contract không còn lệch runtime: 27 operation khai `Idempotency-Key`, 58 operation khai `If-Match`.
 
 ---
 
@@ -189,7 +191,7 @@ Không có `audit:reconcile` chạy nền thì outbox phình vô hạn và audit
 | --- | --- |
 | Xác thực | JWT (`tymon/jwt-auth`), access token giữ trong bộ nhớ FE, không lưu localStorage |
 | Refresh | Cookie HttpOnly `wms_refresh_token`, path `/api/v1/auth`; môi trường ngoài local ép `Secure=true` ở tầng config kể cả khi env deploy còn sót `false` |
-| Phân quyền | Theo **permission code**, không theo tên role. 56 permission code đang gác 226 operation |
+| Phân quyền | Theo **permission code**, không theo tên role. 57 permission code đang gác 231 operation |
 | Data scope | `EnforceInventoryWarehouseScope` cho nhóm read/trace tồn kho |
 | CORS | Origin liệt kê tường minh (`CORS_ALLOWED_ORIGINS`), không wildcard; credentialed CORS là bất biến giao thức vì refresh cookie |
 | Cache HTTP | `no-store` cho response API riêng tư |
@@ -230,7 +232,7 @@ Tài liệu này chỉ ký phần **kiến trúc/API/vận hành phía backend**
 | Tài liệu | Nội dung |
 | --- | --- |
 | `docs/api-contract/HN-BE-API-001_API_CONTRACT_HANDOVER.md` | Contract API bàn giao cho FE/QA |
-| `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md` | 243 error code, sinh tự động từ source |
+| `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md` | 246 error code, sinh tự động từ source |
 | `docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md` | Ma trận endpoint × permission × OpenAPI |
 | `docs/ops/HN-BE-OPS-001_OPERATIONS_RUNBOOK.md` | Vận hành: deploy, job nền, health, sự cố |
 | `docs/permissions/WMS_PERMISSION_CATALOG_BE1.md` | Danh mục permission chuẩn |

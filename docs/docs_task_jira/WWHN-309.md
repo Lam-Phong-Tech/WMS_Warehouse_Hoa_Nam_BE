@@ -1,11 +1,11 @@
 # WWHN-309 — [BE] Hoàn thiện tài liệu kiến trúc / API / vận hành
 
-Cập nhật: 2026-08-18
+Cập nhật: 2026-08-19
 Repository: `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE`
 Nhánh thực hiện: `m1`
-Pre-remediation BE SHA: `c1ce7bf1d4a18d2a428a46f10ea2e025cffd646c`
-FE baseline đối chiếu: `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE@m1` / `3e1be64883d85dfe4ff5569b6300b781fbe99a57`
-Parent: WWHN-83 · Dependency: HN-HO-001-ST01 · Role: BE1
+Candidate SHA đóng task: xem `docs/evidence/WWHN-309/CANDIDATE_MANIFEST.json` → `candidate_sha`
+FE baseline đối chiếu: `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE@m1` (pin ở FE `docs/api-evidence/BE_CONTRACT_PIN.json`)
+Parent: WWHN-83 · Dependency: HN-HO-001-ST01 · Role: **DEV** (vai trò FE1/BE1 đã hợp nhất; tài liệu cũ ghi `BE1` là dấu vết lịch sử, xem §10)
 
 ## 1. Phạm vi và nguồn chuẩn
 
@@ -28,28 +28,42 @@ Invariants BE không được làm sai:
 - Backend tự enforce permission **và** data scope; FE ẩn nút không phải cơ chế bảo vệ.
 - PostgreSQL là database canonical duy nhất; PASS trên SQLite không phải căn cứ nghiệm thu.
 
-## 2. Kết quả remediation theo AC của WWHN-309
+## 2. Vòng 2 — đóng bộ P1/P2 của review 74/100
 
-| Sev | Finding | Xử lý BE | Trạng thái | Owner còn lại |
+Review vòng 1 chấm 74/100 với 6 P1 + 2 P2. Điểm chung của cả 6 P1 **không phải thiếu tài liệu** mà là: *lời khẳng định trong tài liệu không bị ràng buộc vào một revision kiểm lại được*. Vòng 2 sửa đúng gốc đó.
+
+| ID | Sev | Nguyên nhân gốc | Cách sửa tận gốc | Trạng thái |
 | --- | --- | --- | --- | --- |
-| P1 | `evidence:permission-catalog` so khớp cả biểu thức `permission:A\|B` như một permission key ⇒ 31 endpoint OR-alias bị trả **sai danh sách role** và bị tính là route permission "lạ"; seed-diff FAIL giả | Tách theo `\|` đúng semantics `CheckPermission`, thêm trường `accepted_permissions`, schema `1.2.0` | CLOSED (test khoá) | — |
-| P1 | Permission catalog đã publish stale: 31 permission / 31 route so với 83 permission / 226 route thật; 6/7 source hash lệch | Regenerate `docs/permissions/*` từ exporter đã sửa; test chặn stale theo SHA-256 | CLOSED | FE/BA review nội dung |
-| P1 | `warranty:purge-pii` (SRS §13.8 / DR-PRIV-001) **chưa từng được lên lịch** — PII hết retention không bao giờ bị anonymize trên production | Đăng ký `Schedule::command('warranty:purge-pii')` 03:10 hằng ngày, `withoutOverlapping()` + `onOneServer()`; test khoá danh sách job nền bắt buộc | CLOSED | DevOps xác nhận có process `schedule:work` ở UAT/production |
-| P1 | `README.md` vẫn là README mặc định của Laravel: không có build/run/env/ops của dự án | Viết lại README theo runtime thật (Docker Compose, env contract, test, API docs, job nền, runbook, invariants) | CLOSED | DO/QA đối chiếu khi dựng môi trường |
-| P1 | Handover BE không có execution identity tái lập được (đúng lớp lỗi FE311-P1-04) | Thêm workflow `WWHN-309 Backend Handover Evidence`: exact SHA, run ID/URL, log thô, catalog/schedule/OpenAPI/health artifact + `SHA256SUMS` | READY ON CLOSURE CI | BE1 dispatch tại closure SHA + DO/QA pin run |
-| P1 | `HN-BE-API-003` báo "Operation có optimistic locking If-Match: **0**" trong khi OpenAPI publish 41 operation khai `If-Match` và runtime abort 412 `STALE_VERSION` ở 25 vị trí | Generator dò thêm parameter `If-Match` trong OpenAPI, không chỉ dò middleware; regenerate → 41 | CLOSED | — |
-| P2 | `app/Http/Middleware/CurrentBaselineIfMatch.php` không được gắn vào route nào nhưng tên gợi ý đang enforce | Ghi cảnh báo trong docblock, trỏ về ma trận endpoint; enforcement thật nằm ở controller | DOCUMENTED — chờ quyết định gỡ | Tech Lead |
-| P2 | Markdown permission catalog còn liệt kê `stocktake.adjust`, `stock_document.*`, `warranty.temp_only` — trái baseline MVP | Viết lại theo nhóm permission có thật trong seed/route | CLOSED | — |
-| P1 | OpenAPI có đủ 226 operation nhưng `components.schemas` **rỗng** và 2265/2267 response không có `content`: FE/QA đọc spec không suy ra được hình dạng envelope, phải đọc ngược code | Thêm `App\Swagger\ApiEnvelopeSchemas` (`ApiSuccessEnvelope`/`ApiErrorEnvelope`/`ApiErrorDetail`/`ApiMeta`/`ApiLinks`); `RouteSyncProcessor` gắn `$ref` cho **mọi** response, kể cả response viết tay chưa có content | CLOSED — 2268/2268 response có schema | FE/QA sinh type từ spec |
-| P1 | Header contract lệch runtime: 18 call site `IdempotencyKeyGuard::require` nhưng chỉ 4 operation khai `Idempotency-Key`; 24 call site đọc `If-Match` nhưng chỉ 7 operation khai header ⇒ FE tích hợp gặp 428/412 bất ngờ | `RouteSyncProcessor::contractHeaders()` phân tích tĩnh source của action (kèm 1 cấp helper cùng class) và tự khai header đúng required/optional | CLOSED — 27 operation khai `Idempotency-Key` (23 bắt buộc), 41 khai `If-Match` | FE cập nhật client theo spec |
-| P1 | Không có cổng tổng cho gói tài liệu: từng generator tự kiểm nhưng không ai chặn trường hợp thiếu tài liệu, README lệch `.env.example`, bất biến MVP bị tái nhập hoặc secret bị chép vào tài liệu | `scripts/verify-wwhn-309-handover-contract.mjs` — fail-closed trên 6 lớp lỗi đó | CLOSED — PASS tại SHA closure | CI gọi ở gate |
-| P2 | Chưa có tài liệu kiến trúc as-built và runbook vận hành đứng riêng; nội dung nằm rải trong README/task doc nên BA/QA/DO phải đọc chéo | Bổ sung `HN-BE-ARCH-001` (kiến trúc as-built), `HN-BE-API-001` (contract bàn giao FE/QA), `HN-BE-OPS-001` (runbook vận hành) | CLOSED | BA/QA/DO đọc theo vai trò |
-| P2 | `docs/api-contract/WMS_HoaNam_OpenAPI_Changelog_BE1.md` (v1.0.1) còn ghi `POST /stocktake-sessions/{id}/apply-adjustment` trong "Baseline Rule" — route này không còn tồn tại trong route table | Giữ changelog làm bản ghi lịch sử; `HN-BE-API-001` §8 ghi rõ khi mâu thuẫn thì route table + tài liệu hiện hành thắng | DOCUMENTED | — |
-| P1 | `.gitignore` chặn **toàn bộ `/docs/`** rồi whitelist từng file ⇒ 20 tài liệu im lặng nằm ngoài git, gồm `HN_SRS_FRD_v1.12_FULL.md`, 6 decision record, runbook cutover/rollback và runbook nạp dữ liệu cuối mà README đang trỏ tới. Reviewer clone đúng closure SHA **không thấy** các tài liệu này dù chúng vẫn "tồn tại" trên máy người viết ⇒ handover không tái lập được | Bỏ rule chặn `/docs/` (giữ ngoại lệ riêng cho baseline do BA sở hữu); thêm guard trong `verify-wwhn-309-handover-contract.mjs`: tài liệu handover bắt buộc mà bị `git check-ignore` bắt đều FAIL | CLOSED | Commit 20 tài liệu này cùng closure SHA |
+| DEV309-P1-01 | P1 | Pin chỉ là một dòng chữ trong Jira; nhánh `m1` đi tiếp thì pin mục mà không ai biết. Commit mang WWHN-309 lại là commit gộp nhiều task | `docs/evidence/WWHN-309/CANDIDATE_MANIFEST.json` pin candidate SHA + SHA-256 của toàn bộ artifact; `scripts/verify-wwhn-309-candidate-pin.mjs` kiểm **range invariant** (không commit nào sau candidate được chạm vào tập artifact) và bắt buộc khai `pull_request` hoặc `independent_review`. §9 quy scope cho commit gộp | CLOSED |
+| DEV309-P1-02 | P1 | Số liệu contract sống dưới dạng **văn xuôi** trong 5 tài liệu, không ai kiểm chéo được ⇒ cùng gói bàn giao ghi hai giá trị khác nhau cho cùng phép đếm | `HN-BE-API-004_CONTRACT_METRICS.json\|md` sinh tự động; cổng tổng đối chiếu **mọi** phát biểu số liệu trong tài liệu bàn giao với artifact này, dòng mô tả trạng thái cũ phải đánh dấu `[historical]` | CLOSED |
+| DEV309-P1-03 | P1 | Workflow tồn tại nhưng `paths:` không phủ tài liệu contract/OpenAPI ⇒ sửa hợp đồng API mà workflow evidence không hề chạy; và không có chỗ pin run | `paths:` mở rộng phủ toàn bộ artifact bàn giao; thêm step `Candidate pin integrity`; `docs/evidence/WWHN-309/CI_RUN_RECORD.md` là chỗ duy nhất pin run; `scripts/collect-wwhn309-handover-evidence.sh` cho evidence dự phòng | CLOSED (chờ pin run thật) |
+| DEV309-P1-04 | P1 | QA1 không có kịch bản retest độc lập nên WWHN-312 kẹt ở Blocked | `docs/evidence/WWHN-309/QA_RETEST_PLAN.md`: 7 nhóm kiểm dương + **3 phép kiểm âm** bắt buộc (chứng minh cổng thật sự chặn chứ không chỉ xanh) | CLOSED (chờ QA1 chạy) |
+| DEV309-P1-05 | P1 | Không có nơi ghi nội dung BA/BAS và Tech Lead phải duyệt, nên sign-off dễ thành ký khống | §11 liệt kê đích danh từng điểm cần duyệt; `WWHN-309_SIGNOFF_COMMENTS.md` mỗi vai trò đúng một comment và nói rõ xác nhận cái gì | CLOSED (chờ chủ vai trò post) |
+| DEV309-P1-06 | P1 | Yêu cầu vận hành chỉ nằm trong văn xuôi, không có chỗ ghi bằng chứng theo mục | `docs/evidence/WWHN-309/DEVOPS_HANDOVER_VERIFICATION.md`: 10 mục có lệnh kiểm + bằng chứng runtime đã thu sẵn cho 3 mục | CLOSED (chờ DevOps điền UAT/prod) |
+| DEV309-P2-01 | P2 | Tài liệu ghi vai trò `BE1` trong khi tổ chức đã hợp nhất về `DEV` | Chuẩn hoá về `DEV`, giữ `BE1` làm dấu vết lịch sử ở §10 | CLOSED |
+| DEV309-P2-02 | P2 | `CurrentBaselineIfMatch` là dead code nhưng chỉ được "ghi chú", không có disposition | **Gỡ** theo `DEC-API-IFMATCH-001`; test đổi vai để chặn quay lại; catalog error code giảm 2 mã ma | CLOSED |
 
-## 3. Kiến trúc backend
+## 3. Kết quả remediation vòng 1 (giữ để truy vết)
 
-### 3.1. Thành phần
+| Sev | Finding | Xử lý BE | Trạng thái |
+| --- | --- | --- | --- |
+| P1 | `evidence:permission-catalog` so khớp cả biểu thức `permission:A\|B` như một permission key ⇒ 31 endpoint OR-alias bị trả sai danh sách role, seed-diff FAIL giả | Tách theo `\|` đúng semantics `CheckPermission`, thêm `accepted_permissions`, schema `1.2.0` | CLOSED |
+| P1 | Permission catalog publish stale so với seed/route thật `[historical]` | Regenerate từ exporter đã sửa; test chặn stale theo SHA-256 | CLOSED |
+| P1 | `warranty:purge-pii` (SRS §13.8 / DR-PRIV-001) chưa từng được lên lịch — PII hết retention không bao giờ bị anonymize | `Schedule::command('warranty:purge-pii')` 03:10, `withoutOverlapping()` + `onOneServer()`; test khoá danh sách job nền | CLOSED |
+| P1 | `README.md` vẫn là README mặc định của Laravel | Viết lại theo runtime thật | CLOSED |
+| P1 | Handover BE không có execution identity tái lập được | Workflow `WWHN-309 Backend Handover Evidence` | CLOSED |
+| P1 | `HN-BE-API-003` báo "operation có If-Match: 0" trong khi runtime abort 412 ở 25 vị trí `[historical]` | Generator dò thêm parameter `If-Match` trong OpenAPI, không chỉ dò middleware | CLOSED |
+| P1 | OpenAPI có đủ operation nhưng `components.schemas` rỗng và hầu hết response không có `content` `[historical]` | `App\Swagger\ApiEnvelopeSchemas` + `RouteSyncProcessor` gắn `$ref` cho mọi response | CLOSED |
+| P1 | Header contract lệch runtime: 18 call site `IdempotencyKeyGuard::require` nhưng rất ít operation khai header `[historical]` | `RouteSyncProcessor::contractHeaders()` phân tích tĩnh source của action (kèm 1 cấp helper cùng class) | CLOSED |
+| P1 | Không có cổng tổng cho gói tài liệu | `scripts/verify-wwhn-309-handover-contract.mjs` fail-closed trên 6 lớp lỗi | CLOSED |
+| P1 | `.gitignore` chặn toàn bộ `/docs/` rồi whitelist từng file ⇒ 20 tài liệu nằm ngoài git, reviewer clone đúng SHA không thấy | Bỏ rule; guard `git check-ignore` trong cổng tổng | CLOSED |
+| P2 | Markdown permission catalog liệt kê `stocktake.adjust`, `stock_document.*`, `warranty.temp_only` — trái baseline MVP | Viết lại theo permission có thật trong seed/route | CLOSED |
+| P2 | Chưa có tài liệu kiến trúc as-built và runbook đứng riêng | `HN-BE-ARCH-001`, `HN-BE-API-001`, `HN-BE-OPS-001` | CLOSED |
+| P2 | Changelog OpenAPI v1.0.1 còn ghi `POST /stocktake-sessions/{id}/apply-adjustment` | Giữ làm bản ghi lịch sử; `HN-BE-API-001` §8: route table + tài liệu hiện hành thắng | DOCUMENTED |
+
+## 4. Kiến trúc backend
+
+### 4.1. Thành phần
 
 | Lớp | Nội dung |
 | --- | --- |
@@ -62,7 +76,7 @@ Luồng xử lý chuẩn: `Route → Controller → Form Request → Service/Use
 
 Ghi tồn kho bắt buộc: kiểm tra auth → permission → data scope → trạng thái phiếu → mở transaction → lock bản ghi tồn → kiểm tra lại số lượng → cập nhật tồn → ghi `stock_movement` → ghi audit → chuyển trạng thái → commit. Lỗi ở bất kỳ bước nào thì rollback toàn bộ.
 
-### 3.2. Middleware toàn cục (`bootstrap/app.php`)
+### 4.2. Middleware toàn cục (`bootstrap/app.php`)
 
 | Middleware | Vai trò |
 | --- | --- |
@@ -72,7 +86,9 @@ Ghi tồn kho bắt buộc: kiểm tra auth → permission → data scope → tr
 | `EnforceInventoryWarehouseScope` | Data scope theo kho; đăng ký toàn cục **cố ý** để refactor route không âm thầm mất scope |
 | `permission` → `CheckPermission` | RBAC; hỗ trợ OR `permission:A\|B`; `SUPER_ADMIN` bypass |
 
-### 3.3. Envelope và error code
+Optimistic locking **không** có middleware riêng: enforcement nằm ở controller. `CurrentBaselineIfMatch` đã được gỡ theo `DEC-API-IFMATCH-001`.
+
+### 4.3. Envelope và error code
 
 Envelope lỗi thống nhất: `success`, `message` (tiếng Việt, không lộ stack/SQL/secret), `error_code`, `errors`, `error.code/details`, `meta.request_id/timestamp`. `error_code` và `error.code` **luôn bằng nhau** — client không được coi trường nào là optional.
 
@@ -90,42 +106,45 @@ Envelope lỗi thống nhất: `success`, `message` (tiếng Việt, không lộ
 
 Danh mục đầy đủ: `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md` (sinh tự động, CI `--check`).
 
-## 4. Hợp đồng API bàn giao cho FE1/QA
+## 5. Hợp đồng API bàn giao cho FE/QA
+
+**Số liệu contract chỉ có một nguồn: `docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.json`.** Không chép số vào văn xuôi ở nơi khác — cổng tổng đối chiếu ngược lại và sẽ FAIL.
 
 | Artifact | Đường dẫn | Cách sinh lại |
 | --- | --- | --- |
-| OpenAPI 3.0 (179 path / 226 operation) | `storage/api-docs/api-docs.json\|yaml` | `php artisan l5-swagger:generate` |
+| OpenAPI 3.0 (183 path / 231 operation) | `storage/api-docs/api-docs.json\|yaml` | `php artisan l5-swagger:generate` |
+| Số liệu contract chính thức | `docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.json\|md` | `node scripts/generate-api-contract-metrics.mjs` |
 | Ma trận endpoint × permission × OpenAPI | `docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md` | `node scripts/generate-endpoint-permission-matrix.mjs` |
 | Error code catalog | `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md` | `node scripts/generate-error-code-catalog.mjs` |
 | Permission catalog + role matrix | `docs/permissions/WMS_PERMISSION_CATALOG_BE1.json` | `php artisan evidence:permission-catalog` |
 | Postman collection/environment | `docs/postman/` | `npm run api:postman` |
-| OpenAPI fragment theo task | `docs/api-contract/WWHN-*.yaml\|json` | giữ nguyên cho traceability |
 | Contract API bàn giao (điểm vào cho FE/QA) | `docs/api-contract/HN-BE-API-001_API_CONTRACT_HANDOVER.md` | cập nhật tay khi đổi quy ước contract |
 | Kiến trúc backend as-built | `docs/architecture/HN-BE-ARCH-001_BACKEND_ARCHITECTURE.md` | cập nhật tay khi đổi kiến trúc |
 | Runbook vận hành backend | `docs/ops/HN-BE-OPS-001_OPERATIONS_RUNBOOK.md` | cập nhật tay khi đổi quy trình vận hành |
 | Cổng tổng gói bàn giao | `scripts/verify-wwhn-309-handover-contract.mjs` | `node scripts/verify-wwhn-309-handover-contract.mjs` |
+| Cổng pin candidate | `scripts/verify-wwhn-309-candidate-pin.mjs` | `node scripts/verify-wwhn-309-candidate-pin.mjs` |
 
 Quy tắc bắt buộc khi đọc permission trong contract:
 
 1. `permission` là **biểu thức**; `A|B` nghĩa là OR. Dùng `accepted_permissions` đã tách sẵn.
 2. `roles` đã gồm `SUPER_ADMIN` do bypass backend, không phải do gán permission.
 3. Data scope là tầng kiểm tra độc lập: đúng permission vẫn có thể 403 vì ngoài phạm vi kho.
-4. Optimistic locking: 41 operation khai `If-Match`; thiếu header → 428, sai version → 412.
-5. Idempotency: 27 operation khai `Idempotency-Key` (23 bắt buộc, 4 tuỳ chọn theo Annex C §8.1 nhóm warranty stock-neutral). Chuỗi 8–100 ký tự; cùng key + cùng payload = replay kết quả lần đầu, cùng key + payload khác = 409. Retry cùng key khi mất mạng là an toàn.
-6. Hình dạng payload đọc được ngay từ spec: mọi response `$ref` tới `ApiSuccessEnvelope` hoặc `ApiErrorEnvelope` trong `components.schemas`. Không cần đọc ngược code để biết envelope.
-7. Header contract trong spec được sinh từ chính source của controller, không khai tay — thêm `IdempotencyKeyGuard::require()` hoặc đọc `If-Match` trong action là spec tự có header tương ứng ở lần generate kế tiếp.
+4. Optimistic locking: 58 operation khai `If-Match`; thiếu header → 428, sai version → 412.
+5. Idempotency: 27 operation khai `Idempotency-Key` (23 bắt buộc, 4 tuỳ chọn theo Annex C §8.1 nhóm warranty stock-neutral). Chuỗi 8–100 ký tự; cùng key + cùng payload = replay kết quả lần đầu, cùng key + payload khác = 409.
+6. Hình dạng payload đọc được ngay từ spec: 2323/2323 response `$ref` tới `ApiSuccessEnvelope` hoặc `ApiErrorEnvelope`.
+7. Header contract trong spec được sinh từ chính source của controller, không khai tay.
 
 Thêm controller có annotation mới **phải** khai đường dẫn trong `config/l5-swagger.php`, nếu không Swagger publish endpoint rỗng contract (bài học DEV184-P1-01R và Flow 06).
 
-## 5. Vận hành
+## 6. Vận hành
 
-### 5.1. Health và danh tính artifact
+### 6.1. Health và danh tính artifact
 
 `GET /api/v1/health` (public) trả `status`, `version`, `build.sha/ref/built_at`, `environment`, `checks`. Critical checks để trả 200: `app`, `database`, `migrations`, `seed`. `cache` cố ý **không** phải hard gate (fail-open xuống PostgreSQL, tránh restart loop khi Valkey chập chờn).
 
-DevOps/CI phải inject `APP_BUILD_SHA` / `APP_BUILD_REF` / `APP_BUILD_TIME` lúc build image — đây là cách duy nhất reviewer đọc được commit đang chạy thay vì tin lời khai; thiếu ở môi trường ngoài local/testing sẽ bị `wms:golive-check` chặn.
+DevOps/CI phải inject `APP_BUILD_SHA` / `APP_BUILD_REF` / `APP_BUILD_TIME` lúc build image — đây là cách duy nhất reviewer đọc được commit đang chạy thay vì tin lời khai; thiếu ở môi trường ngoài local/testing sẽ bị `wms:golive-check` chặn. Bằng chứng runtime và bảng xác minh: `docs/evidence/WWHN-309/DEVOPS_HANDOVER_VERIFICATION.md`.
 
-### 5.2. Job nền bắt buộc
+### 6.2. Job nền bắt buộc
 
 | Lịch | Lệnh | Hậu quả nếu không chạy |
 | --- | --- | --- |
@@ -136,11 +155,11 @@ DevOps/CI phải inject `APP_BUILD_SHA` / `APP_BUILD_REF` / `APP_BUILD_TIME` lú
 
 Điều kiện vận hành: phải có process chạy `php artisan schedule:work` (container `scheduler` trong compose) hoặc cron `schedule:run`. Không có process này thì cả 4 nghĩa vụ trên đều **không tồn tại trên thực tế**.
 
-### 5.3. Lệnh vận hành
+### 6.3. Lệnh vận hành
 
 `wms:golive-check` (gate cutover), `migration:final-load` (nạp dữ liệu cuối), `evidence:permission-catalog`, `evidence:stock-snapshot`, `wms:cache:clear`, `wwhn172:migration-preflight`, `inventory:reconcile`, `audit:reconcile`.
 
-### 5.4. Runbook
+### 6.4. Runbook
 
 - Cutover/rollback: `docs/evidence/WWHN-300/CUTOVER_ROLLBACK_RUNBOOK.md`
 - Nạp dữ liệu cuối: `docs/migration/FINAL_DATA_LOAD_RUNBOOK.md`
@@ -148,7 +167,7 @@ DevOps/CI phải inject `APP_BUILD_SHA` / `APP_BUILD_REF` / `APP_BUILD_TIME` lú
 
 `migrate:rollback` toàn lịch sử đã từng brick DB; mọi `down()` phải dùng `dropRelation` (chuẩn WWHN-300).
 
-## 6. Build / run / quality gates
+## 7. Build / run / quality gates
 
 ```bash
 composer install --no-interaction --prefer-dist
@@ -166,42 +185,91 @@ composer run verify:stock-write-path
 npm run api:lint
 node scripts/generate-error-code-catalog.mjs --check
 node scripts/generate-endpoint-permission-matrix.mjs --check
+node scripts/generate-api-contract-metrics.mjs --check
 node scripts/verify-wwhn-309-handover-contract.mjs
+node scripts/verify-wwhn-309-candidate-pin.mjs
 ```
 
-Execution identity tối thiểu khi review: branch `m1`, source SHA, GitHub Actions run ID/URL, `APP_ENV`, `APP_BUILD_SHA`, kết quả từng gate kèm exit code, tên artifact + checksum. **Không dùng log của SHA khác để kết luận WWHN-309 PASS.**
+Máy dev chạy Docker (vendor nằm trong volume, không có trên host) thì đặt `WWHN309_ARTISAN` để generator/cổng gọi được artisan thật:
 
-## 7. Evidence
+```bash
+export WWHN309_ARTISAN="docker exec wms_warehouse_hoa_nam_be-backend-1 php artisan"
+```
+
+Execution identity tối thiểu khi review: branch `m1`, candidate SHA, GitHub Actions run ID/URL, `APP_ENV`, `APP_BUILD_SHA`, kết quả từng gate kèm exit code, tên artifact + checksum. **Không dùng log của SHA khác để kết luận WWHN-309 PASS.**
+
+## 8. Evidence
 
 | Loại | Nguồn |
 | --- | --- |
-| Regression test handover | `tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php` (6 test), `tests/Feature/Wwhn309ScheduledOperationsTest.php` (4 test) |
+| Candidate pin + quy scope commit gộp | `docs/evidence/WWHN-309/CANDIDATE_MANIFEST.json` + `scripts/verify-wwhn-309-candidate-pin.mjs` |
+| Pin run CI tại exact SHA | `docs/evidence/WWHN-309/CI_RUN_RECORD.md` |
+| Kịch bản retest độc lập của QA1 | `docs/evidence/WWHN-309/QA_RETEST_PLAN.md` |
+| Xác minh vận hành của DevOps | `docs/evidence/WWHN-309/DEVOPS_HANDOVER_VERIFICATION.md` |
+| Regression test handover | `tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php`, `tests/Feature/Wwhn309ScheduledOperationsTest.php`, `tests/Feature/CurrentBaselineIfMatchContractTest.php` |
 | CI exact-SHA | `.github/workflows/wwhn-309-backend-handover-evidence.yml` → artifact `wwhn-309-backend-handover-<sha>` |
+| Evidence dự phòng khi chưa dispatch được CI | `bash scripts/collect-wwhn309-handover-evidence.sh` |
 | Permission catalog runtime | `build/evidence/wwhn-309/permission-catalog.json`, `permission-seed-diff.json` |
-| API contract | `storage/api-docs/api-docs.json`, `docs/api-contract/HN-BE-API-002/003` |
+| Số liệu contract | `docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.json` |
 | Ops | `php artisan schedule:list`, `/api/v1/health` |
-| Cổng tổng tài liệu | `node scripts/verify-wwhn-309-handover-contract.mjs` → step `Handover documentation contract gate` trong workflow |
-| Đối chiếu chéo FE ↔ BE | FE `npm run contract:sync -- <BE_SHA>` + `npm run check:api-mapping` = PASS 56 dòng; biên nhận `FE@docs/Task_docs_Jira/WWHN-309_BE_CONTRACT_RECEIPT.md` |
+| Đối chiếu chéo FE ↔ BE | FE `npm run contract:sync -- <BE_SHA>` + `npm run check:api-mapping`; pin ở FE `docs/api-evidence/BE_CONTRACT_PIN.json`; biên nhận `FE@docs/Task_docs_Jira/WWHN-309_BE_CONTRACT_RECEIPT.md` |
 | Bộ comment sign-off theo vai trò | `docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md` |
 
-Workflow CI so byte catalog publish với catalog sinh tại đúng SHA (trừ `generated_at_utc`) — docs stale sẽ fail build, không còn phụ thuộc việc nhớ regenerate.
+### 8.1. Bẫy truy vết: `/docs/` từng nằm trong .gitignore
 
-### 7.1. Bẫy truy vết: `/docs/` nằm trong .gitignore
+Rule chặn `/docs/` đã được bỏ, nhưng thói quen kiểm tra thì giữ: thêm tài liệu handover mới phải kiểm chứng bằng `git ls-files docs/<path>` **trước khi** tuyên bố đã bàn giao. Cổng tổng cũng FAIL nếu tài liệu bắt buộc bị `git check-ignore` bắt.
 
-`.gitignore` khai `/docs/`, nên **mọi file tài liệu mới dưới `docs/` mặc định không vào Git** — 158 file docs đang tracked là do từng được `git add -f`. Nếu quên bước này, tài liệu bàn giao chỉ tồn tại trên máy dev và reviewer fetch tại exact SHA sẽ không thấy gì: đúng lớp lỗi FE311-P1-03/P1-05 (artifact stale / weak GitHub trace).
+## 9. Quy scope commit và pin candidate (DEV309-P1-01)
 
-Gói WWHN-309 đã được `git add -f`: `docs/docs_task_jira/WWHN-309.md`, `docs/api-contract/HN-BE-API-001_API_CONTRACT_HANDOVER.md`, `HN-BE-API-002_ERROR_CODE_CATALOG.md|json`, `HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md|json`.
+### 9.1. Vì sao cần mục này
 
-Thêm tài liệu handover mới thì phải `git add -f` và kiểm chứng bằng `git ls-files docs/<path>` **trước khi** tuyên bố đã bàn giao.
+Commit `127c573` ("gỡ cờ 13") mang thay đổi của WWHN-309 **cùng lúc với** nhiều task khác. Reviewer mở commit đó không tách được đâu là phạm vi WWHN-309, nên không review độc lập được. Không sửa lịch sử đã push, nên cách xử lý là **khai scope tường minh** và chuyển việc kiểm sang tập artifact + hash.
 
-## 8. Điểm cần sign-off và blocker còn lại
+### 9.2. Quy scope
 
-| # | Nội dung | Owner | Ghi chú |
+| Đường dẫn trong commit gộp | Thuộc task | Ghi chú |
+| --- | --- | --- |
+| `README.md`, `docs/architecture/**`, `docs/api-contract/**`, `docs/ops/**`, `docs/permissions/**`, `docs/docs_task_jira/WWHN-309*.md`, `docs/evidence/WWHN-309/**`, `app/Swagger/ApiEnvelopeSchemas.php`, `app/Swagger/Processors/RouteSyncProcessor.php`, `storage/api-docs/**`, `scripts/generate-*.mjs`, `scripts/verify-wwhn-309-*.mjs`, `tests/Feature/Wwhn309*.php`, `tests/Feature/CurrentBaselineIfMatchContractTest.php`, `.github/workflows/wwhn-309-*.yml` | **WWHN-309** | Đúng tập artifact được pin trong `CANDIDATE_MANIFEST.json` |
+| `docs/HoaNam_ERD_Moi_Nhat.md`, `docs/contracts/erd-document-pin.json`, `docs/evidence/WWHN-310/**`, `tests/Feature/Wwhn310*.php` | WWHN-310 | Tài liệu dữ liệu/migration/báo cáo — **không** thuộc WWHN-309, không dùng để chấm WWHN-309 |
+| `app/Http/Controllers/HealthController.php`, `app/Swagger/HealthSchemas.php` | WWHN-295 | Contract health/build identity. WWHN-309 chỉ *tiêu thụ* `/api/v1/health`, không sở hữu |
+| `Modules/Warehouse/**`, migration nghiệp vụ | WWHN-299/330/331 và các task luồng | Ngoài phạm vi |
+
+### 9.3. Pin không mục
+
+`scripts/verify-wwhn-309-candidate-pin.mjs` kiểm 4 điều, fail-closed:
+
+1. Candidate SHA có thật và **vẫn là tổ tiên của HEAD** (không bị rebase/amend làm mất).
+2. Mọi artifact bàn giao đang được git tracked và không bị `.gitignore` loại.
+3. Nội dung artifact khớp SHA-256 đã pin.
+4. **Range invariant**: `git log <candidate>..HEAD -- <tập artifact>` phải rỗng. Nhánh `m1` chạy tiếp cho task khác thì pin vẫn đúng; ai chạm vào artifact bàn giao thì cổng đỏ ngay và phải re-pin + chạy lại evidence.
+
+### 9.4. Review độc lập khi không có PR
+
+Quy trình dự án đang commit thẳng lên `m1`, nên `pull_request` = `N/A`. Khi đó manifest **bắt buộc** khai `independent_review` (ai review, review artifact nào, ở đâu) — cổng FAIL nếu vừa không có PR vừa không có bằng chứng review độc lập. Đây là cách chặn "handover tự ký".
+
+## 10. Vai trò và dấu vết lịch sử (DEV309-P2-01)
+
+Vai trò hiện hành của người thực hiện task này là **DEV** (FE1/BE1 đã hợp nhất). Các tài liệu và artifact sinh trước thời điểm hợp nhất còn mang chuỗi `BE1` — giữ nguyên **có chủ đích** để truy vết:
+
+| Chuỗi còn `BE1` | Lý do giữ |
+| --- | --- |
+| `docs/permissions/WMS_PERMISSION_CATALOG_BE1.json\|md` | Tên file là khoá tra cứu trong nhiều tài liệu/CI đã publish; đổi tên sẽ phá trace của WWHN-155/219/289 |
+| `docs/api-contract/WMS_HoaNam_OpenAPI_Changelog_BE1.md\|txt` | Bản ghi lịch sử changelog, không được viết lại |
+| `docs/api-contract/WWHN-150_OpenAPI_Changelog_BE1.md` | Như trên |
+
+Mọi phát biểu **về trách nhiệm hiện tại** trong gói bàn giao này dùng `DEV`.
+
+## 11. Điểm cần sign-off và blocker còn lại
+
+| # | Nội dung | Owner | Trạng thái |
 | --- | --- | --- | --- |
-| 1 | Baseline role của `scan classify` gồm 6 role (4 role WWHN-150 + `WAREHOUSE_KEEPER`/`WAREHOUSE_STAFF` qua alias Annex C `scan.execute`) | BA/BAS | Không thay đổi quyền trong seed/route; chỉ sửa expectation của evidence cho khớp code đã duyệt + SRS v1.12 §5 |
-| 2 | Có process `schedule:work`/cron ở UAT/production và `APP_BUILD_*` được inject | DevOps (WWHN-313) | Không có thì 4 job nền và gate exact-SHA không thực thi được |
-| 3 | Run CI exact-SHA tại closure SHA được pin vào task | BE1 + QA1 | Trước khi có run thật, CI/runtime để trạng thái PENDING CI EXECUTION, không ghi VERIFIED |
-| 4 | Disposition cho `CurrentBaselineIfMatch` (gỡ hay wire vào route) | Tech Lead | Hiện là dead code đã được cảnh báo trong docblock |
-| 5 | Parent WWHN-83 còn `Blocked/Pending` | BAS/PM | WWHN-309 không tự tuyên bố parent Done |
+| 1 | Baseline role của `scan classify` gồm 6 role (4 role WWHN-150 + `WAREHOUSE_KEEPER`/`WAREHOUSE_STAFF` qua alias Annex C `scan.execute`) | BA/BAS | Chờ comment xác nhận |
+| 2 | Ranh giới nghiệp vụ trong `HN-BE-API-001` §8 (contract âm) khớp quyết định đã chốt | BA/BAS | Chờ comment xác nhận |
+| 3 | Duyệt kiến trúc as-built + cách sinh header/envelope từ source | Tech Lead | Chờ comment xác nhận |
+| 4 | Disposition `CurrentBaselineIfMatch` = **GỠ** theo `DEC-API-IFMATCH-001` | Tech Lead | Chờ duyệt quyết định (code đã gỡ) |
+| 5 | Run CI exact-SHA tại candidate SHA được pin vào `CI_RUN_RECORD.md` | DEV + QA1 | PENDING CI EXECUTION |
+| 6 | Retest độc lập theo `QA_RETEST_PLAN.md` | QA1 (WWHN-312) | Chờ QA1 chạy |
+| 7 | Xác minh vận hành UAT/production theo `DEVOPS_HANDOVER_VERIFICATION.md` | DevOps (WWHN-313) | Chờ DevOps điền |
+| 8 | Parent WWHN-83 còn `Blocked/Pending` | BAS/PM | WWHN-309 không tự tuyên bố parent Done |
 
-Không có blocker P0 thuộc vai trò BE1 tại thời điểm cập nhật này.
+Không có blocker P0 thuộc vai trò DEV tại thời điểm cập nhật này.

@@ -1,0 +1,23 @@
+{
+  "document": "HN-BE-API-004",
+  "title": "Số liệu chính thức của hợp đồng API backend",
+  "task": "WWHN-309",
+  "generator": "scripts/generate-api-contract-metrics.mjs",
+  "note": "Sinh tự động. KHÔNG sửa tay và KHÔNG chép số này vào tài liệu khác dưới dạng văn xuôi tự do - cổng verify-wwhn-309-handover-contract.mjs đối chiếu ngược lại.",
+  "openapi_version": "2.0.0",
+  "openapi_paths": 183,
+  "openapi_operations": 231,
+  "openapi_responses": 2323,
+  "openapi_responses_with_schema": 2323,
+  "openapi_component_schemas": 11,
+  "idempotency_key_operations": 27,
+  "idempotency_key_required": 23,
+  "idempotency_key_optional": 4,
+  "if_match_operations": 58,
+  "error_codes": 246,
+  "matrix_operations": 231,
+  "matrix_permissions": 57,
+  "matrix_tags": 22,
+  "data_scope_operations": 43,
+  "public_operations": 9
+}

@@ -220,7 +220,7 @@
       "method": "GET",
       "path": "/api/v1/pv-admin/resources/{resourceType}",
       "tag": "00. Platform",
-      "summary": "GET /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController index",
+      "summary": "PV Admin — danh sách master App PV (industry/tag/rule/profile)",
       "auth": "JWT",
       "permissions": [
         "pv.master.manage"
@@ -233,7 +233,7 @@
       "method": "POST",
       "path": "/api/v1/pv-admin/resources/{resourceType}",
       "tag": "00. Platform",
-      "summary": "POST /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController store",
+      "summary": "PV Admin — tạo master App PV",
       "auth": "JWT",
       "permissions": [
         "pv.master.manage"
@@ -246,7 +246,7 @@
       "method": "PATCH",
       "path": "/api/v1/pv-admin/resources/{resourceType}/{id}",
       "tag": "00. Platform",
-      "summary": "PATCH /api/v1/pv-admin/resources/{resourceType}/{id} - Modules Warehouse Http Controllers PvAdminResourceController update",
+      "summary": "PV Admin — cập nhật master App PV (bắt buộc If-Match)",
       "auth": "JWT",
       "permissions": [
         "pv.master.manage"
@@ -2892,7 +2892,7 @@
       "method": "GET",
       "path": "/api/v1/pv/industries",
       "tag": "21. Public Catalog",
-      "summary": "Danh sách ngành hàng PV",
+      "summary": "App PV — danh sách ngành nghề ACTIVE dùng cho filter/gợi ý",
       "auth": "public",
       "permissions": [],
       "if_match": false,
@@ -2903,7 +2903,7 @@
       "method": "GET",
       "path": "/api/v1/pv/products",
       "tag": "21. Public Catalog",
-      "summary": "GET /api/v1/pv/products - Modules Warehouse Http Controllers PvPublicCatalogController listProducts",
+      "summary": "App PV — danh sách sản phẩm đã publish (ẩn danh, read-only)",
       "auth": "public",
       "permissions": [],
       "if_match": false,
@@ -2927,7 +2927,7 @@
       "method": "GET",
       "path": "/api/v1/pv/products/{skuId}",
       "tag": "21. Public Catalog",
-      "summary": "GET /api/v1/pv/products/{skuId} - Modules Warehouse Http Controllers PvPublicCatalogController showProduct",
+      "summary": "App PV — chi tiết sản phẩm đã publish (ẩn danh, read-only)",
       "auth": "public",
       "permissions": [],
       "if_match": false,
@@ -2938,7 +2938,7 @@
       "method": "GET",
       "path": "/api/v1/pv/recommendations",
       "tag": "21. Public Catalog",
-      "summary": "Gợi ý PV theo tiêu chí lọc",
+      "summary": "App PV — gợi ý sản phẩm theo ngành nghề (rule ACTIVE, theo priority)",
       "auth": "public",
       "permissions": [],
       "if_match": false,

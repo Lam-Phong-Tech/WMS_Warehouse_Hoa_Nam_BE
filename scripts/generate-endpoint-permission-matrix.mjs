@@ -52,7 +52,11 @@ const PUBLIC_ALLOWLIST = new Set([
 ]);
 
 function routeTable() {
-  const raw = execFileSync("php", ["artisan", "route:list", "--json"], {
+  // WWHN309_ARTISAN: cách gọi artisan khi runtime PHP không nằm cùng chỗ với
+  // source (máy dev chạy Docker, vendor/ là volume trong container). Vẫn thực thi
+  // artisan thật - chỉ đổi lệnh gọi, không đọc route table từ file chép tay.
+  const artisan = (process.env.WWHN309_ARTISAN ?? "php artisan").trim().split(/\s+/);
+  const raw = execFileSync(artisan[0], [...artisan.slice(1), "route:list", "--json"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,

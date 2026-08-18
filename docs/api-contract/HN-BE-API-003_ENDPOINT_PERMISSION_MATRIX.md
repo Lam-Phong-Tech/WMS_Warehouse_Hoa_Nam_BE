@@ -51,9 +51,9 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | POST | `/api/v1/putaway-tasks` | `putaway.manage` hoặc `container.manage` | - | - | Tạo tác vụ xếp BOX vào TRAY (Annex C) |
 | POST | `/api/v1/putaway-tasks/{id}/cancel` | `putaway.manage` hoặc `container.manage` | có | - | Huỷ tác vụ xếp BOX vào TRAY (Annex C) |
 | POST | `/api/v1/putaway-tasks/{id}/confirm` | `putaway.manage` hoặc `container.manage` | có | - | Xác nhận xếp BOX vào TRAY (Annex C) |
-| GET | `/api/v1/pv-admin/resources/{resourceType}` | `pv.master.manage` | - | - | GET /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController index |
-| POST | `/api/v1/pv-admin/resources/{resourceType}` | `pv.master.manage` | - | - | POST /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController store |
-| PATCH | `/api/v1/pv-admin/resources/{resourceType}/{id}` | `pv.master.manage` | có | - | PATCH /api/v1/pv-admin/resources/{resourceType}/{id} - Modules Warehouse Http Controllers PvAdminResourceController update |
+| GET | `/api/v1/pv-admin/resources/{resourceType}` | `pv.master.manage` | - | - | PV Admin — danh sách master App PV (industry/tag/rule/profile) |
+| POST | `/api/v1/pv-admin/resources/{resourceType}` | `pv.master.manage` | - | - | PV Admin — tạo master App PV |
+| PATCH | `/api/v1/pv-admin/resources/{resourceType}/{id}` | `pv.master.manage` | có | - | PV Admin — cập nhật master App PV (bắt buộc If-Match) |
 | GET | `/api/v1/reversal-documents` | `inventory.view` | - | có | Danh sách phiếu reversal và correction |
 | POST | `/api/v1/reversal-documents` | `inventory.reversal.post` | có | có | Tạo reversal append-only cho movement đã post |
 | GET | `/api/v1/reversal-documents/{id}` | `inventory.view` | - | có | Chi tiết phiếu reversal và correction chain |
@@ -356,11 +356,11 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | Method | Path | Permission | If-Match | Data scope | Mô tả |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/v1/pv/catalog` | _public_ | - | - | Danh mục PV công khai |
-| GET | `/api/v1/pv/industries` | _public_ | - | - | Danh sách ngành hàng PV |
-| GET | `/api/v1/pv/products` | _public_ | - | - | GET /api/v1/pv/products - Modules Warehouse Http Controllers PvPublicCatalogController listProducts |
+| GET | `/api/v1/pv/industries` | _public_ | - | - | App PV — danh sách ngành nghề ACTIVE dùng cho filter/gợi ý |
+| GET | `/api/v1/pv/products` | _public_ | - | - | App PV — danh sách sản phẩm đã publish (ẩn danh, read-only) |
 | PATCH | `/api/v1/pv/products/{id}/publish` | `pv.publish` | có | - | Publish/gỡ SKU khỏi App PV |
-| GET | `/api/v1/pv/products/{skuId}` | _public_ | - | - | GET /api/v1/pv/products/{skuId} - Modules Warehouse Http Controllers PvPublicCatalogController showProduct |
-| GET | `/api/v1/pv/recommendations` | _public_ | - | - | Gợi ý PV theo tiêu chí lọc |
+| GET | `/api/v1/pv/products/{skuId}` | _public_ | - | - | App PV — chi tiết sản phẩm đã publish (ẩn danh, read-only) |
+| GET | `/api/v1/pv/recommendations` | _public_ | - | - | App PV — gợi ý sản phẩm theo ngành nghề (rule ACTIVE, theo priority) |
 | GET | `/api/v1/pv/tags` | _public_ | - | - | Danh sách tag PV |
 
 ### 24. Putaway

@@ -71,7 +71,7 @@ Từ WWHN-309, OpenAPI khai envelope bằng schema thật thay vì mô tả bằ
 - `components.schemas.ApiErrorEnvelope`
 - `components.schemas.ApiErrorDetail`, `ApiMeta`, `ApiLinks`
 
-**100% response trong spec (2267/2267) đều có `content` trỏ tới một trong hai envelope**, nên FE/QA sinh type từ spec được ngay.
+**100% response trong spec (2323/2323) đều có `content` trỏ tới một trong hai envelope**, nên FE/QA sinh type từ spec được ngay.
 
 ### 2.3. `request_id`
 
@@ -110,7 +110,7 @@ Bảng đầy đủ endpoint → permission: `HN-BE-API-003_ENDPOINT_PERMISSION_
 | --- | --- | --- |
 | `Authorization: Bearer <jwt>` | Mọi endpoint trừ 7 endpoint public | Thiếu/hết hạn → 401 `UNAUTHENTICATED` |
 | `Idempotency-Key` | 27 operation (23 bắt buộc, 4 tuỳ chọn) | Chuỗi 8–100 ký tự. Thiếu ở endpoint bắt buộc → 428. Cùng key + cùng payload → trả lại kết quả lần đầu. Cùng key + payload khác → 409 |
-| `If-Match` | 41 operation | Số nguyên = `version` hiện tại. Sai → 412 `STALE_VERSION`. Thiếu ở endpoint bắt buộc → 428 `PRECONDITION_REQUIRED` |
+| `If-Match` | 58 operation | Số nguyên = `version` hiện tại. Sai → 412 `STALE_VERSION`. Thiếu ở endpoint bắt buộc → 428 `PRECONDITION_REQUIRED` |
 | `Accept: application/json` | Nên luôn gửi | Bảo đảm handler lỗi trả JSON |
 
 Danh sách chính xác operation nào cần header nào nằm trong OpenAPI (`parameters[].in == "header"`) — được sinh tự động từ chính source của controller, không khai tay.
@@ -133,7 +133,7 @@ Client **retry cùng `Idempotency-Key`** khi mất mạng là an toàn: lần ha
 
 ## 5. Mã lỗi
 
-Toàn bộ **243 error code** nằm ở `HN-BE-API-002_ERROR_CODE_CATALOG.md` (sinh tự động từ source). Quy tắc dùng:
+Toàn bộ **246 error code** nằm ở `HN-BE-API-002_ERROR_CODE_CATALOG.md` (sinh tự động từ source). Quy tắc dùng:
 
 | HTTP | Nghĩa | FE nên làm gì |
 | --- | --- | --- |
@@ -165,14 +165,14 @@ Toàn bộ **243 error code** nằm ở `HN-BE-API-002_ERROR_CODE_CATALOG.md` (s
 | Chỉ số | Giá trị |
 | --- | --- |
 | Base path | `/api/v1` |
-| Số operation | 226 |
-| Số path | 179 |
-| Số nhóm nghiệp vụ (tag) | 24 |
-| Số permission code gác route | 56 |
-| Độ phủ OpenAPI so với route table | 226/226 (100%) |
-| Response có schema envelope | 2267/2267 (100%) |
-| Endpoint public | 7 |
-| Operation có data scope theo kho | 23 |
+| Số operation | 231 |
+| Số path | 183 |
+| Số nhóm nghiệp vụ (tag) | 22 |
+| Số permission code gác route | 57 |
+| Độ phủ OpenAPI so với route table | 231/231 (100%) |
+| Response có schema envelope | 2323/2323 (100%) |
+| Endpoint public | 9 |
+| Operation có data scope theo kho | 43 |
 
 Độ phủ 100% không phải may mắn: `App\Swagger\Processors\RouteSyncProcessor` đọc route table thật khi generate, nên endpoint mới **luôn** xuất hiện trong spec.
 
@@ -213,12 +213,12 @@ CI chạy bước 3–5 ở chế độ `--check`: tài liệu lệch code sẽ 
 
 | Hạng mục | Trạng thái |
 | --- | --- |
-| Mọi route `/api/v1` có mặt trong OpenAPI | Đạt — 226/226 |
-| Mọi response mô tả được hình dạng payload | Đạt — 2267/2267 |
+| Mọi route `/api/v1` có mặt trong OpenAPI | Đạt — 231/231 |
+| Mọi response mô tả được hình dạng payload | Đạt — 2323/2323 |
 | Header `Idempotency-Key` / `If-Match` khai đúng runtime | Đạt — sinh tự động từ source |
-| Catalog error code đầy đủ, tự kiểm tra được | Đạt — 243 mã, có `--check` |
-| Ma trận endpoint × permission | Đạt — 226 operation, 56 permission |
-| Endpoint public được allowlist tường minh | Đạt — 7 endpoint |
+| Catalog error code đầy đủ, tự kiểm tra được | Đạt — 246 mã, có `--check` |
+| Ma trận endpoint × permission | Đạt — 231 operation, 57 permission |
+| Endpoint public được allowlist tường minh | Đạt — 9 endpoint |
 | Cổng chống trôi tài liệu | Đạt — `scripts/verify-wwhn-309-handover-contract.mjs` |
 | Kiểm chứng chéo với FE | Đạt — `npm run check:api-mapping` PASS trên spec BE |
 

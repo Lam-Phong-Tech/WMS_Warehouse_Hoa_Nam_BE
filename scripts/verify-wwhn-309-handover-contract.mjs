@@ -73,6 +73,7 @@ for (const [path, label] of REQUIRED_DOCS) {
 for (const [script, label] of [
   ["scripts/generate-error-code-catalog.mjs", "catalog error code"],
   ["scripts/generate-endpoint-permission-matrix.mjs", "ma trận endpoint/permission"],
+  ["scripts/generate-api-contract-metrics.mjs", "số liệu contract HN-BE-API-004"],
 ]) {
   if (!existsSync(join(root, script))) {
     failures.push(`Thiếu generator ${script}`);
@@ -119,16 +120,25 @@ if (existsSync(join(root, "storage/api-docs/api-docs.json"))) {
   }
 
   // Route table thật phải nằm trọn trong spec.
+  //
+  // WWHN309_ARTISAN cho phép chỉ định cách gọi artisan khi runtime PHP không nằm
+  // cùng chỗ với source (máy dev dùng Docker: vendor/ là volume trong container).
+  // Đây KHÔNG phải cửa hậu làm yếu cổng: gate vẫn phải thực thi artisan thật rồi
+  // đọc route table thật; chỉ khác ở chỗ gọi lệnh nào.
+  //   WWHN309_ARTISAN="docker exec <container> php artisan" node scripts/verify-...
+  const artisanCommand = (process.env.WWHN309_ARTISAN ?? "php artisan").trim().split(/\s+/);
   let routes = [];
   try {
-    const raw = execFileSync("php", ["artisan", "route:list", "--json"], {
+    const raw = execFileSync(artisanCommand[0], [...artisanCommand.slice(1), "route:list", "--json"], {
       cwd: root,
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
     });
     routes = JSON.parse(raw.slice(raw.indexOf("[")));
   } catch (error) {
-    failures.push("Không chạy được `php artisan route:list --json`: " + String(error.message).split("\n")[0]);
+    failures.push(
+      `Không chạy được \`${artisanCommand.join(" ")} route:list --json\`: ` + String(error.message).split("\n")[0],
+    );
   }
 
   const missing = [];
@@ -195,6 +205,83 @@ for (const [path] of REQUIRED_DOCS) {
   for (const [pattern, label] of SECRET_PATTERNS) {
     if (pattern.test(content)) failures.push(`${path}: ${label} - không được chép secret vào tài liệu`);
   }
+}
+
+// --- 6. Số liệu trong tài liệu phải khớp HN-BE-API-004 -----------------------
+//
+// DEV309-P1-02: gói bàn giao từng ghi "2267/2267 response" ở HN-BE-API-001 nhưng
+// "2268/2268" ở WWHN-309.md, trong khi spec thật đã sang con số khác. Nguyên nhân
+// gốc không phải cẩu thả mà là kiến trúc tài liệu: con số sống dưới dạng văn xuôi,
+// không ai kiểm được. Từ đây mọi phát biểu số liệu trong tài liệu bàn giao đều bị
+// đối chiếu ngược với artifact sinh tự động HN-BE-API-004.
+//
+// Dòng nào cố ý mô tả trạng thái LỊCH SỬ (ví dụ finding "trước khi sửa còn
+// 2265/2267 response thiếu content") phải đánh dấu `[historical]` ngay trên dòng
+// đó - đánh dấu tường minh, grep được, không phải ngoại lệ ngầm.
+const METRICS_PATH = "docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.json";
+if (existsSync(join(root, METRICS_PATH))) {
+  const metrics = JSON.parse(read(METRICS_PATH));
+
+  // [regex, [khoá metric cho từng capture group], nhãn]
+  const CLAIM_PATTERNS = [
+    [/(\d+)\s*path\s*\/\s*(\d+)\s*operation/gi, ["openapi_paths", "openapi_operations"], "path/operation OpenAPI"],
+    [/(\d+)\s*\/\s*(\d+)\s*response/gi, ["openapi_responses_with_schema", "openapi_responses"], "response có schema"],
+    [/route\s*\/api\/v1\s*\((\d+)\s*\/\s*(\d+)\)/gi, ["openapi_operations", "openapi_operations"], "độ phủ route"],
+    [/(\d+)\s*operation\s*khai\s*`?Idempotency-Key`?/gi, ["idempotency_key_operations"], "operation Idempotency-Key"],
+    [/`?Idempotency-Key`?\s*\((\d+)\s*operation/gi, ["idempotency_key_operations"], "operation Idempotency-Key"],
+    [/(\d+)\s*operation\s*khai\s*`?If-Match`?/gi, ["if_match_operations"], "operation If-Match"],
+    [/`?If-Match`?\s*\((\d+)\s*operation\)/gi, ["if_match_operations"], "operation If-Match"],
+    [
+      /\((\d+)\s*bắt buộc,\s*(\d+)\s*tuỳ chọn/gi,
+      ["idempotency_key_required", "idempotency_key_optional"],
+      "Idempotency-Key bắt buộc/tuỳ chọn",
+    ],
+    [/(\d+)\s*error code/gi, ["error_codes"], "số error code"],
+    [
+      /(\d+)\s*operation\s*[x×]\s*(\d+)\s*permission/gi,
+      ["matrix_operations", "matrix_permissions"],
+      "ma trận operation × permission",
+    ],
+    [/endpoint public đúng\s*(\d+)/gi, ["public_operations"], "số endpoint public"],
+  ];
+
+  const SCANNED_DOCS = [
+    "docs/docs_task_jira/WWHN-309.md",
+    "docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md",
+    "docs/api-contract/HN-BE-API-001_API_CONTRACT_HANDOVER.md",
+    "docs/architecture/HN-BE-ARCH-001_BACKEND_ARCHITECTURE.md",
+    "docs/ops/HN-BE-OPS-001_OPERATIONS_RUNBOOK.md",
+    "README.md",
+  ];
+
+  let claimsChecked = 0;
+  for (const docPath of SCANNED_DOCS) {
+    if (!existsSync(join(root, docPath))) continue;
+    const lines = read(docPath).split("\n");
+    lines.forEach((line, index) => {
+      if (line.includes("[historical]")) return;
+      for (const [pattern, keys, label] of CLAIM_PATTERNS) {
+        pattern.lastIndex = 0;
+        let match;
+        while ((match = pattern.exec(line)) !== null) {
+          keys.forEach((key, position) => {
+            const claimed = Number(match[position + 1]);
+            if (!Number.isFinite(claimed)) return;
+            claimsChecked += 1;
+            if (claimed !== metrics[key]) {
+              failures.push(
+                `${docPath}:${index + 1} ghi ${label} = ${claimed} nhưng ${METRICS_PATH}.${key} = ${metrics[key]}` +
+                  ` (sửa tài liệu, hoặc đánh dấu \`[historical]\` nếu đang mô tả trạng thái cũ)`,
+              );
+            }
+          });
+        }
+      }
+    });
+  }
+  notes.push(`số liệu tài liệu bàn giao: ${claimsChecked} phát biểu khớp HN-BE-API-004`);
+} else {
+  failures.push(`Thiếu ${METRICS_PATH} - chạy node scripts/generate-api-contract-metrics.mjs`);
 }
 
 // --- Kết quả ----------------------------------------------------------------

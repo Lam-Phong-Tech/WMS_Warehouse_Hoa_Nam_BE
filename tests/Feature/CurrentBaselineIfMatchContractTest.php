@@ -4,27 +4,68 @@ namespace Tests\Feature;
 
 use Tests\TestCase;
 
+/**
+ * WWHN-309 / DEV309-P2-02 — sau khi gỡ middleware chết `CurrentBaselineIfMatch`,
+ * bài test này đổi vai: từ "khoá hình dạng của middleware" sang "khoá nơi
+ * optimistic locking THẬT SỰ được enforce", đồng thời chặn việc dựng lại lớp
+ * middleware song song.
+ *
+ * Lý do gỡ (DEC-API-IFMATCH-001): middleware không được gắn vào route nào, nhưng
+ * vẫn là nguồn duy nhất của hai error code `RESOURCE_ID_REQUIRED` và
+ * `VERSION_CONTRACT_MISSING` trong catalog publish cho FE/QA — tức là contract
+ * quảng cáo hai mã mà không đường chạy nào có thể trả về. Ngoài ra nếu ai đó gắn
+ * nó vào route, `version` sẽ bị tăng hai lần (một ở middleware, một ở helper của
+ * controller).
+ */
 class CurrentBaselineIfMatchContractTest extends TestCase
 {
-    public function test_reusable_if_match_guard_is_transactional_and_fail_closed(): void
+    public function test_dead_route_level_if_match_middleware_stays_removed(): void
     {
-        $middleware = (string) file_get_contents(base_path('app/Http/Middleware/CurrentBaselineIfMatch.php'));
-
-        // CurrentBaselineIfMatch is a parameterized middleware building block.
-        // Route literals do not belong in this class; callers provide table and
-        // primary key when they opt into the reusable guard.
-        $this->assertStringContainsString(
-            'public function handle(Request $request, Closure $next, string $table, string $primaryKey)',
-            $middleware
+        $this->assertFileDoesNotExist(
+            base_path('app/Http/Middleware/CurrentBaselineIfMatch.php'),
+            'Middleware CurrentBaselineIfMatch đã bị gỡ theo DEC-API-IFMATCH-001. '
+            .'Muốn dùng lại optimistic locking ở tầng route thì phải gắn vào route thật, '
+            .'cập nhật HN-BE-API-003 và chứng minh không double-increment version.'
         );
-        $this->assertStringContainsString("\$request->route('id')", $middleware);
-        $this->assertStringContainsString("Schema::hasColumn(\$table, 'version')", $middleware);
-        $this->assertStringContainsString('DB::transaction(', $middleware);
-        $this->assertStringContainsString('lockForUpdate()', $middleware);
-        $this->assertStringContainsString('PRECONDITION_REQUIRED', $middleware);
-        $this->assertStringContainsString('STALE_VERSION', $middleware);
-        $this->assertStringContainsString("'ETag'", $middleware);
-        $this->assertStringContainsString("'version' => \$current + 1", $middleware);
+
+        foreach (['bootstrap/app.php', 'config/app.php'] as $path) {
+            $file = base_path($path);
+            if (! is_file($file)) {
+                continue;
+            }
+            $this->assertStringNotContainsString(
+                'CurrentBaselineIfMatch',
+                (string) file_get_contents($file),
+                $path.' vẫn tham chiếu middleware đã gỡ.'
+            );
+        }
+    }
+
+    public function test_published_error_catalog_has_no_phantom_codes_from_dead_middleware(): void
+    {
+        $catalogPath = base_path('docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json');
+        $this->assertFileExists($catalogPath);
+
+        /** @var array{codes: array<int, array{code: string, first_seen?: string}>} $catalog */
+        $catalog = json_decode((string) file_get_contents($catalogPath), true);
+        $codes = array_column($catalog['codes'] ?? [], 'first_seen', 'code');
+
+        foreach (['RESOURCE_ID_REQUIRED', 'VERSION_CONTRACT_MISSING'] as $phantom) {
+            $this->assertArrayNotHasKey(
+                $phantom,
+                $codes,
+                "Catalog vẫn publish {$phantom} — mã này chỉ tồn tại trong middleware đã gỡ, "
+                .'FE/QA sẽ viết case cho một mã không đường chạy nào trả về.'
+            );
+        }
+
+        foreach ($codes as $code => $firstSeen) {
+            $this->assertStringNotContainsString(
+                'CurrentBaselineIfMatch',
+                (string) $firstSeen,
+                "Error code {$code} vẫn trỏ tới middleware đã gỡ; chạy lại node scripts/generate-error-code-catalog.mjs."
+            );
+        }
     }
 
     public function test_remaining_mutable_storage_has_version_migration(): void
