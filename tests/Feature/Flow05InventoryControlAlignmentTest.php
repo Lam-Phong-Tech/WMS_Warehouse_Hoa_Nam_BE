@@ -334,7 +334,16 @@ class Flow05InventoryControlAlignmentTest extends TestCase
             'container_id' => $containerId,
             'container_code' => 'TRAY-F05-01',
             'container_type' => 'TRAY',
-            'status' => 'ACTIVE',
+            // 'ACTIVE' was the legacy container status value; migration
+            // 2026_08_10_000670_align_identity_container_and_scan_lifecycle.php
+            // backfilled every 'ACTIVE' row to 'IN_STOCK' and the PostgreSQL
+            // CHECK constraint chk_containers_status_current (added by the same
+            // migration) only allows EMPTY/IN_STOCK/PARTIAL/ISSUED/
+            // RECEIVED_PENDING_PUTAWAY/STORED/CLOSED. sqlite has no CHECK
+            // constraint enforcement so this fixture silently inserted an
+            // invalid value there while failing on the canonical PostgreSQL
+            // reference DB (SQLSTATE 23514).
+            'status' => 'IN_STOCK',
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),

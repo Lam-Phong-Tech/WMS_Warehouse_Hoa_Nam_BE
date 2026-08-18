@@ -101,7 +101,7 @@ Ghi chú kỹ thuật (rủi ro bảo trì, không chặn release): `OutboundDoc
 ### 3. Trạng thái xuất kho — ĐẦY ĐỦ
 - State machine dùng chung với inbound trên `stock_documents.status`: `DRAFT → SCANNING → POSTED`, hoặc `→ CANCELLED` (terminal, không quay lại được — muốn xuất lại phải tạo document mới từ cùng toa).
 - Guard theo state: Update/Cancel chỉ cho `DRAFT`/`SCANNING` (409 `STATE_CONFLICT`); Scan/Unmatch chỉ cho `DRAFT`/`SCANNING`; Post Issue chỉ cho `SCANNING` và yêu cầu `scanned_qty == qty_planned` mọi dòng (422 `FULL_POST_REQUIRED`).
-- Gate riêng cho outbound trước Post Issue (không có ở inbound): mọi PRODUCT unit phải có item match ACTIVE (`assertMatchedProductRfids`, 422 `PRODUCT_ITEM_MATCH_REQUIRED`), item đó phải có RFID `hardware_uid` ACTIVE (422 `ITEM_RFID_REQUIRED`), và label phải `PRINTED` (`assertLabelsPrinted`, 422 `LABEL_NOT_PRINTED`).
+- Gate riêng cho outbound trước Post Issue (không có ở inbound): mọi PRODUCT unit phải có item match ACTIVE (`assertMatchedProductRfids`, 422 `PRODUCT_ITEM_MATCH_REQUIRED`) và label phải `PRINTED` (`assertLabelsPrinted`, 422 `LABEL_NOT_PRINTED`). RFID `hardware_uid` KHÔNG phải gate (SRS v1.12 REQ-SRS-011 / DEC-RFID-FALLBACK-001: RFID OPTIONAL, barcode/QR hợp lệ) — gate `ITEM_RFID_REQUIRED` cũ (ERD proposal v1.6) đã gỡ khỏi `CurrentBaselineStockService.php` (xem comment dòng 723-726) và khỏi `AlignedOutboundStockService.php` (`'rfid_required' => false`).
 
 ### 4. Transaction, Idempotency, Concurrency guard — ĐẦY ĐỦ (dùng chung hạ tầng đã kiểm chứng với inbound WWHN-190)
 - Optimistic lock qua header `If-Match` (`expectedVersion()`/`assertVersion()`) → 412 `PRECONDITION_FAILED`; thiếu header → 428 `PRECONDITION_REQUIRED`.

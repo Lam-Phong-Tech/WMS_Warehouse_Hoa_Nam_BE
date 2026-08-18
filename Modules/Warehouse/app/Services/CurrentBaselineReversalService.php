@@ -332,7 +332,7 @@ class CurrentBaselineReversalService
             'updated_at' => now(),
         ]);
 
-        $this->recordPostingEvent($reversalId, $idempotencyKey, $requestHash, $movementIds, $actorId);
+        $this->recordPostingEvent($reversalId, $documentType === 'issue' ? 'REVERSE_ISSUE' : 'REVERSE_RECEIPT', $idempotencyKey, $requestHash, $movementIds, $actorId);
         AuditLogger::record(
             action: 'REVERSAL_POST',
             objectType: 'reversal_document',
@@ -699,7 +699,7 @@ class CurrentBaselineReversalService
         }
     }
 
-    private function recordPostingEvent(string $reversalId, string $key, string $hash, array $movementIds, ?string $actorId): void
+    private function recordPostingEvent(string $reversalId, string $postingAction, string $key, string $hash, array $movementIds, ?string $actorId): void
     {
         if (! DB::getSchemaBuilder()->hasTable('posting_event') && ! DB::getSchemaBuilder()->hasView('posting_event')) {
             return;
@@ -707,6 +707,9 @@ class CurrentBaselineReversalService
         DB::table('posting_event')->insert([
             'posting_event_id' => (string) Str::uuid(),
             'operation' => 'reverse_'.$reversalId,
+            // posting_action (ERD bảng 31, varchar(50)) là mã ngắn cố định — xem
+            // WWHN-190/191 evidence + migration 2026_08_18_150000/150100.
+            'posting_action' => $postingAction,
             'idempotency_key' => $key,
             // ERD bảng 31: request_hash char(64).
             'request_hash' => CurrentBaselineStockService::postingRequestDigest($hash),

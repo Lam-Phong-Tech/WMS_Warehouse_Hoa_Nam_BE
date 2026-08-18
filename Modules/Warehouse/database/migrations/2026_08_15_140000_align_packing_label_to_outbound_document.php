@@ -23,6 +23,10 @@ return new class extends Migration
 
         // New canonical Packing Label is document-level. Legacy item-level columns stay
         // for immutable historical snapshots, but are nullable for every new record.
+        // DEV195-P2-02R: driver branch vì cú pháp — PostgreSQL hỗ trợ ALTER COLUMN ...
+        // DROP NOT NULL trực tiếp; SQLite không có ALTER COLUMN nên phải dùng
+        // Schema::table(...)->change() (đòi doctrine/dbal, rebuild bảng ngầm) để đạt
+        // cùng kết quả (nullable outbound_item_match_id/sku_id) trên driver test.
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE label_snapshots ALTER COLUMN outbound_item_match_id DROP NOT NULL');
             DB::statement('ALTER TABLE label_snapshots ALTER COLUMN sku_id DROP NOT NULL');

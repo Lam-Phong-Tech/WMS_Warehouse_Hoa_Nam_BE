@@ -218,7 +218,7 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
         new OA\Response(response: 409, description: 'STATE_CONFLICT hoặc Idempotency-Key dùng với payload khác'),
         new OA\Response(response: 412, description: 'If-Match version mismatch'),
-        new OA\Response(response: 422, description: 'FULL_POST_REQUIRED / LABEL_NOT_PRINTED / ITEM_RFID_REQUIRED / INSUFFICIENT_STOCK'),
+        new OA\Response(response: 422, description: 'FULL_POST_REQUIRED / LABEL_NOT_PRINTED / INSUFFICIENT_STOCK (RFID optional — DEC-RFID-FALLBACK-001, không phải gate)'),
         new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match'),
     ]
 )]

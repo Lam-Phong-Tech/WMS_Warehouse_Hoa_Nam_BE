@@ -184,6 +184,7 @@ class CurrentBaselineStockService
             $this->recordDocumentStatus($documentId, 'SCANNING', 'POSTED', $documentType === 'receipt' ? 'post_receipt' : 'post_issue', $actorId);
             $this->recordPostingEvent(
                 ($documentType === 'receipt' ? 'post_receipt_' : 'post_issue_').$documentId,
+                $documentType === 'receipt' ? 'POST_RECEIPT' : 'POST_ISSUE',
                 $idempotencyKey,
                 $requestHash,
                 $documentId,
@@ -352,6 +353,7 @@ class CurrentBaselineStockService
 
             $this->recordPostingEvent(
                 'reverse_stock_document_'.$documentId,
+                $documentType === 'issue' ? 'REVERSE_ISSUE' : 'REVERSE_RECEIPT',
                 $idempotencyKey,
                 $requestHash,
                 $reversalDocumentId,
@@ -457,6 +459,7 @@ class CurrentBaselineStockService
             ]);
             $this->recordPostingEvent(
                 'post_component_issue_'.$documentId,
+                'POST_COMPONENT_ISSUE',
                 $idempotencyKey,
                 $requestHash,
                 $documentId,
@@ -993,6 +996,7 @@ class CurrentBaselineStockService
 
     private function recordPostingEvent(
         string $operation,
+        string $postingAction,
         string $idempotencyKey,
         string $requestHash,
         string $documentId,
@@ -1006,6 +1010,12 @@ class CurrentBaselineStockService
         DB::table('posting_event')->insert([
             'posting_event_id' => (string) Str::uuid(),
             'operation' => $operation,
+            // posting_action (ERD bảng 31, varchar(50)) là mã ngắn cố định
+            // (POST_RECEIPT/POST_ISSUE/...); không lấy fallback từ $operation vì
+            // $operation nhúng document UUID nên có thể vượt 50 ký tự (bug thật gây
+            // SQLSTATE 22001 khi reverse trên PostgreSQL — SQLite không enforce length
+            // nên không lộ ra; xem WWHN-190/191 evidence + migration 2026_08_18_150000).
+            'posting_action' => $postingAction,
             'idempotency_key' => $idempotencyKey,
             // ERD bảng 31: request_hash char(64) — chuẩn hóa composite v2|md5 về sha256 digest.
             'request_hash' => self::postingRequestDigest($requestHash),

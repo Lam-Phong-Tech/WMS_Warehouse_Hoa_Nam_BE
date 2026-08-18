@@ -86,6 +86,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
             $this->recordDocumentStatus($documentId, 'SCANNING', 'POSTED', 'post_issue', $actorId);
             $this->recordPostingEvent(
                 'post_issue_'.$documentId,
+                'POST_ISSUE',
                 $idempotencyKey,
                 $requestHash,
                 $documentId,
@@ -292,6 +293,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
 
     private function recordPostingEvent(
         string $operation,
+        string $postingAction,
         string $idempotencyKey,
         string $requestHash,
         string $documentId,
@@ -305,6 +307,10 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
         DB::table('posting_event')->insert([
             'posting_event_id' => (string) Str::uuid(),
             'operation' => $operation,
+            // posting_action (ERD bảng 31, varchar(50)) là mã ngắn cố định, không
+            // fallback từ $operation (có thể vượt 50 ký tự vì nhúng UUID — xem
+            // WWHN-190/191 evidence + migration 2026_08_18_150000).
+            'posting_action' => $postingAction,
             'idempotency_key' => $idempotencyKey,
             // ERD bảng 31: request_hash char(64).
             'request_hash' => self::postingRequestDigest($requestHash),

@@ -88,6 +88,15 @@ PHP vẫn là ngôn ngữ lập trình chính của Backend.
 
 Stack tổng thể của Backend là Laravel, PostgreSQL, Valkey, Docker Compose, Swagger/OpenAPI, Postman và Git.
 
+> **Ghi chú driver DB (DEV195-P2-02R):** PostgreSQL là database canonical/production duy nhất
+> theo bảng trên. Một số migration và service trong `Modules/Warehouse` có rẽ nhánh theo
+> `DB::getDriverName() === 'sqlite'` — đây CHỈ là workaround để test/dev suite (PHPUnit mặc định)
+> chạy được trên SQLite in-memory/file (không hỗ trợ trigger/view PL/pgSQL, không enforce
+> `varchar(N)` length, số ít/số nhiều bảng có thể đảo chiều — xem
+> `docs/docs_task_jira/WWHN-219.md` và `phpunit.pgsql.xml`). Hành vi/PASS trên SQLite không phải
+> căn cứ nghiệm thu cuối; mọi migration và business logic phải được xác nhận đúng trên PostgreSQL
+> trước khi coi là hoàn tất.
+
 ## 4. Phạm vi công việc Backend
 
 Backend không chỉ tạo CRUD. Mỗi chức năng phải bao gồm API contract, validation, business rule, permission, data scope, transaction khi cần, audit và test.
