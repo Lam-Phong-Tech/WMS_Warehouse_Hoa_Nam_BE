@@ -33,8 +33,11 @@ Review items and their owners, from the 66/100 review register:
 > **Reviewer chạy 1 lệnh để tự kiểm chứng, không cần tin lời văn:**
 > `bash scripts/verify-wwhn290-closure.sh` — tự dựng lại ancestry, phạm vi range, contract target và tính nhất quán pin từ repo thật, exit != 0 nếu lệch.
 >
-> Evidence: `docs/evidence/wwhn-290/` (PINS.json, DEFECT_CLOSURE_REGISTER, BRANCH_CONTRACT_SUPERSESSION, DATA_IMPACT_INDEPENDENT_VERIFICATION, QA1_REGRESSION_HANDOFF) · guard `tests/Feature/Wwhn290ClosureEvidenceTest.php` · CI `.github/workflows/wwhn-290-closure.yml`.
-> Regression dry run trên candidate: **91 test / 706 assertion / 0 fail**.
+> **Kiểm theo từng commit, không chỉ theo range:** vì `m1` dùng chung và commit của WWHN-290 xen kẽ với WWHN-273/WWHN-328 (những ticket này *có* đổi runtime), guarded-path được kiểm 2 lớp — trên range liền mạch và trên **từng commit thuộc WWHN-290**. Cả 6 commit đều = 0 file guarded.
+>
+> Evidence: `docs/evidence/wwhn-290/` (PINS.json, DEFECT_CLOSURE_REGISTER, BRANCH_CONTRACT_SUPERSESSION, DATA_IMPACT_INDEPENDENT_VERIFICATION, QA1_REGRESSION_HANDOFF, SIGNOFF_COMMENTS) · guard `tests/Feature/Wwhn290ClosureEvidenceTest.php` · verifier `scripts/verify-wwhn290-closure.sh` · CI `.github/workflows/wwhn-290-closure.yml`.
+> BE final SHA: `1c050d04d180e8c67a4269cc26a6c16e434092ee` · FE final SHA: `43b7b1b16301790e418c45acc6fbfe56a300273d` (cả hai trên `m1`).
+> Regression dry run trên candidate: **96 test / 765 assertion / 0 fail**; verifier `RESULT=PASS`.
 >
 > DEV không tự ký thay PM/Tech Lead, QA1 và Data/Tech.
 
