@@ -65,8 +65,20 @@ const OWNED_PATHS = [
   POSTMAN,
 ];
 
-/** Source phải đứng yên kể từ candidate; docs/evidence được phép bổ sung sau. */
-const FROZEN_PATHS = OWNED_PATHS.filter((path) => !path.startsWith("docs/evidence/"));
+/**
+ * Source phải đứng yên kể từ candidate.
+ *
+ * KHÔNG đóng băng ba artifact sinh ra (`api-docs.json|yaml`, collection DEV): chúng là
+ * tài sản dùng chung, task khác thêm endpoint là chúng đổi hợp lệ. Tính toàn vẹn phần
+ * contract của health được bảo vệ bằng hai lớp khác, chặt hơn và không đỏ oan:
+ * `slices` (hash phần health trên working tree) và `artifacts` (hash toàn file trên
+ * blob TẠI candidate, bất biến). Đóng băng cả file sẽ khiến gate WWHN-295 đỏ mỗi lần
+ * một task khác regenerate spec — tức là gate tự huấn luyện người đọc bỏ qua nó.
+ */
+const GENERATED_ARTIFACTS = [OPENAPI_JSON, OPENAPI_YAML, POSTMAN];
+const FROZEN_PATHS = OWNED_PATHS.filter(
+  (path) => !path.startsWith("docs/evidence/") && !GENERATED_ARTIFACTS.includes(path),
+);
 
 const REGISTER_IDS = [
   "DEV295-P1-01",
@@ -232,7 +244,9 @@ function verifySourcePin(lock) {
     fail("DEV295-P1-01", `candidate_sha chưa được pin trong ${LOCK_PATH} (cần đúng 40 hex).`);
     return null;
   }
-  if (!gitOrNull("cat-file", "-e", `${candidate}^{commit}`)) {
+  // `git cat-file -e` không in gì khi thành công, nên phải kiểm bằng lệnh có output:
+  // dùng nhầm cat-file ở đây làm mọi candidate hợp lệ bị báo "không tồn tại".
+  if (gitOrNull("rev-parse", "--verify", "--quiet", `${candidate}^{commit}`) === null) {
     fail("DEV295-P1-01", `candidate ${candidate} không tồn tại trong repo.`);
     return null;
   }
