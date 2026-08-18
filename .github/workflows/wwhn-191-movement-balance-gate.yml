@@ -1,0 +1,150 @@
+name: WWHN-191 Movement/Balance Support Gate
+
+# DEV191-P1-02R: trước đây WWHN-191 phải mượn run của WWHN-211 làm evidence CI.
+# Gate này là gate riêng, đặt đúng tên/scope WWHN-191, chạy trên đúng candidate SHA
+# và chạy cả hai driver (sqlite + PostgreSQL) vì SQLite không enforce CHECK constraint.
+
+on:
+  push:
+    branches:
+      - m1
+    paths:
+      - "Modules/Warehouse/app/Http/Controllers/InventoryBalanceController.php"
+      - "Modules/Warehouse/app/Http/Controllers/StockMovementController.php"
+      - "Modules/Warehouse/app/Http/Middleware/EnforceInventoryWarehouseScope.php"
+      - "Modules/Warehouse/app/Models/InventoryBalance.php"
+      - "Modules/Warehouse/app/Models/StockMovement.php"
+      - "Modules/Warehouse/routes/api.php"
+      - "app/Console/Commands/ReconcileInventoryBalances.php"
+      - "tests/Feature/Wwhn191BalanceMovementProjectionTest.php"
+      - "docs/evidence/WWHN-191/**"
+      - "scripts/verify-wwhn-191-closure.mjs"
+      - ".github/workflows/wwhn-191-movement-balance-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  movement-balance-support:
+    name: Movement/balance support — pin + tests (${{ matrix.driver }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        driver: [sqlite, pgsql]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wms_hoanam_testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, bcmath, pdo_sqlite, sqlite3, pdo_pgsql, pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan jwt:secret --force
+
+      - name: Verify WWHN-191 closure gate (pin + provenance + contract + coverage)
+        run: node scripts/verify-wwhn-191-closure.mjs
+
+      - name: Verify PHP formatting for the files in scope
+        run: |
+          # Chi format-check file thuoc pham vi WWHN-191. Hai controller trong scope dang
+          # do pint tu baseline truoc (fully_qualified_strict_types/ordered_imports) va
+          # khong bi task nay sua - khong keo bao do cua nguoi khac vao gate nay.
+          ./vendor/bin/pint --test tests/Feature/Wwhn191BalanceMovementProjectionTest.php
+
+      - name: Run WWHN-191 movement/balance support tests (sqlite)
+        if: matrix.driver == 'sqlite'
+        run: |
+          php artisan test \
+            tests/Feature/Wwhn191BalanceMovementProjectionTest.php \
+            tests/Feature/Wwhn211InventoryScopeTest.php \
+            tests/Feature/Wwhn204LedgerReconciliationCoverageTest.php \
+            tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php \
+            tests/Feature/Wwhn219InventoryReconcileCommandTest.php \
+            tests/Feature/Wwhn180IdempotencyAtomicityTest.php \
+            tests/Feature/PostReceiptConcurrencyBehaviorTest.php
+
+      - name: Point phpunit.pgsql.xml at the CI service container
+        if: matrix.driver == 'pgsql'
+        # phpunit.pgsql.xml khai DB_HOST=postgres force="true" cho docker-compose local;
+        # force="true" khien env cua job KHONG override duoc, nen phai sua file (ephemeral trong CI).
+        run: sed -i 's|name="DB_HOST" value="postgres"|name="DB_HOST" value="127.0.0.1"|' phpunit.pgsql.xml
+
+      - name: Run WWHN-191 movement/balance support tests (PostgreSQL 16)
+        if: matrix.driver == 'pgsql'
+        run: |
+          php artisan test --configuration=phpunit.pgsql.xml \
+            tests/Feature/Wwhn191BalanceMovementProjectionTest.php \
+            tests/Feature/Wwhn211InventoryScopeTest.php \
+            tests/Feature/Wwhn204LedgerReconciliationCoverageTest.php \
+            tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php \
+            tests/Feature/Wwhn219InventoryReconcileCommandTest.php
+
+      - name: Capture evidence tied to the exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="storage/app/wwhn-191-evidence/${{ matrix.driver }}"
+          mkdir -p "$evidence_dir"
+
+          php artisan route:list --path=api/v1/inventory > "$evidence_dir/routes-inventory.txt"
+          php artisan route:list --path=api/v1/stock-movements > "$evidence_dir/routes-stock-movements.txt"
+
+          sha256sum \
+            Modules/Warehouse/app/Http/Controllers/InventoryBalanceController.php \
+            Modules/Warehouse/app/Http/Controllers/StockMovementController.php \
+            Modules/Warehouse/routes/api.php \
+            tests/Feature/Wwhn191BalanceMovementProjectionTest.php \
+            docs/evidence/WWHN-191/CANDIDATE_MANIFEST.json \
+            docs/evidence/WWHN-191/CONTRACT_PIN.json \
+            > "$evidence_dir/SHA256SUMS"
+
+          printf '%s\n' "$GITHUB_SHA" > "$evidence_dir/EXACT_GIT_SHA"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$evidence_dir/GITHUB_RUN_ID"
+          printf '%s\n' "$GITHUB_RUN_ATTEMPT" > "$evidence_dir/GITHUB_RUN_ATTEMPT"
+
+      - name: Upload WWHN-191 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-191-${{ matrix.driver }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            storage/app/wwhn-191-evidence/**
+            docs/evidence/WWHN-191/**
