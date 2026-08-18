@@ -46,7 +46,7 @@ src/
 │   ├── inventory/           # Inventory balances, movements
 │   ├── scan/                # Scan operations, physical code classification
 │   ├── warranty/            # Warranty cases, events, defects
-│   ├── reverse/             # Reversal documents, adjustments
+│   ├── reverse/             # Reversal documents (append-only correction path)
 │   ├── reports/             # Reports hub, exports
 │   ├── dashboard/           # Dashboard KPI, quick stats
 │   ├── audit-logs/          # Audit trail, system logs
@@ -252,7 +252,6 @@ export const PERMISSION_CATALOG = {
   SCAN_CLASSIFY: 'scan.classify',
   INVENTORY_TRACE: 'inventory.trace',
   
-  // Stocktake
   // Warranty
   WARRANTY_MANAGE: 'warranty.manage',
   

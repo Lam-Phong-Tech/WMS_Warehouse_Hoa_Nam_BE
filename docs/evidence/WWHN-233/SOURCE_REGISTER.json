@@ -1,0 +1,91 @@
+{
+  "generated_by": "scripts/verify-wwhn233-count-disposition.mjs",
+  "sources": [
+    {
+      "id": "SRS-1.12",
+      "path": "docs/HN_SRS_FRD_v1.12_FULL.md",
+      "role": "CONTROLLING",
+      "sha256": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+      "anchors_present": true
+    },
+    {
+      "id": "ERD",
+      "path": "docs/HoaNam_ERD_Moi_Nhat.md",
+      "role": "CORROBORATING",
+      "sha256": "30badd145e3eba41d080492b07e995d92dacbc370d304c60c015adeddfa8c33b",
+      "anchors_present": true
+    },
+    {
+      "id": "TECHSTACK",
+      "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md",
+      "role": "CORROBORATING",
+      "sha256": "232e4d313a0bd4ff6f70f42ab679bab63d559d07e2b33a994dfbfcfd27ac9b5b",
+      "anchors_present": true
+    },
+    {
+      "id": "BASELINE-CONTRACT",
+      "path": "docs/contracts/HoaNam_Current_Baseline_Contract.json",
+      "role": "MACHINE-GATE",
+      "sha256": "1483eaa201203db7f4da26976f882584079288c126ce3d8f528f47fd37d770bb",
+      "anchors_present": true
+    },
+    {
+      "id": "OPENAPI-RUNTIME",
+      "path": "storage/api-docs/api-docs.yaml",
+      "role": "RUNTIME-SURFACE",
+      "sha256": "3cd4cdfa2a8ae67476fd08f61224ae25497de7dd160d626e6c75bb68109f047a",
+      "anchors_present": true
+    }
+  ],
+  "historical": [
+    {
+      "path": "docs/decision-records/DEC-STK-001.md",
+      "sha256": "e8d7d8b9810a5c89473c1bdf341413cd0cbc983bbf08257a17addf7e975ade18",
+      "status": "PRESENT_HISTORICAL",
+      "rule": "Không được trích làm controlling contract (DISP-STK-233 §3)."
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.json",
+      "sha256": "acd9611aab2984779ea39bde919be7d81e226d4f1fd7b4725a9874b28a6fe4f1",
+      "status": "PRESENT_HISTORICAL",
+      "rule": "Không được trích làm controlling contract (DISP-STK-233 §3)."
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+      "sha256": "acd9611aab2984779ea39bde919be7d81e226d4f1fd7b4725a9874b28a6fe4f1",
+      "status": "PRESENT_HISTORICAL",
+      "rule": "Không được trích làm controlling contract (DISP-STK-233 §3)."
+    },
+    {
+      "path": "docs/testing/WWHN-131-stocktake-test-cases.json",
+      "sha256": "aceafe3ee905c0a3d7be4eeb3d919dc6c840a70ad60dcda0e46d65a738761f6e",
+      "status": "PRESENT_HISTORICAL",
+      "rule": "Không được trích làm controlling contract (DISP-STK-233 §3)."
+    }
+  ],
+  "supersession": {
+    "superseded": "BRD/Handoff v3.9",
+    "current": "BRD v3.20 (WWHN-333) + SRS/FRD v1.12 (WWHN-334)",
+    "evidence": "docs/HN_SRS_FRD_v1.12_FULL.md — bảng supersession",
+    "historical_ids_policy": "Chỉ giữ để trace/tombstone, không dùng làm baseline triển khai."
+  },
+  "register_id": "WWHN-233-SOURCE-REGISTER",
+  "version": "1.0.0",
+  "status": "PROPOSED",
+  "jira": {
+    "task": "WWHN-233",
+    "parent": "WWHN-59",
+    "qa_gate": "WWHN-235",
+    "decision_gate": "WWHN-25"
+  },
+  "disposition": {
+    "id": "DISP-STK-233",
+    "path": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+    "result": "DEFERRED_NO_CODE"
+  },
+  "repository": {
+    "branch": "m1",
+    "be_commit_sha": "f81f7b780e08e19886628ac85b2f7574be34cec5",
+    "fe_commit_sha": null
+  }
+}

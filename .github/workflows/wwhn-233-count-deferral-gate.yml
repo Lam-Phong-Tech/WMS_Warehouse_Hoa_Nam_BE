@@ -1,0 +1,75 @@
+name: WWHN-233 count/recount deferral gate
+
+# DISP-STK-233 — WWHN-59 / WWHN-233 / WWHN-235 là DEFERRED — NO CODE theo REQ-SRS-037.
+#
+# Gate này fail-closed BẤT KỂ trạng thái phê duyệt của disposition: kể cả khi
+# DISP-STK-233 còn PROPOSED, CI vẫn chặn việc tái xuất hiện bề mặt
+# stocktake / count / recount / variance / adjustment.
+#
+# Nó cũng chạy ANTI-DANGLING — khẳng định mọi artifact mà các file disposition của
+# chuỗi Stocktake cam kết đều thực sự tồn tại. Đó là root cause của review 34/100:
+# DISP-STK-236 §5 mô tả 4 hạng mục hàng rào mà khi WWHN-233 rà soát thì chưa hạng mục
+# nào có trên m1.
+
+on:
+  push:
+    branches: [m1]
+  pull_request:
+    branches: [m1]
+  workflow_dispatch:
+
+jobs:
+  count-deferral-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin exact identity
+        run: |
+          echo "commit_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Exact commit: ${GITHUB_SHA}"
+        id: identity
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Static disposition gate (ANTI-DANGLING + contract negative lock)
+        run: node scripts/verify-wwhn233-count-disposition.mjs
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp -n .env.example .env || true
+          php artisan key:generate --force
+
+      - name: Runtime gate (route / permission / end-state schema / movement type)
+        run: php artisan test --filter=Wwhn233CountDeferredGateTest
+
+      - name: Regenerate evidence at this exact SHA
+        run: node scripts/verify-wwhn233-count-disposition.mjs --emit-evidence
+
+      - name: Fail if evidence drifted from the committed pack
+        # Evidence được sinh lại từ chính source ở SHA này. Nếu nó khác bản đã commit
+        # thì pack trong repo là stale — đúng loại pin rot mà DEV233-P1-03 chỉ ra.
+        run: |
+          if ! git diff --quiet -- docs/evidence/WWHN-233; then
+            echo "::error::docs/evidence/WWHN-233 stale so với source tại ${GITHUB_SHA}."
+            git --no-pager diff -- docs/evidence/WWHN-233
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wwhn-233-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-233
+          if-no-files-found: error

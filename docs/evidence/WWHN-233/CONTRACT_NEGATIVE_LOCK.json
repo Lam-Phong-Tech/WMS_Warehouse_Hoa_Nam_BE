@@ -1,0 +1,57 @@
+{
+  "lock_id": "WWHN-233-CONTRACT-NEGATIVE-LOCK",
+  "register_items": [
+    "DEV233-P1-04",
+    "DEV233-P1-05"
+  ],
+  "obligation_kind": "NEGATIVE",
+  "rationale": "Cả hai mục register mở đầu bằng 'Nếu re-enable'. Disposition là DEFERRED nên không phát sinh nghĩa vụ dương; nghĩa vụ phủ định dưới đây được kiểm chứng bằng máy.",
+  "forbidden_path_fragments": [
+    "stocktake",
+    "adjustment",
+    "variance",
+    "recount",
+    "cycle-count",
+    "physical-count"
+  ],
+  "count_surface_absent": {
+    "endpoints": 0,
+    "states": 0,
+    "permissions": 0,
+    "count_history_tables": 0,
+    "stale_cas_contract": "N/A — không có phiên kiểm kê nào để CAS"
+  },
+  "stock_effect": {
+    "canonical_movement_types": [
+      "OPENING",
+      "RECEIPT",
+      "ISSUE",
+      "COMPONENT_ISSUE",
+      "REVERSAL"
+    ],
+    "db_constraint": "chk_stock_movement_type_current",
+    "constraint_source": "Modules/Warehouse/database/migrations/2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history.php",
+    "append_only_guard": "hn_reject_append_only_change() trigger (PostgreSQL)",
+    "direct_stock_edit_endpoints": 0,
+    "correction_path": [
+      "POST /api/v1/inbound-documents/{id}/reverse",
+      "POST /api/v1/outbound-documents/{id}/reverse",
+      "POST /api/v1/reversal-documents"
+    ]
+  },
+  "checks_passed": [
+    "[DISP-CONTENT] DISP-STK-233 neo REQ-SRS-037 + DEFERRED + WWHN-59 + WWHN-235 + DISP-STK-236",
+    "[ANTI-DANGLING] docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md: toàn bộ 9 artifact được cam kết đều tồn tại.",
+    "[BASELINE-FRAGMENTS] forbidden_path_fragments phủ đủ recount, cycle-count, physical-count",
+    "[BASELINE-OPERATIONS] 51 operation được khai, zero thuộc bề mặt bị cấm.",
+    "[BASELINE-PERMISSIONS] 31 permission, zero capability kiểm kê.",
+    "[OPENAPI] 84 path runtime, zero path count/recount/variance/adjustment.",
+    "[DEC-STK-001] DEC-STK-001 vẫn PROPOSED / Effective date = NULL",
+    "[SOURCE] 5 nguồn hiện hành có mặt, anchor còn nguyên, digest tính lại.",
+    "[SOURCE-SUPERSESSION] BRD v3.9 được SRS v1.12 đánh dấu HISTORICAL/SUPERSEDED.",
+    "[EVIDENCE] NO_CODE_HANDOFF + QA_DISPOSITION_WWHN-235 có mặt.",
+    "[CHAIN-236] verify-wwhn236-adjustment-disposition.mjs PASS."
+  ],
+  "warnings": [],
+  "verified_at_commit": "f81f7b780e08e19886628ac85b2f7574be34cec5"
+}

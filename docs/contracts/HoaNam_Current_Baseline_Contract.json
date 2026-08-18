@@ -12,7 +12,8 @@
     "operation_count": 174,
     "operation_count_note": "174 = 176 - 2. SRS v1.12 §8.1 (Outbound request / Excel intake) chốt 'Confirm creates exactly one outbound DRAFT; no direct POST /outbound-documents create operation' và Annex C không khai createOutboundDocument/updateOutboundDocument, nên POST /api/v1/outbound-documents và PATCH /api/v1/outbound-documents/{id} đã được gỡ khỏi API surface (DR_HN_20260817_OUTBOUND_FLOW03_ALIGNMENT).",
     "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
-    "forbidden_path_fragments": ["stocktake", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"],
+    "forbidden_path_fragments": ["stocktake", "adjustment", "variance", "recount", "cycle-count", "physical-count", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"],
+    "forbidden_path_fragments_note": "DISP-STK-236 (WWHN-236): truoc day chi chan manh stocktake, nen mot route sua ton dat ten khac - vi du POST /api/v1/inventory/apply-adjustment - van lot qua toan bo gate. REQ-SRS-037 cam moi action sua ton truc tiep chu khong rieng action mang chu stocktake, nen bo sung adjustment va variance. Fragment adjustment la substring bao trum ca apply-adjustment lan adjustments. Correction path duy nhat la Reversal append-only (BR-REV-01/02). DISP-STK-233 (WWHN-233) bo sung tiep recount / cycle-count / physical-count: nhanh WWHN-59/233 mang AC count-recount-partial-stale, va mot route dem lai ton kho khong nhat thiet chua chu stocktake hay adjustment. Khong dung fragment count tran vi no qua rong.",
     "erd_alignment": {
       "note": "Operation bắt buộc bởi ERD nhưng chưa có mặt trong Annex C. Tất cả đều stock-neutral và phải liệt kê tường minh ở đây để API surface luôn kiểm chứng được. BA cần bổ sung vào Annex C ở revision kế tiếp.",
       "operations": [
@@ -67,6 +68,11 @@
         "PATCH /api/v1/product-models/{id}",
         "PATCH /api/v1/package-variants/{id}",
         "PATCH /api/v1/pv/products/{id}/publish",
+        "GET /api/v1/pv/products",
+        "GET /api/v1/pv/products/{skuId}",
+        "GET /api/v1/pv-admin/resources/{resourceType}",
+        "POST /api/v1/pv-admin/resources/{resourceType}",
+        "PATCH /api/v1/pv-admin/resources/{resourceType}/{id}",
         "PUT /api/v1/roles/{id}/permissions",
         "POST /api/v1/warehouses",
         "GET /api/v1/defects",
