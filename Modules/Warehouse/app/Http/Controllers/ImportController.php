@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Exceptions\ImportConcurrencyException;
 use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportErrorFileService;
@@ -87,7 +88,10 @@ class ImportController extends Controller
             new OA\Response(response: 200, description: 'Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true)'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
             new OA\Response(response: 403, description: 'Missing product.manage permission'),
-            new OA\Response(response: 409, description: 'Concurrent unique conflict; no partial write'),
+            new OA\Response(response: 409, description: 'CONCURRENCY_CONFLICT — một lần import COMMIT trùng ĐỦ định danh '
+                .'(file_sha256 + actor_id + options_fingerprint) đang chạy và request này không giành được khoá tuần tự '
+                .'hoá trong `lock.wait_seconds`. Không có SKU nào được tạo/cập nhật, không có Import báo cáo nào được ghi '
+                .'(DEV330-P1-07R3, SRS NFR-SRS-003 / AC-GWT-CONC-001). Client thử lại sau khi lần chạy hiện tại kết thúc.'),
             new OA\Response(response: 422, description: 'File/row validation failed; no business side effect'),
         ]
     )]
@@ -155,7 +159,12 @@ class ImportController extends Controller
                 // để GET .../import-reports/{id}/error-file phục vụ file thật thay vì phải tính
                 // lại; sinh file lỗi không được làm hỏng response import chính nên chỉ log khi fail.
                 if ($report !== null) {
-                    $this->attachErrorFile($report, $result['row_errors']);
+                    $this->attachErrorFile(
+                        $report,
+                        $result['row_errors'],
+                        $file->getClientOriginalName(),
+                        is_string($result['sheet_name'] ?? null) ? $result['sheet_name'] : null,
+                    );
                     // Dùng đúng accessor server-side (path còn + chưa hết hạn) mà
                     // ImportReport phơi ra cho GET /skus/import-reports/{id}, để response
                     // import và response báo cáo không bao giờ nói khác nhau về việc
@@ -197,6 +206,31 @@ class ImportController extends Controller
                     'partial_write' => false,
                     'max_rows' => $e->maxRows,
                     'actual_rows' => $e->actualRows,
+                ], $updateExisting)],
+            );
+        } catch (ImportConcurrencyException $e) {
+            // DEV330-P1-07R3: đã có một lần import COMMIT trùng ĐỦ định danh đang chạy và
+            // ta không giành được khoá trong thời gian chờ đã duyệt.
+            //
+            // SRS NFR-SRS-003 + AC-GWT-CONC-001: với request song song, "tối đa một
+            // request thành công; request còn lại trả 409/412/422 theo điểm phát hiện" —
+            // nên chạy tiếp mà không có khoá (hành vi cũ) là vi phạm trực tiếp, không chỉ
+            // là một lựa chọn kỹ thuật kém. Điểm phát hiện ở đây là tranh chấp khoá, nên
+            // mã đúng là 409 `CONCURRENCY_CONFLICT` — một trong bốn mã 409 mà §8.2 công
+            // nhận. (Docs baseline không định nghĩa 423/429/503 nên không được tự chế.)
+            //
+            // Không có SKU nào được tạo/cập nhật và không có Import báo cáo nào được ghi:
+            // exception ném ra TRƯỚC khi vào transaction, đúng cam kết "State, stock and
+            // movement unchanged" của §8.2 cho 409 không phải replay.
+            return $this->respondError(
+                $e->getMessage(),
+                [],
+                409,
+                'CONCURRENCY_CONFLICT',
+                ['data' => $this->withContract([
+                    'committed' => false,
+                    'partial_write' => false,
+                    'lock_wait_seconds' => $e->waitedSeconds,
                 ], $updateExisting)],
             );
         } catch (\InvalidArgumentException $e) {
@@ -295,12 +329,21 @@ class ImportController extends Controller
      * báo cáo. Lỗi sinh file không được làm hỏng response import chính — chỉ log, vì
      * file lỗi là tiện ích tra cứu thêm, không phải nguồn sự thật nghiệp vụ.
      *
+     * DEV330-P1-01R3: truyền thêm tên file nguồn và tên sheet để file lỗi đủ 9 cột theo
+     * SRS §13.12 — người nhận file mở ra là biết lỗi thuộc file/sheet nào, không phải
+     * đối chiếu ngược qua import_report_id.
+     *
      * @param  array<int, array<string, mixed>>  $rowErrors
      */
-    private function attachErrorFile(ImportReport $report, array $rowErrors): void
+    private function attachErrorFile(ImportReport $report, array $rowErrors, ?string $sourceFile = null, ?string $sheetName = null): void
     {
         try {
-            $generated = $this->errorFileService->generate($report->import_report_id, $rowErrors);
+            $generated = $this->errorFileService->generate(
+                $report->import_report_id,
+                $rowErrors,
+                $sourceFile,
+                $sheetName,
+            );
             if ($generated === null) {
                 return;
             }

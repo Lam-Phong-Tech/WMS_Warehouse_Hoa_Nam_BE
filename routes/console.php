@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use Modules\Warehouse\Support\SkuImportContract;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -36,14 +37,18 @@ Schedule::command('audit:reconcile')
     ->runInBackground();
 
 /*
- * WWHN-330 (DEV330-P1-01 gap): ImportErrorFileService ghi file lỗi CSV thật vào
+ * WWHN-330 (DEV330-P1-01 / P1-01R3): ImportErrorFileService ghi file lỗi CSV thật vào
  * storage/app/import-error-files/*.csv với error_file_expires_at (mặc định 24h).
  * Không có cron thì file vật lý không bao giờ bị xoá dù API đã coi là hết hạn (404) —
- * đĩa phình vô hạn theo số lần import lỗi. Chạy hàng ngày, lệch giờ khỏi các job khác
- * để không cạnh tranh I/O.
+ * đĩa phình vô hạn theo số lần import lỗi và nội dung file người dùng nộp tồn tại vô
+ * thời hạn. Chạy hàng ngày, lệch giờ khỏi các job khác để không cạnh tranh I/O.
+ *
+ * Giờ chạy đọc từ hợp đồng (`warehouse.sku_import.error_file_purge_daily_at`) chứ không
+ * viết cứng ở đây: DEC-IMP-001 §5 công bố "thời gian tối đa file nằm trên đĩa" và con số
+ * đó chỉ đúng nếu lịch chạy thật và lịch ghi trong tài liệu là cùng một giá trị.
  */
 Schedule::command('import:purge-error-files')
-    ->dailyAt('02:15')
+    ->dailyAt(SkuImportContract::errorFilePurgeDailyAt())
     ->timezone(config('app.timezone'))
     ->withoutOverlapping()
     ->onOneServer()

@@ -33,6 +33,12 @@ final class SkuImportContract
         return max(1, (int) config('warehouse.sku_import.max_file_size_kb', 10240));
     }
 
+    /** Kích thước upload tối đa tính bằng byte — dùng cho kiểm tra ở tầng service. */
+    public static function maxFileSizeBytes(): int
+    {
+        return self::maxFileSizeKb() * 1024;
+    }
+
     /** @return array<int, string> */
     public static function allowedExtensions(): array
     {
@@ -43,10 +49,113 @@ final class SkuImportContract
             : ['xlsx', 'xls'];
     }
 
-    /** Số giờ file lỗi CSV còn tải được kể từ lúc sinh. */
+    /**
+     * DEV330-P1-02R3 — chính sách quét dòng vật lý (physical-scan policy) đã duyệt.
+     *
+     * Bội số này nhân với số dòng vật lý cần đọc để phục vụ đúng hạn mức dữ liệu, ra
+     * trần quét. Trước đây nó là số `20` viết thẳng trong ImportService — một chính sách
+     * chống DoS chưa ai duyệt, nằm lẫn trong code như hằng số kỹ thuật.
+     */
+    public static function maxPhysicalScanMultiplier(): int
+    {
+        return max(1, (int) config('warehouse.sku_import.max_physical_scan_multiplier', 20));
+    }
+
+    /** Header + maxRows + 1 dòng dư để phát hiện vượt hạn mức mà vẫn bounded-read. */
+    public static function maxPhysicalRowsToRead(): int
+    {
+        return self::maxRows() + 2;
+    }
+
+    /** Trần số dòng VẬT LÝ được quét trước khi dừng và báo lỗi tường minh. */
+    public static function maxPhysicalRowsToScan(): int
+    {
+        return self::maxPhysicalScanMultiplier() * self::maxPhysicalRowsToRead();
+    }
+
+    /**
+     * DEV330-P1-02R3 — ngân sách hiệu năng đã duyệt (ms) cho từng kịch bản ở hạn mức.
+     * Benchmark test fail khi vượt → hồi quy bậc độ phức tạp bị chặn tại CI.
+     *
+     * @return array<string, int>
+     */
+    public static function performanceObjectiveMs(): array
+    {
+        $objective = config('warehouse.sku_import.performance_objective_ms', []);
+        $defaults = [
+            'dry_run_at_max_rows' => 15000,
+            'commit_at_max_rows' => 60000,
+            'reject_oversize' => 15000,
+        ];
+
+        if (! is_array($objective)) {
+            return $defaults;
+        }
+
+        foreach ($defaults as $key => $fallback) {
+            $defaults[$key] = max(1, (int) ($objective[$key] ?? $fallback));
+        }
+
+        return $defaults;
+    }
+
+    /** DEV330-P1-07R3 — TTL của lock chống 2 request COMMIT trùng định danh chạy song song. */
+    public static function lockTtlSeconds(): int
+    {
+        return max(1, (int) config('warehouse.sku_import.lock.ttl_seconds', 120));
+    }
+
+    /** DEV330-P1-07R3 — thời gian chờ tối đa để giành lock. */
+    public static function lockWaitSeconds(): int
+    {
+        return max(1, (int) config('warehouse.sku_import.lock.wait_seconds', 15));
+    }
+
+    /**
+     * DEV330-P1-07R3 — hết thời gian chờ lock thì TỪ CHỐI (true) hay chạy tiếp (false).
+     *
+     * Mặc định fail-closed. Chỉ đọc `FAIL_OPEN` khi hợp đồng ghi đúng chuỗi đó, để
+     * không ai vô tình hạ tiêu chuẩn toàn vẹn dữ liệu bằng một giá trị cấu hình gõ sai.
+     */
+    public static function lockFailsClosed(): bool
+    {
+        return strtoupper((string) config('warehouse.sku_import.lock.on_timeout', 'FAIL_CLOSED')) !== 'FAIL_OPEN';
+    }
+
+    /** Số giờ file lỗi CSV còn tải được kể từ lúc sinh (hạn dùng LOGIC). */
     public static function errorFileExpiryHours(): int
     {
         return max(1, (int) config('warehouse.sku_import.error_file_expiry_hours', 24));
+    }
+
+    /** DEV330-P1-01R3 — khoảng đệm sau hạn dùng logic trước khi xoá VẬT LÝ. */
+    public static function errorFilePurgeGraceHours(): int
+    {
+        return max(0, (int) config('warehouse.sku_import.error_file_purge_grace_hours', 0));
+    }
+
+    /** Giờ chạy job purge hằng ngày — cùng nguồn với `routes/console.php` và tài liệu. */
+    public static function errorFilePurgeDailyAt(): string
+    {
+        $at = (string) config('warehouse.sku_import.error_file_purge_daily_at', '02:15');
+
+        return preg_match('/^\d{2}:\d{2}$/', $at) === 1 ? $at : '02:15';
+    }
+
+    /** DEV330-P1-01R3 — có quét cả file mồ côi (không còn báo cáo nào trỏ tới) hay không. */
+    public static function errorFileOrphanSweepEnabled(): bool
+    {
+        return (bool) config('warehouse.sku_import.error_file_orphan_sweep', true);
+    }
+
+    /**
+     * DEV330-P1-01R3 — thời gian tối đa một file lỗi CÓ THỂ nằm trên đĩa, tính cả nhịp
+     * chạy job (mỗi ngày một lần). Đây là con số cần công bố cho bảo mật/tuân thủ, vì
+     * "hết hạn 24h" ở tầng API không nói gì về đĩa.
+     */
+    public static function errorFileMaxOnDiskHours(): int
+    {
+        return self::errorFileExpiryHours() + self::errorFilePurgeGraceHours() + 24;
     }
 
     /** Cửa sổ coi 2 lần COMMIT trùng định danh là replay. */
@@ -88,9 +197,21 @@ final class SkuImportContract
             'max_file_size_kb' => self::maxFileSizeKb(),
             'max_file_size_mb' => round(self::maxFileSizeKb() / 1024, 2),
             'allowed_extensions' => self::allowedExtensions(),
+            // DEV330-P1-02R3: trần quét dòng vật lý là một hạn mức người dùng CÓ THỂ
+            // chạm phải (file thưa dòng trống) nên phải công bố như mọi hạn mức khác,
+            // không để họ đoán vì sao một file 300 dòng lại bị từ chối.
+            'max_physical_rows_to_scan' => self::maxPhysicalRowsToScan(),
             'error_file_expiry_hours' => self::errorFileExpiryHours(),
+            // DEV330-P1-01R3: hạn dùng logic (API 404) và thời gian tồn tại tối đa trên
+            // đĩa là hai con số khác nhau — công bố cả hai để không ai suy nhầm rằng
+            // "hết hạn" đồng nghĩa "đã bị xoá".
+            'error_file_max_on_disk_hours' => self::errorFileMaxOnDiskHours(),
             'idempotency_window_hours' => self::idempotencyWindowHours(),
             'idempotency_identity' => self::idempotencyIdentity(),
+            // DEV330-P1-07R3: hai request COMMIT trùng ĐỦ định danh gửi đồng thời thì
+            // request thứ hai bị từ chối 409 CONCURRENCY_CONFLICT (không âm thầm chạy
+            // song song). Công bố để client hiển thị đúng thông điệp "thử lại sau".
+            'concurrent_import_policy' => self::lockFailsClosed() ? 'FAIL_CLOSED_409' : 'FAIL_OPEN',
         ];
     }
 

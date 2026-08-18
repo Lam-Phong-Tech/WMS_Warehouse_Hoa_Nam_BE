@@ -166,8 +166,16 @@ class ImportReportController extends Controller
         path: '/api/v1/skus/import-reports/{id}/error-file',
         operationId: 'sku_import_report_error_file',
         summary: 'Tải file lỗi (CSV) của một Import báo cáo SKU — WWHN-330',
-        description: 'Trả về file CSV (đã sinh sẵn khi import, xem ImportErrorFileService) gồm cột '
-            .'row/field/error_code/message/value cho từng dòng bị reject trong lần import đó. '
+        description: 'Trả về file CSV (đã sinh sẵn khi import, xem ImportErrorFileService) theo ĐÚNG schema error-file '
+            .'của SRS §13.12: `source_file, sheet, row_no, field, error_code, message, raw_value, severity, '
+            .'suggested_action` — một dòng cho mỗi dòng bị reject. `severity` ∈ CRITICAL (xung đột định danh/tham '
+            .'chiếu) | ERROR (sai định dạng ô); trong luồng all-or-nothing mọi dòng lỗi đều chặn commit nên không có '
+            .'giá trị WARNING. `raw_value` được che nếu khớp dạng email/số điện thoại (§13.12 "Masked if PII"). '
+            .'RETENTION (DEV330-P1-01R3, DEC-IMP-001 §5): hạn dùng LOGIC = `constraints.error_file_expiry_hours` — quá '
+            .'hạn thì endpoint này trả 404 nhưng file vẫn còn trên đĩa; RETENTION VẬT LÝ do job `import:purge-error-files` '
+            .'thực thi hằng ngày, nên thời gian tồn tại tối đa trên đĩa = `constraints.error_file_max_on_disk_hours`. '
+            .'Sau khi bị purge, endpoint vẫn trả 404 (bản ghi Import báo cáo và row_errors KHÔNG bị xoá — audit trail '
+            .'import giữ nguyên theo NFR-SRS-014). '
             .'Yêu cầu quyền sku.manage (cùng permission với các endpoint import khác) VÀ báo cáo phải nằm trong '
             .'data-scope của người gọi (FE331-P1-06R3): người gọi bị giới hạn kho chỉ tải được file lỗi của chính '
             .'lần import mình đã chạy — file lỗi chứa nguyên nội dung file người nộp nên báo cáo ngoài scope trả 404 '

@@ -5,8 +5,10 @@ namespace Modules\Warehouse\Services;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Exceptions\ImportConcurrencyException;
 use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Models\ProductMaster;
@@ -25,11 +27,11 @@ class ImportService
 
     public const TEMPLATE_VERSION = 'WWHN-172-SKU-IMPORT-v1.1.0';
 
-    /** WWHN-330 residual-02: TTL của lock chống 2 request COMMIT trùng nhau chạy song song. */
-    private const LOCK_TTL_SECONDS = 120;
-
-    /** WWHN-330 residual-02: thời gian chờ tối đa để giành lock trước khi fail-open. */
-    private const LOCK_WAIT_SECONDS = 15;
+    /**
+     * Tên sheet vừa đọc, để file lỗi CSV điền được cột `sheet` mà SRS §13.12 yêu cầu.
+     * Đặt lại ở đầu mỗi lần `runImport()` nên không mang trạng thái sang lần chạy sau.
+     */
+    private ?string $sheetName = null;
 
     /**
      * WWHN-331 FE331-P1-03R3 — bốn hạn mức của import SKU (số dòng, cỡ file, cửa sổ
@@ -49,13 +51,21 @@ class ImportService
     /** Header + maxRows + 1 dòng dư để phát hiện vượt hạn mức mà vẫn bounded-read. */
     private function maxPhysicalRowsToRead(): int
     {
-        return $this->maxRows() + 2;
+        return SkuImportContract::maxPhysicalRowsToRead();
     }
 
-    /** Trần số dòng VẬT LÝ được quét trước khi dừng và báo lỗi tường minh. */
+    /**
+     * Trần số dòng VẬT LÝ được quét trước khi dừng và báo lỗi tường minh.
+     *
+     * DEV330-P1-02R3: bội số quét trước đây là số `20` viết thẳng ở đây — một chính sách
+     * chống DoS (file vài KB vẫn ép server quét hàng triệu dòng vật lý) chưa ai duyệt,
+     * nằm lẫn trong code như hằng số kỹ thuật. Nay đọc từ hợp đồng đã chốt
+     * (`warehouse.sku_import.max_physical_scan_multiplier`, DEC-IMP-001 §1) và được công
+     * bố trong `constraints` để người dùng biết vì sao file thưa của mình bị từ chối.
+     */
     private function maxPhysicalRowsToScan(): int
     {
-        return 20 * $this->maxPhysicalRowsToRead();
+        return SkuImportContract::maxPhysicalRowsToScan();
     }
 
     /** Cửa sổ coi 2 lần COMMIT trùng ĐỦ định danh là replay (idempotent). */
@@ -130,21 +140,53 @@ class ImportService
     }
 
     /**
-     * WWHN-330 residual-02: serialize các lần import COMMIT cùng (actor, sha256).
-     * Chờ tối đa LOCK_WAIT_SECONDS; hết thời gian chờ vẫn chạy tiếp (fail-open) để một
-     * sự cố cache không chặn nghiệp vụ import — mất tính atomic ở đúng ca hiếm đó, đã ghi
-     * rõ thay vì ném lỗi mà người dùng không hiểu.
+     * WWHN-330 residual-02 + DEV330-P1-07R3: serialize các lần import COMMIT trùng ĐỦ
+     * định danh (actor, sha256, vân tay tùy chọn).
+     *
+     * **Hết thời gian chờ = TỪ CHỐI, không chạy tiếp.** Bản trước fail-open: hết
+     * `wait_seconds` thì gọi thẳng `$callback()` mà không giữ khoá. Điều đó vô hiệu hoá
+     * đúng cái bất biến khoá sinh ra để giữ — "kiểm tra đã import chưa" và "ghi SKU + tạo
+     * báo cáo" phải là một thao tác nguyên tử — và nó vô hiệu hoá đúng vào lúc nguy hiểm
+     * nhất: hết thời gian chờ nghĩa là ĐANG CÓ một request khác giữ khoá cho cùng bộ định
+     * danh, tức đúng kịch bản gửi trùng mà cơ chế idempotent phải chặn. Kết quả cũ: hai
+     * dòng `import_reports` COMMITTED cho cùng một file, cả hai request đều trả 200, không
+     * ai biết tính idempotent đã bị phá.
+     *
+     * Nay ném `ImportConcurrencyException` → 409 `CONCURRENCY_CONFLICT` (§8.2), người dùng
+     * nhận một thông điệp đúng sự thật và thử lại được. Đánh đổi đã cân nhắc: nếu Redis
+     * hỏng thì import bị chặn thay vì chạy mất an toàn — đúng thứ tự ưu tiên cho một hạng
+     * mục Data Integrity, và sự cố hạ tầng sẽ lộ ra ngay thay vì âm thầm sinh dữ liệu sai.
+     * Hướng ngược lại vẫn cấu hình được (`lock.on_timeout = FAIL_OPEN`) nhưng phải là một
+     * quyết định được ghi ra, không phải mặc định ẩn.
      *
      * @param  callable(): array<string, mixed>  $callback
      * @return array<string, mixed>
      */
     private function withImportLock(string $checksum, string $actorId, string $optionsFingerprint, callable $callback): array
     {
-        $lock = Cache::lock('sku-import:'.$actorId.':'.$checksum.':'.$optionsFingerprint, self::LOCK_TTL_SECONDS);
+        $waitSeconds = SkuImportContract::lockWaitSeconds();
+        $lock = Cache::lock(
+            'sku-import:'.$actorId.':'.$checksum.':'.$optionsFingerprint,
+            SkuImportContract::lockTtlSeconds(),
+        );
 
         try {
-            $lock->block(self::LOCK_WAIT_SECONDS);
-        } catch (LockTimeoutException) {
+            $lock->block($waitSeconds);
+        } catch (LockTimeoutException $e) {
+            if (SkuImportContract::lockFailsClosed()) {
+                throw new ImportConcurrencyException(
+                    'Cùng file này đang được import với cùng tùy chọn; vui lòng đợi lần chạy hiện tại kết thúc rồi thử lại.',
+                    $waitSeconds,
+                );
+            }
+
+            Log::warning('SKU_IMPORT_LOCK_TIMEOUT_FAIL_OPEN', [
+                'actor_id' => $actorId,
+                'file_sha256' => $checksum,
+                'waited_seconds' => $waitSeconds,
+                'exception' => $e::class,
+            ]);
+
             return $callback();
         }
 
@@ -165,6 +207,8 @@ class ImportService
         bool $dryRun,
         string $checksum,
     ): array {
+        $this->sheetName = null;
+
         try {
             $rows = $this->readRows($filePath);
         } catch (ImportRowLimitExceededException $e) {
@@ -463,6 +507,7 @@ class ImportService
             });
 
             $sheet = $reader->load($filePath)->getActiveSheet();
+            $this->sheetName ??= $sheet->getTitle();
             $highestColumn = $sheet->getHighestDataColumn();
             /** @var array<int, array<int, mixed>> $chunk */
             $chunk = $sheet->rangeToArray('A'.$start.':'.$highestColumn.$end, null, true, true, false);
@@ -518,16 +563,35 @@ class ImportService
         (new Xlsx($sheet->getParent()))->save($path);
     }
 
+    /**
+     * DEV330-P1-02R3 — hàng rào thứ hai cho cùng một hạn mức, đọc từ cùng một hợp đồng.
+     *
+     * Trước đây lớp này giữ bản sao riêng của hạn mức: `10 * 1024 * 1024` và
+     * `['xlsx', 'xls']` viết cứng, trong khi validator của controller đã chuyển sang đọc
+     * `warehouse.sku_import`. Hai bản sao của cùng một hạn mức luôn là một lỗi chờ xảy
+     * ra: nâng `max_file_size_kb` lên 20 MB thì HTTP cho file qua còn service vẫn chặn ở
+     * 10 MB, và thông điệp lỗi nói một con số không còn đúng. Nay cả hai tầng đọc đúng
+     * một nguồn, nên không thể nói khác nhau.
+     *
+     * Vẫn giữ kiểm tra ở tầng service (không chỉ dựa vào validator HTTP) vì `import()`
+     * còn được gọi từ CLI/job — nơi không đi qua request validation nào.
+     */
     private function assertFile(string $filePath): void
     {
         if (! is_file($filePath)) {
             throw new InvalidArgumentException('Không tìm thấy file import.');
         }
-        if (! in_array(strtolower(pathinfo($filePath, PATHINFO_EXTENSION)), ['xlsx', 'xls'], true)) {
-            throw new InvalidArgumentException('Chỉ chấp nhận file xlsx hoặc xls.');
+
+        $allowed = SkuImportContract::allowedExtensions();
+        if (! in_array(strtolower(pathinfo($filePath, PATHINFO_EXTENSION)), $allowed, true)) {
+            throw new InvalidArgumentException('Chỉ chấp nhận file '.implode(' hoặc ', $allowed).'.');
         }
-        if (($size = filesize($filePath)) === false || $size > 10 * 1024 * 1024) {
-            throw new InvalidArgumentException('File import vượt quá 10MB.');
+
+        $maxBytes = SkuImportContract::maxFileSizeBytes();
+        if (($size = filesize($filePath)) === false || $size > $maxBytes) {
+            throw new InvalidArgumentException(
+                'File import vượt quá '.round($maxBytes / (1024 * 1024), 2).'MB.'
+            );
         }
     }
 
@@ -733,6 +797,8 @@ class ImportService
             'partial_write' => false,
             'duplicate' => false,
             'file_sha256' => $checksum,
+            // SRS §13.12: file lỗi phải nêu được sheet nguồn của từng dòng sai.
+            'sheet_name' => $this->sheetName,
             'header_map' => $map,
             'total_rows' => $total,
             'valid_rows' => $valid,

@@ -1,19 +1,23 @@
-# DEC-IMP-001 — Hạn mức, định danh idempotency và data-scope của import SKU
+# DEC-IMP-001 — Hạn mức, hiệu năng, retention, idempotency, tương tranh và data-scope của import SKU
 
 | Trường | Giá trị |
 |---|---|
 | Mã quyết định | `DEC-IMP-001` |
 | Ngày lập | 18/08/2026 |
-| Phạm vi | `POST /api/v1/skus/import-excel`, `GET /api/v1/skus/import-template`, `GET /api/v1/skus/import-reports[/{id}[/error-file]]` |
+| Bản sửa đổi | **Rev.2 — 18/08/2026** (đóng WWHN-330 register R3) |
+| Phạm vi | `POST /api/v1/skus/import-excel`, `GET /api/v1/skus/import-template`, `GET /api/v1/skus/import-reports[/{id}[/error-file]]`, lệnh `import:purge-error-files` |
 | Ticket | WWHN-330 (BE), WWHN-331 (FE), WWHN-332 (QA), task cha WWHN-89 |
-| Đóng mục review | FE331-P1-02R3, FE331-P1-03R3, FE331-P1-06R3 |
-| Người duyệt | BA/BAS + Tech Lead (comment sign-off trên WWHN-331) |
+| Đóng mục review | FE331-P1-02R3, FE331-P1-03R3, FE331-P1-06R3 · **DEV330-P1-01R3, DEV330-P1-02R3, DEV330-P1-03R3, DEV330-P1-06R3, DEV330-P1-07R3** |
+| Người duyệt | BA/BAS + Tech Lead (comment sign-off trên WWHN-330 / WWHN-331) |
 | Nguồn sự thật kỹ thuật | `config/warehouse.php` → khoá `warehouse.sku_import` |
 
-Quyết định này thay thế trạng thái trước đó, khi bốn giá trị hạn mức nằm rải rác thành
-hằng số trong ba lớp PHP khác nhau, mỗi chỗ kèm ghi chú "giá trị tạm, cần BA/Tech Lead
-chốt", và FE chép lại chính những con số đó vào một Alert hiển thị cho người dùng cuối
-kèm cả câu "chưa chốt chính thức".
+**Rev.1 → Rev.2 thay đổi gì:** Rev.1 chốt hạn mức, định danh idempotency và data-scope.
+Rev.2 bổ sung bốn thứ mà register R3 chỉ ra là còn thiếu hoặc còn nằm trong code dưới
+dạng hằng số chưa duyệt: **chính sách quét dòng vật lý** (§1), **mục tiêu hiệu năng**
+(§4), **retention vật lý của file lỗi** tách khỏi hạn dùng logic (§5), và **chính sách
+tương tranh khi hết thời gian chờ khoá** (§6). Rev.2 cũng sửa một lỗi của chính Rev.1:
+§1 trích số benchmark (217 ms / 1,76 s) **không khớp** artifact đo được — nay tài liệu
+không nhắc lại số đo nữa mà trỏ thẳng tới artifact, để hai nơi không thể lệch lần nữa.
 
 ---
 
@@ -22,21 +26,34 @@ kèm cả câu "chưa chốt chính thức".
 | Hạng mục | Giá trị chốt | Khoá config | Nơi enforce |
 |---|---:|---|---|
 | Số dòng dữ liệu tối đa mỗi lần import (không tính header) | **1 000** | `max_rows` | `ImportService::readRows()` → 422 `SKU_IMPORT_ROW_LIMIT_EXCEEDED` |
-| Kích thước file upload tối đa | **10 240 KB (10 MB)** | `max_file_size_kb` | rule `max:` của `ImportController::importExcel()` |
-| Định dạng file chấp nhận | **.xlsx, .xls** | `allowed_extensions` | rule `mimes:` |
-| Hạn tải file lỗi CSV | **24 giờ** kể từ lúc sinh | `error_file_expiry_hours` | `ImportErrorFileService::generate()`, `ImportReport::error_file_available` |
+| Kích thước file upload tối đa | **10 240 KB (10 MB)** | `max_file_size_kb` | rule `max:` của `ImportController::importExcel()` **và** `ImportService::assertFile()` |
+| Định dạng file chấp nhận | **.xlsx, .xls** | `allowed_extensions` | rule `mimes:` **và** `ImportService::assertFile()` |
+| **Bội số quét dòng vật lý** | **20×** (trần = 20 040 dòng vật lý) | `max_physical_scan_multiplier` | `ImportService::readRows()` → 422 `SKU_IMPORT_ROW_LIMIT_EXCEEDED` |
+| Hạn tải file lỗi CSV (logic) | **24 giờ** kể từ lúc sinh | `error_file_expiry_hours` | `ImportErrorFileService::generate()`, `ImportReport::error_file_available` |
 | Cửa sổ idempotent replay | **24 giờ** | `idempotency_window_hours` | `ImportService::findRecentDuplicateReport()` |
 
-Căn cứ giữ nguyên 1 000 dòng: đo thực tế tại `tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php`
-(kết quả thô ở `docs/evidence/WWHN-330/BENCHMARK_RESULT.md`) cho thấy dry-run 1 000 dòng
-~217 ms và commit ~1,76 s trên môi trường test, đồng thời chứng minh cơ chế bounded-read:
-file gấp 20 lần hạn mức bị từ chối mà peak memory chỉ tăng ~1,6 lần. Đây là giá trị vận
-hành an toàn cho luồng nhập master data thủ công theo lô.
+**Hai tầng enforce cùng một hạn mức là chủ ý, nhưng phải cùng một nguồn.** Rev.1 chuyển
+validator HTTP sang đọc config nhưng để lại `10 * 1024 * 1024` và `['xlsx','xls']` viết
+cứng trong `ImportService::assertFile()` — hai bản sao của cùng một hạn mức, chắc chắn sẽ
+lệch khi ai đó nâng `max_file_size_kb`. Rev.2 cho cả hai tầng đọc chung hợp đồng. Giữ tầng
+service vì `import()` còn được gọi từ CLI/job, nơi không đi qua request validation nào.
+
+**Vì sao cần trần quét dòng vật lý (chính sách mới được văn bản hoá, không phải mới có).**
+Hạn mức nghiệp vụ đếm theo *dòng dữ liệu*, nhưng một workbook có thể trải 1 000 dòng dữ
+liệu đó ra hàng triệu dòng vật lý (dòng trống xen giữa, dimension "ma" của định dạng cũ).
+Không có trần thì một file vài KB vẫn ép server quét vô hạn — đây là bề mặt DoS, không
+phải chuyện tiện nghi. Bội số **20** đã chốt vì file "thưa" thật của người dùng đo được ở
+mức ~2× (benchmark case `sparse dry_run/1000 rows`), nên 20× để lại biên an toàn gấp mười
+lần mà vẫn chặn đứng file trải dài bất thường. Vượt trần **không bị bỏ qua im lặng** mà
+trả 422 kèm hướng dẫn xoá dòng trống thừa, và trần này được công bố cho client trong
+`constraints.max_physical_rows_to_scan` — người dùng phải biết vì sao file 300 dòng của
+mình bị từ chối.
 
 **Ranh giới cần nêu rõ:** NFR-SRS-017 (dry-run tối thiểu 10 000 dòng/file) thuộc luồng
 **migration/opening balance** chạy bằng job/script có kiểm soát (REQ-SRS-021,
-DEC-MIG-API-001), **không** áp cho endpoint import SKU tương tác này. Hai luồng có hạn mức
-riêng là chủ ý, không phải mâu thuẫn.
+DEC-MIG-API-001), và NFR-SRS-019 (10 000 dòng Excel/file) thuộc luồng **toa yêu cầu xuất**
+(REQ-SRS-014). **Không** NFR nào áp cho endpoint import SKU tương tác này — xem §9. Ba
+luồng có hạn mức riêng là chủ ý, không phải mâu thuẫn.
 
 **Cách đổi giá trị:** sửa quyết định này trước, rồi đổi `config/warehouse.php` (hoặc biến
 môi trường `SKU_IMPORT_*` tương ứng). Không được đưa số cứng trở lại vào code hay vào
@@ -72,6 +89,15 @@ triển khai.
 **QA dựng lại được giá trị mà không cần đọc code:** `sha256("update_existing=1")` phải
 bằng `options_fingerprint` của một lần import chạy với `update_existing=true`.
 
+**Quan hệ với `idempotency_records` của ERD.** ERD (bảng #6) có `scope` bao gồm giá trị
+`IMPORT` và ngữ nghĩa chuẩn "UNIQUE(scope, idempotency_key); cùng key khác hash → 409".
+Cơ chế đó dựa trên header `Idempotency-Key` do client gửi. Endpoint import SKU **không**
+gắn middleware idempotency-key, và đó là một quyết định: định danh ở đây suy ra từ **nội
+dung file** (sha256), nên nó bảo vệ được cả trường hợp client quên/gửi sai header — điều
+thường xảy ra với upload multipart do người dùng bấm lại nút. Hai cơ chế phục vụ cùng một
+bất biến ("một thao tác chỉ có hiệu lực một lần") ở hai lớp khác nhau và không xung đột;
+nếu sau này bổ sung `Idempotency-Key` cho route này thì nó là lớp thứ hai, không thay thế.
+
 ---
 
 ## 3. Data-scope của Import báo cáo SKU
@@ -95,9 +121,11 @@ Mã trạng thái:
 | Có permission, báo cáo của người khác (ngoài scope) | **404** `RESOURCE_NOT_FOUND` — y hệt bản ghi không tồn tại |
 | Có permission, báo cáo không tồn tại | **404** `RESOURCE_NOT_FOUND` |
 
-Chọn 404 (không phải 403) cho bản ghi ngoài scope là chủ ý: 403 xác nhận "id này có tồn
-tại nhưng bạn không được xem", tức là vẫn rò rỉ sự tồn tại. Với `warehouse_id` truyền vào
-làm **tham số lọc** thì vẫn giữ 403 `ACCESS_DENIED` như WWHN-328 — hai ca khác nhau.
+Chọn 404 (không phải 403) cho bản ghi ngoài scope là chủ ý và khớp SRS §13.8: "404 được
+phép dùng để mask resource ngoài data scope; 403 dùng cho action đã nhận diện nhưng thiếu
+permission". 403 xác nhận "id này có tồn tại nhưng bạn không được xem", tức vẫn rò rỉ sự
+tồn tại. Với `warehouse_id` truyền vào làm **tham số lọc** thì vẫn giữ 403 `ACCESS_DENIED`
+như WWHN-328 — hai ca khác nhau.
 
 Nguồn scope lấy đúng `scope_ref` mà `EnforceInventoryWarehouseScope` và
 `/reports/dashboard-quick` đang dùng, nên **không phát sinh permission mới** và không có
@@ -110,12 +138,173 @@ file của người nộp.
 
 ---
 
-## 4. Công bố ra API (bỏ hằng số ở client)
+## 4. Mục tiêu hiệu năng (performance objective) — DEV330-P1-02R3
+
+| Kịch bản | Ngân sách | Khoá config |
+|---|---:|---|
+| Dry-run ở đúng hạn mức (1 000 dòng) | **15 000 ms** | `performance_objective_ms.dry_run_at_max_rows` |
+| Commit thật ở đúng hạn mức | **60 000 ms** | `performance_objective_ms.commit_at_max_rows` |
+| Từ chối file gấp 20 lần hạn mức | **15 000 ms** | `performance_objective_ms.reject_oversize` |
+
+**Đây là ngân sách phát hiện hồi quy, KHÔNG phải cam kết SLA** — và sự phân biệt này là
+điều kiện để con số có ích. Benchmark chạy trên máy CI/dev dùng chung tài nguyên, số đo
+dao động vài lần giữa các lần chạy; đặt ngưỡng sát số đo thực tế sẽ tạo ra test chớp tắt
+mà không ai tin nữa. Ngân sách vì vậy đặt rộng, đủ để bắt thứ nó sinh ra để bắt: **thay
+đổi bậc độ phức tạp** — quay lại nạp toàn bộ workbook vào memory, hoặc N+1 query khi ghi
+SKU. Vượt ngân sách thì `Wwhn330ImportPerformanceBenchmarkTest` **đỏ** và bắt buộc điều
+tra, thay vì để số liệu trôi dần qua các sprint mà không ai nhận ra.
+
+**SLA production do QA1/DevOps đo lại** trên môi trường production-like (WWHN-332,
+QA_RUNBOOK mục "Performance"). Baseline không có NFR hiệu năng nào cho luồng này (§9),
+nên không có ngưỡng nào để tham chiếu ngoài quyết định này.
+
+**Bằng chứng đo:** `docs/evidence/WWHN-330/BENCHMARK_RESULT.md` (bảng đọc được) và
+`docs/evidence/WWHN-330/BENCHMARK_RAW.json` (số thô + môi trường, dạng máy đọc). Cả hai do
+chính test sinh ra ở mỗi lần chạy; **tài liệu này cố ý không nhắc lại số đo** để không lặp
+lại lỗi của Rev.1 (số trong tài liệu lệch số trong artifact). Mọi câu mô tả môi trường
+trong artifact đều suy ra từ tiến trình thật (`DB::connection()->getDriverName()`,
+`PHP_VERSION`, `memory_limit`), nên artifact không thể tự mâu thuẫn như bản trước.
+
+Bộ case đo bao trùm đúng các biên mà register liệt kê: 100 / 500 / **1 000** (hạn mức) /
+**1 001** (vượt đúng 1 dòng) / **sparse 1 000** (gấp đôi dòng vật lý) / **20 000** (gấp 20
+lần) / **vượt trần kích thước**.
+
+Riêng biên **10 MB**: benchmark kiểm bằng cách hạ trần qua đúng hợp đồng rồi nộp file vượt
+trần mới — cùng một đường chặn, xác định, rẻ. Dựng một file .xlsx 10 MB thật cần ~25 MB
+nội dung khó nén (xlsx là zip) và hàng trăm MB RAM trong CI chỉ để chứng minh một rule
+`max:` đã chạy. Con số tuyệt đối 10 MB **do QA1 xác minh trên môi trường thật** bằng file
+10 MB thật; quy trình dựng file nằm trong QA_RUNBOOK.
+
+---
+
+## 5. Retention của file lỗi CSV — DEV330-P1-01R3
+
+Hai khái niệm khác nhau, trước Rev.2 chỉ có một cái được chốt:
+
+| Khái niệm | Giá trị | Khoá config | Hiệu lực quan sát được |
+|---|---:|---|---|
+| **Hạn dùng LOGIC** | 24 giờ kể từ lúc sinh | `error_file_expiry_hours` | `GET .../error-file` trả **404**; `error_file_available = false` |
+| **Khoảng đệm trước khi xoá vật lý** | 0 giờ | `error_file_purge_grace_hours` | Hết hạn logic là đủ điều kiện xoá ở lần chạy job kế tiếp |
+| **Nhịp chạy job dọn** | hằng ngày **02:15** | `error_file_purge_daily_at` | `Schedule::command('import:purge-error-files')` |
+| **Thời gian tồn tại tối đa trên đĩa** | **≤ 48 giờ** (= 24 + 0 + tối đa 24 giờ chờ tới lần chạy kế) | — | công bố ở `constraints.error_file_max_on_disk_hours` |
+
+**Vì sao phải tách hai khái niệm.** "Hết hạn" ở tầng API chỉ nghĩa là *không tải được nữa*.
+Nó không nói gì về đĩa. Nếu không chốt retention vật lý thì nội dung file người dùng nộp
+(mã SKU, tên hàng, giá trị từng ô sai) nằm trên storage vô thời hạn dù hợp đồng đã tuyên
+bố "hết hạn sau 24 giờ" — một lời hứa chỉ đúng ở lớp mà người ta nhìn thấy. Giờ chạy job
+đọc từ **cùng khoá config** mà tài liệu này trích, nên con số "≤ 48 giờ" không thể sai lệch
+so với lịch chạy thật.
+
+**Quét file mồ côi (orphan sweep).** Vòng dọn theo `import_reports` không bao giờ chạm tới
+file mà không bản ghi nào trỏ tới. Loại rác này phát sinh thật:
+`ImportController::attachErrorFile()` ghi file **trước** rồi mới lưu path vào DB — bước lưu
+thất bại (đã có nhánh log riêng) để lại một file không ai biết; khôi phục DB từ backup hoặc
+xoá báo cáo thủ công cũng cho ra cùng kết quả. Lệnh purge vì vậy quét cả thư mục, dùng
+`mtime` của chính file và **cùng mốc retention** với nhánh theo báo cáo, nên file mồ côi
+không bao giờ bị xoá sớm hơn file có báo cáo hợp lệ, và file vừa sinh trong một lần import
+đang chạy không bị xoá nhầm. Tắt được bằng `error_file_orphan_sweep = false` hoặc
+`--skip-orphans`.
+
+**Đối chiếu SRS §13.8 / NFR-SRS-018** (yêu cầu chung cho mọi purge job):
+
+| Yêu cầu §13.8 | Trạng thái |
+|---|---|
+| idempotent | ✅ chạy lại không đổi kết quả — bản ghi đã null hoá không còn được chọn |
+| dry-run / report | ✅ `--dry-run` liệt kê mà không xoá; mọi lần chạy đều in số liệu |
+| retry | ✅ điều kiện chọn dựa trên dữ liệu, không dựa con trỏ → lần chạy sau gom nốt phần sót |
+| audit số record đã purge | ✅ ghi `IMPORT_ERROR_FILE_PURGE` vào audit log (kể cả lần chạy 0 file — "đã chạy và không có gì để xoá" khác hẳn "job không chạy") |
+| legal-hold exclusion | **Không áp dụng, có lý do**: legal hold gắn với hồ sơ bảo hành/PII khách hàng (DR-PRIV-001). Đối tượng ở đây là bản sao tạm của file do chính người dùng nộp, luôn dựng lại được bằng cách import lại |
+
+**Không** xoá `import_reports` hay `row_errors`: audit trail của lần import giữ nguyên theo
+NFR-SRS-014 ("không hard-delete ledger/bằng chứng nghiệp vụ"). Chỉ phần file tải về bị xoá.
+
+---
+
+## 6. Chính sách tương tranh khi hết thời gian chờ khoá — DEV330-P1-07R3
+
+| Tham số | Giá trị | Khoá config |
+|---|---:|---|
+| TTL khoá | 120 giây | `lock.ttl_seconds` |
+| Thời gian chờ tối đa | 15 giây | `lock.wait_seconds` |
+| Hết thời gian chờ | **FAIL_CLOSED → 409 `CONCURRENCY_CONFLICT`** | `lock.on_timeout` |
+
+Khoá `sku-import:{actor_id}:{file_sha256}:{options_fingerprint}` tồn tại để bước *kiểm tra
+đã import file này chưa* và bước *ghi SKU + tạo Import báo cáo* là **một thao tác nguyên
+tử**.
+
+Hành vi trước Rev.2 là **fail-open**: hết 15 giây chờ thì chạy tiếp mà không giữ khoá. Nó
+vô hiệu hoá đúng cái bất biến khoá sinh ra để giữ, và vô hiệu hoá đúng vào lúc nguy hiểm
+nhất — hết thời gian chờ *nghĩa là* đang có một request khác giữ khoá cho cùng bộ định
+danh, tức đúng kịch bản gửi trùng mà cơ chế idempotent phải chặn. Hậu quả: hai dòng
+`import_reports` COMMITTED cho cùng một file, cả hai request trả 200, không ai biết tính
+idempotent đã bị phá.
+
+**Neo baseline** — đây không chỉ là lựa chọn kỹ thuật:
+- **NFR-SRS-003**: "Concurrency prevents negative stock and duplicate reversal — Parallel
+  requests: **one success; others conflict/insufficient**."
+- **AC-GWT-CONC-001**: "Tối đa một request thành công; **request còn lại trả 409/412/422
+  theo điểm phát hiện**."
+
+Điểm phát hiện ở đây là tranh chấp khoá → **409**. Mã lỗi `CONCURRENCY_CONFLICT` là một
+trong bốn mã 409 mà **SRS §8.2** công nhận (cùng `STATE_CONFLICT` / `IDEMPOTENCY_CONFLICT`
+/ `DOWNSTREAM_DEPENDENCY_EXISTS`). Baseline **không định nghĩa** 423, 429 hay 503 (§9) nên
+không được tự chế mã ngoài hợp đồng. Đúng cam kết §8.2 cho 409 không phải replay, request
+bị từ chối **không** ghi SKU và **không** tạo Import báo cáo — exception ném ra trước khi
+vào transaction.
+
+**Đánh đổi đã cân nhắc:** nếu Redis hỏng thì import bị chặn thay vì chạy mất an toàn. Với
+một hạng mục Data Integrity đây là đúng thứ tự ưu tiên, và sự cố hạ tầng lộ ra ngay thay vì
+âm thầm sinh dữ liệu sai. Hướng ngược lại vẫn cấu hình được
+(`lock.on_timeout = FAIL_OPEN`, có ghi cảnh báo vào log) nhưng phải là **một quyết định
+được ghi ra**, không phải mặc định ẩn — và chỉ đúng chuỗi `FAIL_OPEN` mới đổi hành vi, để
+một giá trị gõ sai không vô tình hạ tiêu chuẩn toàn vẹn dữ liệu.
+
+`dry_run` không lấy khoá (không ghi gì nên không cần tuần tự hoá).
+
+---
+
+## 7. Hợp đồng file lỗi CSV — theo SRS §13.12
+
+SRS §13.12 là nơi **duy nhất** trong 4 tài liệu baseline định nghĩa hình dạng một error
+file. Rev.1 tự đặt 5 cột riêng (`row, field, error_code, message, value`): đọc được nhưng
+lệch chuẩn, và người vận hành phải học hai định dạng file lỗi khác nhau cho cùng một hệ
+thống. Rev.2 dùng đúng 9 cột của §13.12:
+
+```
+source_file, sheet, row_no, field, error_code, message, raw_value, severity, suggested_action
+```
+
+- **`severity`** ∈ `CRITICAL` | `ERROR`. Trong luồng all-or-nothing này **mọi** dòng lỗi
+  đều chặn commit, nên severity không quyết định "có ghi hay không" mà nói cho người sửa
+  file biết bản chất lỗi: `CRITICAL` = xung đột định danh/tham chiếu (`DUPLICATE_CODE`,
+  `DUPLICATE_SKU_CODE_IN_FILE`, `INACTIVE_SKU_CONFLICT`, `UNKNOWN_MASTER_CODE` — phải
+  quyết định nghiệp vụ mới sửa được), `ERROR` = sai định dạng một ô (sửa tại chỗ là xong).
+  **Không dùng `WARNING`** vì ở đây không có lỗi nào không chặn; gán WARNING sẽ nói sai.
+- **`raw_value`** được che nếu khớp dạng email/số điện thoại (§13.12: "Masked if PII").
+  Template SKU của §13.12 không có cột PII nào, nhưng file do **người dùng** nộp: một ô dán
+  nhầm liên hệ khách hàng vẫn lọt vào file lỗi rồi tải về được. Che theo dạng dữ liệu là
+  hàng rào rẻ và không thể sai ở hướng nguy hiểm.
+- **`suggested_action`** là chỉ dẫn sửa cụ thể cho từng mã lỗi, để file lỗi tự đủ nghĩa khi
+  mở bằng Excel.
+- Giữ nguyên: UTF-8 BOM (Excel mở tiếng Việt), chặn CSV/formula injection (`= + - @ \t \r`),
+  cắt 500 ký tự mỗi ô.
+
+**Sai khác đã biết với §13.12, cố ý giữ:** tập `error_code` của import SKU rộng hơn tập
+liệt kê ở §13.12 (`DUPLICATE_CODE / UNKNOWN_SKU / INVALID_ENUM / REQUIRED / RECON_MISMATCH
+/ CHECKSUM_CHANGED`) — ví dụ `INVALID_CODE_FORMAT`, `INACTIVE_SKU_CONFLICT`,
+`DUPLICATE_SKU_CODE_IN_FILE`. Đổi tên mã lỗi là thay đổi phá vỡ hợp đồng với FE và với các
+test đang xanh, trong khi mã hiện tại chính xác hơn cho người sửa file. Ghi nhận là sai
+khác có kiểm soát, không phải bỏ sót; nếu BA muốn thống nhất tuyệt đối thì đó là một thay
+đổi hợp đồng FE+BE riêng.
+
+---
+
+## 8. Công bố ra API (bỏ hằng số ở client)
 
 Khối `constraints` được trả trong:
 
-- `data.constraints` của **mọi** response `POST /skus/import-excel` (200, 422 row lỗi, 422
-  vượt hạn mức, 422 file hỏng, và ca duplicate);
+- `data.constraints` của **mọi** response `POST /skus/import-excel` (200, 409 tranh chấp
+  khoá, 422 row lỗi, 422 vượt hạn mức, 422 file hỏng, và ca duplicate);
 - `meta.constraints` của `GET /skus/import-reports` — endpoint đọc duy nhất mà màn hình
   import gọi được **trước** khi người dùng chọn file.
 
@@ -126,9 +315,12 @@ Khối `constraints` được trả trong:
   "max_file_size_kb": 10240,
   "max_file_size_mb": 10,
   "allowed_extensions": ["xlsx", "xls"],
+  "max_physical_rows_to_scan": 20040,
   "error_file_expiry_hours": 24,
+  "error_file_max_on_disk_hours": 48,
   "idempotency_window_hours": 24,
-  "idempotency_identity": ["file_sha256", "actor_id", "update_existing"]
+  "idempotency_identity": ["file_sha256", "actor_id", "update_existing"],
+  "concurrent_import_policy": "FAIL_CLOSED_409"
 }
 ```
 
@@ -142,17 +334,46 @@ chủ quy định") thay vì đoán một con số có thể đã lỗi thời.
 
 ---
 
-## 5. Ảnh hưởng mã nguồn
+## 9. Khoảng trống baseline mà quyết định này lấp — đã rà 4 tài liệu
+
+Rà toàn văn `HN_SRS_FRD_v1.12_FULL.md`, `HoaNam_ERD_Moi_Nhat.md`,
+`HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html`,
+`WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`. Những mục dưới đây **không có** trong
+baseline; chúng được quyết định ở đây chứ không phải suy diễn từ một điều khoản có sẵn:
+
+| # | Khoảng trống | Quyết định tại |
+|---|---|---|
+| 1 | Toàn bộ luồng **import SKU bằng Excel** (endpoint, template, dry-run, all-or-nothing, tải file lỗi). Baseline chỉ có một hằng số `'/skus/import-excel'` trong Dev Guide, không kèm rule. Annex C 67 operation chỉ có `listSkus`/`createSku`/`updateSku` | Toàn bộ DEC-IMP-001 |
+| 2 | Bảng **`import_reports` không tồn tại trong ERD** (59 bảng, không bảng nào có `options_fingerprint`, `error_file_path`, `error_file_expires_at`, `duplicate_of_replay`) | §2, §5 — **cần ERD amendment**, xem dưới |
+| 3 | Giới hạn số dòng cho import SKU tương tác (NFR-SRS-017 áp cho migration, NFR-SRS-019 áp cho toa xuất) | §1 |
+| 4 | Giới hạn dung lượng file / MIME; baseline không có mã **413**, **415** | §1 |
+| 5 | Chính sách quét dòng vật lý | §1 |
+| 6 | NFR hiệu năng cho luồng import tương tác | §4 |
+| 7 | Retention/purge của file upload gốc, file lỗi, file export, file tạm | §5 |
+| 8 | **Lịch chạy job nền / scheduler** cho bất kỳ job nào (baseline chỉ có "daily backup" ở NFR-SRS-011) | §5 |
+| 9 | Lock timeout, retry/backoff, và mã **423 / 429 / 503** (không mã nào xuất hiện trong baseline) | §6 |
+| 10 | Data-scope rule cho báo cáo import; permission riêng cho import SKU (baseline chỉ có `sku.view` / `sku.manage` / `catalog.manage`) | §3 |
+
+**Hạng mục cần chuyển tiếp — ERD amendment (không tự sửa ở đây).** `import_reports` đang
+tồn tại trong DB và trong code nhưng **không có trong ERD baseline**. Đây là cùng lớp việc
+mà `DEC-DATA-001` đã xử lý cho defect catalogs. Đề nghị BA/Tech Lead đưa `import_reports`
+(kèm 4 cột nêu trên) vào bản ERD kế tiếp; quyết định này ghi nhận khoảng trống chứ không
+tự ý sửa tài liệu baseline.
+
+---
+
+## 10. Ảnh hưởng mã nguồn
 
 | Tệp | Thay đổi |
 |---|---|
-| `config/warehouse.php` | Thêm khối `sku_import` — nguồn sự thật duy nhất |
-| `Modules/Warehouse/app/Support/SkuImportContract.php` | Mới: đọc config, dựng `constraints`, tính `options_fingerprint`, giải data-scope |
-| `Modules/Warehouse/app/Services/ImportService.php` | 4 hằng số → đọc config; định danh replay + khoá chống đua gồm `options_fingerprint` |
-| `Modules/Warehouse/app/Services/ImportErrorFileService.php` | Hạn dùng đọc từ hợp đồng (hằng số cũ để `@deprecated`) |
-| `Modules/Warehouse/app/Http/Controllers/ImportController.php` | Rule upload theo hợp đồng; mọi response mang `constraints`; lưu `options_fingerprint` |
-| `Modules/Warehouse/app/Http/Controllers/ImportReportController.php` | `scopedQuery()` áp data-scope cho cả 3 route; `meta.constraints` + `meta.data_scope` |
-| `Modules/Warehouse/app/Models/ImportReport.php` | `options_fingerprint` vào `$fillable` |
-| `Modules/Warehouse/database/migrations/2026_08_18_190000_*` | Cột `options_fingerprint` + index tra cứu replay |
-| `tests/Feature/Wwhn331ImportContractClosureTest.php` | Mới: 8 test khoá cả ba mục |
-| `tests/Feature/Wwhn330ImportResidualHardeningTest.php` | Cập nhật khoá chống đua theo định danh mới |
+| `config/warehouse.php` | Nguồn sự thật duy nhất: thêm `max_physical_scan_multiplier`, `performance_objective_ms`, `lock.*`, `error_file_purge_*`, `error_file_orphan_sweep` |
+| `Modules/Warehouse/app/Support/SkuImportContract.php` | Thêm trần quét vật lý, ngân sách hiệu năng, tham số khoá, mốc retention vật lý; `constraints` công bố thêm 3 khoá |
+| `Modules/Warehouse/app/Services/ImportService.php` | `assertFile()` bỏ 10 MB + danh sách đuôi file cứng; bội số quét đọc hợp đồng; `withImportLock()` **fail-closed**; ghi tên sheet cho file lỗi |
+| `Modules/Warehouse/app/Exceptions/ImportConcurrencyException.php` | **Mới** — hết thời gian chờ khoá |
+| `Modules/Warehouse/app/Http/Controllers/ImportController.php` | Bắt `ImportConcurrencyException` → 409 `CONCURRENCY_CONFLICT` kèm `constraints`; truyền `source_file`/`sheet` vào file lỗi; OpenAPI 409 |
+| `Modules/Warehouse/app/Services/ImportErrorFileService.php` | Gỡ hằng `EXPIRY_HOURS` chết; 9 cột theo §13.12 + `severity` + `suggested_action` + che PII |
+| `Modules/Warehouse/app/Http/Controllers/ImportReportController.php` | OpenAPI error-file: schema §13.12 + hợp đồng retention vật lý |
+| `app/Console/Commands/PurgeExpiredImportErrorFiles.php` | Mốc purge theo grace; quét file mồ côi; audit `IMPORT_ERROR_FILE_PURGE`; `--skip-orphans` |
+| `routes/console.php` | Giờ chạy đọc từ hợp đồng thay vì viết cứng |
+| `tests/Feature/Wwhn330ImportR3ClosureTest.php` | **Mới** — 14 test khoá §1/§4/§5/§6/§7 |
+| `tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php` | Thêm biên 1001/sparse/oversize; sinh `BENCHMARK_RAW.json`; mô tả môi trường suy từ tiến trình thật; assert ngân sách §4 |

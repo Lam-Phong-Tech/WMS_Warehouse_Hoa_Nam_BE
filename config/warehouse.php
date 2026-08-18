@@ -32,8 +32,81 @@ return [
         /** Phần mở rộng file được chấp nhận (khớp rule `mimes:` của request). */
         'allowed_extensions' => ['xlsx', 'xls'],
 
-        /** Số giờ file lỗi CSV còn tải được kể từ lúc sinh. */
+        /*
+         | DEV330-P1-02R3 — CHÍNH SÁCH QUÉT DÒNG VẬT LÝ (physical-scan policy).
+         |
+         | Hạn mức nghiệp vụ đếm theo DÒNG DỮ LIỆU, nhưng một workbook có thể trải
+         | `max_rows` dòng dữ liệu đó ra rất nhiều dòng vật lý (dòng trống xen giữa,
+         | dimension "ma" do định dạng cũ để lại). Nếu quét không có trần thì một file
+         | vài KB vẫn ép server đọc hàng triệu dòng vật lý — đây là bề mặt DoS, không
+         | phải chuyện tiện nghi. Trần quét = bội số này × (max_rows + 2).
+         |
+         | Bội số 20 là giá trị đã chốt tại DEC-IMP-001 §1: đủ rộng cho file "thưa" của
+         | người dùng thật (đo được ở benchmark case `sparse/1000 rows`, tỉ lệ ~2×) và
+         | vẫn chặn đứng file trải dài bất thường. Vượt trần KHÔNG bị bỏ qua im lặng mà
+         | trả 422 `SKU_IMPORT_ROW_LIMIT_EXCEEDED` kèm hướng dẫn xoá dòng trống thừa.
+         */
+        'max_physical_scan_multiplier' => (int) env('SKU_IMPORT_MAX_PHYSICAL_SCAN_MULTIPLIER', 20),
+
+        /*
+         | DEV330-P1-02R3 — MỤC TIÊU HIỆU NĂNG ĐÃ DUYỆT (performance objective), tính
+         | bằng mili-giây cho một request trọn vẹn ở ĐÚNG hạn mức 1 000 dòng.
+         |
+         | Đây là NGƯỠNG TRẦN để phát hiện hồi quy (regression budget), KHÔNG phải cam
+         | kết SLA production: benchmark chạy trên máy CI/dev chia sẻ tài nguyên nên số
+         | đo dao động mạnh. Vượt ngưỡng nghĩa là "có thứ gì đó đã đổi bậc độ phức tạp"
+         | (ví dụ quay lại nạp toàn bộ workbook, hoặc N+1 query khi ghi SKU) — lúc đó
+         | benchmark test fail và bắt buộc phải điều tra, thay vì để số liệu trôi dần.
+         | SLA thật do QA1/DevOps đo lại trên môi trường production-like (WWHN-332).
+         */
+        'performance_objective_ms' => [
+            'dry_run_at_max_rows' => (int) env('SKU_IMPORT_PERF_DRY_RUN_MS', 15000),
+            'commit_at_max_rows' => (int) env('SKU_IMPORT_PERF_COMMIT_MS', 60000),
+            'reject_oversize' => (int) env('SKU_IMPORT_PERF_REJECT_MS', 15000),
+        ],
+
+        /*
+         | DEV330-P1-07R3 — KHOÁ CHỐNG ĐUA CHO IMPORT COMMIT.
+         |
+         | `on_timeout` = FAIL_CLOSED: hết thời gian chờ lock thì TỪ CHỐI request (409
+         | CONCURRENCY_CONFLICT) chứ KHÔNG chạy tiếp. Chạy tiếp (fail-open) nghĩa là bỏ
+         | luôn tính atomic của bước "kiểm tra trùng + ghi" — đúng thứ mà lock sinh ra
+         | để bảo vệ — và tạo ra hai dòng import_reports COMMITTED cho cùng một file mà
+         | không ai biết. Đúng tính chất một hạng mục Data Integrity: khi không bảo đảm
+         | được bất biến thì phải từ chối, không được lặng lẽ hạ tiêu chuẩn.
+         */
+        'lock' => [
+            'ttl_seconds' => (int) env('SKU_IMPORT_LOCK_TTL_SECONDS', 120),
+            'wait_seconds' => (int) env('SKU_IMPORT_LOCK_WAIT_SECONDS', 15),
+            'on_timeout' => env('SKU_IMPORT_LOCK_ON_TIMEOUT', 'FAIL_CLOSED'),
+        ],
+
+        /** Số giờ file lỗi CSV còn tải được kể từ lúc sinh (hạn dùng LOGIC → API trả 404). */
         'error_file_expiry_hours' => (int) env('SKU_IMPORT_ERROR_FILE_EXPIRY_HOURS', 24),
+
+        /*
+         | DEV330-P1-01R3 — RETENTION VẬT LÝ của file lỗi CSV, tách bạch với hạn dùng logic.
+         |
+         | Hai khái niệm khác nhau và trước đây chỉ có một cái được chốt:
+         | - Hạn dùng LOGIC (`error_file_expiry_hours`): quá hạn thì API trả 404. File
+         |   vẫn nằm trên đĩa.
+         | - RETENTION VẬT LÝ: mốc file thực sự bị xoá khỏi storage. Nếu không chốt thì
+         |   nội dung file người dùng nộp (mã SKU, tên hàng, từng ô sai) nằm trên đĩa vô
+         |   thời hạn dù hợp đồng đã nói "hết hạn sau 24h".
+         |
+         | `purge_grace_hours` = khoảng đệm sau hạn dùng logic trước khi xoá vật lý; 0
+         | nghĩa là hết hạn logic là đủ điều kiện xoá ngay ở lần chạy job kế tiếp. Vì job
+         | chạy mỗi ngày một lần, thời gian tồn tại tối đa trên đĩa =
+         | expiry + grace + (tối đa 24h chờ tới lần chạy kế). Con số đó được ghi tường
+         | minh trong DEC-IMP-001 §5 thay vì để người đọc tự suy.
+         |
+         | `orphan_sweep` xử lý file KHÔNG còn bản ghi nào trỏ tới (report bị xoá, hoặc
+         | ghi file xong nhưng lưu path vào DB thất bại). Quét theo report sẽ không bao
+         | giờ chạm tới chúng — đó là rò rỉ retention thật, không phải giả định.
+         */
+        'error_file_purge_grace_hours' => (int) env('SKU_IMPORT_ERROR_FILE_PURGE_GRACE_HOURS', 0),
+        'error_file_purge_daily_at' => env('SKU_IMPORT_ERROR_FILE_PURGE_AT', '02:15'),
+        'error_file_orphan_sweep' => (bool) env('SKU_IMPORT_ERROR_FILE_ORPHAN_SWEEP', true),
 
         /** Cửa sổ coi 2 lần COMMIT giống hệt nhau là replay (idempotent). */
         'idempotency_window_hours' => (int) env('SKU_IMPORT_IDEMPOTENCY_WINDOW_HOURS', 24),
