@@ -1,11 +1,25 @@
 {
-    "migration_run_id": "34bd0aee-d84f-4fb0-9b85-cdcb0329fd2b",
-    "migration_run_code": "WWHN-299-REHEARSAL#COMMIT",
+    "migration_run_id": "8b433f89-f845-4a32-ac0c-4b8740cc5c8b",
+    "migration_run_code": "REHEARSAL-WWHN-299#COMMIT",
     "mode": "COMMIT",
     "status": "COMMITTED",
     "package_version": "1.2",
+    "mapping_version": "1.0",
     "source_file_name": "HoaNam_Import_Package_v1.2.zip",
-    "source_checksum": "718247b31ad76ddf0ac0580b2e7720aced043819b55164a4d09de8f0afcb50a1",
+    "source_checksum": "c6dbd4e35ffb8fc890f5496ea0c552f9e84b543751e2f878776996b6d93d882b",
+    "manifest_checksum": "ba57058d7096ec02e4fe41ba99276d0c4298a2277119e5c9f5d1e92cf875896f",
+    "manifest": {
+        "package_version": "1.2",
+        "source_file_name": "HoaNam_Import_Package_v1.2.zip",
+        "datasets": {
+            "AGENCY": "agency.csv",
+            "CONTAINER": "container.csv",
+            "ITEM": "item.csv",
+            "OPENING_BALANCE": "opening_balance.csv",
+            "PHYSICAL_CODE": "physical_code.csv",
+            "SKU": "sku.csv"
+        }
+    },
     "file_checksums": {
         "AGENCY": "aebc69be1c404c9fa75cdf20a862869bbbe3e2b9a9ff20ac1a8c807278d7d051",
         "CONTAINER": "f5c631e7eb50d729b2a0aa589719a5794fe328d49f3044e394f8ebec5d2e8a2c",
@@ -14,10 +28,34 @@
         "PHYSICAL_CODE": "e205bce50016bd7f5f257ef1cff7aa32a9f103e436242ba8d5149d403cd715d5",
         "SKU": "c8336a22241a38ab0eba4b782e782c1e8124ccfb5bd7a3a65cc4e235dba6a2e5"
     },
+    "source_files": {
+        "AGENCY": "agency.csv",
+        "CONTAINER": "container.csv",
+        "ITEM": "item.csv",
+        "OPENING_BALANCE": "opening_balance.csv",
+        "PHYSICAL_CODE": "physical_code.csv",
+        "SKU": "sku.csv"
+    },
     "counts": {
         "total": 6,
         "valid": 6,
-        "invalid": 0
+        "invalid": 0,
+        "duplicate": 0,
+        "invariant_holds": true,
+        "by_dataset": {
+            "AGENCY": 1,
+            "SKU": 1,
+            "PHYSICAL_CODE": 1,
+            "CONTAINER": 1,
+            "ITEM": 1,
+            "OPENING_BALANCE": 1
+        }
+    },
+    "timing": {
+        "started_at": "2026-08-18T22:48:18+07:00",
+        "finished_at": "2026-08-18T22:48:18+07:00",
+        "duration_ms": 16,
+        "duration_source": "MONOTONIC_CLOCK"
     },
     "reconciliation": {
         "status": "PASS",
@@ -35,13 +73,13 @@
             },
             {
                 "check": "BALANCE_EQUALS_LEDGER",
-                "warehouse_id": "01a014dd-b2e1-71da-8dbc-b94000e164a8",
-                "sku_id": "01a014dd-df2c-73f5-bc94-eeda791b3364",
+                "warehouse_id": "01a0158f-27cc-7118-b73e-1bed1398ea27",
+                "sku_id": "01a0158f-2806-702d-b8bd-c2d0a4d74734",
                 "stock_status": "AVAILABLE",
                 "expected": 1,
                 "actual": 1,
                 "status": "PASS",
-                "message": "Balance vs ledger 01a014dd-b2e1-71da-8dbc-b94000e164a8/01a014dd-df2c-73f5-bc94-eeda791b3364/AVAILABLE: 1 vs 1."
+                "message": "Balance vs ledger 01a0158f-27cc-7118-b73e-1bed1398ea27/01a0158f-2806-702d-b8bd-c2d0a4d74734/AVAILABLE: 1 vs 1."
             },
             {
                 "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
@@ -50,6 +88,21 @@
                 "actual": 1,
                 "status": "PASS",
                 "message": "SKU serial-tracked HN-MK-001-V1: opening 1 vs số Item 1."
+            },
+            {
+                "check": "CONTAINER_MAPPING_NO_EXTRA_STOCK",
+                "container_rows": 1,
+                "expected": 1,
+                "actual": 1,
+                "status": "PASS",
+                "message": "Tổng tồn ghi bởi run 1 vs tổng lượng nguồn 1 (1 dòng CONTAINER không được sinh thêm tồn)."
+            },
+            {
+                "check": "RUN_WRITES_ONLY_OPENING_MOVEMENTS",
+                "expected": 0,
+                "actual": 0,
+                "status": "PASS",
+                "message": "Số movement khác OPENING do run tạo: 0 (phải bằng 0)."
             }
         ]
     },

@@ -1,0 +1,39 @@
+{
+    "jira": "WWHN-299",
+    "parent": "WWHN-80",
+    "scope": "CUTOVER_REHEARSAL_ONLY",
+    "not_claimed": "Không phải lần nạp dữ liệu production; WWHN-298/301/302 vẫn là gate của DO/QA1/BA.",
+    "db_driver": "sqlite",
+    "php_version": "8.3.30",
+    "git_sha": "LOCAL_RUN",
+    "branch": "m1",
+    "package_version": "1.2",
+    "source_checksum": "c6dbd4e35ffb8fc890f5496ea0c552f9e84b543751e2f878776996b6d93d882b",
+    "manifest_checksum": "ba57058d7096ec02e4fe41ba99276d0c4298a2277119e5c9f5d1e92cf875896f",
+    "runs": {
+        "dry_run": {
+            "migration_run_id": "74b5fe2a-1836-494e-bdb0-1712fa3148bf",
+            "migration_run_code": "REHEARSAL-WWHN-299#DRY_RUN",
+            "status": "PASSED"
+        },
+        "commit": {
+            "migration_run_id": "6ed65330-7d3c-482f-b116-de0efb25fd9e",
+            "migration_run_code": "REHEARSAL-WWHN-299#COMMIT",
+            "status": "COMMITTED"
+        },
+        "rollback": {
+            "migration_run_id": "bcf85e60-0716-43f0-bdcf-8a4817e8f06b",
+            "migration_run_code": "REHEARSAL-WWHN-299#ROLLBACK",
+            "status": "ROLLED_BACK"
+        }
+    },
+    "residual": {
+        "opening_qty": 0,
+        "master_rows": 0
+    },
+    "sha256": {
+        "01-dry-run.json": "a59bb8ae654325d8265f6c08034ef17da6ef104b9fc0e7c74f078e33910b79aa",
+        "02-commit.json": "cb3951e6edd8661500fcdcb5c1a05518dc2d3674e2aa5d2675712fdaf56edf67",
+        "03-rollback.json": "cd3bac15b1329f4bdfc2b53c99477e620601fffeafad88620e5752b4257f6f3d"
+    }
+}

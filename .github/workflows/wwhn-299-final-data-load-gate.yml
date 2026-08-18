@@ -1,0 +1,157 @@
+name: WWHN-299 Final Data Load Gate
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'app/Support/Migration/**'
+      - 'app/Console/Commands/MigrationFinalDataLoad.php'
+      - 'config/final_data_load.php'
+      - 'docs/migration/**'
+      - 'docs/evidence/WWHN-299/**'
+      - 'tests/Feature/MigrationFinalDataLoadTest.php'
+      - 'tests/Feature/Wwhn299CutoverRehearsalEvidenceTest.php'
+      - '.github/workflows/wwhn-299-final-data-load-gate.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'app/Support/Migration/**'
+      - 'app/Console/Commands/MigrationFinalDataLoad.php'
+      - 'config/final_data_load.php'
+      - 'docs/migration/**'
+      - 'docs/evidence/WWHN-299/**'
+      - 'tests/Feature/MigrationFinalDataLoadTest.php'
+      - 'tests/Feature/Wwhn299CutoverRehearsalEvidenceTest.php'
+      - '.github/workflows/wwhn-299-final-data-load-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  final-data-load:
+    name: Dry-run / commit / rollback contract on PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn299
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn299"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: WWHN299-CI-Only-2026
+      JWT_SECRET: WWHN299-CI-JWT-Final-Data-Load-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn299
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Style check on WWHN-299 sources
+        run: >-
+          vendor/bin/pint --test
+          app/Support/Migration
+          app/Console/Commands/MigrationFinalDataLoad.php
+          config/final_data_load.php
+          tests/Feature/MigrationFinalDataLoadTest.php
+          tests/Feature/Wwhn299CutoverRehearsalEvidenceTest.php
+
+      - name: Fail-closed register markers
+        run: |
+          set -euo pipefail
+          register='docs/evidence/WWHN-299/WWHN-299_DEFECT_FIX_REGISTER.md'
+          test -s "$register"
+          for marker in DEV299-P1-01 DEV299-P1-02 DEV299-P1-03 DEV299-P1-04 DEV299-P1-05 DEV299-P1-06 DEV299-P2-01 DEV299-P2-02; do
+            grep -Fq "$marker" "$register"
+          done
+          # DEV299-P1-06 không được tuyên bố là đã đóng ở tầng DEV.
+          grep -Fq 'KHÔNG THUỘC DEV' "$register"
+          test -s 'docs/evidence/WWHN-299/WWHN-299_SOURCE_PIN.json'
+          test -s 'docs/evidence/WWHN-299/SIGNOFF_COMMENTS.md'
+          test -s 'docs/migration/FINAL_DATA_LOAD_RUNBOOK.md'
+
+      - name: Assert DEC-MIG-API-001 still holds (no migration endpoint)
+        run: |
+          set -euo pipefail
+          if grep -rn "migration:final-load\|FinalDataLoadService" Modules/*/routes/ routes/ 2>/dev/null | grep -v 'routes/console.php'; then
+            echo "DEC-MIG-API-001: migration là operational-only, không được có route" >&2
+            exit 1
+          fi
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+
+      - name: WWHN-299 contract suite
+        run: >-
+          php artisan test --filter
+          '/(MigrationFinalDataLoadTest|Wwhn299CutoverRehearsalEvidenceTest|ErdCompilerSourcePinTest)/'
+
+      - name: Exact SHA evidence summary
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-299
+          cp build/evidence/wwhn-299/*.json artifacts/wwhn-299/
+          php -r '
+            $m = json_decode(file_get_contents("artifacts/wwhn-299/MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($m["residual"]["opening_qty"] ?? null) !== 0 || ($m["residual"]["master_rows"] ?? null) !== 0) {
+                fwrite(STDERR, "Rollback rehearsal còn tồn dư, gate yêu cầu 0\n");
+                exit(1);
+            }
+            if (($m["db_driver"] ?? "") !== "pgsql") {
+                fwrite(STDERR, "Evidence phải sinh trên PostgreSQL\n");
+                exit(1);
+            }
+            echo "MANIFEST ok: ".$m["source_checksum"]."\n";
+          '
+          cat > artifacts/wwhn-299/gate.txt <<EOF
+          jira=WWHN-299
+          parent=WWHN-80
+          branch=${GITHUB_REF_NAME}
+          sha=${GITHUB_SHA}
+          db=postgres16
+          scope=CUTOVER_REHEARSAL_ONLY
+          production_cutover=NOT_CLAIMED
+          qa1_signoff=NOT_CLAIMED_BY_DEV
+          EOF
+          sha256sum artifacts/wwhn-299/* > artifacts/wwhn-299/SHA256SUMS
+          cat artifacts/wwhn-299/gate.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-299-final-data-load-${{ github.sha }}
+          path: artifacts/wwhn-299
+          if-no-files-found: error
+          retention-days: 30

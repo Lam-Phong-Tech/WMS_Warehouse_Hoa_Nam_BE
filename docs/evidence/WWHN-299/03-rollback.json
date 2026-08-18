@@ -1,17 +1,30 @@
 {
-    "migration_run_id": "1cfb2205-b252-4118-9f0b-a6d8be808f12",
-    "migration_run_code": "WWHN-299-REHEARSAL#ROLLBACK",
+    "migration_run_id": "e6bc3e60-8488-4f93-8a16-06508f60b4ca",
+    "migration_run_code": "REHEARSAL-WWHN-299#ROLLBACK",
     "mode": "ROLLBACK",
     "status": "ROLLED_BACK",
     "reconciliation": {
         "status": "PASS",
         "scope": "ROLLBACK",
         "reversed_movements": 1,
-        "closed_masters": {
-            "containers": 1,
-            "item_instances": 1
+        "master_rollback": {
+            "snapshots": 7,
+            "restored_rows": 0,
+            "deleted_rows": 6,
+            "disposed_rows": [
+                {
+                    "table": "sku",
+                    "id": "01a0158f-2806-702d-b8bd-c2d0a4d74734",
+                    "reason": "LEDGER_PINNED",
+                    "status_column": "status",
+                    "status_value": "INACTIVE"
+                }
+            ],
+            "missing_rows": [],
+            "retained_rows": []
         },
-        "residual_opening_qty": 0
+        "residual_opening_qty": 0,
+        "residual_master_rows": 0
     },
     "replayed": false
 }

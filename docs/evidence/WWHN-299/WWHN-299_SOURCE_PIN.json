@@ -1,0 +1,77 @@
+{
+  "jira": "WWHN-299",
+  "parent": "WWHN-80",
+  "defect": "DEV299-P1-04",
+  "purpose": "Formal supersede của pin nguồn. Jira đang pin nhánh m1-be-2 trong khi toàn bộ hiện thực nằm trên m1; đó là nguyên nhân mọi đường dẫn evidence được claim đều trả 404 (DEV299-P1-05). File này là nguồn sự thật để reviewer resolve đúng revision.",
+
+  "source_pin": {
+    "superseded_branch": "m1-be-2",
+    "superseded_reason": "Ancestor lịch sử. Không còn nhận thay đổi của WWHN-299 và không được dùng làm final identity.",
+    "canonical_branch": "m1",
+    "repository": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "rule": "Không dùng tên nhánh động làm identity. Mọi review/closure phải resolve theo exact SHA liệt kê bên dưới."
+  },
+
+  "code_candidate": {
+    "sha": "b90d5ef67c6577db166fdac00f1323741ccfd888",
+    "short_sha": "b90d5ef",
+    "subject": "feat(WWHN-252): dung mat cong khai App PV va PV Admin theo Annex C",
+    "traceability_warning": "Commit này KHÔNG mang tên WWHN-299. Tại thời điểm làm việc, nhánh m1 có nhiều phiên song song và một phiên đã commit bằng blanket `git add -A`, gộp thay đổi của WWHN-299 (cùng WWHN-252/260) vào một commit duy nhất gồm 70 file. Vì vậy identity của WWHN-299 phải xác định theo DANH SÁCH FILE dưới đây tại đúng SHA này, không theo commit message.",
+    "files": [
+      "app/Support/Migration/CutoverAuthority.php",
+      "app/Support/Migration/CutoverAuthorityException.php",
+      "app/Support/Migration/MasterStateJournal.php",
+      "app/Support/Migration/FinalDataLoadService.php",
+      "app/Support/Migration/ImportPackage.php",
+      "app/Console/Commands/MigrationFinalDataLoad.php",
+      "config/final_data_load.php",
+      "tests/Feature/MigrationFinalDataLoadTest.php"
+    ],
+    "not_owned_by_wwhn299_in_the_same_commit": [
+      "app/Console/Commands/MigrationVerifyRun.php",
+      "app/Support/Migration/MigrationErrorBag.php",
+      "app/Support/Migration/MigrationErrorFile.php",
+      "tests/Feature/Wwhn260MigrationPackClosureTest.php"
+    ]
+  },
+
+  "evidence_candidate": {
+    "sha": "PENDING_COMMIT",
+    "note": "Điền exact SHA của commit docs/evidence WWHN-299 ngay sau khi commit, rồi cập nhật lại file này.",
+    "files": [
+      "docs/evidence/WWHN-299/WWHN-299_DEFECT_FIX_REGISTER.md",
+      "docs/evidence/WWHN-299/WWHN-299_SOURCE_PIN.json",
+      "docs/evidence/WWHN-299/SIGNOFF_COMMENTS.md",
+      "docs/evidence/WWHN-299/EVIDENCE_PACK.md",
+      "docs/evidence/WWHN-299/01-dry-run.json",
+      "docs/evidence/WWHN-299/02-commit.json",
+      "docs/evidence/WWHN-299/03-rollback.json",
+      "docs/evidence/WWHN-299/MANIFEST.json",
+      "docs/migration/FINAL_DATA_LOAD_RUNBOOK.md",
+      "tests/Feature/Wwhn299CutoverRehearsalEvidenceTest.php",
+      ".github/workflows/wwhn-299-final-data-load-gate.yml",
+      "build/evidence/wwhn-299/"
+    ]
+  },
+
+  "frontend": {
+    "repository": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "branch": "m1",
+    "sha": "194b0076f53417e9a9d0258e12d3f8d3b3bae3d7",
+    "impact": "NONE",
+    "impact_evidence": "DEC-MIG-API-001: không có endpoint migration. Soát repo FE: không có tham chiếu tới migration_run / final-load / opening_balance."
+  },
+
+  "how_to_verify": [
+    "git -C <BE_repo> fetch origin m1",
+    "git -C <BE_repo> show b90d5ef67c6577db166fdac00f1323741ccfd888 -- app/Support/Migration/MasterStateJournal.php",
+    "git -C <BE_repo> checkout <evidence_candidate.sha> && php artisan test --filter '/(MigrationFinalDataLoadTest|Wwhn299CutoverRehearsalEvidenceTest)/'",
+    "Đối chiếu sha256 của build/evidence/wwhn-299/*.json với docs/evidence/WWHN-299/MANIFEST.json"
+  ],
+
+  "open_gates": {
+    "DEV299-P1-04": "PM/Tech đổi pin trên Jira từ m1-be-2 sang m1 @ exact SHA ở trên.",
+    "DEV299-P1-05": "Đính artifact wwhn-299-final-data-load-<sha> của workflow vào ticket.",
+    "DEV299-P1-06": "Cutover production — DO/DevOps/QA1/BA, chưa thực hiện."
+  }
+}

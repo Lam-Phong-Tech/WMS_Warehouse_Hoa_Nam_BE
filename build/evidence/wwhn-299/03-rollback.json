@@ -1,0 +1,30 @@
+{
+    "migration_run_id": "bcf85e60-0716-43f0-bdcf-8a4817e8f06b",
+    "migration_run_code": "REHEARSAL-WWHN-299#ROLLBACK",
+    "mode": "ROLLBACK",
+    "status": "ROLLED_BACK",
+    "reconciliation": {
+        "status": "PASS",
+        "scope": "ROLLBACK",
+        "reversed_movements": 1,
+        "master_rollback": {
+            "snapshots": 7,
+            "restored_rows": 0,
+            "deleted_rows": 6,
+            "disposed_rows": [
+                {
+                    "table": "sku",
+                    "id": "01a01597-f6da-72bb-a799-84ac7f9b87e5",
+                    "reason": "LEDGER_PINNED",
+                    "status_column": "status",
+                    "status_value": "INACTIVE"
+                }
+            ],
+            "missing_rows": [],
+            "retained_rows": []
+        },
+        "residual_opening_qty": 0,
+        "residual_master_rows": 0
+    },
+    "replayed": false
+}

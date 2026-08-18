@@ -1,0 +1,76 @@
+{
+    "migration_run_id": "74b5fe2a-1836-494e-bdb0-1712fa3148bf",
+    "migration_run_code": "REHEARSAL-WWHN-299#DRY_RUN",
+    "mode": "DRY_RUN",
+    "status": "PASSED",
+    "package_version": "1.2",
+    "mapping_version": "1.0",
+    "source_file_name": "HoaNam_Import_Package_v1.2.zip",
+    "source_checksum": "c6dbd4e35ffb8fc890f5496ea0c552f9e84b543751e2f878776996b6d93d882b",
+    "manifest_checksum": "ba57058d7096ec02e4fe41ba99276d0c4298a2277119e5c9f5d1e92cf875896f",
+    "manifest": {
+        "package_version": "1.2",
+        "source_file_name": "HoaNam_Import_Package_v1.2.zip",
+        "datasets": {
+            "AGENCY": "agency.csv",
+            "CONTAINER": "container.csv",
+            "ITEM": "item.csv",
+            "OPENING_BALANCE": "opening_balance.csv",
+            "PHYSICAL_CODE": "physical_code.csv",
+            "SKU": "sku.csv"
+        }
+    },
+    "file_checksums": {
+        "AGENCY": "aebc69be1c404c9fa75cdf20a862869bbbe3e2b9a9ff20ac1a8c807278d7d051",
+        "CONTAINER": "f5c631e7eb50d729b2a0aa589719a5794fe328d49f3044e394f8ebec5d2e8a2c",
+        "ITEM": "841c9b4bfda38d95df41e17c901830dfc0fb350e41d03b2606daa28ebd52c7d9",
+        "OPENING_BALANCE": "c31692dd72aec41130ae075a1670d693fd108954ca1154e8836698255e83f237",
+        "PHYSICAL_CODE": "e205bce50016bd7f5f257ef1cff7aa32a9f103e436242ba8d5149d403cd715d5",
+        "SKU": "c8336a22241a38ab0eba4b782e782c1e8124ccfb5bd7a3a65cc4e235dba6a2e5"
+    },
+    "source_files": {
+        "AGENCY": "agency.csv",
+        "CONTAINER": "container.csv",
+        "ITEM": "item.csv",
+        "OPENING_BALANCE": "opening_balance.csv",
+        "PHYSICAL_CODE": "physical_code.csv",
+        "SKU": "sku.csv"
+    },
+    "counts": {
+        "total": 6,
+        "valid": 6,
+        "invalid": 0,
+        "duplicate": 0,
+        "invariant_holds": true,
+        "by_dataset": {
+            "AGENCY": 1,
+            "SKU": 1,
+            "PHYSICAL_CODE": 1,
+            "CONTAINER": 1,
+            "ITEM": 1,
+            "OPENING_BALANCE": 1
+        }
+    },
+    "timing": {
+        "started_at": "2026-08-18T22:57:55+07:00",
+        "finished_at": "2026-08-18T22:57:55+07:00",
+        "duration_ms": 10,
+        "duration_source": "MONOTONIC_CLOCK"
+    },
+    "reconciliation": {
+        "status": "PASS",
+        "scope": "SOURCE",
+        "checks": [
+            {
+                "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
+                "sku_code": "HN-MK-001-V1",
+                "expected": 1,
+                "actual": 1,
+                "status": "PASS",
+                "message": "SKU serial-tracked HN-MK-001-V1: opening 1 vs số Item 1."
+            }
+        ]
+    },
+    "errors": [],
+    "replayed": false
+}
