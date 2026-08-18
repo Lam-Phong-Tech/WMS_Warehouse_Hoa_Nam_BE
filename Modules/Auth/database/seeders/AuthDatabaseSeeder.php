@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use RuntimeException;
 
 class AuthDatabaseSeeder extends Seeder
 {
@@ -238,6 +239,17 @@ class AuthDatabaseSeeder extends Seeder
         ],
     ];
 
+    /**
+     * WWHN-300 / DEV300-P1-01 — TẤT CẢ các tài khoản dưới đây là FIXTURE của môi
+     * trường phi production: chúng dùng chung một mật khẩu hằng số nằm trong
+     * source code, nên trên production chúng là backdoor chứ không phải dữ liệu
+     * khởi tạo. Seeder chỉ tạo chúng khi môi trường nằm trong
+     * `golive.development_environments`, hoặc khi WMS_SEED_DEMO_ACCOUNTS=true
+     * (khi đó `wms:golive-check` vẫn báo đỏ để buộc xử lý trước Go/No-Go).
+     *
+     * Người dùng thật của production được tạo qua IAM (`POST /api/v1/users`) với
+     * role/scope gán tường minh — BR-IAM-01..08.
+     */
     private const USERS = [
         ['username' => 'staff01', 'display_name' => 'Warehouse Staff 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF'],
         ['username' => 'approver01', 'display_name' => 'Warehouse Approver 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER'],
@@ -250,10 +262,26 @@ class AuthDatabaseSeeder extends Seeder
         ['username' => 'test-super-admin', 'display_name' => 'Test Super Admin', 'email' => 'test-super-admin@hoanam.com', 'role' => 'SUPER_ADMIN'],
     ];
 
+    /**
+     * Role fixture chỉ phục vụ bộ test RBAC (AuthorizationTest). Không được tồn
+     * tại trên production — `security.account_hygiene` của WWHN-300 sẽ báo đỏ nếu
+     * chúng có mặt.
+     *
+     * @var array<int, string>
+     */
+    private const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION'];
+
     private const DEFAULT_PASSWORD = 'Cntt@1234';
 
     public function run(): void
     {
+        $withFixtures = $this->allowsNonProductionFixtures();
+
+        // Fail fast: nếu môi trường production mà chưa cấp WMS_SEED_ADMIN_PASSWORD
+        // thì dừng NGAY ở đây, trước khi ghi bất kỳ permission/role nào — chạy nửa
+        // chừng rồi ném lỗi sẽ để lại một database seed dở dang.
+        $adminPassword = $this->adminPassword();
+
         $permissionsByKey = [];
         foreach (self::PERMISSIONS as [$key, $name]) {
             $permissionsByKey[$key] = Permission::updateOrCreate(
@@ -273,7 +301,7 @@ class AuthDatabaseSeeder extends Seeder
             [
                 'display_name' => 'Administrator',
                 'email' => 'admin@gmail.com',
-                'password_hash' => Hash::make($this->defaultPassword()),
+                'password_hash' => Hash::make($adminPassword),
                 'status' => 'ACTIVE',
                 'version' => 1,
             ]
@@ -281,6 +309,10 @@ class AuthDatabaseSeeder extends Seeder
         $this->attachRole($adminUser, $superAdminRole);
 
         foreach (self::ROLES as $code => $def) {
+            if (! $withFixtures && in_array($code, self::NON_PRODUCTION_ROLES, true)) {
+                continue;
+            }
+
             $role = Role::updateOrCreate(
                 ['role_code' => $code],
                 ['role_name' => $def['name'], 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
@@ -296,13 +328,23 @@ class AuthDatabaseSeeder extends Seeder
 
         $this->call(WmsPermissionCompatibilitySeeder::class);
 
+        if (! $withFixtures) {
+            $this->command?->warn(
+                'AuthDatabaseSeeder: bỏ qua toàn bộ tài khoản/role fixture vì môi trường "'
+                .app()->environment().'" không nằm trong golive.development_environments. '
+                .'Tạo người dùng thật qua IAM (POST /api/v1/users).'
+            );
+
+            return;
+        }
+
         foreach (self::USERS as $u) {
             $user = User::updateOrCreate(
                 ['username' => $u['username']],
                 [
                     'display_name' => $u['display_name'],
                     'email' => $u['email'],
-                    'password_hash' => Hash::make($this->defaultPassword()),
+                    'password_hash' => Hash::make($this->fixturePassword()),
                     'status' => 'ACTIVE',
                     'version' => 1,
                 ]
@@ -318,7 +360,79 @@ class AuthDatabaseSeeder extends Seeder
         }
     }
 
-    private function defaultPassword(): string
+    /**
+     * Môi trường được phép mang theo tài khoản/role fixture.
+     *
+     * Mặc định là local/testing. `WMS_SEED_DEMO_ACCOUNTS=true` là lối thoát tường
+     * minh cho UAT/demo — không phải cách nới lỏng production một cách im lặng:
+     * `wms:golive-check` vẫn báo đỏ những tài khoản đó ở `security.account_hygiene`.
+     */
+    private function allowsNonProductionFixtures(): bool
+    {
+        if ($this->isDevelopmentEnvironment()) {
+            return true;
+        }
+
+        return (bool) config('golive.seed.demo_accounts', false);
+    }
+
+    private function isDevelopmentEnvironment(): bool
+    {
+        return in_array(
+            app()->environment(),
+            array_map('strval', (array) config('golive.development_environments', ['local', 'testing'])),
+            true,
+        );
+    }
+
+    /**
+     * DEV300-P1-01 — mật khẩu admin khởi tạo.
+     *
+     * Trên local/testing giữ nguyên hằng số cũ để fixture của bộ test không đổi.
+     * Ngoài đó, seeder TỪ CHỐI chạy nếu không được cấp WMS_SEED_ADMIN_PASSWORD:
+     * tạo tài khoản SUPER_ADMIN với mật khẩu nằm sẵn trong source code là dạng
+     * sự cố bảo mật tệ nhất mà một lệnh seed có thể gây ra, và trước đây nó xảy ra
+     * âm thầm, không có cảnh báo nào.
+     */
+    private function adminPassword(): string
+    {
+        $configured = trim((string) config('golive.seed.admin_password'));
+
+        if ($this->isDevelopmentEnvironment()) {
+            return $configured !== '' ? $configured : $this->fixturePassword();
+        }
+
+        $minLength = max(8, (int) config('golive.seed.min_admin_password_length', 12));
+
+        if ($configured === '') {
+            throw new RuntimeException(
+                'AuthDatabaseSeeder: môi trường "'.app()->environment().'" yêu cầu WMS_SEED_ADMIN_PASSWORD. '
+                .'Seeder không tạo tài khoản admin bằng mật khẩu mặc định nằm trong source code.'
+            );
+        }
+
+        // Kiểm tra "mật khẩu mặc định đã biết" TRƯỚC độ dài: `Cntt@1234` cũng ngắn
+        // hơn ngưỡng, nhưng thông báo phải nói đúng vấn đề — nó là credential ai
+        // đọc repo cũng biết, chứ không phải chỉ ngắn.
+        $knownDefaults = array_map('strval', (array) config('golive.credential.known_defaults', []));
+        if (in_array($configured, $knownDefaults, true)) {
+            throw new RuntimeException(
+                'AuthDatabaseSeeder: WMS_SEED_ADMIN_PASSWORD trùng một mật khẩu mặc định đã biết '
+                .'(golive.credential.known_defaults) — chọn giá trị khác.'
+            );
+        }
+
+        if (mb_strlen($configured) < $minLength) {
+            throw new RuntimeException(
+                'AuthDatabaseSeeder: WMS_SEED_ADMIN_PASSWORD phải dài tối thiểu '.$minLength.' ký tự.'
+            );
+        }
+
+        return $configured;
+    }
+
+    /** Mật khẩu dùng chung của các tài khoản fixture; chỉ hợp lệ ngoài production. */
+    private function fixturePassword(): string
     {
         $ciPassword = env('CI_DEMO_PASSWORD');
 

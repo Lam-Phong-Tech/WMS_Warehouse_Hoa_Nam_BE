@@ -1,15 +1,15 @@
 {
     "schema_version": "1.2.0",
-    "generated_at_utc": "2026-08-18T13:29:24+00:00",
+    "generated_at_utc": "2026-08-18T15:41:52+00:00",
     "approval_status": "PENDING_FE_BA_REVIEW",
     "source_hashes": {
         "permission_seed": {
             "path": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php",
-            "sha256": "8ff2439111b458838760dcaf8d94db35f27d391d2112db74c893d33fc79077a2"
+            "sha256": "a9688b0cf59760f8c3ab5137da20744e805ca623032f1ccde81470f3c41cdcc6"
         },
         "warehouse_routes": {
             "path": "Modules/Warehouse/routes/api.php",
-            "sha256": "1ea6309ca61a2d93315c5f97129bdf468b22675c680c3c4829a2d47099d7bc37"
+            "sha256": "4e4e56ed0fcddb0a12d265726e0895a11c09e8ae20199baaef78547f74168df0"
         },
         "auth_routes": {
             "path": "Modules/Auth/routes/api.php",
@@ -34,7 +34,7 @@
     },
     "integrity": {
         "active_permission_count": 83,
-        "route_permission_count": 56,
+        "route_permission_count": 57,
         "missing_route_permissions": [],
         "status": "PASS"
     },
@@ -3154,6 +3154,54 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/pv-admin/resources/{resourceType}/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\PvAdminResourceController@update",
+            "permission": "pv.master.manage",
+            "accepted_permissions": [
+                "pv.master.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:pv.master.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/pv-admin/resources/{resourceType}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\PvAdminResourceController@index",
+            "permission": "pv.master.manage",
+            "accepted_permissions": [
+                "pv.master.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:pv.master.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/pv-admin/resources/{resourceType}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\PvAdminResourceController@store",
+            "permission": "pv.master.manage",
+            "accepted_permissions": [
+                "pv.master.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:pv.master.manage"
+            ]
+        },
+        {
+            "methods": [
                 "GET"
             ],
             "uri": "api/v1/pv/catalog",
@@ -3170,7 +3218,7 @@
                 "GET"
             ],
             "uri": "api/v1/pv/industries",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CanonicalMvpController@pvIndustries",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\PvPublicCatalogController@listIndustries",
             "permission": null,
             "accepted_permissions": [],
             "middleware": [
@@ -3184,15 +3232,40 @@
             ],
             "uri": "api/v1/pv/products/{id}/publish",
             "action": "Modules\\Warehouse\\Http\\Controllers\\ProductController@publishPvProduct",
-            "permission": "pv.publish|sku.manage",
+            "permission": "pv.publish",
             "accepted_permissions": [
-                "pv.publish",
-                "sku.manage"
+                "pv.publish"
             ],
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:pv.publish|sku.manage"
+                "permission:pv.publish"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/pv/products/{skuId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\PvPublicCatalogController@showProduct",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "throttle:pv-public"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/pv/products",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\PvPublicCatalogController@listProducts",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "throttle:pv-public"
             ]
         },
         {
@@ -3618,7 +3691,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inventory.reversal.post"
+                "permission:inventory.reversal.post",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceReversalWarehouseScope"
             ]
         },
         {
@@ -3634,7 +3708,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inventory.reversal.post"
+                "permission:inventory.reversal.post",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceReversalWarehouseScope"
             ]
         },
         {
@@ -3650,7 +3725,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inventory.view"
+                "permission:inventory.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceReversalWarehouseScope"
             ]
         },
         {
@@ -3666,7 +3742,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inventory.reversal.post"
+                "permission:inventory.reversal.post",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceReversalWarehouseScope"
             ]
         },
         {
@@ -3682,7 +3759,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inventory.view"
+                "permission:inventory.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceReversalWarehouseScope"
             ]
         },
         {
@@ -3698,7 +3776,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inventory.view"
+                "permission:inventory.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceReversalWarehouseScope"
             ]
         },
         {
@@ -3714,7 +3793,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inventory.reversal.post"
+                "permission:inventory.reversal.post",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceReversalWarehouseScope"
             ]
         },
         {
@@ -7090,6 +7170,51 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/pv-admin/resources/{resourceType}/{id}",
+            "permission": "pv.master.manage",
+            "accepted_permissions": [
+                "pv.master.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/pv-admin/resources/{resourceType}",
+            "permission": "pv.master.manage",
+            "accepted_permissions": [
+                "pv.master.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/pv-admin/resources/{resourceType}",
+            "permission": "pv.master.manage",
+            "accepted_permissions": [
+                "pv.master.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
                 "GET"
             ],
             "uri": "api/v1/pv/catalog",
@@ -7113,18 +7238,36 @@
                 "PATCH"
             ],
             "uri": "api/v1/pv/products/{id}/publish",
-            "permission": "pv.publish|sku.manage",
+            "permission": "pv.publish",
             "accepted_permissions": [
-                "pv.publish",
-                "sku.manage"
+                "pv.publish"
             ],
             "roles": [
                 "ADMIN",
-                "SKU_MANAGER",
                 "SUPER_ADMIN",
                 "WAREHOUSE_MANAGER"
             ],
             "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/pv/products/{skuId}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/pv/products",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
         },
         {
             "methods": [

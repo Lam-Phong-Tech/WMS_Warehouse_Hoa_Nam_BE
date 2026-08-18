@@ -106,3 +106,9 @@ chỉ cần đọc + duyệt, không phát sinh việc mới.
 > 3. `php artisan wms:golive-check` chạy được trên DEV/UAT trước và sau deploy, output JSON dùng
 >    trực tiếp làm evidence smoke/regression.
 > 4. Không còn P0/P1 thuộc vai trò BE1 chưa có disposition.
+
+---
+
+> **Vòng 2 (sau review 58/100 — register DEV300-P1/P2):** comment xác nhận nằm ở
+> [`SIGNOFF_COMMENTS_R2.md`](./SIGNOFF_COMMENTS_R2.md), chi tiết kỹ thuật ở
+> [`DEV300_P1_P2_CLOSURE.md`](./DEV300_P1_P2_CLOSURE.md).

@@ -6,6 +6,11 @@ on:
     paths:
       - '.github/workflows/wwhn-300-backend-golive-check.yml'
       - 'app/Console/Commands/BackendGoLiveCheck.php'
+      - 'config/golive.php'
+      - 'database/golive/**'
+      - 'Modules/Auth/database/seeders/AuthDatabaseSeeder.php'
+      - 'Modules/Auth/database/seeders/WmsPermissionCompatibilitySeeder.php'
+      - 'tests/Feature/Wwhn300ProductionSafeSeedingTest.php'
       - 'app/Support/HoaNamErdSchema.php'
       - 'database/migrations/**'
       - 'Modules/*/database/migrations/**'
@@ -18,6 +23,11 @@ on:
     paths:
       - '.github/workflows/wwhn-300-backend-golive-check.yml'
       - 'app/Console/Commands/BackendGoLiveCheck.php'
+      - 'config/golive.php'
+      - 'database/golive/**'
+      - 'Modules/Auth/database/seeders/AuthDatabaseSeeder.php'
+      - 'Modules/Auth/database/seeders/WmsPermissionCompatibilitySeeder.php'
+      - 'tests/Feature/Wwhn300ProductionSafeSeedingTest.php'
       - 'app/Support/HoaNamErdSchema.php'
       - 'database/migrations/**'
       - 'Modules/*/database/migrations/**'
@@ -109,10 +119,17 @@ jobs:
           bash -n scripts/collect-wwhn300-golive-evidence.sh
           php -l app/Console/Commands/BackendGoLiveCheck.php
           php -l app/Support/HoaNamErdSchema.php
+          php -l config/golive.php
+          php -l database/golive/fail_forward_allowlist.php
+          php -l database/golive/route_permission_contract.php
           ./vendor/bin/pint --test \
             app/Console/Commands/BackendGoLiveCheck.php \
             app/Support/HoaNamErdSchema.php \
+            config/golive.php \
+            Modules/Auth/database/seeders/AuthDatabaseSeeder.php \
+            Modules/Auth/database/seeders/WmsPermissionCompatibilitySeeder.php \
             tests/Feature/Wwhn300BackendGoLiveCheckTest.php \
+            tests/Feature/Wwhn300ProductionSafeSeedingTest.php \
             tests/Unit/HoaNamErdSchemaDropRelationTest.php
 
       - name: Collect GoLive evidence (fresh -> rollback -> forward -> seed)

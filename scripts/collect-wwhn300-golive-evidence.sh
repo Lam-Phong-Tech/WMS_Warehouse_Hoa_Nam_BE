@@ -12,6 +12,28 @@ set -Eeuo pipefail
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/wwhn-300/postgresql}"
 mkdir -p "$EVIDENCE_DIR"
 
+# DEV300-P1-04 — manifest hai chiều của chuỗi migration.
+#
+# "Rollback chạy xong exit 0" chưa chứng minh được điều mà cutover cần: sau khi
+# lùi rồi tiến lại, ledger `migrations` phải trở về ĐÚNG tập cũ. Manifest ghi cả
+# tập file nguồn lẫn tập bản ghi đã áp dụng, để so trước/sau bằng `diff` thay vì
+# bằng mắt.
+migration_manifest() {
+  local name="$1"
+  php artisan tinker --execute="
+\\\$ran = \Illuminate\Support\Facades\DB::table('migrations')->orderBy('migration')->pluck('migration')->all();
+foreach (\\\$ran as \\\$m) { echo 'applied=' . \\\$m . PHP_EOL; }
+echo 'applied_count=' . count(\\\$ran) . PHP_EOL;
+" 2>/dev/null | tr -d '\r' | grep -E '^applied' | sort > "$EVIDENCE_DIR/$name.manifest.txt"
+
+  {
+    find database/migrations Modules/*/database/migrations -name '*.php' -printf 'source=%f\n' 2>/dev/null \
+      | sed 's/\.php$//' | sort
+  } >> "$EVIDENCE_DIR/$name.manifest.txt"
+
+  echo "manifest written: $EVIDENCE_DIR/$name.manifest.txt"
+}
+
 log_command() {
   local name="$1"
   shift
@@ -42,6 +64,7 @@ log_command() {
 
 # 1. Forward: the state a cutover leaves behind.
 log_command migrate-fresh-seed php artisan migrate:fresh --seed --force
+migration_manifest before-rollback
 log_command golive-check-after-migrate php artisan wms:golive-check --json="$EVIDENCE_DIR/golive-check.json"
 
 # 2. Rollback: the cutover abort path. Before WWHN-300 this stopped mid-chain
@@ -64,14 +87,45 @@ fi
 # 3. Forward again: proves the rollback did not brick the database.
 log_command migrate-forward-after-rollback php artisan migrate --force
 log_command seed-after-rollback php artisan db:seed --force
+migration_manifest after-roundtrip
+
+# Roundtrip phải trả ledger về ĐÚNG tập cũ. Lệch một bản ghi nghĩa là schema sau
+# abort không còn là schema mà artifact này biết cách phục vụ.
+if ! diff -u "$EVIDENCE_DIR/before-rollback.manifest.txt" "$EVIDENCE_DIR/after-roundtrip.manifest.txt" \
+  > "$EVIDENCE_DIR/migration-manifest-diff.raw.log"; then
+  echo "Migration manifest changed across the rollback/forward roundtrip:" >&2
+  cat "$EVIDENCE_DIR/migration-manifest-diff.raw.log" >&2
+  exit 1
+fi
+
 log_command golive-check-after-roundtrip php artisan wms:golive-check --json="$EVIDENCE_DIR/golive-check-after-roundtrip.json"
 
 # 4. Targeted regression tests for the defect class fixed here.
-log_command focused-phpunit php artisan test --filter 'Wwhn300BackendGoLiveCheckTest|HoaNamErdSchemaDropRelationTest'
+log_command focused-phpunit php artisan test --filter 'Wwhn300BackendGoLiveCheckTest|Wwhn300ProductionSafeSeedingTest|HoaNamErdSchemaDropRelationTest'
+
+# 5. DEV300-P1-02 — bằng chứng chạy thật cho việc override bị từ chối.
+#    Unit test đã khẳng định điều này, nhưng cửa sổ cutover cần bằng chứng rằng
+#    trên MỘT môi trường production thật, cùng một binary, cùng một cờ, lệnh vẫn
+#    thoát 1. Kỳ vọng ở đây là FAIL — collector chỉ hỏng nếu nó thoát 0.
+{
+  printf '$ APP_ENV=production APP_DEBUG=true php artisan wms:golive-check --allow-debug\n'
+  set +e
+  APP_ENV=production APP_DEBUG=true php artisan wms:golive-check --allow-debug \
+    --json="$EVIDENCE_DIR/golive-check-production-profile.json"
+  production_exit=$?
+  set -e
+  printf '\n[exit_code]=%s\n' "$production_exit"
+} 2>&1 | tee "$EVIDENCE_DIR/golive-check-production-profile.raw.log"
+
+production_exit="$(sed -n 's/^\[exit_code\]=//p' "$EVIDENCE_DIR/golive-check-production-profile.raw.log" | tail -n 1)"
+if [[ "$production_exit" != "1" ]]; then
+  echo "Hồ sơ production phải FAIL (exit 1) nhưng nhận exit_code=$production_exit" >&2
+  exit 1
+fi
 
 (
   cd "$EVIDENCE_DIR"
-  sha256sum ./*.log ./*.json > SHA256SUMS
+  sha256sum ./*.log ./*.json ./*.txt > SHA256SUMS
 )
 
 echo "WWHN-300 evidence written to $EVIDENCE_DIR"

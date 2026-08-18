@@ -65,3 +65,23 @@ middleware auth. Đã ghi lại để có owner và disposition thay vì đóng 
 |---|---|---|
 | BE1-GL-DEP-01 | WWHN-298 (`HN-DEVOPS-005-ST01`) đang Blocked/Pending — chưa có environment URL, deploy log, backup/restore evidence để chạy check này trên UAT/production | DevOps |
 | BE1-GL-DEP-02 | WWHN-299 (`[BE] Thực hiện/xác minh lần nạp dữ liệu cuối`) là bước nạp dữ liệu cuối; `wms:golive-check` cố ý **không** kiểm tra số lượng bản ghi nghiệp vụ vì reconciliation threshold thuộc ticket đó | BE2 |
+
+## Vòng 2 — register DEV300-P1/P2 (review 58/100)
+
+| ID | Sev | Trạng thái | Đóng ở đâu |
+|---|---|---|---|
+| DEV300-P1-01 | P1 | **CLOSED** | `security.account_hygiene` + `AuthDatabaseSeeder` production-safe |
+| DEV300-P1-02 | P1 | **CLOSED** | `--allow-debug` chỉ hiệu lực trên `golive.debug_override_environments` |
+| DEV300-P1-03 | P1 | **CLOSED** | fail-closed probe + ma trận `route_permission_contract.php` |
+| DEV300-P1-04 | P1 | **CLOSED** | so migration hai chiều + `fail_forward_allowlist.php` |
+| DEV300-P1-05 | P1 | PARTIAL | code/CI xong; branch protection + chạy workflow trên SHA cuối thuộc DevOps |
+| DEV300-P1-06 | P1 | BLOCKED | WWHN-298/299/301/302 |
+| DEV300-P2-01 | P2 | **CLOSED** | `DEV300_P1_P2_CLOSURE.md` + `SIGNOFF_COMMENTS_R2.md` |
+
+Chi tiết từng mục: [`DEV300_P1_P2_CLOSURE.md`](./DEV300_P1_P2_CLOSURE.md).
+
+### Ghi nhận ngoài phạm vi (để không mất dấu)
+
+| ID | Nội dung | Owner |
+|---|---|---|
+| BE1-GL-EXT-01 | Bề mặt `/api/v1` tăng 226 → 231 route (PV canonical + `pv-admin/resources/*`) do ticket khác đang chạy song song trên `m1`. Swagger chưa có annotation cho `PvAdminResourceController` nên `SwaggerRouteSyncTest`/`DocumentationBaselineContractTest` đang đỏ. Không thuộc WWHN-300 | owner của ticket PV/Swagger |

@@ -64,7 +64,15 @@ class WmsPermissionCompatibilitySeeder extends Seeder
             ]
         );
         foreach (self::SKU_MANAGE_ROLES as $roleCode) {
-            $role = Role::query()->where('role_code', $roleCode)->firstOrFail();
+            // SKU_MANAGER là role FIXTURE của bộ test RBAC: từ WWHN-300/DEV300-P1-01
+            // nó không còn được seed ngoài local/testing. Alias chỉ gắn cho role
+            // thực sự tồn tại — vắng fixture không phải lỗi seeding.
+            $role = Role::query()->where('role_code', $roleCode)->first();
+
+            if ($role === null) {
+                continue;
+            }
+
             $this->attach($role, $skuManage);
         }
     }

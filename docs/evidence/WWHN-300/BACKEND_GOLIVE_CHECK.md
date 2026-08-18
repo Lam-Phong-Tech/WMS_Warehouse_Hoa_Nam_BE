@@ -33,8 +33,8 @@ release register thì chạy lại collector sau khi chốt FINAL_SHA.
 | **Rollback toàn chuỗi** | PASS — 140/140, chỉ còn bảng `migrations` | `migrate-rollback.raw.log`, `rollback-leftovers.raw.log` |
 | Migrate lại sau rollback | PASS — 140 applied | `migrate-forward-after-rollback.raw.log` |
 | Seed lại sau rollback | PASS | `seed-after-rollback.raw.log` |
-| `wms:golive-check` (9 dimension) | PASS (1 WARN có disposition) | `golive-check.json`, `golive-check-after-roundtrip.json` |
-| Regression test WWHN-300 | PASS 8/8 | `focused-phpunit.raw.log` |
+| `wms:golive-check` (13 dimension) | PASS (1 WARN có disposition) | `golive-check.json`, `golive-check-after-roundtrip.json` |
+| Regression test WWHN-300 | PASS 28/28 (13 case negative/fault-injection) | `focused-phpunit.raw.log` |
 | Full suite SQLite (driver CI) | 645 pass / 22 skip / **0 fail** (667) | — |
 | Full suite PostgreSQL | 638 pass / **6 fail** (667) | 6 fail là nhóm OPEN WWHN-31 có sẵn trước ticket này, xem §2.1 |
 
@@ -56,18 +56,27 @@ driver SQLite. Thay đổi của WWHN-300 chỉ nằm trong `down()` nên không
 
 | Check | Ý nghĩa với cutover | Ngưỡng |
 |---|---|---|
-| `migrations.applied` | Không còn migration pending — code và schema cùng một version | pending = 0 |
-| `migrations.reversible` | Liệt kê migration có `down()` rỗng (fail-forward) để runbook biết ranh giới rollback | WARN, pin ≤ 75 |
+| `migrations.applied` | So **hai chiều** nguồn ↔ database: không còn migration pending, và không có bản ghi nào trong bảng `migrations` mất file nguồn | pending = 0 **và** orphaned = 0 |
+| `migrations.reversible` | Tập fail-forward (`down()` rỗng) phải khớp **allowlist có thẩm quyền** `database/golive/fail_forward_allowlist.php` | undispositioned = 0; fail-forward mới ⇒ FAIL |
 | `schema.canonical_relations` | 20 aggregate lõi tồn tại (chấp nhận bảng vật lý **hoặc** compatibility view — hai driver đảo chiều tên) | missing = 0 |
-| `seed.identity_markers` | `admin`, `KHO-TONG-HN`, `HN-PV-BASE-001`, permission catalog | đủ 4 |
-| `security.runtime_config` | `APP_DEBUG` ngoài local/testing, `APP_KEY`, `JWT_SECRET` không phải giá trị test | findings = 0 |
-| `security.route_default_deny` | Mọi route `/api/v1` không thuộc allowlist public phải có `auth:api`; mọi route đã auth (trừ self-service) phải có `permission:` | cả hai list rỗng |
-| `core.idempotency_store` | Bảng + unique index idempotency, số lease hết hạn | unique index tồn tại |
-| `core.audit_backlog` | `audit_outbox` chưa xử lý (traceability bị mất nếu tồn) | WARN nếu > 0 |
-| `core.reconciliation_backlog` | SRS §7.5: incident OPEN chặn readiness/sign-off | open = 0 |
+| `seed.identity_markers` | `admin`, `KHO-TONG-HN`, `HN-PV-BASE-001`, permission catalog. **Chỉ khẳng định sự tồn tại** — trạng thái credential do `security.account_hygiene` trả lời | đủ 4 |
+| `security.account_hygiene` | Không tài khoản ACTIVE nào còn mật khẩu mặc định đã biết; không còn tài khoản/role fixture của môi trường test | ngoài dev: mọi list rỗng, nếu không ⇒ FAIL |
+| `security.runtime_config` | `APP_DEBUG` ngoài dev (cờ `--allow-debug` chỉ hiệu lực trên allowlist non-prod), `APP_KEY`, `JWT_SECRET`, trusted proxy, hồ sơ log | findings = 0 |
+| `security.browser_runtime_contract` | CORS allow-list, https, SameSite/Secure của refresh cookie theo môi trường triển khai | findings = 0 |
+| `security.route_default_deny` | Bề mặt `/api/v1` khớp **đúng ma trận đã pin** `database/golive/route_permission_contract.php` — thêm/mất route hoặc đổi permission đều FAIL | 5 list đều rỗng |
+| `release.build_identity` | `APP_BUILD_SHA` buộc bằng chứng vào đúng commit đã deploy | ngoài dev: bắt buộc có |
+| `runtime.queue_retry_window` | `retry_after > worker_timeout` để job audit/reconcile không chạy hai lần | retry_after > timeout |
+| `core.idempotency_store` | **Đúng tập cột** unique: `business_key` và `idem_key+operation+user_id`; đếm lease treo | missing_unique_sets = 0 |
+| `core.audit_backlog` | `audit_outbox` chưa xử lý. Thiếu bảng = **FAIL** (không kết luận được), trừ khi có disposition trong `golive.governed_na` | ngoài dev: unprocessed = 0 |
+| `core.reconciliation_backlog` | SRS §7.5: incident OPEN chặn readiness/sign-off. Thiếu bảng/thiếu cột `status` = **FAIL** | open = 0 |
 
 Lệnh trả **exit code 1** khi có bất kỳ FAIL nào — dùng trực tiếp làm gate trong runbook/pipeline,
 không phải một trang log để người đọc tự diễn giải.
+
+**Fail-closed (DEV300-P1-03):** một probe không kết luận được — thiếu quan hệ, driver không đọc
+được index, thiếu hợp đồng đã pin — là **FAIL**. "Không biết" tại cutover không được phép trông
+giống "sẵn sàng". Miễn trừ duy nhất là disposition có thẩm quyền khai trong
+`config/golive.php → governed_na`, và khi đó nguyên văn disposition đi vào evidence.
 
 ## 4. Cách chạy lại
 
