@@ -7,9 +7,9 @@ DEV **không** tự ký kết quả retest. Tài liệu này cung cấp đúng n
 | Mục | Giá trị |
 |---|---|
 | BE repo / nhánh | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` / `m1` |
-| BE SHA | `WWHN289_FINAL_SHA` (xem `WWHN-289_PINS.json`) |
+| BE SHA | `e593202a580d8033257e8aabaae0e5d886071ab2` (xem `WWHN-289_PINS.json`) |
 | FE repo / nhánh | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE` / `m1` |
-| FE SHA | `WWHN289_FE_FINAL_SHA` |
+| FE SHA | `404267083d2c0ca79507f7fc1fdf05170cdae48e` |
 | DB tham chiếu | PostgreSQL 16 |
 
 Không retest trên nhánh HEAD không pin — `m1` là nhánh dùng chung, ticket khác vẫn đang commit trong cùng ngày.
@@ -17,7 +17,7 @@ Không retest trên nhánh HEAD không pin — `m1` là nhánh dùng chung, tick
 ## 2. Lệnh chạy
 
 ```bash
-git -C WMS_Warehouse_Hoa_Nam_BE checkout WWHN289_FINAL_SHA
+git -C WMS_Warehouse_Hoa_Nam_BE checkout e593202a580d8033257e8aabaae0e5d886071ab2
 composer install --no-interaction --prefer-dist
 cp .env.example .env && php artisan key:generate && php artisan config:clear
 php artisan migrate:fresh --seed --force

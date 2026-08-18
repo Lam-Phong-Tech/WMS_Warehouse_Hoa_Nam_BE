@@ -21,13 +21,13 @@
   "change_range": {
     "base": "93b1e71f0e01c8a7c77670e0c8f0af38d2e68470",
     "base_meaning": "HEAD của m1 ngay trước commit triển khai WWHN-289",
-    "final": "WWHN289_FINAL_SHA",
+    "final": "e593202a580d8033257e8aabaae0e5d886071ab2",
     "final_meaning": "Commit triển khai WWHN-289 (code + test + evidence). Commit ghi pin này là commit kế tiếp và chỉ chứa giá trị SHA đó."
   },
   "fe_consumer": {
     "repo_branch": "m1",
     "base": "226075d21f2bf953c5f639c71598136e434fc42b",
-    "final": "WWHN289_FE_FINAL_SHA",
+    "final": "404267083d2c0ca79507f7fc1fdf05170cdae48e",
     "scope": "Nhận diện 429 RATE_LIMIT_EXCEEDED + Retry-After, và xếp DATA_SCOPE_DENIED vào nhóm lỗi thiếu quyền."
   },
   "findings": {

@@ -10,7 +10,7 @@ Comment 1 do BE1 đăng trên **WWHN-289**. Comment 2–4 là xác nhận thuầ
 
 > **BE1 — Nộp bằng chứng cho DEV289-P1-02 / P1-03 / P1-04**
 >
-> Build đã pin: BE `m1` @ `WWHN289_FINAL_SHA` · FE `m1` @ `WWHN289_FE_FINAL_SHA` · nguồn pin duy nhất `docs/evidence/WWHN-289/WWHN-289_PINS.json`.
+> Build đã pin: BE `m1` @ `e593202a580d8033257e8aabaae0e5d886071ab2` · FE `m1` @ `404267083d2c0ca79507f7fc1fdf05170cdae48e` · nguồn pin duy nhất `docs/evidence/WWHN-289/WWHN-289_PINS.json`.
 >
 > **P1-02 — PR/SHA/diff scope/fix map:** register đầy đủ tại `docs/evidence/WWHN-289/WWHN-289_DEFECT_FIX_REGISTER.md`. Ba defect được sửa tận gốc, mỗi cái gắn với một điều khoản baseline:
 > • `SEC289-01` luồng nhập kho **không có data scope** — chỉ luồng xuất và 6 endpoint đọc tồn có; user `scope_ref` kho khác vẫn Post Receipt được (vi phạm §8.1 enforcement standard, NFR-SRS-005). Fix: `EnforceInboundWarehouseScope` gắn 12 route nhập kho → 403 `DATA_SCOPE_DENIED`.
@@ -34,7 +34,7 @@ Comment 1 do BE1 đăng trên **WWHN-289**. Comment 2–4 là xác nhận thuầ
 > **Tech Lead — Xác nhận (đọc + duyệt, không phát sinh việc mới)**
 >
 > Tôi xác nhận đúng 4 điểm sau, dựa trên `WWHN-289_PINS.json` và register:
-> 1. **Nguồn canonical:** BE `m1` @ `WWHN289_FINAL_SHA` là build duy nhất của WWHN-289; FE `m1` @ `WWHN289_FE_FINAL_SHA` là bản tiêu thụ tương ứng. Không có nhánh nào khác được dùng làm evidence.
+> 1. **Nguồn canonical:** BE `m1` @ `e593202a580d8033257e8aabaae0e5d886071ab2` là build duy nhất của WWHN-289; FE `m1` @ `404267083d2c0ca79507f7fc1fdf05170cdae48e` là bản tiêu thụ tương ứng. Không có nhánh nào khác được dùng làm evidence.
 > 2. **Contract:** thay đổi mã lỗi 409 `IDEMPOTENCY_ERROR` → `IDEMPOTENCY_CONFLICT` / `CONCURRENCY_CONFLICT` là **đưa về đúng** SRS §8.2 và AC-GWT-IDEMP-001, không phải mở rộng contract; FE đã dùng sẵn `IDEMPOTENCY_CONFLICT` nên không có breaking change với client hợp lệ.
 > 3. **Security design:** data scope luồng nhập (`EnforceInboundWarehouseScope`) đúng mô hình đang dùng cho luồng xuất/đọc tồn, fail-closed và không chặn nhầm SUPER_ADMIN / role không gắn `scope_ref`; khoá login đếm theo lần **thất bại** nên không phạt oan người dùng hợp lệ.
 > 4. **Gate CI:** `.github/workflows/wwhn-289-closure.yml` chạy lại bộ chứng minh trên PostgreSQL 16 ở exact SHA và fail-closed nếu marker evidence bị gỡ.
@@ -47,7 +47,7 @@ Comment 1 do BE1 đăng trên **WWHN-289**. Comment 2–4 là xác nhận thuầ
 
 > **QA1 — Xác nhận (đọc + duyệt)**
 >
-> Tôi xác nhận đã nhận đủ bàn giao của DEV cho WWHN-289 theo `WWHN-289_QA1_HANDOFF.md`: build đã pin (BE `WWHN289_FINAL_SHA` / FE `WWHN289_FE_FINAL_SHA`), lệnh chạy, môi trường DB tham chiếu, bảng kết quả kỳ vọng cho 12 kịch bản, và hai artifact số liệu thô `build/evidence/wwhn-289/*.json`.
+> Tôi xác nhận đã nhận đủ bàn giao của DEV cho WWHN-289 theo `WWHN-289_QA1_HANDOFF.md`: build đã pin (BE `e593202a580d8033257e8aabaae0e5d886071ab2` / FE `404267083d2c0ca79507f7fc1fdf05170cdae48e`), lệnh chạy, môi trường DB tham chiếu, bảng kết quả kỳ vọng cho 12 kịch bản, và hai artifact số liệu thô `build/evidence/wwhn-289/*.json`.
 >
 > Tôi xác nhận phạm vi retest của QA1 là: 5 chiều stock invariant (retry / idempotency conflict / rollback / duplicate reversal / reconcile `mismatch = 0`) và 4 nhóm security regression (unauthorized / data-scope / replay / secret), chạy **trên đúng SHA đã pin**, không retest trên HEAD không pin.
 >
