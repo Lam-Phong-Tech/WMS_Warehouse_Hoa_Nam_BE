@@ -1,0 +1,153 @@
+name: WWHN-290 Exact SHA Closure
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/wwhn-290/**'
+      - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
+      - 'tests/Feature/ReportFlow06ContractTest.php'
+      - 'tests/Feature/ReportFlow06IntegrationTest.php'
+      - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
+      - 'tests/Feature/WarrantyFlow04ApiSurfaceTest.php'
+      - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
+      - 'tests/Feature/AuthorizationTest.php'
+      - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
+      - 'tests/Feature/BackendMigrationSeedHealthTest.php'
+      - 'tests/Feature/SwaggerRouteSyncTest.php'
+      - 'Modules/Warehouse/app/Http/Controllers/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'storage/api-docs/api-docs.json'
+      - '.github/workflows/wwhn-290-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/wwhn-290/**'
+      - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
+      - 'tests/Feature/ReportFlow06ContractTest.php'
+      - 'tests/Feature/ReportFlow06IntegrationTest.php'
+      - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
+      - 'tests/Feature/WarrantyFlow04ApiSurfaceTest.php'
+      - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
+      - 'tests/Feature/AuthorizationTest.php'
+      - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
+      - 'tests/Feature/BackendMigrationSeedHealthTest.php'
+      - 'tests/Feature/SwaggerRouteSyncTest.php'
+      - 'Modules/Warehouse/app/Http/Controllers/**'
+      - 'Modules/Warehouse/app/Services/**'
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'storage/api-docs/api-docs.json'
+      - '.github/workflows/wwhn-290-closure.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  closure:
+    name: Defect / contract / data / regression closure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn290
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn290"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: WWHN290-CI-Only-2026
+      JWT_SECRET: WWHN290-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn290
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Closure evidence style and syntax
+        run: vendor/bin/pint --test tests/Feature/Wwhn290ClosureEvidenceTest.php
+
+      - name: Fail-closed evidence markers
+        run: |
+          set -euo pipefail
+          evidence='docs/evidence/wwhn-290/WWHN-290_DEFECT_CLOSURE_REGISTER.md'
+          test -s "$evidence"
+          for marker in DEV290-P1-01 DEV290-P1-02 DEV290-P1-03 DEV290-P1-04 DEV290-P1-05 NO-VERIFIED-UAT-DEFECT-INPUT; do
+            grep -Fq "$marker" "$evidence"
+          done
+          grep -Fq 'FAIL-CLOSED / NEEDS OWNER DISPOSITION' "$evidence"
+          grep -Fq 'does **not** claim QA1 PASS' "$evidence"
+
+      - name: Pin approved OpenAPI target
+        run: |
+          php -r '$d=json_decode(file_get_contents("storage/api-docs/api-docs.json"), true, 512, JSON_THROW_ON_ERROR); if (($d["openapi"] ?? null) !== "3.0.0" || ($d["info"]["version"] ?? null) !== "2.0.0") { fwrite(STDERR, "WWHN-290 OpenAPI target mismatch\n"); exit(1); } echo "OpenAPI target 2.0.0 verified\n";'
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+
+      - name: WWHN-290 focused regression suite
+        run: >-
+          php artisan test --filter
+          '/(Wwhn290ClosureEvidenceTest|ReportFlow06ContractTest|ReportFlow06IntegrationTest|Flow06WarrantyReportAlignmentTest|WarrantyFlow04ApiSurfaceTest|WarrantyIdempotencyKeyContractTest|AuthorizationTest|InventoryReconciliationIntegrityTest|BackendMigrationSeedHealthTest|SwaggerRouteSyncTest)/'
+
+      - name: Regenerate Swagger and re-check target
+        run: |
+          php artisan l5-swagger:generate
+          php -r '$d=json_decode(file_get_contents("storage/api-docs/api-docs.json"), true, 512, JSON_THROW_ON_ERROR); if (($d["info"]["version"] ?? null) !== "2.0.0") { fwrite(STDERR, "Generated OpenAPI version drifted\n"); exit(1); }'
+
+      - name: Exact SHA evidence summary
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-290
+          openapi_sha256="$(sha256sum storage/api-docs/api-docs.json | awk '{print $1}')"
+          cat > artifacts/wwhn-290/manifest.txt <<EOF
+          jira=WWHN-290
+          branch=${GITHUB_REF_NAME}
+          sha=${GITHUB_SHA}
+          openapi_version=2.0.0
+          openapi_sha256=${openapi_sha256}
+          db=postgres16
+          result=PASS
+          qa1_signoff=NOT_CLAIMED_BY_DEV
+          EOF
+          sha256sum artifacts/wwhn-290/manifest.txt > artifacts/wwhn-290/SHA256SUMS
+          cat artifacts/wwhn-290/manifest.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-290-exact-sha-${{ github.sha }}
+          path: artifacts/wwhn-290
+          if-no-files-found: error
+          retention-days: 30
