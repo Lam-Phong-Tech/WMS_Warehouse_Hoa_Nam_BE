@@ -23,12 +23,12 @@ Tài liệu này là chỗ duy nhất được ghi kết quả run, và nó **fa
 ```bash
 gh workflow run wwhn-309-backend-handover-evidence.yml \
   --ref m1 \
-  -f source_sha=<CANDIDATE_SHA>
+  -f source_sha=<PIN_COMMIT>
 ```
 
 Ba điều bắt buộc, vì đây chính là các lỗi đã bị bắt ở vòng trước:
 
-1. **Truyền `source_sha` tường minh.** Chạy trên floating head của `m1` sinh evidence
+1. **Truyền `source_sha` tường minh (PIN_COMMIT — commit chứa CANDIDATE_MANIFEST.json).** Chạy trên floating head của `m1` sinh evidence
    cho một SHA khác với SHA đang review — evidence đó không dùng để đóng task được.
 2. **Chạy trên PostgreSQL.** Workflow đã khai service `postgres:16`; kết quả SQLite
    không phải căn cứ nghiệm thu (bất biến trong `docs/docs_task_jira/WWHN-309.md` §1).
@@ -54,8 +54,11 @@ Ba điều bắt buộc, vì đây chính là các lỗi đã bị bắt ở vò
 | Người pin | `PENDING` |
 | Ngày pin | `PENDING` |
 
-**Quy tắc chấp nhận:** run chỉ được coi là accepted khi `Resolved source SHA` **bằng
-đúng** `candidate_sha` trong `CANDIDATE_MANIFEST.json`. Lệch một ký tự = không accepted.
+**Quy tắc chấp nhận:** run chỉ được coi là accepted khi step `Candidate pin integrity`
+PASS tại `Resolved source SHA` đó. Cổng này chứng minh hai điều cùng lúc: manifest khai
+đúng `candidate_sha`, và **không commit nào giữa candidate và SHA đang chạy chạm vào tập
+artifact bàn giao**. Vì vậy không cần (và không nên) đòi `Resolved source SHA` bằng đúng
+`candidate_sha` — file manifest nằm ở commit kế tiếp candidate là điều tất yếu.
 
 ## 4. Khi chưa dispatch được CI (môi trường không có runner/mạng)
 

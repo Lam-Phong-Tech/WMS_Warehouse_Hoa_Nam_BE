@@ -1,0 +1,165 @@
+{
+  "task": "WWHN-309",
+  "title": "Candidate manifest - gói bàn giao kiến trúc/API/vận hành backend",
+  "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+  "branch": "m1",
+  "candidate_sha": "a8da12f50c21ce3eaa0d9c021641d64ab99ded01",
+  "candidate_subject": "fix(WWHN-309): dong 6 P1 + 2 P2 cua review 74/100 bang co che chong troi",
+  "candidate_committed_at": "2026-08-19T00:55:56+07:00",
+  "generator": "scripts/verify-wwhn-309-candidate-pin.mjs --refresh",
+  "pull_request": "N/A",
+  "independent_review": {
+    "status": "PENDING",
+    "reviewer_role": "Tech Lead",
+    "scope": "Diff cua tap artifact khai trong truong artifacts[] tai candidate_sha",
+    "how_to_reproduce": "git diff 127c573a7236ad1c25829eb92011a4914360b840..a8da12f50c21ce3eaa0d9c021641d64ab99ded01 -- <artifacts>",
+    "evidence": "Comment TECH LEAD SIGN-OFF tren WWHN-309 (mau o docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md muc 3)",
+    "note": "Du an commit thang len m1 nen khong co PR. Cong verify-wwhn-309-candidate-pin.mjs FAIL neu pull_request=N/A ma khong khai muc nay."
+  },
+  "unrelated_scope": [
+    {
+      "paths": [
+        "docs/HoaNam_ERD_Moi_Nhat.md",
+        "docs/contracts/erd-document-pin.json",
+        "docs/evidence/WWHN-310/**",
+        "tests/Feature/Wwhn310*.php"
+      ],
+      "task": "WWHN-310",
+      "note": "Tai lieu du lieu/migration/bao cao - khong dung de cham WWHN-309"
+    },
+    {
+      "paths": [
+        "app/Http/Controllers/HealthController.php",
+        "app/Swagger/HealthSchemas.php"
+      ],
+      "task": "WWHN-295",
+      "note": "Contract health/build identity. WWHN-309 chi tieu thu /api/v1/health"
+    },
+    {
+      "paths": [
+        "Modules/Warehouse/**"
+      ],
+      "task": "WWHN-299/330/331 va cac task luong nghiep vu",
+      "note": "Ngoai pham vi handover tai lieu"
+    },
+    {
+      "paths": [
+        "storage/api-docs/api-docs.json",
+        "storage/api-docs/api-docs.yaml"
+      ],
+      "task": "WWHN-309 (pin theo blob tai candidate SHA)",
+      "note": "Working tree dang co ban regenerate cua phien WWHN-295; pin lay noi dung DA COMMIT tai candidate_sha"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "README.md",
+      "sha256": "fc70efbfe88380cbe9215da0b263964a246ca73d68fc17e6172c4e82c726199a"
+    },
+    {
+      "path": "docs/architecture/HN-BE-ARCH-001_BACKEND_ARCHITECTURE.md",
+      "sha256": "b8f2c76cb5adb3e2e60409c6d8639c8ba9d0967cc8bb90c766dde27d3331af67"
+    },
+    {
+      "path": "docs/api-contract/HN-BE-API-001_API_CONTRACT_HANDOVER.md",
+      "sha256": "18b8c3caebf79c7663e38afa2482693a7d5db3b9bda870a245f3c541cb4cb5e0"
+    },
+    {
+      "path": "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md",
+      "sha256": "afd18bd447ddc0e062d8017aef170cda6992347dadea0397912e9d82d5629da8"
+    },
+    {
+      "path": "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json",
+      "sha256": "245c592b10d006c6241e99afa0cb09f355634ef7e397edf322fb7be355823f06"
+    },
+    {
+      "path": "docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md",
+      "sha256": "5329e1c8df51f4021d7a088b165aa99b14aba92f7ca814eb7114953f006a6ccb"
+    },
+    {
+      "path": "docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.json",
+      "sha256": "edd52a2e87a14d47e5760e8c399c7653def797eb363bf222303132f279896e6c"
+    },
+    {
+      "path": "docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.md",
+      "sha256": "0c52c1d58be54ab3529d1ddf629e10a4bb03be8cfb79177ba924920855f7960e"
+    },
+    {
+      "path": "docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.json",
+      "sha256": "3355d3361392df71b82a235761211d25b60afec115d59abc996bc9035c07acee"
+    },
+    {
+      "path": "docs/ops/HN-BE-OPS-001_OPERATIONS_RUNBOOK.md",
+      "sha256": "a08c39edaab350e9c4521a7a676d7b5a2c2df414d65f3edabbddd1f14db7dc75"
+    },
+    {
+      "path": "docs/permissions/WMS_PERMISSION_CATALOG_BE1.md",
+      "sha256": "387aeb80131510e411052c563b20e68b0f1e2f079dcfb0e0687adfe64cca2d9c"
+    },
+    {
+      "path": "docs/permissions/WMS_PERMISSION_CATALOG_BE1.json",
+      "sha256": "c7f9e15bb4dd28f66b0356bba792d19eeab3c3bd417b5f92a05af425ea362c40"
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-309.md",
+      "sha256": "8bfc8e4a6b4d9822ebb8930487e5ffc9db45c11e64e724f8c4f8e866879756ff"
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md",
+      "sha256": "8fcef29b39d3ec9bdb2389fd7e0c362ebdd9bc3b9ff347cd10004a8b9ae8db44"
+    },
+    {
+      "path": "docs/decision-records/DEC-API-IFMATCH-001-remove-dead-route-middleware.md",
+      "sha256": "7a7a5bb1341d4751a89b1101bc2337c16fd411b6230c422318c377bd30582160"
+    },
+    {
+      "path": "storage/api-docs/api-docs.json",
+      "sha256": "b86330ff5f29031303b46e1075f8d036e1fe0d19e5d610ec3cb1c38dcd12bf45"
+    },
+    {
+      "path": "storage/api-docs/api-docs.yaml",
+      "sha256": "0c20c342e79a3d6bb89449f01841a51371ea322e74178d618d5f6e1b3384418e"
+    },
+    {
+      "path": "scripts/generate-error-code-catalog.mjs",
+      "sha256": "874428b38b8a23285e54c6b8f40b7560d22988b050c0cf07ff1bf9bf52955f39"
+    },
+    {
+      "path": "scripts/generate-endpoint-permission-matrix.mjs",
+      "sha256": "31efac5eb70f67c6d822f311979226c8ec1d785f940b8df9c76d0591c92a1996"
+    },
+    {
+      "path": "scripts/generate-api-contract-metrics.mjs",
+      "sha256": "087a390d33249f824f86aac2d5f31c7e19484d554b96e663e5136ba813014a1a"
+    },
+    {
+      "path": "scripts/verify-wwhn-309-handover-contract.mjs",
+      "sha256": "fa427b8fae4a61d4a3bd6752f280c61d8ebe0049c48e6d02279607c05a6ed24b"
+    },
+    {
+      "path": "scripts/verify-wwhn-309-candidate-pin.mjs",
+      "sha256": "a52d6d43f51d6485d21320f078241da0a6303bd2f04214ca3b0c913aa748061a"
+    },
+    {
+      "path": ".github/workflows/wwhn-309-backend-handover-evidence.yml",
+      "sha256": "df4734197b41359b71ec61710d3d71a76d419cb3863fae6973794bc401fb154c"
+    },
+    {
+      "path": "tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php",
+      "sha256": "5e791d65be0eaa1b3e9fcb142b88083689b032b563033122ee60f202f642943a"
+    },
+    {
+      "path": "tests/Feature/Wwhn309ScheduledOperationsTest.php",
+      "sha256": "bbd4864696aaa1d46d63e15094c1e8fccff0e96f7b9a8f93455c301692f2daae"
+    },
+    {
+      "path": "tests/Feature/CurrentBaselineIfMatchContractTest.php",
+      "sha256": "d5293fee6e39945b532be921a677708c6316e0bbd0b2ffec6f70d6b2211be564"
+    }
+  ],
+  "merged_commit_disposition": {
+    "commit": "127c573a7236ad1c25829eb92011a4914360b840",
+    "subject": "go co 13",
+    "note": "Commit gop nhieu task. Quy scope chi tiet: docs/docs_task_jira/WWHN-309.md muc 9.2"
+  }
+}

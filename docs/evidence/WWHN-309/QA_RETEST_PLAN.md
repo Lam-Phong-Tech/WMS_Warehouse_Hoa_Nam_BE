@@ -16,13 +16,18 @@ dưới đây rồi dán kết quả thật vào cột cuối.
 
 ```bash
 git fetch origin m1
-git checkout <CANDIDATE_SHA>            # KHÔNG dùng `git checkout m1`
-git rev-parse HEAD                      # phải in ra đúng CANDIDATE_SHA
+git checkout <PIN_COMMIT>               # commit chứa CANDIDATE_MANIFEST.json
 node scripts/verify-wwhn-309-candidate-pin.mjs
 ```
 
-Nếu bước cuối FAIL: **dừng lại**. Pin đã mục (có commit sau candidate chạm vào artifact
-bàn giao) — trả task về DEV để re-pin, không kiểm tiếp trên bản đã trôi.
+**Vì sao là PIN_COMMIT chứ không phải CANDIDATE_SHA:** manifest pin nội dung artifact
+tại `candidate_sha`, nên bản thân file manifest chỉ có thể nằm ở commit kế tiếp. Đây
+không phải kẽ hở: cổng kiểm **range invariant** — nếu có bất kỳ commit nào giữa
+`candidate_sha` và HEAD chạm vào tập artifact thì cổng ĐỎ. Nói cách khác, PASS đồng
+nghĩa "artifact bạn đang cầm giống hệt artifact tại candidate_sha".
+
+Nếu bước cuối FAIL: **dừng lại**. Pin đã mục — trả task về DEV để re-pin, không kiểm
+tiếp trên bản đã trôi.
 
 ## 1. Ma trận retest
 
