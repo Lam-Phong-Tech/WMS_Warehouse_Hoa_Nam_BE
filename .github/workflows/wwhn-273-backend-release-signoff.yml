@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   backend-release-signoff:
-    name: Exact-SHA migration/health/auth/RBAC/OpenAPI gate
+    name: Exact-SHA migration/rollback/health/auth/RBAC/OpenAPI gate
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
@@ -44,6 +44,15 @@ jobs:
       CORS_SUPPORTS_CREDENTIALS: 'true'
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
       REFRESH_TOKEN_COOKIE_SAME_SITE: lax
+      # The runtime identity this gate signs off is the checked-out commit, so
+      # the readiness check reads it from configuration instead of trusting a
+      # deploy description. Trusted proxies are pinned here so the check is
+      # deterministic on the runner and not dependent on .env.example drift.
+      TRUSTED_PROXIES: 127.0.0.1,::1
+      APP_BUILD_SHA: ${{ github.sha }}
+      APP_BUILD_REF: ${{ github.ref }}
+      SMOKE_HOST: 127.0.0.1
+      SMOKE_PORT: '8000'
 
     steps:
       - name: Checkout exact m1 SHA
@@ -79,9 +88,27 @@ jobs:
           cp .env.example .env
           php artisan key:generate
           php artisan config:clear
+          mkdir -p artifacts/wwhn-273
 
       - name: Migration and seed exact-SHA gate
         run: php artisan migrate:fresh --seed --force
+
+      # WWHN-72 asks for a rehearsed rollback, so the backend half of that
+      # rehearsal runs here: unwind the whole chain the deploy just applied,
+      # roll forward again and re-seed. This catches a migration whose down()
+      # leaves the schema unusable, and it is also what catches an ERD-document
+      # edit that silently changes what the ERD-driven migrations build, because
+      # HoaNamErdSchema::parse() reads docs/HoaNam_ERD_Moi_Nhat.md at migration
+      # runtime.
+      - name: Rollback drill and forward re-migration
+        run: |
+          set -euo pipefail
+          php artisan migrate:reset --force
+          php artisan migrate --force
+          php artisan db:seed --force
+
+      - name: Backend GoLive readiness check
+        run: php artisan wms:golive-check --json=artifacts/wwhn-273/golive-check.json
 
       - name: Focused release regression suite
         run: |
@@ -89,7 +116,36 @@ jobs:
             tests/Feature/BackendMigrationSeedHealthTest.php \
             tests/Feature/AuthSessionPersistenceTest.php \
             tests/Feature/AuthorizationTest.php \
-            tests/Feature/SwaggerRouteSyncTest.php
+            tests/Feature/SwaggerRouteSyncTest.php \
+            tests/Feature/Wwhn273ReleaseSignoffContractTest.php
+
+      # phpunit proves the health contract in-process. Beta/UAT polls it over
+      # HTTP, so the release gate also proves the served runtime: the canonical
+      # probe answers, the legacy unversioned probe does not exist, and a
+      # protected endpoint still fails closed without a token.
+      - name: Served runtime smoke (canonical health, legacy 404, default deny)
+        run: |
+          set -euo pipefail
+          php artisan serve --host="$SMOKE_HOST" --port="$SMOKE_PORT" > artifacts/wwhn-273/serve.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -fsS "http://$SMOKE_HOST:$SMOKE_PORT/api/v1/health" > /dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS "http://$SMOKE_HOST:$SMOKE_PORT/api/v1/health" | tee artifacts/wwhn-273/health.json
+          grep -Fq '"status":"ok"' artifacts/wwhn-273/health.json
+          legacy_code="$(curl -s -o /dev/null -w '%{http_code}' "http://$SMOKE_HOST:$SMOKE_PORT/api/health")"
+          if [ "$legacy_code" != '404' ]; then
+            echo "Legacy /api/health must not be served, got HTTP $legacy_code" >&2
+            exit 1
+          fi
+          protected_code="$(curl -s -o /dev/null -w '%{http_code}' "http://$SMOKE_HOST:$SMOKE_PORT/api/v1/skus")"
+          if [ "$protected_code" != '401' ]; then
+            echo "Protected /api/v1/skus must fail closed with 401, got HTTP $protected_code" >&2
+            exit 1
+          fi
+          printf 'legacy_health_http=%s\nprotected_no_token_http=%s\n' "$legacy_code" "$protected_code" > artifacts/wwhn-273/served-smoke.txt
 
       - name: Regenerate OpenAPI
         run: php artisan l5-swagger:generate
@@ -99,14 +155,19 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/wwhn-273
           openapi_sha256="$(sha256sum storage/api-docs/api-docs.json | awk '{print $1}')"
+          golive_overall="$(php -r 'echo json_decode(file_get_contents("artifacts/wwhn-273/golive-check.json"), true)["overall"] ?? "unknown";')"
           cat > artifacts/wwhn-273/release-signoff.txt <<EOF
           jira=WWHN-273
           parent=WWHN-72
           branch=${GITHUB_REF_NAME}
           sha=${GITHUB_SHA}
           db=postgres16
+          migrate_fresh_seed=PASS
+          rollback_drill=migrate:reset+migrate+db:seed:PASS
+          golive_check=${golive_overall}
           health=/api/v1/health
           legacy_health=/api/health:REJECTED
+          served_smoke=health200+legacy404+protected401
           openapi_sha256=${openapi_sha256}
           result=SOURCE_CONTROLLED_PASS_IF_JOB_GREEN
           qa1_signoff=NOT_CLAIMED_BY_BE
@@ -116,6 +177,7 @@ jobs:
           cat artifacts/wwhn-273/release-signoff.txt
 
       - name: Upload WWHN-273 backend release evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: wwhn-273-backend-release-signoff-${{ github.sha }}
@@ -128,5 +190,5 @@ jobs:
         run: |
           echo '### WWHN-273 backend release sign-off' >> "$GITHUB_STEP_SUMMARY"
           echo "- Exact SHA: \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
-          echo '- Coverage: PostgreSQL migration/seed, canonical /api/v1/health, cookie session, authorization and Swagger route sync.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Coverage: PostgreSQL migration/seed, rollback drill (reset + re-migrate + re-seed), GoLive readiness check, served /api/v1/health, cookie session, authorization and Swagger route sync.' >> "$GITHUB_STEP_SUMMARY"
           echo '- Boundary: backend source-controlled evidence only; QA1 and DevOps deployment/backup/rollback remain independent role-owned gates.' >> "$GITHUB_STEP_SUMMARY"
