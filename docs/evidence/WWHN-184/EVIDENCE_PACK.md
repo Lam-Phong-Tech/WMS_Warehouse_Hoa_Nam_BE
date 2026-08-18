@@ -39,11 +39,13 @@ src/shared/constants/wms-permissions.ts                          | 10 ++++++++-
 
 | Lệnh | Kết quả |
 |---|---|
-| BE `php vendor/bin/phpunit --filter="Flow02InboundPutawayAlignmentTest\|InboundCanonicalListContractTest\|InboundExpectedCorrectionContractTest\|InboundScanConcurrencyBehaviorTest\|PostReceiptConcurrencyBehaviorTest\|Wwhn198InboundScanValidationTest\|Wwhn207InboundReversalFlowTest\|PostReceiptAuditLogTest\|PermissionAndValidationTest\|SecurityRbacAuditNegativeTest\|FoundationInboundPutawayReadinessTest"` | 88/88 pass, 585 assertions |
+| BE `php vendor/bin/phpunit --filter="Flow02InboundPutawayAlignmentTest\|InboundCanonicalListContractTest\|InboundExpectedCorrectionContractTest\|InboundScanConcurrencyBehaviorTest\|PostReceiptConcurrencyBehaviorTest\|Wwhn198InboundScanValidationTest\|Wwhn207InboundReversalFlowTest\|PostReceiptAuditLogTest\|PermissionAndValidationTest\|SecurityRbacAuditNegativeTest\|FoundationInboundPutawayReadinessTest"` (¹) | 88/88 pass, 585 assertions |
 | BE `php vendor/bin/phpunit --filter=SwaggerRouteSyncTest` | 3/3 pass, 10 assertions (gồm 1 test mới) |
 | BE `php vendor/bin/phpunit` (full suite, sqlite, driver mặc định) | 553 tests, 534 passed, 19 skipped, **0 failed**, 6537 assertions |
 | FE `npx vitest run src/modules/inbound/services/inboundService.test.ts src/test/wms-contract-signoff-guards.test.ts` | 25/25 pass |
 | FE `npx vitest run` (full suite) | **482/482 pass** (63 test file) |
+
+(¹) Ghi chú (2026-08-18): lệnh trên là evidence lịch sử, giữ nguyên không sửa để bảo toàn tính xác thực tại thời điểm đã chạy. Lớp `Wwhn198InboundScanValidationTest` sau đó đã được đổi tên thành `Wwhn187InboundScanValidationTest` (cùng nội dung test, không đổi logic) sau khi xác nhận qua Jira live rằng key chính xác của task là WWHN-187 — xem `docs/docs_task_jira/WWHN-187.md`.
 
 ## API/DB evidence — OpenAPI compile trước/sau
 

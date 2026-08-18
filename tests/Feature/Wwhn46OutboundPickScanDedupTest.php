@@ -13,9 +13,11 @@ use Tests\TestCase;
  * WWHN-46 (HN-OUT-002, BE2): "Triển khai lấy/quét hàng/dedup/availability".
  *
  * Lưu ý traceability: file này ban đầu bị đặt tên nhầm là "Wwhn198..." (trùng số với
- * task WWHN-198 thật — "[DEV] Triển khai quét/ghi nhận/validation", HN-IN-002, phía
- * INBOUND, không liên quan outbound pick/scan). Đã đổi tên đúng theo task cha thật
- * (WWHN-46/HN-OUT-002) để tránh nhầm lẫn traceability với WWHN-198 (xem WWHN-187.md).
+ * key tạm dùng lúc viết cho task inbound "[DEV] Triển khai quét/ghi nhận/validation",
+ * HN-IN-002, phía INBOUND, không liên quan outbound pick/scan — key chính thức đã
+ * xác nhận qua Jira live 2026-08-18 là WWHN-187, xem docs/docs_task_jira/WWHN-187.md).
+ * Đã đổi tên đúng theo task cha thật (WWHN-46/HN-OUT-002) để tránh nhầm lẫn
+ * traceability với WWHN-187.
  *
  * Rà soát xác nhận toàn bộ endpoint pick/scan (`outboundScan`), dedup cấp item
  * (`ITEM_ALREADY_MATCHED`/`DUPLICATE_ITEM_IN_DOCUMENT`) và availability check

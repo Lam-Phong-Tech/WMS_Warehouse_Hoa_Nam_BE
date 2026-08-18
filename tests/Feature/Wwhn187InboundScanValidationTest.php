@@ -13,7 +13,7 @@ use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
 /**
- * WWHN-198 (HN-IN-002, BE2): "Triển khai quét/ghi nhận/validation" — Inbound scan backend.
+ * WWHN-187 (HN-IN-002, BE2): "Triển khai quét/ghi nhận/validation" — Inbound scan backend.
  *
  * Rà soát xác nhận toàn bộ endpoint `POST /inbound-documents/{id}/scan`
  * (`CurrentBaselineStockFlowController::inboundScan` -> `versionedScan` ->
@@ -29,9 +29,18 @@ use Tests\TestCase;
  * resolve item qua item_id/code_value, ràng buộc serial/receivable, dedup
  * ITEM_ALREADY_RECEIVING, guard version/permission, và middleware BOX cho COMPONENT.
  * Không sửa code sản xuất trừ khi phát hiện bug thật trong lúc viết test (xem
- * WWHN-198.md để biết kết quả).
+ * WWHN-187.md để biết kết quả).
+ *
+ * Ghi chú traceability (2026-08-18): file này (và class) đã được đổi tên từ
+ * `Wwhn198InboundScanValidationTest` sang `Wwhn187InboundScanValidationTest` sau khi
+ * xác nhận trực tiếp trên Jira live rằng key chính xác của task "Triển khai quét/ghi
+ * nhận/validation" (HN-IN-002, BE2) là WWHN-187, không phải WWHN-198 (đóng open point
+ * BE2-INSCAN-OP-04 ở WWHN-187.md). Không đổi logic test — chỉ đổi tên class/file và
+ * docblock để khớp đúng Jira key. Các evidence lịch sử ghi bằng tên class cũ (ví dụ
+ * `--filter` string trong WWHN-184.md/EVIDENCE_PACK.md) được giữ nguyên không sửa để
+ * bảo toàn tính xác thực của evidence tại thời điểm đã chạy, kèm ghi chú trỏ tới đổi tên này.
  */
-class Wwhn198InboundScanValidationTest extends TestCase
+class Wwhn187InboundScanValidationTest extends TestCase
 {
     use PreparesOutboundFixtures;
     use RefreshDatabase;
@@ -45,7 +54,7 @@ class Wwhn198InboundScanValidationTest extends TestCase
 
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'NCC WWHN-198',
+            'source_name' => 'NCC WWHN-187',
             'lines' => [[
                 'product_id' => $sku->sku_id,
                 'qty_planned' => $qty,
@@ -68,7 +77,7 @@ class Wwhn198InboundScanValidationTest extends TestCase
         $warehouse = $this->warehouseFixture();
         $sku = Sku::create([
             'sku_code' => $skuCode,
-            'sku_name' => 'Component WWHN-198',
+            'sku_name' => 'Component WWHN-187',
             'sku_type' => 'COMPONENT',
             'unit' => 'cai',
             'is_serial_tracked' => false,
@@ -77,7 +86,7 @@ class Wwhn198InboundScanValidationTest extends TestCase
 
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'NCC WWHN-198 Component',
+            'source_name' => 'NCC WWHN-187 Component',
             'lines' => [[
                 'product_id' => $sku->sku_id,
                 'qty_planned' => $qty,
@@ -543,7 +552,7 @@ class Wwhn198InboundScanValidationTest extends TestCase
 
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $ctxA['warehouse_id'],
-            'source_name' => 'NCC WWHN-198 doc B',
+            'source_name' => 'NCC WWHN-187 doc B',
             'lines' => [[
                 'product_id' => $ctxA['sku_id'],
                 'qty_planned' => 5,
@@ -575,7 +584,7 @@ class Wwhn198InboundScanValidationTest extends TestCase
 
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $ctxA['warehouse_id'],
-            'source_name' => 'NCC WWHN-198 doc B',
+            'source_name' => 'NCC WWHN-187 doc B',
             'lines' => [[
                 'product_id' => $ctxA['sku_id'],
                 'qty_planned' => 1,

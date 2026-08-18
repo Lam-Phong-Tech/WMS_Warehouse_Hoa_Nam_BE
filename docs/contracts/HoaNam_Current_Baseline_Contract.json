@@ -16,10 +16,12 @@
     "erd_alignment": {
       "note": "Operation bắt buộc bởi ERD nhưng chưa có mặt trong Annex C. Tất cả đều stock-neutral và phải liệt kê tường minh ở đây để API surface luôn kiểm chứng được. BA cần bổ sung vào Annex C ở revision kế tiếp.",
       "operations": [
-        "POST /api/v1/inbound-documents/{id}/unscan"
+        "POST /api/v1/inbound-documents/{id}/unscan",
+        "GET /api/v1/skus/import-reports/{id}/error-file"
       ],
       "rationale": {
-        "POST /api/v1/inbound-documents/{id}/unscan": "ERD bảng 28 inbound_scan_entries.status CHECK ACTIVE/REMOVED — 'Cho sửa trước Post' — cùng removed_at/removed_by và index idx_inbound_scan_line_status. Đối xứng với POST /outbound-documents/{id}/unmatch. Không có endpoint này thì quét sai một item chỉ còn cách Cancel cả phiếu, trái ý định ERD."
+        "POST /api/v1/inbound-documents/{id}/unscan": "ERD bảng 28 inbound_scan_entries.status CHECK ACTIVE/REMOVED — 'Cho sửa trước Post' — cùng removed_at/removed_by và index idx_inbound_scan_line_status. Đối xứng với POST /outbound-documents/{id}/unmatch. Không có endpoint này thì quét sai một item chỉ còn cách Cancel cả phiếu, trái ý định ERD.",
+        "GET /api/v1/skus/import-reports/{id}/error-file": "WWHN-330 (review 47/100, P1-01): review yêu cầu error file thật cho các dòng bị reject khi import, permission-aware (RBAC qua middleware permission:sku.manage — cùng pattern các endpoint import khác) và có expiry rõ ràng. Không có endpoint này thì client chỉ có JSON row_errors tức thời trong response, không có cách nào tải lại file lỗi sau đó để đối soát/gửi cho người khác."
       }
     },
     "annex_c_alignment": {

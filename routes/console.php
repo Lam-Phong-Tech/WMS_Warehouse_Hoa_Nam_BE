@@ -34,3 +34,17 @@ Schedule::command('audit:reconcile')
     ->withoutOverlapping()
     ->onOneServer()
     ->runInBackground();
+
+/*
+ * WWHN-330 (DEV330-P1-01 gap): ImportErrorFileService ghi file lỗi CSV thật vào
+ * storage/app/import-error-files/*.csv với error_file_expires_at (mặc định 24h).
+ * Không có cron thì file vật lý không bao giờ bị xoá dù API đã coi là hết hạn (404) —
+ * đĩa phình vô hạn theo số lần import lỗi. Chạy hàng ngày, lệch giờ khỏi các job khác
+ * để không cạnh tranh I/O.
+ */
+Schedule::command('import:purge-error-files')
+    ->dailyAt('02:15')
+    ->timezone(config('app.timezone'))
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();

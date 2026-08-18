@@ -93,7 +93,9 @@ lại + khoá bằng test mới `SwaggerRouteSyncTest::test_inbound_cancel_opera
 
 | Lệnh | Kết quả |
 |---|---|
-| `php vendor/bin/phpunit --filter="Flow02InboundPutawayAlignmentTest\|InboundCanonicalListContractTest\|InboundExpectedCorrectionContractTest\|InboundScanConcurrencyBehaviorTest\|PostReceiptConcurrencyBehaviorTest\|Wwhn198InboundScanValidationTest\|Wwhn207InboundReversalFlowTest\|PostReceiptAuditLogTest\|PermissionAndValidationTest\|SecurityRbacAuditNegativeTest\|FoundationInboundPutawayReadinessTest"` | **88/88 pass, 585 assertions** |
+| `php vendor/bin/phpunit --filter="Flow02InboundPutawayAlignmentTest\|InboundCanonicalListContractTest\|InboundExpectedCorrectionContractTest\|InboundScanConcurrencyBehaviorTest\|PostReceiptConcurrencyBehaviorTest\|Wwhn198InboundScanValidationTest\|Wwhn207InboundReversalFlowTest\|PostReceiptAuditLogTest\|PermissionAndValidationTest\|SecurityRbacAuditNegativeTest\|FoundationInboundPutawayReadinessTest"` (¹) | **88/88 pass, 585 assertions** |
+
+(¹) Ghi chú (2026-08-18): lệnh trên là evidence lịch sử, giữ nguyên không sửa để bảo toàn tính xác thực tại thời điểm đã chạy. Lớp `Wwhn198InboundScanValidationTest` sau đó đã được đổi tên thành `Wwhn187InboundScanValidationTest` (cùng nội dung test, không đổi logic) sau khi xác nhận qua Jira live rằng key chính xác của task là WWHN-187 — xem `docs/docs_task_jira/WWHN-187.md`.
 | `php vendor/bin/phpunit --filter=SwaggerRouteSyncTest` | **3/3 pass, 10 assertions** (gồm test mới khoá regression) |
 | `php vendor/bin/phpunit` (full suite, sqlite) | **553 tests, 534 passed, 19 skipped, 0 failed, 6537 assertions** — không có regression |
 | `php artisan l5-swagger:generate` rồi grep `stock_in_cancel` trong `storage/api-docs/api-docs.json` | operationId thật xuất hiện, mô tả 403 chứa cả `inbound.cancel` và `inbound.create` (trước fix: generic "Không có quyền truy cập") |

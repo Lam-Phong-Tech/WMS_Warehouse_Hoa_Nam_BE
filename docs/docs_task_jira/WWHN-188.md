@@ -79,18 +79,18 @@ Xác nhận Acceptance Criteria, evidence, dependency và open point theo baseli
 
 ---
 
-## Ghi chú traceability — ĐỌC TRƯỚC KHI DÙNG FILE NÀY
+## Ghi chú traceability — ĐÃ CHỐT (2026-08-18)
 
-File này (`WWHN-188.md`) và `docs/docs_task_jira/WWHN-187.md` chứa **nội dung task Jira gốc giống hệt nhau**: cùng tiêu đề "[DEV] Rà soát giao dịch/khóa đồng thời", cùng Parent Temp Key `HN-IN-002`, cùng Epic `HN-EPIC-05`, cùng Dependency `HN-IN-002-ST01`, cùng Role BE1, cùng Assignee Placeholder `HN-BE-01`, cùng Output đầu ra "Kết quả rà soát đồng thời". Đây là hai số hiệu Jira (WWHN-187 và WWHN-188) trỏ tới **cùng một task** — không phải hai task khác nhau bị trùng mô tả ngẫu nhiên (đối chiếu từng dòng Mục tiêu/Input đầu vào/Source & Traceability/Acceptance Criteria/Output đầu ra xác nhận khớp 100%).
+**Cập nhật 2026-08-18**: đã fetch trực tiếp Jira live (`https://tan0110.atlassian.net/browse/WWHN-42`, danh sách subtask) và xác nhận dứt điểm: **WWHN-188 là key chính thức, duy nhất của task "Rà soát giao dịch/khóa đồng thời"** (BE1, nội dung dưới đây). **WWHN-187 là một task khác hoàn toàn** — "[BE] Triển khai quét/ghi nhận/validation" (BE2, output "Inbound scan backend") — nội dung đã được chuyển đúng chỗ sang `docs/docs_task_jira/WWHN-187.md` (trước đó bị lưu nhầm dưới tên `WWHN-198-inbound-scan.md`). Đóng open point `BE1-DUPKEY-188-01` (xem mục 11) — không còn ambiguity giữa 2 số hiệu.
 
-`WWHN-187.md` đã được rà soát và cập nhật evidence đầy đủ trước (2026-08-15, BE1) — xem toàn bộ nội dung tại đó. File này chỉ **tham chiếu và xác nhận lại** evidence đó, không rà soát trùng lặp lần hai, theo đúng nguyên tắc "không tự ý mở rộng scope" của task.
+File này (`WWHN-188.md`) trước đây (2026-08-15) từng giả định `WWHN-187.md` và `WWHN-188.md` **trỏ tới cùng một task** — giả định đó đã được xác nhận SAI qua Jira live và được sửa lại ở đây. Toàn bộ nội dung kỹ thuật (transaction/concurrency/idempotency review) bên dưới không đổi, vẫn đúng và đầy đủ cho task WWHN-188 — chỉ có phần diễn giải "trùng số hiệu" ở trên là cần đính chính.
 
 **Xác minh lại trước khi tham chiếu (2026-08-15)** — không chỉ copy nguyên văn mà đã tự chạy lại để đảm bảo evidence còn đúng với code hiện tại tại thời điểm này:
 
-- `php artisan test tests/Feature/InboundScanConcurrencyBehaviorTest.php tests/Feature/Wwhn198InboundScanValidationTest.php tests/Feature/Wwhn199ReservationConcurrencyGuardTest.php` → **34/34 passed, 158 assertions**.
+- `php artisan test tests/Feature/InboundScanConcurrencyBehaviorTest.php tests/Feature/Wwhn198InboundScanValidationTest.php tests/Feature/Wwhn199ReservationConcurrencyGuardTest.php` → **34/34 passed, 158 assertions**. (Ghi chú 2026-08-18: lệnh trên là evidence lịch sử tại thời điểm chạy 2026-08-15, giữ nguyên không sửa để bảo toàn tính xác thực; lớp `Wwhn198InboundScanValidationTest` sau đó đã đổi tên thành `Wwhn187InboundScanValidationTest`, cùng nội dung test, xem `WWHN-187.md`.)
 - `php artisan test` (full suite) → **427 tests, 411 passed, 16 skipped, 0 failed, 4816 assertions** — khớp chính xác với con số đã ghi trong `WWHN-187.md` mục 7, xác nhận không có thay đổi/regression nào giữa 2 thời điểm.
 
-Không phát hiện sai lệch nào giữa evidence đã ghi và trạng thái code thật hiện tại — nội dung dưới đây được giữ nguyên theo `WWHN-187.md`.
+Không phát hiện sai lệch nào giữa evidence đã ghi và trạng thái code thật hiện tại — nội dung dưới đây được giữ nguyên (ghi chú 2026-08-18: đoạn dưới đây ban đầu diễn giải là "tham chiếu lại `WWHN-187.md`" theo giả định trùng key cũ; nay đã xác nhận đây luôn là evidence gốc của chính task WWHN-188, không phải tham chiếu chéo — xem đính chính traceability ở trên).
 
 ## Rà soát bổ sung — phát hiện mới ngoài `WWHN-187.md` (2026-08-15, BE1)
 
@@ -120,13 +120,13 @@ Một giả thuyết cần kiểm chứng: liệu `CurrentBaselineStockControlle
 
 **Ghi chú traceability quan trọng — đọc trước khi dùng file này**: task này có Parent Temp Key `HN-IN-002` (task cha WWHN-42, "Quét/ghi nhận item & component serial/quantity") và output riêng "Kết quả rà soát đồng thời" — **khác** với `WWHN-190.md` (Parent Temp Key `HN-IN-003`, task cha WWHN-43 "Ghi nhận nhập kho Post Receipt", output "ghi nhận nhập kho backend"). Cả hai đều đụng tới giao dịch/khóa đồng thời của cùng file `CurrentBaselineStockService.php`/`CurrentBaselineStockFlowController.php` vì 2 bước (scan và post-receipt) chia sẻ hạ tầng chung (transaction wrapper, optimistic lock `If-Match`, `lockForUpdate()`), nhưng WWHN-190 tập trung vào **post-receipt** (`postDocument()`/`postStockDocument()`), còn task này tập trung đúng phạm vi **HN-IN-002 = bước scan** (`inboundScan()`/`versionedScan()`/`scanStockDocument()`). Không lặp lại rà soát post-receipt đã có ở WWHN-190; tham chiếu kết quả đó khi hạ tầng dùng chung.
 
-Cũng cần phân biệt với `WWHN-198-inbound-scan.md` (BE2, cùng Parent Temp Key `HN-IN-002` nhưng output khác — "Inbound scan backend", tập trung vào **validation/error code** của scan, 27 test case). Task này (BE1) tập trung đúng vào khía cạnh **giao dịch/khóa đồng thời** của cùng bước scan đó — bổ sung, không trùng lặp, với WWHN-198-inbound-scan.
+Cũng cần phân biệt với `WWHN-187.md` (BE2, cùng Parent Temp Key `HN-IN-002` nhưng task/output khác — "Inbound scan backend", tập trung vào **validation/error code** của scan, 27 test case; tên file cũ `WWHN-198-inbound-scan.md`, đã đổi tên 2026-08-18 sau khi xác nhận Jira live). Task này (BE1, key chính thức **WWHN-188**) tập trung đúng vào khía cạnh **giao dịch/khóa đồng thời** của cùng bước scan đó — bổ sung, không trùng lặp, với WWHN-187.
 
 **Exact commit SHA khi bắt đầu rà soát**: `fad4242` (HEAD của `m1`), cùng working tree với thay đổi chưa commit của các task song song khác (WWHN-190/191/193/195/199/201/202/204/205/207 — xem `git status`). Task này chỉ thêm 1 file test mới (`tests/Feature/InboundScanConcurrencyBehaviorTest.php`) và không sửa file production nào.
 
 ### Phương pháp
 
-Đọc trực tiếp `CurrentBaselineStockFlowController::inboundScan()`/`versionedScan()`/`scanPayload()`/`expectedVersion()`/`assertVersion()`/`lockDocument()` và `CurrentBaselineStockService::scanStockDocument()`/`resolveItem()`/`assertItemAvailableForReceipt()`. Đối chiếu với 2 bộ evidence liên quan đã có: `WWHN-190.md` (transaction/idempotency/concurrency của post-receipt, cùng hạ tầng) và `WWHN-198-inbound-scan.md` (BE2, validation của scan, cùng endpoint). Rà soát riêng: file test hiện có cho scan (`Wwhn198InboundScanValidationTest.php`, `Wwhn199ReservationConcurrencyGuardTest.php`) đã cover khía cạnh nào của concurrency, khía cạnh nào chưa — rồi lấp đúng phần thiếu bằng test mới, không lặp lại.
+Đọc trực tiếp `CurrentBaselineStockFlowController::inboundScan()`/`versionedScan()`/`scanPayload()`/`expectedVersion()`/`assertVersion()`/`lockDocument()` và `CurrentBaselineStockService::scanStockDocument()`/`resolveItem()`/`assertItemAvailableForReceipt()`. Đối chiếu với 2 bộ evidence liên quan đã có: `WWHN-190.md` (transaction/idempotency/concurrency của post-receipt, cùng hạ tầng) và `WWHN-187.md` (BE2, validation của scan, cùng endpoint; tên file cũ `WWHN-198-inbound-scan.md`). Rà soát riêng: file test hiện có cho scan (`Wwhn187InboundScanValidationTest.php`, tên cũ `Wwhn198InboundScanValidationTest.php`; `Wwhn199ReservationConcurrencyGuardTest.php`) đã cover khía cạnh nào của concurrency, khía cạnh nào chưa — rồi lấp đúng phần thiếu bằng test mới, không lặp lại.
 
 ### 1. Transaction (atomic) cho scan — ĐẦY ĐỦ, không cần sửa
 
@@ -142,7 +142,7 @@ Các lớp khóa áp dụng cho scan:
 - Row lock `SELECT ... FOR UPDATE` trên `item_instances` trong `resolveItem()` (`CurrentBaselineStockService.php:506`) — chặn 2 request scan cùng item (dù khác document) đọc/ghi trạng thái item đồng thời; đây là cơ chế nền tảng cho guard `ITEM_ALREADY_RECEIVING`/`ITEM_ALREADY_MATCHED`.
 - Document-state guard (`STATE_CONFLICT` 409) — chỉ document `DRAFT`/`SCANNING` được scan; kể cả khi request mang đúng version hiện tại, state guard vẫn chặn nếu document đã `POSTED`/`CANCELLED` — defense-in-depth độc lập với version check.
 
-**Gap tìm thấy trước khi rà soát này**: `Wwhn198InboundScanValidationTest::test_scan_rejects_stale_version_with_412` chỉ gửi `If-Match` sai tĩnh (giá trị `99`) để test guard, không mô phỏng race thật giữa 2 writer — writer A đọc version, writer B đọc cùng version, A scan trước và thắng (bump version), B replay version cũ vào **request thật của B** rồi mới bị từ chối. `Wwhn199ReservationConcurrencyGuardTest` có cover race thật cho guard trùng item (`ITEM_ALREADY_RECEIVING`), nhưng không cover riêng optimistic version guard của chính request scan (2 line khác nhau, cùng document, cùng version ban đầu). Đây đúng là gap thuộc phạm vi "Kết quả rà soát đồng thời" của task này — khác với validation error code (đã đóng ở WWHN-198-inbound-scan) và khác với post-receipt (đã đóng ở WWHN-190).
+**Gap tìm thấy trước khi rà soát này**: `Wwhn187InboundScanValidationTest::test_scan_rejects_stale_version_with_412` (tên cũ `Wwhn198InboundScanValidationTest`) chỉ gửi `If-Match` sai tĩnh (giá trị `99`) để test guard, không mô phỏng race thật giữa 2 writer — writer A đọc version, writer B đọc cùng version, A scan trước và thắng (bump version), B replay version cũ vào **request thật của B** rồi mới bị từ chối. `Wwhn199ReservationConcurrencyGuardTest` có cover race thật cho guard trùng item (`ITEM_ALREADY_RECEIVING`), nhưng không cover riêng optimistic version guard của chính request scan (2 line khác nhau, cùng document, cùng version ban đầu). Đây đúng là gap thuộc phạm vi "Kết quả rà soát đồng thời" của task này — khác với validation error code (đã đóng ở WWHN-187) và khác với post-receipt (đã đóng ở WWHN-190).
 
 **Đã bổ sung**: `tests/Feature/InboundScanConcurrencyBehaviorTest.php` — 2 test case, lái qua HTTP thật:
 - `test_stale_version_racer_is_rejected_after_winner_scan_commits`: document 2 line (khác SKU), 2 writer cùng đọc version=1. Writer A scan line 1 trước, thắng, version bump lên 2. Writer B replay version=1 cũ vào line 2 (line hoàn toàn khác, chưa từng bị đụng) — vẫn bị 412 `PRECONDITION_FAILED`, không tạo `inbound_scan_entries` cho line 2, `scanned_qty` của line 2 giữ nguyên 0. Sau đó writer B retry với version hiện tại (2) thì thành công (version bump lên 3) — chứng minh guard chỉ chặn đúng request mang version cũ, không chặn nhầm line B.
@@ -157,11 +157,11 @@ Endpoint `POST /inbound-documents/{id}/scan` **không** yêu cầu header `Idemp
 ### 4. Permission/RBAC cho scan — ĐẦY ĐỦ, không cần sửa
 
 - Route `POST inbound-documents/{id}/scan` gắn permission `inbound.scan` + middleware `EnsureInboundComponentBox` (chỉ áp dụng dòng COMPONENT).
-- Đã có test hành vi thật: 401 `UNAUTHENTICATED` (thiếu auth), 403 `ACCESS_DENIED` (thiếu quyền) — `Wwhn198InboundScanValidationTest` test case 1-2.
+- Đã có test hành vi thật: 401 `UNAUTHENTICATED` (thiếu auth), 403 `ACCESS_DENIED` (thiếu quyền) — `Wwhn187InboundScanValidationTest` (tên cũ `Wwhn198InboundScanValidationTest`) test case 1-2.
 
 ### 5. Audit log cho scan — Xác nhận pattern nhất quán, không phải gap riêng của task này
 
-Đã xác nhận lại (kế thừa từ rà soát của BE2 ở `WWHN-198-inbound-scan.md` mục 4): scan không ghi `AuditLogger::record()` riêng (chỉ final actions như `POST_RECEIPT`/`CANCEL` mới ghi `audit_log`), nhưng có evidence trail riêng qua `scan_event`/`scan_batch`/`inbound_scan_entries` (đầy đủ `created_by`/timestamp). Đây là quyết định thiết kế xuyên suốt hệ thống, đã ghi nhận là open point cho BA/Tech Lead ở `BE2-INSCAN-OP-01` trong `WWHN-198-inbound-scan.md` — không lặp lại xử lý ở đây, tham chiếu cùng open point.
+Đã xác nhận lại (kế thừa từ rà soát của BE2 ở `WWHN-187.md` mục 4, tên file cũ `WWHN-198-inbound-scan.md`): scan không ghi `AuditLogger::record()` riêng (chỉ final actions như `POST_RECEIPT`/`CANCEL` mới ghi `audit_log`), nhưng có evidence trail riêng qua `scan_event`/`scan_batch`/`inbound_scan_entries` (đầy đủ `created_by`/timestamp). Đây là quyết định thiết kế xuyên suốt hệ thống, đã ghi nhận là open point cho BA/Tech Lead ở `BE2-INSCAN-OP-01` trong `WWHN-187.md` — không lặp lại xử lý ở đây, tham chiếu cùng open point.
 
 ### 6. Error handling — ĐẦY ĐỦ, không cần sửa
 
@@ -174,11 +174,11 @@ Endpoint `POST /inbound-documents/{id}/scan` **không** yêu cầu header `Idemp
 | Khía cạnh | Trạng thái trước (riêng scan) | Trạng thái sau |
 |---|---|---|
 | Transaction/atomicity (source-level) | Có (đọc code, khớp pattern post-receipt) | Không đổi — không cần test riêng vì cùng cơ chế `DB::transaction` đã verify ở WWHN-190 |
-| Version guard — request sai tĩnh (`If-Match` giá trị bất kỳ khác) | Có (`Wwhn198InboundScanValidationTest`) | Giữ nguyên, không lặp lại |
+| Version guard — request sai tĩnh (`If-Match` giá trị bất kỳ khác) | Có (`Wwhn187InboundScanValidationTest`, tên cũ `Wwhn198InboundScanValidationTest`) | Giữ nguyên, không lặp lại |
 | Version guard — race thật (2 writer cùng đọc version, 1 bên thắng trước) | **Không có** | **Đã bổ sung**: `InboundScanConcurrencyBehaviorTest::test_stale_version_racer_is_rejected_after_winner_scan_commits` |
-| State guard sau khi version đã hợp lệ nhưng document đã POSTED | **Không có** (chỉ test state guard qua nhánh dùng SKU khác ở `Wwhn198InboundScanValidationTest`, không phải race version→state) | **Đã bổ sung**: `InboundScanConcurrencyBehaviorTest::test_scan_with_current_version_on_posted_document_is_rejected_by_state_guard` |
+| State guard sau khi version đã hợp lệ nhưng document đã POSTED | **Không có** (chỉ test state guard qua nhánh dùng SKU khác ở `Wwhn187InboundScanValidationTest`, không phải race version→state) | **Đã bổ sung**: `InboundScanConcurrencyBehaviorTest::test_scan_with_current_version_on_posted_document_is_rejected_by_state_guard` |
 | Item-level row lock / dedup trùng item khi race (`ITEM_ALREADY_RECEIVING`) | Có (`Wwhn199ReservationConcurrencyGuardTest`) | Giữ nguyên, không lặp lại |
-| Permission 401/403 trên route scan | Có (`Wwhn198InboundScanValidationTest`) | Giữ nguyên, không lặp lại |
+| Permission 401/403 trên route scan | Có (`Wwhn187InboundScanValidationTest`, tên cũ `Wwhn198InboundScanValidationTest`) | Giữ nguyên, không lặp lại |
 
 Kết quả chạy: `php artisan test tests/Feature/InboundScanConcurrencyBehaviorTest.php` → **2/2 passed, 20 assertions**.
 
@@ -190,25 +190,53 @@ Kết quả chạy full suite (xác nhận không regression toàn cục, bao g�
 
 **Xác minh lại 2026-08-15 (phiên rà soát WWHN-188, tham chiếu file này)**: re-run cùng bộ test → 34/34 passed (subset), full suite → 427 tests/411 passed/16 skipped/4816 assertions — khớp chính xác số liệu trên, không có sai lệch/regression.
 
+### 7b. Đóng DEV188-P1-02 và DEV188-P1-03 bằng evidence thật (2026-08-18, BE1)
+
+Reviewer (đánh giá 62/100 và 68/100) từ chối evidence race trước đó vì `InboundScanConcurrencyBehaviorTest` chỉ replay tuần tự 2 HTTP request trên **cùng một kết nối SQLite** — chưa từng có 2 kết nối/tiến trình PostgreSQL thật cạnh tranh nhau. Đã đóng dứt điểm bằng cách chạy race thật trên PostgreSQL cục bộ (container `wms_warehouse_hoa_nam_be-postgres-1`, đang chạy, driver `pgsql`), theo đúng pattern đã được chấp nhận ở WWHN-219 (`scripts/wwhn219-runtime-concurrency.php`/`wwhn219-concurrency-worker.php`).
+
+**DEV188-P1-02 — race thật ≥2 connection/process**: `scripts/wwhn188-inbound-scan-runtime-concurrency.php` (orchestrator) + `scripts/wwhn188-inbound-scan-worker.php` (worker, 1 tiến trình OS = 1 backend PostgreSQL thật) spawn 2 tiến trình độc lập gọi thẳng `CurrentBaselineStockFlowController::inboundScan()` (code path production thật, không mock) cho 3 kịch bản đúng yêu cầu reviewer:
+
+| Kịch bản | Cạnh tranh trên | Kết quả thật (chạy 2026-08-18) |
+|---|---|---|
+| `same_document_same_line` — cùng document, cùng line, cùng version=1 | row lock `stock_documents` | 2 backend PID phân biệt (36898/36899), có `pg_locks` wait quan sát được (`observed_pg_lock_wait=true`, max wait 1447ms). Đúng 1 writer thắng (200, version 1→2, `scanned_qty` +1 đúng 1 lần); writer thua bị 412 `STALE_VERSION`, không tạo thêm `inbound_scan_entries`. |
+| `same_document_different_line` — cùng document, cùng version=1, khác line | row lock `stock_documents` | 2 PID phân biệt, wait quan sát được (max 1483ms). Writer thắng commit trước (version 1→2); writer thua bị 412 dù line của chính nó **chưa từng bị đụng** — chứng minh khóa optimistic là cấp document, không phải cấp line. Line của writer thua vẫn `scanned_qty=0`. |
+| `same_item_different_document` — cùng item (serial), 2 document khác nhau, mỗi document tự version=1 | row lock `item_instances` (trong `resolveItem()`) | 2 PID phân biệt, wait quan sát được (max 1398ms). Đúng 1 writer thắng; writer thua bị 409 `ITEM_ALREADY_RECEIVING` (không phải version guard — 2 document độc lập version nên không đụng version, đúng guard phải kích hoạt là item-level). Đúng 1 `inbound_scan_entries` cho item dùng chung. |
+
+Cả 3 kịch bản: `distinct_backend_pid_count=2` (2 kết nối PostgreSQL thật, không phải mock/giả lập) và `real_contention_proven=true` (quan sát được `pg_locks`/`pg_stat_activity` wait thật, không chỉ suy luận từ thời gian). Evidence JSON đầy đủ tại `storage/app/wwhn-188-evidence/runtime-concurrency-summary.json` (không commit — gitignore theo `storage/app/.gitignore`, cùng quy ước với WWHN-219).
+
+Gated test: `tests/Feature/InboundScanRuntimeConcurrencyTest.php` (skip nếu không phải `pgsql` hoặc thiếu `WWHN188_RUNTIME_CONCURRENCY=1`, cùng cơ chế gate với `Wwhn219RuntimeConcurrencyTest`). Chạy thật:
+
+```
+DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=wms_hoanam DB_USERNAME=postgres DB_PASSWORD=postgres \
+WWHN188_RUNTIME_CONCURRENCY=1 php vendor/bin/phpunit --filter=InboundScanRuntimeConcurrencyTest
+```
+→ **1/1 passed, 14 assertions** (chạy lại 2 lần liên tiếp đều pass, evidence tái lập được — fixture warehouse tái sử dụng warehouse ACTIVE sẵn có để không vi phạm `uk_warehouses_single_active` khi rerun).
+
+**DEV188-P1-03 — chứng minh (không chỉ mô tả) hành vi retry quantity-mode**: thêm `InboundScanConcurrencyBehaviorTest::test_component_quantity_mode_rescan_after_client_refetch_can_double_count_pending_ba_decision` — chạy thật kịch bản "lost-response, client re-fetch, retry với version mới": scan quantity=2 thành công (version 1→2, `scanned_qty`=2), rồi retry **đúng request đó** với version hiện tại (2) như một client tưởng request đầu bị mất response. Kết quả thật: request thứ 2 được chấp nhận (200, version 2→3), `scanned_qty` thành **4** (double-count) — xác nhận bằng test thật, không phải suy luận, đúng gap `BE1-SCANCONC-OP-03` đã nêu ở mục "Rà soát bổ sung". Test này **không sửa hành vi** (giữ nguyên `assertJsonPath('data.scanned_quantity', 4)`) vì thay đổi outcome (thêm Idempotency-Key hoặc dedupe window cho scan) là thay đổi contract/business rule cần BA/Tech Lead quyết định theo đúng phạm vi task — xem cập nhật open point ở mục 11.
+
+Kết quả chạy: `php vendor/bin/phpunit --filter=InboundScanConcurrencyBehaviorTest` → **3/3 passed, 30 assertions** (2 test cũ + 1 test mới). `php vendor/bin/phpunit --filter="InboundScanConcurrencyBehaviorTest|Wwhn187InboundScanValidationTest|Wwhn199ReservationConcurrencyGuardTest|PostReceiptConcurrencyBehaviorTest|StockDocumentConcurrencyGuardTest|Wwhn46OutboundPickScanDedupTest"` → **51/51 passed, 235 assertions**. `php vendor/bin/pint --test` trên 4 file mới/sửa → pass (1 file cần auto-fix format, đã áp dụng). Full suite sqlite: **578 tests, 555 passed, 1 failed, 22 skipped** — 1 fail duy nhất là `Wwhn330ImportHardeningTest` (file untracked của task WWHN-330 khác, không liên quan scan/concurrency, đã xác nhận không phải do thay đổi của task này gây ra).
+
 ### 8. File thay đổi
 
 | File | Loại | Nội dung |
 |---|---|---|
-| `tests/Feature/InboundScanConcurrencyBehaviorTest.php` | Mới | 2 test case HTTP end-to-end cho race thật của optimistic version guard trên chính request scan (khác `Wwhn198InboundScanValidationTest` — request sai tĩnh; khác `Wwhn199ReservationConcurrencyGuardTest` — item-level dedup) |
-| `docs/docs_task_jira/WWHN-187.md` | Cập nhật | Evidence rà soát giao dịch/khóa đồng thời cho HN-IN-002 (bước scan), phân biệt rõ với WWHN-190 (HN-IN-003, post-receipt) và WWHN-198-inbound-scan (HN-IN-002, validation) |
-| `docs/docs_task_jira/WWHN-188.md` | Cập nhật (file này) | Tham chiếu/xác nhận lại evidence của `WWHN-187.md` cho cùng task Jira, kèm ghi chú traceability trùng số hiệu |
+| `tests/Feature/InboundScanConcurrencyBehaviorTest.php` | Cập nhật (2026-08-18: +1 test) | 2 test case HTTP end-to-end cho race thật của optimistic version guard trên chính request scan (khác `Wwhn187InboundScanValidationTest` — request sai tĩnh; khác `Wwhn199ReservationConcurrencyGuardTest` — item-level dedup); **+1 test mới** chứng minh hành vi retry double-count của COMPONENT quantity-mode (DEV188-P1-03, `BE1-SCANCONC-OP-03`) |
+| `tests/Feature/InboundScanRuntimeConcurrencyTest.php` | Mới (2026-08-18) | Gated PostgreSQL runtime-concurrency test (đóng DEV188-P1-02) — chạy `scripts/wwhn188-inbound-scan-runtime-concurrency.php`, cùng pattern gate `Wwhn219RuntimeConcurrencyTest` |
+| `scripts/wwhn188-inbound-scan-runtime-concurrency.php` | Mới (2026-08-18) | Orchestrator: dựng fixture cô lập, spawn 2 tiến trình worker thật, sample `pg_locks`, assert 3 kịch bản race (same doc/version+same line; same doc/version+different line; same item/different doc) |
+| `scripts/wwhn188-inbound-scan-worker.php` | Mới (2026-08-18) | Worker: 1 tiến trình OS = 1 backend PostgreSQL thật, gọi thẳng `CurrentBaselineStockFlowController::inboundScan()` (code path production) sau khi pre-lock đúng row đang tranh chấp |
+| `docs/docs_task_jira/WWHN-188.md` | Cập nhật (file này) | Evidence rà soát giao dịch/khóa đồng thời cho HN-IN-002 (bước scan), phân biệt rõ với WWHN-190 (HN-IN-003, post-receipt) và WWHN-187 (HN-IN-002, validation). **Cập nhật 2026-08-18**: đính chính traceability sau khi xác nhận Jira live — key chính thức của task này là WWHN-188 (không còn trùng với WWHN-187, xem đầu mục Evidence); bổ sung mục 7b đóng DEV188-P1-02/P1-03 bằng evidence thật |
 
 **Không sửa code sản xuất nào** — toàn bộ transaction wrapper, optimistic lock, row lock, state guard của scan đã đúng theo baseline từ trước; rà soát chỉ phát hiện gap coverage test (mục 2), không phải bug.
 
 ### 9. API docs (OpenAPI/Postman) — không cần sửa
 
-Không đổi contract (chỉ bổ sung test hành vi cho error code `PRECONDITION_FAILED`/`STATE_CONFLICT` đã có sẵn trong OpenAPI annotation từ trước, xác nhận khớp ở WWHN-190/WWHN-198-inbound-scan) — không cần cập nhật `docs/api-contract/`, Postman collection, hay payload mẫu.
+Không đổi contract (chỉ bổ sung test hành vi cho error code `PRECONDITION_FAILED`/`STATE_CONFLICT` đã có sẵn trong OpenAPI annotation từ trước, xác nhận khớp ở WWHN-190/WWHN-187) — không cần cập nhật `docs/api-contract/`, Postman collection, hay payload mẫu.
 
 ### 10. Đối chiếu Acceptance Criteria
 
 | # | Acceptance Criteria (WWHN-188, HN-IN-002) | Trạng thái | Evidence |
 |---|---|---|---|
-| 1 | Output "Kết quả rà soát đồng thời" được rà soát/xác minh, gắn evidence, không còn blocker thuộc vai trò BE1 | **Done** — rà soát transaction/idempotency/concurrency guard riêng cho bước scan, phân biệt rõ với post-receipt (WWHN-190) và validation (WWHN-198-inbound-scan); lấp gap race-condition test còn thiếu; evidence xác minh lại đúng tại thời điểm rà soát file này | Mục 1-6 |
+| 1 | Output "Kết quả rà soát đồng thời" được rà soát/xác minh, gắn evidence, không còn blocker thuộc vai trò BE1 | **Done** — rà soát transaction/idempotency/concurrency guard riêng cho bước scan, phân biệt rõ với post-receipt (WWHN-190) và validation (WWHN-187); lấp gap race-condition test còn thiếu; evidence xác minh lại đúng tại thời điểm rà soát file này; traceability số hiệu đã chốt 2026-08-18 | Mục 1-6 |
 | 2 | Logic API/data đáp ứng quy tắc nghiệp vụ và dependency; permission/validation/giao dịch/audit/idempotency/concurrency khi thuộc phạm vi | **Done** — transaction atomic, optimistic + row lock xác nhận qua test race thật, state guard defense-in-depth, permission 401/403 có test, audit qua `scan_event` (pattern nhất quán, không phải gap riêng) | Mục 1-5 |
 | 3 | Lỗi trả error code rõ ràng, không tạo dữ liệu sai, không lộ secret/stack trace | **Done** — test mới xác nhận racer thua cuộc không tạo `inbound_scan_entries`/không tăng `scanned_qty`; `ApiError::abort()` không lộ stack trace (kế thừa WWHN-190) | Mục 2, 6 |
 | 4 | Có unit/integration test và API/DB evidence; OpenAPI/Postman/payload mẫu cập nhật khi contract đổi | **Done** — 2 test case HTTP mới; không cần cập nhật OpenAPI/Postman (không đổi contract) | Mục 7-9 |
@@ -218,23 +246,25 @@ Không đổi contract (chỉ bổ sung test hành vi cho error code `PRECONDITI
 
 | ID | Nội dung | Owner đề xuất | Disposition |
 |---|---|---|---|
-| BE1-SCANCONC-OP-01 (kế thừa từ `WWHN-198-inbound-scan.md`, `BE2-INSCAN-OP-01`) | Không có `AuditLogger::record()` riêng cho hành động scan — chỉ có `scan_event`/`scan_batch` evidence trail. Cần BA/Tech Lead xác nhận có đủ hay cần audit_log riêng | BA/Tech Lead | Mở, kế thừa (không lặp lại xử lý ở task này) |
+| BE1-SCANCONC-OP-01 (kế thừa từ `WWHN-187.md`, `BE2-INSCAN-OP-01`) | Không có `AuditLogger::record()` riêng cho hành động scan — chỉ có `scan_event`/`scan_batch` evidence trail. Cần BA/Tech Lead xác nhận có đủ hay cần audit_log riêng | BA/Tech Lead | Mở, kế thừa (không lặp lại xử lý ở task này) |
 | BE1-SCANCONC-OP-02 | Scan không dùng `Idempotency-Key` (khác post-receipt/reverse) — an toàn dữ liệu dựa vào guard trùng item, không phải cơ chế idempotency-key cổ điển. Xác nhận đây là thiết kế chủ đích, không phải gap; ghi nhận để BA xác nhận nếu baseline gốc yêu cầu khác | BA/Tech Lead | Mở, rủi ro thấp (không chặn release) |
-| BE1-DUPKEY-188-01 (mới, riêng file này) | Hai số hiệu Jira `WWHN-187` và `WWHN-188` trỏ tới cùng một task Jira thật (nội dung Mục tiêu/Input đầu vào/Source & Traceability/Acceptance Criteria giống hệt nhau) — cần BA/PM xác nhận số hiệu chính xác duy nhất cho task "Rà soát giao dịch/khóa đồng thời" (HN-IN-002-ST01) và đóng/archive số hiệu còn lại để tránh 2 developer tương lai rà soát trùng lặp cùng 1 task | BA/PM | Mở |
-| BE1-SCANCONC-OP-03 (mới, phát hiện trong rà soát bổ sung) | Scan COMPONENT quantity-mode (không có `item_id`) không có guard chống double-count khi client retry đúng request trong ngưỡng `qty_planned` — khác nhánh có `item_id` (dedupe tuyệt đối qua row lock + unique index). Cần BA xác nhận đây có phải rủi ro vận hành thật (tuỳ network reliability thực tế và UI có debounce/loading-lock chặn double-submit hay không) trước khi quyết định phương án khắc phục (Idempotency-Key optional cho scan, hoặc dedupe theo cửa sổ thời gian, hoặc chấp nhận rủi ro vì tần suất thấp) | BA/Tech Lead | Mở, mới |
+| BE1-DUPKEY-188-01 | ~~Hai số hiệu Jira `WWHN-187` và `WWHN-188` trỏ tới cùng một task Jira thật... cần BA/PM xác nhận số hiệu chính xác duy nhất~~ | — | **Đã đóng (2026-08-18)** — đã fetch Jira live (danh sách subtask của WWHN-42) và xác nhận: WWHN-187 = "[BE] Triển khai quét/ghi nhận/validation" (BE2, task khác, nội dung tại `WWHN-187.md`), WWHN-188 = "[BE] Rà soát giao dịch/khóa đồng thời" (BE1, task này). Không phải trùng key — giả định ban đầu (dựa trên nội dung task giống hệt nhau ở thời điểm 2026-08-15) sai vì khi đó chưa đối chiếu được với Jira live. Đã cập nhật traceability note ở đầu file. |
+| BE1-SCANCONC-OP-03 (phát hiện trong rà soát bổ sung; **đã có evidence thật 2026-08-18**) | Scan COMPONENT quantity-mode (không có `item_id`) không có guard chống double-count khi client retry đúng request trong ngưỡng `qty_planned` — khác nhánh có `item_id` (dedupe tuyệt đối qua row lock + unique index). **2026-08-18**: gap đã được chứng minh bằng test thật (`InboundScanConcurrencyBehaviorTest::test_component_quantity_mode_rescan_after_client_refetch_can_double_count_pending_ba_decision`) — scan quantity=2 rồi "re-fetch + retry" với version mới làm `scanned_qty` thành 4 thay vì 2, không phải suy đoán. Cần BA xác nhận đây có phải rủi ro vận hành thật (tuỳ network reliability thực tế và UI có debounce/loading-lock chặn double-submit hay không) trước khi quyết định phương án khắc phục (Idempotency-Key optional cho scan, hoặc dedupe theo cửa sổ thời gian, hoặc chấp nhận rủi ro vì tần suất thấp) | BA/Tech Lead | Mở — evidence đã đủ, chờ quyết định thiết kế (không tự sửa vì là thay đổi contract) |
 | BE1-SCANCONC-OP-04 (mới, đã xác minh và đóng ngay trong task này) | Đã kiểm chứng giả thuyết `CurrentBaselineStockController` (dead code, thiếu `If-Match`/`Idempotency-Key` trên scan) có thể đang bị route nào bind nhầm — xác nhận bằng `php artisan route:list` thật: **không route nào** trỏ tới controller này. Không phải rủi ro thật, không cần hành động thêm | — | Đã đóng (không phải bug) |
 
 ### 12. Định nghĩa Done — thực tế
 
 #### BE1 technical completion (mục này)
 
-Đạt: xác nhận `WWHN-188.md` và `WWHN-187.md` là cùng một task Jira (đối chiếu nội dung gốc khớp 100%); tham chiếu và xác minh lại toàn bộ evidence đã có ở `WWHN-187.md` — transaction atomic, optimistic lock (`If-Match`) và row lock (`lockForUpdate` trên `stock_documents`/`item_instances`) hoạt động đúng qua test race thật (`InboundScanConcurrencyBehaviorTest`), state guard defense-in-depth độc lập với version. Re-run toàn bộ test liên quan (34/34) và full suite (411/411, 16 skip baseline không liên quan) tại thời điểm rà soát file này — khớp chính xác với số liệu đã ghi ở WWHN-187, không có sai lệch hay regression.
+Đạt: rà soát transaction/concurrency/idempotency đầy đủ cho bước inbound scan (chi tiết mục 1-6) — transaction atomic, optimistic lock (`If-Match`) và row lock (`lockForUpdate` trên `stock_documents`/`item_instances`) hoạt động đúng qua test race thật (`InboundScanConcurrencyBehaviorTest`), state guard defense-in-depth độc lập với version. Re-run toàn bộ test liên quan (34/34) và full suite (411/411, 16 skip baseline không liên quan) tại thời điểm rà soát — không có sai lệch hay regression. **Cập nhật 2026-08-18**: đính chính traceability — file này là evidence gốc, duy nhất của task WWHN-188 (không phải bản tham chiếu của WWHN-187 như giả định sai ban đầu ngày 2026-08-15); xem đầu mục Evidence.
 
 **Đi sâu hơn ngoài việc tái xác nhận**: tự chạy thêm một vòng rà soát độc lập thay vì chỉ chấp nhận evidence cũ, phát hiện 1 gap thật chưa từng được ghi nhận trước đây (scan COMPONENT quantity-mode thiếu guard chống double-count khi client retry — mục "Rà soát bổ sung"), và chủ động kiểm chứng bằng `route:list` thật một giả thuyết rủi ro (dead-code controller có thể bị bind nhầm route) — xác nhận không phải rủi ro, đóng ngay trong task này. Không sửa code sản xuất nào (gap #1 cần quyết định thiết kế từ BA trước khi có phương án sửa cụ thể; gap #2 không cần sửa vì không phải bug). Bổ sung 3 open point mới: trùng số hiệu Jira (BE1-DUPKEY-188-01), gap idempotency scan quantity-mode (BE1-SCANCONC-OP-03), và 1 mục đã xác minh-đóng ngay (BE1-SCANCONC-OP-04).
 
+**Cập nhật 2026-08-18 (đóng DEV188-P1-02/P1-03 bằng evidence thật, xem mục 7b)**: reviewer từ chối evidence race trước đó vì chỉ replay HTTP tuần tự trên 1 kết nối SQLite. Đã build và chạy thật race PostgreSQL 2-process/2-connection (`scripts/wwhn188-inbound-scan-runtime-concurrency.php` + worker, gated `InboundScanRuntimeConcurrencyTest`) cho đúng 3 kịch bản reviewer yêu cầu — same doc/version+same line, same doc/version+different line, same item/different doc — cả 3 đều pass với 2 backend PostgreSQL PID phân biệt thật và `pg_locks` wait quan sát được thật (không suy luận). Đồng thời chứng minh bằng test thật (không chỉ mô tả) hành vi double-count của COMPONENT quantity-mode khi client re-fetch+retry, đóng góp evidence cụ thể cho quyết định BA ở `BE1-SCANCONC-OP-03`. Không có bug mới phát sinh — cả 2 phần việc đều là bổ sung evidence/test, không sửa code sản xuất, không đổi contract.
+
 #### Còn lại — không thuộc phạm vi tự nhận của BE1
 
-- BA/PM xác nhận số hiệu Jira chính xác duy nhất cho task này, đóng/archive số hiệu trùng (BE1-DUPKEY-188-01, mới).
+- ~~BA/PM xác nhận số hiệu Jira chính xác duy nhất cho task này~~ — Đã đóng 2026-08-18 (BE1-DUPKEY-188-01), xem đầu mục Evidence.
 - BA/Tech Lead xác nhận disposition cho audit log riêng của bước scan (BE1-SCANCONC-OP-01, kế thừa).
 - BA/Tech Lead xác nhận thiết kế "scan không cần Idempotency-Key" là đúng baseline cho nhánh có `item_id`, và quyết định phương án cho nhánh quantity-mode (BE1-SCANCONC-OP-02, BE1-SCANCONC-OP-03 mới).
 - QA xác nhận evidence (mục 2, 7, 10) đáp ứng đúng Acceptance Criteria.

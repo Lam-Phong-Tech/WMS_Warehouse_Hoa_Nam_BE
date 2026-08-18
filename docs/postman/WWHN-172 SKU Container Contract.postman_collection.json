@@ -11,7 +11,9 @@
     {"key": "sku_id", "value": ""},
     {"key": "physical_code_id", "value": ""},
     {"key": "product_id", "value": ""},
-    {"key": "container_id", "value": ""}
+    {"key": "container_id", "value": ""},
+    {"key": "import_report_id", "value": ""},
+    {"key": "import_report_id_with_errors", "value": ""}
   ],
   "item": [
     {
@@ -161,7 +163,9 @@
           "event": [{"listen": "test", "script": {"exec": [
             "pm.test('422 dry-run rejected', () => pm.response.to.have.status(422));",
             "const j=pm.response.json();",
-            "pm.test('error code and no side effect', () => { pm.expect(j.error.code).to.eql('SKU_IMPORT_DRY_RUN_REJECTED'); pm.expect(j.data.committed).to.eql(false); });"
+            "pm.test('error code and no side effect', () => { pm.expect(j.error.code).to.eql('SKU_IMPORT_DRY_RUN_REJECTED'); pm.expect(j.data.committed).to.eql(false); });",
+            "pm.test('has error_file_available + report id (WWHN-330 P1-01)', () => { pm.expect(j.data.import_report_id).to.be.ok; pm.expect(j.data.error_file_available).to.eql(true); });",
+            "pm.collectionVariables.set('import_report_id_with_errors', j.data.import_report_id);"
           ]}}]
         },
         {
@@ -208,6 +212,46 @@
           "event": [{"listen": "test", "script": {"exec": [
             "pm.test('200 report list', () => pm.response.to.have.status(200));",
             "pm.test('paginated payload', () => pm.expect(pm.response.json().success).to.eql(true));"
+          ]}}]
+        }
+      ]
+    },
+    {
+      "name": "SKU import error file — WWHN-330",
+      "item": [
+        {
+          "name": "Download error file (CSV) for report with row errors",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-reports/{{import_report_id_with_errors}}/error-file"
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200 CSV error file', () => pm.response.to.have.status(200));",
+            "pm.test('content-type text/csv', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv'));",
+            "pm.test('CSV has row/field/error_code/message/value header', () => pm.expect(pm.response.text()).to.include('row,field,error_code,message,value'));"
+          ]}}]
+        },
+        {
+          "name": "Download error file returns 404 for unknown report id",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/api/v1/skus/import-reports/00000000-0000-0000-0000-000000000000/error-file"
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('404 unknown report', () => pm.response.to.have.status(404));"
+          ]}}]
+        },
+        {
+          "name": "Download error file without token is 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/skus/import-reports/{{import_report_id_with_errors}}/error-file"
+          },
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('401 unauthenticated', () => pm.response.to.have.status(401));"
           ]}}]
         }
       ]

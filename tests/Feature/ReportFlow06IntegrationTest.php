@@ -548,6 +548,65 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertJsonPath('data.available_qty', 11);
     }
 
+    // WWHN-328 DEV328-P1-04: khoá field set + error contract cho dashboard-quick.
+    public function test_dashboard_quick_returns_zeroed_aggregate_for_empty_period(): void
+    {
+        $response = $this->getJson('/api/v1/reports/dashboard-quick?from_date=2020-01-01&to_date=2020-01-02', [
+            'Authorization' => "Bearer {$this->token}",
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.period.from_date', '2020-01-01')
+            ->assertJsonPath('data.period.to_date', '2020-01-02')
+            ->assertJsonPath('data.receipt_qty', 0)
+            ->assertJsonPath('data.issue_qty', 0)
+            ->assertJsonPath('data.component_issue_qty', 0)
+            ->assertJsonPath('data.reversal_net', 0)
+            ->assertJsonPath('data.warranty_cases_by_status', [])
+            ->assertJsonPath('data.reconciliation_warnings', []);
+    }
+
+    public function test_dashboard_quick_rejects_reversed_date_range(): void
+    {
+        $this->getJson('/api/v1/reports/dashboard-quick?from_date=2026-08-10&to_date=2026-08-01', [
+            'Authorization' => "Bearer {$this->token}",
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'BUSINESS_RULE_ERROR')
+            ->assertJsonMissingPath('trace')
+            ->assertJsonMissingPath('exception');
+    }
+
+    public function test_dashboard_quick_requires_authentication(): void
+    {
+        $this->getJson('/api/v1/reports/dashboard-quick')
+            ->assertUnauthorized()
+            ->assertJsonPath('error_code', 'UNAUTHENTICATED');
+    }
+
+    public function test_dashboard_quick_requires_report_view_permission(): void
+    {
+        $viewerRole = Role::create([
+            'role_code' => 'DASHBOARD_NO_REPORT', 'role_name' => 'Không có report.view',
+            'scope_type' => 'SYSTEM', 'status' => 'ACTIVE',
+        ]);
+        $viewer = User::create([
+            'username' => 'no-report-view', 'display_name' => 'No report.view',
+            'email' => 'no-report-view@wms.test', 'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE', 'version' => 1,
+        ]);
+        $viewer->roles()->attach($viewerRole->role_id, ['user_role_id' => (string) Str::uuid()]);
+        $viewerToken = JWTAuth::fromUser($viewer);
+
+        $this->getJson('/api/v1/reports/dashboard-quick', [
+            'Authorization' => "Bearer {$viewerToken}",
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('error_code', 'ACCESS_DENIED')
+            ->assertJsonMissingPath('trace')
+            ->assertJsonMissingPath('exception');
+    }
+
     // ── 11. Hub ──────────────────────────────────────────────
 
     public function test_hub_returns_eight_mvp_reports(): void

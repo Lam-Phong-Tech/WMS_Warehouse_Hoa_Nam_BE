@@ -5,9 +5,12 @@ namespace Modules\Warehouse\Services;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
+use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Models\ProductMaster;
 use Modules\Warehouse\Models\Sku;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Throwable;
@@ -15,6 +18,30 @@ use Throwable;
 class ImportService
 {
     public const TEMPLATE_VERSION = 'WWHN-172-SKU-IMPORT-v1.1.0';
+
+    /**
+     * WWHN-330 P1-02: giới hạn số dòng dữ liệu mỗi lần import (không tính header).
+     * Test hiện có (tests/Feature/ImportBatchTest.php, Wwhn174SkuImportValidationTest,
+     * Wwhn224SkuImportDryRunTest) không cố định giá trị này bằng số, nên giữ nguyên 1000
+     * để không đổi hành vi nghiệp vụ hiện tại; đổi giá trị cần BA/Tech Lead chốt chính thức.
+     */
+    private const MAX_ROWS = 1000;
+
+    /**
+     * WWHN-330 P1-03: idempotent replay window — 2 lần import cùng nội dung file
+     * (cùng sha256) và cùng actor trong khoảng thời gian này được coi là "đã xử lý",
+     * trả lại kết quả Import báo cáo cũ thay vì chạy lại. Giá trị 24h là lựa chọn tạm,
+     * cần BA/Tech Lead chốt chính thức phạm vi (theo actor hay theo toàn hệ thống, và
+     * cửa sổ thời gian bao lâu).
+     */
+    private const IDEMPOTENCY_WINDOW_HOURS = 24;
+
+    /**
+     * WWHN-330 P1-02: số dòng vật lý tối đa thực sự đọc vào memory qua PhpSpreadsheet
+     * read filter (header + MAX_ROWS + 1 dòng dư để phát hiện vượt hạn mức), tránh nạp
+     * toàn bộ workbook lớn (vd. file lỗi 100k dòng) vào memory chỉ để rồi từ chối.
+     */
+    private const MAX_PHYSICAL_ROWS_TO_READ = self::MAX_ROWS + 2;
 
     /** Current export template. Legacy code/name/version headers remain accepted on import. */
     private const TEMPLATE_COLUMNS = [
@@ -44,8 +71,19 @@ class ImportService
             throw new InvalidArgumentException('Không tính được SHA-256 của file import.');
         }
 
+        // WWHN-330 P1-03: file trùng sha256 với 1 lần COMMIT gần đây của cùng actor thì
+        // coi là replay — trả lại kết quả cũ, không đọc/parse lại file, không ghi SKU lần 2.
+        if (! $dryRun) {
+            $duplicate = $this->findRecentDuplicateReport($checksum, $actorId);
+            if ($duplicate !== null) {
+                return $this->duplicateResult($duplicate);
+            }
+        }
+
         try {
-            $rows = IOFactory::load($filePath)->getActiveSheet()->toArray(null, true, true, false);
+            $rows = $this->readRows($filePath);
+        } catch (ImportRowLimitExceededException $e) {
+            throw $e;
         } catch (Throwable $e) {
             throw new InvalidArgumentException('Workbook Excel không đọc được hoặc đã hỏng.', previous: $e);
         }
@@ -55,10 +93,17 @@ class ImportService
         $rows = array_values(array_filter($rows, fn (array $row): bool => collect($row)
             ->contains(fn (mixed $value): bool => trim((string) $value) !== '')));
 
-        if ($rows === [] || count($rows) > 1000) {
-            throw new InvalidArgumentException($rows === []
-                ? 'File import không có dòng dữ liệu.'
-                : 'File import vượt quá 1000 dòng dữ liệu.');
+        if ($rows === []) {
+            throw new InvalidArgumentException('File import không có dòng dữ liệu.');
+        }
+        if (count($rows) > self::MAX_ROWS) {
+            // WWHN-330 P1-02: exception riêng -> controller map error code chuẩn
+            // 'SKU_IMPORT_ROW_LIMIT_EXCEEDED', không lộ stack trace, không 500.
+            throw new ImportRowLimitExceededException(
+                'File import vượt quá '.self::MAX_ROWS.' dòng dữ liệu.',
+                self::MAX_ROWS,
+                count($rows),
+            );
         }
 
         [$records, $errors] = $this->validateRows($rows, $map);
@@ -191,6 +236,80 @@ class ImportService
 
             return $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map, false);
         }, 3);
+    }
+
+    /**
+     * WWHN-330 P1-03: tìm Import báo cáo COMMIT gần nhất cùng sha256 + cùng actor trong
+     * cửa sổ IDEMPOTENCY_WINDOW_HOURS. Scope theo actor (không phải toàn hệ thống) vì
+     * request_id/actor_id là ranh giới quyền hạn sẵn có của import hiện tại — 2 actor khác
+     * nhau cùng nộp 1 file giống hệt nhau (vd. cùng nhận từ NCC) vẫn được coi là 2 lần import
+     * độc lập, tránh 1 actor "mượn" kết quả import của actor khác. Actor null (hệ thống/CLI)
+     * không được coi là trùng lặp để tránh false-positive giữa các job không định danh actor.
+     */
+    private function findRecentDuplicateReport(string $checksum, ?string $actorId): ?ImportReport
+    {
+        if ($actorId === null) {
+            return null;
+        }
+
+        return ImportReport::query()
+            ->where('import_type', 'SKU')
+            ->where('mode', 'COMMIT')
+            ->where('status', 'COMMITTED')
+            ->where('file_sha256', $checksum)
+            ->where('actor_id', $actorId)
+            ->where('created_at', '>=', now()->subHours(self::IDEMPOTENCY_WINDOW_HOURS))
+            ->orderByDesc('created_at')
+            ->first();
+    }
+
+    /** @return array<string, mixed> */
+    private function duplicateResult(ImportReport $report): array
+    {
+        return [
+            'template_version' => $report->template_version ?? self::TEMPLATE_VERSION,
+            'transaction_mode' => 'ALL_OR_NOTHING',
+            'dry_run' => false,
+            'committed' => true,
+            'partial_write' => false,
+            'duplicate' => true,
+            'duplicate_of_import_report_id' => $report->import_report_id,
+            'file_sha256' => $report->file_sha256,
+            'header_map' => [],
+            'total_rows' => $report->total_rows,
+            'valid_rows' => $report->valid_rows,
+            'error_rows' => 0,
+            'inserted_rows' => $report->inserted_rows,
+            'updated_rows' => $report->updated_rows,
+            'would_insert_rows' => 0,
+            'would_update_rows' => 0,
+            'skipped_rows' => 0,
+            'row_errors' => [],
+        ];
+    }
+
+    /**
+     * WWHN-330 P1-02: đọc workbook qua read filter giới hạn số dòng vật lý
+     * (MAX_PHYSICAL_ROWS_TO_READ), thay vì IOFactory::load()->toArray() nạp toàn bộ
+     * sheet vào memory không điều kiện. Với file vượt hạn mức rất nhiều (vd. 100k dòng),
+     * chỉ phần đầu file được đọc vào memory trước khi bị từ chối ở bước đếm dòng.
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    private function readRows(string $filePath): array
+    {
+        $reader = IOFactory::createReaderForFile($filePath);
+        $reader->setReadFilter(new class(self::MAX_PHYSICAL_ROWS_TO_READ) implements IReadFilter
+        {
+            public function __construct(private readonly int $maxRow) {}
+
+            public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
+            {
+                return $row <= $this->maxRow;
+            }
+        });
+
+        return $reader->load($filePath)->getActiveSheet()->toArray(null, true, true, false);
     }
 
     public function createTemplate(string $path): void
@@ -417,6 +536,7 @@ class ImportService
             'dry_run' => $dryRun,
             'committed' => $committed,
             'partial_write' => false,
+            'duplicate' => false,
             'file_sha256' => $checksum,
             'header_map' => $map,
             'total_rows' => $total,

@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Modules\Warehouse\Models\ImportReport;
+use Modules\Warehouse\Services\ImportErrorFileService;
 use OpenApi\Attributes as OA;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImportReportController extends Controller
 {
@@ -82,5 +85,58 @@ class ImportReportController extends Controller
         return $report
             ? $this->respondSuccess($report)
             : $this->respondNotFound('Không tìm thấy Import báo cáo.');
+    }
+
+    #[OA\Get(
+        path: '/api/v1/skus/import-reports/{id}/error-file',
+        operationId: 'sku_import_report_error_file',
+        summary: 'Tải file lỗi (CSV) của một Import báo cáo SKU — WWHN-330',
+        description: 'Trả về file CSV (đã sinh sẵn khi import, xem ImportErrorFileService) gồm cột '
+            .'row/field/error_code/message/value cho từng dòng bị reject trong lần import đó. '
+            .'Yêu cầu quyền sku.manage (cùng permission với các endpoint import khác). '
+            .'File lỗi hết hạn sau '.ImportErrorFileService::EXPIRY_HOURS.'h kể từ lúc sinh (error_file_expires_at) — '
+            .'giá trị tạm, cần BA/Tech Lead chốt chính thức. Giá trị trong CSV đã được sanitize khi sinh file '
+            .'(bỏ ký tự điều khiển, chặn CSV/formula injection khi mở bằng Excel) và chỉ gồm dữ liệu đã nằm trong '
+            .'row_errors của chính báo cáo đó — không lộ thêm thông tin ngoài phạm vi request gốc.',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'File CSV lỗi import (text/csv)'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 403, description: 'Missing sku.manage permission'),
+            new OA\Response(response: 404, description: 'Không tìm thấy Import báo cáo, không có dòng lỗi, hoặc file lỗi đã hết hạn'),
+        ]
+    )]
+    public function downloadErrorFile(string $id): JsonResponse|StreamedResponse
+    {
+        /** @var ImportReport|null $report */
+        $report = ImportReport::query()->where('import_type', 'SKU')->find($id);
+        if (! $report) {
+            return $this->respondNotFound('Không tìm thấy Import báo cáo.');
+        }
+
+        // WWHN-330 P1-01: file lỗi được sinh sẵn lúc import (ImportController::attachErrorFile
+        // → ImportErrorFileService::generate), path + expiry lưu trên chính report. Không có
+        // path nghĩa là báo cáo này không có dòng lỗi (hoặc sinh file thất bại, đã log riêng).
+        if ($report->error_file_path === null || $report->error_file_expires_at === null) {
+            return $this->respondNotFound('Import báo cáo này không có file lỗi để tải.');
+        }
+        if (now()->greaterThan($report->error_file_expires_at)) {
+            return $this->respondNotFound('File lỗi của Import báo cáo này đã hết hạn.');
+        }
+
+        $disk = Storage::disk(ImportErrorFileService::DISK);
+        if (! $disk->exists($report->error_file_path)) {
+            return $this->respondNotFound('Không tìm thấy file lỗi (có thể đã bị dọn dẹp).');
+        }
+
+        return $disk->download(
+            $report->error_file_path,
+            'sku-import-errors-'.$report->import_report_id.'.csv',
+            ['Content-Type' => 'text/csv; charset=UTF-8'],
+        );
     }
 }

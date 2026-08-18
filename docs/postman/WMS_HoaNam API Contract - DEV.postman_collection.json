@@ -24737,7 +24737,7 @@
                     "request": {
                         "name": "Dashboard nhanh cho kho tổng: tồn hiện tại, nhập/xuất trong kỳ, phiếu đang dở dang, cảnh báo đối soát",
                         "description": {
-                            "content": "Mặc định kỳ = tháng hiện tại nếu không truyền from_date/to_date. Các trường liên quan module chưa xây (stocktake, warranty, reconciliation) trả về 0/rỗng.",
+                            "content": "WWHN-328 (2026-08-18): field set khoá theo OperationalReportController::dashboardQuick — data.period{from_date,to_date}, data.available_qty (snapshot hiện tại, không lọc period), data.receipt_qty/issue_qty/component_issue_qty/reversal_net (lọc theo stock_movements.occurred_at trong [from_date 00:00:00, to_date 23:59:59]), data.warranty_cases_by_status (object status→count, KHÔNG lọc theo period), data.reconciliation_warnings (array, rows RPT-INV-01 MISMATCH). Mặc định: from_date=hôm nay-30 ngày, to_date=hôm nay nếu bỏ trống. to_date < from_date → 422 BUSINESS_RULE_ERROR. Cần permission report.view (401 nếu chưa auth, 403 ACCESS_DENIED nếu thiếu quyền).",
                             "type": "text/plain"
                         },
                         "url": {

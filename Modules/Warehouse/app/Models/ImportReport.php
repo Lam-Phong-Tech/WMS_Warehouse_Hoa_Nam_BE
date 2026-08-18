@@ -21,6 +21,7 @@ class ImportReport extends Model
         'import_type', 'mode', 'status', 'file_name', 'file_sha256', 'template_version',
         'total_rows', 'valid_rows', 'error_rows', 'inserted_rows', 'updated_rows',
         'row_errors', 'actor_id', 'request_id',
+        'error_file_path', 'error_file_expires_at', 'duplicate_of_replay',
     ];
 
     protected $casts = [
@@ -30,5 +31,7 @@ class ImportReport extends Model
         'error_rows' => 'integer',
         'inserted_rows' => 'integer',
         'updated_rows' => 'integer',
+        'error_file_expires_at' => 'datetime',
+        'duplicate_of_replay' => 'boolean',
     ];
 }

@@ -5,20 +5,26 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
 /**
- * WWHN-187 (HN-IN-002, BE1): rà soát giao dịch/khóa đồng thời cho bước
+ * WWHN-188 (HN-IN-002, BE1): rà soát giao dịch/khóa đồng thời cho bước
  * inbound scan (`POST /inbound-documents/{id}/scan`).
  *
- * `Wwhn198InboundScanValidationTest::test_scan_rejects_stale_version_with_412`
- * chỉ gửi `If-Match` sai tĩnh (giá trị 99), không mô phỏng race thật giữa 2
- * writer cùng đọc version rồi 1 bên thắng trước. `Wwhn199ReservationConcurrencyGuardTest`
- * cover guard trùng item (`ITEM_ALREADY_RECEIVING`) nhưng không cover optimistic
- * version guard của chính request scan. File này lấp gap đó: 2 writer cùng đọc
- * document ở version=1, writer A scan line 1 trước và thắng (bump version=2),
- * writer B replay version=1 cũ vào line 2 phải bị 412 STALE_VERSION —
+ * Ghi chú traceability (2026-08-18): docblock này ban đầu ghi nhầm key "WWHN-187" —
+ * đã xác nhận qua Jira live rằng task rà soát giao dịch/khóa đồng thời (BE1) có key
+ * chính thức là WWHN-188 (WWHN-187 là task khác, "Triển khai quét/ghi nhận/validation",
+ * BE2 — xem docs/docs_task_jira/WWHN-187.md và WWHN-188.md).
+ *
+ * `Wwhn187InboundScanValidationTest::test_scan_rejects_stale_version_with_412`
+ * (tên cũ `Wwhn198InboundScanValidationTest`) chỉ gửi `If-Match` sai tĩnh (giá trị 99),
+ * không mô phỏng race thật giữa 2 writer cùng đọc version rồi 1 bên thắng trước.
+ * `Wwhn199ReservationConcurrencyGuardTest` cover guard trùng item (`ITEM_ALREADY_RECEIVING`)
+ * nhưng không cover optimistic version guard của chính request scan. File này lấp gap đó:
+ * 2 writer cùng đọc document ở version=1, writer A scan line 1 trước và thắng (bump
+ * version=2), writer B replay version=1 cũ vào line 2 phải bị 412 STALE_VERSION —
  * đúng hành vi 1 racer thua cuộc sẽ quan sát được khi 2 scan đến gần như đồng
  * thời trên cùng document (test suite dùng SQLite single-connection nên mô
  * phỏng bằng cách replay tuần tự request của writer thua, không phải race
@@ -174,5 +180,85 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
             DB::table('inbound_scan_entries')->count(),
             'Rejected scan against a POSTED document must not create an additional scan entry.'
         );
+    }
+
+    /**
+     * BE1-SCANCONC-OP-03 (WWHN-188 open point) / reviewer finding DEV188-P1-03:
+     * "Formalize quantity-mode retry/recovery semantics. Nếu giữ If-Match-only phải
+     * test lost-response/replay/re-fetch case."
+     *
+     * COMPONENT quantity-mode scan (no `item_id`) has no per-request dedupe — only
+     * the optimistic `If-Match` version guard. That guard rejects a *stale* replay
+     * (same old version resent after a winner already committed — see the two tests
+     * above), but it does NOT protect against a "lost response, client re-fetched,
+     * retried with the now-current version" replay: the retried request carries a
+     * fresh, valid version and looks like any other legitimate scan, so the server
+     * accepts it a second time and `scanned_qty` is incremented twice for what the
+     * operator believes was a single physical scan action. The serialized branch
+     * (`item_id` present) does not have this gap: `assertNoDuplicateItemInDocument()`
+     * rejects a repeat scan of the same item with 409 `DUPLICATE_ITEM_IN_DOCUMENT`.
+     *
+     * This test executes that exact re-fetch-and-retry sequence against the real
+     * code path to give BA/Tech Lead concrete, reproducible evidence for the
+     * BE1-SCANCONC-OP-03 decision (add `Idempotency-Key` to scan, add a dedupe
+     * window, or accept the risk). It intentionally asserts the CURRENT behavior —
+     * this is evidence, not a fix: changing the outcome would mean adding
+     * Idempotency-Key/contract semantics to scan, a business-rule/contract change
+     * outside BE1's authority per the WWHN-188 task scope ("không tự đổi business
+     * rule/API contract ... nếu cần BA/PM/PO/Tech quyết định").
+     */
+    public function test_component_quantity_mode_rescan_after_client_refetch_can_double_count_pending_ba_decision(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $sku = Sku::create([
+            'sku_code' => 'WWHN188-QTY-RETRY-001',
+            'sku_name' => 'Component quantity-mode retry evidence',
+            'sku_type' => 'COMPONENT',
+            'unit' => 'cai',
+            'is_serial_tracked' => false,
+            'status' => 'ACTIVE',
+        ]);
+
+        $create = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'source_name' => 'NCC WWHN-188 Quantity Retry',
+            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 5]],
+        ], $headers)->assertCreated();
+        $documentId = (string) $create->json('data.id');
+        $lineId = (string) $create->json('data.lines.0.id');
+
+        $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
+            'line_id' => $lineId,
+            'box_code' => 'BOX-WWHN188-QTY-RETRY',
+        ], $headers)->assertCreated();
+        $boxId = (string) $box->json('data.container_id');
+
+        // First attempt: succeeds server-side, bumps version 1 -> 2, scanned_qty 0 -> 2.
+        $first = $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
+            'line_id' => $lineId,
+            'quantity' => 2,
+            'container_id' => $boxId,
+        ], $headers + ['If-Match' => '1']);
+        $first->assertOk()->assertJsonPath('data.scanned_quantity', 2)->assertJsonPath('data.version', 2);
+
+        // Client never saw the response (network drop). It re-fetches the document,
+        // observes the now-current version=2, and — believing the scan never went
+        // through — resubmits the identical logical scan (same line/qty/box).
+        $refetchedVersion = (int) DB::table('stock_documents')->where('id', $documentId)->value('version');
+        $this->assertSame(2, $refetchedVersion, 'Sanity check: server already applied the first scan before the retry.');
+
+        $retry = $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
+            'line_id' => $lineId,
+            'quantity' => 2,
+            'container_id' => $boxId,
+        ], $headers + ['If-Match' => (string) $refetchedVersion]);
+
+        // Current behavior: the retry is accepted like any other fresh request
+        // because the version guard only detects staleness, not "this exact action
+        // already happened". scanned_qty is double-counted (4, not 2) — the real gap
+        // BE1-SCANCONC-OP-03 flags for a BA/Tech Lead decision.
+        $retry->assertOk()->assertJsonPath('data.scanned_quantity', 4)->assertJsonPath('data.version', 3);
+        $this->assertDatabaseHas('stock_document_lines', ['id' => $lineId, 'scanned_qty' => 4]);
     }
 }

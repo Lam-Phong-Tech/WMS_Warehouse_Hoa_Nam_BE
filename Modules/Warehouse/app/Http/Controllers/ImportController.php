@@ -9,7 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
 use Modules\Warehouse\Models\ImportReport;
+use Modules\Warehouse\Services\ImportErrorFileService;
 use Modules\Warehouse\Services\ImportService;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -19,7 +21,10 @@ class ImportController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly ImportService $importService) {}
+    public function __construct(
+        private readonly ImportService $importService,
+        private readonly ImportErrorFileService $errorFileService,
+    ) {}
 
     #[OA\Get(
         path: '/api/v1/skus/import-template',
@@ -49,7 +54,10 @@ class ImportController extends Controller
         summary: 'Import SKUs từ Excel theo cơ chế all-or-nothing, hỗ trợ dry-run',
         description: 'Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. '
             .'Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; '
-            .'kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại.',
+            .'kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. '
+            .'WWHN-330: nếu file có sha256 trùng với 1 lần COMMIT gần đây (24h) của cùng actor, response trả duplicate=true '
+            .'và import_report_id của lần import gốc, không ghi SKU/tạo báo cáo mới. Khi có row lỗi, dùng '
+            ."GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).",
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         requestBody: new OA\RequestBody(
@@ -106,10 +114,34 @@ class ImportController extends Controller
                 $dryRun,
             );
 
-            $result['import_report_id'] = $this->persistReport($result, $actorId, $requestId, $file->getClientOriginalName())?->import_report_id;
+            // WWHN-330 P1-03: file trùng sha256 với 1 lần COMMIT gần đây của cùng actor —
+            // trả lại Import báo cáo cũ, không tạo báo cáo mới, không ghi SKU lần 2.
+            if ($result['duplicate'] ?? false) {
+                $result['import_report_id'] = $result['duplicate_of_import_report_id'];
+
+                return $this->respondSuccess(
+                    $result,
+                    'File này đã được import trước đó (duplicate/already processed); trả lại kết quả của lần import gốc.',
+                );
+            }
+
+            $report = $this->persistReport($result, $actorId, $requestId, $file->getClientOriginalName());
+            $result['import_report_id'] = $report?->import_report_id;
             $hasRowErrors = $result['row_errors'] !== [];
 
             if ($hasRowErrors) {
+                // WWHN-330 P1-01: sinh sẵn + lưu file lỗi CSV (đã sanitize) ngay khi có row lỗi,
+                // để GET .../import-reports/{id}/error-file phục vụ file thật thay vì phải tính
+                // lại; sinh file lỗi không được làm hỏng response import chính nên chỉ log khi fail.
+                if ($report !== null) {
+                    $this->attachErrorFile($report, $result['row_errors']);
+                    $result['error_file_available'] = $report->error_file_path !== null;
+                    $result['error_file_expires_at'] = $report->error_file_expires_at?->toIso8601String();
+                } else {
+                    $result['error_file_available'] = false;
+                    $result['error_file_expires_at'] = null;
+                }
+
                 return $this->respondError(
                     $dryRun
                         ? 'Kiểm tra thử import hoàn tất; phát hiện lỗi, không có SKU nào được tạo hoặc cập nhật.'
@@ -126,6 +158,21 @@ class ImportController extends Controller
                 $dryRun
                     ? 'Kiểm tra thử import hoàn tất, không có dữ liệu nào được ghi.'
                     : 'Import SKU đã commit nguyên tử.',
+            );
+        } catch (ImportRowLimitExceededException $e) {
+            // WWHN-330 P1-02: error code chuẩn riêng cho vượt hạn mức số dòng, không lẫn
+            // với các lỗi file/parse khác, không lộ stack trace.
+            return $this->respondError(
+                $e->getMessage(),
+                [],
+                422,
+                'SKU_IMPORT_ROW_LIMIT_EXCEEDED',
+                ['data' => [
+                    'committed' => false,
+                    'partial_write' => false,
+                    'max_rows' => $e->maxRows,
+                    'actual_rows' => $e->actualRows,
+                ]],
             );
         } catch (\InvalidArgumentException $e) {
             return $this->respondError(
@@ -185,6 +232,34 @@ class ImportController extends Controller
             ]);
 
             return null;
+        }
+    }
+
+    /**
+     * WWHN-330 P1-01: sinh file lỗi CSV (đã sanitize) và gắn path + expiry vào Import
+     * báo cáo. Lỗi sinh file không được làm hỏng response import chính — chỉ log, vì
+     * file lỗi là tiện ích tra cứu thêm, không phải nguồn sự thật nghiệp vụ.
+     *
+     * @param  array<int, array<string, mixed>>  $rowErrors
+     */
+    private function attachErrorFile(ImportReport $report, array $rowErrors): void
+    {
+        try {
+            $generated = $this->errorFileService->generate($report->import_report_id, $rowErrors);
+            if ($generated === null) {
+                return;
+            }
+
+            $report->forceFill([
+                'error_file_path' => $generated['path'],
+                'error_file_expires_at' => $generated['expires_at'],
+            ])->save();
+        } catch (Throwable $e) {
+            Log::error('IMPORT_ERROR_FILE_GENERATION_FAILED', [
+                'import_report_id' => $report->import_report_id,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 }

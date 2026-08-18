@@ -13,4 +13,6 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
         ->middleware('permission:sku.manage');
     Route::get('skus/import-reports/{id}', [ImportReportController::class, 'show'])
         ->middleware('permission:sku.manage');
+    Route::get('skus/import-reports/{id}/error-file', [ImportReportController::class, 'downloadErrorFile'])
+        ->middleware('permission:sku.manage');
 });

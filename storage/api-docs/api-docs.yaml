@@ -6349,38 +6349,94 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'Số liệu nhanh cho dashboard'
+      summary: 'Số liệu nhanh cho dashboard (WWHN-328: endpoint tổng hợp KPI, tái sử dụng — không tạo route mới)'
+      description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period 30 ngày gần nhất khi bỏ trống from_date/to_date.'
       operationId: report_dashboard_quick
       parameters:
         -
           name: from_date
           in: query
+          description: 'Mặc định: hôm nay trừ 30 ngày'
           schema:
             type: string
             format: date
         -
           name: to_date
           in: query
+          description: 'Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Mặc định: hôm nay'
           schema:
             type: string
             format: date
       responses:
         200:
           description: 'Dashboard KPIs'
+          content:
+            application/json:
+              schema:
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    properties:
+                      period:
+                        properties:
+                          from_date:
+                            type: string
+                            format: date
+                          to_date:
+                            type: string
+                            format: date
+                        type: object
+                      available_qty:
+                        description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE), snapshot hiện tại — không lọc theo period'
+                        type: number
+                      receipt_qty:
+                        description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at'
+                        type: number
+                      issue_qty:
+                        description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period'
+                        type: number
+                      component_issue_qty:
+                        description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period'
+                        type: number
+                      reversal_net:
+                        description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, có thể âm'
+                        type: number
+                      warranty_cases_by_status:
+                        description: 'Map status → COUNT(*), toàn bộ warranty_case không lọc theo period'
+                        type: object
+                        additionalProperties:
+                          type: integer
+                      reconciliation_warnings:
+                        description: 'Các dòng RPT-INV-01 reconciliation_status=MISMATCH tại thời điểm gọi'
+                        type: array
+                        items:
+                          type: object
+                    type: object
+                  meta:
+                    properties:
+                      request_id:
+                        type: string
+                        format: uuid
+                      timestamp:
+                        type: string
+                        format: date-time
+                    type: object
+                type: object
+        401:
+          description: UNAUTHENTICATED
+        403:
+          description: 'ACCESS_DENIED — thiếu permission report.view'
+        422:
+          description: 'BUSINESS_RULE_ERROR — from_date/to_date không hợp lệ hoặc to_date < from_date'
         400:
           description: 'Yêu cầu không đúng định dạng'
-        401:
-          description: 'Chưa xác thực'
-        403:
-          description: 'Không có quyền truy cập'
         404:
           description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
         409:
           description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
         412:
           description: 'Điều kiện If-Match không đạt'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
         428:
           description: 'Thiếu điều kiện If-Match bắt buộc'
         500:
@@ -9146,7 +9202,7 @@ paths:
       tags:
         - '05. Product'
       summary: 'Import SKUs từ Excel theo cơ chế all-or-nothing, hỗ trợ dry-run'
-      description: 'Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại.'
+      description: 'Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. WWHN-330: nếu file có sha256 trùng với 1 lần COMMIT gần đây (24h) của cùng actor, response trả duplicate=true và import_report_id của lần import gốc, không ghi SKU/tạo báo cáo mới. Khi có row lỗi, dùng GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).'
       operationId: sku_import_excel
       parameters: []
       requestBody:
@@ -9295,6 +9351,45 @@ paths:
           description: 'Missing sku.manage permission'
         404:
           description: 'Không tìm thấy Import báo cáo'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/skus/import-reports/{id}/error-file':
+    get:
+      tags:
+        - '05. Product'
+      summary: 'Tải file lỗi (CSV) của một Import báo cáo SKU — WWHN-330'
+      description: 'Trả về file CSV (đã sinh sẵn khi import, xem ImportErrorFileService) gồm cột row/field/error_code/message/value cho từng dòng bị reject trong lần import đó. Yêu cầu quyền sku.manage (cùng permission với các endpoint import khác). File lỗi hết hạn sau 24h kể từ lúc sinh (error_file_expires_at) — giá trị tạm, cần BA/Tech Lead chốt chính thức. Giá trị trong CSV đã được sanitize khi sinh file (bỏ ký tự điều khiển, chặn CSV/formula injection khi mở bằng Excel) và chỉ gồm dữ liệu đã nằm trong row_errors của chính báo cáo đó — không lộ thêm thông tin ngoài phạm vi request gốc.'
+      operationId: sku_import_report_error_file
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: 'File CSV lỗi import (text/csv)'
+        401:
+          description: Unauthenticated
+        403:
+          description: 'Missing sku.manage permission'
+        404:
+          description: 'Không tìm thấy Import báo cáo, không có dòng lỗi, hoặc file lỗi đã hết hạn'
         400:
           description: 'Yêu cầu không đúng định dạng'
         409:
