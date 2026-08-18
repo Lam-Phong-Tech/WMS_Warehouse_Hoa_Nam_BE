@@ -142,19 +142,13 @@ class CurrentBaselineContainerFlowController extends Controller
                 ApiError::abort(409, 'CONTAINER_CLOSED', 'Container CLOSED là immutable.');
             }
 
-            $newParent = array_key_exists('parent_container_id', $validated) ? $validated['parent_container_id'] : $container->parent_container_id;
-            $putawayChanged = $newParent !== $container->parent_container_id
-                || array_key_exists('location_hint', $validated)
-                || array_key_exists('zone_code', $validated);
-            if ($newParent !== null) {
-                if ((string) $newParent === $id) {
-                    ApiError::abort(422, 'CONTAINER_CYCLE', 'Container không thể chứa chính nó.');
-                }
-                if (strtoupper((string) $container->container_type) !== 'BOX') {
-                    ApiError::abort(422, 'PUTAWAY_BOX_REQUIRED', 'Putaway vào TRAY chỉ áp dụng BOX.');
-                }
-                $this->assertTrayUsable((string) $newParent);
-                $this->assertNoCycle($id, (string) $newParent);
+            // parent_container_id (BOX -> TRAY placement) chỉ được thay đổi qua vòng đời
+            // canonical POST /putaway/tasks + confirm — nơi enforce receipt eligibility,
+            // DRAFT state, PUTAWAY_DRAFT_EXISTS guard và stock-neutral invariant. Endpoint
+            // update chung này KHÔNG được phép tạo side-effect putaway tương đương.
+            if (array_key_exists('parent_container_id', $validated)
+                && (string) $validated['parent_container_id'] !== (string) $container->parent_container_id) {
+                ApiError::abort(422, 'PUTAWAY_MUST_USE_TASK_FLOW', 'Đổi parent_container_id là thao tác putaway; dùng POST /putaway/tasks rồi confirm, không dùng PATCH /containers/{id}.');
             }
 
             $updates = $validated + [
@@ -164,22 +158,9 @@ class CurrentBaselineContainerFlowController extends Controller
             ];
             DB::table('containers')->where('container_id', $id)->update($updates);
 
-            if ($putawayChanged && $newParent !== null) {
-                $this->recordPutaway(
-                    $id,
-                    $container->parent_container_id,
-                    (string) $newParent,
-                    $container->location_hint,
-                    $validated['location_hint'] ?? $container->location_hint
-                );
-                if (($validated['status'] ?? null) === null) {
-                    DB::table('containers')->where('container_id', $id)->update(['status' => 'STORED']);
-                }
-            }
-
             $after = DB::table('containers')->where('container_id', $id)->first();
             AuditLogger::record(
-                action: $putawayChanged ? 'PUTAWAY_CONFIRM' : 'UPDATE_CONTAINER',
+                action: 'UPDATE_CONTAINER',
                 objectType: 'container',
                 objectId: $id,
                 actorId: $this->actorId(),
@@ -188,10 +169,10 @@ class CurrentBaselineContainerFlowController extends Controller
                 afterData: (array) $after,
             );
 
-            return ['container' => $after, 'putaway_confirmed' => $putawayChanged && $newParent !== null, 'stock_effect' => 'NONE'];
+            return ['container' => $after, 'stock_effect' => 'NONE'];
         }, 3);
 
-        return $this->respondSuccess($result, $result['putaway_confirmed'] ? 'Putaway confirmed.' : 'Container updated.');
+        return $this->respondSuccess($result, 'Container updated.');
     }
 
     public function addItem(Request $request, string $id)
@@ -369,22 +350,6 @@ class CurrentBaselineContainerFlowController extends Controller
         $tray = DB::table('containers')->where('container_id', $trayId)->lockForUpdate()->first();
         if ($tray === null || strtoupper((string) $tray->container_type) !== 'TRAY' || in_array($tray->status, ['CLOSED', 'ISSUED'], true)) {
             ApiError::abort(422, 'TRAY_REQUIRED', 'Putaway yêu cầu TRAY tồn tại và chưa CLOSED/ISSUED.');
-        }
-    }
-
-    private function assertNoCycle(string $containerId, string $parentId): void
-    {
-        $seen = [$containerId => true];
-        $cursor = $parentId;
-        for ($depth = 0; $depth < 64 && $cursor !== null; $depth++) {
-            if (isset($seen[$cursor])) {
-                ApiError::abort(422, 'CONTAINER_CYCLE', 'Container nesting tạo chu trình.');
-            }
-            $seen[$cursor] = true;
-            $cursor = DB::table('containers')->where('container_id', $cursor)->value('parent_container_id');
-        }
-        if ($cursor !== null) {
-            ApiError::abort(422, 'CONTAINER_DEPTH_INVALID', 'Container nesting vượt giới hạn an toàn.');
         }
     }
 

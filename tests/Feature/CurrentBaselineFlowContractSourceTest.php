@@ -94,8 +94,7 @@ class CurrentBaselineFlowContractSourceTest extends TestCase
         foreach (['EMPTY', 'IN_STOCK', 'PARTIAL', 'ISSUED', 'RECEIVED_PENDING_PUTAWAY', 'STORED', 'CLOSED'] as $status) {
             $this->assertStringContainsString($status, $container);
         }
-        $this->assertStringContainsString('CONTAINER_CYCLE', $container);
-        $this->assertStringContainsString('PUTAWAY_CONFIRM', $container);
+        $this->assertStringContainsString('PUTAWAY_MUST_USE_TASK_FLOW', $container);
         $this->assertStringContainsString('is_active', $container);
         $this->assertStringContainsString('If-Match', $container);
 

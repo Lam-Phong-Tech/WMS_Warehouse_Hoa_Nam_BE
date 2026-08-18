@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -415,7 +416,7 @@ class Wwhn193PutawayLifecycleTest extends TestCase
                 ]);
             });
             $this->fail('TRAY nằm trong BOX phải bị hierarchy guard từ chối.');
-        } catch (\Illuminate\Database\QueryException $exception) {
+        } catch (QueryException $exception) {
             $this->assertStringContainsString('PUTAWAY_BOX_REQUIRED', $exception->getMessage());
         }
 
@@ -575,5 +576,106 @@ class Wwhn193PutawayLifecycleTest extends TestCase
         $rows = $history->json('data');
         $this->assertCount(1, $rows, 'History chỉ được liệt kê CONFIRMED, không liệt kê CANCELLED.');
         $this->assertSame('BOX-HIST-02', $rows[0]['box_code']);
+    }
+
+    // ------------------------------------------------------------------
+    // 8. PATCH /containers/{id} không được là đường vòng cho putaway
+    // (DEV193-P1-05R): trước đây đổi parent_container_id qua endpoint update
+    // chung sẽ bỏ qua receipt-eligibility, DRAFT stage và PUTAWAY_DRAFT_EXISTS
+    // guard của canonical /putaway/tasks, dù vẫn ghi audit 'PUTAWAY_CONFIRM'.
+    // ------------------------------------------------------------------
+
+    public function test_container_update_rejects_parent_container_id_change_as_putaway_bypass(): void
+    {
+        $headers = ['Authorization' => $this->authHeaders()['Authorization']];
+        $sku = $this->componentSku('COMP-BYPASS-01');
+        $box = $this->boxReadyForPutaway('BOX-BYPASS-01', $sku->sku_id);
+        $tray = $this->emptyTray('TRAY-BYPASS-01');
+
+        $response = $this->patchJson(
+            "/api/v1/containers/{$box->container_id}",
+            ['parent_container_id' => $tray->container_id],
+            $headers + ['If-Match' => '1']
+        );
+
+        $response->assertStatus(422)->assertJsonPath('error.code', 'PUTAWAY_MUST_USE_TASK_FLOW');
+        $this->assertDatabaseHas('containers', [
+            'container_id' => $box->container_id,
+            'status' => 'RECEIVED_PENDING_PUTAWAY',
+            'parent_container_id' => null,
+            'version' => 1,
+        ]);
+        $this->assertSame(0, DB::table('putaway_events')->count(), 'Không được tạo putaway_events row qua endpoint update chung.');
+        $this->assertNull(
+            DB::table('audit_log')->where('object_id', $box->container_id)->where('action', 'PUTAWAY_CONFIRM')->first(),
+            'Không được ghi audit PUTAWAY_CONFIRM qua endpoint update chung.'
+        );
+    }
+
+    public function test_container_update_rejects_clearing_existing_parent_container_id(): void
+    {
+        $headers = ['Authorization' => $this->authHeaders()['Authorization']];
+        $tray = $this->emptyTray('TRAY-BYPASS-02');
+        $box = Container::create([
+            'container_code' => 'BOX-BYPASS-02',
+            'container_type' => 'BOX',
+            'primary_sku_id' => $this->componentSku('COMP-BYPASS-02')->sku_id,
+            'parent_container_id' => $tray->container_id,
+            'status' => 'STORED',
+            'version' => 1,
+        ]);
+
+        $this->patchJson(
+            "/api/v1/containers/{$box->container_id}",
+            ['parent_container_id' => null],
+            $headers + ['If-Match' => '1']
+        )->assertStatus(422)->assertJsonPath('error.code', 'PUTAWAY_MUST_USE_TASK_FLOW');
+
+        $this->assertDatabaseHas('containers', [
+            'container_id' => $box->container_id,
+            'parent_container_id' => $tray->container_id,
+            'version' => 1,
+        ]);
+    }
+
+    public function test_container_update_still_allows_non_putaway_field_edits_with_correct_audit_action(): void
+    {
+        $auth = $this->authHeaders();
+        $headers = ['Authorization' => $auth['Authorization']];
+        $box = $this->boxReadyForPutaway('BOX-BYPASS-03', $this->componentSku('COMP-BYPASS-03')->sku_id);
+
+        $response = $this->patchJson(
+            "/api/v1/containers/{$box->container_id}",
+            ['zone_code' => 'ZONE-A'],
+            $headers + ['If-Match' => '1']
+        );
+
+        $response->assertOk()->assertJsonPath('data.container.zone_code', 'ZONE-A');
+        $this->assertNull(
+            DB::table('audit_log')->where('object_id', $box->container_id)->where('action', 'PUTAWAY_CONFIRM')->first(),
+            'Sửa zone_code đơn thuần không được gắn nhãn audit PUTAWAY_CONFIRM.'
+        );
+        $updateAudit = DB::table('audit_log')->where('object_id', $box->container_id)->where('action', 'UPDATE_CONTAINER')->first();
+        $this->assertNotNull($updateAudit, 'Expected an UPDATE_CONTAINER audit_log row.');
+    }
+
+    public function test_container_update_allows_reasserting_same_parent_container_id(): void
+    {
+        $headers = ['Authorization' => $this->authHeaders()['Authorization']];
+        $tray = $this->emptyTray('TRAY-BYPASS-04');
+        $box = Container::create([
+            'container_code' => 'BOX-BYPASS-04',
+            'container_type' => 'BOX',
+            'primary_sku_id' => $this->componentSku('COMP-BYPASS-04')->sku_id,
+            'parent_container_id' => $tray->container_id,
+            'status' => 'STORED',
+            'version' => 1,
+        ]);
+
+        $this->patchJson(
+            "/api/v1/containers/{$box->container_id}",
+            ['parent_container_id' => $tray->container_id, 'zone_code' => 'ZONE-B'],
+            $headers + ['If-Match' => '1']
+        )->assertOk()->assertJsonPath('data.container.zone_code', 'ZONE-B');
     }
 }
