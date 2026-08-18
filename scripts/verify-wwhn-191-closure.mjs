@@ -204,8 +204,23 @@ if (!isSha(candidate)) {
 
 if (manifest.pull_request === undefined || manifest.pull_request === null || manifest.pull_request === "") {
   failures.push("P1-01R: manifest phải khai pull_request (URL PR hoặc 'N/A' kèm independent_review)");
-} else if (manifest.pull_request === "N/A" && !manifest.independent_review) {
-  failures.push("P1-01R: pull_request = N/A thì bắt buộc khai independent_review (ai review, review cái gì, ở đâu)");
+} else if (manifest.pull_request === "N/A") {
+  // Không có PR thì bắt buộc phải nói rõ ai review, review cái gì, ở đâu — kể cả khi
+  // review chưa xảy ra. Cấm bỏ trống, vì bỏ trống chính là handover tự ký.
+  const review = manifest.independent_review;
+  if (!review || !review.reviewer || !review.scope || !review.status) {
+    failures.push(
+      "P1-01R: pull_request = N/A thì bắt buộc khai independent_review { reviewer, scope, status, recorded_at } — " +
+        "status = 'PENDING' cũng được, nhưng không được bỏ trống",
+    );
+  } else if (review.status !== "APPROVED") {
+    notes.push(
+      "P1-01R: independent_review đang " + review.status + " — reviewer " + review.reviewer +
+        " (" + review.scope + "). Chưa đủ để đóng task, nhưng đã có owner rõ ràng.",
+    );
+  } else {
+    notes.push("P1-01R: independent_review APPROVED bởi " + review.reviewer);
+  }
 }
 
 // ── PIN INVARIANT ─────────────────────────────────────────────────────────────
@@ -244,7 +259,21 @@ if (isSha(candidate)) {
 
 // ── DEV191-P1-02R — CI run gắn đúng candidate SHA ─────────────────────────────
 const ciRun = manifest.ci_run;
-if (!ciRun) {
+const insideCi = process.env.GITHUB_ACTIONS === "true";
+if (insideCi) {
+  // Deadlock nếu không tách nhánh này: gate chạy TRONG chính CI run đang tạo ra
+  // evidence, nên không thể đòi run đó đã tồn tại. Trong CI, phép kiểm tương đương
+  // và chặt hơn là: run này phải đang chạy đúng trên candidate SHA đã pin.
+  const runSha = String(process.env.GITHUB_SHA ?? "");
+  if (runSha !== candidate) {
+    failures.push(
+      "P1-02R: CI run đang chạy tại " + runSha.slice(0, 12) + " nhưng candidate_sha đã pin là " +
+        candidate.slice(0, 12) + " — pin đã mục, chạy `node scripts/verify-wwhn-191-closure.mjs --refresh` rồi commit lại",
+    );
+  } else {
+    notes.push("P1-02R: CI run " + (process.env.GITHUB_RUN_ID ?? "?") + " đang chạy đúng tại candidate SHA");
+  }
+} else if (!ciRun) {
   failures.push(
     "P1-02R: chưa khai ci_run. Chạy gate riêng của task rồi ghi lại:\n" +
       "    gh workflow run wwhn-191-movement-balance-gate.yml --ref <candidate_sha>\n" +
