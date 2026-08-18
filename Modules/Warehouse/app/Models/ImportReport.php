@@ -23,6 +23,9 @@ class ImportReport extends Model
         'total_rows', 'valid_rows', 'error_rows', 'inserted_rows', 'updated_rows',
         'row_errors', 'actor_id', 'request_id',
         'error_file_path', 'error_file_expires_at', 'duplicate_of_replay',
+        // WWHN-331 FE331-P1-02R3: vân tay các tùy chọn tham gia ĐỊNH DANH lần import
+        // (hiện tại chỉ update_existing). Xem SkuImportContract::optionsFingerprint().
+        'options_fingerprint',
     ];
 
     protected $casts = [

@@ -179,8 +179,19 @@ Execution identity tối thiểu khi review: branch `m1`, source SHA, GitHub Act
 | Permission catalog runtime | `build/evidence/wwhn-309/permission-catalog.json`, `permission-seed-diff.json` |
 | API contract | `storage/api-docs/api-docs.json`, `docs/api-contract/HN-BE-API-002/003` |
 | Ops | `php artisan schedule:list`, `/api/v1/health` |
+| Cổng tổng tài liệu | `node scripts/verify-wwhn-309-handover-contract.mjs` → step `Handover documentation contract gate` trong workflow |
+| Đối chiếu chéo FE ↔ BE | FE `npm run contract:sync -- <BE_SHA>` + `npm run check:api-mapping` = PASS 56 dòng; biên nhận `FE@docs/Task_docs_Jira/WWHN-309_BE_CONTRACT_RECEIPT.md` |
+| Bộ comment sign-off theo vai trò | `docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md` |
 
 Workflow CI so byte catalog publish với catalog sinh tại đúng SHA (trừ `generated_at_utc`) — docs stale sẽ fail build, không còn phụ thuộc việc nhớ regenerate.
+
+### 7.1. Bẫy truy vết: `/docs/` nằm trong .gitignore
+
+`.gitignore` khai `/docs/`, nên **mọi file tài liệu mới dưới `docs/` mặc định không vào Git** — 158 file docs đang tracked là do từng được `git add -f`. Nếu quên bước này, tài liệu bàn giao chỉ tồn tại trên máy dev và reviewer fetch tại exact SHA sẽ không thấy gì: đúng lớp lỗi FE311-P1-03/P1-05 (artifact stale / weak GitHub trace).
+
+Gói WWHN-309 đã được `git add -f`: `docs/docs_task_jira/WWHN-309.md`, `docs/api-contract/HN-BE-API-001_API_CONTRACT_HANDOVER.md`, `HN-BE-API-002_ERROR_CODE_CATALOG.md|json`, `HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md|json`.
+
+Thêm tài liệu handover mới thì phải `git add -f` và kiểm chứng bằng `git ls-files docs/<path>` **trước khi** tuyên bố đã bàn giao.
 
 ## 8. Điểm cần sign-off và blocker còn lại
 

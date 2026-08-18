@@ -13,6 +13,7 @@ use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportErrorFileService;
 use Modules\Warehouse\Services\ImportService;
+use Modules\Warehouse\Support\SkuImportContract;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
@@ -55,9 +56,16 @@ class ImportController extends Controller
         description: 'Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. '
             .'Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; '
             .'kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. '
-            .'WWHN-330: nếu file có sha256 trùng với 1 lần COMMIT gần đây (24h) của cùng actor, response trả duplicate=true '
-            .'và import_report_id của lần import gốc, không ghi SKU/tạo báo cáo mới. Khi có row lỗi, dùng '
-            .'GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).',
+            .'WWHN-331 FE331-P1-03R3: mọi response đều mang khối `data.constraints` (max_rows, max_file_size_kb, '
+            .'allowed_extensions, error_file_expiry_hours, idempotency_window_hours, idempotency_identity, decision_ref) — '
+            .'đây là hạn mức máy chủ ĐANG áp dụng, đọc từ hợp đồng đã duyệt `warehouse.sku_import` (DEC-IMP-001). Client '
+            .'hiển thị theo khối này, không hard-code lại các con số đó. '
+            .'WWHN-331 FE331-P1-02R3 (idempotent replay): một lần import COMMIT được định danh bằng '
+            .'`file_sha256 + actor_id + options_fingerprint`, trong đó options_fingerprint = sha256 của chuỗi chuẩn hoá '
+            .'`update_existing=0|1`. Nộp lại CÙNG file, CÙNG actor, CÙNG update_existing trong cửa sổ idempotent thì trả '
+            .'duplicate=true + import_report_id của lần gốc và không ghi SKU/tạo báo cáo mới; nộp lại cùng file nhưng ĐỔI '
+            .'update_existing là thao tác nghiệp vụ KHÁC (chỉ tạo mới ↔ cho phép ghi đè) nên vẫn chạy thật. Khi có row lỗi, '
+            .'dùng GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         requestBody: new OA\RequestBody(
@@ -85,8 +93,16 @@ class ImportController extends Controller
     )]
     public function importExcel(Request $request): JsonResponse
     {
+        // WWHN-331 FE331-P1-03R3: rule upload đọc đúng hợp đồng đã duyệt, không còn số
+        // cứng trong code. Cùng nguồn với khối `constraints` trả về cho client, nên
+        // giới hạn máy chủ chặn thật và giới hạn UI hiển thị luôn là một.
         $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
+            'file' => [
+                'required',
+                'file',
+                'mimes:'.implode(',', SkuImportContract::allowedExtensions()),
+                'max:'.SkuImportContract::maxFileSizeKb(),
+            ],
             'update_existing' => ['nullable', 'boolean'],
             'dry_run' => ['nullable', 'boolean'],
         ]);
@@ -104,28 +120,33 @@ class ImportController extends Controller
             ? $request->attributes->get('request_id')
             : null;
 
+        $updateExisting = (bool) ($validated['update_existing'] ?? false);
+
         try {
             $result = $this->importService->import(
                 $fullPath,
-                (bool) ($validated['update_existing'] ?? false),
+                $updateExisting,
                 $actorId,
                 $requestId,
                 $file->getClientOriginalName(),
                 $dryRun,
             );
 
-            // WWHN-330 P1-03: file trùng sha256 với 1 lần COMMIT gần đây của cùng actor —
-            // trả lại Import báo cáo cũ, không tạo báo cáo mới, không ghi SKU lần 2.
+            $result = $this->withContract($result, $updateExisting);
+
+            // WWHN-330 P1-03 + WWHN-331 FE331-P1-02R3: file trùng ĐỦ định danh
+            // (sha256 + actor + options_fingerprint) với 1 lần COMMIT gần đây — trả lại
+            // Import báo cáo cũ, không tạo báo cáo mới, không ghi SKU lần 2.
             if ($result['duplicate'] ?? false) {
                 $result['import_report_id'] = $result['duplicate_of_import_report_id'];
 
                 return $this->respondSuccess(
                     $result,
-                    'File này đã được import trước đó (duplicate/already processed); trả lại kết quả của lần import gốc.',
+                    'File này đã được import trước đó với cùng tùy chọn (duplicate/already processed); trả lại kết quả của lần import gốc.',
                 );
             }
 
-            $report = $this->persistReport($result, $actorId, $requestId, $file->getClientOriginalName());
+            $report = $this->persistReport($result, $actorId, $requestId, $file->getClientOriginalName(), $updateExisting);
             $result['import_report_id'] = $report?->import_report_id;
             $hasRowErrors = $result['row_errors'] !== [];
 
@@ -171,12 +192,12 @@ class ImportController extends Controller
                 [],
                 422,
                 'SKU_IMPORT_ROW_LIMIT_EXCEEDED',
-                ['data' => [
+                ['data' => $this->withContract([
                     'committed' => false,
                     'partial_write' => false,
                     'max_rows' => $e->maxRows,
                     'actual_rows' => $e->actualRows,
-                ]],
+                ], $updateExisting)],
             );
         } catch (\InvalidArgumentException $e) {
             return $this->respondError(
@@ -184,11 +205,38 @@ class ImportController extends Controller
                 [],
                 422,
                 'SKU_IMPORT_FILE_INVALID',
-                ['data' => ['committed' => false, 'partial_write' => false]],
+                ['data' => $this->withContract(['committed' => false, 'partial_write' => false], $updateExisting)],
             );
         } finally {
             $localDisk->delete($path);
         }
+    }
+
+    /**
+     * WWHN-331 FE331-P1-02R3 / FE331-P1-03R3 — gắn hợp đồng import vào MỌI response
+     * (thành công, 422 row lỗi, 422 vượt hạn mức, 422 file hỏng, và cả ca duplicate).
+     *
+     * `constraints` là hạn mức máy chủ đang thực sự áp dụng, đọc từ đúng nguồn mà
+     * validator và ImportService dùng — nhờ vậy UI không cần (và không được) viết lại
+     * các con số đó. `update_existing` + `options_fingerprint` phơi ra định danh của
+     * chính lần gửi này để client và QA đối chiếu được vì sao một lần nộp lại được coi
+     * là replay hay là một thao tác mới.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function withContract(array $result, bool $updateExisting): array
+    {
+        $result['constraints'] = SkuImportContract::toArray();
+        $result['update_existing'] = $updateExisting;
+        // Ca duplicate đã mang sẵn vân tay của LẦN IMPORT GỐC (có thể null với bản ghi
+        // tạo trước migration 2026_08_18_190000) — không được đè bằng vân tay của lần
+        // gửi hiện tại, vì như vậy là khẳng định một điều không đọc được từ dữ liệu.
+        if (! array_key_exists('options_fingerprint', $result)) {
+            $result['options_fingerprint'] = SkuImportContract::optionsFingerprint($updateExisting);
+        }
+
+        return $result;
     }
 
     /**
@@ -199,7 +247,7 @@ class ImportController extends Controller
      *
      * @param  array<string, mixed>  $result
      */
-    private function persistReport(array $result, ?string $actorId, ?string $requestId, ?string $fileName): ?ImportReport
+    private function persistReport(array $result, ?string $actorId, ?string $requestId, ?string $fileName, bool $updateExisting): ?ImportReport
     {
         $dryRun = (bool) ($result['dry_run'] ?? false);
         $hasErrors = ($result['row_errors'] ?? []) !== [];
@@ -225,6 +273,9 @@ class ImportController extends Controller
                 'row_errors' => $result['row_errors'] ?? [],
                 'actor_id' => $actorId,
                 'request_id' => $requestId,
+                // WWHN-331 FE331-P1-02R3: lưu vân tay tùy chọn để lần nộp sau so được
+                // ĐỦ định danh (file + actor + tùy chọn), không chỉ trùng nội dung file.
+                'options_fingerprint' => SkuImportContract::optionsFingerprint($updateExisting),
             ]);
         } catch (Throwable $e) {
             Log::error('IMPORT_REPORT_WRITE_FAILED', [

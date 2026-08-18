@@ -4,17 +4,62 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportErrorFileService;
+use Modules\Warehouse\Support\SkuImportContract;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImportReportController extends Controller
 {
     use ApiResponse;
+
+    /**
+     * WWHN-331 FE331-P1-06R3 — data-scope của Import báo cáo SKU, áp cho CẢ BA route
+     * (list, detail, tải file lỗi) qua đúng một query duy nhất.
+     *
+     * Permission `sku.manage` chỉ trả lời "được dùng chức năng import hay không"; nó
+     * không trả lời "được đọc lần import của ai". Trước thay đổi này, bất kỳ ai có
+     * `sku.manage` cũng liệt kê được mọi Import báo cáo và tải được file lỗi CSV của
+     * người khác — mà file lỗi chứa nguyên nội dung file người đó nộp (mã SKU, tên
+     * hàng, giá trị từng ô sai).
+     *
+     * Quy tắc đã chốt (DEC-IMP-001, mục Data scope):
+     * - GLOBAL: người gọi không bị giới hạn kho (`User::warehouseScopeIds() === null`,
+     *   tức SUPER_ADMIN hoặc vai trò hệ thống không gắn scope_ref) → đọc được mọi báo
+     *   cáo, vì đây chính là vai trò cần đối soát chéo toàn bộ master data.
+     * - ACTOR_SCOPED: người gọi bị giới hạn kho → chỉ đọc được báo cáo do chính mình
+     *   tạo (`actor_id`).
+     *
+     * Lấy đúng nguồn scope (`scope_ref`) mà EnforceInventoryWarehouseScope và
+     * /reports/dashboard-quick đang dùng nên không phát sinh permission mới và không có
+     * nguồn scope thứ hai để lệch nhau. SKU là master data toàn cục (không có
+     * warehouse_id) nên không thể áp scope theo kho lên chính báo cáo — thứ cần bảo vệ
+     * là nội dung file của người nộp.
+     */
+    private function scopedQuery(): Builder
+    {
+        $user = auth('api')->user();
+        $query = ImportReport::query()->where('import_type', 'SKU');
+        $actorScope = SkuImportContract::reportActorScope($user instanceof User ? $user : null);
+
+        return $actorScope === null ? $query : $query->where('actor_id', $actorScope);
+    }
+
+    /** Nhãn phạm vi đang áp dụng, trả trong meta để QA/BA có bằng chứng đọc được ngay. */
+    private function dataScopeLabel(): string
+    {
+        $user = auth('api')->user();
+
+        return SkuImportContract::reportActorScope($user instanceof User ? $user : null) === null
+            ? 'GLOBAL'
+            : 'ACTOR_SCOPED';
+    }
 
     #[OA\Get(
         path: '/api/v1/skus/import-reports',
@@ -24,7 +69,13 @@ class ImportReportController extends Controller
             .'tải được ngay lúc gọi (đã sinh file và chưa quá `error_file_expires_at`). Client dùng đúng field này để '
             .'bật/tắt nút tải, KHÔNG tự so `error_file_expires_at` với đồng hồ máy client. Đường dẫn lưu trữ nội bộ '
             .'`error_file_path` không được trả ra ngoài. `duplicate_of_replay` = true nghĩa là báo cáo này đã từng '
-            .'được trả lại cho một lần import trùng file (idempotent replay).',
+            .'được trả lại cho một lần import trùng ĐỦ định danh (idempotent replay); `options_fingerprint` là vân tay '
+            .'tùy chọn của lần import đó (sha256 của `update_existing=0|1`). '
+            .'WWHN-331 FE331-P1-03R3: `meta.constraints` mang hạn mức import máy chủ đang áp dụng (DEC-IMP-001) để '
+            .'client hiển thị mà không hard-code lại con số. '
+            .'WWHN-331 FE331-P1-06R3 DATA-SCOPE: `meta.data_scope` = GLOBAL khi người gọi không bị giới hạn kho '
+            .'(xem được mọi Import báo cáo SKU), = ACTOR_SCOPED khi người gọi bị giới hạn kho (chỉ thấy báo cáo do '
+            .'chính mình tạo). Cùng nguồn scope_ref với /inventory/balances và /reports/dashboard-quick.',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         parameters: [
@@ -49,7 +100,7 @@ class ImportReportController extends Controller
             'file_sha256' => ['nullable', 'string'],
         ]);
 
-        $query = ImportReport::query()->where('import_type', 'SKU');
+        $query = $this->scopedQuery();
 
         if (isset($validated['mode'])) {
             $query->where('mode', $validated['mode']);
@@ -64,7 +115,19 @@ class ImportReportController extends Controller
         $reports = $query->orderByDesc('created_at')
             ->paginate((int) ($validated['per_page'] ?? 15));
 
-        return $this->respondPaginated($reports);
+        $response = $this->respondPaginated($reports);
+
+        // WWHN-331 FE331-P1-03R3: đây là endpoint đọc duy nhất mà màn hình import gọi
+        // được TRƯỚC khi người dùng chọn file, nên hợp đồng hạn mức đi kèm ngay trong
+        // meta — UI hiển thị hạn mức máy chủ đang áp dụng thay vì tự viết lại con số.
+        // FE331-P1-06R3: kèm luôn nhãn data-scope để QA có bằng chứng đọc được ngay
+        // trên response, không phải suy từ số dòng trả về.
+        $payload = $response->getData(true);
+        $payload['meta']['constraints'] = SkuImportContract::toArray();
+        $payload['meta']['data_scope'] = $this->dataScopeLabel();
+        $response->setData($payload);
+
+        return $response;
     }
 
     #[OA\Get(
@@ -73,7 +136,9 @@ class ImportReportController extends Controller
         summary: 'Chi tiết một Import báo cáo SKU — WWHN-224',
         description: 'Trả về `error_file_available` (boolean, WWHN-330) — nguồn sự thật duy nhất để client quyết định '
             .'hiển thị nút tải file lỗi; đã tính cả điều kiện hết hạn tại server. `error_file_expires_at` chỉ dùng để '
-            .'hiển thị mốc thời gian cho người dùng. `error_file_path` (đường dẫn nội bộ) không được trả ra ngoài.',
+            .'hiển thị mốc thời gian cho người dùng. `error_file_path` (đường dẫn nội bộ) không được trả ra ngoài. '
+            .'WWHN-331 FE331-P1-06R3 DATA-SCOPE: người gọi bị giới hạn kho chỉ đọc được báo cáo do chính mình tạo; '
+            .'báo cáo của người khác trả 404 y hệt báo cáo không tồn tại (fail-closed, không xác nhận sự tồn tại).',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         parameters: [
@@ -88,7 +153,9 @@ class ImportReportController extends Controller
     )]
     public function show(string $id): JsonResponse
     {
-        $report = ImportReport::query()->where('import_type', 'SKU')->find($id);
+        // FE331-P1-06R3: bản ghi ngoài data-scope trả 404 y hệt bản ghi không tồn tại —
+        // fail-closed và không lộ việc "có tồn tại một báo cáo id này của người khác".
+        $report = $this->scopedQuery()->find($id);
 
         return $report
             ? $this->respondSuccess($report)
@@ -101,9 +168,13 @@ class ImportReportController extends Controller
         summary: 'Tải file lỗi (CSV) của một Import báo cáo SKU — WWHN-330',
         description: 'Trả về file CSV (đã sinh sẵn khi import, xem ImportErrorFileService) gồm cột '
             .'row/field/error_code/message/value cho từng dòng bị reject trong lần import đó. '
-            .'Yêu cầu quyền sku.manage (cùng permission với các endpoint import khác). '
-            .'File lỗi hết hạn sau '.ImportErrorFileService::EXPIRY_HOURS.'h kể từ lúc sinh (error_file_expires_at) — '
-            .'giá trị tạm, cần BA/Tech Lead chốt chính thức. Giá trị trong CSV đã được sanitize khi sinh file '
+            .'Yêu cầu quyền sku.manage (cùng permission với các endpoint import khác) VÀ báo cáo phải nằm trong '
+            .'data-scope của người gọi (FE331-P1-06R3): người gọi bị giới hạn kho chỉ tải được file lỗi của chính '
+            .'lần import mình đã chạy — file lỗi chứa nguyên nội dung file người nộp nên báo cáo ngoài scope trả 404 '
+            .'y hệt báo cáo không tồn tại. '
+            .'Hạn dùng file lỗi lấy từ hợp đồng đã duyệt `warehouse.sku_import.error_file_expiry_hours` (DEC-IMP-001) '
+            .'và được trả ra trong `constraints` của response import / `meta.constraints` của danh sách báo cáo; '
+            .'mốc hết hạn cụ thể của từng báo cáo nằm ở `error_file_expires_at`. Giá trị trong CSV đã được sanitize khi sinh file '
             .'(bỏ ký tự điều khiển, chặn CSV/formula injection khi mở bằng Excel) và chỉ gồm dữ liệu đã nằm trong '
             .'row_errors của chính báo cáo đó — không lộ thêm thông tin ngoài phạm vi request gốc.',
         security: [['bearerAuth' => []]],
@@ -121,8 +192,11 @@ class ImportReportController extends Controller
     public function downloadErrorFile(string $id): JsonResponse|StreamedResponse
     {
         /** @var ImportReport|null $report */
-        $report = ImportReport::query()->where('import_type', 'SKU')->find($id);
+        $report = $this->scopedQuery()->find($id);
         if (! $report) {
+            // FE331-P1-06R3: gồm cả ca "báo cáo của người khác" — file lỗi CSV chứa
+            // nguyên nội dung file người đó nộp nên không được phục vụ ra ngoài scope,
+            // và cũng không được xác nhận sự tồn tại của nó.
             return $this->respondNotFound('Không tìm thấy Import báo cáo.');
         }
 

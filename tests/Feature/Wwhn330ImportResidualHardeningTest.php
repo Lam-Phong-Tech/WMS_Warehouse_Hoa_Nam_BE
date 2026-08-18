@@ -11,6 +11,7 @@ use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Services\ImportService;
+use Modules\Warehouse\Support\SkuImportContract;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
@@ -83,9 +84,16 @@ class Wwhn330ImportResidualHardeningTest extends TestCase
         $this->assertSame(0, Sku::query()->where('sku_code', 'LIKE', 'FAR-%')->count());
     }
 
-    // ── residual-02: import COMMIT được serialize theo (actor, sha256) ──────────────
+    // ── residual-02: import COMMIT được serialize theo đúng bộ định danh ────────────
 
-    public function test_commit_import_is_serialized_by_actor_and_file_checksum_lock(): void
+    /**
+     * WWHN-331 FE331-P1-02R3: khoá phải trùng ĐỊNH DANH của lần import, mà định danh đó
+     * gồm cả vân tay tùy chọn chứ không chỉ (actor, sha256). Nếu khoá rộng hơn định danh,
+     * hai lần chạy khác `update_existing` sẽ chờ nhau vô ích; nếu hẹp hơn thì mất tính
+     * atomic của bước kiểm tra trùng. Khoá và findRecentDuplicateReport() phải dùng đúng
+     * một bộ khoá.
+     */
+    public function test_commit_import_is_serialized_by_actor_file_checksum_and_options_lock(): void
     {
         $path = $this->plainXlsxPath([['LOCK-1', 'San pham khoa']]);
 
@@ -95,10 +103,11 @@ class Wwhn330ImportResidualHardeningTest extends TestCase
 
         $actorId = (string) User::query()->where('email', 'test-super-admin@hoanam.com')->value('user_id');
         $checksum = hash_file('sha256', $path);
+        $optionsFingerprint = SkuImportContract::optionsFingerprint(false);
 
         Cache::shouldReceive('lock')
             ->once()
-            ->with('sku-import:'.$actorId.':'.$checksum, 120)
+            ->with('sku-import:'.$actorId.':'.$checksum.':'.$optionsFingerprint, 120)
             ->andReturn($lock);
 
         $result = app(ImportService::class)->import($path, false, $actorId, null, 'lock.xlsx', false);

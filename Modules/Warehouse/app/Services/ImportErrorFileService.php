@@ -4,13 +4,16 @@ namespace Modules\Warehouse\Services;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Modules\Warehouse\Support\SkuImportContract;
 
 /**
  * WWHN-330 (DEV330-P1-01) — sinh file lỗi CSV thật cho các dòng bị reject khi import,
  * để người dùng tải về đối soát thay vì chỉ đọc JSON response tức thời.
  *
- * Expiry mặc định 24h kể từ lúc sinh file (giá trị tạm chọn hợp lý dựa trên vòng đời
- * import_reports hiện có — CẦN BA/Tech Lead chốt chính thức nếu cần khác).
+ * WWHN-331 FE331-P1-03R3: hạn dùng của file lỗi không còn là hằng số "tạm" trong lớp
+ * này mà đọc từ hợp đồng đã chốt (`warehouse.sku_import.error_file_expiry_hours`,
+ * DEC-IMP-001) — cùng nguồn với giá trị API trả ra trong `constraints` và với giá trị
+ * UI hiển thị, nên ba nơi không thể nói khác nhau.
  */
 class ImportErrorFileService
 {
@@ -18,8 +21,18 @@ class ImportErrorFileService
 
     public const STORAGE_SUBDIR = 'import-error-files';
 
-    /** Số giờ file lỗi còn hiệu lực trước khi bị coi là hết hạn (404/410 khi tải). */
+    /**
+     * @deprecated WWHN-331 FE331-P1-03R3 — dùng ImportErrorFileService::expiryHours().
+     *             Hằng số chỉ còn để không phá tham chiếu cũ; mọi phép tính hạn dùng
+     *             thật đã chuyển sang hợp đồng config đã duyệt.
+     */
     public const EXPIRY_HOURS = 24;
+
+    /** Số giờ file lỗi còn hiệu lực trước khi bị coi là hết hạn (404 khi tải). */
+    public static function expiryHours(): int
+    {
+        return SkuImportContract::errorFileExpiryHours();
+    }
 
     /**
      * Sinh file CSV lỗi từ danh sách row_errors, đã sanitize giá trị để tránh CSV/formula
@@ -60,7 +73,7 @@ class ImportErrorFileService
 
         return [
             'path' => $relativePath,
-            'expires_at' => Carbon::now()->addHours(self::EXPIRY_HOURS),
+            'expires_at' => Carbon::now()->addHours(self::expiryHours()),
         ];
     }
 

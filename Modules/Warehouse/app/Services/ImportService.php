@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Models\ProductMaster;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\SkuImportContract;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -24,23 +25,6 @@ class ImportService
 
     public const TEMPLATE_VERSION = 'WWHN-172-SKU-IMPORT-v1.1.0';
 
-    /**
-     * WWHN-330 P1-02: giới hạn số dòng dữ liệu mỗi lần import (không tính header).
-     * Test hiện có (tests/Feature/ImportBatchTest.php, Wwhn174SkuImportValidationTest,
-     * Wwhn224SkuImportDryRunTest) không cố định giá trị này bằng số, nên giữ nguyên 1000
-     * để không đổi hành vi nghiệp vụ hiện tại; đổi giá trị cần BA/Tech Lead chốt chính thức.
-     */
-    private const MAX_ROWS = 1000;
-
-    /**
-     * WWHN-330 P1-03: idempotent replay window — 2 lần import cùng nội dung file
-     * (cùng sha256) và cùng actor trong khoảng thời gian này được coi là "đã xử lý",
-     * trả lại kết quả Import báo cáo cũ thay vì chạy lại. Giá trị 24h là lựa chọn tạm,
-     * cần BA/Tech Lead chốt chính thức phạm vi (theo actor hay theo toàn hệ thống, và
-     * cửa sổ thời gian bao lâu).
-     */
-    private const IDEMPOTENCY_WINDOW_HOURS = 24;
-
     /** WWHN-330 residual-02: TTL của lock chống 2 request COMMIT trùng nhau chạy song song. */
     private const LOCK_TTL_SECONDS = 120;
 
@@ -48,18 +32,37 @@ class ImportService
     private const LOCK_WAIT_SECONDS = 15;
 
     /**
-     * WWHN-330 P1-02: số dòng vật lý tối đa thực sự đọc vào memory qua PhpSpreadsheet
-     * read filter (header + MAX_ROWS + 1 dòng dư để phát hiện vượt hạn mức), tránh nạp
-     * toàn bộ workbook lớn (vd. file lỗi 100k dòng) vào memory chỉ để rồi từ chối.
+     * WWHN-331 FE331-P1-03R3 — bốn hạn mức của import SKU (số dòng, cỡ file, cửa sổ
+     * idempotent, hạn file lỗi) trước đây là hằng số riêng trong lớp này, mỗi cái kèm
+     * ghi chú "giá trị tạm, cần BA/Tech Lead chốt", rồi FE chép lại đúng những con số
+     * đó vào một Alert cho người dùng đọc. Nay tất cả đọc từ một nguồn duy nhất
+     * (`config/warehouse.php` → `warehouse.sku_import`, chốt tại DEC-IMP-001) và chính
+     * khối giá trị đó được API trả ra qua `constraints`, nên hạn mức máy chủ áp dụng và
+     * hạn mức UI hiển thị không thể lệch nhau, và không còn hằng số nào chờ duyệt bị
+     * đưa thẳng ra màn hình người dùng.
      */
-    private const MAX_PHYSICAL_ROWS_TO_READ = self::MAX_ROWS + 2;
+    private function maxRows(): int
+    {
+        return SkuImportContract::maxRows();
+    }
 
-    /**
-     * WWHN-330 residual-01: trần số dòng VẬT LÝ được quét (kể cả dòng trống) trước khi
-     * dừng và báo lỗi tường minh. Bảo đảm file "bloated" (nhiều dòng trống xen giữa) vẫn
-     * đọc được tới đủ MAX_ROWS dòng dữ liệu thật, nhưng không quét vô hạn.
-     */
-    private const MAX_PHYSICAL_ROWS_TO_SCAN = 20 * self::MAX_PHYSICAL_ROWS_TO_READ;
+    /** Header + maxRows + 1 dòng dư để phát hiện vượt hạn mức mà vẫn bounded-read. */
+    private function maxPhysicalRowsToRead(): int
+    {
+        return $this->maxRows() + 2;
+    }
+
+    /** Trần số dòng VẬT LÝ được quét trước khi dừng và báo lỗi tường minh. */
+    private function maxPhysicalRowsToScan(): int
+    {
+        return 20 * $this->maxPhysicalRowsToRead();
+    }
+
+    /** Cửa sổ coi 2 lần COMMIT trùng ĐỦ định danh là replay (idempotent). */
+    private function idempotencyWindowHours(): int
+    {
+        return SkuImportContract::idempotencyWindowHours();
+    }
 
     /** Current export template. Legacy code/name/version headers remain accepted on import. */
     private const TEMPLATE_COLUMNS = [
@@ -92,16 +95,25 @@ class ImportService
         // WWHN-330 P1-03: file trùng sha256 với 1 lần COMMIT gần đây của cùng actor thì
         // coi là replay — trả lại kết quả cũ, không đọc/parse lại file, không ghi SKU lần 2.
         //
+        // WWHN-331 FE331-P1-02R3: định danh replay phải gồm CẢ tùy chọn import, không chỉ
+        // (file, actor, thời gian). `update_existing` đổi hẳn hiệu lực nghiệp vụ của cùng
+        // một file: false = chỉ tạo mới, SKU đã tồn tại thì báo DUPLICATE_CODE; true = cho
+        // phép ghi đè SKU đang tồn tại. Coi hai lần gửi đó là "cùng một thao tác" sẽ nuốt
+        // mất lần chạy mà người dùng thực sự muốn — người dùng bật công tắc lên rồi bấm
+        // Import và hệ thống lặng lẽ trả lại kết quả cũ, không cập nhật gì.
+        //
         // WWHN-330 residual-02: bọc toàn bộ "kiểm tra trùng + chạy import" trong 1 atomic
-        // lock theo (actor, sha256) để 2 request COMMIT giống hệt nhau gửi gần như đồng thời
-        // không cùng lọt qua bước kiểm tra (race window cũ tạo 2 dòng import_reports COMMITTED
-        // cho cùng 1 file). Lock cấp ứng dụng, không đổi schema và không đổi ngữ nghĩa cửa sổ
-        // IDEMPOTENCY_WINDOW_HOURS (unique index DB sẽ chặn vĩnh viễn, sai nghiệp vụ).
+        // lock theo đúng bộ định danh đó để 2 request COMMIT giống hệt nhau gửi gần như
+        // đồng thời không cùng lọt qua bước kiểm tra (race window cũ tạo 2 dòng
+        // import_reports COMMITTED cho cùng 1 file). Lock cấp ứng dụng, không đổi ngữ nghĩa
+        // cửa sổ idempotent (unique index DB sẽ chặn vĩnh viễn, sai nghiệp vụ).
+        $optionsFingerprint = SkuImportContract::optionsFingerprint($updateExisting);
+
         if (! $dryRun && $actorId !== null) {
-            return $this->withImportLock($checksum, $actorId, function () use (
-                $checksum, $filePath, $updateExisting, $actorId, $requestId, $originalName, $dryRun
+            return $this->withImportLock($checksum, $actorId, $optionsFingerprint, function () use (
+                $checksum, $filePath, $updateExisting, $actorId, $requestId, $originalName, $dryRun, $optionsFingerprint
             ): array {
-                $duplicate = $this->findRecentDuplicateReport($checksum, $actorId);
+                $duplicate = $this->findRecentDuplicateReport($checksum, $actorId, $optionsFingerprint);
                 if ($duplicate !== null) {
                     return $this->duplicateResult($duplicate);
                 }
@@ -126,9 +138,9 @@ class ImportService
      * @param  callable(): array<string, mixed>  $callback
      * @return array<string, mixed>
      */
-    private function withImportLock(string $checksum, string $actorId, callable $callback): array
+    private function withImportLock(string $checksum, string $actorId, string $optionsFingerprint, callable $callback): array
     {
-        $lock = Cache::lock('sku-import:'.$actorId.':'.$checksum, self::LOCK_TTL_SECONDS);
+        $lock = Cache::lock('sku-import:'.$actorId.':'.$checksum.':'.$optionsFingerprint, self::LOCK_TTL_SECONDS);
 
         try {
             $lock->block(self::LOCK_WAIT_SECONDS);
@@ -169,12 +181,12 @@ class ImportService
         if ($rows === []) {
             throw new InvalidArgumentException('File import không có dòng dữ liệu.');
         }
-        if (count($rows) > self::MAX_ROWS) {
+        if (count($rows) > $this->maxRows()) {
             // WWHN-330 P1-02: exception riêng -> controller map error code chuẩn
             // 'SKU_IMPORT_ROW_LIMIT_EXCEEDED', không lộ stack trace, không 500.
             throw new ImportRowLimitExceededException(
-                'File import vượt quá '.self::MAX_ROWS.' dòng dữ liệu.',
-                self::MAX_ROWS,
+                'File import vượt quá '.$this->maxRows().' dòng dữ liệu.',
+                $this->maxRows(),
                 count($rows),
             );
         }
@@ -320,14 +332,25 @@ class ImportService
     }
 
     /**
-     * WWHN-330 P1-03: tìm Import báo cáo COMMIT gần nhất cùng sha256 + cùng actor trong
-     * cửa sổ IDEMPOTENCY_WINDOW_HOURS. Scope theo actor (không phải toàn hệ thống) vì
-     * request_id/actor_id là ranh giới quyền hạn sẵn có của import hiện tại — 2 actor khác
-     * nhau cùng nộp 1 file giống hệt nhau (vd. cùng nhận từ NCC) vẫn được coi là 2 lần import
-     * độc lập, tránh 1 actor "mượn" kết quả import của actor khác. Actor null (hệ thống/CLI)
-     * không được coi là trùng lặp để tránh false-positive giữa các job không định danh actor.
+     * WWHN-330 P1-03 + WWHN-331 FE331-P1-02R3: tìm Import báo cáo COMMIT gần nhất TRÙNG
+     * ĐỦ ĐỊNH DANH trong cửa sổ idempotent. Định danh = `file_sha256 + actor_id +
+     * options_fingerprint` (xem `warehouse.sku_import.idempotency_identity`, chốt tại
+     * DEC-IMP-001).
+     *
+     * Scope theo actor (không phải toàn hệ thống) vì actor_id là ranh giới quyền hạn sẵn
+     * có của import hiện tại — 2 actor khác nhau cùng nộp 1 file giống hệt nhau (vd. cùng
+     * nhận từ NCC) vẫn là 2 lần import độc lập, tránh 1 actor "mượn" kết quả của actor
+     * khác. Actor null (hệ thống/CLI) không được coi là trùng lặp để tránh false-positive
+     * giữa các job không định danh actor.
+     *
+     * `options_fingerprint IS NULL` là bản ghi tạo TRƯỚC khi tùy chọn tham gia định danh
+     * (migration 2026_08_18_190000). Với các bản ghi đó không thể biết lúc ấy chạy với
+     * `update_existing` nào, nên giữ nguyên hành vi cũ — vẫn coi là trùng — thay vì đoán:
+     * đoán sai theo hướng "không trùng" sẽ chạy lại một lần commit mà trước đó hệ thống đã
+     * hứa là idempotent. Sau cửa sổ idempotent kể từ lúc deploy thì mọi bản ghi trong tầm
+     * so sánh đều đã có fingerprint và nhánh này tự hết hiệu lực.
      */
-    private function findRecentDuplicateReport(string $checksum, ?string $actorId): ?ImportReport
+    private function findRecentDuplicateReport(string $checksum, ?string $actorId, string $optionsFingerprint): ?ImportReport
     {
         if ($actorId === null) {
             return null;
@@ -339,7 +362,10 @@ class ImportService
             ->where('status', 'COMMITTED')
             ->where('file_sha256', $checksum)
             ->where('actor_id', $actorId)
-            ->where('created_at', '>=', now()->subHours(self::IDEMPOTENCY_WINDOW_HOURS))
+            ->where(fn ($query) => $query
+                ->where('options_fingerprint', $optionsFingerprint)
+                ->orWhereNull('options_fingerprint'))
+            ->where('created_at', '>=', now()->subHours($this->idempotencyWindowHours()))
             ->orderByDesc('created_at')
             ->first();
     }
@@ -371,6 +397,9 @@ class ImportService
             'partial_write' => false,
             'duplicate' => true,
             'duplicate_of_import_report_id' => $report->import_report_id,
+            // FE331-P1-02R3: vân tay tùy chọn của LẦN IMPORT GỐC, để QA/BA đối soát được
+            // rằng lần gửi này trùng đúng cả tùy chọn chứ không chỉ trùng nội dung file.
+            'options_fingerprint' => $report->options_fingerprint,
             'file_sha256' => $report->file_sha256,
             'header_map' => [],
             'total_rows' => $report->total_rows,
@@ -413,15 +442,15 @@ class ImportService
             $totalPhysicalRows = 0;
         }
         $lastRowToScan = $totalPhysicalRows > 0
-            ? min($totalPhysicalRows, self::MAX_PHYSICAL_ROWS_TO_SCAN)
-            : self::MAX_PHYSICAL_ROWS_TO_SCAN;
+            ? min($totalPhysicalRows, $this->maxPhysicalRowsToScan())
+            : $this->maxPhysicalRowsToScan();
 
         $header = null;
         $dataRows = [];
         $scannedTo = 0;
 
-        for ($start = 1; $start <= $lastRowToScan; $start += self::MAX_PHYSICAL_ROWS_TO_READ) {
-            $end = min($start + self::MAX_PHYSICAL_ROWS_TO_READ - 1, $lastRowToScan);
+        for ($start = 1; $start <= $lastRowToScan; $start += $this->maxPhysicalRowsToRead()) {
+            $end = min($start + $this->maxPhysicalRowsToRead() - 1, $lastRowToScan);
 
             $reader->setReadFilter(new class($start, $end) implements IReadFilter
             {
@@ -452,10 +481,10 @@ class ImportService
                 }
                 $dataRows[] = $row;
                 // Dừng ngay khi vượt hạn mức: memory chỉ giữ tối đa MAX_ROWS + 1 dòng dữ liệu.
-                if (count($dataRows) > self::MAX_ROWS) {
+                if (count($dataRows) > $this->maxRows()) {
                     throw new ImportRowLimitExceededException(
-                        'File import vượt quá '.self::MAX_ROWS.' dòng dữ liệu.',
-                        self::MAX_ROWS,
+                        'File import vượt quá '.$this->maxRows().' dòng dữ liệu.',
+                        $this->maxRows(),
                         count($dataRows),
                     );
                 }
@@ -468,9 +497,9 @@ class ImportService
         // Không cắt âm thầm: còn dòng vật lý chưa quét tới thì báo lỗi rõ ràng.
         if ($totalPhysicalRows > $scannedTo) {
             throw new ImportRowLimitExceededException(
-                'File import trải dài quá '.self::MAX_PHYSICAL_ROWS_TO_SCAN
+                'File import trải dài quá '.$this->maxPhysicalRowsToScan()
                 .' dòng bảng tính (kể cả dòng trống); vui lòng xoá bớt dòng trống thừa rồi import lại.',
-                self::MAX_ROWS,
+                $this->maxRows(),
                 count($dataRows),
             );
         }
