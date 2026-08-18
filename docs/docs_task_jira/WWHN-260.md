@@ -58,10 +58,22 @@ Dictionary; `REQ-SRS-021`, `REQ-SRS-034`, `NFR-SRS-017`, `AC-SRS-021`, `AC-GWT-M
 |---|---|
 | `tests/Feature/Wwhn260MigrationPackClosureTest.php` (sqlite) | 10/10 PASS, 54 assertions |
 | `tests/Feature/MigrationFinalDataLoadTest.php` | không hồi quy |
-| `tests/Feature/Erd*ParityTest.php` sau `ERD-AMD-007` | không hồi quy |
+| `tests/Feature/Erd*ParityTest.php` (sqlite) sau `ERD-AMD-007` | không hồi quy; bản PostgreSQL xem ghi chú ngay dưới |
 | `src/test/wwhn-260-migration-operational-only.test.ts` (FE) | 4/4 PASS |
 | Diễn tập cutover thật (11 artifact) | `docs/evidence/WWHN-260/` |
 | Capacity `NFR-SRS-017` | 30.000 dòng (3 file × 10.000) PASSED trong 353 ms |
+
+**Chưa xác minh được trên PostgreSQL — chặn bởi lỗi ngoài phạm vi ticket này.** Cổng
+`ErdPhysicalSchemaParityTest` (kiểm `ERD-AMD-007` đúng type/nullable/default) chỉ chạy trên
+PostgreSQL, nhưng hiện **mọi** test PG đều đỏ ngay ở bước `migrate` với
+`SQLSTATE[42804] ... column "created_by" is of type uuid but expression is of type text`,
+phát sinh trong `hn_erd_mirror_pv_industries()` khi migration
+`2026_08_19_000100_add_optimistic_lock_to_pv_master_tables.php` (thuộc `WWHN-252`) chạy
+`UPDATE pv_industry SET version = 1` qua view compatibility. Lỗi này không liên quan
+`WWHN-260` và chặn cả các test không liên quan; đã tách thành việc riêng cho chủ `WWHN-252`.
+Cột `migration_runs.duplicate_rows` được xác minh riêng trên PostgreSQL bằng cách chạy chuỗi
+migration tới trước migration hỏng và đọc `information_schema.columns` (xem
+`docs/evidence/WWHN-260/12-postgres-column-check.txt`).
 
 Lưu ý khi chạy lại toàn bộ suite BE: nhánh `m1` đang có nhiều phiên làm việc song song
 (WWHN-230/231/239/252/254/268/299/300…), nên một lần chạy full suite có thể đỏ ở các test thuộc

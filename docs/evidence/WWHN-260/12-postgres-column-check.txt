@@ -1,0 +1,42 @@
+WWHN-260 — kiểm cột ERD-AMD-007 trên PostgreSQL thật
+=====================================================
+
+Ngày: 18/08/2026
+Lý do phải kiểm tách riêng: cổng `ErdPhysicalSchemaParityTest` chỉ chạy trên PostgreSQL, nhưng
+toàn bộ suite PG hiện đỏ ngay ở bước `migrate` vì lỗi ngoài phạm vi WWHN-260 (xem cuối file).
+Vì migration của WWHN-260 (2026_08_18_193000) chạy TRƯỚC migration hỏng (2026_08_19_000100),
+chuỗi vẫn áp dụng được tới cột cần kiểm rồi mới dừng.
+
+Cách chạy
+---------
+DB: PostgreSQL 127.0.0.1:5432, database dùng một lần `wms_hoanam_wwhn260`
+    php artisan migrate --force        # dừng ở 2026_08_19_000100 (lỗi của WWHN-252)
+    -> đọc information_schema.columns
+
+Kết quả
+-------
+duplicate_rows   integer    null=NO   default=0
+error_rows       integer    null=NO   default=0
+total_rows       integer    null=NO   default=0
+valid_rows       integer    null=NO   default=0
+
+Đối chiếu ERD (HN-WMS-ERD-DD-001, bảng 58 migration_runs, ERD-AMD-007):
+  **duplicate_rows**   integer   No   DEFAULT 0
+=> KHỚP type / nullability / default. Đây đúng là ba điều kiện mà
+   ErdPhysicalSchemaParityTest::test_every_documented_field_matches_type_nullability_and_default
+   sẽ kiểm khi chuỗi migration PG chạy lại được.
+
+Cũng đã kiểm `php artisan migrate:rollback` áp dụng được nghịch đảo (migration của WWHN-260 có
+down() thật, không phải no-op) — ràng buộc của Wwhn300BackendGoLiveCheckTest.
+
+Lỗi đang chặn suite PostgreSQL (KHÔNG thuộc WWHN-260)
+----------------------------------------------------
+SQLSTATE[42804]: Datatype mismatch: 7 ERROR: column "created_by" is of type uuid but expression
+is of type text
+CONTEXT: PL/pgSQL function hn_erd_mirror_pv_industries() line 1 at SQL statement
+SQL: update "pv_industry" set "version" = 1 where "version" is null
+Nguồn: Modules/Warehouse/database/migrations/2026_08_19_000100_add_optimistic_lock_to_pv_master_tables.php
+       (thuộc WWHN-252) — cập nhật qua view compatibility `pv_industry` nên kích hoạt trigger
+       mirror, mà trigger đọc `pv_industries__legacy_projection` có created_by/updated_by kiểu
+       text trong khi bảng canonical khai uuid; thiếu CAST.
+Đã tách thành việc riêng cho chủ WWHN-252; WWHN-260 không sửa file của ticket khác.

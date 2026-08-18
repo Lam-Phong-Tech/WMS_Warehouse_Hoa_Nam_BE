@@ -54,6 +54,7 @@ separation of duty cấm hai vai trùng nhau.
 | 09 | `09-rejected-rows.csv` | Error file §13.12 | — | 6 dòng lỗi, đủ cột + `data_owner`, PII đã mask |
 | 10 | `10-verify-rejected.json` | Xác minh run FAILED | 1 | `verdict = FAIL` đúng như mong đợi — cổng chặn cutover |
 | 11 | `11-capacity-dry-run.json` | Capacity `NFR-SRS-017` | 0 | 30.000 dòng (3 file × 10.000) `PASSED` trong **353 ms** |
+| 12 | `12-postgres-column-check.txt` | Kiểm `ERD-AMD-007` trên PostgreSQL thật | — | `duplicate_rows integer NOT NULL DEFAULT 0` — khớp ERD; kèm mô tả lỗi PG đang chặn suite (thuộc `WWHN-252`) |
 
 Package diễn tập nằm ngay trong evidence (`package/`, `package-rejected/`) để bất kỳ ai cũng
 băm lại được checksum mà không cần xin file.
@@ -100,4 +101,4 @@ không có reconciliation và không có rollback — nên không thể dùng l�
 |---|---|---|
 | `tests/Feature/Wwhn260MigrationPackClosureTest.php` | 10 test: bất biến 3 số, chặn nạp trùng, container không sinh tồn, map brand/category/model, `UNKNOWN_FK`, verifier độc lập, phát hiện số liệu bị sửa, error file có chủ dữ liệu, evidence pin nguồn/checksum/thời lượng, capacity 10.000 dòng/file | 10/10 PASS (sqlite) |
 | `tests/Feature/MigrationFinalDataLoadTest.php` | AC-SRS-021 của `WWHN-299` | không hồi quy |
-| `tests/Feature/Erd*ParityTest.php` | ERD ↔ schema sau `ERD-AMD-007` | không hồi quy |
+| `tests/Feature/Erd*ParityTest.php` | ERD ↔ schema sau `ERD-AMD-007` | không hồi quy trên sqlite. Bản PostgreSQL **chưa chạy được**: chuỗi migration PG đang hỏng vì `hn_erd_mirror_pv_industries()` thiếu CAST uuid (migration `2026_08_19_000100` của `WWHN-252`), chặn mọi test PG. Cột `duplicate_rows` vì thế được kiểm tách riêng trên PostgreSQL thật — artifact 12. |
