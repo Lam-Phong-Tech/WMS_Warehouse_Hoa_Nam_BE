@@ -70,6 +70,6 @@ Phải làm đủ, trong cùng một PR:
 
 ## Hệ quả
 
-- Số error code trong catalog giảm từ 248 xuống 246 tại SHA đóng WWHN-309 và không
-  còn mã nào không thể phát sinh.
+- Catalog error code giảm đúng 2 mã (hai mã ma nêu trên) và không còn mã nào không thể
+  phát sinh. Số tuyệt đối tại từng SHA đọc ở `HN-BE-API-004_CONTRACT_METRICS.json`.
 - Không có thay đổi hành vi runtime: không route nào từng đi qua middleware này.

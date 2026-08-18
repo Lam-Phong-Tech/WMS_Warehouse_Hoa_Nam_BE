@@ -7,7 +7,7 @@
     "shape": "{success:false, message, error_code, errors, error:{code, details}, meta:{request_id, timestamp}}",
     "note": "error_code và error.code luôn bằng nhau; client không được coi khoá nào là optional."
   },
-  "total_codes": 246,
+  "total_codes": 247,
   "codes": [
     {
       "code": "BAD_REQUEST",
@@ -1770,7 +1770,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:240"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:290"
     },
     {
       "code": "SKU_IMPORT_ROW_LIMIT_EXCEEDED",
@@ -1778,7 +1778,7 @@
         422
       ],
       "occurrences": 1,
-      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:202"
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:219"
     },
     {
       "code": "SKU_NAME_REQUIRED",
@@ -1969,8 +1969,8 @@
       "http_status": [
         503
       ],
-      "occurrences": 1,
-      "first_seen": "app/Http/Controllers/HealthController.php:62"
+      "occurrences": 2,
+      "first_seen": "app/Http/Controllers/HealthController.php:113"
     },
     {
       "code": "SERVICE_UNAVAILABLE",
@@ -1979,6 +1979,14 @@
       ],
       "occurrences": 1,
       "first_seen": "app/Traits/ApiResponse.php (default map)"
+    },
+    {
+      "code": "SKU_IMPORT_REPORT_PERSISTENCE_FAILED",
+      "http_status": [
+        503
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:274"
     }
   ]
 }

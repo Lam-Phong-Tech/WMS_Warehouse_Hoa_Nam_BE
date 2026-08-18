@@ -12,13 +12,13 @@ spec thật đã sang giá trị thứ ba. Từ nay chỉ có **một** nguồn 
 | Phiên bản OpenAPI | 2.0.0 |
 | Path trong OpenAPI | 183 |
 | Operation trong OpenAPI | 231 |
-| Response trong OpenAPI | 2323 |
-| Response có schema envelope | 2323/2323 |
-| Schema trong components.schemas | 11 |
+| Response trong OpenAPI | 2315 |
+| Response có schema envelope | 2315/2315 |
+| Schema trong components.schemas | 21 |
 | Operation khai `Idempotency-Key` | 27 |
 | Trong đó bắt buộc / tuỳ chọn | 23 / 4 |
 | Operation khai `If-Match` | 58 |
-| Error code trong catalog | 246 |
+| Error code trong catalog | 247 |
 | Operation trong ma trận endpoint | 231 |
 | Permission trong ma trận endpoint | 57 |
 | Nhóm nghiệp vụ (tag) | 22 |

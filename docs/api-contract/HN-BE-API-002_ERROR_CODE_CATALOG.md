@@ -38,7 +38,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | 500 | `INTERNAL_SERVER_ERROR` | lỗi ngoài dự kiến, giao dịch đã rollback |
 | 503 | `SERVICE_UNAVAILABLE` | dependency bắt buộc không sẵn sàng |
 
-## 3. Danh mục error code (246 mã)
+## 3. Danh mục error code (247 mã)
 
 ### HTTP 400
 
@@ -301,8 +301,8 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `SKU_CODE_REQUIRED` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:401` |
 | `SKU_COMPONENT_CYCLE` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:266` |
 | `SKU_COMPONENT_SELF_REFERENCE` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:227` |
-| `SKU_IMPORT_FILE_INVALID` | 1 | `Modules/Warehouse/app/Http/Controllers/ImportController.php:240` |
-| `SKU_IMPORT_ROW_LIMIT_EXCEEDED` | 1 | `Modules/Warehouse/app/Http/Controllers/ImportController.php:202` |
+| `SKU_IMPORT_FILE_INVALID` | 1 | `Modules/Warehouse/app/Http/Controllers/ImportController.php:290` |
+| `SKU_IMPORT_ROW_LIMIT_EXCEEDED` | 1 | `Modules/Warehouse/app/Http/Controllers/ImportController.php:219` |
 | `SKU_NAME_REQUIRED` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:411` |
 | `SKU_NOT_ACTIVE` | 3 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:490` |
 | `SKU_PUBLISH_REQUIRES_ACTIVE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:203` |
@@ -346,8 +346,9 @@ Không client nào được coi một trong hai là optional. `message` không b
 
 | Error code | Số lần dùng | Vị trí đầu tiên |
 | --- | --- | --- |
-| `HEALTH_CHECK_DEGRADED` | 1 | `app/Http/Controllers/HealthController.php:62` |
+| `HEALTH_CHECK_DEGRADED` | 2 | `app/Http/Controllers/HealthController.php:113` |
 | `SERVICE_UNAVAILABLE` | 1 | `app/Traits/ApiResponse.php (default map)` |
+| `SKU_IMPORT_REPORT_PERSISTENCE_FAILED` | 1 | `Modules/Warehouse/app/Http/Controllers/ImportController.php:274` |
 
 ## 4. Quy tắc dùng cho FE/QA
 

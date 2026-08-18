@@ -18,7 +18,7 @@
 Tôi xác nhận đã hoàn thành và tự kiểm trên nhánh m1 @ <CANDIDATE_SHA>:
 
 1. Tài liệu bàn giao: HN-BE-ARCH-001 (kiến trúc as-built), HN-BE-API-001 (contract API cho
-   FE/QA), HN-BE-API-002 (246 error code), HN-BE-API-003 (231 operation × 57 permission),
+   FE/QA), HN-BE-API-002 (247 error code), HN-BE-API-003 (231 operation × 57 permission),
    HN-BE-API-004 (số liệu contract sinh tự động), HN-BE-OPS-001 (runbook vận hành),
    README build/run/env, docs/docs_task_jira/WWHN-309.md.
 2. Đóng gốc DEV309-P1-02: số liệu contract không còn là văn xuôi. HN-BE-API-004 sinh từ
@@ -37,8 +37,8 @@ Tôi xác nhận đã hoàn thành và tự kiểm trên nhánh m1 @ <CANDIDATE_
 5. Đóng DEV309-P2-02: gỡ app/Http/Middleware/CurrentBaselineIfMatch.php theo
    DEC-API-IFMATCH-001. Lý do: nó không gắn vào route nào nhưng là nguồn DUY NHẤT của hai
    error code RESOURCE_ID_REQUIRED và VERSION_CONTRACT_MISSING đang publish cho FE/QA —
-   contract quảng cáo hai mã không đường chạy nào trả về. Catalog giảm từ 248 xuống 246 mã.
-6. OpenAPI: 183 path / 231 operation, phủ 100% route /api/v1; 2323/2323 response có schema
+   contract quảng cáo hai mã không đường chạy nào trả về. Catalog giảm đúng 2 mã ma.
+6. OpenAPI: 183 path / 231 operation, phủ 100% route /api/v1; 2315/2315 response có schema
    envelope; 27 operation khai Idempotency-Key (23 bắt buộc, 4 tuỳ chọn), 58 operation khai
    If-Match — sinh tự động từ source nên không lệch runtime.
 7. Bất biến MVP giữ nguyên: không stocktake/sửa tồn trực tiếp, full-post, correction qua
@@ -124,7 +124,7 @@ Không có blocker kỹ thuật thuộc Tech Lead đối với WWHN-309.
 Tôi xác nhận đã review tài liệu và evidence bàn giao tại m1 @ <CANDIDATE_SHA>, đủ điều kiện
 để QA kiểm thử độc lập:
 
-1. Catalog 246 error code + ma trận 231 operation × 57 permission đủ chi tiết để viết case
+1. Catalog 247 error code + ma trận 231 operation × 57 permission đủ chi tiết để viết case
    âm/dương; endpoint public đúng 9 và được allowlist tường minh.
 2. Quy tắc kiểm thử đồng thời rõ ràng: If-Match sai version → 412, thiếu header bắt buộc →
    428, Idempotency-Key trùng payload → replay / khác payload → 409.

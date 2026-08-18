@@ -71,7 +71,7 @@ Từ WWHN-309, OpenAPI khai envelope bằng schema thật thay vì mô tả bằ
 - `components.schemas.ApiErrorEnvelope`
 - `components.schemas.ApiErrorDetail`, `ApiMeta`, `ApiLinks`
 
-**100% response trong spec (2323/2323) đều có `content` trỏ tới một trong hai envelope**, nên FE/QA sinh type từ spec được ngay.
+**100% response trong spec đều có `content` trỏ tới một trong hai envelope** (số đếm chính xác: `HN-BE-API-004_CONTRACT_METRICS.md`), nên FE/QA sinh type từ spec được ngay.
 
 ### 2.3. `request_id`
 
@@ -92,7 +92,7 @@ Mọi response đều có `meta.request_id`. Khi báo lỗi cho BE, **luôn kèm
 
 Phân quyền theo **permission code**, không theo tên role. Middleware `permission:A|B` nghĩa là **OR** — có A *hoặc* B đều qua.
 
-Endpoint public (không cần JWT) — đúng 7, đã allowlist tường minh:
+Endpoint public (không cần JWT) — allowlist tường minh, số lượng chính xác xem `HN-BE-API-004`:
 
 - `GET /api/v1/health`
 - `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`
@@ -110,7 +110,7 @@ Bảng đầy đủ endpoint → permission: `HN-BE-API-003_ENDPOINT_PERMISSION_
 | --- | --- | --- |
 | `Authorization: Bearer <jwt>` | Mọi endpoint trừ 7 endpoint public | Thiếu/hết hạn → 401 `UNAUTHENTICATED` |
 | `Idempotency-Key` | 27 operation (23 bắt buộc, 4 tuỳ chọn) | Chuỗi 8–100 ký tự. Thiếu ở endpoint bắt buộc → 428. Cùng key + cùng payload → trả lại kết quả lần đầu. Cùng key + payload khác → 409 |
-| `If-Match` | 58 operation | Số nguyên = `version` hiện tại. Sai → 412 `STALE_VERSION`. Thiếu ở endpoint bắt buộc → 428 `PRECONDITION_REQUIRED` |
+| `If-Match` | xem HN-BE-API-004 | Số nguyên = `version` hiện tại. Sai → 412 `STALE_VERSION`. Thiếu ở endpoint bắt buộc → 428 `PRECONDITION_REQUIRED` |
 | `Accept: application/json` | Nên luôn gửi | Bảo đảm handler lỗi trả JSON |
 
 Danh sách chính xác operation nào cần header nào nằm trong OpenAPI (`parameters[].in == "header"`) — được sinh tự động từ chính source của controller, không khai tay.
@@ -133,7 +133,7 @@ Client **retry cùng `Idempotency-Key`** khi mất mạng là an toàn: lần ha
 
 ## 5. Mã lỗi
 
-Toàn bộ **246 error code** nằm ở `HN-BE-API-002_ERROR_CODE_CATALOG.md` (sinh tự động từ source). Quy tắc dùng:
+Toàn bộ error code nằm ở `HN-BE-API-002_ERROR_CODE_CATALOG.md` (sinh tự động từ source). Quy tắc dùng:
 
 | HTTP | Nghĩa | FE nên làm gì |
 | --- | --- | --- |
@@ -162,17 +162,21 @@ Toàn bộ **246 error code** nằm ở `HN-BE-API-002_ERROR_CODE_CATALOG.md` (s
 
 ## 7. Bề mặt API hiện tại
 
+> **Số liệu contract không được chép vào đây.** Bảng đếm chính thức nằm ở
+> `docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.md` (sinh tự động từ OpenAPI +
+> catalog + ma trận, có `--check` trong CI).
+>
+> Lý do: trước đây bảng này được chép tay, nên cùng một gói bàn giao ghi hai giá trị
+> khác nhau cho cùng một phép đếm trong khi spec thật đã sang giá trị thứ ba. Một
+> nguồn số liệu duy nhất là cách duy nhất chấm dứt lớp lỗi đó.
+
 | Chỉ số | Giá trị |
 | --- | --- |
 | Base path | `/api/v1` |
-| Số operation | 231 |
-| Số path | 183 |
-| Số nhóm nghiệp vụ (tag) | 22 |
-| Số permission code gác route | 57 |
-| Độ phủ OpenAPI so với route table | 231/231 (100%) |
-| Response có schema envelope | 2323/2323 (100%) |
-| Endpoint public | 9 |
-| Operation có data scope theo kho | 43 |
+| Path / operation / response / schema | HN-BE-API-004 |
+| Permission code gác route | HN-BE-API-004 |
+| Endpoint public | HN-BE-API-004 |
+| Operation có data scope theo kho | HN-BE-API-004 |
 
 Độ phủ 100% không phải may mắn: `App\Swagger\Processors\RouteSyncProcessor` đọc route table thật khi generate, nên endpoint mới **luôn** xuất hiện trong spec.
 
@@ -213,12 +217,12 @@ CI chạy bước 3–5 ở chế độ `--check`: tài liệu lệch code sẽ 
 
 | Hạng mục | Trạng thái |
 | --- | --- |
-| Mọi route `/api/v1` có mặt trong OpenAPI | Đạt — 231/231 |
-| Mọi response mô tả được hình dạng payload | Đạt — 2323/2323 |
+| Mọi route `/api/v1` có mặt trong OpenAPI | Đạt — độ phủ 100%, cổng tổng kiểm lại mỗi lần chạy |
+| Mọi response mô tả được hình dạng payload | Đạt — 100%, xem HN-BE-API-004 |
 | Header `Idempotency-Key` / `If-Match` khai đúng runtime | Đạt — sinh tự động từ source |
-| Catalog error code đầy đủ, tự kiểm tra được | Đạt — 246 mã, có `--check` |
-| Ma trận endpoint × permission | Đạt — 231 operation, 57 permission |
-| Endpoint public được allowlist tường minh | Đạt — 9 endpoint |
+| Catalog error code đầy đủ, tự kiểm tra được | Đạt — có `--check` |
+| Ma trận endpoint × permission | Đạt — xem HN-BE-API-004 |
+| Endpoint public được allowlist tường minh | Đạt — xem HN-BE-API-004 |
 | Cổng chống trôi tài liệu | Đạt — `scripts/verify-wwhn-309-handover-contract.mjs` |
 | Kiểm chứng chéo với FE | Đạt — `npm run check:api-mapping` PASS trên spec BE |
 

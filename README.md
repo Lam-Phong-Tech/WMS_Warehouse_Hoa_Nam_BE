@@ -94,7 +94,7 @@ npm run api:smoke
 php artisan l5-swagger:generate
 ```
 
-Sinh `storage/api-docs/api-docs.json|yaml` (hiện 183 path / 231 operation), UI tại `/api/documentation`.
+Sinh `storage/api-docs/api-docs.json|yaml` (số path/operation hiện tại: xem `docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.md`), UI tại `/api/documentation`.
 
 - Annotation nằm ngay trên controller thật; đường dẫn quét khai trong `config/l5-swagger.php` — thêm controller mới có annotation thì **phải** thêm đường dẫn vào đó, nếu không Swagger publish endpoint rỗng contract.
 - `App\Swagger\Processors\RouteSyncProcessor` đồng bộ spec với route table thật, gắn envelope schema (`ApiSuccessEnvelope`/`ApiErrorEnvelope`) cho **mọi** response và tự khai `Idempotency-Key`/`If-Match` theo đúng source của action — contract không thể lệch runtime mà không sửa cùng chỗ.
@@ -105,8 +105,8 @@ Sinh `storage/api-docs/api-docs.json|yaml` (hiện 183 path / 231 operation), UI
 Tài liệu contract sinh tự động (chạy lại sau mỗi lần đổi route/error code):
 
 ```bash
-node scripts/generate-error-code-catalog.mjs           # 246 error code -> HN-BE-API-002
-node scripts/generate-endpoint-permission-matrix.mjs   # 231 operation x permission -> HN-BE-API-003
+node scripts/generate-error-code-catalog.mjs           # error code -> HN-BE-API-002
+node scripts/generate-endpoint-permission-matrix.mjs   # operation x permission -> HN-BE-API-003
 node scripts/generate-api-contract-metrics.mjs         # số liệu contract -> HN-BE-API-004
 node scripts/verify-wwhn-309-handover-contract.mjs     # cổng tổng gói bàn giao WWHN-309
 ```

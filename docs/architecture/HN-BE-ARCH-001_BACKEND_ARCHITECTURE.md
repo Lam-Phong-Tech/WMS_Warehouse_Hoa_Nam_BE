@@ -158,7 +158,7 @@ Muốn đưa optimistic locking về tầng route thì phải làm đủ điều
 - `require()` → thiếu header là **428**; `optional()` → thiếu header vẫn chạy (áp dụng cho nhóm warranty stock-neutral theo Annex C §8.1).
 - `App\Support\IdempotencyStore`: gửi lại **cùng key + cùng payload** trả về kết quả lần đầu (replay); **cùng key + payload khác** trả **409**.
 
-Từ WWHN-309, hai header này được **tự động khai vào OpenAPI** dựa trên chính source của action (`RouteSyncProcessor::contractHeaders`), nên contract không còn lệch runtime: 27 operation khai `Idempotency-Key`, 58 operation khai `If-Match`.
+Từ WWHN-309, hai header này được **tự động khai vào OpenAPI** dựa trên chính source của action (`RouteSyncProcessor::contractHeaders`), nên contract không còn lệch runtime: số operation khai từng header đọc ở `docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.md`.
 
 ---
 
@@ -191,7 +191,7 @@ Không có `audit:reconcile` chạy nền thì outbox phình vô hạn và audit
 | --- | --- |
 | Xác thực | JWT (`tymon/jwt-auth`), access token giữ trong bộ nhớ FE, không lưu localStorage |
 | Refresh | Cookie HttpOnly `wms_refresh_token`, path `/api/v1/auth`; môi trường ngoài local ép `Secure=true` ở tầng config kể cả khi env deploy còn sót `false` |
-| Phân quyền | Theo **permission code**, không theo tên role. 57 permission code đang gác 231 operation |
+| Phân quyền | Theo **permission code**, không theo tên role. Permission code gác route (số lượng: xem HN-BE-API-004) |
 | Data scope | `EnforceInventoryWarehouseScope` cho nhóm read/trace tồn kho |
 | CORS | Origin liệt kê tường minh (`CORS_ALLOWED_ORIGINS`), không wildcard; credentialed CORS là bất biến giao thức vì refresh cookie |
 | Cache HTTP | `no-store` cho response API riêng tư |
@@ -232,7 +232,7 @@ Tài liệu này chỉ ký phần **kiến trúc/API/vận hành phía backend**
 | Tài liệu | Nội dung |
 | --- | --- |
 | `docs/api-contract/HN-BE-API-001_API_CONTRACT_HANDOVER.md` | Contract API bàn giao cho FE/QA |
-| `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md` | 246 error code, sinh tự động từ source |
+| `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md` | Catalog error code, sinh tự động từ source |
 | `docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md` | Ma trận endpoint × permission × OpenAPI |
 | `docs/ops/HN-BE-OPS-001_OPERATIONS_RUNBOOK.md` | Vận hành: deploy, job nền, health, sự cố |
 | `docs/permissions/WMS_PERMISSION_CATALOG_BE1.md` | Danh mục permission chuẩn |

@@ -112,7 +112,7 @@ Danh mục đầy đủ: `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md`
 
 | Artifact | Đường dẫn | Cách sinh lại |
 | --- | --- | --- |
-| OpenAPI 3.0 (183 path / 231 operation) | `storage/api-docs/api-docs.json\|yaml` | `php artisan l5-swagger:generate` |
+| OpenAPI 3.0 (số path/operation: xem HN-BE-API-004) | `storage/api-docs/api-docs.json\|yaml` | `php artisan l5-swagger:generate` |
 | Số liệu contract chính thức | `docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.json\|md` | `node scripts/generate-api-contract-metrics.mjs` |
 | Ma trận endpoint × permission × OpenAPI | `docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md` | `node scripts/generate-endpoint-permission-matrix.mjs` |
 | Error code catalog | `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md` | `node scripts/generate-error-code-catalog.mjs` |
@@ -129,9 +129,9 @@ Quy tắc bắt buộc khi đọc permission trong contract:
 1. `permission` là **biểu thức**; `A|B` nghĩa là OR. Dùng `accepted_permissions` đã tách sẵn.
 2. `roles` đã gồm `SUPER_ADMIN` do bypass backend, không phải do gán permission.
 3. Data scope là tầng kiểm tra độc lập: đúng permission vẫn có thể 403 vì ngoài phạm vi kho.
-4. Optimistic locking: 58 operation khai `If-Match`; thiếu header → 428, sai version → 412.
-5. Idempotency: 27 operation khai `Idempotency-Key` (23 bắt buộc, 4 tuỳ chọn theo Annex C §8.1 nhóm warranty stock-neutral). Chuỗi 8–100 ký tự; cùng key + cùng payload = replay kết quả lần đầu, cùng key + payload khác = 409.
-6. Hình dạng payload đọc được ngay từ spec: 2323/2323 response `$ref` tới `ApiSuccessEnvelope` hoặc `ApiErrorEnvelope`.
+4. Optimistic locking: số operation khai `If-Match` xem HN-BE-API-004; thiếu header → 428, sai version → 412.
+5. Idempotency: số operation khai `Idempotency-Key` (và số bắt buộc/tuỳ chọn theo Annex C §8.1 nhóm warranty stock-neutral) xem HN-BE-API-004. Chuỗi 8–100 ký tự; cùng key + cùng payload = replay kết quả lần đầu, cùng key + payload khác = 409.
+6. Hình dạng payload đọc được ngay từ spec: 100% response `$ref` tới `ApiSuccessEnvelope` hoặc `ApiErrorEnvelope`.
 7. Header contract trong spec được sinh từ chính source của controller, không khai tay.
 
 Thêm controller có annotation mới **phải** khai đường dẫn trong `config/l5-swagger.php`, nếu không Swagger publish endpoint rỗng contract (bài học DEV184-P1-01R và Flow 06).
