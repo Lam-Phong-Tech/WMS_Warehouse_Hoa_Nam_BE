@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\LedgerReconciliationService;
 
 /**
  * Đối soát chủ động inventory_balances (projection) với stock_movements (ledger nguồn sự thật).
@@ -25,17 +26,12 @@ class ReconcileInventoryBalances extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $balances = DB::table('inventory_balances')
-            ->select('warehouse_id', 'product_id', 'stock_status', 'on_hand_qty')
-            ->get()
-            ->keyBy(fn ($r) => $this->dimensionKey($r->warehouse_id, $r->product_id, $r->stock_status));
-
-        $movements = DB::table('stock_movements')
-            ->select('warehouse_id', 'product_id', 'stock_status')
-            ->selectRaw('SUM(qty_delta) AS ledger_qty')
-            ->groupBy('warehouse_id', 'product_id', 'stock_status')
-            ->get()
-            ->keyBy(fn ($r) => $this->dimensionKey($r->warehouse_id, $r->product_id, $r->stock_status));
+        // WWHN-231: lệnh cron và GET /reports/inventory-reconciliation dùng CHUNG một
+        // aggregate ledger. Trước đây mỗi bên tự viết một biến thể GROUP BY, nên hai bên có
+        // thể kết luận khác nhau trên cùng dữ liệu.
+        $ledgerService = app(LedgerReconciliationService::class);
+        $balances = $ledgerService->balanceTotals();
+        $movements = $ledgerService->ledgerTotals();
 
         $openIncidentDimensions = DB::table('reconciliation_incidents')
             ->whereIn('status', ['OPEN', 'INVESTIGATING'])

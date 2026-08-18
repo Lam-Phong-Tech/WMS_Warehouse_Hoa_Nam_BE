@@ -965,36 +965,65 @@ class OperationalReportController extends Controller
         $fromTs = "{$from} 00:00:00";
         $toTs = "{$to} 23:59:59";
 
-        $query = DB::table('stock_movements as m')
-            ->leftJoin('warehouses as w', 'w.id', '=', 'm.warehouse_id')
-            ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
+        // WWHN-231: cùng kỹ thuật aggregate-then-join như báo cáo tồn. XNT quét gần như toàn
+        // bộ ledger (điều kiện duy nhất là `occurred_at <= to`), nên gom theo 6 cột — trong
+        // đó 3 cột text lấy từ master data — chính là chỗ đắt nhất của báo cáo này.
+        $aggregate = DB::table('stock_movements as m')
             ->where('m.occurred_at', '<=', $toTs)
-            ->select('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name')
+            ->select('m.warehouse_id', 'm.product_id', 'm.stock_status')
             ->selectRaw("SUM(CASE WHEN m.occurred_at < ? OR (m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'OPENING') THEN m.qty_delta ELSE 0 END) AS opening", [$fromTs, $fromTs, $toTs])
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'RECEIPT' THEN m.qty_delta ELSE 0 END) AS receipt", [$fromTs, $toTs])
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'ISSUE' THEN -m.qty_delta ELSE 0 END) AS issue", [$fromTs, $toTs])
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'COMPONENT_ISSUE' THEN -m.qty_delta ELSE 0 END) AS component_issue", [$fromTs, $toTs])
             ->selectRaw("SUM(CASE WHEN m.occurred_at BETWEEN ? AND ? AND m.movement_type = 'REVERSAL' THEN m.qty_delta ELSE 0 END) AS reversal_net", [$fromTs, $toTs])
-            ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status', 'w.code', 'p.code', 'p.name');
+            ->groupBy('m.warehouse_id', 'm.product_id', 'm.stock_status');
         if ($scope !== null) {
-            $query->whereIn('m.warehouse_id', $scope);
-        }
-        if (! empty($validated['category_id'])) {
-            $query->where('p.category_id', $validated['category_id']);
+            $aggregate->whereIn('m.warehouse_id', $scope);
         }
         if ($request->filled('warehouse_id')) {
-            $query->where('m.warehouse_id', $request->input('warehouse_id'));
+            $aggregate->where('m.warehouse_id', $request->input('warehouse_id'));
         }
         if ($request->filled('product_id')) {
-            $query->where('m.product_id', $request->input('product_id'));
+            $aggregate->where('m.product_id', $request->input('product_id'));
         }
-        if ($request->filled('keyword')) {
-            $kw = '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%';
-            $query->where(function ($q) use ($kw): void {
-                $q->whereRaw('LOWER(p.code) LIKE ?', [$kw])
-                    ->orWhereRaw('LOWER(p.name) LIKE ?', [$kw]);
+        $xntCategoryId = $validated['category_id'] ?? null;
+        $xntKeyword = $request->filled('keyword')
+            ? '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%'
+            : null;
+        if (! empty($xntCategoryId) || $xntKeyword !== null) {
+            // Bản cũ lọc qua LEFT JOIN products nên dòng ledger không khớp master bị loại;
+            // IN (SELECT id FROM products WHERE …) giữ đúng cùng tập dòng đó.
+            $aggregate->whereIn('m.product_id', function ($q) use ($xntCategoryId, $xntKeyword): void {
+                $q->select('id')->from('products');
+                if (! empty($xntCategoryId)) {
+                    $q->where('category_id', $xntCategoryId);
+                }
+                if ($xntKeyword !== null) {
+                    $q->where(function ($inner) use ($xntKeyword): void {
+                        $inner->whereRaw('LOWER(code) LIKE ?', [$xntKeyword])
+                            ->orWhereRaw('LOWER(name) LIKE ?', [$xntKeyword]);
+                    });
+                }
             });
         }
+
+        $query = DB::query()
+            ->fromSub($aggregate, 'agg')
+            ->leftJoin('warehouses as w', 'w.id', '=', 'agg.warehouse_id')
+            ->leftJoin('products as p', 'p.id', '=', 'agg.product_id')
+            ->select(
+                'agg.warehouse_id',
+                'agg.product_id',
+                'agg.stock_status',
+                'agg.opening',
+                'agg.receipt',
+                'agg.issue',
+                'agg.component_issue',
+                'agg.reversal_net',
+                'w.code as warehouse_code',
+                'p.code as product_code',
+                'p.name as product_name',
+            );
 
         // WWHN-240 DEV240-P1-02A: một cột `reversal_net` gộp chung đảo-nhập (qty_delta < 0)
         // và đảo-xuất (qty_delta > 0) thì hai chiều triệt tiêu lẫn nhau nên không đọc được
