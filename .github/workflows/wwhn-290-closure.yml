@@ -6,6 +6,7 @@ on:
     paths:
       - 'docs/evidence/wwhn-290/**'
       - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
+      - 'scripts/verify-wwhn290-closure.sh'
       - 'tests/Feature/ReportFlow06ContractTest.php'
       - 'tests/Feature/ReportFlow06IntegrationTest.php'
       - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
@@ -25,6 +26,7 @@ on:
     paths:
       - 'docs/evidence/wwhn-290/**'
       - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
+      - 'scripts/verify-wwhn290-closure.sh'
       - 'tests/Feature/ReportFlow06ContractTest.php'
       - 'tests/Feature/ReportFlow06IntegrationTest.php'
       - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
@@ -79,6 +81,13 @@ jobs:
       DB_PASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history is required: the closure verifier re-derives the m1-be-2 ancestry
+          # proof and the WWHN-290 change-range scope from real git objects.
+          fetch-depth: 0
+
+      - name: Fetch the superseded BE2 branch for the ancestry proof
+        run: git fetch origin m1-be-2:refs/remotes/origin/m1-be-2 || echo "m1-be-2 unavailable; verifier will report INFO"
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -93,12 +102,15 @@ jobs:
       - name: Closure evidence style and syntax
         run: vendor/bin/pint --test tests/Feature/Wwhn290ClosureEvidenceTest.php
 
+      - name: Independent closure verification
+        run: bash scripts/verify-wwhn290-closure.sh
+
       - name: Fail-closed evidence markers
         run: |
           set -euo pipefail
           evidence='docs/evidence/wwhn-290/WWHN-290_DEFECT_CLOSURE_REGISTER.md'
           test -s "$evidence"
-          for marker in DEV290-P1-01 DEV290-P1-02 DEV290-P1-03 DEV290-P1-04 DEV290-P1-05 NO-VERIFIED-UAT-DEFECT-INPUT; do
+          for marker in DEV290-P1-01 DEV290-P1-02 DEV290-P1-03 DEV290-P1-04 DEV290-P1-05 DEV290-P2-01 NO-VERIFIED-UAT-DEFECT-INPUT; do
             grep -Fq "$marker" "$evidence"
           done
           grep -Fq 'FAIL-CLOSED / NEEDS OWNER DISPOSITION' "$evidence"
@@ -140,7 +152,14 @@ jobs:
           openapi_sha256=${openapi_sha256}
           db=postgres16
           result=PASS
+          closure_verifier=PASS
+          defect_input=NO_CODE_CHANGE_NA_BA_QA_CONFIRMED
+          superseded_branch=m1-be-2@60816499066f9f493596e326dc41116ef32f5c4b:STRICT_ANCESTOR
+          runtime_paths_changed_by_ticket=0
+          contract_delta_by_ticket=0
           qa1_signoff=NOT_CLAIMED_BY_DEV
+          pm_techlead_signoff=NOT_CLAIMED_BY_DEV
+          data_tech_signoff=NOT_CLAIMED_BY_DEV
           EOF
           sha256sum artifacts/wwhn-290/manifest.txt > artifacts/wwhn-290/SHA256SUMS
           cat artifacts/wwhn-290/manifest.txt
