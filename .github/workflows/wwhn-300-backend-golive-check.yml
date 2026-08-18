@@ -1,0 +1,131 @@
+name: WWHN-300 Backend GoLive Check
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-300-backend-golive-check.yml'
+      - 'app/Console/Commands/BackendGoLiveCheck.php'
+      - 'app/Support/HoaNamErdSchema.php'
+      - 'database/migrations/**'
+      - 'Modules/*/database/migrations/**'
+      - 'scripts/collect-wwhn300-golive-evidence.sh'
+      - 'tests/Feature/Wwhn300BackendGoLiveCheckTest.php'
+      - 'tests/Unit/HoaNamErdSchemaDropRelationTest.php'
+      - 'docs/evidence/WWHN-300/**'
+  pull_request:
+    branches: [m1]
+    paths:
+      - '.github/workflows/wwhn-300-backend-golive-check.yml'
+      - 'app/Console/Commands/BackendGoLiveCheck.php'
+      - 'app/Support/HoaNamErdSchema.php'
+      - 'database/migrations/**'
+      - 'Modules/*/database/migrations/**'
+      - 'scripts/collect-wwhn300-golive-evidence.sh'
+      - 'tests/Feature/Wwhn300BackendGoLiveCheckTest.php'
+      - 'tests/Unit/HoaNamErdSchemaDropRelationTest.php'
+      - 'docs/evidence/WWHN-300/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-300-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golive-check:
+    name: Migration round-trip and readiness gate (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: wms_wwhn300_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d wms_wwhn300_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      APP_VERSION: '1.0.0'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      FILESYSTEM_DISK: local
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: wms_wwhn300_ci
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      EVIDENCE_DIR: build/evidence/wwhn-300/postgresql
+
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring,bcmath,pgsql,pdo_pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Configure isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          jwt="$(openssl rand -base64 64 | tr -d '\n')"
+          echo "::add-mask::$jwt"
+          echo "JWT_SECRET=$jwt" >> "$GITHUB_ENV"
+
+      - name: Static gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/collect-wwhn300-golive-evidence.sh
+          php -l app/Console/Commands/BackendGoLiveCheck.php
+          php -l app/Support/HoaNamErdSchema.php
+          ./vendor/bin/pint --test \
+            app/Console/Commands/BackendGoLiveCheck.php \
+            app/Support/HoaNamErdSchema.php \
+            tests/Feature/Wwhn300BackendGoLiveCheckTest.php \
+            tests/Unit/HoaNamErdSchemaDropRelationTest.php
+
+      - name: Collect GoLive evidence (fresh -> rollback -> forward -> seed)
+        shell: bash
+        run: bash scripts/collect-wwhn300-golive-evidence.sh
+
+      - name: Verify evidence manifest
+        shell: bash
+        run: |
+          cd build/evidence/wwhn-300/postgresql
+          sha256sum --check SHA256SUMS
+
+      - name: Upload evidence artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wwhn-300-golive-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-300/postgresql
+          if-no-files-found: error
+          retention-days: 30

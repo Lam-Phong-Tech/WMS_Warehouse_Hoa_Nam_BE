@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\HoaNamErdSchema;
 use App\Support\Wwhn172MigrationInspector;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -57,7 +58,7 @@ return new class extends Migration
         }
 
         $this->dropPortableChecks();
-        Schema::dropIfExists('aggregate_mutexes');
+        HoaNamErdSchema::dropRelation('aggregate_mutexes');
     }
 
     private function addPortableChecks(): void

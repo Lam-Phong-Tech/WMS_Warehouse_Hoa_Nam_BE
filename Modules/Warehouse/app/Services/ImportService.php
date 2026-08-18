@@ -2,6 +2,8 @@
 
 namespace Modules\Warehouse\Services;
 
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Modules\AuditLog\Services\AuditLogger;
@@ -39,12 +41,25 @@ class ImportService
      */
     private const IDEMPOTENCY_WINDOW_HOURS = 24;
 
+    /** WWHN-330 residual-02: TTL của lock chống 2 request COMMIT trùng nhau chạy song song. */
+    private const LOCK_TTL_SECONDS = 120;
+
+    /** WWHN-330 residual-02: thời gian chờ tối đa để giành lock trước khi fail-open. */
+    private const LOCK_WAIT_SECONDS = 15;
+
     /**
      * WWHN-330 P1-02: số dòng vật lý tối đa thực sự đọc vào memory qua PhpSpreadsheet
      * read filter (header + MAX_ROWS + 1 dòng dư để phát hiện vượt hạn mức), tránh nạp
      * toàn bộ workbook lớn (vd. file lỗi 100k dòng) vào memory chỉ để rồi từ chối.
      */
     private const MAX_PHYSICAL_ROWS_TO_READ = self::MAX_ROWS + 2;
+
+    /**
+     * WWHN-330 residual-01: trần số dòng VẬT LÝ được quét (kể cả dòng trống) trước khi
+     * dừng và báo lỗi tường minh. Bảo đảm file "bloated" (nhiều dòng trống xen giữa) vẫn
+     * đọc được tới đủ MAX_ROWS dòng dữ liệu thật, nhưng không quét vô hạn.
+     */
+    private const MAX_PHYSICAL_ROWS_TO_SCAN = 20 * self::MAX_PHYSICAL_ROWS_TO_READ;
 
     /** Current export template. Legacy code/name/version headers remain accepted on import. */
     private const TEMPLATE_COLUMNS = [
@@ -76,13 +91,68 @@ class ImportService
 
         // WWHN-330 P1-03: file trùng sha256 với 1 lần COMMIT gần đây của cùng actor thì
         // coi là replay — trả lại kết quả cũ, không đọc/parse lại file, không ghi SKU lần 2.
-        if (! $dryRun) {
-            $duplicate = $this->findRecentDuplicateReport($checksum, $actorId);
-            if ($duplicate !== null) {
-                return $this->duplicateResult($duplicate);
-            }
+        //
+        // WWHN-330 residual-02: bọc toàn bộ "kiểm tra trùng + chạy import" trong 1 atomic
+        // lock theo (actor, sha256) để 2 request COMMIT giống hệt nhau gửi gần như đồng thời
+        // không cùng lọt qua bước kiểm tra (race window cũ tạo 2 dòng import_reports COMMITTED
+        // cho cùng 1 file). Lock cấp ứng dụng, không đổi schema và không đổi ngữ nghĩa cửa sổ
+        // IDEMPOTENCY_WINDOW_HOURS (unique index DB sẽ chặn vĩnh viễn, sai nghiệp vụ).
+        if (! $dryRun && $actorId !== null) {
+            return $this->withImportLock($checksum, $actorId, function () use (
+                $checksum, $filePath, $updateExisting, $actorId, $requestId, $originalName, $dryRun
+            ): array {
+                $duplicate = $this->findRecentDuplicateReport($checksum, $actorId);
+                if ($duplicate !== null) {
+                    return $this->duplicateResult($duplicate);
+                }
+
+                return $this->runImport(
+                    $filePath, $updateExisting, $actorId, $requestId, $originalName, $dryRun, $checksum
+                );
+            });
         }
 
+        return $this->runImport(
+            $filePath, $updateExisting, $actorId, $requestId, $originalName, $dryRun, $checksum
+        );
+    }
+
+    /**
+     * WWHN-330 residual-02: serialize các lần import COMMIT cùng (actor, sha256).
+     * Chờ tối đa LOCK_WAIT_SECONDS; hết thời gian chờ vẫn chạy tiếp (fail-open) để một
+     * sự cố cache không chặn nghiệp vụ import — mất tính atomic ở đúng ca hiếm đó, đã ghi
+     * rõ thay vì ném lỗi mà người dùng không hiểu.
+     *
+     * @param  callable(): array<string, mixed>  $callback
+     * @return array<string, mixed>
+     */
+    private function withImportLock(string $checksum, string $actorId, callable $callback): array
+    {
+        $lock = Cache::lock('sku-import:'.$actorId.':'.$checksum, self::LOCK_TTL_SECONDS);
+
+        try {
+            $lock->block(self::LOCK_WAIT_SECONDS);
+        } catch (LockTimeoutException) {
+            return $callback();
+        }
+
+        try {
+            return $callback();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function runImport(
+        string $filePath,
+        bool $updateExisting,
+        ?string $actorId,
+        ?string $requestId,
+        ?string $originalName,
+        bool $dryRun,
+        string $checksum,
+    ): array {
         try {
             $rows = $this->readRows($filePath);
         } catch (ImportRowLimitExceededException $e) {
@@ -274,9 +344,25 @@ class ImportService
             ->first();
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * WWHN-330 P1-03: dựng response cho một lần import bị coi là replay.
+     *
+     * Đồng thời đánh dấu bản ghi GỐC là đã từng bị phát lại (`duplicate_of_replay`).
+     * Cột này được thêm ở migration 2026_08_18_180000 nhưng trước đó không nơi nào
+     * ghi/đọc — schema chết. Nó chính là bằng chứng reconcile mà register yêu cầu
+     * ("same file repeat ... counts/checksum/reconciliation"): QA/BA truy vấn
+     * import_reports là biết ngay báo cáo nào đã được trả lại cho một lần gửi trùng,
+     * không phải đối chiếu log ứng dụng. Đây là marker truy vết, KHÔNG đổi số liệu
+     * nghiệp vụ (rows/SKU) của lần import gốc.
+     *
+     * @return array<string, mixed>
+     */
     private function duplicateResult(ImportReport $report): array
     {
+        if ($report->duplicate_of_replay !== true) {
+            $report->forceFill(['duplicate_of_replay' => true])->save();
+        }
+
         return [
             'template_version' => $report->template_version ?? self::TEMPLATE_VERSION,
             'transaction_mode' => 'ALL_OR_NOTHING',
@@ -300,27 +386,96 @@ class ImportService
     }
 
     /**
-     * WWHN-330 P1-02: đọc workbook qua read filter giới hạn số dòng vật lý
-     * (MAX_PHYSICAL_ROWS_TO_READ), thay vì IOFactory::load()->toArray() nạp toàn bộ
-     * sheet vào memory không điều kiện. Với file vượt hạn mức rất nhiều (vd. 100k dòng),
-     * chỉ phần đầu file được đọc vào memory trước khi bị từ chối ở bước đếm dòng.
+     * WWHN-330 P1-02: đọc workbook theo LÔ dòng vật lý (mỗi lô MAX_PHYSICAL_ROWS_TO_READ)
+     * qua read filter, thay vì IOFactory::load()->toArray() nạp toàn bộ sheet vào memory
+     * không điều kiện. Với file vượt hạn mức rất nhiều (vd. 100k dòng), chỉ lô đầu được
+     * nạp rồi ném ImportRowLimitExceededException ngay.
+     *
+     * WWHN-330 residual-01: lọc dòng trống NGAY trong vòng lặp đọc nên hạn mức được đếm
+     * theo dòng DỮ LIỆU thật, không theo dòng vật lý — file hợp lệ (<= MAX_ROWS dòng dữ
+     * liệu) nhưng có nhiều dòng trống xen giữa không còn bị cắt âm thầm ở dòng vật lý
+     * thứ 1002 như trước. Phần đuôi file vượt MAX_PHYSICAL_ROWS_TO_SCAN được báo lỗi
+     * tường minh chứ không bỏ qua im lặng.
      *
      * @return array<int, array<int, mixed>>
      */
     private function readRows(string $filePath): array
     {
         $reader = IOFactory::createReaderForFile($filePath);
-        $reader->setReadFilter(new class(self::MAX_PHYSICAL_ROWS_TO_READ) implements IReadFilter
-        {
-            public function __construct(private readonly int $maxRow) {}
 
-            public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
+        // Dimension của sheet CHỈ dùng để biết khi nào dừng quét, KHÔNG dùng để từ chối file:
+        // Excel thường ghi totalRows phình to hơn số dòng có dữ liệu thật (dimension "ma" do
+        // định dạng cũ để lại), nên chặn theo giá trị này sẽ từ chối nhầm file hợp lệ.
+        try {
+            $info = $reader->listWorksheetInfo($filePath);
+            $totalPhysicalRows = (int) ($info[0]['totalRows'] ?? 0);
+        } catch (Throwable) {
+            $totalPhysicalRows = 0;
+        }
+        $lastRowToScan = $totalPhysicalRows > 0
+            ? min($totalPhysicalRows, self::MAX_PHYSICAL_ROWS_TO_SCAN)
+            : self::MAX_PHYSICAL_ROWS_TO_SCAN;
+
+        $header = null;
+        $dataRows = [];
+        $scannedTo = 0;
+
+        for ($start = 1; $start <= $lastRowToScan; $start += self::MAX_PHYSICAL_ROWS_TO_READ) {
+            $end = min($start + self::MAX_PHYSICAL_ROWS_TO_READ - 1, $lastRowToScan);
+
+            $reader->setReadFilter(new class($start, $end) implements IReadFilter
             {
-                return $row <= $this->maxRow;
-            }
-        });
+                public function __construct(private readonly int $firstRow, private readonly int $lastRow) {}
 
-        return $reader->load($filePath)->getActiveSheet()->toArray(null, true, true, false);
+                public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool
+                {
+                    return $row >= $this->firstRow && $row <= $this->lastRow;
+                }
+            });
+
+            $sheet = $reader->load($filePath)->getActiveSheet();
+            $highestColumn = $sheet->getHighestDataColumn();
+            /** @var array<int, array<int, mixed>> $chunk */
+            $chunk = $sheet->rangeToArray('A'.$start.':'.$highestColumn.$end, null, true, true, false);
+            unset($sheet);
+
+            foreach ($chunk as $offset => $row) {
+                if ($start + $offset === 1) {
+                    $header = $row;
+
+                    continue;
+                }
+                $isBlank = ! collect($row)
+                    ->contains(fn (mixed $value): bool => trim((string) $value) !== '');
+                if ($isBlank) {
+                    continue;
+                }
+                $dataRows[] = $row;
+                // Dừng ngay khi vượt hạn mức: memory chỉ giữ tối đa MAX_ROWS + 1 dòng dữ liệu.
+                if (count($dataRows) > self::MAX_ROWS) {
+                    throw new ImportRowLimitExceededException(
+                        'File import vượt quá '.self::MAX_ROWS.' dòng dữ liệu.',
+                        self::MAX_ROWS,
+                        count($dataRows),
+                    );
+                }
+            }
+            unset($chunk);
+
+            $scannedTo = $end;
+        }
+
+        // Không cắt âm thầm: còn dòng vật lý chưa quét tới thì báo lỗi rõ ràng.
+        if ($totalPhysicalRows > $scannedTo) {
+            throw new ImportRowLimitExceededException(
+                'File import trải dài quá '.self::MAX_PHYSICAL_ROWS_TO_SCAN
+                .' dòng bảng tính (kể cả dòng trống); vui lòng xoá bớt dòng trống thừa rồi import lại.',
+                self::MAX_ROWS,
+                count($dataRows),
+            );
+        }
+
+        return array_merge([$header ?? []], $dataRows);
     }
 
     public function createTemplate(string $path): void

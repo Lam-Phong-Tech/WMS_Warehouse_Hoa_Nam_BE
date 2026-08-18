@@ -57,7 +57,7 @@ class ImportController extends Controller
             .'kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. '
             .'WWHN-330: nếu file có sha256 trùng với 1 lần COMMIT gần đây (24h) của cùng actor, response trả duplicate=true '
             .'và import_report_id của lần import gốc, không ghi SKU/tạo báo cáo mới. Khi có row lỗi, dùng '
-            ."GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).",
+            .'GET /api/v1/skus/import-reports/{id}/error-file để tải file CSV chi tiết lỗi (row/field/error/value).',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         requestBody: new OA\RequestBody(
@@ -135,7 +135,11 @@ class ImportController extends Controller
                 // lại; sinh file lỗi không được làm hỏng response import chính nên chỉ log khi fail.
                 if ($report !== null) {
                     $this->attachErrorFile($report, $result['row_errors']);
-                    $result['error_file_available'] = $report->error_file_path !== null;
+                    // Dùng đúng accessor server-side (path còn + chưa hết hạn) mà
+                    // ImportReport phơi ra cho GET /skus/import-reports/{id}, để response
+                    // import và response báo cáo không bao giờ nói khác nhau về việc
+                    // "có file lỗi để tải hay không".
+                    $result['error_file_available'] = $report->error_file_available;
                     $result['error_file_expires_at'] = $report->error_file_expires_at?->toIso8601String();
                 } else {
                     $result['error_file_available'] = false;

@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\HoaNamErdSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -48,11 +49,18 @@ return new class extends Migration
 
     public function down(): void
     {
+        // WWHN-300: later fail-forward migrations turn several of these names
+        // into physical tables on PostgreSQL (2026_08_10_000791), so a
+        // hardcoded DROP VIEW aborts rollback with SQLSTATE 42809. Drop by the
+        // relation kind that actually exists at rollback time.
         foreach (array_reverse(self::VIEWS) as $view) {
-            $this->dropView($view);
+            HoaNamErdSchema::dropRelation($view);
         }
 
         foreach ([
+            // WWHN-300: pv_product_images is created by up() but was missing
+            // from this list, so it survived a full rollback.
+            'pv_product_images',
             'migration_errors',
             'migration_runs',
             'component_issue_items',
@@ -75,7 +83,12 @@ return new class extends Migration
             'brands',
             'product_categories',
         ] as $table) {
-            Schema::dropIfExists($table);
+            // WWHN-300: dropRelation() drops with CASCADE on PostgreSQL. Later
+            // migrations attach foreign keys to these baseline tables from
+            // aggregates this migration does not own (e.g. the migration_runs
+            // trace columns), so a plain DROP TABLE aborts rollback with
+            // SQLSTATE 2BP01 and bricks the schema half-way.
+            HoaNamErdSchema::dropRelation($table);
         }
     }
 

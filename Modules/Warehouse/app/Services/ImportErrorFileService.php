@@ -26,7 +26,7 @@ class ImportErrorFileService
      * injection và giới hạn độ dài field không lộ dữ liệu ngoài phạm vi cần thiết.
      *
      * @param  array<int, array{row:int,code:string,field:string,message:string,value:mixed}>  $rowErrors
-     * @return array{path: string, expires_at: \Illuminate\Support\Carbon}|null null nếu không có lỗi nào để ghi
+     * @return array{path: string, expires_at: Carbon}|null null nếu không có lỗi nào để ghi
      */
     public function generate(string $reportId, array $rowErrors): ?array
     {

@@ -1,0 +1,154 @@
+{
+    "jira": "WWHN-300",
+    "output": "Backend GoLive check",
+    "environment": "local",
+    "driver": "pgsql",
+    "generated_at": "2026-08-18T19:43:13+07:00",
+    "overall": "pass",
+    "failed_count": 0,
+    "warned_count": 1,
+    "checks": {
+        "migrations.applied": {
+            "status": "ok",
+            "detail": {
+                "total": 140,
+                "applied": 140,
+                "pending": []
+            }
+        },
+        "migrations.reversible": {
+            "status": "warn",
+            "detail": {
+                "irreversible": {
+                    "2026_08_02_000002_safe_guard_products_to_sku_rename": "down() is an empty fail-forward no-op",
+                    "2026_08_09_000410_drop_non_erd_unused_tables": "down() is an empty fail-forward no-op",
+                    "2026_08_09_000420_harden_latest_mvp_contract": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000500_align_documented_schema_contract": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000590_seed_canonical_masters_before_fk_hardening": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000600_enforce_current_erd_business_contract": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000610_repoint_sku_to_canonical_masters": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000640_materialize_putaway_events": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000650_align_container_subledger_quantity": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000660_finalize_current_baseline_contract": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000665_backfill_legacy_container_physical_code_targets": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000670_align_identity_container_and_scan_lifecycle": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000680_align_putaway_and_container_compatibility": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000690_complete_component_issue_storage_contract": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000700_enforce_scan_evidence_storage_invariants": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000710_enforce_cross_aggregate_business_guards": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000720_enforce_all_documented_quantities_bigint": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000730_add_version_to_remaining_mutable_aggregates": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000740_verify_mutable_aggregate_version_contract": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000760_align_erd_1_0_fields_types_and_data": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000766_backfill_structured_erd_payload_columns": "down() is an empty fail-forward no-op",
+                    "2026_08_10_0007674_add_missing_defect_catalog_runtime_columns": "down() is an empty fail-forward no-op",
+                    "2026_08_10_0007675_prepare_defect_catalog_canonical_key": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000767_complete_import_batch_runtime_compatibility": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000768_sync_defect_catalog_runtime_to_erd": "down() is an empty fail-forward no-op",
+                    "2026_08_10_0007695_prepare_all_canonical_erd_keys": "down() is an empty fail-forward no-op",
+                    "2026_08_10_0007697_backfill_iam_canonical_required_fields": "down() is an empty fail-forward no-op",
+                    "2026_08_10_0007698_backfill_warranty_canonical_required_fields": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000769_remove_superseded_label_print_event_status_guard": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000772_promote_documented_canonical_primary_keys": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000773_sync_warranty_runtime_to_erd": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000774_sync_iam_runtime_to_erd": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000780_enforce_cross_table_erd_business_invariants": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000781_enable_putaway_history_guard": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000782_enforce_item_tracking_and_container_sku_rules": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000783_enforce_documented_nonpartial_unique_indexes": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000790_retire_legacy_runtime_tables": "down() is an empty fail-forward no-op",
+                    "2026_08_10_000792_drop_retired_runtime_normalizers": "down() is an empty fail-forward no-op",
+                    "2026_08_12_130500_align_putaway_draft_confirmation_lifecycle": "down() is an empty fail-forward no-op",
+                    "2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger": "down() is an empty fail-forward no-op",
+                    "2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents": "down() is an empty fail-forward no-op",
+                    "2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger": "down() is an empty fail-forward no-op",
+                    "2026_08_13_150000_expose_warranty_flow04_runtime_contract": "down() is an empty fail-forward no-op",
+                    "2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column": "down() is an empty fail-forward no-op",
+                    "2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast": "down() is an empty fail-forward no-op",
+                    "2026_08_16_120000_relax_physical_code_target_to_at_most_one": "down() is an empty fail-forward no-op",
+                    "2026_08_16_121000_project_publish_state_through_sku_compat_views": "down() is an empty fail-forward no-op",
+                    "2026_08_16_122000_restore_reversal_immutability_and_accessory_fks": "down() is an empty fail-forward no-op",
+                    "2026_08_16_123000_add_containers_id_default_and_products_write_trigger": "down() is an empty fail-forward no-op",
+                    "2026_08_16_124000_sync_product_masters_to_canonical_master_tables": "down() is an empty fail-forward no-op",
+                    "2026_08_16_125000_make_outbound_recipient_address_nullable": "down() is an empty fail-forward no-op",
+                    "2026_08_16_126000_drop_rfid_required_post_gate": "down() is an empty fail-forward no-op",
+                    "2026_08_16_127000_mirror_inventory_serials_to_item_instances": "down() is an empty fail-forward no-op",
+                    "2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box": "down() is an empty fail-forward no-op",
+                    "2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check": "down() is an empty fail-forward no-op",
+                    "2026_08_16_132000_materialize_reversal_physical_return_columns": "down() is an empty fail-forward no-op",
+                    "2026_08_16_133000_sync_idempotency_mirror_deletes": "down() is an empty fail-forward no-op",
+                    "2026_08_16_135000_sync_canonical_masters_back_to_product_masters": "down() is an empty fail-forward no-op",
+                    "2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model": "down() is an empty fail-forward no-op",
+                    "2026_08_16_137000_fix_label_snapshot_immutability_guard_columns": "down() is an empty fail-forward no-op",
+                    "2026_08_17_000100_materialize_erd_columns_on_sqlite": "down() is an empty fail-forward no-op",
+                    "2026_08_17_000200_backfill_warranty_pii_retention_deadline": "down() is an empty fail-forward no-op",
+                    "2026_08_17_001000_align_reversal_read_views_with_erd": "down() is an empty fail-forward no-op",
+                    "2026_08_17_001100_align_reconciliation_incident_with_erd": "down() is an empty fail-forward no-op",
+                    "2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view": "down() is an empty fail-forward no-op",
+                    "2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers": "down() is an empty fail-forward no-op",
+                    "2026_08_18_000100_align_defect_catalogs_with_erd_dictionary": "down() is an empty fail-forward no-op",
+                    "2026_08_18_150000_fix_posting_events_posting_action_operation_overflow": "down() is an empty fail-forward no-op",
+                    "2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view": "down() is an empty fail-forward no-op",
+                    "2026_08_18_150200_add_posting_action_to_posting_event_sqlite": "down() is an empty fail-forward no-op"
+                }
+            }
+        },
+        "schema.canonical_relations": {
+            "status": "ok",
+            "detail": {
+                "required": 20,
+                "missing": []
+            }
+        },
+        "seed.identity_markers": {
+            "status": "ok",
+            "detail": {
+                "admin_user": true,
+                "baseline_warehouse": true,
+                "baseline_sku": true,
+                "permission_catalog": true
+            }
+        },
+        "security.runtime_config": {
+            "status": "ok",
+            "detail": {
+                "environment": "local",
+                "debug": true,
+                "findings": []
+            }
+        },
+        "security.route_default_deny": {
+            "status": "ok",
+            "detail": {
+                "unauthenticated_non_public": [],
+                "authenticated_without_permission": []
+            }
+        },
+        "core.idempotency_store": {
+            "status": "ok",
+            "detail": {
+                "unique_index": true,
+                "expired_rows": 0
+            }
+        },
+        "core.audit_backlog": {
+            "status": "ok",
+            "detail": {
+                "unprocessed": 0,
+                "drain_with": "php artisan audit:reconcile"
+            }
+        },
+        "core.reconciliation_backlog": {
+            "status": "ok",
+            "detail": {
+                "open_incidents": 0,
+                "source": "reconciliation_incidents"
+            }
+        }
+    }
+}

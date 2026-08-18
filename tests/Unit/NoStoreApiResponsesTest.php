@@ -38,6 +38,14 @@ class NoStoreApiResponsesTest extends TestCase
             ]),
         );
 
-        $this->assertSame('public, max-age=600', $response->headers->get('Cache-Control'));
+        // Symfony ResponseHeaderBag chuẩn hoá lại Cache-Control (sắp xếp directive theo
+        // alphabet: 'max-age=600, public'), nên KHÔNG assert nguyên văn chuỗi — điều cần
+        // bảo đảm là middleware giữ nguyên CHÍNH SÁCH cache của route không phải /api/*,
+        // không ép no-store như nhánh /api/*.
+        $cacheControl = (string) $response->headers->get('Cache-Control');
+        $this->assertStringContainsString('public', $cacheControl);
+        $this->assertStringContainsString('max-age=600', $cacheControl);
+        $this->assertStringNotContainsString('no-store', $cacheControl);
+        $this->assertNull($response->headers->get('Pragma'));
     }
 }

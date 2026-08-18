@@ -6350,13 +6350,13 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'Số liệu nhanh cho dashboard (WWHN-328: endpoint tổng hợp KPI, tái sử dụng — không tạo route mới)'
-      description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period 30 ngày gần nhất khi bỏ trống from_date/to_date.'
+      description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period là [hôm nay - 30 ngày, hôm nay], inclusive hai đầu (= 31 ngày) khi bỏ trống from_date/to_date. DATA-SCOPE (WWHN-328 DEV328-P1-01): dashboard chịu đúng warehouse data-scope của người gọi, cùng nguồn scope_ref với /inventory/balances và /stock-movements — người dùng không bị giới hạn kho nhận GLOBAL, người dùng bị giới hạn chỉ nhận số liệu các kho trong scope. Ngoại lệ đã ghi nhận: warranty_cases_by_status luôn GLOBAL vì ERD warranty_case không có warehouse_id.'
       operationId: report_dashboard_quick
       parameters:
         -
           name: from_date
           in: query
-          description: 'Mặc định: hôm nay trừ 30 ngày'
+          description: 'Mặc định: hôm nay trừ 30 ngày (Asia/Ho_Chi_Minh)'
           schema:
             type: string
             format: date
@@ -6367,6 +6367,13 @@ paths:
           schema:
             type: string
             format: date
+        -
+          name: warehouse_id
+          in: query
+          description: 'Thu hẹp KPI về 1 kho. Phải nằm trong data-scope của người gọi, nếu không trả 403 ACCESS_DENIED.'
+          schema:
+            type: string
+            format: uuid
       responses:
         200:
           description: 'Dashboard KPIs'
@@ -6387,28 +6394,44 @@ paths:
                             type: string
                             format: date
                         type: object
+                      data_scope:
+                        description: 'GLOBAL = không giới hạn kho; WAREHOUSE_SCOPED = đã lọc theo scope_warehouse_ids'
+                        type: string
+                        enum:
+                          - GLOBAL
+                          - WAREHOUSE_SCOPED
+                      scope_warehouse_ids:
+                        description: 'null khi data_scope=GLOBAL; danh sách kho đã áp dụng khi WAREHOUSE_SCOPED'
+                        type: array
+                        items:
+                          type: string
+                          format: uuid
+                        nullable: true
                       available_qty:
-                        description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE), snapshot hiện tại — không lọc theo period'
+                        description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE) trong data-scope, snapshot hiện tại — không lọc theo period'
                         type: number
                       receipt_qty:
-                        description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at'
+                        description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at, trong data-scope'
                         type: number
                       issue_qty:
-                        description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period'
+                        description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period, trong data-scope'
                         type: number
                       component_issue_qty:
-                        description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period'
+                        description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period, trong data-scope'
                         type: number
                       reversal_net:
-                        description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, có thể âm'
+                        description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, trong data-scope, có thể âm'
                         type: number
                       warranty_cases_by_status:
-                        description: 'Map status → COUNT(*), toàn bộ warranty_case không lọc theo period'
+                        description: 'Map status → COUNT(*), toàn bộ warranty_case: KHÔNG lọc theo period và KHÔNG lọc theo kho (warranty_case không có warehouse_id trong ERD)'
                         type: object
                         additionalProperties:
                           type: integer
+                      reconciliation_warning_count:
+                        description: 'Tổng số dòng RPT-INV-01 reconciliation_status=MISMATCH trong data-scope — đây là con số dùng để hiển thị và đối soát'
+                        type: integer
                       reconciliation_warnings:
-                        description: 'Các dòng RPT-INV-01 reconciliation_status=MISMATCH tại thời điểm gọi'
+                        description: 'Tối đa 50 dòng MISMATCH đầu tiên (mẫu để soi nhanh). Dùng reconciliation_warning_count cho tổng số; xem đầy đủ tại /reports/inventory-balance.'
                         type: array
                         items:
                           type: object
@@ -6426,9 +6449,9 @@ paths:
         401:
           description: UNAUTHENTICATED
         403:
-          description: 'ACCESS_DENIED — thiếu permission report.view'
+          description: 'ACCESS_DENIED — thiếu permission report.view, hoặc warehouse_id nằm ngoài data-scope của người gọi'
         422:
-          description: 'BUSINESS_RULE_ERROR — from_date/to_date không hợp lệ hoặc to_date < from_date'
+          description: 'BUSINESS_RULE_ERROR — from_date/to_date/warehouse_id không hợp lệ hoặc to_date < from_date'
         400:
           description: 'Yêu cầu không đúng định dạng'
         404:
@@ -9253,6 +9276,7 @@ paths:
       tags:
         - '05. Product'
       summary: 'Danh sách Import báo cáo SKU (dry-run và commit) — WWHN-224'
+      description: 'Mỗi phần tử có `error_file_available` (boolean, WWHN-330): true khi báo cáo đó còn file lỗi CSV tải được ngay lúc gọi (đã sinh file và chưa quá `error_file_expires_at`). Client dùng đúng field này để bật/tắt nút tải, KHÔNG tự so `error_file_expires_at` với đồng hồ máy client. Đường dẫn lưu trữ nội bộ `error_file_path` không được trả ra ngoài. `duplicate_of_replay` = true nghĩa là báo cáo này đã từng được trả lại cho một lần import trùng file (idempotent replay).'
       operationId: sku_import_report_list
       parameters:
         -
@@ -9333,6 +9357,7 @@ paths:
       tags:
         - '05. Product'
       summary: 'Chi tiết một Import báo cáo SKU — WWHN-224'
+      description: 'Trả về `error_file_available` (boolean, WWHN-330) — nguồn sự thật duy nhất để client quyết định hiển thị nút tải file lỗi; đã tính cả điều kiện hết hạn tại server. `error_file_expires_at` chỉ dùng để hiển thị mốc thời gian cho người dùng. `error_file_path` (đường dẫn nội bộ) không được trả ra ngoài.'
       operationId: sku_import_report_detail
       parameters:
         -

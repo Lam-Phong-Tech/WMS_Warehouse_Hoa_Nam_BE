@@ -41,10 +41,38 @@ return new class extends Migration
         }
     }
 
+    /**
+     * WWHN-300 (GoLive rollback control). This used to be a fail-forward no-op
+     * so that a rollback could not weaken HN-WMS-ERD-DD-001. The unintended
+     * consequence: the renamed *__legacy_projection views survived the whole
+     * rollback and every earlier migration that then tried to ALTER one of
+     * their source columns aborted with SQLSTATE 0A000 / 2BP01. migrate:rollback
+     * stopped mid-chain and left a schema that could neither serve traffic nor
+     * migrate forward again — a cutover abort had no way back.
+     *
+     * Undoing the rename is the honest inverse of up(): drop the materialized
+     * canonical table and give the compatibility view its name back. The
+     * physical contract is not weakened, because it only ever holds while this
+     * migration is applied.
+     */
     public function down(): void
     {
-        // Fail-forward. Reintroducing canonical compatibility views would weaken the
-        // physical contract defined by HN-WMS-ERD-DD-001.
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        foreach (array_keys(HoaNamErdSchema::parse()) as $table) {
+            $projection = substr($table.'__legacy_projection', 0, 63);
+
+            if (HoaNamErdSchema::relationKind($projection) !== 'v') {
+                continue;
+            }
+
+            HoaNamErdSchema::dropRelation($table);
+            DB::statement(
+                'ALTER VIEW '.HoaNamErdSchema::quote($projection).' RENAME TO '.HoaNamErdSchema::quote($table)
+            );
+        }
     }
 
     private function materialize(string $table): void

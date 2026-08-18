@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 final class HoaNamErdSchema
@@ -118,6 +120,143 @@ final class HoaNamErdSchema
         SQL, [$table]);
 
         return $row?->relkind;
+    }
+
+    /**
+     * WWHN-300 (GoLive rollback control): drop whatever relation currently
+     * occupies $name, regardless of whether it is a view or a physical table.
+     *
+     * The migration chain contains fail-forward steps — most notably
+     * 2026_08_10_000791_retire_remaining_singular_legacy_tables, whose down()
+     * is intentionally a no-op — that swap a name from table to view (or the
+     * reverse) on PostgreSQL. A later down() that hardcodes DROP VIEW then
+     * aborts with SQLSTATE 42809 ("... is not a view"), which stops
+     * migrate:rollback half-way and leaves a schema that can neither serve
+     * traffic nor be re-migrated forward. Dropping by the relation's ACTUAL
+     * kind keeps the rollback path deterministic.
+     *
+     * Call sites must be destructive by intent: down(), or an up() that has
+     * already established the name is not a data-bearing canonical table.
+     */
+    public static function dropRelation(string $name, bool $cascade = true): void
+    {
+        $driver = DB::getDriverName();
+        $quoted = self::quote($name);
+        $suffix = $cascade && $driver === 'pgsql' ? ' CASCADE' : '';
+
+        if ($driver === 'pgsql') {
+            match (self::relationKind($name)) {
+                'v' => DB::statement('DROP VIEW IF EXISTS '.$quoted.$suffix),
+                'm' => DB::statement('DROP MATERIALIZED VIEW IF EXISTS '.$quoted.$suffix),
+                'r', 'p', 'f' => DB::statement('DROP TABLE IF EXISTS '.$quoted.$suffix),
+                default => null,
+            };
+
+            return;
+        }
+
+        if ($driver === 'sqlite') {
+            $type = DB::selectOne(
+                "SELECT type FROM sqlite_master WHERE name = ? AND type IN ('view', 'table') LIMIT 1",
+                [$name]
+            )?->type;
+
+            match ($type) {
+                'view' => DB::statement('DROP VIEW IF EXISTS '.$quoted),
+                'table' => DB::statement('DROP TABLE IF EXISTS '.$quoted),
+                default => null,
+            };
+
+            return;
+        }
+
+        DB::statement('DROP VIEW IF EXISTS '.$quoted);
+        Schema::dropIfExists($name);
+    }
+
+    /**
+     * WWHN-300 (GoLive rollback control): drop an index only when it is still
+     * present. Blueprint::dropIndex() emits an unconditional DROP INDEX, so a
+     * down() that removes an index a later migration already renamed or
+     * replaced aborts rollback with SQLSTATE 42704.
+     */
+    public static function dropIndexIfExists(string $table, string $index): void
+    {
+        $driver = DB::getDriverName();
+
+        if (in_array($driver, ['pgsql', 'sqlite'], true)) {
+            DB::statement('DROP INDEX IF EXISTS '.self::quote($index));
+
+            return;
+        }
+
+        if (Schema::hasTable($table)) {
+            Schema::table($table, function (Blueprint $blueprint) use ($index): void {
+                $blueprint->dropIndex($index);
+            });
+        }
+    }
+
+    /**
+     * WWHN-300 (GoLive rollback control): drop columns together with the
+     * compatibility views derived from them.
+     *
+     * Later migrations project these columns through read views whose own
+     * down() is a fail-forward no-op, so an earlier down() that drops the
+     * column plainly aborts with SQLSTATE 2BP01. During a rollback the
+     * dependent views are being unwound anyway, so CASCADE is the correct
+     * semantics rather than a workaround.
+     *
+     * @param  array<int, string>  $columns
+     */
+    public static function dropColumnsCascade(string $table, array $columns): void
+    {
+        if (! Schema::hasTable($table)) {
+            return;
+        }
+
+        if (DB::getDriverName() !== 'pgsql') {
+            $present = array_values(array_filter($columns, fn (string $column): bool => Schema::hasColumn($table, $column)));
+
+            if ($present !== []) {
+                Schema::table($table, function (Blueprint $blueprint) use ($present): void {
+                    $blueprint->dropColumn($present);
+                });
+            }
+
+            return;
+        }
+
+        foreach ($columns as $column) {
+            DB::statement('ALTER TABLE '.self::quote($table).' DROP COLUMN IF EXISTS '.self::quote($column).' CASCADE');
+        }
+    }
+
+    /**
+     * Is $name reachable as a relation, whether it is a physical table or a
+     * compatibility view?
+     *
+     * Schema::hasTable() answers "table" only, and the legacy/canonical naming
+     * is INVERTED between drivers (plural is physical on PostgreSQL, singular
+     * is physical on SQLite), so a table-only probe reports half the aggregates
+     * as missing on one driver or the other.
+     */
+    public static function relationExists(string $name): bool
+    {
+        $driver = DB::getDriverName();
+
+        if ($driver === 'pgsql') {
+            return self::relationKind($name) !== null;
+        }
+
+        if ($driver === 'sqlite') {
+            return DB::selectOne(
+                "SELECT 1 AS present FROM sqlite_master WHERE name = ? AND type IN ('table', 'view') LIMIT 1",
+                [$name]
+            ) !== null;
+        }
+
+        return Schema::hasTable($name);
     }
 
     public static function postgresType(string $documentedType, bool $forAlter = false): string

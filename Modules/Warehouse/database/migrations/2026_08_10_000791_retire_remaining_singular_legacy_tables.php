@@ -17,9 +17,52 @@ return new class extends Migration
         $this->createRemainingCompatibilityViews();
     }
 
+    /**
+     * WWHN-300 (GoLive rollback control). up() is genuinely fail-forward: the
+     * singular legacy tables were dropped after their rows were copied into the
+     * canonical plural tables, and that data move cannot be undone here.
+     *
+     * What down() must still do is remove the compatibility views and INSTEAD OF
+     * triggers this migration ADDED. Leaving them behind made every earlier
+     * down() that drops or alters a canonical table abort with SQLSTATE 2BP01
+     * ("other objects depend on it"), so migrate:rollback stopped mid-chain and
+     * left a schema that could neither serve traffic nor migrate forward.
+     *
+     * Rollback authority past this point is restore-from-backup for DATA; this
+     * down() only guarantees the SCHEMA unwinds deterministically.
+     */
     public function down(): void
     {
-        // Fail-forward: singular legacy names remain as compatibility views only.
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        foreach ([
+            'container',
+            'container_item',
+            'physical_code',
+            'defect_catalog',
+            'posting_event',
+            'scan_event',
+            'reconciliation_incident',
+            'reversal_document',
+            'reversal_line',
+            'warranty_case',
+            'warranty_event',
+            'pv_product_profile',
+            'pv_product_tag',
+            'pv_recommendation_rule',
+        ] as $view) {
+            if (HoaNamErdSchema::relationKind($view) !== 'v') {
+                continue;
+            }
+
+            DB::statement('DROP VIEW '.HoaNamErdSchema::quote($view).' CASCADE');
+
+            foreach (['hn_legacy_'.$view.'_write', 'hn_legacy_'.$view.'_reject_write'] as $function) {
+                DB::statement('DROP FUNCTION IF EXISTS '.HoaNamErdSchema::quote(substr($function, 0, 63)).'() CASCADE');
+            }
+        }
     }
 
     private function copyRemainingLegacyRows(): void

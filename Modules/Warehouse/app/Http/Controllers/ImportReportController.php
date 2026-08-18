@@ -20,6 +20,11 @@ class ImportReportController extends Controller
         path: '/api/v1/skus/import-reports',
         operationId: 'sku_import_report_list',
         summary: 'Danh sách Import báo cáo SKU (dry-run và commit) — WWHN-224',
+        description: 'Mỗi phần tử có `error_file_available` (boolean, WWHN-330): true khi báo cáo đó còn file lỗi CSV '
+            .'tải được ngay lúc gọi (đã sinh file và chưa quá `error_file_expires_at`). Client dùng đúng field này để '
+            .'bật/tắt nút tải, KHÔNG tự so `error_file_expires_at` với đồng hồ máy client. Đường dẫn lưu trữ nội bộ '
+            .'`error_file_path` không được trả ra ngoài. `duplicate_of_replay` = true nghĩa là báo cáo này đã từng '
+            .'được trả lại cho một lần import trùng file (idempotent replay).',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         parameters: [
@@ -66,6 +71,9 @@ class ImportReportController extends Controller
         path: '/api/v1/skus/import-reports/{id}',
         operationId: 'sku_import_report_detail',
         summary: 'Chi tiết một Import báo cáo SKU — WWHN-224',
+        description: 'Trả về `error_file_available` (boolean, WWHN-330) — nguồn sự thật duy nhất để client quyết định '
+            .'hiển thị nút tải file lỗi; đã tính cả điều kiện hết hạn tại server. `error_file_expires_at` chỉ dùng để '
+            .'hiển thị mốc thời gian cho người dùng. `error_file_path` (đường dẫn nội bộ) không được trả ra ngoài.',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         parameters: [

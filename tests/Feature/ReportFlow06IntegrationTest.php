@@ -577,6 +577,53 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertJsonMissingPath('exception');
     }
 
+    /**
+     * `after_or_equal:from_date` không bắt được ca này vì to_date vắng mặt và rơi về
+     * default hôm nay. Trước khi vá, endpoint trả 200 với period đảo chiều
+     * (from_date > to_date) và mọi KPI im lặng bằng 0.
+     */
+    public function test_dashboard_quick_rejects_future_from_date_without_to_date(): void
+    {
+        $future = now()->addDays(30)->toDateString();
+
+        $this->getJson("/api/v1/reports/dashboard-quick?from_date={$future}", [
+            'Authorization' => "Bearer {$this->token}",
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'BUSINESS_RULE_ERROR')
+            ->assertJsonMissingPath('trace')
+            ->assertJsonMissingPath('exception');
+    }
+
+    /** Alias from/to không nằm trong $rules nên cũng phải bị chặn khi đảo chiều. */
+    public function test_dashboard_quick_rejects_reversed_range_via_from_to_alias(): void
+    {
+        $this->getJson('/api/v1/reports/dashboard-quick?from=2026-08-10&to=2026-08-01', [
+            'Authorization' => "Bearer {$this->token}",
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'BUSINESS_RULE_ERROR');
+    }
+
+    /**
+     * WWHN-328: contract chỉ phát hành 4 KPI luồng. OPENING phải bị loại ở WHERE,
+     * không được cộng nhầm vào receipt_qty khi tồn đầu kỳ nằm trong period.
+     */
+    public function test_dashboard_quick_excludes_opening_movements_from_flow_kpis(): void
+    {
+        $today = now()->toDateString();
+        $this->createMovement('OPENING', $this->productA, 500, $today);
+        $this->createMovement('RECEIPT', $this->productA, 15, $today);
+        $this->createMovement('COMPONENT_ISSUE', $this->productA, -6, $today);
+        $this->createMovement('REVERSAL', $this->productA, -2, $today);
+
+        $this->api("/api/v1/reports/dashboard-quick?from_date={$today}&to_date={$today}")
+            ->assertOk()
+            ->assertJsonPath('data.receipt_qty', 15)
+            ->assertJsonPath('data.component_issue_qty', 6)
+            ->assertJsonPath('data.reversal_net', -2);
+    }
+
     public function test_dashboard_quick_requires_authentication(): void
     {
         $this->getJson('/api/v1/reports/dashboard-quick')

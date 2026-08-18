@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\HoaNamErdSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +49,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('scan_record_events');
-        Schema::dropIfExists('scan_batches');
+        HoaNamErdSchema::dropRelation('scan_record_events');
+        HoaNamErdSchema::dropRelation('scan_batches');
     }
 };

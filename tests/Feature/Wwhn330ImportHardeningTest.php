@@ -11,6 +11,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ImportReport;
+use Modules\Warehouse\Models\Sku;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
@@ -170,7 +171,7 @@ class Wwhn330ImportHardeningTest extends TestCase
         $this->assertSame(1, ImportReport::query()->where('mode', 'COMMIT')->count());
         $this->assertSame(
             1,
-            \Modules\Warehouse\Models\Sku::query()->where('sku_code', 'IDEMPOTENT-001')->count()
+            Sku::query()->where('sku_code', 'IDEMPOTENT-001')->count()
         );
     }
 
@@ -190,6 +191,106 @@ class Wwhn330ImportHardeningTest extends TestCase
         // Actor khac -> khong duoc coi la duplicate cua actor dau; van chay that (update_existing=true nen khong loi).
         $second->assertOk();
         $this->assertNotTrue((bool) $second->json('data.duplicate'));
+    }
+
+    // ── FE331-P1-03: hợp đồng "file lỗi có tải được không" mà FE dựa vào ─────
+
+    public function test_import_report_never_exposes_internal_storage_path_and_states_availability(): void
+    {
+        $file = $this->xlsx(['code', 'name'], [
+            ['LEAK-EF', 'Dong 1'],
+            ['LEAK-EF', 'Dong trung'],
+        ]);
+
+        $import = $this->withHeaders($this->headers())
+            ->post('/api/v1/skus/import-excel', ['file' => $file]);
+        $import->assertStatus(422)
+            // Response import phải tự nói được là có file lỗi để tải, FE không phải đoán.
+            ->assertJsonPath('data.error_file_available', true);
+        $reportId = $import->json('data.import_report_id');
+        $this->assertNotNull($reportId);
+
+        $detail = $this->withHeaders($this->headers())
+            ->getJson('/api/v1/skus/import-reports/'.$reportId);
+
+        $detail->assertOk()
+            ->assertJsonPath('data.error_file_available', true)
+            ->assertJsonMissingPath('data.error_file_path');
+        $this->assertNotNull($detail->json('data.error_file_expires_at'));
+
+        // Danh sách cũng không được rò đường dẫn nội bộ.
+        $list = $this->withHeaders($this->headers())
+            ->getJson('/api/v1/skus/import-reports?per_page=100');
+        $list->assertOk();
+        $this->assertStringNotContainsString(
+            'error_file_path',
+            $list->getContent(),
+            'Danh sách Import báo cáo không được trả đường dẫn lưu trữ nội bộ ra ngoài.'
+        );
+    }
+
+    public function test_error_file_availability_flips_to_false_once_expired_and_download_matches(): void
+    {
+        $file = $this->xlsx(['code', 'name'], [
+            ['EXPIRE-EF', 'Dong 1'],
+            ['EXPIRE-EF', 'Dong trung'],
+        ]);
+
+        $reportId = $this->withHeaders($this->headers())
+            ->post('/api/v1/skus/import-excel', ['file' => $file])
+            ->assertStatus(422)
+            ->json('data.import_report_id');
+
+        /** @var ImportReport $report */
+        $report = ImportReport::query()->findOrFail($reportId);
+        $report->forceFill(['error_file_expires_at' => now()->subMinute()])->save();
+
+        // availability do server tính, không phụ thuộc đồng hồ máy client...
+        $this->withHeaders($this->headers())
+            ->getJson('/api/v1/skus/import-reports/'.$reportId)
+            ->assertOk()
+            ->assertJsonPath('data.error_file_available', false);
+
+        // ...và phải khớp đúng kết quả tải thật (404 vì đã hết hạn).
+        $this->withHeaders($this->headers())
+            ->get('/api/v1/skus/import-reports/'.$reportId.'/error-file')
+            ->assertStatus(404);
+    }
+
+    public function test_replay_marks_the_original_report_as_duplicate_of_replay(): void
+    {
+        [$file1, $file2] = $this->identicalXlsxPair(['code', 'name'], [['REPLAY-MARK-001', 'Ban goc']]);
+
+        $firstReportId = $this->withHeaders($this->headers())
+            ->post('/api/v1/skus/import-excel', ['file' => $file1])
+            ->assertOk()
+            ->json('data.import_report_id');
+
+        $this->assertFalse(
+            (bool) ImportReport::query()->findOrFail($firstReportId)->duplicate_of_replay,
+            'Lần import đầu tiên chưa bị phát lại thì không được đánh dấu.'
+        );
+
+        $this->withHeaders($this->headers())
+            ->post('/api/v1/skus/import-excel', ['file' => $file2])
+            ->assertOk()
+            ->assertJsonPath('data.duplicate', true);
+
+        $this->assertTrue(
+            (bool) ImportReport::query()->findOrFail($firstReportId)->duplicate_of_replay,
+            'Bản ghi gốc phải được đánh dấu duplicate_of_replay để QA/BA đối soát được lần gửi trùng.'
+        );
+
+        $this->withHeaders($this->headers())
+            ->getJson('/api/v1/skus/import-reports/'.$firstReportId)
+            ->assertOk()
+            ->assertJsonPath('data.duplicate_of_replay', true);
+
+        // Marker truy vết không được làm sai số liệu nghiệp vụ của lần import gốc.
+        $this->assertSame(
+            1,
+            Sku::query()->where('sku_code', 'REPLAY-MARK-001')->count()
+        );
     }
 
     private function authHeadersForAnotherSkuManager(): array

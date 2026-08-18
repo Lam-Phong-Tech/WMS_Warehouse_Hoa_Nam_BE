@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Auth\Models\User;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -47,6 +48,20 @@ class OperationalReportController extends Controller
     private const STOCK_STATUSES = ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'];
 
     private const MOVEMENT_TYPES = ['OPENING', 'RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'];
+
+    /**
+     * WWHN-328: dashboard-quick chỉ phát hành 4 KPI luồng; OPENING không nằm trong
+     * contract nên loại ngay ở WHERE thay vì gom rồi bỏ.
+     */
+    private const DASHBOARD_MOVEMENT_TYPES = ['RECEIPT', 'ISSUE', 'COMPONENT_ISSUE', 'REVERSAL'];
+
+    /**
+     * WWHN-328: trần số dòng MISMATCH nhúng vào payload dashboard. Tổng thật đi qua
+     * `reconciliation_warning_count`; danh sách đầy đủ vẫn ở /reports/inventory-balance.
+     * Không có trần thì một lần lệch đối soát diện rộng sẽ thổi payload dashboard lên
+     * to bằng cả báo cáo tồn kho.
+     */
+    private const DASHBOARD_WARNING_LIMIT = 50;
 
     private const EXPORT_ROW_LIMIT = 10000;
 
@@ -473,16 +488,23 @@ class OperationalReportController extends Controller
 
     // ── Dashboard Quick ──────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/dashboard-quick', operationId: 'report_dashboard_quick', summary: 'Số liệu nhanh cho dashboard (WWHN-328: endpoint tổng hợp KPI, tái sử dụng — không tạo route mới)', description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period 30 ngày gần nhất khi bỏ trống from_date/to_date.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', description: 'Mặc định: hôm nay trừ 30 ngày', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', description: 'Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Mặc định: hôm nay', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'Dashboard KPIs', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'period', properties: [new OA\Property(property: 'from_date', type: 'string', format: 'date'), new OA\Property(property: 'to_date', type: 'string', format: 'date')], type: 'object'), new OA\Property(property: 'available_qty', type: 'number', description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE), snapshot hiện tại — không lọc theo period'), new OA\Property(property: 'receipt_qty', type: 'number', description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at'), new OA\Property(property: 'issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period'), new OA\Property(property: 'component_issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period'), new OA\Property(property: 'reversal_net', type: 'number', description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, có thể âm'), new OA\Property(property: 'warranty_cases_by_status', type: 'object', description: 'Map status → COUNT(*), toàn bộ warranty_case không lọc theo period', additionalProperties: new OA\AdditionalProperties(type: 'integer')), new OA\Property(property: 'reconciliation_warnings', type: 'array', description: 'Các dòng RPT-INV-01 reconciliation_status=MISMATCH tại thời điểm gọi', items: new OA\Items(type: 'object'))], type: 'object'), new OA\Property(property: 'meta', properties: [new OA\Property(property: 'request_id', type: 'string', format: 'uuid'), new OA\Property(property: 'timestamp', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'UNAUTHENTICATED'), new OA\Response(response: 403, description: 'ACCESS_DENIED — thiếu permission report.view'), new OA\Response(response: 422, description: 'BUSINESS_RULE_ERROR — from_date/to_date không hợp lệ hoặc to_date < from_date')])]
+    #[OA\Get(path: '/api/v1/reports/dashboard-quick', operationId: 'report_dashboard_quick', summary: 'Số liệu nhanh cho dashboard (WWHN-328: endpoint tổng hợp KPI, tái sử dụng — không tạo route mới)', description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period là [hôm nay - 30 ngày, hôm nay], inclusive hai đầu (= 31 ngày) khi bỏ trống from_date/to_date. DATA-SCOPE (WWHN-328 DEV328-P1-01): dashboard chịu đúng warehouse data-scope của người gọi, cùng nguồn scope_ref với /inventory/balances và /stock-movements — người dùng không bị giới hạn kho nhận GLOBAL, người dùng bị giới hạn chỉ nhận số liệu các kho trong scope. Ngoại lệ đã ghi nhận: warranty_cases_by_status luôn GLOBAL vì ERD warranty_case không có warehouse_id.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', description: 'Mặc định: hôm nay trừ 30 ngày (Asia/Ho_Chi_Minh)', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', description: 'Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Mặc định: hôm nay', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Thu hẹp KPI về 1 kho. Phải nằm trong data-scope của người gọi, nếu không trả 403 ACCESS_DENIED.', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Dashboard KPIs', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'period', properties: [new OA\Property(property: 'from_date', type: 'string', format: 'date'), new OA\Property(property: 'to_date', type: 'string', format: 'date')], type: 'object'), new OA\Property(property: 'data_scope', type: 'string', enum: ['GLOBAL', 'WAREHOUSE_SCOPED'], description: 'GLOBAL = không giới hạn kho; WAREHOUSE_SCOPED = đã lọc theo scope_warehouse_ids'), new OA\Property(property: 'scope_warehouse_ids', type: 'array', nullable: true, description: 'null khi data_scope=GLOBAL; danh sách kho đã áp dụng khi WAREHOUSE_SCOPED', items: new OA\Items(type: 'string', format: 'uuid')), new OA\Property(property: 'available_qty', type: 'number', description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE) trong data-scope, snapshot hiện tại — không lọc theo period'), new OA\Property(property: 'receipt_qty', type: 'number', description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at, trong data-scope'), new OA\Property(property: 'issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period, trong data-scope'), new OA\Property(property: 'component_issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period, trong data-scope'), new OA\Property(property: 'reversal_net', type: 'number', description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, trong data-scope, có thể âm'), new OA\Property(property: 'warranty_cases_by_status', type: 'object', description: 'Map status → COUNT(*), toàn bộ warranty_case: KHÔNG lọc theo period và KHÔNG lọc theo kho (warranty_case không có warehouse_id trong ERD)', additionalProperties: new OA\AdditionalProperties(type: 'integer')), new OA\Property(property: 'reconciliation_warning_count', type: 'integer', description: 'Tổng số dòng RPT-INV-01 reconciliation_status=MISMATCH trong data-scope — đây là con số dùng để hiển thị và đối soát'), new OA\Property(property: 'reconciliation_warnings', type: 'array', description: 'Tối đa 50 dòng MISMATCH đầu tiên (mẫu để soi nhanh). Dùng reconciliation_warning_count cho tổng số; xem đầy đủ tại /reports/inventory-balance.', items: new OA\Items(type: 'object'))], type: 'object'), new OA\Property(property: 'meta', properties: [new OA\Property(property: 'request_id', type: 'string', format: 'uuid'), new OA\Property(property: 'timestamp', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'UNAUTHENTICATED'), new OA\Response(response: 403, description: 'ACCESS_DENIED — thiếu permission report.view, hoặc warehouse_id nằm ngoài data-scope của người gọi'), new OA\Response(response: 422, description: 'BUSINESS_RULE_ERROR — from_date/to_date/warehouse_id không hợp lệ hoặc to_date < from_date')])]
     public function dashboardQuick(Request $request)
     {
         // period() tự validate/áp default + ném 422 khi to_date < from_date — luôn
         // chạy trước cache, không phụ thuộc cache hit/miss.
         [$from, $to] = $this->period($request);
 
+        // WWHN-328 DEV328-P1-01/P1-04: data-scope được giải NGAY TẠI ĐÂY, trước cache.
+        // Nếu để sau, một cache hit sẽ nuốt mất 403 của warehouse_id ngoài scope.
+        $scope = $this->dashboardWarehouseScope($request);
+
         $key = CacheKey::of('warehouse:report:dashboard-quick', [
             'from' => $from,
             'to' => $to,
+            // Scope BẮT BUỘC có trong key. Hai người dùng khác data-scope gọi cùng kỳ
+            // phải nhận hai payload khác nhau; dùng chung key là rò rỉ số liệu chéo kho.
+            'scope' => $scope === null ? 'global' : CacheKey::hashFilters($scope),
         ], $this->cacheService()->currentVersion('stock:version'));
 
         // Endpoint dashboard tốn nhất (4 aggregate query/lần gọi theo audit) — cache
@@ -492,21 +514,89 @@ class OperationalReportController extends Controller
         $data = $this->cacheService()->rememberStampede(
             $key,
             CacheTtl::seconds('dashboard'),
-            fn (): array => $this->buildDashboardQuick($from, $to)
+            fn (): array => $this->buildDashboardQuick($from, $to, $scope)
         );
 
         return $this->respondSuccess($data);
     }
 
-    /** @return array<string, mixed> */
-    private function buildDashboardQuick(string $from, string $to): array
+    /**
+     * WWHN-328: warehouse data-scope hiệu lực của dashboard.
+     *
+     * null  = GLOBAL (super-admin, hoặc role gắn scope_ref rỗng) — giữ nguyên hành vi cũ.
+     * list  = WAREHOUSE_SCOPED, lấy đúng nguồn `scope_ref` mà EnforceInventoryWarehouseScope
+     *         và ScopesWarehouseData đang dùng cho /inventory/balances, /stock-movements.
+     *         Không đồng bộ hai chỗ này thì cùng một người dùng sẽ thấy tồn kho bị giới hạn
+     *         ở màn Tra cứu tồn nhưng lại thấy tổng KPI toàn hệ thống ở Dashboard.
+     * []    = fail-closed (role có scope nhưng không kho nào hợp lệ) — cùng quy ước với
+     *         ScopesWarehouseData::bootScopesWarehouseData().
+     *
+     * @return list<string>|null
+     */
+    private function dashboardWarehouseScope(Request $request): ?array
     {
-        $movement = DB::table('stock_movements')
-            ->whereBetween('occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->get(['movement_type', 'qty_delta']);
+        $validated = $request->validate([
+            'warehouse_id' => ['nullable', 'uuid'],
+        ]);
 
-        $sum = fn (string $type): float => (float) $movement->where('movement_type', $type)->sum('qty_delta');
+        $user = auth('api')->user();
+        $scope = $user instanceof User ? $user->warehouseScopeIds() : null;
+        if ($scope !== null) {
+            // sort() để cache key ổn định, không phụ thuộc thứ tự role trả về.
+            $scope = collect($scope)->map(fn ($id): string => (string) $id)->unique()->sort()->values()->all();
+        }
+
+        $requested = $validated['warehouse_id'] ?? null;
+        if ($requested === null || $requested === '') {
+            return $scope;
+        }
+
+        // Cùng mã lỗi/thông điệp với EnforceInventoryWarehouseScope để FE và QA chỉ
+        // phải xử lý một contract 403 duy nhất cho vi phạm data-scope.
+        if ($scope !== null && ! in_array((string) $requested, $scope, true)) {
+            ApiError::abort(403, 'ACCESS_DENIED', 'Kho yêu cầu nằm ngoài data scope hiện hành.');
+        }
+
+        return [(string) $requested];
+    }
+
+    /**
+     * @param  list<string>|null  $warehouseIds  null = GLOBAL; [] = fail-closed (rỗng).
+     * @return array<string, mixed>
+     */
+    private function buildDashboardQuick(string $from, string $to, ?array $warehouseIds = null): array
+    {
+        // Gộp ngay tại SQL. Bản cũ `->get(['movement_type','qty_delta'])` kéo TOÀN BỘ
+        // movement của kỳ về PHP rồi mới sum() ⇒ bộ nhớ tăng tuyến tính theo số movement.
+        $totals = DB::table('stock_movements')
+            ->select('movement_type')
+            ->selectRaw('SUM(qty_delta) AS total_delta')
+            ->whereBetween('occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+            ->whereIn('movement_type', self::DASHBOARD_MOVEMENT_TYPES)
+            ->when($warehouseIds !== null, fn ($q) => $q->whereIn('warehouse_id', $warehouseIds))
+            ->groupBy('movement_type')
+            ->get()
+            ->keyBy('movement_type');
+
+        $sum = fn (string $type): float => (float) ($totals[$type]->total_delta ?? 0);
+
+        $availableQty = (float) DB::table('inventory_balances')
+            ->where('stock_status', 'AVAILABLE')
+            ->when($warehouseIds !== null, fn ($q) => $q->whereIn('warehouse_id', $warehouseIds))
+            ->sum('available_qty');
+
+        // §13.10 RPT-INV-01 là nguồn duy nhất của reconciliation_status; dùng lại đúng
+        // builder đó (đã có cache riêng) rồi mới cắt theo data-scope, để dashboard và báo
+        // cáo tồn kho không bao giờ lệch định nghĩa MISMATCH.
         $reconciliation = $this->buildInventoryBalance(new Request(['only_mismatch' => true]));
+        $warnings = collect($reconciliation['rows'])->where('reconciliation_status', 'MISMATCH');
+        if ($warehouseIds !== null) {
+            $warnings = $warnings->whereIn('warehouse_id', $warehouseIds);
+        }
+        $warnings = $warnings->values();
+
+        // warranty_case không mang warehouse_id (ERD) nên KPI bảo hành là GLOBAL theo
+        // thiết kế dữ liệu, kể cả với người dùng bị giới hạn kho. Đã khai rõ trong OpenAPI.
         $warranty = DB::table('warranty_case')
             ->select('status', DB::raw('COUNT(*) AS total'))
             ->groupBy('status')
@@ -516,13 +606,18 @@ class OperationalReportController extends Controller
 
         return [
             'period' => ['from_date' => $from, 'to_date' => $to],
-            'available_qty' => (float) DB::table('inventory_balances')->where('stock_status', 'AVAILABLE')->sum('available_qty'),
+            'data_scope' => $warehouseIds === null ? 'GLOBAL' : 'WAREHOUSE_SCOPED',
+            'scope_warehouse_ids' => $warehouseIds,
+            'available_qty' => $availableQty,
             'receipt_qty' => max(0, $sum('RECEIPT')),
             'issue_qty' => abs(min(0, $sum('ISSUE'))),
             'component_issue_qty' => abs(min(0, $sum('COMPONENT_ISSUE'))),
             'reversal_net' => $sum('REVERSAL'),
             'warranty_cases_by_status' => $warranty,
-            'reconciliation_warnings' => collect($reconciliation['rows'])->where('reconciliation_status', 'MISMATCH')->values()->all(),
+            // Tổng thật để hiển thị/đối soát; mảng bên dưới chỉ là mẫu có trần nên
+            // count() của mảng KHÔNG còn là tổng số cảnh báo.
+            'reconciliation_warning_count' => $warnings->count(),
+            'reconciliation_warnings' => $warnings->take(self::DASHBOARD_WARNING_LIMIT)->values()->all(),
         ];
     }
 
@@ -1163,7 +1258,30 @@ class OperationalReportController extends Controller
         $from = (string) ($validated['from_date'] ?? $request->input('from') ?? now()->subDays(30)->toDateString());
         $to = (string) ($validated['to_date'] ?? $request->input('to') ?? now()->toDateString());
 
-        return [$from, $to];
+        // `after_or_equal:from_date` chỉ so được khi CẢ HAI tham số cùng đi qua
+        // validate. Hai đường vòng vẫn lọt: (1) chỉ gửi from_date → to_date rơi về
+        // default hôm nay, (2) dùng alias from/to vốn không nằm trong $rules. Khi đó
+        // response phát hành period đảo chiều và mọi KPI im lặng trả 0 thay vì báo
+        // lỗi — sai đúng contract 422 BUSINESS_RULE_ERROR đã công bố ở OpenAPI.
+        foreach (['from_date' => $from, 'to_date' => $to] as $field => $value) {
+            if (strtotime($value) === false) {
+                ApiError::abort(422, 'BUSINESS_RULE_ERROR', "Tham số {$field} phải là ngày hợp lệ.", [
+                    $field => ['Giá trị không parse được thành ngày.'],
+                ]);
+            }
+        }
+
+        if (Carbon::parse($to)->lt(Carbon::parse($from))) {
+            ApiError::abort(422, 'BUSINESS_RULE_ERROR', 'to_date phải lớn hơn hoặc bằng from_date.', [
+                'to_date' => ['to_date phải lớn hơn hoặc bằng from_date.'],
+            ]);
+        }
+
+        // Mọi consumer đều ghép "{$from} 00:00:00" / "{$to} 23:59:59" nên period phải
+        // là date-only. Rule 'date' của Laravel vẫn cho qua "2026-08-01T10:00:00", khi
+        // đó chuỗi ghép ra "2026-08-01T10:00:00 00:00:00" — SQL không so được và KPI
+        // lặng lẽ về 0. Chuẩn hoá tại đây, một chỗ cho cả 5 báo cáo dùng period().
+        return [Carbon::parse($from)->toDateString(), Carbon::parse($to)->toDateString()];
     }
 
     private function paginateReport(array $report, Request $request, string $rowsKey = 'rows'): array
