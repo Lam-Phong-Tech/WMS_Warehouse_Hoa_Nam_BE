@@ -19,7 +19,7 @@
   "repositories": {
     "backend": {
       "branch": "m1",
-      "commit_sha": "d52727cec7e48ab09dff020fd968f1129fcc51c5",
+      "commit_sha": "62dcbc104290eced035e4288fe46f869238bafcd",
       "working_tree_clean": false
     },
     "frontend": {
