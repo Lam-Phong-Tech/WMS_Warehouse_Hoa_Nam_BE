@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Exceptions\ImportReportPersistenceException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportService;
 use OpenApi\Attributes as OA;
@@ -30,7 +32,7 @@ class ImportController extends Controller
         responses: [
             new OA\Response(response: 200, description: 'XLSX template'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
+            new OA\Response(response: 403, description: 'Missing sku.manage permission'),
         ]
     )]
     public function downloadTemplate(): BinaryFileResponse
@@ -49,7 +51,8 @@ class ImportController extends Controller
         summary: 'Import SKUs từ Excel theo cơ chế all-or-nothing, hỗ trợ dry-run',
         description: 'Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. '
             .'Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; '
-            .'kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại.',
+            .'kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. '
+            .'Import báo cáo là output bắt buộc: nếu không ghi được report thì request trả 503 và toàn bộ transaction (kể cả commit SKU/audit) bị rollback.',
         security: [['bearerAuth' => []]],
         tags: ['05. Product'],
         requestBody: new OA\RequestBody(
@@ -68,11 +71,12 @@ class ImportController extends Controller
             )
         ),
         responses: [
-            new OA\Response(response: 200, description: 'Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true)'),
+            new OA\Response(response: 200, description: 'Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true); luôn có import_report_id'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
+            new OA\Response(response: 403, description: 'Missing sku.manage permission'),
             new OA\Response(response: 409, description: 'Concurrent unique conflict; no partial write'),
-            new OA\Response(response: 422, description: 'File/row validation failed; no business side effect'),
+            new OA\Response(response: 422, description: 'File/row validation failed; no business side effect; rejected report persisted'),
+            new OA\Response(response: 503, description: 'Import report persistence failed; transaction rolled back; error code SKU_IMPORT_REPORT_PERSISTENCE_FAILED'),
         ]
     )]
     public function importExcel(Request $request): JsonResponse
@@ -95,18 +99,37 @@ class ImportController extends Controller
         $requestId = is_string($request->attributes->get('request_id'))
             ? $request->attributes->get('request_id')
             : null;
+        $originalName = $file->getClientOriginalName();
 
         try {
-            $result = $this->importService->import(
+            // Outer transaction is intentional. ImportService owns its internal validation
+            // transaction; Laravel nests it as a savepoint under this outer boundary. The
+            // Import báo cáo is therefore part of the same atomic unit as the SKU write —
+            // if report persistence fails, SKU and business-audit writes roll back too, so
+            // the response never claims success/validation without the mandatory Output.
+            $result = DB::transaction(function () use (
                 $fullPath,
-                (bool) ($validated['update_existing'] ?? false),
+                $validated,
                 $actorId,
                 $requestId,
-                $file->getClientOriginalName(),
-                $dryRun,
-            );
+                $originalName,
+                $dryRun
+            ): array {
+                $result = $this->importService->import(
+                    $fullPath,
+                    (bool) ($validated['update_existing'] ?? false),
+                    $actorId,
+                    $requestId,
+                    $originalName,
+                    $dryRun,
+                );
 
-            $result['import_report_id'] = $this->persistReport($result, $actorId, $requestId, $file->getClientOriginalName())?->import_report_id;
+                $report = $this->persistReportOrFail($result, $actorId, $requestId, $originalName);
+                $result['import_report_id'] = (string) $report->import_report_id;
+
+                return $result;
+            }, 3);
+
             $hasRowErrors = $result['row_errors'] !== [];
 
             if ($hasRowErrors) {
@@ -127,6 +150,22 @@ class ImportController extends Controller
                     ? 'Kiểm tra thử import hoàn tất, không có dữ liệu nào được ghi.'
                     : 'Import SKU đã commit nguyên tử.',
             );
+        } catch (ImportReportPersistenceException $e) {
+            return $this->respondError(
+                'Không thể lưu Import báo cáo; giao dịch import đã được rollback và có thể thử lại an toàn.',
+                [],
+                503,
+                'SKU_IMPORT_REPORT_PERSISTENCE_FAILED',
+                [
+                    'data' => [
+                        'dry_run' => $dryRun,
+                        'committed' => false,
+                        'partial_write' => false,
+                        'import_report_id' => null,
+                        'retryable' => true,
+                    ],
+                ],
+            );
         } catch (\InvalidArgumentException $e) {
             return $this->respondError(
                 $e->getMessage(),
@@ -141,14 +180,14 @@ class ImportController extends Controller
     }
 
     /**
-     * Import báo cáo (WWHN-224) là metadata truy vết, không phải nguồn sự thật nghiệp vụ.
-     * Nếu import thật đã commit SKU thành công nhưng riêng bước ghi report lỗi, request
-     * vẫn phải trả kết quả thành công — nếu không client có thể tưởng import thất bại và
-     * gửi lại, gây DUPLICATE_CODE giả trên dữ liệu đã thực sự được tạo đúng.
+     * Import báo cáo (WWHN-224) là output truy vết bắt buộc của mọi lần chạy
+     * import/dry-run. Không được nuốt lỗi ghi report: caller đặt hàm này trong
+     * cùng transaction với import để report failure rollback toàn bộ side effect
+     * (SKU/audit nghiệp vụ), tránh vừa mất Output vừa báo success giả.
      *
      * @param  array<string, mixed>  $result
      */
-    private function persistReport(array $result, ?string $actorId, ?string $requestId, ?string $fileName): ?ImportReport
+    private function persistReportOrFail(array $result, ?string $actorId, ?string $requestId, ?string $fileName): ImportReport
     {
         $dryRun = (bool) ($result['dry_run'] ?? false);
         $hasErrors = ($result['row_errors'] ?? []) !== [];
@@ -176,15 +215,17 @@ class ImportController extends Controller
                 'request_id' => $requestId,
             ]);
         } catch (Throwable $e) {
-            Log::error('IMPORT_REPORT_WRITE_FAILED', [
+            Log::error('IMPORT_REPORT_WRITE_FAILED_ROLLBACK', [
                 'request_id' => $requestId,
                 'file_sha256' => $result['file_sha256'] ?? null,
                 'mode' => $dryRun ? 'DRY_RUN' : 'COMMIT',
                 'exception' => $e::class,
-                'message' => $e->getMessage(),
             ]);
 
-            return null;
+            throw new ImportReportPersistenceException(
+                'Import report persistence failed; transaction must rollback.',
+                previous: $e,
+            );
         }
     }
 }

@@ -13221,7 +13221,7 @@
                     "05. Product"
                 ],
                 "summary": "Import SKUs từ Excel theo cơ chế all-or-nothing, hỗ trợ dry-run",
-                "description": "Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại.",
+                "description": "Validate toàn bộ file trước khi ghi. Có bất kỳ lỗi nào thì committed=false và không tạo/cập nhật SKU. Khi dry_run=true (WWHN-224), toàn bộ rule nghiệp vụ vẫn được áp dụng như import thật nhưng tuyệt đối không ghi SKU/audit nghiệp vụ; kết quả kiểm tra thử luôn được lưu vào Import báo cáo (import_reports) và trả về import_report_id để tra cứu lại. Import báo cáo là output bắt buộc: nếu không ghi được report thì request trả 503 và toàn bộ transaction (kể cả commit SKU/audit) bị rollback.",
                 "operationId": "sku_import_excel",
                 "parameters": [],
                 "requestBody": {
@@ -13254,19 +13254,22 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true)"
+                        "description": "Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true); luôn có import_report_id"
                     },
                     "401": {
                         "description": "Unauthenticated"
                     },
                     "403": {
-                        "description": "Missing product.manage permission"
+                        "description": "Missing sku.manage permission"
                     },
                     "409": {
                         "description": "Concurrent unique conflict; no partial write"
                     },
                     "422": {
-                        "description": "File/row validation failed; no business side effect"
+                        "description": "File/row validation failed; no business side effect; rejected report persisted"
+                    },
+                    "503": {
+                        "description": "Import report persistence failed; transaction rolled back; error code SKU_IMPORT_REPORT_PERSISTENCE_FAILED"
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng"
@@ -13520,7 +13523,7 @@
                         "description": "Unauthenticated"
                     },
                     "403": {
-                        "description": "Missing product.manage permission"
+                        "description": "Missing sku.manage permission"
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng"
