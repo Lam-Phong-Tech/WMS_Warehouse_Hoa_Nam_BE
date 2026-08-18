@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
-use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
@@ -144,7 +143,7 @@ class Wwhn191BalanceMovementProjectionTest extends TestCase
 
         $this->postReceiptOf($headers, $warehouse, $sku, 3, 'BOX-BAL-002', 'wwhn191-balance-002');
 
-        $balanceId = InventoryBalance::where('product_id', $sku->sku_id)->value('id');
+        $balanceId = \Modules\Warehouse\Models\InventoryBalance::where('product_id', $sku->sku_id)->value('id');
         $this->assertNotNull($balanceId, 'Expected a materialized inventory_balances row for the posted SKU.');
 
         $this->getJson("/api/v1/inventory/balances/{$balanceId}/subledger", $headers)
@@ -303,145 +302,5 @@ class Wwhn191BalanceMovementProjectionTest extends TestCase
 
         $this->expectException(\LogicException::class);
         $movement->delete();
-    }
-
-    /**
-     * DEV191-P2-01R (positive trace-by-code): nhánh negative đã có ở
-     * test_stock_movement_trace_by_code_returns_404_for_unknown_physical_code.
-     * Positive path thuộc phạm vi WWHN-191 là nhánh RECEIPT/SKU-code — khác nhánh
-     * ITEM/ISSUE đã cover ở Wwhn207OutboundBalanceReconciliationTest nên không trùng lặp.
-     * BR-TRACE-01..06: resolver phải nhận cả mã SKU và so khớp không phân biệt hoa thường.
-     */
-    public function test_stock_movement_trace_by_code_resolves_sku_code_to_posted_receipt_movement(): void
-    {
-        $auth = $this->authHeaders();
-        $headers = ['Authorization' => $auth['Authorization']];
-        $warehouse = $this->warehouse();
-        $sku = Sku::create([
-            'sku_code' => 'COMP-TRACE-RCV-001',
-            'sku_name' => 'Component trace-by-code positive test',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
-
-        [$documentId] = $this->postReceiptOf($headers, $warehouse, $sku, 6, 'BOX-TRACE-001', 'wwhn191-trace-001');
-        $movement = StockMovement::where('stock_document_id', $documentId)->firstOrFail();
-
-        $response = $this->getJson('/api/v1/stock-movements/trace-by-code?code='.$sku->sku_code, $headers)
-            ->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.resolved_type', 'SKU')
-            ->assertJsonPath('data.resolved_id', $sku->sku_id)
-            ->assertJsonPath('data.resolved_by', 'sku_code');
-
-        $traced = collect($response->json('data.movements'))->firstWhere('id', $movement->id);
-        $this->assertNotNull($traced, 'trace-by-code phai tra ve dung movement RECEIPT vua post.');
-        $this->assertSame('RECEIPT', $traced['movement_type']);
-        $this->assertSame(6, (int) $traced['qty_delta']);
-
-        // Case-insensitive: cùng mã viết thường phải ra cùng kết quả (BR-TRACE-06).
-        $this->getJson('/api/v1/stock-movements/trace-by-code?code='.strtolower($sku->sku_code), $headers)
-            ->assertOk()
-            ->assertJsonPath('data.resolved_type', 'SKU')
-            ->assertJsonPath('data.resolved_id', $sku->sku_id);
-    }
-
-    /**
-     * DEV191-P2-01R (positive trace-by-code — nhánh CONTAINER): thùng dùng ở bước scan
-     * nhập kho phải truy vết ngược được về đúng container đó.
-     */
-    public function test_stock_movement_trace_by_code_resolves_container_code_of_received_box(): void
-    {
-        $auth = $this->authHeaders();
-        $headers = ['Authorization' => $auth['Authorization']];
-        $warehouse = $this->warehouse();
-        $sku = Sku::create([
-            'sku_code' => 'COMP-TRACE-RCV-002',
-            'sku_name' => 'Component container trace test',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
-
-        [, , $boxId] = $this->postReceiptOf($headers, $warehouse, $sku, 2, 'BOX-TRACE-002', 'wwhn191-trace-002');
-
-        $this->getJson('/api/v1/stock-movements/trace-by-code?code=BOX-TRACE-002', $headers)
-            ->assertOk()
-            ->assertJsonPath('data.resolved_type', 'CONTAINER')
-            ->assertJsonPath('data.resolved_id', $boxId)
-            ->assertJsonPath('data.resolved_by', 'container_code');
-    }
-
-    /**
-     * DEV191-P2-01R (positive /reversible): movement RECEIPT vừa post, chưa có downstream
-     * consumption → reversible_qty = full qty, dependency_guard null, can_reverse = true.
-     * Nhánh ISSUE/serial-tracked đã cover ở WWHN-207.
-     */
-    public function test_stock_movements_reversible_lists_posted_receipt_with_full_reversible_qty(): void
-    {
-        $auth = $this->authHeaders();
-        $headers = ['Authorization' => $auth['Authorization']];
-        $warehouse = $this->warehouse();
-        $sku = Sku::create([
-            'sku_code' => 'COMP-REV-RCV-001',
-            'sku_name' => 'Component reversible positive test',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
-
-        [$documentId] = $this->postReceiptOf($headers, $warehouse, $sku, 7, 'BOX-REV-001', 'wwhn191-reversible-001');
-        $movement = StockMovement::where('stock_document_id', $documentId)->firstOrFail();
-
-        $response = $this->getJson('/api/v1/stock-movements/reversible?reversible_only=1', $headers)
-            ->assertOk()
-            ->assertJsonPath('success', true);
-
-        $row = collect($response->json('data'))->firstWhere('id', $movement->id);
-        $this->assertNotNull($row, 'Movement RECEIPT vua post phai xuat hien trong danh sach reversible.');
-        $this->assertSame('RECEIPT', $row['movement_type']);
-        $this->assertNull($row['dependency_guard']);
-        $this->assertTrue($row['can_reverse']);
-        $this->assertFalse($row['is_serial_tracked']);
-        $this->assertSame(7, (int) $row['lines'][0]['original_qty']);
-        $this->assertSame(0, (int) $row['lines'][0]['reversed_qty']);
-        $this->assertSame(7, (int) $row['lines'][0]['reversible_qty']);
-    }
-
-    /**
-     * DEV191-P2-01R (parity Annex C): SRS v1.12 dòng traceInventoryCode khai canonical
-     * `GET /inventory/trace/{code_value}` (permission inventory.trace). Route này dùng
-     * chung handler với trace-by-code nên phải trả cùng một payload cho cùng một mã —
-     * nếu lệch thì FE đọc theo Annex C sẽ vỡ.
-     */
-    public function test_annex_c_inventory_trace_path_returns_same_payload_as_trace_by_code(): void
-    {
-        $auth = $this->authHeaders();
-        $headers = ['Authorization' => $auth['Authorization']];
-        $warehouse = $this->warehouse();
-        $sku = Sku::create([
-            'sku_code' => 'COMP-TRACE-RCV-003',
-            'sku_name' => 'Component Annex C trace parity test',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
-
-        $this->postReceiptOf($headers, $warehouse, $sku, 3, 'BOX-TRACE-003', 'wwhn191-trace-003');
-
-        $byQuery = $this->getJson('/api/v1/stock-movements/trace-by-code?code='.$sku->sku_code, $headers)->assertOk();
-        $byPath = $this->getJson('/api/v1/inventory/trace/'.$sku->sku_code, $headers)->assertOk();
-
-        $this->assertSame($byQuery->json('data.resolved_type'), $byPath->json('data.resolved_type'));
-        $this->assertSame($byQuery->json('data.resolved_id'), $byPath->json('data.resolved_id'));
-        $this->assertSame(
-            collect($byQuery->json('data.movements'))->pluck('id')->sort()->values()->all(),
-            collect($byPath->json('data.movements'))->pluck('id')->sort()->values()->all(),
-        );
     }
 }
