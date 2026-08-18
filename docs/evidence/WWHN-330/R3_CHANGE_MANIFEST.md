@@ -7,10 +7,16 @@ Lead/QA1 xác minh được mà không phụ thuộc tiêu đề commit.
 
 ## Commit candidate
 
-| Repo | Nhánh | SHA (40 ký tự) |
-|---|---|---|
-| `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `6916df47b5d9186b799e4a79c64c1b0556b7388d` |
-| `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `6c096808447ec6935a0ebe6ac3950c032084f4ab` |
+| Repo | Nhánh | SHA (40 ký tự) | Nội dung |
+|---|---|---|---|
+| `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `6916df47b5d9186b799e4a79c64c1b0556b7388d` | **Toàn bộ mã nguồn + test + quyết định** của register R3 |
+| `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `26092d9…` | Chỉ tài liệu: thêm chính manifest này + pin SHA vào evidence/comment |
+| `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `6c096808447ec6935a0ebe6ac3950c032084f4ab` | Toàn bộ thay đổi FE của register R3 |
+
+**Bất biến để tránh pin sai về sau:** `git diff --name-only 6916df4 26092d9` chỉ ra **3 tệp
+tài liệu** dưới `docs/evidence/WWHN-330/` — không có tệp mã nguồn, test hay config nào.
+Nghĩa là hành vi hệ thống của hai commit **giống hệt nhau**; pin cái nào cũng đánh giá ra
+cùng một kết quả. Bảng sha256 bên dưới lấy tại `6916df4` (commit mã nguồn).
 
 **Cách xác minh một tệp:**
 
