@@ -3,8 +3,12 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\CacheKey;
+use App\Support\Cache\CacheService;
+use App\Support\Cache\CacheTtl;
 use App\Traits\ApiResponse;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\InventoryBalance;
@@ -61,7 +65,49 @@ class InventoryBalanceController extends Controller
 
         $skuId = $request->input('sku_id') ?? $request->input('product_id');
         $keyword = trim((string) $request->input('keyword', ''));
+        $perPage = $this->perPage($request);
+        $currentPage = (int) $request->integer('page', 1);
 
+        $filters = [
+            'warehouse_id' => $request->input('warehouse_id'),
+            'sku_id' => $skuId,
+            'sku_type' => $request->input('sku_type'),
+            'stock_status' => $request->input('stock_status'),
+            'keyword' => $keyword,
+        ];
+
+        $key = CacheKey::of('warehouse:inventory-balance:list', [
+            'f' => CacheKey::hashFilters($filters),
+            'per_page' => $perPage,
+            'page' => $currentPage,
+        ], $this->cacheService()->currentVersion('stock:version'));
+
+        // Tồn kho correctness-sensitive (mục 8) — strategy B: short TTL + invalidation,
+        // KHÔNG coi cache là nguồn sự thật (PostgreSQL vẫn là source of truth). Version
+        // namespace `stock:version` được CurrentBaselineStockService::mutateBalance()
+        // (điểm chốt duy nhất ghi inventory_balances) bump ngay sau khi transaction
+        // commit — cache cũ "mồ côi" ngay, TTL ngắn chỉ là lưới an toàn bổ sung cho các
+        // đường ghi lỡ chưa được rà tới.
+        $cached = $this->cacheService()->rememberStampede(
+            $key,
+            CacheTtl::seconds('stock_short'),
+            fn (): array => $this->buildInventoryBalancePage($request, $skuId, $keyword, $perPage, $currentPage)
+        );
+
+        $balances = new \Illuminate\Pagination\LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return $this->respondPaginated($balances);
+    }
+
+    /** @return array{items: array<int, array<string, mixed>>, total: int} */
+    private function buildInventoryBalancePage(Request $request, ?string $skuId, string $keyword, int $perPage, int $currentPage): array
+    {
         // Lọc + phân trang ở tầng DB. Bản cũ nạp toàn bộ balance rồi cắt trang trong
         // bộ nhớ nên chi phí tăng tuyến tính theo số dòng tồn của cả kho.
         $query = InventoryBalance::query()->with(['product', 'warehouse']);
@@ -91,7 +137,7 @@ class InventoryBalanceController extends Controller
         $balances = $query
             ->orderBy('product_id')
             ->orderBy('stock_status')
-            ->paginate($this->perPage($request));
+            ->paginate($perPage, ['*'], 'page', $currentPage);
 
         $page = collect($balances->items());
         $warehouseIds = $page->pluck('warehouse_id')->filter()->unique()->values()->all();
@@ -103,7 +149,7 @@ class InventoryBalanceController extends Controller
         $incidentMap = $this->buildIncidentMap($warehouseIds, $skuIds);
         $dataAsOf = now()->toIso8601String();
 
-        $balances->setCollection($page->map(function (InventoryBalance $balance) use (
+        $items = $page->map(function (InventoryBalance $balance) use (
             $ledgerTotals,
             $subledgerCounts,
             $containerHints,
@@ -153,9 +199,14 @@ class InventoryBalanceController extends Controller
                 'data_as_of' => $dataAsOf,
                 'updated_at' => $balance->updated_at,
             ];
-        }));
+        })->all();
 
-        return $this->respondPaginated($balances);
+        return ['items' => $items, 'total' => $balances->total()];
+    }
+
+    private function cacheService(): CacheService
+    {
+        return app(CacheService::class);
     }
 
     #[OA\Get(
@@ -245,7 +296,7 @@ class InventoryBalanceController extends Controller
      *
      * @param  list<string>  $skuIds
      */
-    private function eligibleItemQuery(array $skuIds): \Illuminate\Database\Query\Builder
+    private function eligibleItemQuery(array $skuIds): Builder
     {
         return DB::table('item_instances')
             ->whereIn('item_instances.sku_id', $skuIds)
@@ -263,7 +314,7 @@ class InventoryBalanceController extends Controller
      *
      * @param  list<string>  $skuIds
      */
-    private function activeContainerItemQuery(array $skuIds): \Illuminate\Database\Query\Builder
+    private function activeContainerItemQuery(array $skuIds): Builder
     {
         return DB::table('container_items')
             ->whereIn('container_items.sku_id', $skuIds)

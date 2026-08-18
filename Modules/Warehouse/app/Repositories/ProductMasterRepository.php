@@ -12,6 +12,12 @@ class ProductMasterRepository extends BaseRepository implements ProductMasterRep
 
     protected array $filterable = ['master_type', 'status'];
 
+    protected bool $cacheEnabled = true;
+
+    protected string $cacheDomain = 'warehouse.product_master';
+
+    protected string $cacheTtlPolicy = 'master';
+
     public function __construct(ProductMaster $model)
     {
         parent::__construct($model);

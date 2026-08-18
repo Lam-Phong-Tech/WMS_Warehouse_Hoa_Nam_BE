@@ -11,8 +11,8 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Http\Requests\AssignRolePermissionRequest;
 use Modules\Auth\Http\Requests\StoreRoleRequest;
 use Modules\Auth\Http\Requests\UpdateRoleRequest;
-use Modules\Auth\Models\User;
 use Modules\Auth\Repositories\Contracts\RoleRepositoryInterface;
+use Modules\Auth\Support\AuthCache;
 use OpenApi\Attributes as OA;
 
 class RoleController extends Controller
@@ -139,7 +139,18 @@ class RoleController extends Controller
         }
 
         $beforeData = $before->toArray();
-        $role = $this->roles->update($id, $request->validated());
+        $validated = $request->validated();
+        $role = $this->roles->update($id, $validated);
+
+        // RBAC cache (permissionCodes/warehouseScopeIds) key theo user.version và chỉ
+        // đọc role qua activeRoleModels() lọc `role.status = 'ACTIVE'`. Đổi status role
+        // (vd: vô hiệu hoá) không tự động bump cache của user đang giữ role đó — nếu
+        // không bump ở đây, user vẫn giữ quyền cũ tới 300s sau khi role bị disable,
+        // vi phạm yêu cầu "revoke có hiệu lực ngay" (mục 11). Chỉ cần bump khi field
+        // ảnh hưởng đến resolution RBAC (status) thực sự đổi.
+        if (array_key_exists('status', $validated) && $validated['status'] !== $beforeData['status']) {
+            AuthCache::bumpVersionForUsersWithRole($id);
+        }
 
         AuditLogger::record(
             action: 'UPDATE',
@@ -237,14 +248,10 @@ class RoleController extends Controller
         }
         $role->permissions()->sync($pivotData);
 
-        // Permission caches are keyed by user version (User::permissions, TTL 300s).
-        // Bump version của mọi user đang giữ role để thu hồi/gán quyền có hiệu lực
-        // ngay request kế tiếp (BR-IAM: backend enforcement, least privilege).
-        User::query()
-            ->whereIn('user_id', function ($query) use ($id): void {
-                $query->select('user_id')->from('user_role')->where('role_id', $id);
-            })
-            ->increment('version');
+        // Permission caches are keyed by user version (User::permissionCodes, TTL
+        // 300s). Bump version của mọi user đang giữ role để thu hồi/gán quyền có hiệu
+        // lực ngay request kế tiếp (BR-IAM: backend enforcement, least privilege).
+        AuthCache::bumpVersionForUsersWithRole($id);
 
         AuditLogger::record(
             action: 'ASSIGN_PERMISSIONS',

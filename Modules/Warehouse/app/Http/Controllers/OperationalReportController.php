@@ -4,11 +4,15 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\CacheKey;
+use App\Support\Cache\CacheService;
+use App\Support\Cache\CacheTtl;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\ReportExportFileName;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
+use Dompdf\Dompdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -472,7 +476,31 @@ class OperationalReportController extends Controller
     #[OA\Get(path: '/api/v1/reports/dashboard-quick', operationId: 'report_dashboard_quick', summary: 'Số liệu nhanh cho dashboard (WWHN-328: endpoint tổng hợp KPI, tái sử dụng — không tạo route mới)', description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period 30 ngày gần nhất khi bỏ trống from_date/to_date.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', description: 'Mặc định: hôm nay trừ 30 ngày', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', description: 'Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Mặc định: hôm nay', schema: new OA\Schema(type: 'string', format: 'date'))], responses: [new OA\Response(response: 200, description: 'Dashboard KPIs', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'period', properties: [new OA\Property(property: 'from_date', type: 'string', format: 'date'), new OA\Property(property: 'to_date', type: 'string', format: 'date')], type: 'object'), new OA\Property(property: 'available_qty', type: 'number', description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE), snapshot hiện tại — không lọc theo period'), new OA\Property(property: 'receipt_qty', type: 'number', description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at'), new OA\Property(property: 'issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period'), new OA\Property(property: 'component_issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period'), new OA\Property(property: 'reversal_net', type: 'number', description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, có thể âm'), new OA\Property(property: 'warranty_cases_by_status', type: 'object', description: 'Map status → COUNT(*), toàn bộ warranty_case không lọc theo period', additionalProperties: new OA\AdditionalProperties(type: 'integer')), new OA\Property(property: 'reconciliation_warnings', type: 'array', description: 'Các dòng RPT-INV-01 reconciliation_status=MISMATCH tại thời điểm gọi', items: new OA\Items(type: 'object'))], type: 'object'), new OA\Property(property: 'meta', properties: [new OA\Property(property: 'request_id', type: 'string', format: 'uuid'), new OA\Property(property: 'timestamp', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'UNAUTHENTICATED'), new OA\Response(response: 403, description: 'ACCESS_DENIED — thiếu permission report.view'), new OA\Response(response: 422, description: 'BUSINESS_RULE_ERROR — from_date/to_date không hợp lệ hoặc to_date < from_date')])]
     public function dashboardQuick(Request $request)
     {
+        // period() tự validate/áp default + ném 422 khi to_date < from_date — luôn
+        // chạy trước cache, không phụ thuộc cache hit/miss.
         [$from, $to] = $this->period($request);
+
+        $key = CacheKey::of('warehouse:report:dashboard-quick', [
+            'from' => $from,
+            'to' => $to,
+        ], $this->cacheService()->currentVersion('stock:version'));
+
+        // Endpoint dashboard tốn nhất (4 aggregate query/lần gọi theo audit) — cache
+        // toàn bộ payload, TTL ngắn ('dashboard' policy) + bump ngay khi có mutation
+        // tồn kho qua `stock:version`. warranty_case không đi qua mutateBalance() nên
+        // chỉ được bảo vệ bởi TTL ngắn, chấp nhận được cho 1 dashboard KPI (mục 9).
+        $data = $this->cacheService()->rememberStampede(
+            $key,
+            CacheTtl::seconds('dashboard'),
+            fn (): array => $this->buildDashboardQuick($from, $to)
+        );
+
+        return $this->respondSuccess($data);
+    }
+
+    /** @return array<string, mixed> */
+    private function buildDashboardQuick(string $from, string $to): array
+    {
         $movement = DB::table('stock_movements')
             ->whereBetween('occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->get(['movement_type', 'qty_delta']);
@@ -486,7 +514,7 @@ class OperationalReportController extends Controller
             ->map(fn ($v) => (int) $v)
             ->all();
 
-        return $this->respondSuccess([
+        return [
             'period' => ['from_date' => $from, 'to_date' => $to],
             'available_qty' => (float) DB::table('inventory_balances')->where('stock_status', 'AVAILABLE')->sum('available_qty'),
             'receipt_qty' => max(0, $sum('RECEIPT')),
@@ -495,7 +523,7 @@ class OperationalReportController extends Controller
             'reversal_net' => $sum('REVERSAL'),
             'warranty_cases_by_status' => $warranty,
             'reconciliation_warnings' => collect($reconciliation['rows'])->where('reconciliation_status', 'MISMATCH')->values()->all(),
-        ]);
+        ];
     }
 
     // ══════════════════════════════════════════════════════════
@@ -504,7 +532,9 @@ class OperationalReportController extends Controller
 
     private function buildInventoryBalance(Request $request): array
     {
-        // §13.10 RPT-INV-01: filter SKU/category/status + as_of (inclusive).
+        // §13.10 RPT-INV-01: filter SKU/category/status + as_of (inclusive). Validate
+        // LUÔN chạy trước cache (kể cả cache hit) — không được để request tham số sai
+        // "may mắn" trùng key với 1 request hợp lệ trước đó rồi bỏ qua validate.
         $validated = $request->validate([
             'warehouse_id' => ['nullable', 'uuid'],
             'product_id' => ['nullable', 'uuid'],
@@ -513,6 +543,28 @@ class OperationalReportController extends Controller
             'as_of' => ['nullable', 'date'],
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
+
+        $key = CacheKey::of('warehouse:report:inventory-balance', [
+            'f' => CacheKey::hashFilters($validated),
+        ], $this->cacheService()->currentVersion('stock:version'));
+
+        // Report tồn kho — cùng strategy với InventoryBalanceController::index (short
+        // TTL 'report' + version `stock:version` bump ngay sau mutation). Trả về mảng
+        // thuần (không Response/Paginator) nên cache trực tiếp toàn bộ kết quả an toàn.
+        return $this->cacheService()->rememberStampede(
+            $key,
+            CacheTtl::seconds('report'),
+            fn (): array => $this->buildInventoryBalanceUncached($request, $validated)
+        );
+    }
+
+    private function cacheService(): CacheService
+    {
+        return app(CacheService::class);
+    }
+
+    private function buildInventoryBalanceUncached(Request $request, array $validated): array
+    {
         $asOf = ! empty($validated['as_of']) ? Carbon::parse($validated['as_of'])->toDateString() : null;
 
         $balanceQuery = DB::table('inventory_balances as b')
@@ -1097,7 +1149,6 @@ class OperationalReportController extends Controller
         return $report;
     }
 
-
     // ══════════════════════════════════════════════════════════
     //  UTILITIES
     // ══════════════════════════════════════════════════════════
@@ -1218,7 +1269,7 @@ class OperationalReportController extends Controller
         }
         $html .= '</tbody></table></body></html>';
 
-        $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => false, 'defaultFont' => 'DejaVu Sans']);
+        $dompdf = new Dompdf(['isRemoteEnabled' => false, 'defaultFont' => 'DejaVu Sans']);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', count($headers) > 8 ? 'landscape' : 'portrait');
         $dompdf->render();

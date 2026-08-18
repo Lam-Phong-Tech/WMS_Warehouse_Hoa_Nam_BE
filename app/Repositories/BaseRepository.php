@@ -4,10 +4,15 @@ namespace App\Repositories;
 
 use App\Repositories\Contracts\RepositoryInterface;
 use App\Support\ApiError;
+use App\Support\Cache\CacheKey;
+use App\Support\Cache\CacheService;
+use App\Support\Cache\CacheTtl;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 abstract class BaseRepository implements RepositoryInterface
@@ -33,6 +38,21 @@ abstract class BaseRepository implements RepositoryInterface
      */
     protected array $with = [];
 
+    /**
+     * Bật cache cho paginate()/find() của repo con này — mặc định TẮT (false) để
+     * không đổi hành vi các repo hiện có (đặc biệt các repo động chạm dữ liệu tồn
+     * kho/correctness-sensitive không được opt-in). Chỉ set true ở repo con là
+     * master-data/lookup ổn định (mục 6/34 — audit trước khi bật, không cache chỉ vì
+     * query chậm).
+     */
+    protected bool $cacheEnabled = false;
+
+    /** Domain namespace cho cache key, vd 'auth.role', 'warehouse.agency'. */
+    protected string $cacheDomain = '';
+
+    /** Policy TTL trong config/wms_cache.php (ttl.*), đọc qua App\Support\Cache\CacheTtl. */
+    protected string $cacheTtlPolicy = 'master';
+
     public function __construct(protected Model $model) {}
 
     public function all(): Collection
@@ -52,12 +72,54 @@ abstract class BaseRepository implements RepositoryInterface
 
     public function paginate(array $filters = [], int $perPage = 15, ?\Closure $scope = null): LengthAwarePaginator
     {
+        $perPage = min(max($perPage, 1), 100);
+
+        // $scope là closure tuỳ ý (thường mang theo warehouse-scope/user-context không
+        // thể băm an toàn thành cache key) — không cache khi có scope để tránh leak dữ
+        // liệu chéo scope (mục 22). Caller cần cache theo scope tự làm ở tầng controller
+        // với CacheKey::scopeSignature().
+        if (! $this->cacheEnabled || $scope !== null) {
+            return $this->paginateFresh($filters, $perPage, $scope);
+        }
+
+        $currentPage = (int) request()->integer('page', 1);
+        $key = CacheKey::of($this->cacheDomain.':list', [
+            'f' => CacheKey::hashFilters($filters),
+            'per_page' => $perPage,
+            'page' => $currentPage,
+        ], CacheVersion::current($this->cacheDomain.':list'));
+
+        // Chỉ cache items()+total() (dữ liệu thô), KHÔNG cache cả LengthAwarePaginator —
+        // paginator mang path/query của request lúc build cache, dùng cache hit ở 1
+        // request khác (URL/query string khác) sẽ sinh link phân trang (next/prev) sai.
+        // Paginator luôn được dựng lại mới từ path/query của request hiện tại.
+        $cached = $this->cacheService()->rememberStampede(
+            $key,
+            CacheTtl::seconds($this->cacheTtlPolicy),
+            function () use ($filters, $perPage, $scope): array {
+                $paginator = $this->paginateFresh($filters, $perPage, $scope);
+
+                return ['items' => $paginator->items(), 'total' => $paginator->total()];
+            }
+        );
+
+        return new \Illuminate\Pagination\LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
+    }
+
+    protected function paginateFresh(array $filters, int $perPage, ?\Closure $scope): LengthAwarePaginator
+    {
         $query = $this->query();
         if ($scope !== null) {
             $query = $scope($query);
         }
 
-        return $this->applyFilters($query, $filters)->paginate(min(max($perPage, 1), 100));
+        return $this->applyFilters($query, $filters)->paginate($perPage);
     }
 
     public function trashed(array $filters = [], int $perPage = 15, ?\Closure $scope = null): LengthAwarePaginator
@@ -71,6 +133,19 @@ abstract class BaseRepository implements RepositoryInterface
     }
 
     public function find(int|string $id): ?Model
+    {
+        if (! $this->cacheEnabled) {
+            return $this->findFresh($id);
+        }
+
+        return $this->cacheService()->remember(
+            $this->detailCacheKey($id),
+            CacheTtl::seconds($this->cacheTtlPolicy),
+            fn () => $this->findFresh($id)
+        );
+    }
+
+    protected function findFresh(int|string $id): ?Model
     {
         $query = $this->query();
 
@@ -92,6 +167,8 @@ abstract class BaseRepository implements RepositoryInterface
             $record->refresh();
         }
 
+        $this->invalidateListCache();
+
         return $record;
     }
 
@@ -107,6 +184,9 @@ abstract class BaseRepository implements RepositoryInterface
         [$data] = $this->dropNullsForNonNullable($data);
 
         $record->update($data);
+
+        $this->invalidateListCache();
+        $this->invalidateDetailCache($id);
 
         return $record;
     }
@@ -156,21 +236,96 @@ abstract class BaseRepository implements RepositoryInterface
     {
         $record = $this->query()->find($id);
 
-        return $record ? (bool) $record->delete() : false;
+        if (! $record) {
+            return false;
+        }
+
+        $deleted = (bool) $record->delete();
+
+        if ($deleted) {
+            $this->invalidateListCache();
+            $this->invalidateDetailCache($id);
+        }
+
+        return $deleted;
     }
 
     public function restore(int|string $id): bool
     {
         $record = $this->query()->onlyTrashed()->find($id);
 
-        return $record ? (bool) $record->restore() : false;
+        if (! $record) {
+            return false;
+        }
+
+        $restored = (bool) $record->restore();
+
+        if ($restored) {
+            $this->invalidateListCache();
+            $this->invalidateDetailCache($id);
+        }
+
+        return $restored;
     }
 
     public function forceDelete(int|string $id): bool
     {
         $record = $this->query()->withTrashed()->find($id);
 
-        return $record ? (bool) $record->forceDelete() : false;
+        if (! $record) {
+            return false;
+        }
+
+        $deleted = (bool) $record->forceDelete();
+
+        if ($deleted) {
+            $this->invalidateListCache();
+            $this->invalidateDetailCache($id);
+        }
+
+        return $deleted;
+    }
+
+    public function forgetCache(int|string $id): void
+    {
+        $this->invalidateListCache();
+        $this->invalidateDetailCache($id);
+    }
+
+    /**
+     * Bump version namespace `{domain}:list` — mọi cache list/paginate cũ của domain
+     * này tự "mồ côi" (mục 13), không xoá theo wildcard. Chạy sau khi transaction
+     * ghi commit thành công (mục 12); nếu không có transaction đang mở, chạy ngay.
+     */
+    protected function invalidateListCache(): void
+    {
+        if (! $this->cacheEnabled) {
+            return;
+        }
+
+        $domain = $this->cacheDomain;
+        DB::afterCommit(fn () => $this->cacheService()->bumpVersion($domain.':list'));
+    }
+
+    /** Xoá đúng 1 cache key chi tiết theo id — chính xác, không cần version namespace. */
+    protected function invalidateDetailCache(int|string $id): void
+    {
+        if (! $this->cacheEnabled) {
+            return;
+        }
+
+        $key = $this->detailCacheKey($id);
+        DB::afterCommit(fn () => $this->cacheService()->forget($key));
+    }
+
+    protected function detailCacheKey(int|string $id): string
+    {
+        return CacheKey::of($this->cacheDomain.':detail', ['id' => $id]);
+    }
+
+    protected function cacheService(): CacheService
+    {
+        return app(CacheService::class);
     }
 
     /**

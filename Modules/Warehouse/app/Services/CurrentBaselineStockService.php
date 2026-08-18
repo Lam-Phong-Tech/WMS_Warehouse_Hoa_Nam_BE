@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
+use App\Support\Cache\CacheService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -932,7 +933,19 @@ class CurrentBaselineStockService
             'created_at' => now(),
         ]);
 
+        // `mutateBalance()` là điểm chốt DUY NHẤT ghi inventory_balances (post-receipt,
+        // post-issue, reversal, component/warranty issue đều đi qua đây) — bump 1
+        // version namespace chung ở đây thay vì rải invalidation ra từng controller
+        // nghiệp vụ (mục 12). Luôn nằm trong DB::transaction() của caller nên
+        // afterCommit() chỉ chạy khi ghi tồn kho commit thật sự thành công.
+        DB::afterCommit(fn () => $this->cacheService()->bumpVersion('stock:version'));
+
         return ['id' => $movementId, 'before' => $before, 'after' => $after];
+    }
+
+    private function cacheService(): CacheService
+    {
+        return app(CacheService::class);
     }
 
     /**

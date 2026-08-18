@@ -12,6 +12,14 @@ class PermissionRepository extends BaseRepository implements PermissionRepositor
 
     protected array $filterable = ['status', 'scope_type'];
 
+    // Danh mục permission gần như tĩnh (chỉ đổi qua seeder/migration, không có API
+    // create/update/delete — xem PermissionController), TTL dài hơn RBAC theo user.
+    protected bool $cacheEnabled = true;
+
+    protected string $cacheDomain = 'auth.permission';
+
+    protected string $cacheTtlPolicy = 'reference';
+
     public function __construct(Permission $model)
     {
         parent::__construct($model);

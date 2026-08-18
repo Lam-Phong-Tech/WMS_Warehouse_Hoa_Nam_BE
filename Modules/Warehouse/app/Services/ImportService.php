@@ -9,6 +9,7 @@ use Modules\Warehouse\Exceptions\ImportRowLimitExceededException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Models\ProductMaster;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -17,6 +18,8 @@ use Throwable;
 
 class ImportService
 {
+    public function __construct(private readonly ProductRepositoryInterface $products) {}
+
     public const TEMPLATE_VERSION = 'WWHN-172-SKU-IMPORT-v1.1.0';
 
     /**
@@ -214,6 +217,14 @@ class ImportService
                     afterData: $sku->fresh()->toArray(),
                     reason: 'WWHN-172 atomic import '.$checksum,
                 );
+
+                // Ghi qua Eloquent trực tiếp trong service này, không qua
+                // ProductRepository::create()/update() — tự invalidate detail + bump
+                // version list cho mỗi dòng (mục 7: import xong API không được trả SKU
+                // cũ). Bump lặp lại trong 1 transaction là an toàn (idempotent với
+                // CacheVersion::bump — INCR nguyên tử), chỉ tốn thêm vài round-trip
+                // Redis cho 1 thao tác admin không thường xuyên (tối đa 1000 dòng/lần).
+                $this->products->forgetCache((string) $sku->sku_id);
             }
 
             AuditLogger::record(

@@ -19,6 +19,12 @@ class RoleRepository extends BaseRepository implements RoleRepositoryInterface
      */
     protected array $with = ['permissions'];
 
+    protected bool $cacheEnabled = true;
+
+    protected string $cacheDomain = 'auth.role';
+
+    protected string $cacheTtlPolicy = 'rbac';
+
     public function __construct(Role $model)
     {
         parent::__construct($model);

@@ -14,6 +14,15 @@ class WarehouseRepository extends BaseRepository implements WarehouseRepositoryI
 
     protected array $filterable = ['status'];
 
+    // Chỉ dùng cho find() (WarehouseController::show gọi sau khi đã assertWarehouseAccess).
+    // index() tự query + lọc theo warehouse-scope riêng, không qua paginate() của repo
+    // này nên không bị ảnh hưởng — an toàn bật cache ở mức repo.
+    protected bool $cacheEnabled = true;
+
+    protected string $cacheDomain = 'warehouse.warehouse';
+
+    protected string $cacheTtlPolicy = 'master';
+
     public function __construct(Warehouse $model)
     {
         parent::__construct($model);

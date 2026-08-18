@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
 
 /**
  * WWHN-172 SKU aggregate transaction boundary.
@@ -18,6 +19,8 @@ use Modules\Warehouse\Models\Sku;
  */
 class SkuAggregateService
 {
+    public function __construct(private readonly ProductRepositoryInterface $products) {}
+
     private const SKU_FIELDS = [
         'code', 'sku_code', 'name', 'sku_name', 'unit', 'sku_type',
         'brand_code', 'category_code', 'model_code', 'power_or_voltage',
@@ -43,6 +46,11 @@ class SkuAggregateService
             $sku = Sku::query()->create($attributes);
             $this->replaceComponents($sku, (array) ($payload['components'] ?? []));
             $this->replacePhysicalCodes($sku, (array) ($payload['physical_codes'] ?? []));
+
+            // Ghi qua Eloquent trực tiếp, không qua ProductRepository::create() — tự
+            // invalidate để GET/list SKU không trả cũ sau khi tạo qua endpoint này
+            // (mục 7).
+            $this->products->forgetCache((string) $sku->getKey());
 
             $after = $this->snapshot((string) $sku->getKey(), true);
             $this->audit('SKU_CREATE', $sku, $actorId, $requestId, [], $after);
@@ -79,6 +87,7 @@ class SkuAggregateService
 
             $sku->version_code = 'V'.($actualVersion + 1);
             $sku->save();
+            $this->products->forgetCache($skuId);
 
             $after = $this->snapshot($skuId, true);
             $this->audit('SKU_UPDATE', $sku, $actorId, $requestId, $before, $after);
@@ -103,6 +112,7 @@ class SkuAggregateService
             $this->upsertPhysicalCode($sku, $physicalCode);
             $sku->version_code = 'V'.($actualVersion + 1);
             $sku->save();
+            $this->products->forgetCache($skuId);
 
             $after = $this->snapshot($skuId, true);
             $this->audit('SKU_PHYSICAL_CODE_ASSIGN', $sku, $actorId, $requestId, $before, $after);
@@ -143,6 +153,7 @@ class SkuAggregateService
 
             $sku->version_code = 'V'.($actualVersion + 1);
             $sku->save();
+            $this->products->forgetCache($skuId);
 
             $after = $this->snapshot($skuId, true);
             $this->audit('SKU_PHYSICAL_CODE_REVOKE', $sku, $actorId, $requestId, $before, $after);

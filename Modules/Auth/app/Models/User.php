@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Cache;
+use Modules\Auth\Support\AuthCache;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 class User extends Model implements AuthenticatableContract, JWTSubject
@@ -92,7 +92,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     public function permissionCodes(): array
     {
         if ($this->isSuperAdmin()) {
-            return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:super-admin-permissions", 300, function () {
+            return AuthCache::rememberSuperAdminPermissions($this, function () {
                 return Permission::query()
                     ->where('status', 'ACTIVE')
                     ->orderByRaw("CASE WHEN permission_key = 'audit_log.view' THEN 0 ELSE 1 END")
@@ -103,7 +103,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             });
         }
 
-        return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:permissions", 300, function () {
+        return AuthCache::rememberPermissions($this, function () {
             $roles = $this->activeRoleModels();
             $roles->loadMissing([
                 'permissions' => fn ($query) => $query->where('permission.status', 'ACTIVE'),
@@ -137,7 +137,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             return null;
         }
 
-        return Cache::remember("auth:user:{$this->user_id}:v{$this->version}:warehouse-scopes", 300, function () {
+        return AuthCache::rememberWarehouseScope($this, function () {
             $roles = $this->activeRoleModels();
 
             if ($roles->contains(fn (Role $role) => $role->pivot->scope_ref === null || $role->pivot->scope_ref === '')) {

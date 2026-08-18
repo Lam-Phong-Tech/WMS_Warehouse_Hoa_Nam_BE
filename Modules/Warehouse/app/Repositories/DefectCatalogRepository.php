@@ -12,6 +12,12 @@ class DefectCatalogRepository extends BaseRepository implements DefectCatalogRep
 
     protected array $filterable = ['status'];
 
+    protected bool $cacheEnabled = true;
+
+    protected string $cacheDomain = 'warehouse.defect_catalog';
+
+    protected string $cacheTtlPolicy = 'reference';
+
     public function __construct(DefectCatalog $model)
     {
         parent::__construct($model);

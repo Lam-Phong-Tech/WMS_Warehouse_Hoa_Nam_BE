@@ -4,17 +4,30 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\CacheKey;
+use App\Support\Cache\CacheService;
+use App\Support\Cache\CacheTtl;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 
+/**
+ * 5 loại catalog master (brands/product_categories/power_sources/product_models/
+ * package_variants) — danh mục gần như tĩnh, đọc rất nhiều (mọi SKU form phải load
+ * để hiển thị dropdown), ghi cực hiếm (chỉ qua Data Admin). Best ROI cho caching
+ * theo audit (mục 6): version-based invalidation theo từng bảng, không dùng
+ * wildcard delete.
+ */
 class CurrentBaselineMasterController extends Controller
 {
     use ApiResponse;
+
+    private const CACHE_TTL_POLICY = 'master';
 
     public function listBrands(Request $request)
     {
@@ -252,6 +265,7 @@ class CurrentBaselineMasterController extends Controller
             }
 
             DB::table($table)->where('id', $id)->update($payload);
+            $this->invalidateMasterCache($table);
 
             AuditLogger::record(
                 action: 'UPDATE',
@@ -340,11 +354,49 @@ class CurrentBaselineMasterController extends Controller
             }
         }
         DB::table($table)->insert($row);
+        $this->invalidateMasterCache($table);
 
         return $this->respondCreated(DB::table($table)->where('id', $id)->first(), 'Created.');
     }
 
     private function page(Request $request, string $table)
+    {
+        $filters = $request->only(['status', 'keyword']);
+        $perPage = $this->perPage($request, 50);
+        $currentPage = (int) $request->integer('page', 1);
+
+        $key = CacheKey::of("warehouse:catalog-master:{$table}:list", [
+            'f' => CacheKey::hashFilters($filters),
+            'per_page' => $perPage,
+            'page' => $currentPage,
+        ], $this->cacheService()->currentVersion($this->listVersionNamespace($table)));
+
+        // Chỉ cache DỮ LIỆU thô (rows + total) — không cache JsonResponse/paginator
+        // object, vì response còn mang request_id/timestamp/links riêng của từng
+        // request (mục 21: không cache object graph phức tạp/Request). Paginator
+        // và response luôn được dựng lại mới ở mọi lần gọi, kể cả cache hit.
+        $cached = $this->cacheService()->rememberStampede(
+            $key,
+            CacheTtl::seconds(self::CACHE_TTL_POLICY),
+            function () use ($table, $request, $perPage, $currentPage): array {
+                $paginator = $this->buildMasterQuery($table, $request)->paginate($perPage, ['*'], 'page', $currentPage);
+
+                return ['items' => $paginator->items(), 'total' => $paginator->total()];
+            }
+        );
+
+        $paginator = new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return $this->respondPaginated($paginator);
+    }
+
+    private function buildMasterQuery(string $table, Request $request)
     {
         $query = DB::table($table);
         if ($request->filled('status')) {
@@ -352,7 +404,23 @@ class CurrentBaselineMasterController extends Controller
         }
         $this->applyKeyword($query, $request, $this->keywordColumns($table));
 
-        return $this->respondPaginated($query->orderBy('sort_order')->orderBy('created_at')->paginate($this->perPage($request, 50)));
+        return $query->orderBy('sort_order')->orderBy('created_at');
+    }
+
+    private function listVersionNamespace(string $table): string
+    {
+        return "warehouse.catalog_master.{$table}:list";
+    }
+
+    private function invalidateMasterCache(string $table): void
+    {
+        $namespace = $this->listVersionNamespace($table);
+        DB::afterCommit(fn () => $this->cacheService()->bumpVersion($namespace));
+    }
+
+    private function cacheService(): CacheService
+    {
+        return app(CacheService::class);
     }
 
     /**

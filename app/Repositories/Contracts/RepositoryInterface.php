@@ -25,4 +25,12 @@ interface RepositoryInterface
     public function restore(int|string $id): bool;
 
     public function forceDelete(int|string $id): bool;
+
+    /**
+     * Vô hiệu hoá cache list + cache chi tiết của 1 bản ghi. Dùng khi mutation đi
+     * qua Eloquent relation trực tiếp (vd: `sync()`) thay vì `update()`/`create()`
+     * của repository — controller không cần biết cấu trúc cache key thật sự.
+     * No-op nếu repo con không bật cache.
+     */
+    public function forgetCache(int|string $id): void;
 }

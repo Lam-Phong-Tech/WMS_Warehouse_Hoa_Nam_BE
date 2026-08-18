@@ -395,6 +395,11 @@ class ProductController extends Controller
         $product->status = $status;
         $product->save();
 
+        // save() trực tiếp trên model bỏ qua BaseRepository::update() (nơi tự bump
+        // cache) — phải tự invalidate để enable/disable có hiệu lực ngay trên
+        // GET tiếp theo (mục 7: "không được để import/enable xong API vẫn trả cũ").
+        $this->products->forgetCache($id);
+
         AuditLogger::record(
             action: $status === 'ACTIVE' ? 'ENABLE' : 'DISABLE',
             objectType: 'sku',

@@ -12,6 +12,12 @@ class AgencyRepository extends BaseRepository implements AgencyRepositoryInterfa
 
     protected array $filterable = ['status'];
 
+    protected bool $cacheEnabled = true;
+
+    protected string $cacheDomain = 'warehouse.agency';
+
+    protected string $cacheTtlPolicy = 'master';
+
     public function __construct(Agency $model)
     {
         parent::__construct($model);
