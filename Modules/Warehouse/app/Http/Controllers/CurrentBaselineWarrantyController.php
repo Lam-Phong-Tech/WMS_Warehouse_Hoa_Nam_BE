@@ -11,17 +11,32 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineWarrantyController extends CurrentBaselineOperationsController
 {
+    /**
+     * DEC-WAR-STATE-001 (WWHN-244 / DEV244-P1-02) - ma tran trang thai da chot tren
+     * SRS/FRD v1.12 §6 + ERD §45. Diem duy nhat docs khong phat bieu tuong minh la
+     * CHECKING -> COMPLETED: disposition da chot la CHO PHEP, vi case kiem tra xong
+     * ket luan khong can sua khong duoc ep di qua REPAIRING gia de dong - neu ep,
+     * REPAIRING mat nghia va metric turnaround "da sua chua" cua RPT-WAR-01 bi thoi
+     * phong. Bu lai, moi nhanh roi CHECKING deu bi chan boi guard chan doan ben duoi.
+     */
     private const TRANSITIONS = [
         'RECEIVED' => ['CHECKING', 'CANCELLED'],
-        'CHECKING' => ['REPAIRING', 'CANCELLED'],
+        'CHECKING' => ['REPAIRING', 'COMPLETED', 'CANCELLED'],
         'REPAIRING' => ['COMPLETED', 'CANCELLED'],
         'COMPLETED' => ['RETURNED', 'CANCELLED'],
         'RETURNED' => [],
         'CANCELLED' => [],
     ];
+
+    /**
+     * DEC-WAR-STATE-001: cac trang thai chi vao duoc khi da co ket luan kiem tra.
+     * ERD §45 confirmed_defect = "Ket qua kiem tra".
+     */
+    private const REQUIRES_DIAGNOSIS = ['REPAIRING', 'COMPLETED'];
 
     /** §6: hai trạng thái không còn transition nào — case đóng, dữ liệu chỉ đọc. */
     private const TERMINAL_STATUSES = ['RETURNED', 'CANCELLED'];
@@ -198,6 +213,41 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         return $this->respondSuccess($payload)->header('ETag', '"'.$payload['version'].'"');
     }
 
+    #[OA\Post(
+        path: '/api/v1/warranty-cases/{id}/status',
+        operationId: 'transitionWarrantyStatus',
+        summary: 'Annex C transitionWarrantyStatus — chuyển trạng thái / hiệu chỉnh case bảo hành',
+        description: 'DEC-WAR-STATE-001 (SRS v1.12 §6 + ERD §45). Ma trận transition đã chốt: '
+            .'RECEIVED->{CHECKING,CANCELLED}; CHECKING->{REPAIRING,COMPLETED,CANCELLED}; '
+            .'REPAIRING->{COMPLETED,CANCELLED}; COMPLETED->{RETURNED,CANCELLED}; '
+            .'RETURNED/CANCELLED là terminal (mọi mutation trả 409 STATE_CONFLICT). '
+            .'Guard nghiệp vụ: rời CHECKING sang REPAIRING/COMPLETED bắt buộc confirmed_defect '
+            .'(422 WARRANTY_DIAGNOSIS_REQUIRED); COMPLETED bắt buộc note kết quả xử lý '
+            .'(422 WARRANTY_TREATMENT_RESULT_REQUIRED); RETURNED bắt buộc note biên bản bàn '
+            .'giao/người nhận (422 WARRANTY_HANDOVER_NOTE_REQUIRED); CANCELLED bắt buộc lý do '
+            .'(422 CANCEL_REASON_REQUIRED). Transition ngoài ma trận: 409 '
+            .'INVALID_WARRANTY_TRANSITION. If-Match bắt buộc (428/412). Idempotency-Key tuỳ chọn. '
+            .'Sửa customer_name/phone/address cần warranty.pii.view (403 PERMISSION_DENIED); '
+            .'response luôn mask PII khi thiếu quyền (pii_masked=true). stock_effect=NONE.',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'status', type: 'string', enum: ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'], description: 'Trạng thái đích; bỏ trống nếu chỉ hiệu chỉnh dữ liệu.'),
+            new OA\Property(property: 'confirmed_defect', type: 'string', maxLength: 2000, description: 'Kết quả kiểm tra; bắt buộc khi rời CHECKING.'),
+            new OA\Property(property: 'note', type: 'string', maxLength: 2000, description: 'Ghi vào warranty_event.note; bắt buộc cho COMPLETED (kết quả xử lý) và RETURNED (biên bản bàn giao/người nhận).'),
+            new OA\Property(property: 'cancel_reason', type: 'string', maxLength: 1000, description: 'Bắt buộc khi CANCELLED.'),
+            new OA\Property(property: 'condition_status', type: 'string', maxLength: 30),
+            new OA\Property(property: 'accessories_received', type: 'string', maxLength: 1000),
+            new OA\Property(property: 'received_condition', type: 'string', maxLength: 500),
+            new OA\Property(property: 'defect_id', type: 'string', format: 'uuid'),
+            new OA\Property(property: 'defect_code', type: 'string', maxLength: 80),
+            new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, description: 'PII — cần warranty.pii.view.'),
+            new OA\Property(property: 'customer_phone', type: 'string', maxLength: 30, example: '0901234567', description: 'PII — cần warranty.pii.view.'),
+            new OA\Property(property: 'customer_address', type: 'string', maxLength: 500, description: 'PII — cần warranty.pii.view.'),
+            new OA\Property(property: 'purchase_date', type: 'string', format: 'date'),
+        ])),
+        responses: [new OA\Response(response: 200, description: 'Case đã cập nhật; ETag = version mới; stock_effect=NONE.')]
+    )]
     public function updateWarrantyCase(Request $request, string $id)
     {
         // Annex C transitionWarrantyStatus khai duy nhất If-Match; Idempotency-Key là
@@ -295,6 +345,37 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             $cancelReason = trim((string) ($validated['cancel_reason'] ?? $validated['note'] ?? $validated['description'] ?? ''));
             if ($target === 'CANCELLED' && $case->status !== 'CANCELLED' && $cancelReason === '') {
                 ApiError::abort(422, 'CANCEL_REASON_REQUIRED', 'Hủy case bảo hành bắt buộc có lý do/bằng chứng.');
+            }
+
+            // DEC-WAR-STATE-001 guard 1 - chan doan: khong roi CHECKING sang REPAIRING/
+            // COMPLETED khi chua co confirmed_defect (payload lan nay hoac da luu truoc).
+            $confirmedDefect = trim((string) ($validated['confirmed_defect'] ?? $case->confirmed_defect ?? ''));
+            if ($target !== $case->status && in_array($target, self::REQUIRES_DIAGNOSIS, true) && $confirmedDefect === '') {
+                ApiError::abort(422, 'WARRANTY_DIAGNOSIS_REQUIRED', 'Phải ghi kết quả kiểm tra (confirmed_defect) trước khi chuyển sang '.$target.'.', [
+                    'current_status' => (string) $case->status,
+                    'target_status' => $target,
+                    'required_field' => 'confirmed_defect',
+                ]);
+            }
+
+            // DEC-WAR-STATE-001 guard 2 - ket qua xu ly: COMPLETED phai kem mo ta da xu
+            // ly gi, ghi vao warranty_event (§13.8 note timeline, khong de description).
+            $handoverNote = trim((string) ($validated['note'] ?? $validated['description'] ?? ''));
+            if ($target === 'COMPLETED' && $case->status !== 'COMPLETED' && $handoverNote === '') {
+                ApiError::abort(422, 'WARRANTY_TREATMENT_RESULT_REQUIRED', 'Hoàn tất bảo hành bắt buộc ghi kết quả xử lý (note).', [
+                    'target_status' => $target,
+                    'required_field' => 'note',
+                ]);
+            }
+
+            // DEC-WAR-STATE-001 guard 3 - ban giao/nguoi nhan: ERD §45 khong co cot
+            // receiver rieng, bien ban ban giao la warranty_event RETURN voi note bat
+            // buoc + created_by = actor. Thieu note thi khong co bang chung tra may.
+            if ($target === 'RETURNED' && $case->status !== 'RETURNED' && $handoverNote === '') {
+                ApiError::abort(422, 'WARRANTY_HANDOVER_NOTE_REQUIRED', 'Trả máy cho khách bắt buộc ghi biên bản bàn giao/người nhận (note).', [
+                    'target_status' => $target,
+                    'required_field' => 'note',
+                ]);
             }
 
             $closing = in_array($target, self::TERMINAL_STATUSES, true);

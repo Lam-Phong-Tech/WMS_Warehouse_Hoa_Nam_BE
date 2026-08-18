@@ -11962,6 +11962,258 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/pv-admin/resources/{resourceType}':
+    get:
+      tags:
+        - '00. Platform'
+      summary: 'GET /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController index'
+      operationId: get_api_v1_pv__admin_resources_resourcetype
+      parameters:
+        -
+          name: resourceType
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+    post:
+      tags:
+        - '00. Platform'
+      summary: 'POST /api/v1/pv-admin/resources/{resourceType} - Modules Warehouse Http Controllers PvAdminResourceController store'
+      operationId: post_api_v1_pv__admin_resources_resourcetype
+      parameters:
+        -
+          name: resourceType
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/pv-admin/resources/{resourceType}/{id}':
+    patch:
+      tags:
+        - '00. Platform'
+      summary: 'PATCH /api/v1/pv-admin/resources/{resourceType}/{id} - Modules Warehouse Http Controllers PvAdminResourceController update'
+      operationId: patch_api_v1_pv__admin_resources_resourcetype_id
+      parameters:
+        -
+          name: resourceType
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   /api/v1/pv/catalog:
     get:
       tags:
@@ -12037,6 +12289,75 @@ paths:
         - '21. Public Catalog'
       summary: 'Danh sách ngành hàng PV'
       operationId: get_api_v1_pv_industries
+      parameters: []
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security: []
+  /api/v1/pv/products:
+    get:
+      tags:
+        - '21. Public Catalog'
+      summary: 'GET /api/v1/pv/products - Modules Warehouse Http Controllers PvPublicCatalogController listProducts'
+      operationId: get_api_v1_pv_products
       parameters: []
       responses:
         200:
@@ -12193,6 +12514,81 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/pv/products/{skuId}':
+    get:
+      tags:
+        - '21. Public Catalog'
+      summary: 'GET /api/v1/pv/products/{skuId} - Modules Warehouse Http Controllers PvPublicCatalogController showProduct'
+      operationId: get_api_v1_pv_products_skuid
+      parameters:
+        -
+          name: skuId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security: []
   /api/v1/pv/recommendations:
     get:
       tags:
@@ -17076,7 +17472,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         409:
-          description: 'Concurrent unique conflict; no partial write'
+          description: 'CONCURRENCY_CONFLICT — một lần import COMMIT trùng ĐỦ định danh (file_sha256 + actor_id + options_fingerprint) đang chạy và request này không giành được khoá tuần tự hoá trong `lock.wait_seconds`. Không có SKU nào được tạo/cập nhật, không có Import báo cáo nào được ghi (DEV330-P1-07R3, SRS NFR-SRS-003 / AC-GWT-CONC-001). Client thử lại sau khi lần chạy hiện tại kết thúc.'
           content:
             application/json:
               schema:
@@ -17325,7 +17721,7 @@ paths:
       tags:
         - '05. Product'
       summary: 'Tải file lỗi (CSV) của một Import báo cáo SKU — WWHN-330'
-      description: 'Trả về file CSV (đã sinh sẵn khi import, xem ImportErrorFileService) gồm cột row/field/error_code/message/value cho từng dòng bị reject trong lần import đó. Yêu cầu quyền sku.manage (cùng permission với các endpoint import khác) VÀ báo cáo phải nằm trong data-scope của người gọi (FE331-P1-06R3): người gọi bị giới hạn kho chỉ tải được file lỗi của chính lần import mình đã chạy — file lỗi chứa nguyên nội dung file người nộp nên báo cáo ngoài scope trả 404 y hệt báo cáo không tồn tại. Hạn dùng file lỗi lấy từ hợp đồng đã duyệt `warehouse.sku_import.error_file_expiry_hours` (DEC-IMP-001) và được trả ra trong `constraints` của response import / `meta.constraints` của danh sách báo cáo; mốc hết hạn cụ thể của từng báo cáo nằm ở `error_file_expires_at`. Giá trị trong CSV đã được sanitize khi sinh file (bỏ ký tự điều khiển, chặn CSV/formula injection khi mở bằng Excel) và chỉ gồm dữ liệu đã nằm trong row_errors của chính báo cáo đó — không lộ thêm thông tin ngoài phạm vi request gốc.'
+      description: 'Trả về file CSV (đã sinh sẵn khi import, xem ImportErrorFileService) theo ĐÚNG schema error-file của SRS §13.12: `source_file, sheet, row_no, field, error_code, message, raw_value, severity, suggested_action` — một dòng cho mỗi dòng bị reject. `severity` ∈ CRITICAL (xung đột định danh/tham chiếu) | ERROR (sai định dạng ô); trong luồng all-or-nothing mọi dòng lỗi đều chặn commit nên không có giá trị WARNING. `raw_value` được che nếu khớp dạng email/số điện thoại (§13.12 "Masked if PII"). RETENTION (DEV330-P1-01R3, DEC-IMP-001 §5): hạn dùng LOGIC = `constraints.error_file_expiry_hours` — quá hạn thì endpoint này trả 404 nhưng file vẫn còn trên đĩa; RETENTION VẬT LÝ do job `import:purge-error-files` thực thi hằng ngày, nên thời gian tồn tại tối đa trên đĩa = `constraints.error_file_max_on_disk_hours`. Sau khi bị purge, endpoint vẫn trả 404 (bản ghi Import báo cáo và row_errors KHÔNG bị xoá — audit trail import giữ nguyên theo NFR-SRS-014). Yêu cầu quyền sku.manage (cùng permission với các endpoint import khác) VÀ báo cáo phải nằm trong data-scope của người gọi (FE331-P1-06R3): người gọi bị giới hạn kho chỉ tải được file lỗi của chính lần import mình đã chạy — file lỗi chứa nguyên nội dung file người nộp nên báo cáo ngoài scope trả 404 y hệt báo cáo không tồn tại. Hạn dùng file lỗi lấy từ hợp đồng đã duyệt `warehouse.sku_import.error_file_expiry_hours` (DEC-IMP-001) và được trả ra trong `constraints` của response import / `meta.constraints` của danh sách báo cáo; mốc hết hạn cụ thể của từng báo cáo nằm ở `error_file_expires_at`. Giá trị trong CSV đã được sanitize khi sinh file (bỏ ký tự điều khiển, chặn CSV/formula injection khi mở bằng Excel) và chỉ gồm dữ liệu đã nằm trong row_errors của chính báo cáo đó — không lộ thêm thông tin ngoài phạm vi request gốc.'
       operationId: sku_import_report_error_file
       parameters:
         -
@@ -19989,8 +20385,9 @@ paths:
     post:
       tags:
         - '13. Warranty'
-      summary: 'Chuyển trạng thái hồ sơ bảo hành (Annex C)'
-      operationId: post_api_v1_warranty__cases_id_status
+      summary: 'Annex C transitionWarrantyStatus — chuyển trạng thái / hiệu chỉnh case bảo hành'
+      description: 'DEC-WAR-STATE-001 (SRS v1.12 §6 + ERD §45). Ma trận transition đã chốt: RECEIVED->{CHECKING,CANCELLED}; CHECKING->{REPAIRING,COMPLETED,CANCELLED}; REPAIRING->{COMPLETED,CANCELLED}; COMPLETED->{RETURNED,CANCELLED}; RETURNED/CANCELLED là terminal (mọi mutation trả 409 STATE_CONFLICT). Guard nghiệp vụ: rời CHECKING sang REPAIRING/COMPLETED bắt buộc confirmed_defect (422 WARRANTY_DIAGNOSIS_REQUIRED); COMPLETED bắt buộc note kết quả xử lý (422 WARRANTY_TREATMENT_RESULT_REQUIRED); RETURNED bắt buộc note biên bản bàn giao/người nhận (422 WARRANTY_HANDOVER_NOTE_REQUIRED); CANCELLED bắt buộc lý do (422 CANCEL_REASON_REQUIRED). Transition ngoài ma trận: 409 INVALID_WARRANTY_TRANSITION. If-Match bắt buộc (428/412). Idempotency-Key tuỳ chọn. Sửa customer_name/phone/address cần warranty.pii.view (403 PERMISSION_DENIED); response luôn mask PII khi thiếu quyền (pii_masked=true). stock_effect=NONE.'
+      operationId: transitionWarrantyStatus
       parameters:
         -
           name: id
@@ -20016,16 +20413,68 @@ paths:
             type: integer
             minimum: 0
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
+              properties:
+                status:
+                  description: 'Trạng thái đích; bỏ trống nếu chỉ hiệu chỉnh dữ liệu.'
+                  type: string
+                  enum:
+                    - RECEIVED
+                    - CHECKING
+                    - REPAIRING
+                    - COMPLETED
+                    - RETURNED
+                    - CANCELLED
+                confirmed_defect:
+                  description: 'Kết quả kiểm tra; bắt buộc khi rời CHECKING.'
+                  type: string
+                  maxLength: 2000
+                note:
+                  description: 'Ghi vào warranty_event.note; bắt buộc cho COMPLETED (kết quả xử lý) và RETURNED (biên bản bàn giao/người nhận).'
+                  type: string
+                  maxLength: 2000
+                cancel_reason:
+                  description: 'Bắt buộc khi CANCELLED.'
+                  type: string
+                  maxLength: 1000
+                condition_status:
+                  type: string
+                  maxLength: 30
+                accessories_received:
+                  type: string
+                  maxLength: 1000
+                received_condition:
+                  type: string
+                  maxLength: 500
+                defect_id:
+                  type: string
+                  format: uuid
+                defect_code:
+                  type: string
+                  maxLength: 80
+                customer_name:
+                  description: 'PII — cần warranty.pii.view.'
+                  type: string
+                  maxLength: 200
+                customer_phone:
+                  description: 'PII — cần warranty.pii.view.'
+                  type: string
+                  example: '0901234567'
+                  maxLength: 30
+                customer_address:
+                  description: 'PII — cần warranty.pii.view.'
+                  type: string
+                  maxLength: 500
+                purchase_date:
+                  type: string
+                  format: date
               type: object
-              example: []
-              additionalProperties: true
       responses:
         200:
-          description: 'Thành công'
+          description: 'Case đã cập nhật; ETag = version mới; stock_effect=NONE.'
           content:
             application/json:
               schema:
@@ -20813,6 +21262,477 @@ components:
           $ref: '#/components/schemas/ApiErrorDetail'
         meta:
           $ref: '#/components/schemas/ApiMeta'
+      type: object
+    XntReportLine:
+      title: 'Dòng báo cáo Nhập-Xuất-Tồn (RPT-XNT-01)'
+      description: "Ba tầng cột theo BR-RPT-01..07 (\"hiển thị gross/net\"):\n\n- GROSS  (`*_gross`): lượng đã Post trong kỳ, KHÔNG trừ reversal. Không bao giờ ẩn lịch sử (BR-REV-11).\n- REVERSAL (`*_reversal`): phần của cột gross tương ứng đã bị đảo, quy về CÙNG CHIỀU DƯƠNG với cột gross.\n- NET (`*_net`): `gross - reversal`, là con số nghiệp vụ dùng đối soát kỳ.\n\nViệc phân loại một REVERSAL vào cột Nhập hay cột Xuất căn cứ `movement_type` của\ngiao dịch GỐC trong correction chain, không căn cứ dấu của `qty_delta` (đảo một\nISSUE và đảo một COMPONENT_ISSUE đều cho `qty_delta` dương).\n\nBất biến: `closing == opening + receipt_net - issue_net - component_issue_net + reversal_unlinked_net`\nvà cũng `== opening + receipt - issue - component_issue + reversal_net`."
+      required:
+        - warehouse_code
+        - product_code
+        - product_name
+        - stock_status
+        - opening
+        - receipt
+        - receipt_gross
+        - receipt_reversal
+        - receipt_net
+        - issue
+        - issue_gross
+        - issue_reversal
+        - issue_net
+        - component_issue
+        - component_issue_gross
+        - component_issue_reversal
+        - component_issue_net
+        - reversal_unlinked_net
+        - reversal_net
+        - closing
+      properties:
+        warehouse_code:
+          description: "WWHN-240 — Catalog schema cho ngữ nghĩa gross / reversal / net effect.\n\nLÝ DO TỒN TẠI (DEV240-P1-02C): trước WWHN-240, hai contract quan trọng nhất của\nluồng đảo giao dịch chỉ có `description` bằng văn xuôi, không có `content`:\n\n- `GET /api/v1/reports/inventory-xnt` chỉ khai `response 200 description: 'XNT'`,\n  nên không client nào suy được cột nào là gross, cột nào đã trừ reversal.\n- `GET /api/v1/stock-movements/{id}/trace-source` nằm ngoài danh sách scan của\n  `config/l5-swagger.php`, nên annotation thật KHÔNG bao giờ được publish và\n  `RouteSyncProcessor` sinh ra một skeleton chung chung thay cho contract.\n\nKhai một lần ở đây, controller chỉ `$ref` tới, nên contract không thể lệch khỏi\nruntime mà không sửa cùng một chỗ.\n\nNguồn nghiệp vụ: SRS/FRD v1.12 §5.5 (BR-REV-01..12, đặc biệt BR-REV-08/BR-REV-11),\n§13.10 RPT-XNT-01 và RPT-MOV-01, BR-RPT-01..07, DEC-REV-001 / WWHN-26."
+          type: string
+          example: KHO-HN-01
+        product_code:
+          type: string
+          example: DCH-DRILL-DJZ10A-220V-V1
+        product_name:
+          type: string
+          example: 'Máy khoan DJZ10A 220V'
+        stock_status:
+          type: string
+          example: AVAILABLE
+          enum:
+            - AVAILABLE
+            - NON_SELLABLE
+            - DEFECTIVE
+            - QUARANTINE
+        opening:
+          description: 'NET — tồn đầu kỳ, đã gồm mọi reversal Post trước from_date.'
+          type: number
+          format: float
+          example: 100
+        receipt:
+          description: 'GROSS — bí danh tương thích của receipt_gross.'
+          type: number
+          format: float
+          example: 30
+        receipt_gross:
+          description: 'GROSS — tổng RECEIPT đã Post trong kỳ.'
+          type: number
+          format: float
+          example: 30
+        receipt_reversal:
+          description: 'REVERSAL — lượng RECEIPT đã bị đảo, chiều dương.'
+          type: number
+          format: float
+          example: 4
+        receipt_net:
+          description: 'NET — receipt_gross - receipt_reversal.'
+          type: number
+          format: float
+          example: 26
+        issue:
+          description: 'GROSS — bí danh tương thích của issue_gross.'
+          type: number
+          format: float
+          example: 20
+        issue_gross:
+          description: 'GROSS — tổng ISSUE đã Post trong kỳ.'
+          type: number
+          format: float
+          example: 20
+        issue_reversal:
+          description: 'REVERSAL — lượng ISSUE đã bị đảo, chiều dương.'
+          type: number
+          format: float
+          example: 6
+        issue_net:
+          description: 'NET — issue_gross - issue_reversal.'
+          type: number
+          format: float
+          example: 14
+        component_issue:
+          description: 'GROSS — bí danh tương thích của component_issue_gross.'
+          type: number
+          format: float
+          example: 5
+        component_issue_gross:
+          type: number
+          format: float
+          example: 5
+        component_issue_reversal:
+          type: number
+          format: float
+          example: 0
+        component_issue_net:
+          type: number
+          format: float
+          example: 5
+        reversal_unlinked_net:
+          description: 'REVERSAL — qty_delta của reversal không truy được movement gốc (dữ liệu migrate/OPENING). Vẫn vào closing để báo cáo khớp ledger.'
+          type: number
+          format: float
+          example: 0
+        reversal_net:
+          description: 'REVERSAL — tổng qty_delta CÓ DẤU của mọi REVERSAL trong kỳ = -receipt_reversal + issue_reversal + component_issue_reversal + reversal_unlinked_net.'
+          type: number
+          format: float
+          example: 2
+        closing:
+          description: 'NET — tồn cuối kỳ.'
+          type: number
+          format: float
+          example: 117
+      type: object
+    XntReport:
+      title: 'Báo cáo Nhập-Xuất-Tồn (RPT-XNT-01)'
+      description: 'Kỳ inclusive theo Asia/Ho_Chi_Minh. `data_scope`/`scope_warehouse_ids` cho biết payload đã bị cắt theo warehouse data-scope nào.'
+      required:
+        - from_date
+        - to_date
+        - formula
+        - formula_net
+        - column_semantics
+        - lines
+      properties:
+        from_date:
+          type: string
+          format: date
+          example: '2026-08-01'
+        to_date:
+          type: string
+          format: date
+          example: '2026-08-18'
+        formula:
+          description: 'Công thức theo cột GROSS, giữ nguyên từ baseline trước WWHN-240.'
+          type: string
+          example: 'Closing = Opening + Receipt - Issue - Component Issue + Reversal'
+        formula_net:
+          description: 'Công thức theo cột NET; tương đương công thức gross.'
+          type: string
+          example: 'Closing = Opening + Receipt Net - Issue Net - Component Issue Net + Unlinked Reversal Net; Receipt Net = Receipt Gross - Receipt Reversal; Issue Net = Issue Gross - Issue Reversal; Component Issue Net = Component Issue Gross - Component Issue Reversal'
+        column_semantics:
+          description: 'Bản đồ tên cột → nhãn GROSS / REVERSAL / NET kèm định nghĩa.'
+          type: object
+          additionalProperties:
+            type: string
+        data_scope:
+          type: string
+          example: WAREHOUSE_SCOPED
+          nullable: true
+          enum:
+            - GLOBAL
+            - WAREHOUSE_SCOPED
+        scope_warehouse_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/XntReportLine'
+        pagination:
+          properties:
+            current_page:
+              type: integer
+              example: 1
+            per_page:
+              type: integer
+              example: 50
+            total:
+              type: integer
+              example: 128
+            last_page:
+              type: integer
+              example: 3
+          type: object
+          nullable: true
+      type: object
+    CorrectionChainNode:
+      title: 'Một mắt xích trong correction chain'
+      description: 'Movement gốc và toàn bộ Reversal append-only tham chiếu nó. BR-REV-01: movement gốc bất biến, không bao giờ bị ẩn hay sửa.'
+      required:
+        - id
+        - movement_type
+        - role
+        - depth
+        - is_subject
+        - occurred_at
+        - qty_delta
+      properties:
+        id:
+          type: string
+          format: uuid
+        movement_no:
+          type: string
+          example: MV-20260818-A1B2C3D4
+          nullable: true
+        movement_type:
+          type: string
+          example: RECEIPT
+          enum:
+            - OPENING
+            - RECEIPT
+            - ISSUE
+            - COMPONENT_ISSUE
+            - REVERSAL
+        role:
+          description: 'ORIGINAL = gốc của chain (depth 0); REVERSAL = movement đối ứng append-only.'
+          type: string
+          example: ORIGINAL
+          enum:
+            - ORIGINAL
+            - REVERSAL
+        depth:
+          description: 'Khoảng cách tới movement gốc; 0 là gốc.'
+          type: integer
+          example: 0
+        is_subject:
+          description: 'true đúng tại movement được truy vết trong URL.'
+          type: boolean
+          example: true
+        occurred_at:
+          type: string
+          format: date-time
+          nullable: true
+        warehouse_id:
+          type: string
+          format: uuid
+          nullable: true
+        warehouse_code:
+          type: string
+          nullable: true
+        product_id:
+          type: string
+          format: uuid
+          nullable: true
+        product_code:
+          type: string
+          nullable: true
+        stock_status:
+          type: string
+          nullable: true
+        item_id:
+          type: string
+          format: uuid
+          nullable: true
+        quantity:
+          description: 'Số lượng tuyệt đối của bút toán.'
+          type: number
+          format: float
+          nullable: true
+        qty_delta:
+          description: 'Biến động CÓ DẤU lên tồn. Reversal luôn ngược dấu với movement nó đảo.'
+          type: number
+          format: float
+          example: 10
+        qty_before:
+          type: number
+          format: float
+          nullable: true
+        qty_after:
+          type: number
+          format: float
+          nullable: true
+        source_type:
+          type: string
+          example: REVERSAL_DOCUMENT
+          nullable: true
+        source_id:
+          type: string
+          format: uuid
+          nullable: true
+        stock_document_id:
+          type: string
+          format: uuid
+          nullable: true
+        original_movement_id:
+          description: 'Cha trực tiếp trong chain. BR-REV-08: reversal tiếp theo trỏ vào movement gần nhất, nên giá trị này có thể là một REVERSAL khác.'
+          type: string
+          format: uuid
+          nullable: true
+        correction_chain_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor:
+          description: 'display_name của người thực hiện; null nếu movement do job hệ thống sinh.'
+          type: string
+          nullable: true
+        reversal_document_no:
+          type: string
+          example: REV-20260818103000-XY7Q2M
+          nullable: true
+        reversal_status:
+          type: string
+          nullable: true
+          enum:
+            - DRAFT
+            - CONFIRMED
+            - POSTED
+            - CANCELLED
+        reason_code:
+          type: string
+          example: CORRECTION
+          nullable: true
+        reason_text:
+          type: string
+          example: 'Giao nhầm Item'
+          nullable: true
+      type: object
+    CorrectionChain:
+      title: 'Correction chain đầy đủ (BR-REV-11)'
+      required:
+        - root_movement_id
+        - node_count
+        - reversal_count
+        - nodes
+      properties:
+        correction_chain_id:
+          description: 'null khi movement chưa từng bị đảo.'
+          type: string
+          format: uuid
+          nullable: true
+        root_movement_id:
+          description: 'Movement gốc của chain; bằng chính movement đang tra khi nó chưa bị đảo.'
+          type: string
+          format: uuid
+        node_count:
+          type: integer
+          example: 3
+        reversal_count:
+          type: integer
+          example: 2
+        max_depth:
+          type: integer
+          example: 2
+        truncated:
+          description: 'true nếu chain sâu hơn trần an toàn 32 mắt xích và đã bị cắt.'
+          type: boolean
+          example: false
+        nodes:
+          description: 'Sắp xếp tăng dần theo occurred_at rồi id.'
+          type: array
+          items:
+            $ref: '#/components/schemas/CorrectionChainNode'
+      type: object
+    ReversalNetEffect:
+      title: 'Net effect của correction chain'
+      description: "Tính hoàn toàn từ ledger `stock_movements` (DEC-INV-001: ledger là nguồn tồn chuẩn),\nnên luôn khớp với báo cáo XNT và với /reports/movement-trace.\n\n- `net_qty_delta` = tổng qty_delta CÓ DẤU của toàn chain (tác động ròng còn lại lên tồn).\n- `reversed_qty`  = |qty_delta gốc - net_qty_delta| (một reversal-của-reversal sẽ LÀM GIẢM con số này).\n- `remaining_reversible_qty` = |qty_delta gốc| - reversed_qty. Đây là số HIỂN THỊ; guard\n  khi Post Reversal vẫn revalidate lại trong transaction theo BR-REV-05/BR-REV-09."
+      required:
+        - basis
+        - original_movement_id
+        - original_movement_type
+        - original_qty
+        - original_qty_delta
+        - reversed_qty
+        - remaining_reversible_qty
+        - net_qty_delta
+        - fully_reversed
+        - reversal_count
+      properties:
+        basis:
+          description: 'Nguồn tính net effect. LEDGER = stock_movements append-only.'
+          type: string
+          example: LEDGER
+          enum:
+            - LEDGER
+        original_movement_id:
+          type: string
+          format: uuid
+        original_movement_type:
+          type: string
+          example: RECEIPT
+          enum:
+            - OPENING
+            - RECEIPT
+            - ISSUE
+            - COMPONENT_ISSUE
+            - REVERSAL
+        original_qty:
+          description: 'Trị tuyệt đối của qty_delta gốc.'
+          type: number
+          format: float
+          example: 10
+        original_qty_delta:
+          type: number
+          format: float
+          example: 10
+        reversed_qty:
+          type: number
+          format: float
+          example: 3
+        remaining_reversible_qty:
+          type: number
+          format: float
+          example: 7
+        net_qty_delta:
+          type: number
+          format: float
+          example: 7
+        fully_reversed:
+          type: boolean
+          example: false
+        reversal_count:
+          type: integer
+          example: 1
+        subject_reversed_qty:
+          description: 'Lượng đã đảo tính riêng cho movement đang tra (không phải cho gốc chain).'
+          type: number
+          format: float
+          example: 3
+      type: object
+    StockMovementTraceSource:
+      title: 'Trace-source của một movement (RPT-MOV-01 / BR-REV-11)'
+      description: 'Trả movement gốc, TOÀN BỘ reversal chain và net effect. Các khoá `original_movement`/`reversal_movement` giữ lại nguyên hình dạng cũ để client hiện hành không vỡ; consumer mới đọc `correction_chain` + `net_effect`.'
+      required:
+        - movement
+        - correction_chain
+        - net_effect
+      properties:
+        movement:
+          description: 'Movement đang tra, kèm product/warehouse/creator.'
+          type: object
+          additionalProperties: true
+        document:
+          description: 'Chứng từ nguồn (stock_documents) nếu movement sinh từ Post phiếu.'
+          type: object
+          nullable: true
+          additionalProperties: true
+        status_history:
+          description: 'Lịch sử chuyển trạng thái của chứng từ nguồn.'
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          nullable: true
+        original_movement:
+          description: 'Cha TRỰC TIẾP; null khi movement này không phải reversal.'
+          type: object
+          nullable: true
+          additionalProperties: true
+        root_movement:
+          description: 'Gốc của chain sau khi đi ngược hết BR-REV-08.'
+          type: object
+          nullable: true
+          additionalProperties: true
+        reversal_movement:
+          description: 'DEPRECATED — chỉ là phần tử đầu của reversal_movements; giữ cho client cũ.'
+          type: object
+          nullable: true
+          additionalProperties: true
+        reversal_movements:
+          description: 'Mọi reversal trực tiếp của movement đang tra.'
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        correction_chain:
+          $ref: '#/components/schemas/CorrectionChain'
+        net_effect:
+          $ref: '#/components/schemas/ReversalNetEffect'
       type: object
   securitySchemes:
     bearerAuth:

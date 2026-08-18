@@ -9,6 +9,7 @@ on:
       - 'Modules/Warehouse/database/migrations/**'
       - 'Modules/Warehouse/routes/api.php'
       - 'tests/Feature/WarrantyReadinessTest.php'
+      - 'tests/Feature/Wwhn244WarrantyStateMatrixTest.php'
       - '.github/workflows/warranty-readiness.yml'
   workflow_dispatch:
 
@@ -69,14 +70,18 @@ jobs:
           php -l Modules/Warehouse/routes/api.php
           php -l Modules/Warehouse/database/migrations/2026_08_11_184000_sync_sqlite_defect_compatibility.php
           php -l tests/Feature/WarrantyReadinessTest.php
+          php -l tests/Feature/Wwhn244WarrantyStateMatrixTest.php
+          php -l Modules/Warehouse/database/migrations/2026_08_18_000100_enforce_warranty_one_active_case_all_drivers.php
           ./vendor/bin/pint --test \
             Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php \
             Modules/Warehouse/routes/api.php \
             Modules/Warehouse/database/migrations/2026_08_11_184000_sync_sqlite_defect_compatibility.php \
-            tests/Feature/WarrantyReadinessTest.php
+            tests/Feature/WarrantyReadinessTest.php \
+            tests/Feature/Wwhn244WarrantyStateMatrixTest.php \
+            Modules/Warehouse/database/migrations/2026_08_18_000100_enforce_warranty_one_active_case_all_drivers.php
 
       - name: Run executable warranty integration tests
-        run: php artisan test tests/Feature/WarrantyReadinessTest.php
+        run: php artisan test tests/Feature/WarrantyReadinessTest.php tests/Feature/Wwhn244WarrantyStateMatrixTest.php
 
       - name: Verify runtime routes
         shell: bash
@@ -109,6 +114,7 @@ jobs:
               '/api/v1/warranty-cases': {'get', 'post'},
               '/api/v1/warranty-cases/{id}': {'get', 'patch'},
               '/api/v1/warranty-cases/{id}/events': {'get'},
+              '/api/v1/warranty-cases/{id}/status': {'post'},
               '/api/v1/component-issue-documents': {'get', 'post'},
               '/api/v1/component-issue-documents/{id}/scan': {'post'},
               '/api/v1/component-issue-documents/{id}/cancel': {'post'},
@@ -124,3 +130,154 @@ jobs:
               raise SystemExit('Missing OpenAPI operations: ' + ', '.join(missing))
           print('Warranty OpenAPI route-sync PASS')
           PY
+
+      - name: Verify DEC-WAR-STATE-001 is published in the contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path('storage/api-docs/api-docs.json').read_text(encoding='utf-8'))
+          op = data['paths']['/api/v1/warranty-cases/{id}/status']['post']
+          description = op.get('description', '')
+          for token in (
+              'CHECKING->{REPAIRING,COMPLETED,CANCELLED}',
+              'WARRANTY_DIAGNOSIS_REQUIRED',
+              'WARRANTY_TREATMENT_RESULT_REQUIRED',
+              'WARRANTY_HANDOVER_NOTE_REQUIRED',
+              'INVALID_WARRANTY_TRANSITION',
+          ):
+              if token not in description:
+                  raise SystemExit(f'transitionWarrantyStatus khong cong bo: {token}')
+          properties = op['requestBody']['content']['application/json']['schema']['properties']
+          enum = properties['status']['enum']
+          expected = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED']
+          if enum != expected:
+              raise SystemExit(f'status enum lech: {enum} != {expected}')
+          for field in ('confirmed_defect', 'note', 'cancel_reason'):
+              if field not in properties:
+                  raise SystemExit(f'thieu field guard trong requestBody: {field}')
+          print('DEC-WAR-STATE-001 contract publication PASS')
+          PY
+
+  warranty-one-active-case-postgres:
+    # DEV244-P1-06: one-active-case phai duoc chung minh tren PostgreSQL that.
+    # Job sqlite o tren khong the thay the: partial unique index truoc day chi duoc
+    # tao trong nhanh pgsql, nen mot suite sqlite-only se xanh ma production van ho.
+    name: One-active-case invariant on PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hoa_nam_warranty
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoa_nam_warranty
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: ci-warranty-readiness-jwt-secret-20260811
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare PostgreSQL runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          php artisan key:generate
+          {
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=false"
+            echo "DB_CONNECTION=pgsql"
+            echo "DB_HOST=127.0.0.1"
+            echo "DB_PORT=5432"
+            echo "DB_DATABASE=hoa_nam_warranty"
+            echo "DB_USERNAME=postgres"
+            echo "DB_PASSWORD=postgres"
+            echo "CACHE_STORE=array"
+            echo "SESSION_DRIVER=array"
+            echo "QUEUE_CONNECTION=sync"
+            echo "JWT_SECRET=$JWT_SECRET"
+          } >> .env
+          php artisan migrate --force
+
+      - name: Prove the partial unique index exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d hoa_nam_warranty -Atc \
+            "SELECT indexdef FROM pg_indexes WHERE tablename='warranty_case' AND indexname='uk_warranty_case_one_active_item'" \
+            | tee /tmp/warranty-index.txt
+          grep -F "UNIQUE INDEX uk_warranty_case_one_active_item" /tmp/warranty-index.txt
+          grep -F "item_id" /tmp/warranty-index.txt
+          grep -F "'RETURNED'" /tmp/warranty-index.txt
+          grep -F "'CANCELLED'" /tmp/warranty-index.txt
+
+      - name: Prove a second active case is rejected by the database itself
+        shell: bash
+        run: |
+          set -euo pipefail
+          PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d hoa_nam_warranty -v ON_ERROR_STOP=0 <<'SQL' > /tmp/warranty-dup.txt 2>&1
+          BEGIN;
+          INSERT INTO item_instances (item_id, sku_id, serial_number, item_status, created_at, updated_at)
+          SELECT gen_random_uuid(), sku_id, 'SER-CI-P106', 'ISSUED', now(), now() FROM sku LIMIT 1;
+          INSERT INTO warranty_case (warranty_case_id, warranty_case_code, item_id, identification_status, sales_trace_status,
+                                     customer_name, customer_phone, status, description, reported_defect, received_at,
+                                     version, legal_hold_flag, created_at, updated_at)
+          SELECT gen_random_uuid(), 'WC-CI-P106-A', item_id, 'IDENTIFIED', 'TRACEABLE', 'CI Actor', '0900000000',
+                 'RECEIVED', 'ci proof', 'ci proof', now(), 1, false, now(), now()
+          FROM item_instances WHERE serial_number = 'SER-CI-P106';
+          INSERT INTO warranty_case (warranty_case_id, warranty_case_code, item_id, identification_status, sales_trace_status,
+                                     customer_name, customer_phone, status, description, reported_defect, received_at,
+                                     version, legal_hold_flag, created_at, updated_at)
+          SELECT gen_random_uuid(), 'WC-CI-P106-B', item_id, 'IDENTIFIED', 'TRACEABLE', 'CI Actor', '0900000000',
+                 'RECEIVED', 'ci proof duplicate', 'ci proof duplicate', now(), 1, false, now(), now()
+          FROM item_instances WHERE serial_number = 'SER-CI-P106';
+          ROLLBACK;
+          SQL
+          cat /tmp/warranty-dup.txt
+          grep -F 'uk_warranty_case_one_active_item' /tmp/warranty-dup.txt
+          grep -Fi 'duplicate key value violates unique constraint' /tmp/warranty-dup.txt
+
+      - name: Run the warranty state-matrix suite against PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          # phpunit.xml khai DB_CONNECTION=sqlite KHONG co force="true", nen bien moi
+          # truong cua job thang the. WARRANTY_REQUIRE_DB_DRIVER bat test
+          # test_suite_runs_on_the_driver_the_pipeline_claims chay that (thay vi skip),
+          # de job "PostgreSQL" khong am tham chay tren SQLite roi bao xanh.
+          WARRANTY_REQUIRE_DB_DRIVER=pgsql \
+            php artisan test tests/Feature/Wwhn244WarrantyStateMatrixTest.php tests/Feature/WarrantyReadinessTest.php

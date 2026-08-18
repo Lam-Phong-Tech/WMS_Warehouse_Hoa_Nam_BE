@@ -70,6 +70,11 @@ return [
                     base_path('Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/AlignedLabelLogReportController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php'),
+                    // WWHN-244/DEV244-P1-05: ma tran trang thai + guard cua Flow 04 duoc
+                    // khai ngay tren controller that (transitionWarrantyStatus). Thieu dong
+                    // duoi, RouteSyncProcessor tu sinh skeleton requestBody {} rong nen FE/QA
+                    // khong doc duoc DEC-WAR-STATE-001 tu OpenAPI. KHONG duoc bo dong duoi.
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php'),
                 ],
             ],
         ],

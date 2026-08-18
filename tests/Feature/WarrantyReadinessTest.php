@@ -137,17 +137,30 @@ class WarrantyReadinessTest extends TestCase
             ->assertStatus(412)
             ->assertJsonPath('error.code', 'STALE_VERSION');
 
+        // DEC-WAR-STATE-001: CHECKING -> RECEIVED khong ton tai trong ma tran.
         $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
-            'status' => 'COMPLETED',
+            'status' => 'RECEIVED',
         ], $headers + $this->idem() + ['If-Match' => '3'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'INVALID_WARRANTY_TRANSITION');
 
+        // DEC-WAR-STATE-001 guard 1: roi CHECKING khi chua co ket luan kiem tra -> 422.
+        $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
+            'status' => 'REPAIRING',
+        ], $headers + $this->idem() + ['If-Match' => '3'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'WARRANTY_DIAGNOSIS_REQUIRED');
+
         $version = 3;
-        foreach (['REPAIRING', 'COMPLETED', 'RETURNED'] as $target) {
+        $payloads = [
+            'REPAIRING' => ['confirmed_defect' => 'Hong pin 20V, can thay'],
+            'COMPLETED' => ['note' => 'Da thay pin 20V, chay thu 30 phut dat'],
+            'RETURNED' => ['note' => 'Ban giao cho Nguyen Van A, ky nhan 10:20'],
+        ];
+        foreach ($payloads as $target => $extra) {
             $response = $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
                 'status' => $target,
-            ], $headers + $this->idem() + ['If-Match' => (string) $version]);
+            ] + $extra, $headers + $this->idem() + ['If-Match' => (string) $version]);
             $version++;
             $response->assertOk()
                 ->assertJsonPath('data.status', $target)
