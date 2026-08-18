@@ -88,7 +88,7 @@ class WarrantyStatusOnlyContractTest extends TestCase
             'condition_status' => 'WAITING_CHECK',
         ], $headers)
             ->assertStatus(409)
-            ->assertJsonPath('error.code', 'IDEMPOTENCY_ERROR');
+            ->assertJsonPath('error.code', 'IDEMPOTENCY_CONFLICT');
 
         $this->assertSame(1, WarrantyEvent::query()->where('warranty_case_id', $case->warranty_case_id)->count());
     }

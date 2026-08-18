@@ -12,8 +12,11 @@ use Modules\Auth\Http\Middleware\PreventSelfRoleAssignment;
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])
         ->middleware(PersistRefreshTokenCookie::class);
+    // WWHN-289 (DEV289-P1-04): refresh là bề mặt xoay vòng token bị đánh cắp.
+    // /auth/login tự khoá theo lần-THẤT-BẠI trong AuthController (không phạt oan
+    // đăng nhập đúng), còn ở đây chặn tần suất. Ngưỡng tại config/rate_limit.php.
     Route::post('auth/refresh', [AuthController::class, 'refresh'])
-        ->middleware(PersistRefreshTokenCookie::class);
+        ->middleware([PersistRefreshTokenCookie::class, 'throttle:auth-refresh']);
 
     Route::middleware('auth:api')->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])

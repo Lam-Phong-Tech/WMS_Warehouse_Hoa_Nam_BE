@@ -98,7 +98,7 @@ class Wwhn180IdempotencyAtomicityTest extends TestCase
 
         $this->assertSame(1, $runs);
         $this->assertSame(409, $conflict[0]);
-        $this->assertSame('IDEMPOTENCY_ERROR', $conflict[1]['error']['code']);
+        $this->assertSame('IDEMPOTENCY_CONFLICT', $conflict[1]['error']['code']);
     }
 
     public function test_business_write_rolls_back_and_lease_is_removed_when_callback_fails(): void

@@ -27,6 +27,19 @@ class IdempotencyStore
     public const LOCK_MINUTES = 5;
 
     /**
+     * WWHN-289 (DEV289-P1-02): mã lỗi 409 phải nằm trong đúng danh sách của
+     * SRS §8.2 (STATE_CONFLICT / IDEMPOTENCY_CONFLICT / CONCURRENCY_CONFLICT /
+     * DOWNSTREAM_DEPENDENCY_EXISTS). AC-GWT-IDEMP-001 và TC-P1-006/014/030/038
+     * gọi đích danh `409 IDEMPOTENCY_CONFLICT` cho tình huống cùng key khác
+     * payload hash; FE cũng đã map sẵn mã này
+     * (`src/shared/api/wwhn-153-final-signoff.ts`).
+     */
+    public const CONFLICT_PAYLOAD_DIFFERS = 'IDEMPOTENCY_CONFLICT';
+
+    /** Tranh chấp lease là xung đột đồng thời, không phải sai payload. */
+    public const CONFLICT_LEASE_BUSY = 'CONCURRENCY_CONFLICT';
+
+    /**
      * @param  callable():array{0:int,1:array}  $fn
      * @return array{0:int,1:array,2:bool} [httpCode, body, isReplay]
      */
@@ -137,7 +150,7 @@ class IdempotencyStore
         }
 
         if ($row->status === 'processing' && ! self::leaseExpired($row->locked_until)) {
-            return self::conflict('Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.');
+            return self::conflict('Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.', self::CONFLICT_LEASE_BUSY);
         }
 
         return null;
@@ -160,7 +173,7 @@ class IdempotencyStore
             return self::replay($other);
         }
 
-        return self::conflict('Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.');
+        return self::conflict('Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.', self::CONFLICT_LEASE_BUSY);
     }
 
     /**
@@ -192,7 +205,7 @@ class IdempotencyStore
                     return self::replay($lease);
                 }
                 if ($lease->status !== 'processing' || ! self::sameLease($lease->locked_until, $leaseUntil)) {
-                    return self::conflict('Lease Idempotency đã được request khác tiếp quản.');
+                    return self::conflict('Lease Idempotency đã được request khác tiếp quản.', self::CONFLICT_LEASE_BUSY);
                 }
 
                 [$code, $body] = $fn();
@@ -336,14 +349,14 @@ class IdempotencyStore
     }
 
     /** @return array{0:int,1:array,2:false} */
-    private static function conflict(string $message): array
+    private static function conflict(string $message, string $errorCode = self::CONFLICT_PAYLOAD_DIFFERS): array
     {
         return [409, [
             'success' => false,
             'message' => $message,
-            'error_code' => 'IDEMPOTENCY_ERROR',
+            'error_code' => $errorCode,
             'errors' => [],
-            'error' => ['code' => 'IDEMPOTENCY_ERROR', 'details' => []],
+            'error' => ['code' => $errorCode, 'details' => []],
         ], false];
     }
 }

@@ -93,7 +93,7 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
 
         $this->postJson('/api/v1/skus', ['code' => 'SKU-IDEM-002', 'name' => 'Different payload'], $headers)
             ->assertConflict()
-            ->assertJsonPath('error.code', 'IDEMPOTENCY_ERROR');
+            ->assertJsonPath('error.code', 'IDEMPOTENCY_CONFLICT');
 
         $this->assertDatabaseMissing('sku', ['sku_code' => 'SKU-IDEM-002']);
     }

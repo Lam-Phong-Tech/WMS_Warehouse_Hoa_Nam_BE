@@ -1,0 +1,97 @@
+{
+  "jira": "WWHN-289",
+  "jira_title": "[BE] Khắc phục lỗi stock/bảo mật/core",
+  "parent": "WWHN-77",
+  "qa_ticket": "WWHN-291",
+  "ba_ticket": "WWHN-288",
+  "uat_parent": "WWHN-76",
+  "dependency": "HN-UAT-003",
+  "role": "BE1",
+  "review_addressed": "Wuangg — 34/100, P0/P1/P2 Exact Fix Action Register DEV289-P1-01..06",
+  "pinned_at": "2026-08-18",
+  "pin_policy": "Mọi SHA/ngưỡng/kết quả trích trong bất kỳ artifact WWHN-289 nào PHẢI bằng giá trị ghi ở đây. Wwhn289ClosureEvidenceTest ép cross-document equality nên một pin chép tay bị lệch sẽ làm đỏ build thay vì âm thầm đánh lừa reviewer. m1 là nhánh dùng chung: WWHN-289 pin RANGE INVARIANT (base -> final) chứ không pin blob tuyệt đối của file mà ticket khác cũng sửa.",
+  "canonical_source": {
+    "be_repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "be_branch": "m1",
+    "be_role": "BACKEND_IMPLEMENTATION_SOURCE",
+    "fe_repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "fe_branch": "m1",
+    "fe_role": "CONSUMER_ADAPTATION_FOR_THIS_TICKET"
+  },
+  "change_range": {
+    "base": "93b1e71f0e01c8a7c77670e0c8f0af38d2e68470",
+    "base_meaning": "HEAD của m1 ngay trước commit triển khai WWHN-289",
+    "final": "WWHN289_FINAL_SHA",
+    "final_meaning": "Commit triển khai WWHN-289 (code + test + evidence). Commit ghi pin này là commit kế tiếp và chỉ chứa giá trị SHA đó."
+  },
+  "fe_consumer": {
+    "repo_branch": "m1",
+    "base": "226075d21f2bf953c5f639c71598136e434fc42b",
+    "final": "WWHN289_FE_FINAL_SHA",
+    "scope": "Nhận diện 429 RATE_LIMIT_EXCEEDED + Retry-After, và xếp DATA_SCOPE_DENIED vào nhóm lỗi thiếu quyền."
+  },
+  "findings": {
+    "SEC289-01": {
+      "severity": "P1",
+      "area": "security / stock",
+      "title": "Luồng nhập kho không có data scope",
+      "root_cause": "Chỉ luồng xuất (EnforceOutboundWarehouseScope) và 6 endpoint đọc tồn (EnforceInventoryWarehouseScope) có data scope. Toàn bộ endpoint nhập kho chỉ kiểm tra permission chức năng; EnsureCanonicalInboundWarehouse chỉ ép kho canonical, không đọc scope_ref của actor.",
+      "impact": "User có scope_ref trỏ kho khác vẫn Post Receipt được — sinh stock_movement + inventory_balance ngoài phạm vi dữ liệu của mình. Vi phạm SRS §8.1 enforcement standard và NFR-SRS-005.",
+      "fix": "Modules/Warehouse/app/Http/Middleware/EnforceInboundWarehouseScope.php + gắn vào 12 route nhập kho (canonical + alias Annex C).",
+      "regression_test": "tests/Feature/Wwhn289SecurityRegressionProofTest.php::test_data_scope_dimension_scoped_user_cannot_create_stock_effect_outside_scope"
+    },
+    "SEC289-02": {
+      "severity": "P1",
+      "area": "security",
+      "title": "Không tồn tại bất kỳ rate limit / anti-abuse nào",
+      "root_cause": "Codebase không đăng ký RateLimiter nào và không route nào dùng middleware throttle.",
+      "impact": "POST /auth/login dò mật khẩu không giới hạn tốc độ; nhóm PV ẩn danh được Annex C khai error set 400,404,429,500 và §8.1 bảng Security đòi rate-limit/anti-abuse nhưng 429 không thể xảy ra.",
+      "fix": "config/rate_limit.php + App\\Support\\RateLimitResponse (429 đúng envelope §8.2) + limiter pv-public/auth-refresh trong AppServiceProvider + khoá theo lần-ĐĂNG-NHẬP-SAI trong AuthController (audit LOGIN_THROTTLED).",
+      "regression_test": "tests/Feature/Wwhn289SecurityRegressionProofTest.php::test_rate_limit_dimension_login_locks_out_after_configured_failed_attempts + ::test_rate_limit_dimension_public_pv_catalog_returns_canonical_429"
+    },
+    "SEC289-03": {
+      "severity": "P1",
+      "area": "core / contract",
+      "title": "Mã lỗi 409 idempotency nằm ngoài contract",
+      "root_cause": "IdempotencyStore trả error_code IDEMPOTENCY_ERROR cho mọi loại 409.",
+      "impact": "SRS §8.2 chỉ công nhận STATE_CONFLICT / IDEMPOTENCY_CONFLICT / CONCURRENCY_CONFLICT / DOWNSTREAM_DEPENDENCY_EXISTS; AC-GWT-IDEMP-001 và TC-P1-006/014/030/038 gọi đích danh IDEMPOTENCY_CONFLICT. FE đã map sẵn IDEMPOTENCY_CONFLICT nên kịch bản 'cùng key khác payload' không bao giờ khớp ở hai đầu.",
+      "fix": "IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS = IDEMPOTENCY_CONFLICT (khác payload) và CONFLICT_LEASE_BUSY = CONCURRENCY_CONFLICT (tranh chấp lease).",
+      "regression_test": "tests/Feature/Wwhn289StockInvariantProofTest.php::test_idempotency_dimension_same_key_with_different_payload_is_rejected"
+    }
+  },
+  "stock_invariant_proof": {
+    "artifact": "build/evidence/wwhn-289/stock-invariant-proof.json",
+    "producer": "tests/Feature/Wwhn289StockInvariantProofTest.php",
+    "dimensions": {
+      "retry": "3 request cùng key/payload -> 1 stock_movement, balance +5 đúng một lần (NFR-SRS-001)",
+      "idempotency": "cùng key khác payload -> 409 IDEMPOTENCY_CONFLICT, movement/balance không đổi (AC-GWT-IDEMP-001)",
+      "rollback": "tiêm lỗi ngay sau INSERT stock_movements -> 500 không lộ trace, movement/balance rollback, document giữ SCANNING, retry sau sự cố vẫn Post được (NFR-SRS-002)",
+      "concurrent": "reversal trùng của cùng movement -> 422 REVERSAL_QTY_EXCEEDED, không sinh movement, tồn không âm (NFR-SRS-003)",
+      "reconcile": "rows_checked=2, mismatch_count=0, report status PASS, đối soát SQL thô độc lập cũng 0 lệch (§7.5)"
+    }
+  },
+  "security_proof": {
+    "artifact": "build/evidence/wwhn-289/security-regression-proof.json",
+    "producer": "tests/Feature/Wwhn289SecurityRegressionProofTest.php",
+    "dimensions": {
+      "unauthorized": "ẩn danh -> 401 UNAUTHENTICATED trên post-receipt/scan/inventory; thiếu quyền -> 403 ACCESS_DENIED; cả hai không ghi stock effect",
+      "data_scope": "scope_ref kho khác -> 403 DATA_SCOPE_DENIED cho post-receipt/create/read; đúng scope vẫn 200",
+      "replay": "refresh token đã xoay vòng bị từ chối khi replay (401)",
+      "secret": "login response không chứa password_hash/mật khẩu; audit LOGIN_FAILED không lưu mật khẩu thô; envelope lỗi không có trace/file/line/SQLSTATE"
+    }
+  },
+  "test_baseline": {
+    "driver": "sqlite :memory: (phpunit.xml mặc định)",
+    "before": "681 test / 657 pass / 1 fail / 1 error / 22 skip",
+    "after": "738 test / 712 pass / 0 fail / 0 error / 26 skip",
+    "note": "Chênh lệch tổng số test gồm cả test do ticket khác thêm vào m1 trong cùng ngày; điều WWHN-289 khẳng định là 0 fail / 0 error sau thay đổi."
+  },
+  "independent_gates": {
+    "DEV289-P1-01": "QA1 (WWHN-286) + BA (WWHN-288) — nạp defect UAT cụ thể",
+    "DEV289-P1-02": "Tech Lead / PM — duyệt pin SHA + fix map",
+    "DEV289-P1-03": "QA1 — chạy lại trên build đã pin",
+    "DEV289-P1-04": "QA1 / Security / Tech Lead — duyệt finding->fix->retest",
+    "DEV289-P1-05": "QA1 trên WWHN-291 — DEV không tự ký",
+    "DEV289-P1-06": "BA trên WWHN-288 — expected/waiver"
+  }
+}

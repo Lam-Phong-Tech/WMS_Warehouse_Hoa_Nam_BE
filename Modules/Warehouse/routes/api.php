@@ -40,16 +40,23 @@ use Modules\Warehouse\Http\Controllers\ScanController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
 use Modules\Warehouse\Http\Controllers\WmsContractController;
+use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
 use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 
 Route::prefix('v1')->group(function (): void {
-    Route::get('pv/catalog', [CurrentBaselineOperationsController::class, 'pvCatalog']);
-    Route::get('pv/industries', [CanonicalMvpController::class, 'pvIndustries']);
-    Route::get('pv/tags', [CanonicalMvpController::class, 'pvTags']);
-    Route::get('pv/recommendations', [CurrentBaselineOperationsController::class, 'pvRecommendations']);
+    // WWHN-289 (DEV289-P1-04): §8.1 bảng Security bắt buộc nhóm PV ẩn danh có
+    // "read-only DTO/rate-limit/cache/anti-abuse controls" và Annex C khai 429
+    // trong error set của chúng — trước đây không có limiter nào nên 429 là mã
+    // lỗi công bố nhưng không thể xảy ra. Ngưỡng tại config/rate_limit.php.
+    Route::middleware('throttle:pv-public')->group(function (): void {
+        Route::get('pv/catalog', [CurrentBaselineOperationsController::class, 'pvCatalog']);
+        Route::get('pv/industries', [CanonicalMvpController::class, 'pvIndustries']);
+        Route::get('pv/tags', [CanonicalMvpController::class, 'pvTags']);
+        Route::get('pv/recommendations', [CurrentBaselineOperationsController::class, 'pvRecommendations']);
+    });
 
     Route::middleware('auth:api')->group(function (): void {
         Route::get('warehouses', [WarehouseController::class, 'index'])->middleware('permission:warehouse.view');
@@ -63,26 +70,35 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:sku.manage');
         Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:sku.manage');
 
-        Route::get('inbound-documents', [InboundDocumentController::class, 'index'])->middleware('permission:inbound.view');
+        // WWHN-289 (DEV289-P1-04): luồng nhập kho phải chịu data scope như luồng xuất
+        // (SRS §8.1 enforcement standard = permission + data scope trên MỌI endpoint
+        // được bảo vệ). EnsureCanonicalInboundWarehouse chỉ ép kho canonical, không đọc
+        // scope_ref của actor, nên không thay thế được guard này.
+        Route::get('inbound-documents', [InboundDocumentController::class, 'index'])
+            ->middleware(['permission:inbound.view', EnforceInboundWarehouseScope::class]);
         Route::post('inbound-documents', [CurrentBaselineDocumentController::class, 'storeInbound'])
-            ->middleware(['permission:inbound.create', EnsureCanonicalInboundWarehouse::class]);
-        Route::get('inbound-documents/{id}', [InboundDocumentController::class, 'show'])->middleware('permission:inbound.view');
+            ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
+        Route::get('inbound-documents/{id}', [InboundDocumentController::class, 'show'])
+            ->middleware(['permission:inbound.view', EnforceInboundWarehouseScope::class]);
         Route::patch('inbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateInbound'])
-            ->middleware(['permission:inbound.create', EnsureCanonicalInboundWarehouse::class]);
+            ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
         // Annex C cancelInboundDocument khai `inbound.create`; baseline seed lại cấp
         // `inbound.cancel` riêng cho WAREHOUSE_APPROVER/KEEPER. Nhận cả hai để vừa
         // đúng contract Annex C vừa không thu hồi quyền đang cấp.
         Route::post('inbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelInbound'])
-            ->middleware('permission:inbound.cancel|inbound.create');
-        Route::post('inbound-documents/{id}/boxes', [CurrentBaselineInboundBoxController::class, 'store'])->middleware('permission:inbound.scan');
+            ->middleware(['permission:inbound.cancel|inbound.create', EnforceInboundWarehouseScope::class]);
+        Route::post('inbound-documents/{id}/boxes', [CurrentBaselineInboundBoxController::class, 'store'])
+            ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
         Route::post('inbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'inboundScan'])
-            ->middleware(['permission:inbound.scan', EnsureInboundComponentBox::class]);
+            ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class, EnsureInboundComponentBox::class]);
         // ERD bảng 28 inbound_scan_entries.status ACTIVE/REMOVED "cho sửa trước Post":
         // đối xứng với outbound-documents/{id}/unmatch, stock-neutral.
         Route::post('inbound-documents/{id}/unscan', [CurrentBaselineStockFlowController::class, 'inboundUnscan'])
-            ->middleware('permission:inbound.scan');
-        Route::post('inbound-documents/{id}/post-receipt', [CurrentBaselineStockFlowController::class, 'postReceipt'])->middleware('permission:inbound.post');
-        Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])->middleware('permission:inventory.reversal.post');
+            ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
+        Route::post('inbound-documents/{id}/post-receipt', [CurrentBaselineStockFlowController::class, 'postReceipt'])
+            ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
+        Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])
+            ->middleware(['permission:inventory.reversal.post', EnforceInboundWarehouseScope::class]);
 
         // SRS §3: "Putaway task list/create/confirm/cancel" -> permission key
         // `putaway.manage` (NV kho = A*). Path legacy /putaway/* phải nhận cùng bộ
@@ -275,9 +291,9 @@ Route::prefix('v1')->group(function (): void {
         // permission dùng dạng `chuẩn|legacy` để không thu hồi quyền đang cấp.
         // ──────────────────────────────────────────────────────────────────
         Route::post('inbound-documents/{id}/scans', [CurrentBaselineStockFlowController::class, 'inboundScan'])
-            ->middleware(['permission:inbound.scan', EnsureInboundComponentBox::class]);
+            ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class, EnsureInboundComponentBox::class]);
         Route::post('inbound-documents/{id}/reversals', [CurrentBaselineStockFlowController::class, 'reverseInbound'])
-            ->middleware('permission:inventory.reversal.post');
+            ->middleware(['permission:inventory.reversal.post', EnforceInboundWarehouseScope::class]);
 
         // Route /scan gốc được Flow06AlignmentServiceProvider override sang
         // AlignedOutboundFlowController; alias phải trỏ thẳng handler thật để hai
@@ -323,7 +339,7 @@ Route::prefix('v1')->group(function (): void {
 
         // Annex D SCR-IN-01: đọc lại bằng chứng quét của phiếu nhập.
         Route::get('inbound-documents/{id}/scan-entries', [CurrentBaselineDocumentController::class, 'inboundScanEntries'])
-            ->middleware('permission:inbound.view');
+            ->middleware(['permission:inbound.view', EnforceInboundWarehouseScope::class]);
 
         // Annex C createWarehouse — REQ-SRS-001: kho ACTIVE thứ hai trả 409 STATE_CONFLICT.
         Route::post('warehouses', [WarehouseController::class, 'store'])->middleware('permission:warehouse.manage');

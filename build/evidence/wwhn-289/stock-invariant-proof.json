@@ -1,0 +1,72 @@
+{
+    "retry": {
+        "nfr": "NFR-SRS-001 / TC-NFR-001",
+        "attempts": [
+            {
+                "attempt": 1,
+                "http_status": 200,
+                "idempotent_replay_header": "false",
+                "replayed_in_body": false
+            },
+            {
+                "attempt": 2,
+                "http_status": 200,
+                "idempotent_replay_header": "true",
+                "replayed_in_body": true
+            },
+            {
+                "attempt": 3,
+                "http_status": 200,
+                "idempotent_replay_header": "true",
+                "replayed_in_body": true
+            }
+        ],
+        "movement_count": 1,
+        "balance_quantity": 5,
+        "verdict": "PASS"
+    },
+    "idempotency_conflict": {
+        "ac": "AC-GWT-IDEMP-001 / TC-P1-030",
+        "replay_same_payload_http": 200,
+        "conflict_http": 409,
+        "conflict_error_code": "IDEMPOTENCY_CONFLICT",
+        "movement_count_unchanged": true,
+        "balance_unchanged": true,
+        "verdict": "PASS"
+    },
+    "rollback": {
+        "nfr": "NFR-SRS-002 / TC-NFR-002",
+        "injection_point": "INSERT INTO stock_movements",
+        "http_status_on_failure": 500,
+        "error_code": "INTERNAL_SERVER_ERROR",
+        "stack_trace_leaked": false,
+        "movement_rolled_back": true,
+        "balance_rolled_back": true,
+        "document_state_preserved": "SCANNING",
+        "retry_after_failure_succeeds": true,
+        "verdict": "PASS"
+    },
+    "concurrent_duplicate_reversal": {
+        "nfr": "NFR-SRS-003",
+        "first_reversal_http": 200,
+        "second_reversal_http": 422,
+        "second_error_code": "REVERSAL_QTY_EXCEEDED",
+        "balance_after": 0,
+        "negative_stock": false,
+        "verdict": "PASS"
+    },
+    "reconcile": {
+        "srs": "§7.5 Reconciliation Controls",
+        "rows_checked": 2,
+        "mismatch_count": 0,
+        "report_status": "PASS",
+        "independent_sql_mismatches": [],
+        "verdict": "PASS"
+    },
+    "meta": {
+        "jira": "WWHN-289",
+        "register_item": "DEV289-P1-03",
+        "driver": "sqlite",
+        "generated_by": "Tests\\Feature\\Wwhn289StockInvariantProofTest"
+    }
+}

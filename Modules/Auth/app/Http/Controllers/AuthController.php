@@ -3,9 +3,12 @@
 namespace Modules\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\RateLimitResponse;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Http\Requests\LoginRequest;
 use Modules\Auth\Models\User;
@@ -37,6 +40,7 @@ class AuthController extends Controller
             new OA\Response(response: 401, description: 'Sai định danh hoặc mật khẩu'),
             new OA\Response(response: 403, description: 'Tài khoản bị khoá/ngừng hoạt động'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+            new OA\Response(response: 429, description: 'Vượt ngưỡng đăng nhập sai liên tiếp'),
         ]
     )]
     public function login(LoginRequest $request)
@@ -47,7 +51,31 @@ class AuthController extends Controller
             $credentials = ['email' => (string) $request->input('email'), 'password' => (string) $request->input('password')];
         }
 
+        // WWHN-289 (DEV289-P1-04): trước đây /auth/login không có bất kỳ giới hạn
+        // nào — dò mật khẩu không giới hạn tốc độ. Chỉ đếm lần THẤT BẠI và khoá
+        // theo (IP + định danh đăng nhập) nên đăng nhập đúng không bao giờ bị
+        // chặn và một IP dùng chung (NAT trong kho) không tự khoá lẫn nhau.
+        $throttleKey = $this->loginThrottleKey($request, $credentials);
+        $maxAttempts = (int) config('rate_limit.auth_login_per_minute', 10);
+        if ($maxAttempts > 0 && RateLimiter::tooManyAttempts($throttleKey, $maxAttempts)) {
+            $retryAfter = RateLimiter::availableIn($throttleKey);
+            $this->auditLogger->log(
+                'LOGIN_THROTTLED', 'app_user', null, null,
+                $this->currentRequestId(), [], ['retry_after_seconds' => $retryAfter],
+                'Too many failed login attempts'
+            );
+
+            return RateLimitResponse::make(
+                $request,
+                ['Retry-After' => (string) $retryAfter],
+                'Bạn đã đăng nhập sai quá nhiều lần. Vui lòng thử lại sau '.$retryAfter.' giây.',
+            );
+        }
+
         if (! $accessToken = auth('api')->attempt($credentials)) {
+            if ($maxAttempts > 0) {
+                RateLimiter::hit($throttleKey, 60);
+            }
             $user = $request->filled('username')
                 ? User::query()->where('username', $credentials['username'])->first()
                 : User::query()->where('email', $credentials['email'] ?? null)->first();
@@ -74,6 +102,11 @@ class AuthController extends Controller
 
         if ($user->status !== 'ACTIVE') {
             auth('api')->logout();
+            // Tài khoản INACTIVE/LOCKED vẫn tính là lần thử hỏng: nếu không đếm,
+            // kẻ tấn công dò được mật khẩu đúng của tài khoản đã khoá vô hạn lần.
+            if ($maxAttempts > 0) {
+                RateLimiter::hit($throttleKey, 60);
+            }
             $this->auditLogger->log(
                 'LOGIN_DENIED', 'app_user', $user->user_id, $user->user_id,
                 $this->currentRequestId(), [], ['status' => $user->status],
@@ -82,6 +115,9 @@ class AuthController extends Controller
 
             return $this->respondError('Tài khoản đang bị khoá hoặc ngừng hoạt động.', [], 403, 'ACCESS_DENIED');
         }
+
+        // Đăng nhập thành công xoá bộ đếm để người dùng hợp lệ không bị phạt oan.
+        RateLimiter::clear($throttleKey);
 
         $refreshToken = $this->refreshTokens->issue($user, $request);
         $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
@@ -296,6 +332,20 @@ class AuthController extends Controller
             ],
             'user' => $this->userPayload($user),
         ], 'Chuyển ngữ cảnh thành công');
+    }
+
+    /**
+     * WWHN-289: khoá brute-force theo (IP + định danh đăng nhập đã chuẩn hoá).
+     * Không dùng riêng IP (một kho NAT chung sẽ tự khoá lẫn nhau) và không dùng
+     * riêng username (kẻ tấn công đổi username là thoát khoá).
+     *
+     * @param  array<string, string>  $credentials
+     */
+    private function loginThrottleKey(Request $request, array $credentials): string
+    {
+        $identifier = Str::lower(trim((string) ($credentials['username'] ?? $credentials['email'] ?? '')));
+
+        return 'auth-login:'.sha1($request->ip().'|'.$identifier);
     }
 
     private function userPayload(User $user): array

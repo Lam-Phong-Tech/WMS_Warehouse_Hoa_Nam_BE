@@ -1,0 +1,163 @@
+name: WWHN-289 Exact SHA Closure
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-289/**'
+      - 'tests/Feature/Wwhn289StockInvariantProofTest.php'
+      - 'tests/Feature/Wwhn289SecurityRegressionProofTest.php'
+      - 'tests/Feature/Wwhn289ClosureEvidenceTest.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'app/Support/RateLimitResponse.php'
+      - 'app/Providers/AppServiceProvider.php'
+      - 'config/rate_limit.php'
+      - 'Modules/Auth/app/Http/Controllers/AuthController.php'
+      - 'Modules/Auth/routes/api.php'
+      - 'Modules/Warehouse/app/Http/Middleware/**'
+      - 'Modules/Warehouse/routes/api.php'
+      - '.github/workflows/wwhn-289-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-289/**'
+      - 'tests/Feature/Wwhn289StockInvariantProofTest.php'
+      - 'tests/Feature/Wwhn289SecurityRegressionProofTest.php'
+      - 'tests/Feature/Wwhn289ClosureEvidenceTest.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'app/Support/RateLimitResponse.php'
+      - 'app/Providers/AppServiceProvider.php'
+      - 'config/rate_limit.php'
+      - 'Modules/Auth/app/Http/Controllers/AuthController.php'
+      - 'Modules/Auth/routes/api.php'
+      - 'Modules/Warehouse/app/Http/Middleware/**'
+      - 'Modules/Warehouse/routes/api.php'
+      - '.github/workflows/wwhn-289-closure.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  closure:
+    name: Stock invariant / security regression closure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn289
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn289"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: WWHN289-CI-Only-2026
+      JWT_SECRET: WWHN289-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn289
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Style check on WWHN-289 sources
+        run: >-
+          vendor/bin/pint --test
+          tests/Feature/Wwhn289StockInvariantProofTest.php
+          tests/Feature/Wwhn289SecurityRegressionProofTest.php
+          tests/Feature/Wwhn289ClosureEvidenceTest.php
+          app/Support/RateLimitResponse.php
+          app/Support/IdempotencyStore.php
+          app/Providers/AppServiceProvider.php
+          config/rate_limit.php
+          Modules/Warehouse/app/Http/Middleware/EnforceInboundWarehouseScope.php
+
+      - name: Fail-closed evidence markers
+        run: |
+          set -euo pipefail
+          register='docs/evidence/WWHN-289/WWHN-289_DEFECT_FIX_REGISTER.md'
+          test -s "$register"
+          for marker in DEV289-P1-01 DEV289-P1-02 DEV289-P1-03 DEV289-P1-04 DEV289-P1-05 DEV289-P1-06 SEC289-01 SEC289-02 SEC289-03; do
+            grep -Fq "$marker" "$register"
+          done
+          grep -Fq 'FAIL-CLOSED / NEEDS OWNER DISPOSITION' "$register"
+          grep -Fq 'không** tuyên bố QA1 PASS' "$register"
+          test -s 'docs/evidence/WWHN-289/WWHN-289_PINS.json'
+          php -r '$d=json_decode(file_get_contents("docs/evidence/WWHN-289/WWHN-289_PINS.json"), true, 512, JSON_THROW_ON_ERROR); foreach (["SEC289-01","SEC289-02","SEC289-03"] as $f) { if (empty($d["findings"][$f]["regression_test"])) { fwrite(STDERR, "Finding $f thiếu regression_test\n"); exit(1); } } echo "PINS ok\n";'
+
+      - name: Assert canonical 409 idempotency contract is not regressed
+        run: |
+          set -euo pipefail
+          # §8.2 + AC-GWT-IDEMP-001: mã ngoài contract không được quay lại.
+          if grep -rn "IDEMPOTENCY_ERROR" app/ Modules/ tests/ --include='*.php'; then
+            echo "IDEMPOTENCY_ERROR không còn là mã hợp lệ theo SRS §8.2" >&2
+            exit 1
+          fi
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+
+      - name: WWHN-289 focused regression suite
+        run: >-
+          php artisan test --filter
+          '/(Wwhn289StockInvariantProofTest|Wwhn289SecurityRegressionProofTest|Wwhn289ClosureEvidenceTest|Wwhn201PostIssueAtomicNonNegativeStockTest|Wwhn199ReservationConcurrencyGuardTest|Wwhn180IdempotencyAtomicityTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest|InventoryReconciliationIntegrityTest|Wwhn211InventoryScopeTest|SecurityRbacAuditNegativeTest|AuthRbacAuditHardeningTest|AuthorizationTest|Wwhn172SkuContainerTransactionTest|WarrantyStatusOnlyContractTest)/'
+
+      - name: Exact SHA evidence summary
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-289
+          cp build/evidence/wwhn-289/stock-invariant-proof.json artifacts/wwhn-289/
+          cp build/evidence/wwhn-289/security-regression-proof.json artifacts/wwhn-289/
+          mismatch="$(php -r '$d=json_decode(file_get_contents("artifacts/wwhn-289/stock-invariant-proof.json"), true, 512, JSON_THROW_ON_ERROR); echo (int) $d["reconcile"]["mismatch_count"];')"
+          if [ "$mismatch" != "0" ]; then
+            echo "Reconcile mismatch=$mismatch, gate yêu cầu 0" >&2
+            exit 1
+          fi
+          cat > artifacts/wwhn-289/manifest.txt <<EOF
+          jira=WWHN-289
+          branch=${GITHUB_REF_NAME}
+          sha=${GITHUB_SHA}
+          db=postgres16
+          reconcile_mismatch=${mismatch}
+          result=PASS
+          qa1_signoff=NOT_CLAIMED_BY_DEV
+          EOF
+          sha256sum artifacts/wwhn-289/* > artifacts/wwhn-289/SHA256SUMS
+          cat artifacts/wwhn-289/manifest.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-289-exact-sha-${{ github.sha }}
+          path: artifacts/wwhn-289
+          if-no-files-found: error
+          retention-days: 30
