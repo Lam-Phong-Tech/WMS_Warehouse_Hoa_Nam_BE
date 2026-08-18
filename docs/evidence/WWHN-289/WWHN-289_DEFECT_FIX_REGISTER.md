@@ -8,7 +8,7 @@
 | Pin | Giá trị |
 |---|---|
 | Change-range base (BE) | `93b1e71f0e01c8a7c77670e0c8f0af38d2e68470` |
-| Change-range final (BE candidate) | `e593202a580d8033257e8aabaae0e5d886071ab2` |
+| Change-range final (BE candidate) | `e593202a580d8033257e8aabaae0e5d886071ab2` (+ hai commit evidence kế tiếp, xem PINS) |
 | FE consumer base | `226075d21f2bf953c5f639c71598136e434fc42b` |
 | FE consumer final | `404267083d2c0ca79507f7fc1fdf05170cdae48e` |
 

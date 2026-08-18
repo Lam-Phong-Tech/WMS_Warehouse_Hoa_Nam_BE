@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\IdempotencyStore;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
@@ -176,7 +177,13 @@ class ApiConventionMiddleware
                             break;
                         case 409:
                             if (str_contains(strtolower($message), 'idempotency')) {
-                                $defaultErrorCode = 'IDEMPOTENCY_ERROR';
+                                // WWHN-289: §8.2 chỉ công nhận STATE_CONFLICT /
+                                // IDEMPOTENCY_CONFLICT / CONCURRENCY_CONFLICT /
+                                // DOWNSTREAM_DEPENDENCY_EXISTS cho 409. Đây là nguồn
+                                // phát mã lỗi thứ hai bên cạnh IdempotencyStore nên phải
+                                // dùng chung hằng — nếu không, cùng một tình huống sẽ
+                                // trả hai mã khác nhau tuỳ đường đi của response.
+                                $defaultErrorCode = IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS;
                             } elseif (str_contains(strtolower($message), 'trùng') || str_contains(strtolower($message), 'duplicate') || str_contains(strtolower($message), 'unique') || str_contains(strtolower($message), 'đã tồn tại')) {
                                 $defaultErrorCode = 'DUPLICATE_RESOURCE';
                             } else {

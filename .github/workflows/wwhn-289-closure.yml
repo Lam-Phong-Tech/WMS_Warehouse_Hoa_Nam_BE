@@ -113,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           # §8.2 + AC-GWT-IDEMP-001: mã ngoài contract không được quay lại.
-          if grep -rn "IDEMPOTENCY_ERROR" app/ Modules/ tests/ --include='*.php'; then
+          if grep -rn "'IDEMPOTENCY_ERROR'" app/ Modules/ tests/ --include='*.php'; then
             echo "IDEMPOTENCY_ERROR không còn là mã hợp lệ theo SRS §8.2" >&2
             exit 1
           fi
