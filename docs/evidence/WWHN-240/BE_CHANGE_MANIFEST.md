@@ -23,7 +23,8 @@ c855851b37920237d110f7dffe5dbbad509aebce   (chứa buildXnt gross/reversal/net)
 9640091cf780fce1ef54102f6955971a57c5678b   (trace chain, OpenAPI, test, decision record)
 ```
 
-Nói cách khác: `9640091` là SHA phát hành của WWHN-240; `c855851` là ancestor bắt buộc.
+Nói cách khác: `9640091` là SHA phát hành **code** của WWHN-240; `c855851` là ancestor bắt buộc;
+`91f53cae3db03b3973345aeddc446745190ca30c` là commit evidence pack (tài liệu, không có code).
 Reviewer đọc `git diff c855851~1..9640091 -- Modules/Warehouse/app/Http/Controllers/OperationalReportController.php`
 sẽ thấy trọn phần XNT.
 
