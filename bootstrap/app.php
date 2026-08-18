@@ -28,6 +28,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // WWHN-295: BE luôn chạy sau reverse proxy (nginx -> php-fpm, cộng TLS
+        // terminator do DevOps sở hữu). Chỉ tin đúng 4 header X-Forwarded chuẩn
+        // của topology này — không tin biến thể AWS ELB / X-Forwarded-Prefix.
+        // Danh sách proxy được tin đặt tại config/trustedproxy.php để
+        // `php artisan config:cache` không làm rỗng giá trị.
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR
+            | Request::HEADER_X_FORWARDED_HOST
+            | Request::HEADER_X_FORWARDED_PORT
+            | Request::HEADER_X_FORWARDED_PROTO);
+
         $middleware->prepend(Wwhn172AggregateLock::class);
         $middleware->prepend(ApiConventionMiddleware::class);
         // Keep this outermost so every successful API response is forced to

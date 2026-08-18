@@ -120,6 +120,12 @@ jobs:
             echo "REDIS_HOST=127.0.0.1"
             echo "REDIS_PORT=$CI_REDIS_PORT"
             echo "L5_SWAGGER_CONST_HOST=$CI_APP_URL"
+            # WWHN-295: artifact chạy trong pipeline này phải tự khai đúng commit
+            # đã build, để reviewer/QA đọc SHA từ GET /api/v1/health (data.build)
+            # thay vì tin lời khai trong mô tả deploy.
+            echo "APP_BUILD_SHA=$GITHUB_SHA"
+            echo "APP_BUILD_REF=$GITHUB_REF_NAME"
+            echo "APP_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } >> .env
 
       - name: Install PHP dependencies

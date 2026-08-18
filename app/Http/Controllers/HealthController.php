@@ -43,6 +43,14 @@ class HealthController extends Controller
         $payload = [
             'status' => $healthy ? 'ok' : 'degraded',
             'version' => (string) config('health.version'),
+            // WWHN-295: danh tính artifact đang chạy, để QA/DevOps buộc bằng chứng
+            // vào đúng SHA đã deploy thay vì tin lời khai. Không phải secret —
+            // chỉ commit SHA/ref/thời điểm build, không lộ cấu hình hay đường dẫn.
+            'build' => [
+                'sha' => config('health.build.sha'),
+                'ref' => config('health.build.ref'),
+                'built_at' => config('health.build.built_at'),
+            ],
             'environment' => app()->environment(),
             'server_time' => now()->toIso8601String(),
             'request_id' => $this->currentRequestId(),

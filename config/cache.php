@@ -81,7 +81,13 @@ return [
         'redis' => [
             'driver' => 'redis',
             'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
-            'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'default'),
+            // WWHN-295: lock của Cache::lock() (stampede protection trong
+            // App\Support\Cache\CacheService::rememberStampede) thuộc về
+            // application cache, nên phải nằm CÙNG Valkey DB với cache (DB 1).
+            // Mặc định 'default' của Laravel đẩy chúng sang DB 0 — nơi
+            // .env.example và ClearWmsCache khẳng định chỉ có session/queue —
+            // khiến việc reset session/queue có thể xoá lock đang giữ và ngược lại.
+            'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'cache'),
         ],
 
         'dynamodb' => [

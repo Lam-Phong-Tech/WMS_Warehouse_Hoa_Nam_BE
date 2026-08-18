@@ -53,12 +53,16 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=90"]
+    # WWHN-295: worker timeout và queue retry_after phải đọc CÙNG một biến.
+    # config/queue.php suy ra retry_after = QUEUE_WORKER_TIMEOUT + 30 nên job
+    # chạy sát ngưỡng không bị queue phát lại cho worker thứ hai.
+    command: ["sh", "-lc", "php artisan queue:work --tries=3 --timeout=${QUEUE_WORKER_TIMEOUT:-90}"]
     volumes:
       - .:/var/www/html:delegated
       - wms_vendor:/var/www/html/vendor
     environment:
       - AUTO_MIGRATE=false
+      - QUEUE_WORKER_TIMEOUT=${QUEUE_WORKER_TIMEOUT:-90}
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432

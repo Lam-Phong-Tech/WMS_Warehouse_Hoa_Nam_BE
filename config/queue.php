@@ -1,6 +1,26 @@
 <?php
 
+/**
+ * WWHN-295 — Bất biến runtime của queue: retry_after PHẢI lớn hơn timeout của
+ * worker. Nếu bằng nhau (mặc định cũ: worker `--timeout=90` trong
+ * docker-compose.yml đối với retry_after 90), một job chạy sát ngưỡng sẽ được
+ * queue release lại đúng lúc worker vẫn đang xử lý -> worker thứ hai nhận LẠI
+ * chính job đó. Với audit outbox và reconcile tồn kho, chạy hai lần nghĩa là
+ * bản ghi audit trùng hoặc số liệu đối soát bị cộng dồn.
+ *
+ * Vì vậy retry_after được SUY RA từ worker timeout thay vì khai độc lập; hai
+ * giá trị không thể lệch nhau do sửa một chỗ mà quên chỗ kia.
+ * `wms:golive-check` (core.queue_retry_window) chặn cutover nếu bất biến này vỡ.
+ */
+$workerTimeout = max(1, (int) env('QUEUE_WORKER_TIMEOUT', 90));
+$retryAfter = max($workerTimeout + 30, (int) env('QUEUE_RETRY_AFTER', $workerTimeout + 30));
+
 return [
+
+    // Timeout mà `php artisan queue:work --timeout=` phải dùng (docker-compose.yml
+    // đọc cùng biến QUEUE_WORKER_TIMEOUT) — dùng cho golive-check, không phải key
+    // của Laravel.
+    'worker_timeout' => $workerTimeout,
 
     /*
     |--------------------------------------------------------------------------
@@ -40,7 +60,7 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', $retryAfter),
             'after_commit' => false,
         ],
 
@@ -48,7 +68,7 @@ return [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),
             'queue' => env('BEANSTALKD_QUEUE', 'default'),
-            'retry_after' => (int) env('BEANSTALKD_QUEUE_RETRY_AFTER', 90),
+            'retry_after' => (int) env('BEANSTALKD_QUEUE_RETRY_AFTER', $retryAfter),
             'block_for' => 0,
             'after_commit' => false,
         ],
@@ -68,7 +88,7 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', $retryAfter),
             'block_for' => null,
             'after_commit' => false,
         ],

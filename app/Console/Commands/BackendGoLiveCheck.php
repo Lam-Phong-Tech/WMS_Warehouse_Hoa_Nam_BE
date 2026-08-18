@@ -78,7 +78,10 @@ class BackendGoLiveCheck extends Command
         $this->check('schema.canonical_relations', $this->canonicalRelations(...));
         $this->check('seed.identity_markers', $this->seedMarkers(...));
         $this->check('security.runtime_config', fn (): array => $this->runtimeConfig());
+        $this->check('security.browser_runtime_contract', $this->browserRuntimeContract(...));
         $this->check('security.route_default_deny', $this->routeDefaultDeny(...));
+        $this->check('release.build_identity', $this->buildIdentity(...));
+        $this->check('runtime.queue_retry_window', $this->queueRetryWindow(...));
         $this->check('core.idempotency_store', $this->idempotencyStore(...));
         $this->check('core.audit_backlog', $this->auditBacklog(...));
         $this->check('core.reconciliation_backlog', $this->reconciliationBacklog(...));
@@ -257,14 +260,289 @@ class BackendGoLiveCheck extends Command
             $findings['jwt_secret'] = 'JWT_SECRET vẫn là giá trị mặc định dùng cho test.';
         }
 
+        // WWHN-295: BE luôn chạy sau nginx/TLS terminator. Không khai trusted proxy
+        // thì $request->ip() ghi vào refresh_tokens.ip_address là IP của proxy —
+        // trường bằng chứng phiên đăng nhập mất giá trị điều tra mà không có lỗi nào.
+        $trustedProxies = trim((string) config('trustedproxy.proxies'));
+        if ($trustedProxies === '') {
+            $findings['trusted_proxies'] = 'TRUSTED_PROXIES trống — X-Forwarded-* bị bỏ qua, IP client và scheme https ghi nhận sai.';
+        }
+
+        // Hồ sơ log của .env.example là hồ sơ DEV: 'single' ghi vào một file không
+        // giới hạn (đầy đĩa là sự cố runtime), 'debug' ghi cả payload request.
+        if (! $isDevelopment) {
+            $logChannels = array_map(
+                static fn ($channel): string => strtolower(trim((string) $channel)),
+                (array) config('logging.channels.stack.channels', [])
+            );
+            if (in_array('single', $logChannels, true)) {
+                $findings['log_stack'] = 'LOG_STACK=single ngoài local/testing — log không xoay vòng, đầy đĩa sẽ làm sập runtime.';
+            }
+            if (strtolower((string) config('logging.channels.single.level')) === 'debug') {
+                $findings['log_level'] = 'LOG_LEVEL=debug ngoài local/testing — payload request bị ghi vào log.';
+            }
+        }
+
         return [
             'status' => $findings === [] ? 'ok' : 'fail',
             'detail' => [
                 'environment' => $environment,
                 'debug' => (bool) config('app.debug'),
+                'trusted_proxies' => $trustedProxies === '' ? null : $trustedProxies,
                 'findings' => $findings,
             ],
         ];
+    }
+
+    /**
+     * WWHN-295 — danh tính artifact đang chạy.
+     *
+     * Mọi gate exact-SHA của dự án (WWHN-273/290/296/300) yêu cầu bằng chứng gắn
+     * với đúng commit đã deploy, nhưng trước đây không có cách nào ĐỌC được SHA đó
+     * từ backend đang chạy: reviewer phải tin lời khai trong mô tả deploy. CI/DevOps
+     * inject APP_BUILD_SHA lúc build image; thiếu nó ngoài local/testing thì bằng
+     * chứng cutover không buộc được vào artifact nào cả.
+     *
+     * @return array{status:string, detail:array<string,mixed>}
+     */
+    private function buildIdentity(): array
+    {
+        $isDevelopment = in_array(app()->environment(), ['local', 'testing'], true);
+        $sha = trim((string) config('health.build.sha'));
+
+        $detail = [
+            'version' => (string) config('health.version'),
+            'sha' => $sha === '' ? null : $sha,
+            'ref' => config('health.build.ref'),
+            'built_at' => config('health.build.built_at'),
+            'published_at' => '/api/v1/health -> data.build',
+        ];
+
+        if ($sha !== '') {
+            return ['status' => 'ok', 'detail' => $detail];
+        }
+
+        // Local/dev không build qua CI nên thiếu SHA là bình thường, chỉ cảnh báo.
+        return [
+            'status' => $isDevelopment ? 'warn' : 'fail',
+            'detail' => $detail + ['note' => 'APP_BUILD_SHA chưa được inject — không buộc được bằng chứng vào commit đã deploy.'],
+        ];
+    }
+
+    /**
+     * WWHN-295 — cửa sổ retry của queue phải rộng hơn timeout của worker.
+     *
+     * Nếu retry_after <= timeout, một job chạy sát ngưỡng được queue release lại
+     * đúng lúc worker đầu tiên vẫn đang xử lý, và worker thứ hai nhận LẠI job đó.
+     * Với audit outbox và reconcile tồn kho, chạy hai lần nghĩa là bản ghi audit
+     * trùng hoặc số liệu đối soát bị cộng dồn — hỏng dữ liệu chứ không chỉ chậm.
+     *
+     * @return array{status:string, detail:array<string,mixed>}
+     */
+    private function queueRetryWindow(): array
+    {
+        $connection = (string) config('queue.default');
+        $retryAfter = config("queue.connections.{$connection}.retry_after");
+        $workerTimeout = (int) config('queue.worker_timeout');
+
+        $detail = [
+            'connection' => $connection,
+            'retry_after' => $retryAfter,
+            'worker_timeout' => $workerTimeout,
+        ];
+
+        // sync/deferred/background chạy trong tiến trình gọi, không có vòng release.
+        if ($retryAfter === null) {
+            return ['status' => 'ok', 'detail' => $detail + ['note' => 'Driver không dùng retry_after.']];
+        }
+
+        return [
+            'status' => (int) $retryAfter > $workerTimeout ? 'ok' : 'fail',
+            'detail' => $detail,
+        ];
+    }
+
+    /**
+     * WWHN-296 — browser runtime contract for the deployed environment.
+     *
+     * The FE/BE auth contract is credentialed: the access JWT stays in memory
+     * and the session only survives F5 because the browser replays the HttpOnly
+     * refresh cookie. That contract has deployment-only failure modes which no
+     * unit test can see, because they depend on the values injected at cutover:
+     * an empty/wildcard CORS allow-list, an http origin, or SameSite=Lax while
+     * the FE is served from a different site. Each of those still returns 200 on
+     * a curl probe and still passes /api/v1/health, then silently logs every
+     * browser user out on reload.
+     *
+     * Running this against the real environment is what turns "config was
+     * reviewed" into the sanitized config matrix DevOps/QA must attach.
+     *
+     * @return array{status:string, detail:array<string,mixed>}
+     */
+    private function browserRuntimeContract(): array
+    {
+        $environment = app()->environment();
+        $isDevelopment = in_array($environment, ['local', 'testing'], true);
+
+        $appUrl = rtrim((string) config('app.url'), '/');
+        $origins = array_values(array_filter(
+            array_map(static fn ($origin): string => trim((string) $origin), (array) config('cors.allowed_origins')),
+            static fn (string $origin): bool => $origin !== ''
+        ));
+        $supportsCredentials = (bool) config('cors.supports_credentials');
+
+        $cookie = (array) config('refresh_token.cookie');
+        $cookiePath = (string) ($cookie['path'] ?? '');
+        $cookieSecure = (bool) ($cookie['secure'] ?? false);
+        $cookieSameSite = strtolower(trim((string) ($cookie['same_site'] ?? '')));
+
+        $findings = [];
+        $warnings = [];
+
+        // --- CORS allow-list -------------------------------------------------
+        if ($origins === []) {
+            $message = 'CORS_ALLOWED_ORIGINS trống — browser FE không gọi được API.';
+            $isDevelopment ? $warnings['cors_origins'] = $message : $findings['cors_origins'] = $message;
+        }
+
+        $appHost = parse_url($appUrl, PHP_URL_HOST) ?: '';
+        $crossSiteOrigins = [];
+
+        foreach ($origins as $origin) {
+            if (str_contains($origin, '*')) {
+                $findings['cors_wildcard'] = 'Wildcard origin không hợp lệ với credentialed CORS: '.$origin;
+
+                continue;
+            }
+
+            $scheme = strtolower((string) (parse_url($origin, PHP_URL_SCHEME) ?: ''));
+            $host = strtolower((string) (parse_url($origin, PHP_URL_HOST) ?: ''));
+            $path = (string) (parse_url($origin, PHP_URL_PATH) ?: '');
+
+            if ($scheme === '' || $host === '' || ! in_array($scheme, ['http', 'https'], true)) {
+                $findings['cors_origin_invalid'] = 'Origin phải là scheme://host[:port] hợp lệ: '.$origin;
+
+                continue;
+            }
+
+            if ($path !== '' && $path !== '/') {
+                $findings['cors_origin_path'] = 'Origin không được chứa path: '.$origin;
+            }
+
+            if (! $isDevelopment && $scheme !== 'https') {
+                $findings['cors_origin_insecure'] = 'Ngoài local/testing mọi FE origin phải là https: '.$origin;
+            }
+
+            if ($appHost !== '' && $this->registrableDomain($host) !== $this->registrableDomain($appHost)) {
+                $crossSiteOrigins[] = $origin;
+            }
+        }
+
+        if (! $supportsCredentials) {
+            $findings['cors_credentials'] = 'supports_credentials=false — browser không gửi được refresh cookie, session mất sau F5.';
+        }
+
+        // --- Transport -------------------------------------------------------
+        if ($appUrl === '') {
+            $findings['app_url'] = 'APP_URL trống — không suy ra được health URL/cookie domain.';
+        } elseif (! $isDevelopment) {
+            if (strtolower((string) (parse_url($appUrl, PHP_URL_SCHEME) ?: '')) !== 'https') {
+                $findings['app_url_insecure'] = 'Ngoài local/testing APP_URL phải là https: '.$appUrl;
+            }
+            if (in_array($appHost, ['localhost', '127.0.0.1', '::1'], true)) {
+                $findings['app_url_localhost'] = 'APP_URL vẫn trỏ localhost ngoài local/testing: '.$appUrl;
+            }
+        }
+
+        // --- Refresh cookie policy ------------------------------------------
+        if (! in_array($cookieSameSite, ['lax', 'strict', 'none'], true)) {
+            $findings['refresh_cookie_same_site'] = 'REFRESH_TOKEN_COOKIE_SAME_SITE phải là lax|strict|none, đang là "'.$cookieSameSite.'".';
+        }
+
+        if ($crossSiteOrigins !== [] && $cookieSameSite !== 'none') {
+            // Same rule locally, but http://localhost vs http://127.0.0.1 is
+            // already cross-site and must not turn a dev machine into a FAIL.
+            $message = 'FE khác site với API ('.implode(', ', $crossSiteOrigins).') nên SameSite phải là "none"; giá trị "'.$cookieSameSite.'" khiến browser không gửi refresh cookie và user bị đăng xuất sau F5.';
+            $isDevelopment ? $warnings['refresh_cookie_cross_site'] = $message : $findings['refresh_cookie_cross_site'] = $message;
+        }
+
+        if ($cookieSameSite === 'none' && ! $cookieSecure) {
+            $findings['refresh_cookie_none_insecure'] = 'SameSite=None bắt buộc Secure=true.';
+        }
+
+        if ($cookieSameSite === 'strict') {
+            $warnings['refresh_cookie_strict'] = 'SameSite=Strict chặn cookie khi user quay lại từ liên kết ngoài; cân nhắc "lax" cho FE cùng site.';
+        }
+
+        if (! $isDevelopment && ! $cookieSecure) {
+            $findings['refresh_cookie_insecure'] = 'Refresh cookie phải Secure ngoài local/testing.';
+        }
+
+        if (! str_starts_with($cookiePath, '/api/v1/auth')) {
+            $findings['refresh_cookie_path'] = 'REFRESH_TOKEN_COOKIE_PATH phải nằm dưới /api/v1/auth để cookie chỉ đi kèm endpoint refresh, đang là "'.$cookiePath.'".';
+        }
+
+        if (! $isDevelopment && config('session.secure') !== true) {
+            $warnings['session_secure_cookie'] = 'SESSION_SECURE_COOKIE chưa bật ngoài local/testing.';
+        }
+
+        return [
+            'status' => $findings !== [] ? 'fail' : ($warnings !== [] ? 'warn' : 'ok'),
+            // Sanitized config matrix: origins/paths/flags only, never secrets.
+            'detail' => [
+                'environment' => $environment,
+                'app_url' => $appUrl,
+                'health_url' => $appUrl === '' ? null : $appUrl.'/api/v1/health',
+                'cors' => [
+                    'allowed_origins' => $origins,
+                    'supports_credentials' => $supportsCredentials,
+                    'exposed_headers' => array_values((array) config('cors.exposed_headers')),
+                ],
+                'refresh_cookie' => [
+                    'name' => (string) ($cookie['name'] ?? ''),
+                    'path' => $cookiePath,
+                    'domain' => $cookie['domain'] ?? null,
+                    'secure' => $cookieSecure,
+                    'same_site' => $cookieSameSite,
+                    'http_only' => true,
+                ],
+                'cross_site_frontend_origins' => $crossSiteOrigins,
+                'findings' => $findings,
+                'warnings' => $warnings,
+            ],
+        ];
+    }
+
+    /**
+     * SameSite is scoped to the registrable domain, not the origin: an FE on
+     * app.example.com and an API on api.example.com are same-site and Lax keeps
+     * working. Only a different registrable domain needs SameSite=None. There is
+     * no public-suffix list in the runtime, so multi-label suffixes that matter
+     * for this deployment (.vn in particular) are listed explicitly; anything
+     * else falls back to the last two labels.
+     */
+    private function registrableDomain(string $host): string
+    {
+        $host = strtolower(trim($host, '. '));
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return $host;
+        }
+
+        $labels = explode('.', $host);
+        if (count($labels) <= 2) {
+            return $host;
+        }
+
+        $multiLabelSuffixes = [
+            'com.vn', 'net.vn', 'org.vn', 'edu.vn', 'gov.vn', 'biz.vn', 'info.vn', 'name.vn', 'pro.vn', 'ac.vn', 'int.vn', 'health.vn',
+            'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au', 'net.au', 'org.au', 'co.jp', 'co.kr', 'com.sg', 'com.my', 'co.th',
+            'com.cn', 'com.hk', 'com.tw', 'co.in', 'co.id', 'com.br', 'co.nz', 'com.ph',
+        ];
+
+        $take = in_array(implode('.', array_slice($labels, -2)), $multiLabelSuffixes, true) ? 3 : 2;
+
+        return implode('.', array_slice($labels, -$take));
     }
 
     /**
