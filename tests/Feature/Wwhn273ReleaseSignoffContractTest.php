@@ -71,6 +71,16 @@ class Wwhn273ReleaseSignoffContractTest extends TestCase
         $workflow = $this->readBaseFile(self::WORKFLOW);
 
         $this->assertStringContainsString('php artisan serve', $workflow, 'Thiếu smoke trên runtime đã serve');
+
+        // RefreshDatabase trong suite phía trên chạy trên chính DB của job và để
+        // lại DB đã migrate nhưng CHƯA seed. Không nạp lại trạng thái phát hành
+        // thì health trả 503 và smoke đăng nhập không có identity để dùng.
+        $smokeStep = mb_substr($workflow, (int) mb_strpos($workflow, 'Served runtime smoke'));
+        $this->assertStringContainsString(
+            'php artisan migrate:fresh --seed --force',
+            mb_substr($smokeStep, 0, (int) mb_strpos($smokeStep, 'php artisan serve')),
+            'Bước smoke phải nạp lại migrate+seed trước khi serve'
+        );
         $this->assertStringContainsString('/api/v1/health', $workflow);
         $this->assertStringContainsString('/api/health', $workflow, 'Smoke phải chứng minh path legacy trả 404');
         $this->assertMatchesRegularExpression(

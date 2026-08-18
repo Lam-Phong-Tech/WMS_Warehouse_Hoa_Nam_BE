@@ -133,6 +133,11 @@ jobs:
       - name: Served runtime smoke (canonical health, legacy 404, default deny)
         run: |
           set -euo pipefail
+          # The suite above runs RefreshDatabase against this same PostgreSQL
+          # database, which leaves it migrated but unseeded — health would answer
+          # 503 HEALTH_CHECK_DEGRADED and the login smoke would have no identity.
+          # Restore the released state explicitly before smoking it.
+          php artisan migrate:fresh --seed --force
           php artisan serve --host="$SMOKE_HOST" --port="$SMOKE_PORT" > artifacts/wwhn-273/serve.log 2>&1 &
           for _ in $(seq 1 30); do
             if curl -fsS "http://$SMOKE_HOST:$SMOKE_PORT/api/v1/health" > /dev/null 2>&1; then

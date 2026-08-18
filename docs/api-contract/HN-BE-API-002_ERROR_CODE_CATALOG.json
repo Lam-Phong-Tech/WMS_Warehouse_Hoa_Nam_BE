@@ -1,0 +1,1960 @@
+{
+  "document": "HN-BE-API-002",
+  "title": "WMS Hoa Nam - Backend API v1 error code catalog",
+  "task": "WWHN-309",
+  "generator": "scripts/generate-error-code-catalog.mjs",
+  "envelope": {
+    "shape": "{success:false, message, error_code, errors, error:{code, details}, meta:{request_id, timestamp}}",
+    "note": "error_code và error.code luôn bằng nhau; client không được coi khoá nào là optional."
+  },
+  "total_codes": 243,
+  "codes": [
+    {
+      "code": "BAD_REQUEST",
+      "http_status": [
+        400
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Traits/ApiResponse.php (default map)"
+    },
+    {
+      "code": "INVALID_EXCEL_FILE",
+      "http_status": [
+        400
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:571"
+    },
+    {
+      "code": "INVALID_HEADER",
+      "http_status": [
+        400
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:184"
+    },
+    {
+      "code": "MALFORMED_JSON",
+      "http_status": [
+        400
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Http/Middleware/ApiConventionMiddleware.php:33"
+    },
+    {
+      "code": "UNAUTHENTICATED",
+      "http_status": [
+        401
+      ],
+      "occurrences": 19,
+      "first_seen": "Modules/Auth/app/Http/Controllers/AuthController.php:97"
+    },
+    {
+      "code": "ACCESS_DENIED",
+      "http_status": [
+        403
+      ],
+      "occurrences": 7,
+      "first_seen": "Modules/Auth/app/Http/Controllers/AuthController.php:116"
+    },
+    {
+      "code": "DATA_SCOPE_DENIED",
+      "http_status": [
+        403
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Middleware/EnforceInboundWarehouseScope.php:84"
+    },
+    {
+      "code": "PERMISSION_DENIED",
+      "http_status": [
+        403
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php:51"
+    },
+    {
+      "code": "WAREHOUSE_SCOPE_DENIED",
+      "http_status": [
+        403
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ScanController.php:138"
+    },
+    {
+      "code": "COMPONENT_LINE_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:134"
+    },
+    {
+      "code": "CONTAINER_ITEM_NOT_ACTIVE",
+      "http_status": [
+        404
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:285"
+    },
+    {
+      "code": "CONTAINER_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:74"
+    },
+    {
+      "code": "DOCUMENT_LINE_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:50"
+    },
+    {
+      "code": "INBOUND_SCAN_ENTRY_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:81"
+    },
+    {
+      "code": "LABEL_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:332"
+    },
+    {
+      "code": "MOVEMENT_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:350"
+    },
+    {
+      "code": "OUTBOUND_MATCH_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:169"
+    },
+    {
+      "code": "PHYSICAL_CODE_NOT_FOUND",
+      "http_status": [
+        404,
+        422
+      ],
+      "occurrences": 5,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:340"
+    },
+    {
+      "code": "PUTAWAY_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/PutawayController.php:203"
+    },
+    {
+      "code": "RESOURCE_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 37,
+      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:36"
+    },
+    {
+      "code": "REVERSAL_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:223"
+    },
+    {
+      "code": "SCAN_CODE_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Services/ScanClassificationService.php:66"
+    },
+    {
+      "code": "SKU_NOT_FOUND",
+      "http_status": [
+        404,
+        422
+      ],
+      "occurrences": 5,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineItemIdentityController.php:44"
+    },
+    {
+      "code": "WAREHOUSE_NOT_FOUND",
+      "http_status": [
+        404
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ScanController.php:145"
+    },
+    {
+      "code": "METHOD_NOT_ALLOWED",
+      "http_status": [
+        405
+      ],
+      "occurrences": 2,
+      "first_seen": "bootstrap/app.php:83"
+    },
+    {
+      "code": "ACTIVE_WARRANTY_EXISTS",
+      "http_status": [
+        409
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:233"
+    },
+    {
+      "code": "AGENCY_CODE_IMMUTABLE_AFTER_USE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AgencyController.php:211"
+    },
+    {
+      "code": "ALREADY_FULLY_REVERSED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:339"
+    },
+    {
+      "code": "BOX_IN_OTHER_ACTIVE_RECEIPT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:130"
+    },
+    {
+      "code": "BOX_NOT_PUTAWAY_ELIGIBLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:115"
+    },
+    {
+      "code": "BOX_NOT_RECEIVABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:112"
+    },
+    {
+      "code": "CONTAINER_CLOSED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:142"
+    },
+    {
+      "code": "CONTAINER_CODE_DUPLICATE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:553"
+    },
+    {
+      "code": "CONTAINER_IMMUTABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:79"
+    },
+    {
+      "code": "CONTAINER_NOT_EDITABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:196"
+    },
+    {
+      "code": "CONTAINER_STATE_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:157"
+    },
+    {
+      "code": "CONTAINER_SUBLEDGER_CHANGED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:131"
+    },
+    {
+      "code": "CONTAINER_VERSION_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:562"
+    },
+    {
+      "code": "DEFECT_CODE_IMMUTABLE_AFTER_USE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/DefectCatalogController.php:202"
+    },
+    {
+      "code": "DOWNSTREAM_DEPENDENCY_EXISTS",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:502"
+    },
+    {
+      "code": "DUPLICATE_CODE_VALUE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:144"
+    },
+    {
+      "code": "DUPLICATE_COMPONENT_ITEM",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:166"
+    },
+    {
+      "code": "DUPLICATE_HARDWARE_UID",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:134"
+    },
+    {
+      "code": "DUPLICATE_ITEM_IN_DOCUMENT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:665"
+    },
+    {
+      "code": "DUPLICATE_ITEM_MATCH",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:627"
+    },
+    {
+      "code": "DUPLICATE_OUTBOUND_REQUEST_NO",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:270"
+    },
+    {
+      "code": "DUPLICATE_STOCK_EFFECT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:158"
+    },
+    {
+      "code": "IMPORT_HAS_BLOCKING_ERRORS",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:213"
+    },
+    {
+      "code": "INVALID_WARRANTY_TRANSITION",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:310"
+    },
+    {
+      "code": "ITEM_ALREADY_IN_CONTAINER",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:214"
+    },
+    {
+      "code": "ITEM_ALREADY_MATCHED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:543"
+    },
+    {
+      "code": "ITEM_ALREADY_RECEIVING",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:572"
+    },
+    {
+      "code": "LABEL_SNAPSHOT_STALE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:484"
+    },
+    {
+      "code": "LABEL_STATE_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:343"
+    },
+    {
+      "code": "LEGACY_ITEM_LABEL_NOT_APPLICABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:414"
+    },
+    {
+      "code": "MASTER_CODE_IMMUTABLE_AFTER_USE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:248"
+    },
+    {
+      "code": "MATCH_NOT_ACTIVE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:180"
+    },
+    {
+      "code": "OUTBOUND_REQUEST_ALREADY_USED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:465"
+    },
+    {
+      "code": "PACKING_LABEL_ALREADY_CREATED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:118"
+    },
+    {
+      "code": "PARENT_CONTAINER_NOT_AVAILABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:398"
+    },
+    {
+      "code": "PHYSICAL_CODE_ALREADY_ASSIGNED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:64"
+    },
+    {
+      "code": "PHYSICAL_CODE_IN_OPEN_OUTBOUND",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:228"
+    },
+    {
+      "code": "PHYSICAL_CODE_NOT_ACTIVE",
+      "http_status": [
+        409,
+        422
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:51"
+    },
+    {
+      "code": "PHYSICAL_RETURN_REQUIRED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:265"
+    },
+    {
+      "code": "PRINT_FAILED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:841"
+    },
+    {
+      "code": "PUTAWAY_DRAFT_EXISTS",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:55"
+    },
+    {
+      "code": "REFERENCE_EXISTS",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Auth/app/Http/Controllers/RoleController.php:196"
+    },
+    {
+      "code": "REVERSAL_CONCURRENT_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:288"
+    },
+    {
+      "code": "REVERSAL_DEPENDENCY_EXISTS",
+      "http_status": [
+        409
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:519"
+    },
+    {
+      "code": "REVERSAL_NOT_DRAFT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:262"
+    },
+    {
+      "code": "REVERSAL_NOT_PENDING_RETURN",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:227"
+    },
+    {
+      "code": "REVERSAL_OF_REVERSAL_FORBIDDEN",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:277"
+    },
+    {
+      "code": "REVERSAL_POSTED_IMMUTABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:624"
+    },
+    {
+      "code": "SCAN_CODE_INACTIVE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/CanonicalScanClassificationService.php:97"
+    },
+    {
+      "code": "SCAN_CODE_UNASSIGNED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ScanResolver.php:50"
+    },
+    {
+      "code": "SCAN_CONTAINER_INACTIVE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/ScanClassificationService.php:276"
+    },
+    {
+      "code": "SCAN_CONTEXT_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ScanClassificationService.php:414"
+    },
+    {
+      "code": "SCAN_ENTRY_NOT_ACTIVE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:92"
+    },
+    {
+      "code": "SCAN_ITEM_ALREADY_RECEIVED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/StockDocumentService.php:333"
+    },
+    {
+      "code": "SCAN_LOCATION_UNKNOWN",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ScanClassificationService.php:369"
+    },
+    {
+      "code": "SCAN_SKU_INACTIVE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CanonicalScanClassificationService.php:42"
+    },
+    {
+      "code": "SCAN_WAREHOUSE_MISMATCH",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ScanClassificationService.php:392"
+    },
+    {
+      "code": "SCANNED_DOCUMENT_IMMUTABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:274"
+    },
+    {
+      "code": "SCANNED_LINE_STRUCTURE_IMMUTABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:345"
+    },
+    {
+      "code": "SELF_ESCALATION_DENIED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Auth/app/Http/Middleware/PreventSelfRoleAssignment.php:27"
+    },
+    {
+      "code": "SERIAL_ALREADY_CONTAINERIZED",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:297"
+    },
+    {
+      "code": "SERIAL_NOT_CONTAINERIZABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:264"
+    },
+    {
+      "code": "SKU_CODE_DUPLICATE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:437"
+    },
+    {
+      "code": "SKU_IDENTITY_IMMUTABLE_AFTER_STOCK",
+      "http_status": [
+        409
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:180"
+    },
+    {
+      "code": "SKU_VERSION_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:465"
+    },
+    {
+      "code": "SOURCE_KEY_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:106"
+    },
+    {
+      "code": "SOURCE_REQUEST_IMMUTABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:263"
+    },
+    {
+      "code": "STATE_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 39,
+      "first_seen": "Modules/Warehouse/app/Exceptions/WarehouseException.php:18"
+    },
+    {
+      "code": "SYSTEM_ROLE_IMMUTABLE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Auth/app/Http/Middleware/EnsureMutableRole.php:28"
+    },
+    {
+      "code": "UNIQUE_CONSTRAINT_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "bootstrap/app.php:123"
+    },
+    {
+      "code": "VERSION_CONFLICT",
+      "http_status": [
+        409
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:73"
+    },
+    {
+      "code": "WAREHOUSE_INACTIVE",
+      "http_status": [
+        409
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ScanController.php:148"
+    },
+    {
+      "code": "STALE_VERSION",
+      "http_status": [
+        412
+      ],
+      "occurrences": 23,
+      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:15"
+    },
+    {
+      "code": "ACTIVE_WAREHOUSE_BASELINE_VIOLATION",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:220"
+    },
+    {
+      "code": "ATTACHMENT_CONTENT_TYPE_INVALID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Support/WarrantyAttachmentScanner.php:48"
+    },
+    {
+      "code": "ATTACHMENT_CONTENT_TYPE_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Support/WarrantyAttachmentScanner.php:55"
+    },
+    {
+      "code": "ATTACHMENT_LIMIT_EXCEEDED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyAttachmentController.php:67"
+    },
+    {
+      "code": "ATTACHMENT_MALWARE_DETECTED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyAttachmentController.php:84"
+    },
+    {
+      "code": "BOX_CODE_CONFLICT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:106"
+    },
+    {
+      "code": "BOX_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:110"
+    },
+    {
+      "code": "BOX_SKU_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:109"
+    },
+    {
+      "code": "BRAND_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:86"
+    },
+    {
+      "code": "BUSINESS_RULE_ERROR",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php:1268"
+    },
+    {
+      "code": "CANCEL_REASON_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:297"
+    },
+    {
+      "code": "COMPONENT_BOX_INSUFFICIENT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:38"
+    },
+    {
+      "code": "COMPONENT_BOX_INVALID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:24"
+    },
+    {
+      "code": "COMPONENT_BOX_NOT_FOUND",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Middleware/EnsureInboundComponentBox.php:48"
+    },
+    {
+      "code": "COMPONENT_BOX_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Middleware/EnsureInboundComponentBox.php:39"
+    },
+    {
+      "code": "COMPONENT_CANNOT_HAVE_CHILDREN",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:211"
+    },
+    {
+      "code": "COMPONENT_ITEM_NOT_AVAILABLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:158"
+    },
+    {
+      "code": "COMPONENT_ITEM_TARGET_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:68"
+    },
+    {
+      "code": "COMPONENT_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:238"
+    },
+    {
+      "code": "COMPONENT_PURPOSE_INVALID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:402"
+    },
+    {
+      "code": "COMPONENT_SKU_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 5,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:73"
+    },
+    {
+      "code": "COMPONENT_TARGET_XOR",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:143"
+    },
+    {
+      "code": "CONTAINER_CYCLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:140"
+    },
+    {
+      "code": "CONTAINER_ITEM_TARGET_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:253"
+    },
+    {
+      "code": "CONTAINER_ITEM_XOR",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:202"
+    },
+    {
+      "code": "CONTAINER_PARENT_CYCLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:411"
+    },
+    {
+      "code": "CONTAINER_PRIMARY_SKU_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:224"
+    },
+    {
+      "code": "CONTAINER_SELF_PARENT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:386"
+    },
+    {
+      "code": "CONTAINER_WAREHOUSE_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:403"
+    },
+    {
+      "code": "DEACTIVATION_REASON_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:212"
+    },
+    {
+      "code": "DOCUMENT_HAS_NO_LINES",
+      "http_status": [
+        422
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:183"
+    },
+    {
+      "code": "DUPLICATE_COMPONENT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:230"
+    },
+    {
+      "code": "DUPLICATE_CONTAINER_ITEM",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:315"
+    },
+    {
+      "code": "DUPLICATE_PHYSICAL_CODE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:291"
+    },
+    {
+      "code": "EMPTY_CONTAINER_CANNOT_SEAL",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:172"
+    },
+    {
+      "code": "EMPTY_EXCEL_FILE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:575"
+    },
+    {
+      "code": "EMPTY_UPDATE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:235"
+    },
+    {
+      "code": "EXPECTED_QTY_BELOW_SCANNED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:380"
+    },
+    {
+      "code": "FULL_POST_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 6,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:468"
+    },
+    {
+      "code": "FULL_SCAN_REQUIRED_FOR_LABEL",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:170"
+    },
+    {
+      "code": "IMPORT_HAS_NO_VALID_ROWS",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:231"
+    },
+    {
+      "code": "INBOUND_WAREHOUSE_NOT_CANONICAL",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Middleware/EnsureCanonicalInboundWarehouse.php:47"
+    },
+    {
+      "code": "INSUFFICIENT_AVAILABLE_STOCK",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:178"
+    },
+    {
+      "code": "INSUFFICIENT_STOCK",
+      "http_status": [
+        422
+      ],
+      "occurrences": 7,
+      "first_seen": "Modules/Warehouse/app/Exceptions/WarehouseException.php:12"
+    },
+    {
+      "code": "INVALID_CARRIER_TYPE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:380"
+    },
+    {
+      "code": "INVALID_COMPONENT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:224"
+    },
+    {
+      "code": "INVALID_COMPONENT_QUANTITY",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:233"
+    },
+    {
+      "code": "INVALID_CONTAINER_CODE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:356"
+    },
+    {
+      "code": "INVALID_CONTAINER_QUANTITY",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:307"
+    },
+    {
+      "code": "INVALID_CONTAINER_STATUS",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:368"
+    },
+    {
+      "code": "INVALID_CONTAINER_TYPE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:361"
+    },
+    {
+      "code": "INVALID_EXCEL_TEMPLATE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:582"
+    },
+    {
+      "code": "INVALID_PHYSICAL_CODE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:374"
+    },
+    {
+      "code": "INVALID_PHYSICAL_CODE_STATUS",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:383"
+    },
+    {
+      "code": "INVALID_PHYSICAL_CODE_TYPE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:377"
+    },
+    {
+      "code": "INVALID_QUANTITY",
+      "http_status": [
+        422
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:155"
+    },
+    {
+      "code": "INVALID_RETURN_CONDITION",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:232"
+    },
+    {
+      "code": "INVALID_SKU_CODE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:397"
+    },
+    {
+      "code": "INVALID_SKU_NAME",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:407"
+    },
+    {
+      "code": "INVALID_UUID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:577"
+    },
+    {
+      "code": "INVALID_VERSION",
+      "http_status": [
+        422
+      ],
+      "occurrences": 21,
+      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:72"
+    },
+    {
+      "code": "INVENTORY_SERIAL_NOT_FOUND",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:259"
+    },
+    {
+      "code": "ITEM_NOT_AVAILABLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:529"
+    },
+    {
+      "code": "ITEM_NOT_FOUND",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:210"
+    },
+    {
+      "code": "ITEM_NOT_IN_ORIGINAL_TRANSACTION",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:467"
+    },
+    {
+      "code": "ITEM_NOT_MATCHED_IN_DOCUMENT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:123"
+    },
+    {
+      "code": "ITEM_NOT_RECEIVABLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:560"
+    },
+    {
+      "code": "ITEM_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:58"
+    },
+    {
+      "code": "ITEM_SKU_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineItemIdentityController.php:48"
+    },
+    {
+      "code": "LABEL_NOT_PRINTED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:417"
+    },
+    {
+      "code": "LABEL_PII_FORBIDDEN",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:367"
+    },
+    {
+      "code": "MASTER_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:149"
+    },
+    {
+      "code": "NO_REVERSIBLE_MOVEMENT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:246"
+    },
+    {
+      "code": "NO_STOCK_DOCUMENT",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:373"
+    },
+    {
+      "code": "NO_UPDATABLE_FIELDS",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:429"
+    },
+    {
+      "code": "ORIGINAL_MOVEMENT_INVALID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:126"
+    },
+    {
+      "code": "OUTBOUND_RECIPIENT_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:252"
+    },
+    {
+      "code": "OUTBOUND_REQUEST_EMPTY",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:470"
+    },
+    {
+      "code": "OUTBOUND_REQUEST_MULTIPLE_RECIPIENTS",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:258"
+    },
+    {
+      "code": "OUTBOUND_REQUEST_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:462"
+    },
+    {
+      "code": "OUTBOUND_REQUEST_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:42"
+    },
+    {
+      "code": "PACKAGE_VARIANT_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:122"
+    },
+    {
+      "code": "PACKING_LABEL_NOT_APPLIED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:479"
+    },
+    {
+      "code": "PACKING_LABEL_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:473"
+    },
+    {
+      "code": "PARENT_CONTAINER_NOT_FOUND",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:395"
+    },
+    {
+      "code": "PHYSICAL_CODE_ITEM_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:509"
+    },
+    {
+      "code": "PHYSICAL_CODE_TARGET_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:346"
+    },
+    {
+      "code": "PHYSICAL_CODE_TARGET_XOR",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:34"
+    },
+    {
+      "code": "PHYSICAL_CODE_UNASSIGNED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php:506"
+    },
+    {
+      "code": "PHYSICAL_RETURN_CONFIRMATION_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:218"
+    },
+    {
+      "code": "PII_EXPORT_REASON_INVALID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php:56"
+    },
+    {
+      "code": "PRIMARY_PRODUCT_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:539"
+    },
+    {
+      "code": "PRIMARY_SKU_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:45"
+    },
+    {
+      "code": "PRODUCT_ITEM_MATCH_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:136"
+    },
+    {
+      "code": "PRODUCT_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:519"
+    },
+    {
+      "code": "PRODUCT_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:513"
+    },
+    {
+      "code": "PRODUCT_SKU_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:54"
+    },
+    {
+      "code": "PUTAWAY_BOX_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:50"
+    },
+    {
+      "code": "PUTAWAY_MUST_USE_TASK_FLOW",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:60"
+    },
+    {
+      "code": "QUANTITY_MODE_ITEM_FORBIDDEN",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:162"
+    },
+    {
+      "code": "QUANTITY_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:218"
+    },
+    {
+      "code": "REPORT_EXPORT_ROW_LIMIT_EXCEEDED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 5,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php:514"
+    },
+    {
+      "code": "RESOURCE_ID_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:25"
+    },
+    {
+      "code": "RETURN_CONDITION_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:533"
+    },
+    {
+      "code": "REVERSAL_ITEM_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:156"
+    },
+    {
+      "code": "REVERSAL_LINES_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:83"
+    },
+    {
+      "code": "REVERSAL_QTY_EXCEEDED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:141"
+    },
+    {
+      "code": "RFID_HARDWARE_UID_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineItemIdentityController.php:31"
+    },
+    {
+      "code": "SCAN_EXCEEDS_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:149"
+    },
+    {
+      "code": "SCAN_ITEM_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/StockDocumentService.php:327"
+    },
+    {
+      "code": "SCAN_SKU_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/StockDocumentService.php:330"
+    },
+    {
+      "code": "SERIAL_COMPONENT_REQUIRES_ITEM",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:29"
+    },
+    {
+      "code": "SERIAL_PRODUCT_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:281"
+    },
+    {
+      "code": "SERIAL_QUANTITY_MUST_BE_ONE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:154"
+    },
+    {
+      "code": "SERIAL_SCAN_QUANTITY_INVALID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/StockDocumentService.php:322"
+    },
+    {
+      "code": "SERIAL_SCAN_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/StockDocumentService.php:319"
+    },
+    {
+      "code": "SERIAL_WAREHOUSE_MISMATCH",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/ContainerService.php:273"
+    },
+    {
+      "code": "SKU_CODE_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:401"
+    },
+    {
+      "code": "SKU_COMPONENT_CYCLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:266"
+    },
+    {
+      "code": "SKU_COMPONENT_SELF_REFERENCE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:227"
+    },
+    {
+      "code": "SKU_IMPORT_FILE_INVALID",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:206"
+    },
+    {
+      "code": "SKU_IMPORT_ROW_LIMIT_EXCEEDED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/ImportController.php:193"
+    },
+    {
+      "code": "SKU_NAME_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Services/SkuAggregateService.php:411"
+    },
+    {
+      "code": "SKU_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:490"
+    },
+    {
+      "code": "SKU_PUBLISH_REQUIRES_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:203"
+    },
+    {
+      "code": "TEMP_ONLY_EVIDENCE_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:236"
+    },
+    {
+      "code": "TRAY_NOT_USABLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:130"
+    },
+    {
+      "code": "TRAY_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:352"
+    },
+    {
+      "code": "UNKNOWN_MASTER_TYPE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:195"
+    },
+    {
+      "code": "VALIDATION_ERROR",
+      "http_status": [
+        422
+      ],
+      "occurrences": 6,
+      "first_seen": "app/Repositories/BaseRepository.php:367"
+    },
+    {
+      "code": "VALIDATION_FAILED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 10,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/StockRequestController.php:286"
+    },
+    {
+      "code": "WAREHOUSE_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 3,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:46"
+    },
+    {
+      "code": "WAREHOUSE_REQUIRED",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Services/AlignedOutboundStockService.php:63"
+    },
+    {
+      "code": "WARRANTY_CASE_CODE_EXISTS",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:120"
+    },
+    {
+      "code": "WARRANTY_CASE_NOT_ACTIVE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 5,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:50"
+    },
+    {
+      "code": "WARRANTY_DEFECT_NOT_FOUND",
+      "http_status": [
+        422
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:452"
+    },
+    {
+      "code": "WARRANTY_ITEM_NOT_ELIGIBLE",
+      "http_status": [
+        422
+      ],
+      "occurrences": 4,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:226"
+    },
+    {
+      "code": "WARRANTY_ITEM_NOT_FOUND",
+      "http_status": [
+        422
+      ],
+      "occurrences": 2,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php:405"
+    },
+    {
+      "code": "PRECONDITION_REQUIRED",
+      "http_status": [
+        428
+      ],
+      "occurrences": 21,
+      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:67"
+    },
+    {
+      "code": "TOO_MANY_REQUESTS",
+      "http_status": [
+        429
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Traits/ApiResponse.php (default map)"
+    },
+    {
+      "code": "INTERNAL_SERVER_ERROR",
+      "http_status": [
+        500
+      ],
+      "occurrences": 2,
+      "first_seen": "bootstrap/app.php:144"
+    },
+    {
+      "code": "OUTBOUND_MATCH_MISSING",
+      "http_status": [
+        500
+      ],
+      "occurrences": 1,
+      "first_seen": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:391"
+    },
+    {
+      "code": "VERSION_CONTRACT_MISSING",
+      "http_status": [
+        500
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Http/Middleware/CurrentBaselineIfMatch.php:28"
+    },
+    {
+      "code": "HEALTH_CHECK_DEGRADED",
+      "http_status": [
+        503
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Http/Controllers/HealthController.php:62"
+    },
+    {
+      "code": "SERVICE_UNAVAILABLE",
+      "http_status": [
+        503
+      ],
+      "occurrences": 1,
+      "first_seen": "app/Traits/ApiResponse.php (default map)"
+    }
+  ]
+}

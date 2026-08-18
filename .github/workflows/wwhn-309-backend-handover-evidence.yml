@@ -1,0 +1,230 @@
+name: WWHN-309 Backend Handover Evidence
+
+# Handover BE (kiến trúc/API/vận hành) chỉ được coi là verified khi evidence gắn với
+# ĐÚNG commit SHA đang review. Workflow này sinh run identity tái lập được: source SHA,
+# run ID/URL, log thô, exit code, OpenAPI/permission catalog/schedule artifact và checksum.
+# `workflow_dispatch` cho phép chạy lại trên một historical SHA khi cần pin closure evidence.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact commit SHA cần sinh evidence (bỏ trống = SHA hiện tại của ref)
+        required: false
+        type: string
+  push:
+    branches: [m1]
+    paths:
+      - 'README.md'
+      - 'routes/console.php'
+      - 'app/Console/Commands/ExportPermissionCatalog.php'
+      - 'docs/permissions/**'
+      - 'docs/docs_task_jira/WWHN-309.md'
+      - 'tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php'
+      - 'tests/Feature/Wwhn309ScheduledOperationsTest.php'
+      - '.github/workflows/wwhn-309-backend-handover-evidence.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'README.md'
+      - 'routes/console.php'
+      - 'app/Console/Commands/ExportPermissionCatalog.php'
+      - 'docs/permissions/**'
+      - 'docs/docs_task_jira/WWHN-309.md'
+      - 'tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php'
+      - 'tests/Feature/Wwhn309ScheduledOperationsTest.php'
+      - '.github/workflows/wwhn-309-backend-handover-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  handover-evidence:
+    name: Backend handover contract / API / ops evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn309
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn309"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: Wwhn309-CI-Only-2026
+      JWT_SECRET: Wwhn309-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn309
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Pin immutable source identity
+        id: identity
+        run: |
+          set -euo pipefail
+          RESOLVED_SHA="$(git rev-parse HEAD)"
+          echo "resolved_sha=${RESOLVED_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Resolved source SHA: ${RESOLVED_SHA}"
+          git log -1 --format='%H%n%ci%n%s' "${RESOLVED_SHA}"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      # Các generator/verifier tài liệu handover chạy bằng Node (không phụ thuộc
+      # dependency npm nào — chỉ dùng thư viện chuẩn của Node).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Handover regression tests (exit code is the gate)
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-309/logs
+          php artisan test --filter '/(Wwhn309PermissionCatalogEvidenceTest|Wwhn309ScheduledOperationsTest|SwaggerRouteSyncTest|DocumentationBaselineContractTest)/' \
+            2>&1 | tee artifacts/wwhn-309/logs/tests.log
+
+      - name: Permission catalog evidence on PostgreSQL
+        run: |
+          set -euo pipefail
+          php artisan evidence:permission-catalog \
+            --output=artifacts/wwhn-309/permission-catalog.json \
+            --seed-diff-output=artifacts/wwhn-309/permission-seed-diff.json \
+            2>&1 | tee artifacts/wwhn-309/logs/permission-catalog.log
+          # Catalog đã publish trong docs/ phải trùng byte với catalog sinh tại SHA này,
+          # trừ metadata generated_at_utc — nếu lệch nghĩa là docs/ đang stale.
+          php -r '
+            $a = json_decode(file_get_contents("artifacts/wwhn-309/permission-catalog.json"), true);
+            $b = json_decode(file_get_contents("docs/permissions/WMS_PERMISSION_CATALOG_BE1.json"), true);
+            unset($a["generated_at_utc"], $b["generated_at_utc"]);
+            if ($a !== $b) {
+                fwrite(STDERR, "docs/permissions/WMS_PERMISSION_CATALOG_BE1.json stale so voi runtime tai SHA nay.\n");
+                exit(1);
+            }
+            echo "Published permission catalog khop runtime.\n";
+          '
+
+      - name: Scheduled operations evidence
+        run: |
+          set -euo pipefail
+          php artisan schedule:list 2>&1 | tee artifacts/wwhn-309/logs/schedule-list.log
+          for cmd in inventory:reconcile audit:reconcile import:purge-error-files warranty:purge-pii; do
+            grep -Fq "$cmd" artifacts/wwhn-309/logs/schedule-list.log \
+              || { echo "Thieu job nen bat buoc: $cmd"; exit 1; }
+          done
+
+      - name: OpenAPI contract evidence
+        run: |
+          set -euo pipefail
+          php artisan l5-swagger:generate 2>&1 | tee artifacts/wwhn-309/logs/openapi-generate.log
+          cp storage/api-docs/api-docs.json artifacts/wwhn-309/api-docs.json
+          php -r '
+            $doc = json_decode(file_get_contents("artifacts/wwhn-309/api-docs.json"), true);
+            $paths = count($doc["paths"] ?? []);
+            $ops = 0;
+            foreach ($doc["paths"] ?? [] as $methods) {
+                foreach (array_keys($methods) as $method) {
+                    if (in_array($method, ["get","post","put","patch","delete"], true)) { $ops++; }
+                }
+            }
+            if ($paths < 1 || $ops < 1) { fwrite(STDERR, "OpenAPI rong.\n"); exit(1); }
+            printf("openapi_paths=%d\nopenapi_operations=%d\n", $paths, $ops);
+            file_put_contents("artifacts/wwhn-309/openapi-summary.txt", sprintf("paths=%d\noperations=%d\n", $paths, $ops));
+          '
+
+      - name: Handover documentation contract gate (exit code is the gate)
+        run: |
+          set -euo pipefail
+          # Cổng tổng gói tài liệu: phải đầy đủ VÀ khớp source tại đúng SHA này.
+          # Fail-closed trên: thiếu tài liệu handover, catalog error code / ma trận
+          # endpoint lệch code, OpenAPI thiếu route hoặc thiếu schema envelope,
+          # README lệch .env.example, stocktake tái xuất hiện, secret trong tài liệu.
+          node scripts/verify-wwhn-309-handover-contract.mjs 2>&1 \
+            | tee artifacts/wwhn-309/logs/handover-contract-gate.log
+
+      - name: Health contract evidence
+        run: |
+          set -euo pipefail
+          php artisan serve --host=127.0.0.1 --port=8000 &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/v1/health -o artifacts/wwhn-309/health.json; then
+              break
+            fi
+            sleep 2
+          done
+          kill "${SERVER_PID}" || true
+          test -s artifacts/wwhn-309/health.json
+          cat artifacts/wwhn-309/health.json
+          php -r '
+            $h = json_decode(file_get_contents("artifacts/wwhn-309/health.json"), true);
+            $payload = $h["data"] ?? $h;
+            foreach (["status","version","build","environment","checks"] as $key) {
+                if (! array_key_exists($key, $payload)) {
+                    fwrite(STDERR, "Health thieu truong bat buoc: {$key}\n");
+                    exit(1);
+                }
+            }
+            echo "Health contract OK: ".$payload["status"]."\n";
+          '
+
+      - name: Exact SHA manifest and checksums
+        run: |
+          set -euo pipefail
+          {
+            echo "task=WWHN-309"
+            echo "scope=backend-handover-architecture-api-operations"
+            echo "source_sha=${{ steps.identity.outputs.resolved_sha }}"
+            echo "branch=${GITHUB_REF_NAME}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "db=postgres16"
+            echo "php=8.3"
+            echo "result=PASS"
+          } > artifacts/wwhn-309/manifest.txt
+          cd artifacts/wwhn-309
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          cat manifest.txt
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-309-backend-handover-${{ steps.identity.outputs.resolved_sha }}
+          path: artifacts/wwhn-309
+          if-no-files-found: error
+          retention-days: 90
