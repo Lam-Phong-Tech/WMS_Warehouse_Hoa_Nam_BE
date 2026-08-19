@@ -1,0 +1,336 @@
+{
+  "schema_version": "1.0.0",
+  "task": "WWHN-199",
+  "register_item": "DEV199-P1-01R",
+  "fixture": {
+    "database": "hn_wwhn199",
+    "driver": "pgsql",
+    "generated_at": "2026-08-19T08:54:59+07:00",
+    "sku_code": "W199R-SKU-WRFAMJ"
+  },
+  "endpoints": {
+    "racer_a": "http://127.0.0.1:8199",
+    "racer_b": "http://127.0.0.1:8299"
+  },
+  "item_level": {
+    "rounds": 5,
+    "overlapped_rounds": 5,
+    "passed_rounds": 5
+  },
+  "request_level": {
+    "executed": true,
+    "overlapped": true,
+    "passed": true
+  },
+  "rounds": [
+    {
+      "scenario": "ITEM_LEVEL_DOUBLE_MATCH",
+      "round": 1,
+      "item_id": "b27da153-b4f1-4e40-b083-376a788d35ad",
+      "overlapped": true,
+      "overlap_ms": 1285.081,
+      "results": [
+        {
+          "base": "http://127.0.0.1:8199",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/d2da6487-84b3-4dc9-8479-05564efc4528/scan",
+          "status": 409,
+          "error_code": "ITEM_ALREADY_MATCHED",
+          "message": "Item đang được match ở một outbound khác.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2038631.212,
+          "finished_at": 2040175.405,
+          "started_iso": "2026-08-19T01:55:04.974Z",
+          "duration_ms": 1544.193
+        },
+        {
+          "base": "http://127.0.0.1:8299",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/32b593ff-41bf-4935-9e05-babfc0be822b/scan",
+          "status": 200,
+          "error_code": null,
+          "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT; stock_effect=NONE.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2038635.062,
+          "finished_at": 2039920.143,
+          "started_iso": "2026-08-19T01:55:04.978Z",
+          "duration_ms": 1285.081
+        }
+      ],
+      "verdict": {
+        "winner_count": 1,
+        "loser_count": 1,
+        "loser_codes": [
+          "ITEM_ALREADY_MATCHED"
+        ],
+        "ok": true
+      }
+    },
+    {
+      "scenario": "ITEM_LEVEL_DOUBLE_MATCH",
+      "round": 2,
+      "item_id": "483aa660-40ad-4703-ae52-1ee7784f2da7",
+      "overlapped": true,
+      "overlap_ms": 1255.703,
+      "results": [
+        {
+          "base": "http://127.0.0.1:8199",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/0f28d155-586e-4a97-811b-ad9df41171b3/scan",
+          "status": 409,
+          "error_code": "ITEM_ALREADY_MATCHED",
+          "message": "Item đang được match ở một outbound khác.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2040175.991,
+          "finished_at": 2041456.623,
+          "started_iso": "2026-08-19T01:55:06.519Z",
+          "duration_ms": 1280.632
+        },
+        {
+          "base": "http://127.0.0.1:8299",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/264e3643-fa88-4add-bda8-9fef730c79dd/scan",
+          "status": 200,
+          "error_code": null,
+          "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT; stock_effect=NONE.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2040177.144,
+          "finished_at": 2041432.847,
+          "started_iso": "2026-08-19T01:55:06.520Z",
+          "duration_ms": 1255.703
+        }
+      ],
+      "verdict": {
+        "winner_count": 1,
+        "loser_count": 1,
+        "loser_codes": [
+          "ITEM_ALREADY_MATCHED"
+        ],
+        "ok": true
+      }
+    },
+    {
+      "scenario": "ITEM_LEVEL_DOUBLE_MATCH",
+      "round": 3,
+      "item_id": "3caefb68-9e91-47cc-95b4-1e428f86a7c9",
+      "overlapped": true,
+      "overlap_ms": 2024.707,
+      "results": [
+        {
+          "base": "http://127.0.0.1:8199",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/b69481ed-ce24-4683-ba1f-4086cb784ec8/scan",
+          "status": 409,
+          "error_code": "ITEM_ALREADY_MATCHED",
+          "message": "Item đang được match ở một outbound khác.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2041456.811,
+          "finished_at": 2043524.903,
+          "started_iso": "2026-08-19T01:55:07.799Z",
+          "duration_ms": 2068.092
+        },
+        {
+          "base": "http://127.0.0.1:8299",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/cf7f8140-c812-496f-996d-a2bec0b20cc5/scan",
+          "status": 200,
+          "error_code": null,
+          "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT; stock_effect=NONE.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2041459.672,
+          "finished_at": 2043484.379,
+          "started_iso": "2026-08-19T01:55:07.802Z",
+          "duration_ms": 2024.707
+        }
+      ],
+      "verdict": {
+        "winner_count": 1,
+        "loser_count": 1,
+        "loser_codes": [
+          "ITEM_ALREADY_MATCHED"
+        ],
+        "ok": true
+      }
+    },
+    {
+      "scenario": "ITEM_LEVEL_DOUBLE_MATCH",
+      "round": 4,
+      "item_id": "6ad3e27d-9fc5-434a-87d2-4dd3ee9770bf",
+      "overlapped": true,
+      "overlap_ms": 1694.461,
+      "results": [
+        {
+          "base": "http://127.0.0.1:8199",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/f835cf49-5a26-4b93-94bc-8d4b9f8e163a/scan",
+          "status": 409,
+          "error_code": "ITEM_ALREADY_MATCHED",
+          "message": "Item đang được match ở một outbound khác.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2043525.151,
+          "finished_at": 2045255.851,
+          "started_iso": "2026-08-19T01:55:09.868Z",
+          "duration_ms": 1730.7
+        },
+        {
+          "base": "http://127.0.0.1:8299",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/533cf002-00ee-4f0c-a8df-b1008f3c340e/scan",
+          "status": 200,
+          "error_code": null,
+          "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT; stock_effect=NONE.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2043526.105,
+          "finished_at": 2045220.566,
+          "started_iso": "2026-08-19T01:55:09.869Z",
+          "duration_ms": 1694.461
+        }
+      ],
+      "verdict": {
+        "winner_count": 1,
+        "loser_count": 1,
+        "loser_codes": [
+          "ITEM_ALREADY_MATCHED"
+        ],
+        "ok": true
+      }
+    },
+    {
+      "scenario": "ITEM_LEVEL_DOUBLE_MATCH",
+      "round": 5,
+      "item_id": "ccd7803f-d2d1-43f4-a6df-b657c718abd7",
+      "overlapped": true,
+      "overlap_ms": 1929.581,
+      "results": [
+        {
+          "base": "http://127.0.0.1:8199",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/f1e09a9f-3c58-4053-bf9f-5970cc71461a/scan",
+          "status": 409,
+          "error_code": "ITEM_ALREADY_MATCHED",
+          "message": "Item đang được match ở một outbound khác.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2045256.069,
+          "finished_at": 2047229.385,
+          "started_iso": "2026-08-19T01:55:11.599Z",
+          "duration_ms": 1973.316
+        },
+        {
+          "base": "http://127.0.0.1:8299",
+          "method": "POST",
+          "path": "/api/v1/outbound-documents/3dca6702-bd47-4ffa-9123-dc9e90891f46/scan",
+          "status": 200,
+          "error_code": null,
+          "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT; stock_effect=NONE.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2045257.297,
+          "finished_at": 2047186.878,
+          "started_iso": "2026-08-19T01:55:11.600Z",
+          "duration_ms": 1929.581
+        }
+      ],
+      "verdict": {
+        "winner_count": 1,
+        "loser_count": 1,
+        "loser_codes": [
+          "ITEM_ALREADY_MATCHED"
+        ],
+        "ok": true
+      }
+    },
+    {
+      "scenario": "REQUEST_LEVEL_DOUBLE_CONFIRM",
+      "import_id": "76d7dc83-d6d3-49eb-8f34-b983b3b0b18d",
+      "request_no": "W199R-TOA-CONFIRM-1787104513572",
+      "overlapped": true,
+      "overlap_ms": 1625.701,
+      "results": [
+        {
+          "base": "http://127.0.0.1:8199",
+          "method": "POST",
+          "path": "/api/v1/outbound-request-imports/76d7dc83-d6d3-49eb-8f34-b983b3b0b18d/confirm",
+          "status": 200,
+          "error_code": null,
+          "message": "Outbound import consumed; CONSUMED outbound requests and DRAFT outbound documents created.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": [
+            "ffd76f36-a9bc-4a23-b691-78ec402df7c9"
+          ],
+          "started_at": 2048807.885,
+          "finished_at": 2050434.413,
+          "started_iso": "2026-08-19T01:55:15.150Z",
+          "duration_ms": 1626.528
+        },
+        {
+          "base": "http://127.0.0.1:8299",
+          "method": "POST",
+          "path": "/api/v1/outbound-request-imports/76d7dc83-d6d3-49eb-8f34-b983b3b0b18d/confirm",
+          "status": 409,
+          "error_code": "STATE_CONFLICT",
+          "message": "Chỉ import VALIDATED/REJECTED (đã resolve) mới được Confirm.",
+          "data_id": null,
+          "import_id": null,
+          "import_status": null,
+          "import_version": null,
+          "outbound_document_ids": null,
+          "started_at": 2048808.712,
+          "finished_at": 2050458.645,
+          "started_iso": "2026-08-19T01:55:15.151Z",
+          "duration_ms": 1649.933
+        }
+      ],
+      "verdict": {
+        "winner_count": 1,
+        "loser_count": 1,
+        "loser_codes": [
+          "STATE_CONFLICT"
+        ],
+        "ok": true
+      }
+    }
+  ],
+  "result": "PASS"
+}

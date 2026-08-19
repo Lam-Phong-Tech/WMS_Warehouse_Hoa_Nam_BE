@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "task": "WWHN-199",
+  "register_items": [
+    "DEV199-P1-01R",
+    "DEV199-P1-02R",
+    "DEV199-P1-05R",
+    "DEV199-P2-01"
+  ],
+  "database": "hn_wwhn199",
+  "endpoints": {
+    "racer_a": "http://127.0.0.1:8199",
+    "racer_b": "http://127.0.0.1:8299"
+  },
+  "steps": [
+    {
+      "name": "1. Dựng lại DB candidate \"hn_wwhn199\" từ số 0",
+      "ok": true,
+      "ms": 2397,
+      "detail": "recreated=hn_wwhn199 server_version=16.14"
+    },
+    {
+      "name": "2. php artisan migrate --force trên PostgreSQL",
+      "ok": true,
+      "ms": 178424,
+      "detail": "156 migration DONE"
+    },
+    {
+      "name": "3. Dựng fixture race",
+      "ok": true,
+      "ms": 8585,
+      "detail": "fixture written: C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE/build/evidence/wwhn-199/race-fixture.json"
+    },
+    {
+      "name": "4. Bật hai server process (8199, 8299)",
+      "ok": true,
+      "ms": 3411,
+      "detail": "A=http://127.0.0.1:8199 B=http://127.0.0.1:8299"
+    },
+    {
+      "name": "5. Race thật (item-level + toa-level)",
+      "ok": true,
+      "ms": 13530,
+      "detail": "item-level 5/5, toa-level PASS"
+    },
+    {
+      "name": "6. DB after-state + pg_indexes + duplicate probe",
+      "ok": true,
+      "ms": 1443,
+      "detail": "PASS trên PostgreSQL 16.14"
+    }
+  ],
+  "result": "PASS"
+}

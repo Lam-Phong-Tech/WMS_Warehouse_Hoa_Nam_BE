@@ -78,7 +78,19 @@ Xác nhận Acceptance Criteria, evidence, dependency và open point theo baseli
 
 ## Kết quả rà soát (Evidence — cập nhật 2026-08-15, BE1)
 
-**Exact commit SHA khi bắt đầu rà soát**: HEAD của `m1` tại thời điểm bắt đầu, cùng working tree với các thay đổi chưa commit của WWHN-205 (`item_id` write-side fix, append-only trigger trên `stock_movements`) — 2 task chạy song song trên cùng nhánh, không xung đột file (WWHN-205 sửa `CurrentBaselineStockService.php` phần `mutateBalance()`/`resolveLineItemId()`, task này chỉ đọc và bổ sung test, không sửa cùng vùng code).
+> ⚠️ **Mục 1-10 dưới đây là bản rà soát 2026-08-15 (attachment `ATT-11849`), giữ nguyên làm
+> lịch sử.** Bản đó bị vòng đánh giá bác ở 4 điểm: race chỉ mô phỏng tuần tự, backstop DB
+> chỉ được khẳng định bằng cách đọc migration, nguồn baseline còn trỏ `BRD_HoaNam_v3_9`, và
+> bằng chứng pin theo "HEAD lúc bắt đầu". **Trạng thái đóng hiện hành nằm ở [mục 11](#11-vòng-đóng-register-dev199--2026-08-19-be1)**;
+> khi mục 1-10 và mục 11 nói khác nhau, **mục 11 thắng**.
+
+**Pin bằng chứng (thay cho cách pin cũ)**: bản 2026-08-15 pin theo *"HEAD của `m1` tại thời
+điểm bắt đầu"* — một mô tả không kiểm chứng lại được và sai ngay khi có commit kế tiếp,
+đúng lỗi mà `DEV199-P1-03R` bác. Vòng đóng thay nó bằng
+[`docs/evidence/WWHN-199/MANIFEST.json`](../evidence/WWHN-199/MANIFEST.json): pin **commit
+cuối cùng chạm vào tập artifact** kèm **SHA-256 của từng artifact đọc từ blob đã commit**,
+danh sách **later modification**, và lệnh verify chạy lại được
+(`node scripts/verify-wwhn199-closure.mjs --expect-sha=<SHA>`).
 
 **Quan hệ với các task rà soát trước đó**: WWHN-195 (BE1, task cha HN-OUT-001 — "Triển khai chứng từ/chế độ/trạng thái xuất kho") đã xác nhận đầy đủ transaction/idempotency/concurrency ở **tầng document** (optimistic lock `If-Match`, row lock `stock_documents`, `Idempotency-Key` cho Post/Reverse, `business_key` unique chống double stock-effect) và bổ sung 4 file test HTTP (`OutboundDocumentFlowTest`, `PostIssueConcurrencyBehaviorTest`, `PostIssueAuditLogTest`, `OutboundPermissionTest`). Task này (WWHN-199, task cha HN-OUT-002 — "Lấy hàng/quét mã và chống ghi nhận trùng") rà soát một tầng **hẹp và sâu hơn**: quy tắc reservation ở mức **item vật lý** (một item không được match/nhận vào 2 phiếu khác nhau cùng lúc — đúng tên gọi "chống ghi nhận trùng" của task cha WWHN-46) và mức **toa yêu cầu xuất** (một toa chỉ sinh đúng 1 phiếu xuất). Đây là phần business rule chưa từng được lái qua HTTP thật ở bất kỳ task rà soát nào trước đó.
 
@@ -187,3 +199,70 @@ Kết quả chạy full suite (xác nhận không regression toàn cục): `php 
 - BE1 + DevOps quyết định có bổ sung race-condition test đa connection thật cho kịch bản quét trùng item hay giữ nguyên mô phỏng tuần tự (BE1-RESV-OP-03, kế thừa từ WWHN-218/WWHN-205).
 - QA xác nhận evidence (mục 5-8) đáp ứng đúng Acceptance Criteria.
 - Không tự đánh dấu Done/Approved trên Jira chỉ dựa trên nội dung do BE1 tự ghi trong file này.
+
+---
+
+## 11. Vòng đóng register DEV199 — 2026-08-19 (BE1)
+
+Vòng đánh giá trước chấm **67/100** và mở register 6 mục P1 + 1 mục P2. Mục này là hồ sơ
+đóng của cả 7 mục. **Khi mục 1-10 (bản 2026-08-15, attachment `ATT-11849`) và mục này nói
+khác nhau, mục này thắng.**
+
+### 11.1. Bảng đóng register
+
+| ID | Sev | Việc register đòi | Đã làm | Evidence |
+|---|---|---|---|---|
+| `DEV199-P1-01R` | P1 | Race thật trên PostgreSQL: 2 process/HTTP client + 2 DB connection overlap cùng item; và 2 concurrent create từ cùng business reservation | Race thật qua **hai `php artisan serve` process** trên hai cổng, hai pool connection tới PostgreSQL 16.14. Item-level **5/5 vòng chồng lấn thật** (overlap 1.25–2.02 giây, đo bằng `hrtime`) và **5/5 đúng bất biến một-winner-một-conflict**; loser nhận 409 `ITEM_ALREADY_MATCHED`. Toa-level: 2 Confirm đồng thời cùng 1 toa → winner 200, loser 409 `STATE_CONFLICT` | `docs/evidence/WWHN-199/RACE_EVIDENCE.md`; `build/evidence/wwhn-199/race-report.json` + `race-report.raw.txt`; `db-invariants.json` |
+| `DEV199-P1-02R` | P1 | Chạy migration trên PostgreSQL candidate; query `pg_indexes`; xác minh unique behavior; ghi **restore/fail-forward recovery** thay vì giả định rollback | DB candidate **DROP + CREATE lại từ số 0**, `migrate --force` chạy **156 bước DONE, 0 lỗi**. `pg_indexes` truy vấn thật. Duplicate probe INSERT vòng qua ứng dụng → **SQLSTATE 23505** trên `ux_erd_outbound_active_item`. Ghi rõ `000670`/`000770` có `down()` **rỗng** ⇒ `migrate:rollback` **báo thành công mà không gỡ ràng buộc nào**; thay bằng runbook 2 đường (fail-forward / restore vật lý) + cây quyết định | `docs/evidence/WWHN-199/PG_MIGRATION_AND_INDEX_EVIDENCE.md` §3-§4; `build/evidence/wwhn-199/migrate-pgsql-candidate.raw.txt` |
+| `DEV199-P1-03R` | P1 | Reissue evidence đúng current committed code; pin source commit, later modification, candidate build và test result. **Không dùng "HEAD lúc bắt đầu"** | Câu *"HEAD của `m1` tại thời điểm bắt đầu"* đã bị **gỡ khỏi hồ sơ** và thay bằng `MANIFEST.json`: pin **commit cuối cùng chạm artifact** (không pin theo HEAD — nhánh `m1` có nhiều task song song), **SHA-256 từng artifact đọc từ blob đã commit**, danh sách **later modification** (phải rỗng) + delta working tree lúc sinh evidence, và kết quả test. Verify lại được: `node scripts/verify-wwhn199-closure.mjs --expect-sha=<SHA>` | `docs/evidence/WWHN-199/MANIFEST.json`; `scripts/build-wwhn199-manifest.mjs`; `scripts/verify-wwhn199-closure.mjs` |
+| `DEV199-P1-04R` | P1 | Quyết định chính thức ngữ nghĩa `inventory_balances.reserved_qty` | `DEC-INV-RESERVED-001` (2026-08-19): `reserved_qty` là **COMPATIBILITY FIELD hằng 0**, **không** phải nguồn tính khả dụng; giữ chỗ là **identity-level** qua `outbound_item_matches` ACTIVE. Kèm hợp đồng máy đọc được + guard runtime + ràng buộc hiển thị FE. Open point `BE1-RESV-OP-01` **đóng** | `docs/decision-records/DEC-INV-RESERVED-001-reserved-qty-semantics.md`; `docs/api-contract/WWHN-198-reserved-qty-contract.json`; `tests/Feature/Wwhn198ReservedQtySemanticsTest.php`; FE: `src/modules/inventory/services/inventoryService.ts` + test |
+| `DEV199-P1-05R` | P1 | QA1 gỡ Blocked cho WWHN-200; retest duplicate, race, negative, DB state, rollback/retry **đúng exact build** | Gói retest độc lập: QA lấy candidate SHA **từ manifest** (không gõ tay), verify exact build, rồi chạy lại toàn bộ chuỗi trên DB/cổng riêng. Có mẫu báo cáo versioned và **5 điều kiện bắt buộc** để được gỡ Blocked | `docs/evidence/WWHN-199/WWHN-199_QA1_RETEST_PACK.md` |
+| `DEV199-P1-06` | P1 | Thay `BRD_HoaNam_v3_9`/`Handoff_v3_9` bằng current controlled source; map WWHN-199 sang REQ/BR/AC hiện hành | Trích nguyên văn **SRS v1.12 §1.6** (BRD v3.9 = HISTORICAL/SUPERSEDED; Handoff = REMOVED/NO ARTIFACT) và **§1.3** (SRC-002 BRD v3.20, SRC-008, SRC-009). Bảng mapping 7 bất biến → REQ-SRS-010/011/012/014/023/024 → §5.2 → `AC-GWT-CONC-001`/`AC-GWT-OUTBOUND-REQUEST-001` → §8.2. Nói rõ WWHN-199 **chỉ** đóng phần scan/match của `AC-GWT-CONC-001` | `docs/evidence/WWHN-199/SOURCE_BASELINE_PIN.md` |
+| `DEV199-P2-01` | P2 | Review hai equivalent ACTIVE-item unique index; consolidate nếu redundant và migration history cho phép | Hai index **trùng nhau từng ký tự** sau chuẩn hoá ⇒ redundant. **Hợp nhất bằng migration tiến** (không sửa `000670`/`000770` đã chạy), giữ `ux_erd_outbound_active_item`. Migration **fail-closed hai tầng**: index giữ lại phải tồn tại, và hai định nghĩa phải thực sự tương đương (so dấu vân tay cột + tập atom predicate) — nếu đã phân kỳ thì ném lỗi thay vì xoá nhầm. Sau hợp nhất: `outbound_active_item_index_count = 1` | `docs/decision-records/DISP-OUT-199-RESERVATION-INDEX.md`; migration `2026_08_19_120000_...`; `tests/Feature/Wwhn199ReservationIndexContractTest.php` |
+
+### 11.2. Kết quả chạy thật tại candidate
+
+| Hạng mục | Lệnh | Kết quả |
+|---|---|---|
+| Chuỗi dựng bằng chứng (6 bước) | `node scripts/run-wwhn199-evidence.mjs --database=hn_wwhn199 --port-a=8199 --port-b=8299` | **PASS** — cả 6 bước xanh |
+| Race item-level | (bước 5) | **5/5 chồng lấn, 5/5 đúng bất biến** |
+| Race toa-level | (bước 5) | **PASS** — winner 200 / loser 409 `STATE_CONFLICT` |
+| Invariant DB + `pg_indexes` + duplicate probe | (bước 6) | **PASS** — `outbound/inbound_active_item_index_count = 1`, probe bị chặn `23505` |
+| Hợp đồng index trên PostgreSQL | `php artisan test --filter=Wwhn199ReservationIndexContractTest` | **3 passed, 5 assertions** |
+| Hành vi guard qua HTTP | `php artisan test --filter=Wwhn199ReservationConcurrencyGuardTest` | **5 passed, 34 assertions** |
+| Style | `vendor/bin/pint --test <bề mặt WWHN-199>` | **passed** |
+
+### 11.3. File thay đổi ở vòng này
+
+| File | Loại | Vai trò |
+|---|---|---|
+| `Modules/Warehouse/database/migrations/2026_08_19_120000_consolidate_outbound_active_item_unique_index.php` | Mới | DEV199-P2-01 — hợp nhất index, fail-closed hai tầng |
+| `tests/Feature/Wwhn199ReservationIndexContractTest.php` | Mới | Cổng hồi quy: đúng 1 unique index ACTIVE-item mỗi bảng + DB chặn thật |
+| `scripts/run-wwhn199-evidence.mjs` | Mới | Dựng lại toàn bộ bằng chứng bằng **một lệnh** (6 bước fail-closed) |
+| `scripts/wwhn199-recreate-candidate-database.php` | Mới | DROP/CREATE DB candidate, có hàng rào chống trỏ nhầm DB nghiệp vụ |
+| `scripts/run-wwhn199-reservation-race.mjs`, `scripts/wwhn199-race-fixture.php`, `scripts/verify-wwhn199-reservation-invariants.php` | Mới | Fixture · race · đọc invariant DB |
+| `scripts/build-wwhn199-manifest.mjs`, `scripts/verify-wwhn199-closure.mjs` | Mới | DEV199-P1-03R — sinh pin và cổng chống pin rot |
+| `docs/evidence/WWHN-199/*` | Mới | RACE_EVIDENCE · PG_MIGRATION_AND_INDEX_EVIDENCE · SOURCE_BASELINE_PIN · QA1_RETEST_PACK · MANIFEST |
+| `docs/decision-records/DISP-OUT-199-RESERVATION-INDEX.md` | Mới | DEV199-P2-01 disposition |
+| `.github/workflows/wwhn-199-reservation-gate.yml` | Mới | Cổng CI: verify exact-SHA **trước**, rồi chạy lại chuỗi trên PG16 |
+| `docs/api-contract/WWHN-198-reserved-qty-contract.json`, `docs/decision-records/DEC-INV-RESERVED-001-...md` | Sửa 1 dòng | Gỡ tên index đã hợp nhất khỏi contract đang có hiệu lực (xem `DISP-OUT-199` §5) |
+
+### 11.4. Open point cũ — trạng thái
+
+| ID | Nội dung | Trạng thái sau vòng này |
+|---|---|---|
+| `BE1-RESV-OP-01` | `reserved_qty` luôn 0, cần BA làm rõ | **ĐÓNG** bởi `DEC-INV-RESERVED-001` (chờ BA Main ký xác nhận, không phải chờ quyết định mới) |
+| `BE1-RESV-OP-02` | Unique index chưa chạy thật trên PostgreSQL | **ĐÓNG** — `pg_indexes` + duplicate probe 23505 trên DB dựng mới |
+| `BE1-RESV-OP-03` | Chưa có race đa connection thật | **ĐÓNG** — 2 process, 2 connection, 5/5 vòng chồng lấn đo được |
+
+### 11.5. BE1 KHÔNG tự nhận
+
+- Không tự đánh dấu Done/Approved trên Jira. Sign-off là việc của BA/BAS (`DEV199-P1-06`,
+  `DEV199-P1-04R`), QA1 (`DEV199-P1-05R`), Tech Lead/DBA (`DEV199-P2-01`), DevOps
+  (`DEV199-P1-02R` §4.3 trên môi trường thật).
+- Không khẳng định staging/production **đang** có đúng hình dạng index này — chỉ khẳng định
+  tập migration tại candidate SHA tạo ra hình dạng đó trên PostgreSQL 16.14 từ DB trống.
+- Không đóng toàn bộ `AC-GWT-CONC-001`: phần Post Issue/không âm kho thuộc WWHN-195/WWHN-201,
+  phần UI retry thuộc FE1. Xem `SOURCE_BASELINE_PIN.md` §5.
+- Không đụng tới hai cặp index cùng hình thái trên `component_issue_items` và
+  `container_items` — đã ghi rõ mức bằng chứng và chuyển tiếp trong `DISP-OUT-199` §6.

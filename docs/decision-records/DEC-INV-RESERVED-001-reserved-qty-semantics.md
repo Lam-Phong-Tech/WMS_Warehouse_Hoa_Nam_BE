@@ -27,7 +27,7 @@ số lượng (quantity-level)**:
 
 | Câu hỏi | Nguồn sự thật |
 |---|---|
-| Item vật lý này đã bị phiếu khác chiếm chưa? | `outbound_item_matches.status = 'ACTIVE'` (+ unique partial index `ux_erd_outbound_active_item` / `uk_outbound_match_active_item`) |
+| Item vật lý này đã bị phiếu khác chiếm chưa? | `outbound_item_matches.status = 'ACTIVE'` (+ unique partial index `ux_erd_outbound_active_item` — bản sao tương đương `uk_outbound_match_active_item` đã được hợp nhất theo `DISP-OUT-199`) |
 | Còn bao nhiêu hàng để bán/xuất? | `inventory_balances.available_qty` |
 | Tồn vật lý đang có? | `inventory_balances.on_hand_qty` / `quantity` |
 | Đang giữ chỗ bao nhiêu đơn vị? | **Không tồn tại như một con số** — giữ chỗ là tập item ACTIVE, đếm được bằng `outbound_item_matches` chứ không đọc từ `reserved_qty` |

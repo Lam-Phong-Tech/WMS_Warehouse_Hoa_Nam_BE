@@ -1,0 +1,185 @@
+name: WWHN-199 Reservation Concurrency & Index Contract Gate
+
+# Vòng review trước chấm 67/100. Sáu mục P1 và một mục P2 quy về đúng một câu hỏi:
+# "chứng minh lại được không, tại đúng SHA nào, bằng dữ liệu thô nào?". Workflow này là
+# dạng máy của câu trả lời.
+#
+#   DEV199-P1-01R  chạy race THẬT trên PostgreSQL 16: hai `php artisan serve` process
+#                  riêng biệt, hai pool connection, sáu vòng item-level chồng lấn + một
+#                  vòng toa-level. Không bước nào có continue-on-error.
+#   DEV199-P1-02R  migrate --force trên DB dựng mới, query pg_indexes thật, và probe
+#                  INSERT trùng phải nhận 23505.
+#   DEV199-P1-03R  verify-wwhn199-closure.mjs --expect-sha đọc lại TỪNG artifact từ commit
+#                  đã pin và so SHA-256 với manifest ⇒ "còn file nhưng nội dung đã trôi"
+#                  sẽ đỏ.
+#   DEV199-P1-05R  chính hai bước trên là thứ QA1 chạy lại được; log thô upload thành
+#                  artifact để QA đối chiếu thay vì tin lời DEV.
+#   DEV199-P2-01   cổng hợp đồng index đòi ĐÚNG MỘT unique index ACTIVE-item mỗi bảng.
+#
+# THỨ TỰ HAI BƯỚC LÀ CÓ CHỦ Ý: verifier chạy TRƯỚC trên checkout nguyên vẹn (nó kiểm
+# hash của evidence đã commit), rồi mới chạy lại chuỗi dựng bằng chứng — chuỗi đó ghi đè
+# build/evidence/wwhn-199/* nên nếu chạy verifier sau, hash chắc chắn lệch và cổng sẽ đỏ
+# vì một lý do vô nghĩa.
+#
+# fetch-depth: 0 là bắt buộc — không có lịch sử đầy đủ thì không rev-parse được candidate.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_19_120000_consolidate_outbound_active_item_unique_index.php'
+      - 'tests/Feature/Wwhn199ReservationConcurrencyGuardTest.php'
+      - 'tests/Feature/Wwhn199ReservationIndexContractTest.php'
+      - 'scripts/run-wwhn199-evidence.mjs'
+      - 'scripts/run-wwhn199-reservation-race.mjs'
+      - 'scripts/wwhn199-race-fixture.php'
+      - 'scripts/wwhn199-recreate-candidate-database.php'
+      - 'scripts/verify-wwhn199-reservation-invariants.php'
+      - 'scripts/verify-wwhn199-closure.mjs'
+      - 'scripts/build-wwhn199-manifest.mjs'
+      - 'docs/evidence/WWHN-199/**'
+      - 'docs/decision-records/DISP-OUT-199-RESERVATION-INDEX.md'
+      - '.github/workflows/wwhn-199-reservation-gate.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'tests/Feature/Wwhn199*'
+      - 'scripts/*wwhn199*'
+      - 'docs/evidence/WWHN-199/**'
+      - 'docs/decision-records/DISP-OUT-199-RESERVATION-INDEX.md'
+      - '.github/workflows/wwhn-199-reservation-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reservation-gate:
+    name: PG16 reservation race, index contract and exact-SHA traceability
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: local
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN199-CI-JWT-Reservation-Concurrency-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Style check on WWHN-199 surface
+        run: vendor/bin/pint --test
+          scripts/wwhn199-race-fixture.php
+          scripts/wwhn199-recreate-candidate-database.php
+          scripts/verify-wwhn199-reservation-invariants.php
+          tests/Feature/Wwhn199ReservationConcurrencyGuardTest.php
+          tests/Feature/Wwhn199ReservationIndexContractTest.php
+          Modules/Warehouse/database/migrations/2026_08_19_120000_consolidate_outbound_active_item_unique_index.php
+
+      # ---- DEV199-P1-03R: pin phải còn nguyên TRƯỚC khi ta ghi đè evidence ----
+      - name: Exact-SHA closure verifier on the pristine checkout
+        shell: bash
+        run: |
+          set -o pipefail
+          SHA="$(node -e "console.log(require('./docs/evidence/WWHN-199/MANIFEST.json').candidate.commit)")"
+          echo "Candidate pinned in manifest: $SHA"
+          if ! git cat-file -e "$SHA^{commit}" 2>/dev/null; then
+            echo "::error title=WWHN-199 pin rot::Candidate $SHA khong ton tai trong lich su fetch duoc."
+            exit 1
+          fi
+          node scripts/verify-wwhn199-closure.mjs --expect-sha="$SHA" 2>&1 | tee /tmp/wwhn199-verify.log
+
+      # ---- DEV199-P1-01R + P1-02R + P2-01: chạy lại toàn bộ trên PG16 ----
+      - name: Rebuild the whole evidence chain on PostgreSQL 16
+        shell: bash
+        run: |
+          set -o pipefail
+          if node scripts/run-wwhn199-evidence.mjs \
+               --database=hn_wwhn199_ci --port-a=8199 --port-b=8299 \
+               --username=postgres --password=postgres 2>&1 | tee /tmp/wwhn199-evidence.log; then
+            exit 0
+          fi
+          msg="$(tail -n 160 /tmp/wwhn199-evidence.log)"
+          msg="${msg//'%'/'%25'}"
+          msg="${msg//$'\n'/'%0A'}"
+          msg="${msg//$'\r'/'%0D'}"
+          echo "::error title=WWHN-199 evidence chain failed::$msg"
+          exit 1
+
+      - name: Reservation suite on PostgreSQL 16
+        shell: bash
+        env:
+          DB_DATABASE: hn_wwhn199_ci
+        run: |
+          set -o pipefail
+          php artisan test --filter '/(Wwhn199ReservationIndexContractTest)/' \
+            2>&1 | tee /tmp/wwhn199-pg-suite.log
+
+      - name: Reservation behaviour suite on the default test driver
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test --filter '/(Wwhn199ReservationConcurrencyGuardTest)/' \
+            2>&1 | tee /tmp/wwhn199-behaviour-suite.log
+
+      - name: Upload raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-199-reservation-evidence
+          path: |
+            build/evidence/wwhn-199/
+            /tmp/wwhn199-verify.log
+            /tmp/wwhn199-evidence.log
+            /tmp/wwhn199-pg-suite.log
+            /tmp/wwhn199-behaviour-suite.log
+          if-no-files-found: warn
+          retention-days: 30

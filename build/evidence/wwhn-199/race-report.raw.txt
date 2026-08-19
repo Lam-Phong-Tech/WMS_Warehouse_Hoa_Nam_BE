@@ -1,0 +1,15 @@
+[warm-up] http://127.0.0.1:8199 -> HTTP 503 (649.265ms) | http://127.0.0.1:8299 -> HTTP 503 (613.95ms)
+[warm-up] http://127.0.0.1:8199 -> HTTP 503 (832.532ms) | http://127.0.0.1:8299 -> HTTP 503 (829.595ms)
+
+=== A. RACE ITEM-LEVEL: cung 1 item vat ly, 2 phieu xuat khac nhau, 2 server process ===
+[A round 1] item=b27da153-b4f1-4e40-b083-376a788d35ad overlap=1285.081ms | http://127.0.0.1:8199 doc=d2da6487-84b3-4dc9-8479-05564efc4528 -> HTTP 409 ITEM_ALREADY_MATCHED (t0=2038631.212 t1=2040175.405) | http://127.0.0.1:8299 doc=32b593ff-41bf-4935-9e05-babfc0be822b -> HTTP 200 OK (t0=2038635.062 t1=2039920.143) => ONE WINNER / ONE CONFLICT
+[A round 2] item=483aa660-40ad-4703-ae52-1ee7784f2da7 overlap=1255.703ms | http://127.0.0.1:8199 doc=0f28d155-586e-4a97-811b-ad9df41171b3 -> HTTP 409 ITEM_ALREADY_MATCHED (t0=2040175.991 t1=2041456.623) | http://127.0.0.1:8299 doc=264e3643-fa88-4add-bda8-9fef730c79dd -> HTTP 200 OK (t0=2040177.144 t1=2041432.847) => ONE WINNER / ONE CONFLICT
+[A round 3] item=3caefb68-9e91-47cc-95b4-1e428f86a7c9 overlap=2024.707ms | http://127.0.0.1:8199 doc=b69481ed-ce24-4683-ba1f-4086cb784ec8 -> HTTP 409 ITEM_ALREADY_MATCHED (t0=2041456.811 t1=2043524.903) | http://127.0.0.1:8299 doc=cf7f8140-c812-496f-996d-a2bec0b20cc5 -> HTTP 200 OK (t0=2041459.672 t1=2043484.379) => ONE WINNER / ONE CONFLICT
+[A round 4] item=6ad3e27d-9fc5-434a-87d2-4dd3ee9770bf overlap=1694.461ms | http://127.0.0.1:8199 doc=f835cf49-5a26-4b93-94bc-8d4b9f8e163a -> HTTP 409 ITEM_ALREADY_MATCHED (t0=2043525.151 t1=2045255.851) | http://127.0.0.1:8299 doc=533cf002-00ee-4f0c-a8df-b1008f3c340e -> HTTP 200 OK (t0=2043526.105 t1=2045220.566) => ONE WINNER / ONE CONFLICT
+[A round 5] item=ccd7803f-d2d1-43f4-a6df-b657c718abd7 overlap=1929.581ms | http://127.0.0.1:8199 doc=f1e09a9f-3c58-4053-bf9f-5970cc71461a -> HTTP 409 ITEM_ALREADY_MATCHED (t0=2045256.069 t1=2047229.385) | http://127.0.0.1:8299 doc=3dca6702-bd47-4ffa-9123-dc9e90891f46 -> HTTP 200 OK (t0=2045257.297 t1=2047186.878) => ONE WINNER / ONE CONFLICT
+
+=== B. RACE TOA-LEVEL: 2 Confirm dong thoi cung 1 toa (outbound_request_import) ===
+[B setup] POST /outbound-request-imports -> HTTP 201 import_status=VALIDATED id=76d7dc83-d6d3-49eb-8f34-b983b3b0b18d version=0
+[B] import=76d7dc83-d6d3-49eb-8f34-b983b3b0b18d overlap=1625.701ms | http://127.0.0.1:8199 -> HTTP 200 OK docs=["ffd76f36-a9bc-4a23-b691-78ec402df7c9"] | http://127.0.0.1:8299 -> HTTP 409 STATE_CONFLICT docs=null => ONE WINNER / ONE CONFLICT
+
+[summary] item-level 5/5 round dung bat bien, 5 round co chong lan thuc su; toa-level executed=true passed=true => PASS

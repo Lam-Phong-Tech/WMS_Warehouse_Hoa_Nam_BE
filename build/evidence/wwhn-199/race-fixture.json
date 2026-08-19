@@ -1,0 +1,103 @@
+{
+    "schema_version": "1.0.0",
+    "task": "WWHN-199",
+    "register_item": "DEV199-P1-01R",
+    "driver": "pgsql",
+    "database": "hn_wwhn199",
+    "generated_at": "2026-08-19T08:54:59+07:00",
+    "prefix": "W199R",
+    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCJpYXQiOjE3ODcxMDQ0OTgsImV4cCI6MTc4NzEwODA5OCwibmJmIjoxNzg3MTA0NDk4LCJqdGkiOiJLMEFGajJxbllISE5ya1B0Iiwic3ViIjoiMDFhMDE3YmEtOTQ1Yi03MTIxLWEyNmMtNmU4OTEwOGVjMmIyIiwicHJ2IjoiZjFkMzRhYmQ0MjQ3MzUzODIxMjM2YjQ4MTg5NzJhODUyODQzODNiNyJ9.hF1OYdH65Xhh-CJA1kx3wHdE64ebHMcA_hKbP6wbgqw",
+    "user_id": "01a017ba-945b-7121-a26c-6e89108ec2b2",
+    "warehouse_id": "01a017ba-9531-7016-a97e-e6af2bbbe888",
+    "sku_id": "01a017ba-9581-70b4-957b-6edd874ae919",
+    "sku_code": "W199R-SKU-WRFAMJ",
+    "item_id": "b27da153-b4f1-4e40-b083-376a788d35ad",
+    "serial_number": "W199R-SN-SAUO8MQE",
+    "document_a": {
+        "request_id": "9c064457-6b74-4c48-b23a-b9f07bd0050b",
+        "document_id": "d2da6487-84b3-4dc9-8479-05564efc4528",
+        "line_id": "24e85847-4d47-430e-b790-4057af2f8039"
+    },
+    "document_b": {
+        "request_id": "18df6404-8739-4d5a-8872-f3d9d11ff962",
+        "document_id": "32b593ff-41bf-4935-9e05-babfc0be822b",
+        "line_id": "4d0274a8-1757-4fb6-8777-ee4fdc11fc70"
+    },
+    "rounds": [
+        {
+            "round": 1,
+            "item_id": "b27da153-b4f1-4e40-b083-376a788d35ad",
+            "serial_number": "W199R-SN-SAUO8MQE",
+            "document_a": {
+                "request_id": "9c064457-6b74-4c48-b23a-b9f07bd0050b",
+                "document_id": "d2da6487-84b3-4dc9-8479-05564efc4528",
+                "line_id": "24e85847-4d47-430e-b790-4057af2f8039"
+            },
+            "document_b": {
+                "request_id": "18df6404-8739-4d5a-8872-f3d9d11ff962",
+                "document_id": "32b593ff-41bf-4935-9e05-babfc0be822b",
+                "line_id": "4d0274a8-1757-4fb6-8777-ee4fdc11fc70"
+            }
+        },
+        {
+            "round": 2,
+            "item_id": "483aa660-40ad-4703-ae52-1ee7784f2da7",
+            "serial_number": "W199R-SN-PBAW4XWQ",
+            "document_a": {
+                "request_id": "ec2682e9-4e61-4a3d-ac64-b8a2a612a3da",
+                "document_id": "0f28d155-586e-4a97-811b-ad9df41171b3",
+                "line_id": "e5f8c2cf-4fb1-4b35-aeaf-9cd3a0f4e41c"
+            },
+            "document_b": {
+                "request_id": "0556287a-ed2a-4325-aab9-8c366845573a",
+                "document_id": "264e3643-fa88-4add-bda8-9fef730c79dd",
+                "line_id": "a3184840-f02a-47dd-b858-9b2bb39d83e7"
+            }
+        },
+        {
+            "round": 3,
+            "item_id": "3caefb68-9e91-47cc-95b4-1e428f86a7c9",
+            "serial_number": "W199R-SN-DJ2BAW2F",
+            "document_a": {
+                "request_id": "fcfc30b1-dc53-4ca6-971d-51ab0ce8b162",
+                "document_id": "b69481ed-ce24-4683-ba1f-4086cb784ec8",
+                "line_id": "b9dd07ac-19cd-48cc-992d-0cee9e3c1892"
+            },
+            "document_b": {
+                "request_id": "f48c7d86-e936-470d-a8d7-862191b0d605",
+                "document_id": "cf7f8140-c812-496f-996d-a2bec0b20cc5",
+                "line_id": "13891c4a-c56a-434a-b00e-9b0d43a8279b"
+            }
+        },
+        {
+            "round": 4,
+            "item_id": "6ad3e27d-9fc5-434a-87d2-4dd3ee9770bf",
+            "serial_number": "W199R-SN-ANBHQIDO",
+            "document_a": {
+                "request_id": "deac062a-b4df-457a-8f57-ca66ccf52bff",
+                "document_id": "f835cf49-5a26-4b93-94bc-8d4b9f8e163a",
+                "line_id": "ea18d147-faa0-4f0e-9965-da11a60466f3"
+            },
+            "document_b": {
+                "request_id": "705832fc-7d0f-447b-9953-731fee9dc961",
+                "document_id": "533cf002-00ee-4f0c-a8df-b1008f3c340e",
+                "line_id": "653c133c-b499-45b6-ab14-f9a72cea7e23"
+            }
+        },
+        {
+            "round": 5,
+            "item_id": "ccd7803f-d2d1-43f4-a6df-b657c718abd7",
+            "serial_number": "W199R-SN-GBJOHHVB",
+            "document_a": {
+                "request_id": "10e5d4c3-4367-4a39-9fd8-628b8a3b7fba",
+                "document_id": "f1e09a9f-3c58-4053-bf9f-5970cc71461a",
+                "line_id": "0926c290-0535-4560-893b-e78b30410283"
+            },
+            "document_b": {
+                "request_id": "950e1ac3-d8a2-48b6-9ddd-81c24d7534b6",
+                "document_id": "3dca6702-bd47-4ffa-9123-dc9e90891f46",
+                "line_id": "72a1ba81-c012-4ee2-a09e-5389057b83a8"
+            }
+        }
+    ]
+}

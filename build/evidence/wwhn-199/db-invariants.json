@@ -1,0 +1,184 @@
+{
+    "schema_version": "1.0.0",
+    "task": "WWHN-199",
+    "register_items": [
+        "DEV199-P1-01R",
+        "DEV199-P1-02R",
+        "DEV199-P2-01"
+    ],
+    "driver": "pgsql",
+    "database": "hn_wwhn199",
+    "server_version": "16.14",
+    "generated_at": "2026-08-19T08:55:18+07:00",
+    "checks": {
+        "item_level_after_state": [
+            {
+                "round": 1,
+                "item_id": "b27da153-b4f1-4e40-b083-376a788d35ad",
+                "active_matches": 1,
+                "total_matches": 1,
+                "documents_holding_item": [
+                    "32b593ff-41bf-4935-9e05-babfc0be822b"
+                ]
+            },
+            {
+                "round": 2,
+                "item_id": "483aa660-40ad-4703-ae52-1ee7784f2da7",
+                "active_matches": 1,
+                "total_matches": 1,
+                "documents_holding_item": [
+                    "264e3643-fa88-4add-bda8-9fef730c79dd"
+                ]
+            },
+            {
+                "round": 3,
+                "item_id": "3caefb68-9e91-47cc-95b4-1e428f86a7c9",
+                "active_matches": 1,
+                "total_matches": 1,
+                "documents_holding_item": [
+                    "cf7f8140-c812-496f-996d-a2bec0b20cc5"
+                ]
+            },
+            {
+                "round": 4,
+                "item_id": "6ad3e27d-9fc5-434a-87d2-4dd3ee9770bf",
+                "active_matches": 1,
+                "total_matches": 1,
+                "documents_holding_item": [
+                    "533cf002-00ee-4f0c-a8df-b1008f3c340e"
+                ]
+            },
+            {
+                "round": 5,
+                "item_id": "ccd7803f-d2d1-43f4-a6df-b657c718abd7",
+                "active_matches": 1,
+                "total_matches": 1,
+                "documents_holding_item": [
+                    "3dca6702-bd47-4ffa-9123-dc9e90891f46"
+                ]
+            }
+        ],
+        "request_level_after_state": [
+            {
+                "outbound_request_id": "9c064457-6b74-4c48-b23a-b9f07bd0050b",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "18df6404-8739-4d5a-8872-f3d9d11ff962",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "ec2682e9-4e61-4a3d-ac64-b8a2a612a3da",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "0556287a-ed2a-4325-aab9-8c366845573a",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "fcfc30b1-dc53-4ca6-971d-51ab0ce8b162",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "f48c7d86-e936-470d-a8d7-862191b0d605",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "deac062a-b4df-457a-8f57-ca66ccf52bff",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "705832fc-7d0f-447b-9953-731fee9dc961",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "10e5d4c3-4367-4a39-9fd8-628b8a3b7fba",
+                "active_documents": 1
+            },
+            {
+                "outbound_request_id": "950e1ac3-d8a2-48b6-9ddd-81c24d7534b6",
+                "active_documents": 1
+            }
+        ],
+        "reservation_unique_indexes": [
+            {
+                "tablename": "component_issue_items",
+                "indexname": "component_issue_items_pkey",
+                "indexdef": "CREATE UNIQUE INDEX component_issue_items_pkey ON public.component_issue_items USING btree (id)"
+            },
+            {
+                "tablename": "component_issue_items",
+                "indexname": "uk_component_issue_active_item",
+                "indexdef": "CREATE UNIQUE INDEX uk_component_issue_active_item ON public.component_issue_items USING btree (item_id) WHERE ((item_id IS NOT NULL) AND ((status)::text = 'ACTIVE'::text))"
+            },
+            {
+                "tablename": "component_issue_items",
+                "indexname": "ux_erd_canonical_key_component_issue_items",
+                "indexdef": "CREATE UNIQUE INDEX ux_erd_canonical_key_component_issue_items ON public.component_issue_items USING btree (id)"
+            },
+            {
+                "tablename": "component_issue_items",
+                "indexname": "ux_erd_component_active_item",
+                "indexdef": "CREATE UNIQUE INDEX ux_erd_component_active_item ON public.component_issue_items USING btree (item_id) WHERE ((item_id IS NOT NULL) AND ((status)::text = 'ACTIVE'::text))"
+            },
+            {
+                "tablename": "inbound_scan_entries",
+                "indexname": "inbound_scan_entries_pkey",
+                "indexdef": "CREATE UNIQUE INDEX inbound_scan_entries_pkey ON public.inbound_scan_entries USING btree (id)"
+            },
+            {
+                "tablename": "inbound_scan_entries",
+                "indexname": "ux_erd_canonical_key_inbound_scan_entries",
+                "indexdef": "CREATE UNIQUE INDEX ux_erd_canonical_key_inbound_scan_entries ON public.inbound_scan_entries USING btree (id)"
+            },
+            {
+                "tablename": "inbound_scan_entries",
+                "indexname": "ux_erd_inbound_active_item",
+                "indexdef": "CREATE UNIQUE INDEX ux_erd_inbound_active_item ON public.inbound_scan_entries USING btree (item_id) WHERE ((item_id IS NOT NULL) AND ((status)::text = 'ACTIVE'::text))"
+            },
+            {
+                "tablename": "outbound_item_matches",
+                "indexname": "outbound_item_matches_pkey",
+                "indexdef": "CREATE UNIQUE INDEX outbound_item_matches_pkey ON public.outbound_item_matches USING btree (id)"
+            },
+            {
+                "tablename": "outbound_item_matches",
+                "indexname": "ux_erd_canonical_key_outbound_item_matches",
+                "indexdef": "CREATE UNIQUE INDEX ux_erd_canonical_key_outbound_item_matches ON public.outbound_item_matches USING btree (id)"
+            },
+            {
+                "tablename": "outbound_item_matches",
+                "indexname": "ux_erd_outbound_active_item",
+                "indexdef": "CREATE UNIQUE INDEX ux_erd_outbound_active_item ON public.outbound_item_matches USING btree (item_id) WHERE ((item_id IS NOT NULL) AND ((status)::text = 'ACTIVE'::text))"
+            }
+        ],
+        "outbound_active_item_index_count": 1,
+        "inbound_active_item_index_count": 1,
+        "reservation_triggers": [
+            {
+                "tablename": "inbound_scan_entries",
+                "triggername": "trg_inbound_scan_active_item_guard"
+            },
+            {
+                "tablename": "inbound_scan_entries",
+                "triggername": "trg_inbound_scan_fill_evidence"
+            },
+            {
+                "tablename": "outbound_item_matches",
+                "triggername": "trg_erd_outbound_item_exclusive"
+            },
+            {
+                "tablename": "outbound_item_matches",
+                "triggername": "trg_outbound_match_fill_evidence"
+            }
+        ],
+        "duplicate_active_match_probe": {
+            "executed": true,
+            "blocked": true,
+            "sqlstate": "23505",
+            "message": "SQLSTATE[23505]: Unique violation: 7 ERROR: duplicate key value violates unique constraint \"ux_erd_outbound_active_item\" DETAIL: Key (item_id)=(b27da153-b4f1-4e40-b083-376a788d35ad) already exists. (Connection: pgsql, Host: 127.0.0.1, Port: 5432, Database: hn_wwhn199, SQL: insert into \"outbound_item_matches\" (\"id\", \"outbound_line_id\", \"item_id\", \"quantity\", \"status\", \"version\", \"created_at\", \"upda..."
+        }
+    },
+    "failures": [],
+    "result": "PASS"
+}
