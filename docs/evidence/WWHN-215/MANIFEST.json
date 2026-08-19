@@ -1,0 +1,62 @@
+{
+  "ticket": "WWHN-215",
+  "parent": "WWHN-52",
+  "role": "BE2",
+  "branch": "m1",
+  "date": "2026-08-19",
+  "candidate_sha_scan_ledger_artifacts": "0142b49ed11ac410136ca96993b3fb6ca2ac2971",
+  "head_sha_at_review_time": "9b184439a7f25dbaed4b6c19af638d143b7b2061",
+  "note_pin": "Candidate = commit cuoi cham tap file scan/ledger (CurrentBaselineStockService.php, CurrentBaselineStockFlowController.php, AlignedOutboundFlowController.php, StockLedger.php, StockDocumentService.php, Wwhn231StockNeutralLedgerTest.php). m1 la nhanh dung chung nhieu phien song song nen HEAD khong dung de pin.",
+  "register_disposition": {
+    "DEV215-P0-01": {
+      "status": "NO CODE DEFECT ON CANDIDATE — P0 inherited tu m1-be-2 cu",
+      "root_cause": "Review chi ra vi tri tren nhanh m1-be-2@6081649 (StockDocumentService::scanLine, StockLedger::scanReceipt/scanIssue) — code va method nay khong con ton tai duoi ten do tren m1, va toan bo StockDocumentService/StockLedger khong duoc route nao tro toi (dead code, khong reach qua HTTP).",
+      "live_scan_path": "CurrentBaselineStockFlowController::inboundScan + AlignedOutboundFlowController::outboundScan -> CurrentBaselineStockService::scanStockDocument() -- khong ghi inventory_balances/stock_movements, stock effect chi trong postStockDocument()",
+      "evidence": [
+        "docs/evidence/WWHN-215/logs/sqlite-ledger-scan-regression.log",
+        "docs/evidence/WWHN-215/logs/pgsql-stock-neutral-scan.log"
+      ]
+    },
+    "DEV215-P1-01": {
+      "status": "CLOSED — tai dung governance co san",
+      "evidence": [
+        "docs/decision-records/DEC-MIG-SRC-001-migration-source-disposition.md",
+        "docs/decision-records/DISP-OUT-198-CANONICAL-BRANCH.md",
+        "docs/decision-records/DISP-STK-231-ledger-rescope.md"
+      ],
+      "verify_command": "git rev-list --left-right --count origin/m1-be-2...HEAD",
+      "verify_result": "0\t850"
+    },
+    "DEV215-P1-02": {
+      "status": "CLOSED",
+      "sqlite": { "tests": 182, "passed": 180, "skipped": 2, "failed": 0, "assertions": 1960 },
+      "pgsql": { "test_file": "Wwhn231StockNeutralLedgerTest", "tests": 9, "passed": 9, "failed": 0, "assertions": 54 },
+      "reused_race_evidence": ["docs/evidence/WWHN-198/", "docs/evidence/WWHN-199/"]
+    },
+    "DEV215-P1-03": {
+      "status": "CLOSED",
+      "mismatch_proof": "Wwhn231StockNeutralLedgerTest::test_detected_divergence_creates_incident_without_touching_stock (PG PASS)",
+      "duplicate_proof": "business_key unique constraint (stock_movements) + PostIssueConcurrencyBehaviorTest/PostReceiptConcurrencyBehaviorTest/StockDocumentConcurrencyGuardTest (PASS)",
+      "orphan_proof": "Wwhn205StockMovementItemIdInvariantTest (PASS)",
+      "no_negative_proof": "Wwhn201PostIssueAtomicNonNegativeStockTest (PASS)",
+      "dry_run_log": "docs/evidence/WWHN-215/logs/pgsql-reconcile-dry-run.log",
+      "caveat": "shared PG DB khong co du lieu ton du ngoai transaction test (moi phien dung RefreshDatabase) nen dry-run tra 0 dimension, khong tao du lieu gia tren DB chung de tranh dung phien khac"
+    },
+    "DEV215-P1-04": {
+      "status": "PENDING — QA1 role, khong tu sign-off",
+      "dependency": "WWHN-213"
+    },
+    "DEV215-P1-05": {
+      "status": "CLOSED — NO CONTRACT CHANGE",
+      "reason": "Khong co commit code nao duoc tao cho WWHN-215, chi doc + chay test + viet evidence"
+    },
+    "DEV215-P2-01": {
+      "status": "PENDING — PM role, Jira metadata"
+    }
+  },
+  "known_unrelated_drift": {
+    "description": "Wwhn204LedgerReconciliationCoverageTest fail tren PG dung chung: SQLSTATE[42703] column idempotency_key of relation audit_log does not exist -- phien khac dang them cot nhung chua apply nhat quan tren DB chung",
+    "log": "docs/evidence/WWHN-215/logs/pgsql-known-drift-audit-log-column.log"
+  },
+  "ci_gate": "KHONG CHAM — nguoi dung xac nhan ngan sach GitHub Actions da het 3000/3000 phut, tuyet doi khong kich hoat workflow moi"
+}

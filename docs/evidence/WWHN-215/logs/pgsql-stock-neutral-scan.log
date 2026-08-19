@@ -1,0 +1,20 @@
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\phpunit.xml
+
+Time: 00:56.505, Memory: 78.00 MB
+
+[4mWwhn231Stock Neutral Ledger (Tests\Feature\Wwhn231StockNeutralLedger)[0m
+[32m ✔ [0mNo stock mutating route exists outside canonical posting surface
+[32m ✔ [0mCanonical stock write surface is intact and guarded
+[32m ✔ [0mInbound scan does not touch movement or balance
+[32m ✔ [0mOutbound scan and label preparation are stock neutral
+[32m ✔ [0mReconciliation report and command are read only
+[32m ✔ [0mDetected divergence creates incident without touching stock
+[32m ✔ [0mOptimized ledger aggregate matches legacy group by shape
+[32m ✔ [0mInventory balance report issues a single ledger aggregate query
+[32m ✔ [0mLedger dimension index exists
+
+[30;42mOK (9 tests, 54 assertions)[0m
+{"tool":"phpunit","result":"passed","tests":9,"passed":9,"assertions":54,"duration_ms":56508}

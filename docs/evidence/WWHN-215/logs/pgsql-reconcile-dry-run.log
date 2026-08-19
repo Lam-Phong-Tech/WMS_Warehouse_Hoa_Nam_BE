@@ -1,0 +1,4 @@
++--------------+------------+--------------+-------------+------------+----------+-----------------+
+| warehouse_id | product_id | stock_status | on_hand_qty | ledger_qty | variance | divergence_type |
++--------------+------------+--------------+-------------+------------+----------+-----------------+
+Đối soát hoàn tất: 0 dimension kiểm tra, 0 lệch phát hiện, 0 incident sẽ được tạo nếu chạy thật (dry-run, không ghi incident)
