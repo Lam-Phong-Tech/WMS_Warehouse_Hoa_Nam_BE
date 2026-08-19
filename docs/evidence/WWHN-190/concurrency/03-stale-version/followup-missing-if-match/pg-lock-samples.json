@@ -1,0 +1,30 @@
+[
+    {
+        "at": 1787103519.45045,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1915,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787103519.541577,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1915,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "select * from \"app_user\" where \"user_id\" = $1 and \"app_user\".\"deleted_at\" is null limit 1"
+            }
+        ]
+    }
+]

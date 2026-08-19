@@ -90,7 +90,7 @@ return new class extends Migration
             if ($driver === 'pgsql') {
                 $kind = DB::scalar(
                     'SELECT c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace '.
-                    "WHERE n.nspname = current_schema() AND c.relname = ?",
+                    'WHERE n.nspname = current_schema() AND c.relname = ?',
                     [$candidate]
                 );
                 if ($kind === 'r' || $kind === 'p') {

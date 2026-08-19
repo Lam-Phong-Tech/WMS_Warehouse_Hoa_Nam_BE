@@ -26,6 +26,7 @@ class LabelSnapshotSeeder extends Seeder
 
         if ($outboundDocs->isEmpty()) {
             $this->command->warn('Không tìm thấy outbound documents ISS-2026-0001/0002. Bỏ qua.');
+
             return;
         }
 
@@ -38,6 +39,7 @@ class LabelSnapshotSeeder extends Seeder
 
         if ($lines->isEmpty()) {
             $this->command->warn('Không tìm thấy outbound lines. Bỏ qua.');
+
             return;
         }
 
@@ -48,9 +50,9 @@ class LabelSnapshotSeeder extends Seeder
         $snapshots = [];
         $events = [];
 
-        $statuses   = ['PRINTED', 'PRINTED', 'PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'];
-        $reprints   = [0, 1, 0, 0, 0];
-        $daysAgo    = [2, 5, 1, 8, 3];
+        $statuses = ['PRINTED', 'PRINTED', 'PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'];
+        $reprints = [0, 1, 0, 0, 0];
+        $daysAgo = [2, 5, 1, 8, 3];
 
         $pairings = [];
         foreach ($lines as $line) {
@@ -70,7 +72,7 @@ class LabelSnapshotSeeder extends Seeder
         }
 
         if (count($pairings) < 5) {
-            $this->command->warn('Chỉ tìm được ' . count($pairings) . ' cặp line-item.');
+            $this->command->warn('Chỉ tìm được '.count($pairings).' cặp line-item.');
         }
 
         foreach ($pairings as $i => $pair) {
@@ -81,62 +83,62 @@ class LabelSnapshotSeeder extends Seeder
             $createdAt = $now->copy()->subDays($daysAgo[$i])->subHours(rand(1, 8));
 
             $matches[] = [
-                'id'               => $matchId,
+                'id' => $matchId,
                 'outbound_line_id' => $line->line_id,
-                'item_id'          => $item->id,
-                'container_id'     => null,
-                'quantity'         => 1,
-                'status'           => 'ACTIVE',
-                'matched_at'       => $createdAt,
-                'matched_by'       => $adminId,
-                'created_at'       => $createdAt,
-                'created_by'       => $adminId,
-                'updated_at'       => $createdAt,
-                'updated_by'       => $adminId,
-                'version'          => 0,
+                'item_id' => $item->id,
+                'container_id' => null,
+                'quantity' => 1,
+                'status' => 'ACTIVE',
+                'matched_at' => $createdAt,
+                'matched_by' => $adminId,
+                'created_at' => $createdAt,
+                'created_by' => $adminId,
+                'updated_at' => $createdAt,
+                'updated_by' => $adminId,
+                'version' => 0,
             ];
 
             $outboundNo = $outboundDocs->get($line->outbound_document_id, 'ISS-UNKNOWN');
 
             $snapshots[] = [
-                'id'                     => $snapId,
-                'label_code'             => 'LBL-2026-' . str_pad($i + 1, 4, '0', STR_PAD_LEFT),
+                'id' => $snapId,
+                'label_code' => 'LBL-2026-'.str_pad($i + 1, 4, '0', STR_PAD_LEFT),
                 'outbound_item_match_id' => $matchId,
-                'outbound_document_id'   => $line->outbound_document_id,
-                'sku_id'                 => $line->sku_id,
-                'sku_code'               => $line->sku_code,
-                'product_name'           => $line->sku_name,
-                'item_id'                => $item->id,
-                'item_code_value'        => $item->item_code,
-                'outbound_no'            => $outboundNo,
-                'customer_name'          => 'Khach hang mau',
-                'customer_address'       => 'TP Ho Chi Minh',
-                'template_version'       => 'V1.0',
-                'label_payload'          => json_encode([
+                'outbound_document_id' => $line->outbound_document_id,
+                'sku_id' => $line->sku_id,
+                'sku_code' => $line->sku_code,
+                'product_name' => $line->sku_name,
+                'item_id' => $item->id,
+                'item_code_value' => $item->item_code,
+                'outbound_no' => $outboundNo,
+                'customer_name' => 'Khach hang mau',
+                'customer_address' => 'TP Ho Chi Minh',
+                'template_version' => 'V1.0',
+                'label_payload' => json_encode([
                     'template' => 'standard',
-                    'version'  => '1.0',
-                    'sku'      => $line->sku_code,
-                    'item'     => $item->item_code,
+                    'version' => '1.0',
+                    'sku' => $line->sku_code,
+                    'item' => $item->item_code,
                 ]),
-                'payload'                => json_encode([
+                'payload' => json_encode([
                     'template' => 'standard',
-                    'version'  => '1.0',
-                    'sku'      => $line->sku_code,
-                    'item'     => $item->item_code,
+                    'version' => '1.0',
+                    'sku' => $line->sku_code,
+                    'item' => $item->item_code,
                 ]),
-                'status'                 => $statuses[$i],
-                'reprint_count'          => $reprints[$i],
-                'created_at'             => $createdAt,
-                'created_by'             => $adminId,
-                'updated_at'             => $createdAt,
-                'updated_by'             => $adminId,
-                'version'                => 0,
+                'status' => $statuses[$i],
+                'reprint_count' => $reprints[$i],
+                'created_at' => $createdAt,
+                'created_by' => $adminId,
+                'updated_at' => $createdAt,
+                'updated_by' => $adminId,
+                'version' => 0,
             ];
 
             $attemptCount = match ($statuses[$i]) {
-                'PRINTED'      => $reprints[$i] + 1,
+                'PRINTED' => $reprints[$i] + 1,
                 'PRINT_FAILED' => 2,
-                default        => 0,
+                default => 0,
             };
 
             for ($a = 0; $a < $attemptCount; $a++) {
@@ -147,35 +149,35 @@ class LabelSnapshotSeeder extends Seeder
                     : 'PRINTED';
 
                 $events[] = [
-                    'id'                => Str::uuid()->toString(),
+                    'id' => Str::uuid()->toString(),
                     'label_snapshot_id' => $snapId,
-                    'printer_id'        => null,
+                    'printer_id' => null,
                     'printer_config_id' => null,
-                    'event_type'        => $a === 0 ? 'PRINT' : 'REPRINT',
-                    'status'            => $eventStatus,
-                    'attempt_no'        => $a + 1,
-                    'error_message'     => $eventStatus === 'FAILED' ? 'Printer timeout' : null,
-                    'error_code'        => $eventStatus === 'FAILED' ? 'TIMEOUT' : null,
-                    'requested_at'      => $eventAt,
-                    'completed_at'      => $eventAt->copy()->addSeconds(3),
-                    'printed_at'        => $eventStatus === 'PRINTED' ? $eventAt->copy()->addSeconds(3) : null,
-                    'actor_id'          => $adminId,
-                    'created_at'        => $eventAt,
-                    'created_by'        => $adminId,
-                    'version'           => 0,
+                    'event_type' => $a === 0 ? 'PRINT' : 'REPRINT',
+                    'status' => $eventStatus,
+                    'attempt_no' => $a + 1,
+                    'error_message' => $eventStatus === 'FAILED' ? 'Printer timeout' : null,
+                    'error_code' => $eventStatus === 'FAILED' ? 'TIMEOUT' : null,
+                    'requested_at' => $eventAt,
+                    'completed_at' => $eventAt->copy()->addSeconds(3),
+                    'printed_at' => $eventStatus === 'PRINTED' ? $eventAt->copy()->addSeconds(3) : null,
+                    'actor_id' => $adminId,
+                    'created_at' => $eventAt,
+                    'created_by' => $adminId,
+                    'version' => 0,
                 ];
             }
         }
 
         DB::table('outbound_item_matches')->insert($matches);
-        $this->command->info('Da tao ' . count($matches) . ' outbound_item_matches.');
+        $this->command->info('Da tao '.count($matches).' outbound_item_matches.');
 
         DB::table('label_snapshots')->insert($snapshots);
-        $this->command->info('Da tao ' . count($snapshots) . ' label_snapshots.');
+        $this->command->info('Da tao '.count($snapshots).' label_snapshots.');
 
         if (! empty($events)) {
             DB::table('label_print_events')->insert($events);
-            $this->command->info('Da tao ' . count($events) . ' label_print_events.');
+            $this->command->info('Da tao '.count($events).' label_print_events.');
         }
     }
 }

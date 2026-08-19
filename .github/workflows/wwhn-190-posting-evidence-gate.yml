@@ -1,0 +1,215 @@
+name: WWHN-190 Posting Contract & True Concurrency Gate
+
+# Vòng review R2 rớt 62/100 với 5 hạng mục P1 + 1 P2. Gate này biến ba hạng mục
+# "phải chứng minh bằng chạy thật" thành mệnh đề máy kiểm được tại đúng commit:
+#
+#   DEV190-P1-01C  — hợp đồng posting phải khớp runtime (If-Match, 412 STALE_VERSION,
+#                    permission thật, state/lifecycle). Kiểm hai chiều: generator
+#                    `--check` đối chiếu x-permission với route:list, và phpunit bắn
+#                    HTTP thật để assert từng mã lỗi hợp đồng khai.
+#   DEV190-P1-02R2 — true concurrency 2 connection/process trên PostgreSQL 16 với đủ
+#                    5 kịch bản bắt buộc; bằng chứng gồm pg_locks samples + DB before/after.
+#   DEV190-P1-03R2 — accepted_receipt_qty = signed receipt movements = balance delta,
+#                    mismatch/orphan/duplicate = 0.
+#
+# Fail-closed: sai một mệnh đề là đỏ, không có bước nào "best effort".
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'app/Support/IdempotencyStore.php'
+      - 'app/Support/IdempotencyKeyGuard.php'
+      - 'app/Support/ApiError.php'
+      - 'app/Support/ConflictCode.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php'
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'docs/api-contract/releases/WWHN-190/**'
+      - 'docs/decision-records/DEC-API-POSTING-002-*'
+      - 'docs/evidence/WWHN-190/**'
+      - 'scripts/build-wwhn190-posting-contract.mjs'
+      - 'scripts/wwhn190-*.php'
+      - 'tests/Feature/Wwhn190PostingContractParityTest.php'
+      - '.github/workflows/wwhn-190-posting-evidence-gate.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'docs/api-contract/releases/WWHN-190/**'
+      - 'scripts/build-wwhn190-posting-contract.mjs'
+      - 'scripts/wwhn190-*.php'
+      - 'tests/Feature/Wwhn190PostingContractParityTest.php'
+      - '.github/workflows/wwhn-190-posting-evidence-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-190-posting-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  contract-parity:
+    name: DEV190-P1-01C contract vs runtime (sqlite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN190-CI-JWT-Posting-Contract-2026
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install locked dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Style check on WWHN-190 artefacts
+        run: |
+          vendor/bin/pint --test \
+            scripts/wwhn190-postgres-concurrency.php \
+            scripts/wwhn190-concurrency-worker.php \
+            scripts/wwhn190-receipt-reconciliation.php \
+            tests/Feature/Wwhn190PostingContractParityTest.php
+
+      # Generator đọc route:list thật; `--check` fail nếu artifact lệch generator,
+      # nếu x-permission lệch middleware, hoặc nếu bề mặt đã gỡ quay lại runtime.
+      - name: Contract generator parity (--check)
+        run: |
+          mkdir -p build/wwhn190
+          php artisan route:list --json > build/wwhn190/route-list.json
+          node scripts/build-wwhn190-posting-contract.mjs --check --routes build/wwhn190/route-list.json
+
+      - name: Immutable pack WWHN-180 v1.7.0 remains untouched
+        run: |
+          set -euo pipefail
+          version="$(node -e "console.log(require('./docs/api-contract/WWHN-180-posting-openapi.json').info.version)")"
+          if [ "$version" != "1.7.0" ]; then
+            echo "DISP-STK-236 §3: pack WWHN-180 phải giữ nguyên 1.7.0, thực tế $version" >&2
+            exit 1
+          fi
+
+      - name: Contract parity over real HTTP
+        run: php vendor/bin/phpunit tests/Feature/Wwhn190PostingContractParityTest.php
+
+      - name: Posting guards stay green
+        run: |
+          php vendor/bin/phpunit \
+            tests/Feature/PostReceiptConcurrencyBehaviorTest.php \
+            tests/Feature/StockDocumentConcurrencyGuardTest.php \
+            tests/Feature/StockDocumentIdempotencyTest.php
+
+      - name: Upload contract release artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-190-contract-release-${{ github.sha }}
+          path: docs/api-contract/releases/WWHN-190/
+          retention-days: 90
+
+  true-concurrency:
+    name: DEV190-P1-02R2 + P1-03R2 executed evidence (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wms_hoanam
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wms_hoanam"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN190-CI-JWT-Posting-Contract-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: wms_hoanam
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      WWHN190_EVIDENCE_DIR: docs/evidence/WWHN-190/concurrency
+      WWHN190_RECON_DIR: docs/evidence/WWHN-190/reconciliation
+      WWHN190_LOCK_HOLD_MS: '1200'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+          php artisan migrate --force
+
+      # 5 kịch bản bắt buộc, mỗi kịch bản 2 OS process + 2 backend PostgreSQL riêng.
+      - name: True concurrency — 5 scenarios, 2 processes each
+        run: php scripts/wwhn190-postgres-concurrency.php "$WWHN190_EVIDENCE_DIR"
+
+      - name: Reconciliation — accepted qty = signed ledger = balance delta
+        run: php scripts/wwhn190-receipt-reconciliation.php "$WWHN190_RECON_DIR"
+
+      - name: Seal evidence with checksums
+        if: always()
+        run: |
+          set -euo pipefail
+          cd docs/evidence/WWHN-190
+          find . -type f ! -name 'SHA256SUMS*' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          sha256sum SHA256SUMS > SHA256SUMS.sha256
+          echo "commit=${GITHUB_SHA} run=${GITHUB_RUN_ID}" > EVIDENCE_BUILD.txt
+          cat SHA256SUMS.sha256
+
+      - name: Upload WWHN-190 executed evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-190-executed-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-190/
+          retention-days: 90

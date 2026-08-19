@@ -1,0 +1,16 @@
+{
+    "worker_index": 1,
+    "scenario": "03-stale-version",
+    "barrier_dir": "build/wwhn190/evidence/03-stale-version/barrier",
+    "out_file": "build/wwhn190/evidence/03-stale-version/worker-1.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/64c840a1-c12d-4dc6-a42e-93fc01b3cc9d/post-receipt",
+        "if_match": "99",
+        "idempotency_key": "wwhn190-s3stale-47621146",
+        "body": {
+            "note": "stale-version"
+        }
+    }
+}

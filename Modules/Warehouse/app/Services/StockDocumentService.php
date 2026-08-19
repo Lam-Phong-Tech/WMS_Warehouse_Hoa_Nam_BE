@@ -2,9 +2,9 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\ApiError;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use App\Support\ApiError;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Exceptions\WarehouseException;
 use Modules\Warehouse\Models\DocumentStatusHistory;
@@ -12,7 +12,6 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
-use Modules\Warehouse\Services\ScanResolver;
 use Modules\Warehouse\Models\Warehouse;
 
 class StockDocumentService

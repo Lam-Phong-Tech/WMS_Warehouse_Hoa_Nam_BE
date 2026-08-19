@@ -7,8 +7,10 @@ use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Modules\Auth\Models\User;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 
 class ReversalDocumentController extends Controller
@@ -467,10 +469,10 @@ class ReversalDocumentController extends Controller
      * về tập rỗng, không phải mở toàn bộ. `EnforceReversalWarehouseScope` chặn ở tầng
      * route cho các thao tác theo id; hàm này là lớp thứ hai cho danh sách.
      */
-    private function applyWarehouseScope(\Illuminate\Database\Query\Builder $query): void
+    private function applyWarehouseScope(Builder $query): void
     {
         $user = auth('api')->user();
-        if (! $user instanceof \Modules\Auth\Models\User) {
+        if (! $user instanceof User) {
             return;
         }
 

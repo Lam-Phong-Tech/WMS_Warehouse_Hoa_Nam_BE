@@ -57,7 +57,7 @@ return new class extends Migration
         DB::statement('CREATE TRIGGER trg_hn_sync_product_master_to_canonical AFTER INSERT OR UPDATE ON product_masters FOR EACH ROW EXECUTE FUNCTION hn_sync_product_master_to_canonical()');
 
         // Backfill các master đã tạo trước khi có trigger.
-        DB::statement("UPDATE product_masters SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)");
+        DB::statement('UPDATE product_masters SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)');
         DB::statement(<<<'SQL'
             DO $$
             DECLARE r RECORD;

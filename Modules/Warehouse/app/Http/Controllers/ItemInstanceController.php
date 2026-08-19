@@ -218,11 +218,11 @@ class ItemInstanceController extends Controller
         $movementsQuery = StockMovement::query()
             ->with('document')
             ->whereHas('documentLine', fn ($query) => $query->where('item_instance_id', $item->item_id));
-            
+
         $rawMovements = $movementsQuery->orderByDesc('occurred_at')
             ->limit(50)
             ->get();
-            
+
         $formattedMovements = $rawMovements->map(function ($mov) {
             return [
                 'movement_id' => $mov->id,
@@ -242,7 +242,7 @@ class ItemInstanceController extends Controller
             'serial_number' => $item->serial_number,
             'physical_code' => $item->physicalCode,
             'movements' => $formattedMovements,
-            
+
             // Giữ lại các field cũ để không break test case cũ
             'item' => $item,
             'sku' => $item->sku,

@@ -1,0 +1,16 @@
+{
+    "worker_index": 1,
+    "scenario": "02-different-key-same-document",
+    "barrier_dir": "build/wwhn190/evidence/02-different-key-same-document/barrier",
+    "out_file": "build/wwhn190/evidence/02-different-key-same-document/worker-1.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/78fc6730-704b-45a8-8e7d-4c690c10f980/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s2b-47621146",
+        "body": {
+            "note": "B"
+        }
+    }
+}

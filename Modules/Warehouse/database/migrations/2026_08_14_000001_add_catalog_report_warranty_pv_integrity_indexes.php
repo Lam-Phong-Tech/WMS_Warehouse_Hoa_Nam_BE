@@ -25,7 +25,7 @@ return new class extends Migration
                 ->count();
 
             if ($duplicates > 0) {
-                throw new \RuntimeException("Cannot add PV profile uniqueness: {$duplicates} SKU(s) have multiple profiles.");
+                throw new RuntimeException("Cannot add PV profile uniqueness: {$duplicates} SKU(s) have multiple profiles.");
             }
 
             DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS uk_pv_product_profile_product ON pv_product_profiles (sku_id)');
@@ -48,7 +48,7 @@ return new class extends Migration
             ->count();
 
         if ($duplicates > 0) {
-            throw new \RuntimeException("Cannot add PV profile uniqueness: {$duplicates} SKU(s) have multiple profiles.");
+            throw new RuntimeException("Cannot add PV profile uniqueness: {$duplicates} SKU(s) have multiple profiles.");
         }
 
         $this->alterTableAroundBaselineViews('pv_product_profile', function () {

@@ -1,0 +1,39 @@
+{
+  "jira_key": "WWHN-190",
+  "register_item": "DEV190-P1-01C",
+  "release": "WWHN-190/1.8.0",
+  "document_version": "1.8.0",
+  "contract_status": "PROPOSED",
+  "approval_status": "PENDING_INDEPENDENT_SIGN_OFF",
+  "generator": "scripts/build-wwhn190-posting-contract.mjs",
+  "runtime_parity": {
+    "source": "php artisan route:list --json",
+    "operations_checked": 9,
+    "removed_surfaces_checked": 1
+  },
+  "supersedes": {
+    "artifact": "docs/api-contract/WWHN-180-posting-openapi.json",
+    "version": "1.7.0",
+    "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+    "immutability_rule": "DISP-STK-236 §3",
+    "decision_record": "docs/decision-records/DEC-API-POSTING-002-WWHN190-RUNTIME-PARITY.md"
+  },
+  "error_catalog_authority": "HN_SRS_FRD_v1.12 §8.2",
+  "files": [
+    {
+      "file": "openapi.json",
+      "bytes": 46151,
+      "sha256": "cef20156697e31cff8ddf7ae58c0a23c6df681ca5485f3c6a51544f7d4d4178d"
+    },
+    {
+      "file": "openapi.yaml",
+      "bytes": 35142,
+      "sha256": "78b4f667f753621eb7b8b4f2b43deabaf70933c597c6ee318533c280d630c62a"
+    },
+    {
+      "file": "postman_collection.json",
+      "bytes": 14460,
+      "sha256": "3a1f948f71c50f2f3437d5afd849110bb2d1e7c7997c81cc95246d50e9158ce6"
+    }
+  ]
+}

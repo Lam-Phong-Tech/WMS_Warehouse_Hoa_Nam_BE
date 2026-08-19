@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -11,7 +12,6 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
-use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
 class SchemaApiModulesTest extends TestCase
@@ -201,7 +201,7 @@ class SchemaApiModulesTest extends TestCase
         $sku = Sku::create(['sku_code' => 'SKU-PV-'.Str::random(8), 'sku_name' => 'PV SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
         $this->insertPvProfile($sku->sku_id, 'PV Profile');
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
         $this->insertPvProfile($sku->sku_id, 'Duplicate PV Profile');
     }
 
@@ -221,7 +221,7 @@ class SchemaApiModulesTest extends TestCase
         $sku = Sku::create(['sku_code' => 'SKU-PV-RB-'.Str::random(8), 'sku_name' => 'PV rollback SKU', 'unit' => 'pcs', 'status' => 'ACTIVE']);
         $this->insertPvProfile($sku->sku_id, 'PV profile after rollback');
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
         $this->insertPvProfile($sku->sku_id, 'Duplicate after rollback');
     }
 }

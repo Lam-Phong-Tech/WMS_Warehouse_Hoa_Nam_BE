@@ -11,7 +11,6 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
-use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
 class Wwhn219InventoryReconcileCommandTest extends TestCase

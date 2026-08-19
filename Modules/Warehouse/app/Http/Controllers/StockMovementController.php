@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\HoaNamErdSchema;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockMovement;
 use OpenApi\Attributes as OA;
@@ -289,7 +290,7 @@ class StockMovementController extends Controller
      * PostgreSQL (tên số nhiều thì ngược lại), nên phải dò bằng
      * `HoaNamErdSchema::relationExists()` — `Schema::hasTable()` trả false cho view.
      *
-     * @param  \Illuminate\Support\Collection<int, StockMovement>  $movements
+     * @param  Collection<int, StockMovement>  $movements
      * @return array<string, object>
      */
     private function reversalDocumentContext($movements): array
@@ -738,7 +739,7 @@ class StockMovementController extends Controller
     /**
      * Tồn khả dụng theo bucket (warehouse, sku, stock_status) cho các movement đang xét.
      *
-     * @param  \Illuminate\Support\Collection<int, object>  $movements
+     * @param  Collection<int, object>  $movements
      * @return array<string, int>
      */
     private function buildAvailableByBucket($movements): array

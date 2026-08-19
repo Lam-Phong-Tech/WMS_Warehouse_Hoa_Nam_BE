@@ -1,0 +1,179 @@
+[
+    {
+        "at": 1787103524.941552,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787103525.061951,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787103525.170424,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787103525.309523,
+        "locks": [
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_attribute_relid_attnum_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_attribute",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_user_roles_user_id_role_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_roles_status",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_roles_role_code",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_roles_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "user_roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "user_role",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "role",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_roles_de164c438c",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_user_roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_user_roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 1927,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000006"
+            }
+        ]
+    }
+]

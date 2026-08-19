@@ -201,7 +201,7 @@ class ReportFlow06DocsAlignmentTest extends TestCase
         $stamp = '/-\d{8}-\d{6}\.(xlsx|pdf)"?$/';
 
         foreach ([
-            "/api/v1/reports/inventory-balance/export-excel",
+            '/api/v1/reports/inventory-balance/export-excel',
             "/api/v1/reports/inventory-xnt/export-excel?from_date={$today}&to_date={$today}",
             "/api/v1/reports/document-history/export-excel?from_date={$today}&to_date={$today}",
             "/api/v1/reports/movement-trace/export-excel?from_date={$today}&to_date={$today}",

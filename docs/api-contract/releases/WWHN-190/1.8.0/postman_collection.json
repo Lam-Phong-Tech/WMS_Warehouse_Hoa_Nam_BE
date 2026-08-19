@@ -1,0 +1,391 @@
+{
+  "info": {
+    "name": "WWHN-190 Posting Contract v1.8.0",
+    "_postman_id": "wwhn190-posting-contract-1.8.0",
+    "description": "Sinh tự động từ scripts/build-wwhn190-posting-contract.mjs. Cùng version với OpenAPI 1.8.0. Supersede \"WWHN-180 Canonical Contract\" v1.7.0 (không sửa file cũ — DISP-STK-236 §3).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "document_id",
+      "value": ""
+    },
+    {
+      "key": "document_version",
+      "value": "1"
+    },
+    {
+      "key": "idempotency_key",
+      "value": "wwhn190-key-0001"
+    }
+  ],
+  "item": [
+    {
+      "name": "wwhn190ScanClassify — Phân loại mã vật lý, không đổi tồn",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/scan/classify",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "scan",
+            "classify"
+          ]
+        },
+        "description": "permission: scan.execute|scan.classify\nIf-Match bắt buộc: false\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: n/a -> n/a (Read-only classification; không đổi trạng thái chứng từ.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED; 422=VALIDATION_ERROR"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190InboundScan — Quét dòng phiếu nhập; stock_effect=NONE, version+1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/inbound-documents/{{document_id}}/scan",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "inbound-documents",
+            "{{document_id}}",
+            "scan"
+          ]
+        },
+        "description": "permission: inbound.scan\nIf-Match bắt buộc: true\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: DRAFT|SCANNING -> SCANNING (Ngoài DRAFT/SCANNING => 409 STATE_CONFLICT.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED,WAREHOUSE_SCOPE_DENIED; 404=RESOURCE_NOT_FOUND,DOCUMENT_LINE_NOT_FOUND; 409=STATE_CONFLICT,DUPLICATE_ITEM_IN_DOCUMENT,ITEM_ALREADY_RECEIVING; 412=STALE_VERSION; 422=INVALID_VERSION,VALIDATION_ERROR,SCAN_EXCEEDS_REQUIRED,SKU_NOT_ACTIVE,ITEM_REQUIRED,SERIAL_QUANTITY_MUST_BE_ONE,PHYSICAL_CODE_NOT_FOUND,PHYSICAL_CODE_UNASSIGNED,PHYSICAL_CODE_ITEM_MISMATCH,ITEM_SKU_MISMATCH,ITEM_NOT_RECEIVABLE; 428=PRECONDITION_REQUIRED"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190PostReceipt — Post Receipt toàn phiếu, exactly-once",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/inbound-documents/{{document_id}}/post-receipt",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "inbound-documents",
+            "{{document_id}}",
+            "post-receipt"
+          ]
+        },
+        "description": "permission: inbound.post\nIf-Match bắt buộc: true\nIdempotency-Key bắt buộc: true\nstock_effect: RECEIPT_IN\nlifecycle: SCANNING -> POSTED (DEC-FULL-POST-001: mọi dòng phải scanned_qty = qty_planned, nếu không => 422 FULL_POST_REQUIRED. Ngoài SCANNING => 409 STATE_CONFLICT.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED,WAREHOUSE_SCOPE_DENIED; 404=RESOURCE_NOT_FOUND; 409=STATE_CONFLICT,IDEMPOTENCY_CONFLICT,CONCURRENCY_CONFLICT,DUPLICATE_STOCK_EFFECT; 412=STALE_VERSION; 422=INVALID_VERSION,VALIDATION_ERROR,FULL_POST_REQUIRED,DOCUMENT_HAS_NO_LINES,WAREHOUSE_REQUIRED; 428=PRECONDITION_REQUIRED"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190OutboundScan — Match item cho phiếu xuất; stock_effect=NONE, version+1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/scan",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "scan"
+          ]
+        },
+        "description": "permission: outbound.scan\nIf-Match bắt buộc: true\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: DRAFT|SCANNING -> SCANNING (Ngoài DRAFT/SCANNING => 409 STATE_CONFLICT.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED,WAREHOUSE_SCOPE_DENIED; 404=RESOURCE_NOT_FOUND,DOCUMENT_LINE_NOT_FOUND; 409=STATE_CONFLICT,ITEM_ALREADY_MATCHED,DUPLICATE_ITEM_MATCH,DUPLICATE_ITEM_IN_DOCUMENT; 412=STALE_VERSION; 422=INVALID_VERSION,VALIDATION_ERROR,PRODUCT_SKU_REQUIRED,OUTBOUND_REQUEST_REQUIRED,ITEM_NOT_AVAILABLE,INSUFFICIENT_STOCK; 428=PRECONDITION_REQUIRED"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190PostIssue — Post Issue toàn phiếu, exactly-once, sau khi nhãn đã PRINTED + đã dán",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/post-issue",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "post-issue"
+          ]
+        },
+        "description": "permission: outbound.post\nIf-Match bắt buộc: true\nIdempotency-Key bắt buộc: true\nstock_effect: ISSUE_OUT\nlifecycle: SCANNING -> POSTED (DEC-FULL-POST-001 + DEC-HN-20260811-02: đủ match, đúng 01 Packing Label PRINTED và đã xác nhận dán.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED,WAREHOUSE_SCOPE_DENIED; 404=RESOURCE_NOT_FOUND; 409=STATE_CONFLICT,IDEMPOTENCY_CONFLICT,CONCURRENCY_CONFLICT,LABEL_SNAPSHOT_STALE,DUPLICATE_STOCK_EFFECT; 412=STALE_VERSION; 422=INVALID_VERSION,VALIDATION_ERROR,FULL_POST_REQUIRED,OUTBOUND_REQUEST_REQUIRED,PACKING_LABEL_REQUIRED,LABEL_NOT_PRINTED,PACKING_LABEL_NOT_APPLIED,INSUFFICIENT_STOCK,PRODUCT_ITEM_MATCH_REQUIRED; 428=PRECONDITION_REQUIRED"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190ReverseInbound — Reversal append-only cho phiếu nhập đã POSTED",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/inbound-documents/{{document_id}}/reverse",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "inbound-documents",
+            "{{document_id}}",
+            "reverse"
+          ]
+        },
+        "description": "permission: inventory.reversal.post\nIf-Match bắt buộc: true\nIdempotency-Key bắt buộc: true\nstock_effect: REVERSAL_OUT\nlifecycle: POSTED -> POSTED (DEC-REV-001: movement gốc immutable; chỉ sinh movement đối ứng.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED,WAREHOUSE_SCOPE_DENIED; 404=RESOURCE_NOT_FOUND; 409=STATE_CONFLICT,IDEMPOTENCY_CONFLICT,CONCURRENCY_CONFLICT,ALREADY_FULLY_REVERSED,DOWNSTREAM_DEPENDENCY_EXISTS; 412=STALE_VERSION; 422=INVALID_VERSION,VALIDATION_ERROR,REVERSAL_LINES_REQUIRED,REVERSAL_QTY_EXCEEDED,NO_REVERSIBLE_MOVEMENT,INVALID_RETURN_CONDITION; 428=PRECONDITION_REQUIRED"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190ReverseOutbound — Reversal append-only cho phiếu xuất đã POSTED",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/reverse",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "reverse"
+          ]
+        },
+        "description": "permission: inventory.reversal.post\nIf-Match bắt buộc: true\nIdempotency-Key bắt buộc: true\nstock_effect: REVERSAL_IN\nlifecycle: POSTED -> POSTED (DEC-REV-001: movement gốc immutable; chỉ sinh movement đối ứng.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED,WAREHOUSE_SCOPE_DENIED; 404=RESOURCE_NOT_FOUND; 409=STATE_CONFLICT,IDEMPOTENCY_CONFLICT,CONCURRENCY_CONFLICT,ALREADY_FULLY_REVERSED,DOWNSTREAM_DEPENDENCY_EXISTS; 412=STALE_VERSION; 422=INVALID_VERSION,VALIDATION_ERROR,REVERSAL_LINES_REQUIRED,REVERSAL_QTY_EXCEEDED,NO_REVERSIBLE_MOVEMENT,INVALID_RETURN_CONDITION; 428=PRECONDITION_REQUIRED"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190WarrantyTempOnly — Ghi nhận TEMP_ONLY, không đổi tồn",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/warranty-cases/{{document_id}}/temp-only",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "warranty-cases",
+            "{{document_id}}",
+            "temp-only"
+          ]
+        },
+        "description": "permission: warranty.temp_only\nIf-Match bắt buộc: false\nIdempotency-Key bắt buộc: true\nstock_effect: NONE\nlifecycle: n/a -> n/a (Warranty case; không đụng stock_documents nên không dùng If-Match.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED; 404=RESOURCE_NOT_FOUND; 409=STATE_CONFLICT,IDEMPOTENCY_CONFLICT,CONCURRENCY_CONFLICT; 422=VALIDATION_ERROR; 428=PRECONDITION_REQUIRED"
+      },
+      "response": []
+    },
+    {
+      "name": "wwhn190InventoryReconciliation — Đối chiếu balance với ledger movement (RPT-INV-01)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/reports/inventory-reconciliation",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "reports",
+            "inventory-reconciliation"
+          ]
+        },
+        "description": "permission: report.view\nIf-Match bắt buộc: false\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: n/a -> n/a (Read-only; PASS khi mismatch_count = 0.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED; 422=VALIDATION_ERROR"
+      },
+      "response": []
+    }
+  ],
+  "x-document-version": "1.8.0",
+  "x-openapi-title": "WWHN-190 Hoa Nam Posting Contract (runtime-synchronised)"
+}

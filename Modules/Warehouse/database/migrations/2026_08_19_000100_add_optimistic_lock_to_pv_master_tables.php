@@ -141,7 +141,7 @@ return new class extends Migration
 
     private function replaceSqliteView(string $view, string $selectSql): void
     {
-        $existing = DB::selectOne("SELECT type FROM sqlite_master WHERE name = ? LIMIT 1", [$view]);
+        $existing = DB::selectOne('SELECT type FROM sqlite_master WHERE name = ? LIMIT 1', [$view]);
         if ($existing !== null && $existing->type !== 'view') {
             return;
         }
@@ -165,7 +165,7 @@ return new class extends Migration
         }
 
         if (DB::getDriverName() === 'sqlite') {
-            $relation = DB::selectOne("SELECT type FROM sqlite_master WHERE name = ? LIMIT 1", [$name]);
+            $relation = DB::selectOne('SELECT type FROM sqlite_master WHERE name = ? LIMIT 1', [$name]);
 
             return $relation !== null && $relation->type === 'table';
         }

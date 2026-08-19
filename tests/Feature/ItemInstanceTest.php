@@ -15,7 +15,6 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\StockMovement;
-use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 
 class ItemInstanceTest extends TestCase
@@ -171,7 +170,7 @@ class ItemInstanceTest extends TestCase
         $importBatch = ImportBatch::create(['import_batch_code' => 'IB-TRACE-BATCH', 'status' => 'ACTIVE']);
         // chk_containers_status_current: dùng status hợp lệ theo ERD.
         $container = Container::create(['container_code' => 'BOX-TRACE-CONTAINER', 'container_type' => 'BOX', 'physical_code_id' => $this->chipCode('CT-BOX-TRACE')->physical_code_id, 'primary_sku_id' => $sku->sku_id, 'status' => 'STORED', 'version' => 1]);
-        
+
         $item = ItemInstance::create([
             'sku_id' => $sku->sku_id,
             'physical_code_id' => $code->physical_code_id,
@@ -180,7 +179,7 @@ class ItemInstanceTest extends TestCase
             'serial_number' => 'SN-TRACE-MOV',
             'item_status' => 'IN_STOCK',
             'item_condition' => 'NORMAL',
-            'version' => 1
+            'version' => 1,
         ]);
 
         $warehouse = $this->ensureActiveWarehouse('WH-TRACE', 'Kho trace');

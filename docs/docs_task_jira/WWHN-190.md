@@ -78,7 +78,7 @@ Xác nhận Acceptance Criteria, evidence, dependency và open point theo baseli
 
 ## Kết quả rà soát (Evidence — cập nhật 2026-08-14, BE1)
 
-**Stack thực tế**: PHP/Laravel 11, module hóa qua `nwidart/laravel-modules`. Luồng runtime chính: `POST /api/v1/inbound-documents/{id}/post-receipt` → `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController::postReceipt()` → `postDocument()` → `Modules\Warehouse\Services\CurrentBaselineStockService::postStockDocument()`.
+**Stack thực tế**: PHP ^8.3 / Laravel v13.23.0 (pin tại composer.lock, không phải Laravel 11 như bản ghi 2026-08-14), module hóa qua `nwidart/laravel-modules`. Luồng runtime chính: `POST /api/v1/inbound-documents/{id}/post-receipt` → `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController::postReceipt()` → `postDocument()` → `Modules\Warehouse\Services\CurrentBaselineStockService::postStockDocument()`.
 
 Ghi chú kỹ thuật: `Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php` và `Modules/Warehouse/app/Services/StockDocumentService.php` **không** nằm trong route thực thi (`routes/api.php` không trỏ tới) — chỉ giữ lại để lưu OpenAPI annotation. Toàn bộ logic atomic/idempotent/concurrency thật nằm ở `CurrentBaselineStockFlowController` + `CurrentBaselineStockService`. Rủi ro bảo trì cần lưu ý: không sửa nhầm 2 file song song không active.
 
@@ -90,28 +90,28 @@ Ghi chú kỹ thuật: `Modules/Warehouse/app/Http/Controllers/InboundDocumentCo
 
 ### 2. Idempotency — ĐẦY ĐỦ
 - Header `Idempotency-Key` bắt buộc (`app/Support/IdempotencyKeyGuard.php:19-46`), 428 nếu thiếu, 422 nếu sai định dạng.
-- `IdempotencyStore` (bảng `idempotency_keys`, unique `(idem_key, operation, user_id)`): cùng key + cùng payload → replay response cũ; cùng key + khác payload → 409 `IDEMPOTENCY_ERROR`; lease hết hạn mới cho takeover.
+- `IdempotencyStore` (bảng `idempotency_keys`, unique `(idem_key, operation, user_id)`): cùng key + cùng payload → replay response cũ; cùng key + khác payload → 409 `IDEMPOTENCY_CONFLICT`; lease hết hạn mới cho takeover.
 - Lớp phòng thủ phụ: bảng `posting_event` ghi trong `CurrentBaselineStockService::recordPostingEvent()` (dòng 923-947).
 - Test HTTP end-to-end: `FoundationInboundPutawayReadinessTest.php:174-197` (post 2 lần cùng key → lần 2 `Idempotent-Replay: true`, không tạo thêm movement). Test engine-level: `Wwhn180IdempotencyAtomicityTest.php` (same-key/same-payload replay, same-key/khác-payload → 409, canonical JSON hash, rollback khi lỗi).
 
 ### 3. Concurrency guard — ĐẦY ĐỦ (implementation), đã bổ sung test hành vi thật
 Nhiều lớp khóa kết hợp trong `CurrentBaselineStockService.php` và `CurrentBaselineStockFlowController.php`:
-- Optimistic lock qua header `If-Match` (`expectedVersion()`/`assertVersion()`, controller dòng 510-533) → 412 `PRECONDITION_FAILED` khi version lệch.
-- Row lock `SELECT ... FOR UPDATE` trên `stock_documents`, `stock_document_lines`, `inventory_balances` (`lockDocument()` dòng 893-905, `mutateBalance()` dòng 785-891).
-- Version check kép ngay trên `inventory_balances` (dòng 850-861) → 409 `VERSION_CONFLICT` nếu update 0 row.
-- Duplicate business-key guard trên `stock_movements` (dòng 803-805) → 409 `DUPLICATE_STOCK_EFFECT`.
+- Optimistic lock qua header `If-Match` (`expectedVersion()`/`assertVersion()` trong CurrentBaselineStockFlowController; thiếu header → 428 `PRECONDITION_REQUIRED`, sai định dạng → 422 `INVALID_VERSION`) → 412 `STALE_VERSION` khi version lệch.
+- Row lock `SELECT ... FOR UPDATE` trên `stock_documents`, `stock_document_lines`, `inventory_balances` (`lockDocument()`, `mutateBalance()`).
+- Version check kép ngay trên `inventory_balances` (`mutateBalance()`, update có điều kiện `where version = ?`) → 409 `CONCURRENCY_CONFLICT` nếu update 0 row.
+- Duplicate business-key guard trên `stock_movements` (`business_key` = sha1(RECEIPT|doc|line)) → 409 `DUPLICATE_STOCK_EFFECT`.
 
 **Gap tìm thấy**: `tests/Feature/StockDocumentConcurrencyGuardTest.php` trước đây chỉ là "static source assertion" (`assertStringContainsString('lockForUpdate()', ...)` đọc trực tiếp nội dung file PHP), không verify hành vi runtime khi có race thật.
 
 **Đã bổ sung**: `tests/Feature/PostReceiptConcurrencyBehaviorTest.php` — 3 test case lái qua HTTP thật:
-- `test_stale_version_racer_is_rejected_after_winner_commits_and_stock_effect_applies_once`: writer B giữ `If-Match` cũ (đọc trước khi writer A commit) bị từ chối 412 `PRECONDITION_FAILED` sau khi A thắng; xác nhận `stock_movements` và `inventory_balances.on_hand_qty` chỉ được cập nhật đúng 1 lần.
+- `test_stale_version_racer_is_rejected_after_winner_commits_and_stock_effect_applies_once`: writer B giữ `If-Match` cũ (đọc trước khi writer A commit) bị từ chối 412 `STALE_VERSION` sau khi A thắng; xác nhận `stock_movements` và `inventory_balances.on_hand_qty` chỉ được cập nhật đúng 1 lần.
 - `test_repost_with_current_version_after_already_posted_is_rejected_by_state_guard`: writer thứ 2 dùng version mới (khác idempotency key, không phải replay) vẫn bị chặn bởi state guard 409 `STATE_CONFLICT`, không tạo thêm movement — chứng minh guard là defense-in-depth, không chỉ dựa vào version.
 - `test_stock_movement_business_key_is_unique_per_document_line_after_post`: xác nhận bất biến `business_key` duy nhất trên `stock_movements` — nền tảng của guard `DUPLICATE_STOCK_EFFECT`.
 
-Lưu ý: test suite dùng SQLite `:memory:` (`phpunit.xml`), là kết nối đơn tiến trình nên không thể mô phỏng 2 DB connection song song thật (multi-thread/multi-process). Test mới verify **hành vi/outcome** của guard qua HTTP calls tuần tự mô phỏng đúng trạng thái mà 1 racer thua cuộc sẽ quan sát được (stale version, state đã đổi), thay vì chỉ assert chuỗi trong source code như trước.
+Lưu ý (đã được thay thế ở vòng R2 — xem §R2 cuối tài liệu): trước đây bằng chứng concurrency chỉ chạy trên SQLite `:memory:` (một kết nối/tiến trình) nên không thể chứng minh race thật. Từ R2, bằng chứng race nằm ở `scripts/wwhn190-postgres-concurrency.php`: 5 kịch bản, mỗi kịch bản 2 OS process với 2 backend PostgreSQL riêng, có mẫu `pg_locks`/`pg_stat_activity` và ảnh chụp DB trước/sau.
 
 ### 4. Permission/RBAC — ĐẦY ĐỦ
-- Route `Modules/Warehouse/routes/api.php:66` gắn middleware `permission:inbound.post`.
+- Route `Modules/Warehouse/routes/api.php` gắn middleware `permission:inbound.post` + `EnforceInboundWarehouseScope` cho `post-receipt`.
 - `CheckPermission` (`Modules/Auth/app/Http/Middleware/CheckPermission.php:17-41`): 401 `UNAUTHENTICATED` nếu chưa auth, 403 `ACCESS_DENIED` nếu thiếu quyền. `SUPER_ADMIN` bypass.
 - Middleware riêng `EnsureCanonicalInboundWarehouse` chặn kho ngoài baseline (`KHO-TONG-HN`).
 
@@ -226,3 +226,109 @@ Root cause của DEV190-P1-02R ("Verify locks trên target PostgreSQL, không d�
 - **QA1 (WWHN-192)**: theo review trước, vẫn ở trạng thái Blocked/Pending, cần assignee DT Soi retest sau khi có evidence Postgres mới này (bao gồm cả bug reversal vừa đóng).
 - **DEC-INV-001**: đã xác minh **KHÔNG phải quyết định còn thiếu** — đã được duyệt chính thức trong baseline hiện hành `docs/HN_SRS_FRD_v1.12_FULL.md` §7.1 (FE repo), cùng `DEC-FULL-POST-001` (full-post-only), ngày 04/08/2026. Vấn đề thật: ticket cha WWHN-43 vẫn trích nguồn cũ đã superseded (`BRD_HoaNam_v3_9`, `HoaNam_Handoff_v3_9`) thay vì baseline hiện tại (`BRD v3.20` + `SRS/FRD v1.12`, theo bảng supersession trong chính SRS v1.12). Cần BA/PM cập nhật lại Source & Traceability trên Jira WWHN-43, không cần ra quyết định nghiệp vụ mới.
 - File `phpunit.pgsql.xml` được thêm vào working tree để chạy evidence trên (không commit trong remediation này) — nếu Tech Lead muốn giữ lại làm cấu hình CI/dev chính thức cho việc chạy test trên Postgres, cần review riêng (đặt tên, vị trí, có nên gộp vào `composer.json` script) trước khi commit.
+
+---
+
+## §R2. Đóng register 62/100 — vòng 2026-08-19 (DEV190-P1-01R2 … P2-01R2)
+
+Vòng này chuyển mọi hạng mục "cần chứng minh" thành **mệnh đề chạy lại được tại đúng commit**,
+và tách rõ hạng mục nào chỉ cần **sign-off** (không phát sinh code mới).
+
+### R2.1 — DEV190-P1-01C: hợp đồng khớp runtime (BE làm xong, chờ duyệt)
+
+Đã tìm ra **6 điểm lệch thật** giữa hợp đồng posting WWHN-180 v1.7.0 và runtime; runtime và
+SRS §8.2 **đồng ý với nhau**, chỉ artifact hợp đồng lệch:
+
+| # | Điểm lệch | v1.7.0 khai | Runtime + SRS §8.2 |
+|---|---|---|---|
+| 1 | Header `If-Match` | không khai | **bắt buộc** cho scan/post/reversal |
+| 2 | `412` | không khai | `412 STALE_VERSION` |
+| 3 | `x-permission` | `stock_document.post` / `stock_document.scan` (không tồn tại) | `inbound.post`, `outbound.post`, `inbound.scan`, `outbound.scan`, `inventory.reversal.post` |
+| 4 | 409 idempotency | `IDEMPOTENCY_ERROR` | `IDEMPOTENCY_CONFLICT` |
+| 5 | `404` | không khai | `RESOURCE_NOT_FOUND` |
+| 6 | `/stocktake/sessions/{id}/apply-adjustment` | có khai | **không tồn tại** (REQ-SRS-037 + DISP-STK-236) |
+
+Cách đóng — **không sửa pack immutable**: `DISP-STK-236 §3` cấm sửa nội dung
+`WWHN-180-posting-openapi.{json,yaml}` và `WWHN-180 Canonical Contract.postman_*`; chúng chỉ
+được supersede bằng decision record. Vì vậy:
+
+- Phát hành release mới **`docs/api-contract/releases/WWHN-190/1.8.0/`** (openapi.json + openapi.yaml
+  + postman_collection.json + RELEASE_MANIFEST.json + SHA256SUMS + CHANGELOG.md).
+- Decision record **`docs/decision-records/DEC-API-POSTING-002-WWHN190-RUNTIME-PARITY.md`** trỏ ngược v1.7.0.
+- Artifact **sinh bằng script** `scripts/build-wwhn190-posting-contract.mjs` (hash do script sinh, không chép tay).
+- Gate hai chiều: `node scripts/build-wwhn190-posting-contract.mjs --check` (đối chiếu từng
+  `x-permission` với `php artisan route:list --json`, chặn bề mặt đã gỡ quay lại) +
+  `tests/Feature/Wwhn190PostingContractParityTest.php` (bắn HTTP thật, assert đúng từng mã lỗi
+  428/422/412/409/404/403/401 mà hợp đồng khai, và assert pack 1.7.0 vẫn nguyên vẹn).
+
+### R2.2 — DEV190-P1-02R2: true concurrency PostgreSQL, đủ 5 kịch bản (BE làm xong)
+
+`scripts/wwhn190-postgres-concurrency.php` + `scripts/wwhn190-concurrency-worker.php`.
+Mỗi worker là **một OS process riêng, một backend PostgreSQL riêng**, bắn **HTTP thật qua HTTP kernel**
+(khác worker WWHN-219 gọi thẳng service — vì If-Match/Idempotency-Key nằm ở tầng controller/middleware).
+Thả đồng thời qua barrier filesystem; một connection monitor độc lập lấy mẫu `pg_locks`/`pg_stat_activity`;
+kịch bản cần tranh chấp có thêm tiến trình **blocker** trung lập giữ row lock để hai worker chắc chắn xếp hàng trong PG.
+
+| Kịch bản | Kết quả quan sát |
+|---|---|
+| 01 same key / same payload | `200` + `409 CONCURRENCY_CONFLICT`; movement = 1; balance += qty đúng 1 lần; posting_event = 1; retry tuần tự → `200` + `Idempotent-Replay: true`, `data.replayed=true` |
+| 02 different key / same doc | `200` + `412 STALE_VERSION`; follow-up key mới với version ĐÚNG → `409 STATE_CONFLICT`; không có movement thứ hai |
+| 03 stale version | worker stale → `412 STALE_VERSION`; thiếu If-Match → `428 PRECONDITION_REQUIRED`; If-Match sai định dạng → `422 INVALID_VERSION` |
+| 04 same key / different payload | `200` + `409`; retry tuần tự khác payload → đúng `409 IDEMPOTENCY_CONFLICT` |
+| 05 forced rollback | fault injection bằng trigger PG khi chứng từ chuyển POSTED (tức **sau** khi movement + balance đã ghi trong cùng transaction): cả 2 worker `500`, **0 movement**, balance không đổi, chứng từ vẫn `SCANNING` version 1, **lease idempotency được giải phóng**; gỡ trigger rồi retry cùng key → `200`, đúng 1 movement |
+
+Mỗi kịch bản chỉ PASS khi đủ 4 điều kiện: 2 backend pid khác nhau, có tranh chấp thật
+(cửa sổ request chồng nhau hoặc quan sát được lock wait), đúng số lần thành công + đúng mã lỗi bên thua,
+và bất biến dữ liệu sau cùng. Bằng chứng: `docs/evidence/WWHN-190/concurrency/` gồm
+`CONCURRENCY_EVIDENCE.json`, `concurrency-run.txt`, `pg-lock-samples.json` và raw stdout/stderr từng worker
+(đuôi `.txt` vì `.gitignore` dòng 1 ignore `*.log`).
+
+### R2.3 — DEV190-P1-03R2: đối chiếu cho WWHN-191 (BE làm xong)
+
+`scripts/wwhn190-receipt-reconciliation.php` — 4 lớp kiểm tra, xuất báo cáo có version + file
+`reconciliation-raw-sql.txt` chứa **nguyên văn SQL** và raw rows để QA chạy lại:
+
+- **L1** `accepted_receipt_qty` (= `stock_document_lines.qty_planned`, và kiểm luôn bất biến
+  `scanned_qty = qty_planned` của DEC-FULL-POST-001) **=** `SUM(stock_movements.qty_delta)` của movement `RECEIPT` theo từng dòng.
+- **L2** `inventory_balances.on_hand_qty` **=** `SUM(qty_delta)` toàn ledger theo bucket (warehouse, sku, stock_status) — DEC-INV-001.
+- **L3** orphan: movement mồ côi, movement RECEIPT/ISSUE trên chứng từ chưa POSTED, dòng POSTED không sinh movement, balance khác 0 không có ledger.
+- **L4** duplicate business effect: `business_key` trùng, movement trùng trên cùng dòng, posting_event trùng.
+
+Lưu ý thuật ngữ: schema **không có** cột tên `accepted_receipt_qty`; ánh xạ đúng là `qty_planned`
+(bằng `scanned_qty` tại thời điểm Post do full-post gate), đã ghi rõ trong báo cáo.
+
+### R2.4 — CI gate mới (đóng "Gap còn lại" của vòng trước)
+
+`.github/workflows/wwhn-190-posting-evidence-gate.yml` — 2 job, fail-closed:
+
+1. `contract-parity` (sqlite): pint, generator `--check`, kiểm pack 1.7.0 còn nguyên, phpunit parity test, các test guard posting cũ.
+2. `true-concurrency` (PostgreSQL 16 service): `migrate --force`, chạy 5 kịch bản concurrency, chạy reconciliation,
+   niêm phong `SHA256SUMS` + `SHA256SUMS.sha256` + `EVIDENCE_BUILD.txt` (commit + run id), upload artifact 90 ngày.
+
+Đây là gate CI **riêng cho WWHN-190/191** mà vòng trước ghi là chưa có.
+
+### R2.5 — DEV190-P1-01R2: điều kiện để WWHN-180 evidence gate xanh
+
+Gate `WWHN-180 Scan Receipt Issue Evidence Gate` đang đỏ ở **bước đầu tiên** (`Static gates`) vì
+`vendor/bin/pint --test` báo **23 file lệch format** — toàn bộ là nợ format tích luỹ từ nhiều nhánh khác
+(migration, seeder, controller báo cáo, test của WWHN-191/219/237/247/249…), **không** phải lỗi logic.
+Vòng này đã chạy `pint` cho đúng 23 file đó (chỉ format: `ordered_imports`, `braces_position`,
+`unary_operator_spaces`, `no_unused_imports`…), không đổi một dòng logic nào, để gate đi qua được
+`Static gates` và chạy tới các bước evidence thật.
+
+### R2.6 — DEV190-P2-01R2: đính chính narrative + task dọn dẹp
+
+- Đã sửa trong chính tài liệu này: “PHP/Laravel 11” → **PHP ^8.3 / Laravel v13.23.0** (pin tại `composer.lock`);
+  `412 PRECONDITION_FAILED` → **`412 STALE_VERSION`**; `409 IDEMPOTENCY_ERROR` → **`409 IDEMPOTENCY_CONFLICT`**;
+  `409 VERSION_CONFLICT` → **`409 CONCURRENCY_CONFLICT`**; gỡ các tham chiếu “dòng 510-533 / 893-905 / 850-861 / 803-805”
+  (số dòng đã trôi) thành tham chiếu theo tên method; cập nhật ghi chú SQLite đã bị thay thế bởi harness PostgreSQL.
+- Task dọn dẹp/deprecation cho lớp legacy không active: **`docs/evidence/WWHN-190/LEGACY_CLEANUP_TASK.md`**
+  (đặc tả sẵn scope + AC + rủi ro; cần BA/PM tạo Jira key con của WWHN-43 rồi điền lại vào file).
+
+### R2.7 — Hạng mục chỉ cần sign-off (không phát sinh code)
+
+| Register item | Ai duyệt | Duyệt cái gì |
+|---|---|---|
+| DEV190-P1-01R2 | Tech Lead + QA1 | Pin exact RC SHA, chấp nhận PR=N/A (code vào thẳng `m1`), và điều kiện xanh của WWHN-180 gate ở R2.5 |
+| DEV190-P1-04R2 | QA1 → BA + Tech Lead | Chạy độc lập theo `docs/evidence/WWHN-190/QA1_INDEPENDENT_TEST_PACK.md` tại đúng RC SHA |
+| DEV190-P1-05R2 | BA/PM → Tech Lead + QA | Formalize DEC-INV-001 + DEC-FULL-POST-001 theo `docs/decision-records/DEC-INV-FULLPOST-PIN-190.md`; cập nhật WWHN-43 bỏ nguồn v3.9 |

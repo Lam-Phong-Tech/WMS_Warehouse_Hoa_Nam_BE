@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Models\Permission;
+use Modules\Warehouse\Http\Controllers\OperationalReportController;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
@@ -167,7 +168,7 @@ class Wwhn237VarianceReportDeferredGateTest extends TestCase
         sort($known);
 
         $reflection = new \ReflectionClass(
-            \Modules\Warehouse\Http\Controllers\OperationalReportController::class
+            OperationalReportController::class
         );
         $builders = array_keys($reflection->getConstant('REPORT_BUILDERS'));
         $aligned = array_keys($reflection->getConstant('ALIGNED_REPORTS'));

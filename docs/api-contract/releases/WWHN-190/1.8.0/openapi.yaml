@@ -1,0 +1,999 @@
+openapi: 3.0.3
+info:
+  title: WWHN-190 Hoa Nam Posting Contract (runtime-synchronised)
+  version: 1.8.0
+  description: >-
+    Bản đồng bộ runtime của bề mặt Scan/Post/Reversal/Reconciliation cho một kho tổng Hoa Nam. Supersede WWHN-180
+    posting OpenAPI v1.7.0 (giữ nguyên làm bản lịch sử, không sửa nội dung — DISP-STK-236 §3). Khác biệt chính so với
+    v1.7.0: khai đủ header If-Match bắt buộc và 412 STALE_VERSION; sửa x-permission về đúng permission key runtime
+    (inbound.post / outbound.post / inbound.scan / outbound.scan ...); đổi 409 IDEMPOTENCY_ERROR thành 409
+    IDEMPOTENCY_CONFLICT theo SRS §8.2; bổ sung 404 và lifecycle trạng thái; gỡ
+    /stocktake/sessions/{id}/apply-adjustment theo REQ-SRS-037 + DISP-STK-236.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local/CI; thay bằng URL môi trường đã duyệt
+security:
+  - bearerAuth: []
+tags:
+  - name: Scan
+  - name: Stock Posting
+  - name: Reversal
+  - name: Warranty
+  - name: Reconciliation
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    DocumentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Error:
+      type: object
+      required:
+        - success
+        - message
+        - error_code
+        - error
+        - meta
+      properties:
+        success:
+          type: boolean
+          enum:
+            - false
+        message:
+          type: string
+        error_code:
+          type: string
+          description: Mã lỗi nghiệp vụ theo SRS §8.2.
+        errors:
+          description: Chi tiết field/business, có thể là object hoặc mảng rỗng.
+        error:
+          type: object
+          required:
+            - code
+          properties:
+            code:
+              type: string
+            details:
+              description: Bằng đúng giá trị `errors`.
+        meta:
+          type: object
+          required:
+            - request_id
+            - timestamp
+          properties:
+            request_id:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+paths:
+  /api/v1/scan/classify:
+    post:
+      operationId: wwhn190ScanClassify
+      tags:
+        - Scan
+      summary: Phân loại mã vật lý, không đổi tồn
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: NONE
+      x-permission: scan.execute|scan.classify
+      x-runtime-source: Modules/Warehouse/routes/api.php ScanController@classify
+      x-requires-if-match: false
+      x-requires-idempotency-key: false
+      x-lifecycle:
+        from: []
+        to: []
+        note: Read-only classification; không đổi trạng thái chứng từ.
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - VALIDATION_ERROR
+  /api/v1/inbound-documents/{id}/scan:
+    post:
+      operationId: wwhn190InboundScan
+      tags:
+        - Scan
+      summary: Quét dòng phiếu nhập; stock_effect=NONE, version+1
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: NONE
+      x-permission: inbound.scan
+      x-runtime-source: CurrentBaselineStockFlowController@inboundScan
+      x-requires-if-match: true
+      x-requires-idempotency-key: false
+      x-lifecycle:
+        from:
+          - DRAFT
+          - SCANNING
+        to:
+          - SCANNING
+        note: Ngoài DRAFT/SCANNING => 409 STATE_CONFLICT.
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: If-Match
+          in: header
+          required: true
+          description: >-
+            Version chứng từ đang giữ (ETag của lần đọc/ghi trước). Bắt buộc; thiếu => 428 PRECONDITION_REQUIRED, sai
+            định dạng => 422 INVALID_VERSION, lệch => 412 STALE_VERSION.
+          schema:
+            type: string
+            pattern: ^(W/)?"?\d+"?$
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+          headers:
+            ETag:
+              description: Version mới của chứng từ, dùng làm If-Match cho request kế tiếp.
+              schema:
+                type: string
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+            - WAREHOUSE_SCOPE_DENIED
+        '404':
+          description: Không tìm thấy tài nguyên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - RESOURCE_NOT_FOUND
+            - DOCUMENT_LINE_NOT_FOUND
+        '409':
+          description: Xung đột trạng thái / idempotency / concurrency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STATE_CONFLICT
+            - DUPLICATE_ITEM_IN_DOCUMENT
+            - ITEM_ALREADY_RECEIVING
+        '412':
+          description: If-Match lệch version hiện tại. Không đổi trạng thái, tồn, movement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STALE_VERSION
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - INVALID_VERSION
+            - VALIDATION_ERROR
+            - SCAN_EXCEEDS_REQUIRED
+            - SKU_NOT_ACTIVE
+            - ITEM_REQUIRED
+            - SERIAL_QUANTITY_MUST_BE_ONE
+            - PHYSICAL_CODE_NOT_FOUND
+            - PHYSICAL_CODE_UNASSIGNED
+            - PHYSICAL_CODE_ITEM_MISMATCH
+            - ITEM_SKU_MISMATCH
+            - ITEM_NOT_RECEIVABLE
+        '428':
+          description: Thiếu header bắt buộc (If-Match hoặc Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - PRECONDITION_REQUIRED
+  /api/v1/inbound-documents/{id}/post-receipt:
+    post:
+      operationId: wwhn190PostReceipt
+      tags:
+        - Stock Posting
+      summary: Post Receipt toàn phiếu, exactly-once
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: RECEIPT_IN
+      x-permission: inbound.post
+      x-runtime-source: CurrentBaselineStockFlowController@postReceipt -> CurrentBaselineStockService::postStockDocument
+      x-requires-if-match: true
+      x-requires-idempotency-key: true
+      x-lifecycle:
+        from:
+          - SCANNING
+        to:
+          - POSTED
+        note: >-
+          DEC-FULL-POST-001: mọi dòng phải scanned_qty = qty_planned, nếu không => 422 FULL_POST_REQUIRED. Ngoài
+          SCANNING => 409 STATE_CONFLICT.
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: If-Match
+          in: header
+          required: true
+          description: >-
+            Version chứng từ đang giữ (ETag của lần đọc/ghi trước). Bắt buộc; thiếu => 428 PRECONDITION_REQUIRED, sai
+            định dạng => 422 INVALID_VERSION, lệch => 412 STALE_VERSION.
+          schema:
+            type: string
+            pattern: ^(W/)?"?\d+"?$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >-
+            Khoá cho một hành động đổi tồn logic; trim; 8-100 ký tự. Thiếu => 428 PRECONDITION_REQUIRED; sai độ dài =>
+            422 VALIDATION_ERROR.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 100
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+          headers:
+            ETag:
+              description: Version mới của chứng từ, dùng làm If-Match cho request kế tiếp.
+              schema:
+                type: string
+            Idempotent-Replay:
+              description: '"true" khi đây là replay của một request thành công trước đó.'
+              schema:
+                type: string
+                enum:
+                  - 'true'
+                  - 'false'
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+            - WAREHOUSE_SCOPE_DENIED
+        '404':
+          description: Không tìm thấy tài nguyên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - RESOURCE_NOT_FOUND
+        '409':
+          description: Xung đột trạng thái / idempotency / concurrency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STATE_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - CONCURRENCY_CONFLICT
+            - DUPLICATE_STOCK_EFFECT
+        '412':
+          description: If-Match lệch version hiện tại. Không đổi trạng thái, tồn, movement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STALE_VERSION
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - INVALID_VERSION
+            - VALIDATION_ERROR
+            - FULL_POST_REQUIRED
+            - DOCUMENT_HAS_NO_LINES
+            - WAREHOUSE_REQUIRED
+        '428':
+          description: Thiếu header bắt buộc (If-Match hoặc Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - PRECONDITION_REQUIRED
+  /api/v1/outbound-documents/{id}/scan:
+    post:
+      operationId: wwhn190OutboundScan
+      tags:
+        - Scan
+      summary: Match item cho phiếu xuất; stock_effect=NONE, version+1
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: NONE
+      x-permission: outbound.scan
+      x-runtime-source: AlignedOutboundFlowController@outboundScan
+      x-requires-if-match: true
+      x-requires-idempotency-key: false
+      x-lifecycle:
+        from:
+          - DRAFT
+          - SCANNING
+        to:
+          - SCANNING
+        note: Ngoài DRAFT/SCANNING => 409 STATE_CONFLICT.
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: If-Match
+          in: header
+          required: true
+          description: >-
+            Version chứng từ đang giữ (ETag của lần đọc/ghi trước). Bắt buộc; thiếu => 428 PRECONDITION_REQUIRED, sai
+            định dạng => 422 INVALID_VERSION, lệch => 412 STALE_VERSION.
+          schema:
+            type: string
+            pattern: ^(W/)?"?\d+"?$
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+          headers:
+            ETag:
+              description: Version mới của chứng từ, dùng làm If-Match cho request kế tiếp.
+              schema:
+                type: string
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+            - WAREHOUSE_SCOPE_DENIED
+        '404':
+          description: Không tìm thấy tài nguyên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - RESOURCE_NOT_FOUND
+            - DOCUMENT_LINE_NOT_FOUND
+        '409':
+          description: Xung đột trạng thái / idempotency / concurrency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STATE_CONFLICT
+            - ITEM_ALREADY_MATCHED
+            - DUPLICATE_ITEM_MATCH
+            - DUPLICATE_ITEM_IN_DOCUMENT
+        '412':
+          description: If-Match lệch version hiện tại. Không đổi trạng thái, tồn, movement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STALE_VERSION
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - INVALID_VERSION
+            - VALIDATION_ERROR
+            - PRODUCT_SKU_REQUIRED
+            - OUTBOUND_REQUEST_REQUIRED
+            - ITEM_NOT_AVAILABLE
+            - INSUFFICIENT_STOCK
+        '428':
+          description: Thiếu header bắt buộc (If-Match hoặc Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - PRECONDITION_REQUIRED
+  /api/v1/outbound-documents/{id}/post-issue:
+    post:
+      operationId: wwhn190PostIssue
+      tags:
+        - Stock Posting
+      summary: Post Issue toàn phiếu, exactly-once, sau khi nhãn đã PRINTED + đã dán
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: ISSUE_OUT
+      x-permission: outbound.post
+      x-runtime-source: AlignedOutboundFlowController@postIssue
+      x-requires-if-match: true
+      x-requires-idempotency-key: true
+      x-lifecycle:
+        from:
+          - SCANNING
+        to:
+          - POSTED
+        note: 'DEC-FULL-POST-001 + DEC-HN-20260811-02: đủ match, đúng 01 Packing Label PRINTED và đã xác nhận dán.'
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: If-Match
+          in: header
+          required: true
+          description: >-
+            Version chứng từ đang giữ (ETag của lần đọc/ghi trước). Bắt buộc; thiếu => 428 PRECONDITION_REQUIRED, sai
+            định dạng => 422 INVALID_VERSION, lệch => 412 STALE_VERSION.
+          schema:
+            type: string
+            pattern: ^(W/)?"?\d+"?$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >-
+            Khoá cho một hành động đổi tồn logic; trim; 8-100 ký tự. Thiếu => 428 PRECONDITION_REQUIRED; sai độ dài =>
+            422 VALIDATION_ERROR.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 100
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+          headers:
+            ETag:
+              description: Version mới của chứng từ, dùng làm If-Match cho request kế tiếp.
+              schema:
+                type: string
+            Idempotent-Replay:
+              description: '"true" khi đây là replay của một request thành công trước đó.'
+              schema:
+                type: string
+                enum:
+                  - 'true'
+                  - 'false'
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+            - WAREHOUSE_SCOPE_DENIED
+        '404':
+          description: Không tìm thấy tài nguyên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - RESOURCE_NOT_FOUND
+        '409':
+          description: Xung đột trạng thái / idempotency / concurrency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STATE_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - CONCURRENCY_CONFLICT
+            - LABEL_SNAPSHOT_STALE
+            - DUPLICATE_STOCK_EFFECT
+        '412':
+          description: If-Match lệch version hiện tại. Không đổi trạng thái, tồn, movement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STALE_VERSION
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - INVALID_VERSION
+            - VALIDATION_ERROR
+            - FULL_POST_REQUIRED
+            - OUTBOUND_REQUEST_REQUIRED
+            - PACKING_LABEL_REQUIRED
+            - LABEL_NOT_PRINTED
+            - PACKING_LABEL_NOT_APPLIED
+            - INSUFFICIENT_STOCK
+            - PRODUCT_ITEM_MATCH_REQUIRED
+        '428':
+          description: Thiếu header bắt buộc (If-Match hoặc Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - PRECONDITION_REQUIRED
+  /api/v1/inbound-documents/{id}/reverse:
+    post:
+      operationId: wwhn190ReverseInbound
+      tags:
+        - Reversal
+      summary: Reversal append-only cho phiếu nhập đã POSTED
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: REVERSAL_OUT
+      x-permission: inventory.reversal.post
+      x-runtime-source: CurrentBaselineStockFlowController@reverseInbound
+      x-requires-if-match: true
+      x-requires-idempotency-key: true
+      x-lifecycle:
+        from:
+          - POSTED
+        to:
+          - POSTED
+        note: 'DEC-REV-001: movement gốc immutable; chỉ sinh movement đối ứng.'
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: If-Match
+          in: header
+          required: true
+          description: >-
+            Version chứng từ đang giữ (ETag của lần đọc/ghi trước). Bắt buộc; thiếu => 428 PRECONDITION_REQUIRED, sai
+            định dạng => 422 INVALID_VERSION, lệch => 412 STALE_VERSION.
+          schema:
+            type: string
+            pattern: ^(W/)?"?\d+"?$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >-
+            Khoá cho một hành động đổi tồn logic; trim; 8-100 ký tự. Thiếu => 428 PRECONDITION_REQUIRED; sai độ dài =>
+            422 VALIDATION_ERROR.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 100
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+          headers:
+            ETag:
+              description: Version mới của chứng từ, dùng làm If-Match cho request kế tiếp.
+              schema:
+                type: string
+            Idempotent-Replay:
+              description: '"true" khi đây là replay của một request thành công trước đó.'
+              schema:
+                type: string
+                enum:
+                  - 'true'
+                  - 'false'
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+            - WAREHOUSE_SCOPE_DENIED
+        '404':
+          description: Không tìm thấy tài nguyên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - RESOURCE_NOT_FOUND
+        '409':
+          description: Xung đột trạng thái / idempotency / concurrency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STATE_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - CONCURRENCY_CONFLICT
+            - ALREADY_FULLY_REVERSED
+            - DOWNSTREAM_DEPENDENCY_EXISTS
+        '412':
+          description: If-Match lệch version hiện tại. Không đổi trạng thái, tồn, movement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STALE_VERSION
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - INVALID_VERSION
+            - VALIDATION_ERROR
+            - REVERSAL_LINES_REQUIRED
+            - REVERSAL_QTY_EXCEEDED
+            - NO_REVERSIBLE_MOVEMENT
+            - INVALID_RETURN_CONDITION
+        '428':
+          description: Thiếu header bắt buộc (If-Match hoặc Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - PRECONDITION_REQUIRED
+  /api/v1/outbound-documents/{id}/reverse:
+    post:
+      operationId: wwhn190ReverseOutbound
+      tags:
+        - Reversal
+      summary: Reversal append-only cho phiếu xuất đã POSTED
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: REVERSAL_IN
+      x-permission: inventory.reversal.post
+      x-runtime-source: CurrentBaselineStockFlowController@reverseOutbound
+      x-requires-if-match: true
+      x-requires-idempotency-key: true
+      x-lifecycle:
+        from:
+          - POSTED
+        to:
+          - POSTED
+        note: 'DEC-REV-001: movement gốc immutable; chỉ sinh movement đối ứng.'
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: If-Match
+          in: header
+          required: true
+          description: >-
+            Version chứng từ đang giữ (ETag của lần đọc/ghi trước). Bắt buộc; thiếu => 428 PRECONDITION_REQUIRED, sai
+            định dạng => 422 INVALID_VERSION, lệch => 412 STALE_VERSION.
+          schema:
+            type: string
+            pattern: ^(W/)?"?\d+"?$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >-
+            Khoá cho một hành động đổi tồn logic; trim; 8-100 ký tự. Thiếu => 428 PRECONDITION_REQUIRED; sai độ dài =>
+            422 VALIDATION_ERROR.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 100
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+          headers:
+            ETag:
+              description: Version mới của chứng từ, dùng làm If-Match cho request kế tiếp.
+              schema:
+                type: string
+            Idempotent-Replay:
+              description: '"true" khi đây là replay của một request thành công trước đó.'
+              schema:
+                type: string
+                enum:
+                  - 'true'
+                  - 'false'
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+            - WAREHOUSE_SCOPE_DENIED
+        '404':
+          description: Không tìm thấy tài nguyên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - RESOURCE_NOT_FOUND
+        '409':
+          description: Xung đột trạng thái / idempotency / concurrency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STATE_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - CONCURRENCY_CONFLICT
+            - ALREADY_FULLY_REVERSED
+            - DOWNSTREAM_DEPENDENCY_EXISTS
+        '412':
+          description: If-Match lệch version hiện tại. Không đổi trạng thái, tồn, movement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STALE_VERSION
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - INVALID_VERSION
+            - VALIDATION_ERROR
+            - REVERSAL_LINES_REQUIRED
+            - REVERSAL_QTY_EXCEEDED
+            - NO_REVERSIBLE_MOVEMENT
+            - INVALID_RETURN_CONDITION
+        '428':
+          description: Thiếu header bắt buộc (If-Match hoặc Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - PRECONDITION_REQUIRED
+  /api/v1/warranty-cases/{id}/temp-only:
+    post:
+      operationId: wwhn190WarrantyTempOnly
+      tags:
+        - Warranty
+      summary: Ghi nhận TEMP_ONLY, không đổi tồn
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: NONE
+      x-permission: warranty.temp_only
+      x-runtime-source: WarrantyController@tempOnly
+      x-requires-if-match: false
+      x-requires-idempotency-key: true
+      x-lifecycle:
+        from: []
+        to: []
+        note: Warranty case; không đụng stock_documents nên không dùng If-Match.
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >-
+            Khoá cho một hành động đổi tồn logic; trim; 8-100 ký tự. Thiếu => 428 PRECONDITION_REQUIRED; sai độ dài =>
+            422 VALIDATION_ERROR.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 100
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+          headers:
+            Idempotent-Replay:
+              description: '"true" khi đây là replay của một request thành công trước đó.'
+              schema:
+                type: string
+                enum:
+                  - 'true'
+                  - 'false'
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+        '404':
+          description: Không tìm thấy tài nguyên.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - RESOURCE_NOT_FOUND
+        '409':
+          description: Xung đột trạng thái / idempotency / concurrency.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - STATE_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - CONCURRENCY_CONFLICT
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - VALIDATION_ERROR
+        '428':
+          description: Thiếu header bắt buộc (If-Match hoặc Idempotency-Key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - PRECONDITION_REQUIRED
+  /api/v1/reports/inventory-reconciliation:
+    get:
+      operationId: wwhn190InventoryReconciliation
+      tags:
+        - Reconciliation
+      summary: Đối chiếu balance với ledger movement (RPT-INV-01)
+      x-canonical-scope: HOA_NAM_G1
+      x-stock-effect: NONE
+      x-permission: report.view
+      x-runtime-source: OperationalReportController@inventoryReconciliation
+      x-requires-if-match: false
+      x-requires-idempotency-key: false
+      x-lifecycle:
+        from: []
+        to: []
+        note: Read-only; PASS khi mismatch_count = 0.
+      parameters:
+        - name: warehouse_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: product_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: stock_status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: >-
+            Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header
+            Idempotent-Replay: true và data.replayed=true.
+        '401':
+          description: Chưa xác thực.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - UNAUTHENTICATED
+        '403':
+          description: Thiếu permission hoặc ngoài warehouse data scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - ACCESS_DENIED
+        '422':
+          description: Lỗi validation hoặc business rule.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          x-error-codes:
+            - VALIDATION_ERROR
+x-document-version: 1.8.0
+x-contract-status: PROPOSED
+x-approval-status: PENDING_INDEPENDENT_SIGN_OFF
+x-supersedes:
+  artifact: docs/api-contract/WWHN-180-posting-openapi.json
+  version: 1.7.0
+  decision_record: docs/decision-records/DEC-API-POSTING-002-WWHN190-RUNTIME-PARITY.md
+  immutability_rule: DISP-STK-236 §3 — v1.7.0 không bị sửa nội dung, chỉ bị superseded.
+x-removed-surfaces:
+  - path: /api/v1/stocktake/sessions/{id}/apply-adjustment
+    declared_in: WWHN-180 posting OpenAPI v1.7.0
+    reason: >-
+      REQ-SRS-037 + DEC-NO-STOCKTAKE-001 cấm Stocktake/adjust trong MVP; đóng chính thức bằng DISP-STK-236 (Apply
+      Adjustment DEFERRED/NO-CODE). Route không tồn tại trong runtime.
+x-error-catalog-authority: HN_SRS_FRD_v1.12 §8.2

@@ -1,0 +1,16 @@
+{
+    "worker_index": 0,
+    "scenario": "05-forced-rollback/followup-retry-after-fault-cleared",
+    "barrier_dir": "build/wwhn190/evidence/05-forced-rollback/followup-retry-after-fault-cleared/barrier",
+    "out_file": "build/wwhn190/evidence/05-forced-rollback/followup-retry-after-fault-cleared/worker-0.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/6732ac69-f354-436a-b6c7-3435b80307fa/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s5a-47621146",
+        "body": {
+            "note": "rollback-A"
+        }
+    }
+}

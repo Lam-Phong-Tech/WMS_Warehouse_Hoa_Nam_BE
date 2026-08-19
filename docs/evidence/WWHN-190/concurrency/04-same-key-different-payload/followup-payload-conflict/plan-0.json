@@ -1,0 +1,16 @@
+{
+    "worker_index": 0,
+    "scenario": "04-same-key-different-payload/followup-payload-conflict",
+    "barrier_dir": "build/wwhn190/evidence/04-same-key-different-payload/followup-payload-conflict/barrier",
+    "out_file": "build/wwhn190/evidence/04-same-key-different-payload/followup-payload-conflict/worker-0.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/fa99b15b-d97b-4d1e-8e9a-006f40d39d01/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s4-47621146",
+        "body": {
+            "note": "payload-C-different-again"
+        }
+    }
+}

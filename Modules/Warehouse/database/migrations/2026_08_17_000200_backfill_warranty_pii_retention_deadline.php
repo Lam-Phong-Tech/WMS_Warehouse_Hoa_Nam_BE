@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -37,7 +38,7 @@ return new class extends Migration
                 ->where('warranty_case_id', $case->warranty_case_id)
                 ->update([
                     'closed_at' => $case->closed_at ?? $anchor,
-                    'retention_until' => \Illuminate\Support\Carbon::parse((string) $anchor)
+                    'retention_until' => Carbon::parse((string) $anchor)
                         ->addYears(self::RETENTION_YEARS),
                 ]);
         }

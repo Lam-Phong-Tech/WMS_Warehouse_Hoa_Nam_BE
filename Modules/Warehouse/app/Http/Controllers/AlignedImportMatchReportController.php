@@ -9,6 +9,7 @@ use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use OpenApi\Attributes as OA;
@@ -383,7 +384,7 @@ class AlignedImportMatchReportController extends Controller
     /**
      * Danh mục SKU cần thiết để hiển thị mã/tên cho từng dòng toa.
      *
-     * @param  \Illuminate\Support\Collection<int, object>  $importRows
+     * @param  Collection<int, object>  $importRows
      * @return array{byId: array<string, array{id: string, code: string, name: string}>, byCode: array<string, array{id: string, code: string, name: string}>}
      */
     private function skuCatalog($importRows): array

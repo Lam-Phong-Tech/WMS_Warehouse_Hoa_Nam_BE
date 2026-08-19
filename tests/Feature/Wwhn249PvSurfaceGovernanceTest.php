@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -304,7 +305,7 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
      */
     public function test_seed_grants_pv_permissions_exactly_as_srs_role_matrix(): void
     {
-        $roles = (new \ReflectionClass(\Modules\Auth\Database\Seeders\AuthDatabaseSeeder::class))
+        $roles = (new \ReflectionClass(AuthDatabaseSeeder::class))
             ->getConstant('ROLES');
 
         $this->assertIsArray($roles);

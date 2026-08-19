@@ -1,0 +1,30 @@
+[
+    {
+        "at": 1787103508.389935,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1890,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787103508.531736,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1890,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000007"
+            }
+        ]
+    }
+]

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController;
 use ReflectionClass;
 use Tests\TestCase;
 
@@ -65,7 +67,7 @@ class Wwhn247WarrantyStateMachineParityTest extends TestCase
         $this->assertSame(
             $this->decided(),
             $this->constantOf(
-                \Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController::class,
+                CurrentBaselineWarrantyController::class,
                 'TRANSITIONS'
             ),
             'CurrentBaselineWarrantyController::TRANSITIONS đã trôi khỏi DEC-WAR-STATE-001.'
@@ -77,7 +79,7 @@ class Wwhn247WarrantyStateMachineParityTest extends TestCase
         $this->assertSame(
             $this->decided(),
             $this->constantOf(
-                \Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController::class,
+                CurrentBaselineOperationsController::class,
                 'WARRANTY_TRANSITIONS'
             ),
             'Bản sao WARRANTY_TRANSITIONS lệch ma trận đã chốt — đây chính là cái bẫy '
@@ -92,8 +94,8 @@ class Wwhn247WarrantyStateMachineParityTest extends TestCase
     public function test_terminal_states_have_no_outgoing_edge_anywhere(): void
     {
         foreach ([
-            [\Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController::class, 'TRANSITIONS'],
-            [\Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController::class, 'WARRANTY_TRANSITIONS'],
+            [CurrentBaselineWarrantyController::class, 'TRANSITIONS'],
+            [CurrentBaselineOperationsController::class, 'WARRANTY_TRANSITIONS'],
         ] as [$class, $constant]) {
             $matrix = $this->constantOf($class, $constant);
             foreach (['RETURNED', 'CANCELLED'] as $terminal) {
@@ -115,8 +117,8 @@ class Wwhn247WarrantyStateMachineParityTest extends TestCase
         $allowed = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'];
 
         foreach ([
-            [\Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController::class, 'TRANSITIONS'],
-            [\Modules\Warehouse\Http\Controllers\CurrentBaselineOperationsController::class, 'WARRANTY_TRANSITIONS'],
+            [CurrentBaselineWarrantyController::class, 'TRANSITIONS'],
+            [CurrentBaselineOperationsController::class, 'WARRANTY_TRANSITIONS'],
         ] as [$class, $constant]) {
             $matrix = $this->constantOf($class, $constant);
             foreach ($matrix as $from => $targets) {

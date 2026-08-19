@@ -1,0 +1,227 @@
+[
+    {
+        "at": 1787103513.669432,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787103513.765538,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000005"
+            }
+        ]
+    },
+    {
+        "at": 1787103513.846286,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": null,
+                "wait_event": null,
+                "query": "insert into \"idempotency_keys\" (\"idem_key\", \"user_id\", \"operation\", \"business_key\", \"request_hash\", \"status\", \"locked_un"
+            }
+        ]
+    },
+    {
+        "at": 1787103513.938661,
+        "locks": [
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inventory_movements_ba2766322e",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_source_type_source_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_warehouse_id_sku_id_occurred_at",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inventory_movements",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_inventory_movements",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inventory_movements_movement_key",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_movements",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_records__legacy_projection",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_records",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_inventory_movements_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_correction_chain_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_original_movement_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_item_id_occurred_at",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 1903,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_0000000b"
+            }
+        ]
+    }
+]
