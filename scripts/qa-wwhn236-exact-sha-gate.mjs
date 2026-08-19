@@ -31,6 +31,12 @@ const REGISTER_REL = "docs/evidence/WWHN-236/SOURCE_REGISTER.json";
 const argv = process.argv.slice(2);
 const STRICT_HEAD = argv.includes("--strict-head");
 const SKIP_PHPUNIT = argv.includes("--skip-phpunit");
+const WITH_PGSQL = argv.includes("--pgsql");
+const flagValue = (name, fallback) =>
+  argv.find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=") ?? fallback;
+/** DB PostgreSQL cô lập của WWHN-236 — không dùng chung với phiên song song (xem R2). */
+const PG_DB = flagValue("pg-db", "hoa_nam_wwhn236");
+const PG_CONTAINER = flagValue("pg-container", "wms_warehouse_hoa_nam_be-postgres-1");
 
 const lines = [];
 const say = (s = "") => {
@@ -46,10 +52,20 @@ const capture = (cmd, args, cwd) => {
   }
 };
 
-const run = (label, cmd, args, cwd) => {
+const run = (label, cmd, args, cwd, env) => {
   say("");
-  say(`$ ${cmd} ${args.join(" ")}    [cwd: ${cwd}]`);
-  const r = spawnSync(cmd, args, { cwd, encoding: "utf8", shell: process.platform === "win32" });
+  const prefix = env
+    ? Object.entries(env)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" ") + " "
+    : "";
+  say(`$ ${prefix}${cmd} ${args.join(" ")}    [cwd: ${cwd}]`);
+  const r = spawnSync(cmd, args, {
+    cwd,
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    env: env ? { ...process.env, ...env } : process.env,
+  });
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trimEnd();
   if (out) say(out);
   const code = r.status ?? 1;
@@ -82,7 +98,18 @@ say(`Node                : ${process.version}`);
 say(`Git                 : ${capture("git", ["--version"], BE_ROOT)}`);
 say(`PHP                 : ${capture("php", ["-r", "echo PHP_VERSION;"], BE_ROOT)}`);
 say(`DB driver (.env)    : ${capture("php", ["-r", "$e=@file_get_contents('.env'); preg_match('/^DB_CONNECTION=(.*)$/m',$e,$m); echo trim($m[1] ?? 'unknown');"], BE_ROOT)}`);
-say(`PostgreSQL          : ${capture("psql", ["--version"], BE_ROOT)}`);
+const pgVersion = (() => {
+  const host = capture("psql", ["--version"], BE_ROOT);
+  if (!host.startsWith("n/a")) return `${host} (host)`;
+  const inContainer = capture(
+    "docker",
+    ["exec", PG_CONTAINER, "psql", "-U", "postgres", "-tAc", "SELECT version();"],
+    BE_ROOT,
+  );
+  return inContainer.startsWith("n/a") ? inContainer : `${inContainer.split(" on ")[0]} (container ${PG_CONTAINER})`;
+})();
+say(`PostgreSQL          : ${pgVersion}`);
+say(`Test driver mặc định: ${/DB_CONNECTION" value="([a-z]+)"/.exec(capture("cat", ["phpunit.xml"], BE_ROOT))?.[1] ?? "unknown"} (phpunit.xml, không force ⇒ env của process thắng)`);
 say(`BE repo             : ${BE_ROOT}`);
 say(`BE branch           : ${capture("git", ["rev-parse", "--abbrev-ref", "HEAD"], BE_ROOT)}`);
 say(`BE HEAD             : ${beHead}`);
@@ -148,6 +175,26 @@ if (!SKIP_PHPUNIT) {
   );
 } else {
   say("\n--- BE phpunit: SKIPPED (--skip-phpunit) ---");
+}
+if (WITH_PGSQL && !SKIP_PHPUNIT) {
+  // Mệnh đề "DB từ chối ADJUST_*" chỉ chứng minh được trên PostgreSQL thật: sqlite không
+  // thực thi CHECK constraint theo cùng cách. DB cô lập để không đụng phiên song song.
+  results.push(
+    run(
+      "BE phpunit (PostgreSQL)",
+      "php",
+      ["vendor/bin/phpunit", "--filter", "Wwhn236DeferredAdjustmentGateTest"],
+      BE_ROOT,
+      {
+        DB_CONNECTION: "pgsql",
+        DB_HOST: "127.0.0.1",
+        DB_PORT: "5432",
+        DB_DATABASE: PG_DB,
+        DB_USERNAME: "postgres",
+        DB_PASSWORD: "postgres",
+      },
+    ),
+  );
 }
 if (existsSync(FE_ROOT)) {
   results.push(run("FE verifier", "node", ["scripts/verify-wwhn-236-closure.mjs"], FE_ROOT));
