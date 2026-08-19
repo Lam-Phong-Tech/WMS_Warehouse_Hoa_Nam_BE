@@ -3,16 +3,16 @@
   "title": "Candidate manifest - gói bàn giao kiến trúc/API/vận hành backend",
   "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
   "branch": "m1",
-  "candidate_sha": "c0c0c3d6d7fae402221f45e67d37c2d376f4a32a",
-  "candidate_subject": "fix(WWHN-309): bo so cung khoi van xuoi va dong bo artifact contract tai HEAD",
-  "candidate_committed_at": "2026-08-19T01:07:32+07:00",
+  "candidate_sha": "8326d505e5c7c2b690a02ae3a41c5c91119d5ed7",
+  "candidate_subject": "fix(WWHN-309): collector khong con tu bao dirty va duoc dua vao tap artifact pin",
+  "candidate_committed_at": "2026-08-19T08:24:31+07:00",
   "generator": "scripts/verify-wwhn-309-candidate-pin.mjs --refresh",
   "pull_request": "N/A",
   "independent_review": {
     "status": "PENDING",
     "reviewer_role": "Tech Lead",
     "scope": "Diff cua tap artifact khai trong truong artifacts[] tai candidate_sha",
-    "how_to_reproduce": "git diff 127c573a7236ad1c25829eb92011a4914360b840..c0c0c3d6d7fae402221f45e67d37c2d376f4a32a -- <artifacts>",
+    "how_to_reproduce": "git diff 127c573a7236ad1c25829eb92011a4914360b840..8326d505e5c7c2b690a02ae3a41c5c91119d5ed7 -- <artifacts>",
     "evidence": "Comment TECH LEAD SIGN-OFF tren WWHN-309 (mau o docs/docs_task_jira/WWHN-309_SIGNOFF_COMMENTS.md muc 3)",
     "note": "Du an commit thang len m1 nen khong co PR. Cong verify-wwhn-309-candidate-pin.mjs FAIL neu pull_request=N/A ma khong khai muc nay."
   },
@@ -138,7 +138,11 @@
     },
     {
       "path": "scripts/verify-wwhn-309-candidate-pin.mjs",
-      "sha256": "a52d6d43f51d6485d21320f078241da0a6303bd2f04214ca3b0c913aa748061a"
+      "sha256": "1c631b6ef9ca8ef7ba298292fcd4c80a57148b2772fd75e13b05bf458a384d8d"
+    },
+    {
+      "path": "scripts/collect-wwhn309-handover-evidence.sh",
+      "sha256": "3acdb080c4accc24e4b2ca136c7bd4626306208db68654bc6e3f9a912e260cde"
     },
     {
       "path": ".github/workflows/wwhn-309-backend-handover-evidence.yml",
