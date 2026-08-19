@@ -156,11 +156,11 @@
     },
     {
       "path": "docs/decision-records/DISP-REL-273-STOCKTAKE-RELEASE-CRITERIA.md",
-      "sha256": "e030af336e4a1baff424f1a216b86ecbcb8d218893ed096a68d15a9deb0c9bac"
+      "sha256": "79ef42252f973b8cdedb49e0680cacaa48a8641854dc98b64c08af0d068012c7"
     },
     {
       "path": "docs/evidence/WWHN-273/CANDIDATE_PROVENANCE.md",
-      "sha256": "ef207e3954c697be50e10607620075f277dfb23da6a16ac5759b5d800eb10a40"
+      "sha256": "6591634607f3b7150a1c8737f6ee184ae8880197e9bd2e1f9db9937c91ab86e2"
     },
     {
       "path": "docs/evidence/WWHN-273/QA1_RELEASE_SMOKE_HANDOFF.md",

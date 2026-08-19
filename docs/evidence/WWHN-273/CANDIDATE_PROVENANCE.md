@@ -47,7 +47,13 @@ Base `c965db1` là commit cuối cùng **trước khi** `WWHN-273` tồn tại t
 | 2 | `aa71694` | `ci(WWHN-273): add rollback drill, golive check and served smoke to release gate` | workflow, contract test, task doc | Có |
 | 3 | `68852e1` | `docs(WWHN-295): add runtime/config/health remediation register` | workflow, contract test, task doc | **KHÔNG — mixed commit** |
 | 4 | `1655d0b` | `fix(WWHN-273): reseed before the served smoke so the gate cannot pass on an empty database` | workflow, contract test | Có |
-| 5 | commit mang tài liệu này | `ci(WWHN-273): …` | workflow, contract test, task doc, verifier, RC pin, disposition, evidence | Có |
+| 5 | `7dacc8e` | `fix(WWHN-191): pin candidate theo commit cuoi cham artifact, khong theo HEAD` | workflow, contract test, task doc, verifier, RC pin, disposition, provenance, QA handoff | **KHÔNG — mixed commit** |
+
+Dòng 5 lặp lại đúng hiện tượng mà tài liệu này cảnh báo, lần này với công việc của chính `WWHN-273`:
+toàn bộ thay đổi `WWHN-273` (gate absence + gate-status, verifier, RC pin, disposition, provenance,
+QA handoff, task doc) nằm trong `7dacc8e` — một commit mang nhãn `WWHN-191`. Nguyên nhân là `m1` được
+nhiều phiên dùng chung: các file đã `git add` của phiên này bị cuốn vào commit của phiên kia. Vì vậy
+tập file ở §3 và sha256 trong `RC_PIN.json` mới là nguồn provenance, **không phải** commit message.
 
 Nguồn số liệu (chạy lại được):
 

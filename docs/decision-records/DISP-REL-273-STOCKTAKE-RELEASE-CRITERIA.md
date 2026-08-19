@@ -98,6 +98,35 @@ token chứng minh đúng điều `AC-SRS-037` nói — *capability không tồn
 chặn quyền*. Kỳ vọng đặt đúng 404 (không phải "khác 200") nên một catch-all/SPA fallback trả 200 hay
 một route trả 403 cũng làm gate đỏ.
 
+### 4.1. Bằng chứng đo được — và vì sao "không token" là cách kiểm SAI
+
+Đo tại chỗ 2026-08-19 (sqlite `:memory:`, DB đã seed, identity `admin@gmail.com` — chính identity mà
+release smoke dùng):
+
+| Probe | Không token | **Có token** |
+|---|---|---|
+| `GET /api/v1/stocktake-sessions` | 404 | **404** |
+| `GET /api/v1/inventory-snapshots` | 404 | **404** |
+| `GET /api/v1/stock-adjustments` | 404 | **404** |
+| `GET /api/v1/reports/stocktake-variance` | **401** | **404** |
+| `POST /api/v1/stocktake-sessions/{uuid}/apply-adjustment` | 404 | **404** |
+| `GET /api/v1/reports/hub` (control — chứng minh token thật) | 401 | **200** |
+
+Dòng đáng chú ý là `reports/stocktake-variance`. Nó **không** 404 khi thiếu token, vì tồn tại route
+wildcard `GET api/v1/reports/{report_code}` (`OperationalReportController@byCode`) đứng sau
+`auth:api` + `permission:report.view`. Chuỗi phản hồi vì thế là: thiếu token → 401 (middleware),
+có token → vào controller → `assertKnownReportCode()` abort `404 RESOURCE_NOT_FOUND` vì
+`stocktake-variance` không nằm trong danh mục report.
+
+Hệ quả cho cách kiểm:
+
+- Probe **không token** sẽ đọc 401 và, nếu chỉ kiểm "khác 200", sẽ **PASS nhầm** — nó không phân biệt
+  được "báo cáo kiểm kê không tồn tại" với "báo cáo kiểm kê tồn tại nhưng đang bị chặn quyền".
+- Chỉ probe **có token** mới chứng minh được điều `AC-SRS-037` yêu cầu: bản phát hành **không chứa**
+  capability, chứ không phải đang giấu nó sau một permission.
+- Đây cũng là lý do kỳ vọng phải là **đúng 404**: nếu một ngày `stocktake-variance` được thêm vào danh
+  mục report, `byCode` sẽ trả 200 và gate đỏ ngay.
+
 ---
 
 ## 5. Việc của QA1 (`WWHN-275`) — thay cho "chờ endpoint kiểm kê"
