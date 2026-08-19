@@ -64,7 +64,8 @@ jobs:
       QUEUE_CONNECTION: sync
       AUDIT_WRITE_POLICY: outbox_required
       CI_DEMO_PASSWORD: WWHN290-CI-Only-2026
-      JWT_SECRET: WWHN290-CI-JWT-Exact-SHA-2026
+      # JWT_SECRET co tinh KHONG khai o day: phpunit.xml da cap khoa du 256 bit.
+      # Ghi de bang chuoi 232 bit lam tymon/jwt-auth nem loi va 73 test do oan.
       DB_CONNECTION: sqlite
       DB_DATABASE: ':memory:'
     steps:
@@ -195,7 +196,7 @@ jobs:
       QUEUE_CONNECTION: sync
       AUDIT_WRITE_POLICY: outbox_required
       CI_DEMO_PASSWORD: WWHN290-CI-Only-2026
-      JWT_SECRET: WWHN290-CI-JWT-Exact-SHA-2026
+      JWT_SECRET: wwhn290-postgres-diagnostic-jwt-secret-not-a-real-credential-2026
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: '5432'
@@ -221,9 +222,11 @@ jobs:
           php artisan key:generate
           php artisan config:clear
 
+      # KHONG dat continue-on-error o muc step: neu dat, step do van hien "success" va che mat
+      # su that. Job da co continue-on-error nen job do cung khong lam do ca workflow run;
+      # buoc DISPOSITION ben duoi chay bang if: always() nen van luon in ket qua that.
       - name: Migrate and seed PostgreSQL
         id: pg
-        continue-on-error: true
         run: php artisan migrate:fresh --seed --force
 
       - name: Regenerate Swagger and re-check target

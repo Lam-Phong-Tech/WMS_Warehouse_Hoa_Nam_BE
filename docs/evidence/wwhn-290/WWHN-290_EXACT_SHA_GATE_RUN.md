@@ -53,6 +53,21 @@ nó không nằm trong frozen candidate và không ảnh hưởng CI. Vì vậy 
 thẳng 10 file test (98 test / 789 assertion / 0 fail); con số khác lượt `--filter` vì regex của `--filter`
 còn khớp thêm một số test cùng tên phương thức ở class khác. CI vẫn chạy bản `--filter`.
 
+### 2.2 Lượt CI đầu tiên của cấu trúc cổng mới — ghi lại cả cái sai của chính DEV
+
+Run `32169269579` (commit `80f92373788d1dbffb1feb6e74bbb15affd8fa9b`) là lượt đầu chạy cấu trúc hai job:
+
+| Job | Kết quả | Ghi chú |
+|---|---|---|
+| `closure` (chặn) | **FAIL** | 73 test đỏ vì chính workflow ghi đè `JWT_SECRET` bằng chuỗi 232 bit; `tymon/jwt-auth` đòi tối thiểu 256 bit. Lỗi do DEV đặt env sai trong cổng, **không** phải lỗi mã nghiệp vụ — trước đó job chết ở bước migrate nên không ai thấy. Đã sửa: bỏ hẳn override, để `phpunit.xml` cấp khoá. |
+| `postgres-diagnostic` (không chặn) | job `success`, nhưng `migrate_seed_outcome=failure` | Sai lệch này do đặt `continue-on-error` ở mức **step**: bước migrate đỏ vẫn hiện `success`. Đã bỏ cờ ở mức step và chỉ giữ ở mức job — nay job hiện đỏ đúng sự thật, còn workflow run vẫn không bị chặn, và bước `DISPOSITION` chạy bằng `if: always()` nên luôn in kết quả thật. |
+
+Ghi lại ở đây thay vì lặng lẽ sửa: cổng mà báo xanh sai một lần thì mọi lần xanh sau đều mất giá trị.
+
+Kết luận đo được từ lượt này: **defect PostgreSQL của nhóm A vẫn còn sống tại frozen candidate**
+(`migrate_seed_outcome=failure`), và bản vá `2026_08_19_000050_repair_erd_mirror_projection_casts.php`
+của WWHN-289 vẫn **chưa được commit** lên `m1`.
+
 ## 3. DISPOSITION — toàn bộ project check tại commit `c29a220e5ebc070012d4ff0715a2f42ef0e4324c`
 
 Tại commit ngay trước frozen candidate, GitHub Actions chạy 23 workflow: **3 xanh, 20 đỏ**. Bảng dưới quy

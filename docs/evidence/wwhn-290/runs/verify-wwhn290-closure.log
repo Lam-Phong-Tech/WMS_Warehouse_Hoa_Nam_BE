@@ -12,15 +12,15 @@
   PASS  origin/m1-be-2 HEAD matches pin (60816499066f9f493596e326dc41116ef32f5c4b)
   PASS  origin/m1-be-2 is a strict ancestor of m1 — no port/merge required
   PASS  m1 is behind origin/m1-be-2 by 0 commits
-  INFO  m1 is ahead by 726 commits
+  INFO  m1 is ahead by 743 commits
 
 -- 2. DEV290-P2-01 repository / branch reference --
   PASS  branch 'm1ee' does not exist, as recorded
 
 -- 3. DEV290-P1-03 approved contract target --
   PASS  storage/api-docs/api-docs.json is openapi 3.0.0 / info.version 2.0.0 with non-empty paths
-  INFO  live contract blob   : bc8e1615c89b7fe11c181add129872451eacf2e6
-  INFO  live contract sha256 : 34a93d91e6ebd15bed16316f8b8be25887528e53edf6450694df6d85f14ef105
+  INFO  live contract blob   : 44fbba9f1ac5b9574dd2a22c4d4cbba3f9db6997
+  INFO  live contract sha256 : 6f769a9ebdbdbfe94051db65d9dc0fbce9bb729091201e904cd0e4f277f0b4de
   INFO  pin-time blob        : c262a0d3c1525807e50ec88e436d8b5459e8ac0d (lineage only; see PINS.json contract.lineage_note)
 
 -- 4. DEV290-P1-05 change-range data / runtime impact --
@@ -38,6 +38,8 @@
   PASS  commit f894232 touches no guarded path
   PASS  commit c1ce7bf touches no guarded path
   PASS  commit f97edcd touches no guarded path
+  INFO  commit 80f9237 mentions WWHN-290 but is not in the pinned commit list — append it to WWHN-290_PINS.json
+  INFO  commit 8944ca0 mentions WWHN-290 but is not in the pinned commit list — append it to WWHN-290_PINS.json
   INFO  commit c4b4bea mentions WWHN-290 but is not in the pinned commit list — append it to WWHN-290_PINS.json
   PASS  commit ea3d935 is evidence-only pin maintenance — exempt from attribution
   PASS  commit 1c050d0 is evidence-only pin maintenance — exempt from attribution
@@ -66,7 +68,7 @@
   PASS  decision record states PENDING_PM_TECHLEAD_SIGNOFF
   PASS  decision record states frozen candidate
   INFO  package digest source: working tree
-  INFO  package digest       : d0a211d5dc7e4f4abae83a8e5eae613a0badd1412f3b4e420241c4e8d69f617d
+  INFO  package digest       : 5b31141ace86745dfdd0fd7fa51149c6317ee73c8d343c1e07a652f1cc0cc825
   PASS  frozen closure package digest matches the pin - the reviewed package is byte-identical
   INFO  frozen candidate SHA not recorded yet - it is written by the evidence-only commit that follows the freeze
 

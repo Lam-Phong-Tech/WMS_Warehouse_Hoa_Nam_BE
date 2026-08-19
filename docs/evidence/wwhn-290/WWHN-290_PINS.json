@@ -26,7 +26,7 @@
         "sha": null,
         "sha_note": "Written by the evidence-only commit that immediately follows the freeze commit: a commit can never contain its own hash.",
         "effective_date": "2026-08-19",
-        "package_digest": "d0a211d5dc7e4f4abae83a8e5eae613a0badd1412f3b4e420241c4e8d69f617d",
+        "package_digest": "5b31141ace86745dfdd0fd7fa51149c6317ee73c8d343c1e07a652f1cc0cc825",
         "package_files": [
             ".github/workflows/wwhn-290-closure.yml",
             "docs/evidence/wwhn-290/WWHN-290_BRANCH_CONTRACT_SUPERSESSION.md",
@@ -182,7 +182,8 @@
             "root_cause_migration": "Modules/Warehouse/database/migrations/2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync.php",
             "owner_ticket": "WWHN-289",
             "owner_note": "The repair migration 2026_08_19_000050_repair_erd_mirror_projection_casts.php is authored under WWHN-289 (DEV289-P1-02R) and was still uncommitted while this package was frozen. WWHN-290 changes 0 migrations and must not adopt this fix, because DEV290-P1-05R requires this ticket to prove NO DATA/MIGRATION CHANGE.",
-            "blocking_for_wwhn_290": false
+            "blocking_for_wwhn_290": false,
+            "status_at_first_gate_run": "STILL_OPEN - run 32169269579 recorded migrate_seed_outcome=failure"
         }
     },
     "defect_input": {
