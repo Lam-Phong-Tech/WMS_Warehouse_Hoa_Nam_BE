@@ -20,9 +20,23 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import {
+  BE_ARTIFACT_SCOPE,
+  BE_SCOPE_MANDATORY,
+  FE_SCOPE_MANDATORY,
+  PAIR_RELATIVE_PATH,
+  resolveCandidate,
+} from "./build-wwhn237-candidate-pair.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const FE_ROOT = resolve(ROOT, "../../HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE");
 const EMIT_LOCK = process.argv.includes("--emit-lock");
+const argValue = (name) => {
+  const hit = process.argv.slice(2).find((a) => a.startsWith(name + "="));
+  return hit ? hit.slice(name.length + 1) : null;
+};
+const EXPECT_BE_SHA = argValue("--expect-be-sha");
+const EXPECT_FE_SHA = argValue("--expect-fe-sha");
 
 const failures = [];
 const checks = [];
@@ -406,6 +420,304 @@ const walkFiles = (relDir, predicate) => {
       pass("BASELINE-CONTRACT", "baseline contract vẫn khai forbidden fragment + excluded table kiểm kê");
     }
     lock.checks.baseline_contract_sha256 = sha256(rel);
+  }
+}
+
+// ── Check 9: frozen candidate pair — DEV237-P1-02R2 ──────────────────────────
+/**
+ * Lỗi thật của vòng R1: `SOURCE_REGISTER.json` và `FE_CLOSURE_IDENTITY.json` đều ghi
+ * `git rev-parse HEAD` tại thời điểm chạy, hai repo chạy lệch giờ nên khai **hai cặp
+ * SHA khác nhau**. Check này bắt buộc đúng **một** cặp, giải lại được và tự kiểm.
+ */
+{
+  const rel = PAIR_RELATIVE_PATH;
+  const raw = readIfExists(rel);
+  if (raw === null) {
+    fail("CANDIDATE-PAIR", `${rel} không tồn tại — chạy \`node scripts/build-wwhn237-candidate-pair.mjs\`.`);
+  } else {
+    let pinned = null;
+    try {
+      pinned = JSON.parse(raw);
+    } catch (error) {
+      fail("CANDIDATE-PAIR", `${rel} không phải JSON hợp lệ: ${error.message}`);
+    }
+
+    if (pinned) {
+      const beSha = pinned?.pair?.backend?.commit_sha ?? null;
+      const feSha = pinned?.pair?.frontend?.commit_sha ?? null;
+      const problems = [];
+
+      for (const [label, sha] of [["backend", beSha], ["frontend", feSha]]) {
+        if (!/^[0-9a-f]{40}$/.test(sha ?? "")) problems.push(`pair.${label}.commit_sha không phải SHA đầy đủ 40 ký tự`);
+      }
+
+      // Scope không được co lại cho pin dễ thoả.
+      const beScope = pinned?.pair?.backend?.artifact_scope ?? [];
+      const feScope = pinned?.pair?.frontend?.artifact_scope ?? [];
+      const missingBe = BE_SCOPE_MANDATORY.filter((p) => !beScope.includes(p));
+      const missingFe = FE_SCOPE_MANDATORY.filter((p) => !feScope.includes(p));
+      if (missingBe.length > 0) problems.push(`scope BE thiếu file bắt buộc: ${missingBe.join(", ")}`);
+      if (missingFe.length > 0) problems.push(`scope FE thiếu file bắt buộc: ${missingFe.join(", ")}`);
+
+      // Anti-dangling: mọi path trong scope phải tồn tại thật.
+      const danglingBe = beScope.filter((p) => !existsSync(abs(p)));
+      if (danglingBe.length > 0) problems.push(`scope BE trỏ file không tồn tại: ${danglingBe.join(", ")}`);
+
+      // Giải lại candidate BE từ chính scope đã khai — pin phải tự kiểm được.
+      const live = resolveCandidate(ROOT, beScope.length > 0 ? beScope : BE_ARTIFACT_SCOPE);
+      if (live === null) {
+        warn("CANDIDATE-PAIR", "không giải lại được candidate BE (không có git trong môi trường này) — bỏ qua đối chiếu live.");
+      } else if (live.commit_sha !== beSha) {
+        problems.push(
+          `pin BE ${beSha} ≠ commit cuối chạm scope ${live.commit_sha} — artifact WWHN-237 đã đổi sau khi pin. ` +
+            "Chạy lại `node scripts/build-wwhn237-candidate-pair.mjs` rồi xin lại consumer confirmation.",
+        );
+      }
+
+      // Nửa FE: nếu repo FE với tới được thì kiểm cả bản sao byte-identical.
+      if (existsSync(FE_ROOT)) {
+        const feCopy = join(FE_ROOT, PAIR_RELATIVE_PATH);
+        if (!existsSync(feCopy)) problems.push(`bản sao FE ${PAIR_RELATIVE_PATH} không tồn tại`);
+        else if (readFileSync(feCopy, "utf8") !== raw) problems.push("bản sao FE của CANDIDATE_PAIR.json KHÔNG byte-identical với bản BE");
+
+        const liveFe = resolveCandidate(FE_ROOT, feScope.length > 0 ? feScope : []);
+        if (liveFe && liveFe.commit_sha !== feSha) {
+          problems.push(`pin FE ${feSha} ≠ commit cuối chạm scope FE ${liveFe.commit_sha}`);
+        }
+      } else {
+        warn("CANDIDATE-PAIR", `repo FE không với tới được (${FE_ROOT}) — chỉ kiểm được nửa BE.`);
+      }
+
+      // Supersede m1-be-2 → m1 phải là số đo, không phải câu khẳng định.
+      const sup = pinned?.branch_supersession ?? {};
+      if (sup.superseded_branch !== "m1-be-2" || sup.canonical_branch !== "m1") {
+        problems.push("branch_supersession phải khai rõ m1-be-2 → m1");
+      }
+      if (sup.is_pure_ancestor !== true || sup.m1_be_2_commits_ahead_of_m1 !== 0) {
+        problems.push("branch_supersession chưa chứng minh m1-be-2 là ancestor thuần (ahead = 0)");
+      }
+
+      // Cờ dòng lệnh để reviewer khoá đúng cặp mình đang review.
+      if (EXPECT_BE_SHA && EXPECT_BE_SHA !== beSha) problems.push(`--expect-be-sha ${EXPECT_BE_SHA} ≠ pin ${beSha}`);
+      if (EXPECT_FE_SHA && EXPECT_FE_SHA !== feSha) problems.push(`--expect-fe-sha ${EXPECT_FE_SHA} ≠ pin ${feSha}`);
+
+      if (problems.length > 0) {
+        fail("CANDIDATE-PAIR", `frozen pair không hợp lệ:\n    ${problems.join("\n    ")}`);
+      } else {
+        pass("CANDIDATE-PAIR", `một cặp duy nhất BE ${beSha.slice(0, 8)} / FE ${feSha.slice(0, 8)}, giải lại khớp, m1-be-2 superseded`);
+      }
+      lock.checks.candidate_pair = { backend: beSha, frontend: feSha, record_sha256: sha256(rel) };
+    }
+  }
+}
+
+// ── Check 10: authority của approval — DEV237-P1-01R2 ────────────────────────
+/**
+ * `DISP-STK-237` là bản ghi DEV-authored. Register R2 nói thẳng: **không dùng nó thay
+ * approval**. Check này fail-closed đúng chỗ đó — không ai flip được sang APPROVED nếu
+ * thiếu approver thật, thiếu tham chiếu comment Jira, thiếu effective date, hoặc nếu
+ * người duyệt lại chính là vai trò DEV.
+ */
+{
+  const rel = "docs/evidence/WWHN-237/APPROVAL_RECORD.json";
+  const raw = readIfExists(rel);
+  if (raw === null) {
+    fail("APPROVAL-AUTHORITY", `${rel} không tồn tại — DEV237-P1-01R2 bắt buộc có bản ghi approval tách khỏi disposition.`);
+  } else {
+    const rec = JSON.parse(raw);
+    const problems = [];
+    const STATES = ["PENDING", "APPROVED", "REJECTED"];
+    if (!STATES.includes(rec.approval_state)) problems.push(`approval_state phải thuộc ${STATES.join("/")}`);
+
+    const slots = Array.isArray(rec.required_approvals) ? rec.required_approvals : [];
+    if (slots.length < 3) problems.push("phải có đủ 3 slot: Process Owner/Client, PM/PO, BA Main");
+    const forbidden = (rec.self_approval_forbidden_roles ?? []).map((r) => r.toLowerCase());
+
+    for (const slot of slots) {
+      if (slot.status === "APPROVED" || slot.status === "REJECTED") {
+        const missing = (rec.required_fields_when_approved ?? []).filter((f) => !slot[f]);
+        if (missing.length > 0) problems.push(`slot ${slot.slot} khai ${slot.status} nhưng thiếu: ${missing.join(", ")}`);
+        const role = String(slot.approver_role ?? "").toLowerCase();
+        if (role && forbidden.some((f) => role.includes(f))) {
+          problems.push(`slot ${slot.slot} bị duyệt bởi vai trò DEV (${slot.approver_role}) — self-approval không hợp lệ`);
+        }
+        if (slot.approver && rec.authored_by && String(slot.approver).trim() === String(rec.authored_by).trim()) {
+          problems.push(`slot ${slot.slot}: approver trùng authored_by (${rec.authored_by}) — self-approval không hợp lệ`);
+        }
+      }
+    }
+
+    const allApproved = slots.length > 0 && slots.every((s) => s.status === "APPROVED");
+    if (rec.approval_state === "APPROVED") {
+      if (!allApproved) problems.push("approval_state = APPROVED nhưng còn slot chưa APPROVED");
+      if (!rec.effective_date) problems.push("approval_state = APPROVED nhưng effective_date rỗng");
+      if (!rec.effective_disposition) problems.push("approval_state = APPROVED nhưng effective_disposition rỗng");
+    } else if (rec.effective_date || rec.effective_disposition) {
+      problems.push("chưa APPROVED mà đã điền effective_date/effective_disposition");
+    }
+
+    // ATT-11898 là input authority bắt buộc phải được nêu tên trong bản ghi.
+    if (!JSON.stringify(rec).includes("ATT-11898")) problems.push("không nêu WWHN-132 ATT-11898 trong source_authority_inputs");
+
+    // Disposition DEV-authored không được tự tuyên bố APPROVED khi approval còn PENDING.
+    const disp = readIfExists("docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md") ?? "";
+    const selfApproved = /\|\s*Status\s*\|\s*\*\*?APPROVED/i.test(disp);
+    if (selfApproved && rec.approval_state !== "APPROVED") {
+      problems.push("DISP-STK-237 tự khai Status APPROVED trong khi APPROVAL_RECORD còn PENDING");
+    }
+
+    if (problems.length > 0) {
+      fail("APPROVAL-AUTHORITY", `bản ghi approval không hợp lệ:\n    ${problems.join("\n    ")}`);
+    } else {
+      pass(
+        "APPROVAL-AUTHORITY",
+        `approval_state=${rec.approval_state}, ${slots.length} slot approver-authored, không self-approval, ATT-11898 được nêu`,
+      );
+    }
+    lock.checks.approval_state = rec.approval_state;
+    lock.checks.approval_record_sha256 = sha256(rel);
+  }
+}
+
+// ── Check 11: ma trận QA N1..N8 + R1..R4 — DEV237-P1-04R2 ────────────────────
+/**
+ * Anti-dangling theo đúng luật của `DISP-STK-233`: một dòng khai PASS mà không có raw
+ * log tồn tại là dòng chép tay. Check này từ chối nó.
+ */
+{
+  const rel = "docs/evidence/WWHN-237/QA_EXECUTION_MATRIX.json";
+  const raw = readIfExists(rel);
+  const REQUIRED_ROWS = [...Array(8)].map((_, i) => `N${i + 1}`).concat([...Array(4)].map((_, i) => `R${i + 1}`));
+  if (raw === null) {
+    fail("QA-MATRIX", `${rel} không tồn tại — chạy \`node scripts/run-wwhn237-qa-matrix.mjs\`.`);
+  } else {
+    const matrix = JSON.parse(raw);
+    const rows = Array.isArray(matrix.rows) ? matrix.rows : [];
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const problems = [];
+
+    const missingRows = REQUIRED_ROWS.filter((id) => !byId.has(id));
+    if (missingRows.length > 0) problems.push(`thiếu dòng: ${missingRows.join(", ")}`);
+
+    for (const row of rows) {
+      if (!["PASS", "FAIL", "N/A"].includes(row.status)) problems.push(`${row.id}: status phải là PASS/FAIL/N/A`);
+      if (!row.driver) problems.push(`${row.id}: thiếu driver/env`);
+      if (row.status === "N/A" && !row.na_reason) problems.push(`${row.id}: N/A phải kèm na_reason`);
+      if (row.status !== "N/A") {
+        if (!row.raw_log) problems.push(`${row.id}: thiếu raw_log`);
+        else if (!existsSync(abs(row.raw_log))) problems.push(`${row.id}: raw_log không tồn tại (${row.raw_log})`);
+        else if (statSync(abs(row.raw_log)).size === 0) problems.push(`${row.id}: raw_log rỗng (${row.raw_log})`);
+      }
+    }
+
+    const failed = rows.filter((r) => r.status === "FAIL");
+    if (failed.length > 0) problems.push(`còn dòng FAIL: ${failed.map((r) => r.id).join(", ")}`);
+
+    // Ma trận phải chạy trên đúng cặp đã pin, không phải một HEAD nào khác.
+    const pinnedRaw = readIfExists(PAIR_RELATIVE_PATH);
+    if (pinnedRaw) {
+      const pinned = JSON.parse(pinnedRaw);
+      if (matrix.executed_at_pair?.backend !== pinned.pair?.backend?.commit_sha) {
+        problems.push("executed_at_pair.backend ≠ CANDIDATE_PAIR — ma trận chạy trên bản khác với bản đã pin");
+      }
+      if (matrix.executed_at_pair?.frontend !== pinned.pair?.frontend?.commit_sha) {
+        problems.push("executed_at_pair.frontend ≠ CANDIDATE_PAIR");
+      }
+    }
+
+    // Raw API/DB là yêu cầu tường minh của register R2, không phải tuỳ chọn.
+    const rawEvidence = matrix.raw_api_db_evidence ?? [];
+    if (rawEvidence.length === 0) problems.push("thiếu raw_api_db_evidence — register R2 đòi raw API/DB result");
+    for (const item of rawEvidence) {
+      if (!item.log || !existsSync(abs(item.log))) problems.push(`raw_api_db_evidence [${item.id}] thiếu log thật`);
+    }
+
+    if (problems.length > 0) {
+      fail("QA-MATRIX", `ma trận QA không hợp lệ:\n    ${problems.join("\n    ")}`);
+    } else {
+      const na = rows.filter((r) => r.status === "N/A").length;
+      pass("QA-MATRIX", `${rows.length} dòng N1..N8/R1..R4 có raw log thật (${na} N/A có lý do), chạy đúng cặp đã pin`);
+    }
+    lock.checks.qa_matrix_sha256 = sha256(rel);
+  }
+}
+
+// ── Check 12: pin digest hợp đồng cùng version — DEV237-P1-05R2 ──────────────
+/**
+ * Ranh giới quan trọng: artifact **owned** (do WWHN-237 sở hữu) thì drift = FAIL.
+ * Artifact **consumed** (Postman/OpenAPI/FE baseline — thuộc task khác, còn sống) thì
+ * drift digest chỉ FAIL khi *bề mặt* đổi; bằng không chỉ NOTE. Hard-pin digest artifact
+ * của task khác là đúng bẫy đã ghi tại `DISP-STK-236` — gate đỏ oan cho mọi PR khác.
+ */
+{
+  const rel = "docs/evidence/WWHN-237/CONTRACT_DIGEST_PIN.json";
+  const raw = readIfExists(rel);
+  if (raw === null) {
+    fail("CONTRACT-DIGEST-PIN", `${rel} không tồn tại — DEV237-P1-05R2 đòi pin cùng version cho OpenAPI/Postman/FE.`);
+  } else {
+    const pin = JSON.parse(raw);
+    const problems = [];
+    const notes = [];
+    const artifacts = Array.isArray(pin.artifacts) ? pin.artifacts : [];
+    if (artifacts.length === 0) problems.push("artifacts rỗng");
+
+    for (const item of artifacts) {
+      const root = item.repo === "FE" ? FE_ROOT : ROOT;
+      const target = join(root, item.path);
+      if (!existsSync(target)) {
+        if (item.repo === "FE" && !existsSync(FE_ROOT)) {
+          notes.push(`${item.path}: repo FE không với tới được, bỏ qua`);
+          continue;
+        }
+        problems.push(`${item.path}: không tồn tại`);
+        continue;
+      }
+      const current = createHash("sha256").update(readFileSync(target)).digest("hex");
+      if (current === item.sha256) continue;
+
+      if (item.pin_class === "owned" || item.pin_class === "immutable") {
+        problems.push(
+          `${item.path}: digest đổi (${item.sha256.slice(0, 12)} → ${current.slice(0, 12)}) trên artifact ${item.pin_class.toUpperCase()}`,
+        );
+      } else {
+        // Bất biến bề mặt vẫn phải giữ dù bytes đổi.
+        const body = readFileSync(target, "utf8").toLowerCase();
+        const surfaceHits = (item.surface_invariant_forbidden ?? []).filter((f) => body.includes(f));
+        if (surfaceHits.length > 0) {
+          problems.push(`${item.path}: artifact CONSUMED đã đổi VÀ tái xuất hiện bề mặt cấm: ${surfaceHits.join(", ")}`);
+        } else {
+          notes.push(
+            `${item.path}: digest drift ${item.sha256.slice(0, 12)} → ${current.slice(0, 12)} (artifact consumed, ` +
+              "bất biến bề mặt còn nguyên) — consumer confirmation cần refresh trước khi đóng vòng sau",
+          );
+        }
+      }
+    }
+
+    // Consumer confirmation phải độc lập: FE self-confirm của cùng DEV không tính.
+    const confirmations = Array.isArray(pin.independent_confirmations) ? pin.independent_confirmations : [];
+    const roles = new Set(confirmations.map((c) => c.role));
+    for (const required of ["Tech Lead", "BA", "QA1"]) {
+      if (!roles.has(required)) problems.push(`thiếu slot xác nhận độc lập cho vai trò: ${required}`);
+    }
+    for (const c of confirmations) {
+      if (c.status === "CONFIRMED") {
+        for (const field of ["confirmed_by", "jira_comment_ref", "confirmed_at", "pair_backend_sha", "pair_frontend_sha"]) {
+          if (!c[field]) problems.push(`xác nhận của ${c.role} khai CONFIRMED nhưng thiếu ${field}`);
+        }
+        if (String(c.confirmed_by ?? "").toLowerCase().includes("dev")) {
+          problems.push(`xác nhận của ${c.role} do chính DEV ký — không tính là independent`);
+        }
+      }
+    }
+
+    if (problems.length > 0) {
+      fail("CONTRACT-DIGEST-PIN", `pin hợp đồng không hợp lệ:\n    ${problems.join("\n    ")}`);
+    } else {
+      pass("CONTRACT-DIGEST-PIN", `${artifacts.length} artifact pin cùng version, ${confirmations.length} slot xác nhận độc lập`);
+    }
+    for (const n of notes) warn("CONTRACT-DIGEST-PIN", n);
+    lock.checks.contract_digest_pin_sha256 = sha256(rel);
   }
 }
 

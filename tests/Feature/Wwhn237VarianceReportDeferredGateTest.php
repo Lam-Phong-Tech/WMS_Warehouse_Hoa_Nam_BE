@@ -249,4 +249,213 @@ class Wwhn237VarianceReportDeferredGateTest extends TestCase
             'Guard chỉ được tồn tại chừng nào REQ-SRS-037 còn phát biểu điều đó.'
         );
     }
+    // ── Vòng R2: khoá chính bộ bằng chứng, không chỉ khoá capability ──────────
+
+    /**
+     * `DEV237-P1-02R2`. Vòng R1 ghi định danh bằng `git rev-parse HEAD` ở hai thời điểm
+     * khác nhau nên BE và FE khai **hai cặp SHA khác nhau** — bốn SHA cho một cặp.
+     * Test này khoá bất biến: đúng một cặp, đầy đủ 40 ký tự, hai bản byte-identical,
+     * scope không bị co lại, và `m1-be-2` được chứng minh là ancestor thuần.
+     */
+    public function test_frozen_candidate_pair_is_a_single_self_verifying_pair(): void
+    {
+        $path = base_path('docs/evidence/WWHN-237/CANDIDATE_PAIR.json');
+        $this->assertFileExists($path, 'DEV237-P1-02R2 bắt buộc có CANDIDATE_PAIR.json.');
+
+        $raw = (string) file_get_contents($path);
+        $pin = json_decode($raw, true);
+        $this->assertIsArray($pin, 'CANDIDATE_PAIR.json phải là JSON hợp lệ.');
+
+        foreach (['backend', 'frontend'] as $side) {
+            $sha = $pin['pair'][$side]['commit_sha'] ?? '';
+            $this->assertMatchesRegularExpression(
+                '/^[0-9a-f]{40}$/',
+                (string) $sha,
+                "pair.{$side}.commit_sha phải là SHA đầy đủ 40 ký tự, không phải HEAD viết tắt."
+            );
+        }
+
+        // Scope không được co lại cho pin dễ thoả.
+        foreach ([
+            'docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md',
+            'scripts/verify-wwhn237-variance-report-disposition.mjs',
+            'tests/Feature/Wwhn237VarianceReportDeferredGateTest.php',
+        ] as $mandatory) {
+            $this->assertContains(
+                $mandatory,
+                $pin['pair']['backend']['artifact_scope'] ?? [],
+                "Scope BE thiếu file bắt buộc [{$mandatory}]."
+            );
+        }
+
+        // Anti-dangling: pin không được trỏ file không tồn tại.
+        foreach ($pin['pair']['backend']['artifact_scope'] ?? [] as $rel) {
+            $this->assertFileExists(base_path($rel), "Scope BE trỏ file không tồn tại [{$rel}].");
+        }
+
+        // File pin phải nằm ngoài tập nó pin, nếu không mỗi lần ghi pin lại tự làm lệch.
+        $this->assertContains(
+            'docs/evidence/WWHN-237/**',
+            $pin['excluded_from_scope'] ?? [],
+            'Phải loại docs/evidence/WWHN-237/** khỏi scope để cắt vòng gà-trứng.'
+        );
+
+        // Supersede m1-be-2 → m1 phải là số đo, không phải câu khẳng định.
+        $this->assertSame('m1-be-2', $pin['branch_supersession']['superseded_branch'] ?? null);
+        $this->assertSame('m1', $pin['branch_supersession']['canonical_branch'] ?? null);
+        $this->assertTrue($pin['branch_supersession']['is_pure_ancestor'] ?? false, 'm1-be-2 phải là ancestor thuần.');
+        $this->assertSame(0, $pin['branch_supersession']['m1_be_2_commits_ahead_of_m1'] ?? -1);
+
+        // Hai bản sao phải byte-identical — reviewer diff hai repo là ra ngay.
+        $feCopy = base_path('../../HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE/docs/evidence/WWHN-237/CANDIDATE_PAIR.json');
+        if (is_file($feCopy)) {
+            $this->assertSame(
+                hash('sha256', $raw),
+                hash_file('sha256', $feCopy),
+                'Bản sao FE của CANDIDATE_PAIR.json phải byte-identical với bản BE.'
+            );
+        }
+    }
+
+    /**
+     * `DEV237-P1-01R2`. Register R2 nói thẳng: không dùng `DISP-STK-237` DEV-authored thay
+     * approval. Test khoá đúng chỗ đó — không ai flip được sang APPROVED nếu thiếu approver
+     * thật, thiếu tham chiếu comment Jira, thiếu effective date, hoặc nếu người duyệt lại
+     * chính là vai trò DEV.
+     */
+    public function test_approval_record_is_separate_from_the_dev_authored_disposition(): void
+    {
+        $path = base_path('docs/evidence/WWHN-237/APPROVAL_RECORD.json');
+        $this->assertFileExists($path, 'DEV237-P1-01R2 bắt buộc có APPROVAL_RECORD.json tách khỏi disposition.');
+
+        $record = json_decode((string) file_get_contents($path), true);
+        $this->assertIsArray($record);
+        $this->assertContains($record['approval_state'] ?? null, ['PENDING', 'APPROVED', 'REJECTED']);
+
+        $slots = $record['required_approvals'] ?? [];
+        $this->assertGreaterThanOrEqual(3, count($slots), 'Phải đủ 3 slot: Process Owner/Client, PM/PO, BA Main.');
+
+        $forbidden = array_map('strtolower', $record['self_approval_forbidden_roles'] ?? []);
+        $this->assertNotEmpty($forbidden, 'Phải khai vai trò không được tự duyệt.');
+
+        foreach ($slots as $slot) {
+            if (in_array($slot['status'] ?? null, ['APPROVED', 'REJECTED'], true)) {
+                foreach ($record['required_fields_when_approved'] ?? [] as $field) {
+                    $this->assertNotEmpty(
+                        $slot[$field] ?? null,
+                        "Slot [{$slot['slot']}] khai {$slot['status']} nhưng thiếu [{$field}]."
+                    );
+                }
+                $role = strtolower((string) ($slot['approver_role'] ?? ''));
+                foreach ($forbidden as $bad) {
+                    $this->assertStringNotContainsString(
+                        $bad,
+                        $role,
+                        "Slot [{$slot['slot']}] bị duyệt bởi vai trò DEV — self-approval không hợp lệ."
+                    );
+                }
+            }
+        }
+
+        if (($record['approval_state'] ?? null) !== 'APPROVED') {
+            $this->assertNull($record['effective_date'] ?? null, 'Chưa APPROVED thì không được có effective_date.');
+            $this->assertStringNotContainsStringIgnoringCase(
+                '| Status | **APPROVED',
+                (string) file_get_contents(base_path('docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md')),
+                'Disposition DEV-authored không được tự khai APPROVED khi approval còn PENDING.'
+            );
+        }
+
+        // ATT-11898 là input authority bắt buộc phải được nêu tên, kể cả khi không hash được.
+        $this->assertStringContainsString(
+            'ATT-11898',
+            (string) file_get_contents($path),
+            'Bản ghi approval phải nêu WWHN-132 ATT-11898 trong source_authority_inputs.'
+        );
+    }
+
+    /**
+     * `DEV237-P1-04R2`. Anti-dangling theo luật `DISP-STK-233`: một dòng khai PASS mà raw
+     * log không tồn tại là dòng chép tay.
+     */
+    public function test_qa_execution_matrix_covers_n1_n8_and_r1_r4_with_raw_logs(): void
+    {
+        $path = base_path('docs/evidence/WWHN-237/QA_EXECUTION_MATRIX.json');
+        $this->assertFileExists($path, 'DEV237-P1-04R2 bắt buộc có QA_EXECUTION_MATRIX.json.');
+
+        $matrix = json_decode((string) file_get_contents($path), true);
+        $rows = collect($matrix['rows'] ?? [])->keyBy('id');
+
+        foreach (['N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8', 'R1', 'R2', 'R3', 'R4'] as $id) {
+            $this->assertTrue($rows->has($id), "Ma trận QA thiếu dòng [{$id}].");
+            $row = $rows->get($id);
+            $this->assertContains($row['status'] ?? null, ['PASS', 'FAIL', 'N/A'], "[{$id}] status phải PASS/FAIL/N/A.");
+            $this->assertNotEmpty($row['driver'] ?? null, "[{$id}] thiếu env/DB driver.");
+            $this->assertNotSame('FAIL', $row['status'], "[{$id}] còn FAIL.");
+
+            if (($row['status'] ?? null) === 'N/A') {
+                $this->assertNotEmpty($row['na_reason'] ?? null, "[{$id}] N/A phải kèm na_reason.");
+                continue;
+            }
+            $log = base_path((string) ($row['raw_log'] ?? ''));
+            $this->assertFileExists($log, "[{$id}] khai {$row['status']} nhưng raw log không tồn tại.");
+            $this->assertGreaterThan(0, (int) filesize($log), "[{$id}] raw log rỗng.");
+        }
+
+        // Raw API/DB là yêu cầu tường minh của register R2, không phải tuỳ chọn.
+        $this->assertNotEmpty($matrix['raw_api_db_evidence'] ?? [], 'Thiếu raw API/DB evidence.');
+        foreach ($matrix['raw_api_db_evidence'] as $item) {
+            $this->assertFileExists(base_path((string) ($item['log'] ?? '')), "Raw evidence [{$item['id']}] thiếu log thật.");
+        }
+
+        // Ma trận phải chạy trên đúng cặp đã pin, không phải một HEAD nào khác.
+        $pin = json_decode((string) file_get_contents(base_path('docs/evidence/WWHN-237/CANDIDATE_PAIR.json')), true);
+        $this->assertSame($pin['pair']['backend']['commit_sha'], $matrix['executed_at_pair']['backend'] ?? null);
+        $this->assertSame($pin['pair']['frontend']['commit_sha'], $matrix['executed_at_pair']['frontend'] ?? null);
+    }
+
+    /**
+     * `DEV237-P1-05R2`. Ba consumer phải xác nhận trên **cùng một cặp**, và FE
+     * self-confirmation của chính DEV không tính là independent.
+     */
+    public function test_contract_digest_pin_requires_independent_confirmation(): void
+    {
+        $path = base_path('docs/evidence/WWHN-237/CONTRACT_DIGEST_PIN.json');
+        $this->assertFileExists($path, 'DEV237-P1-05R2 bắt buộc có CONTRACT_DIGEST_PIN.json.');
+
+        $pin = json_decode((string) file_get_contents($path), true);
+        $this->assertNotEmpty($pin['artifacts'] ?? [], 'Pin phải liệt kê artifact hợp đồng.');
+
+        $kinds = array_column($pin['artifacts'], 'kind');
+        foreach (['openapi-runtime', 'postman-living', 'fe-negative-contract'] as $required) {
+            $this->assertContains($required, $kinds, "Pin thiếu nhóm hợp đồng [{$required}].");
+        }
+
+        $roles = array_column($pin['independent_confirmations'] ?? [], 'role');
+        foreach (['Tech Lead', 'BA', 'QA1'] as $role) {
+            $this->assertContains($role, $roles, "Thiếu slot xác nhận độc lập cho [{$role}].");
+        }
+
+        foreach ($pin['independent_confirmations'] as $confirmation) {
+            if (($confirmation['status'] ?? null) !== 'CONFIRMED') {
+                continue;
+            }
+            foreach (['confirmed_by', 'jira_comment_ref', 'confirmed_at', 'pair_backend_sha', 'pair_frontend_sha'] as $field) {
+                $this->assertNotEmpty(
+                    $confirmation[$field] ?? null,
+                    "Xác nhận của [{$confirmation['role']}] khai CONFIRMED nhưng thiếu [{$field}]."
+                );
+            }
+            $this->assertStringNotContainsStringIgnoringCase(
+                'dev',
+                (string) $confirmation['confirmed_by'],
+                'FE self-confirmation của chính DEV không tính là independent.'
+            );
+        }
+
+        // Pin phải neo đúng cặp đã đóng băng.
+        $pair = json_decode((string) file_get_contents(base_path('docs/evidence/WWHN-237/CANDIDATE_PAIR.json')), true);
+        $this->assertSame($pair['pair']['backend']['commit_sha'], $pin['pinned_at_pair']['backend'] ?? null);
+        $this->assertSame($pair['pair']['frontend']['commit_sha'], $pin['pinned_at_pair']['frontend'] ?? null);
+    }
 }

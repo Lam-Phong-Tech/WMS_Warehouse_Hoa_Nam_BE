@@ -6,8 +6,8 @@
 |---|---|
 | Disposition ID | `DISP-STK-237` |
 | Jira task | `WWHN-237` (child of `WWHN-60`; QA gate `WWHN-238`) |
-| Register closed | `DEV237-P1-01` … `DEV237-P1-05` |
-| Version | `1.0.0` |
+| Register closed | `DEV237-P1-01` … `DEV237-P1-05` (R1) · `DEV237-P1-01R2` … `DEV237-P2-01R` (R2, xem §9) |
+| Version | `1.1.0` (R1 `1.0.0` + §9 đóng register R2) |
 | Status | **PROPOSED — chờ approver-authored disposition trên Jira** |
 | Proposed by | DEV — WWHN-237 |
 | Proposed date | `2026-08-18` |
@@ -15,6 +15,8 @@
 | Effective date | `NULL — chỉ có sau formal sign-off trên WWHN-237` |
 | Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` + `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE` |
 | Canonical branch | `m1` |
+| Bản ghi approval | `docs/evidence/WWHN-237/APPROVAL_RECORD.json` — **tách khỏi tài liệu này**; tài liệu DEV-authored không thay approval (§9.2) |
+| Cặp SHA đóng băng | `docs/evidence/WWHN-237/CANDIDATE_PAIR.json` — hai bản byte-identical BE/FE (§9.1) |
 | Machine gate | `node scripts/verify-wwhn237-variance-report-disposition.mjs` (BE) · `npm run wwhn-237:verify` (FE) |
 | Test lock | `tests/Feature/Wwhn237VarianceReportDeferredGateTest.php` (BE) · `src/test/wwhn-237-variance-report-guard.test.ts` (FE) |
 | Quan hệ với `DISP-STK-236` | **Nối tiếp** — 236 xử lý *hành động* Apply Adjustment, 237 xử lý *truy vấn/báo cáo* Variance. Không thay thế, không mâu thuẫn. |
@@ -275,3 +277,122 @@ Effective date: <ISO-8601 or NULL>
 
 Guard ở §3 **active bất kể trạng thái phê duyệt**: kể cả khi disposition còn `PROPOSED`, CI vẫn
 chặn việc tái xuất hiện bề mặt variance/stocktake.
+
+---
+
+## 9. Đóng register vòng R2 (67/100) — `DEV237-P1-01R2` … `DEV237-P2-01R`
+
+Vòng R1 đóng bằng tài liệu; vòng R2 chỉ ra rằng **bản thân bộ bằng chứng có lỗi**, không phải
+capability. Ba lỗi thật và cách sửa tận gốc:
+
+### 9.1 `DEV237-P1-02R2` — hai file định danh khai **hai cặp SHA khác nhau** (lỗi thật)
+
+`scripts/run-wwhn-237-evidence.mjs` và FE `scripts/verify-wwhn-237-closure.mjs` đều ghi
+`git rev-parse HEAD` **tại thời điểm chạy**. Hai repo chạy lệch giờ nên bộ evidence R1 khai:
+
+| File | BE SHA | FE SHA |
+|---|---|---|
+| BE `SOURCE_REGISTER.json` | `809d4839…` | `f9f2e65e…` |
+| FE `FE_CLOSURE_IDENTITY.json` | `22564b46…` | `cf0fe8d0…` |
+
+Bốn SHA cho một cặp — reviewer không có bản nào để tái lập. Sửa:
+
+- Thêm `docs/evidence/WWHN-237/CANDIDATE_PAIR.json`, **hai bản byte-identical** ở BE và FE.
+- Candidate **không phải HEAD**: `candidate = git log -1 --format=%H -- <artifact_scope>`
+  (commit cuối chạm tập artifact do WWHN-237 sở hữu). `m1` chạy tiếp cho task khác thì pin
+  vẫn đúng, và pin **tự kiểm được** — gate giải lại rồi so, lệch là fail.
+- Vòng gà-trứng cắt bằng `excluded_from_scope: docs/evidence/WWHN-237/**` (cùng cơ chế
+  `excluded_from_digest` của `WWHN-290`): file pin không nằm trong tập nó pin.
+- `--expect-be-sha` / `--expect-fe-sha` có ở **cả hai** gate để reviewer khoá đúng cặp.
+- Supersede `m1-be-2` → `m1` là **số đo** (`rev-list --left-right --count`,
+  `merge-base --is-ancestor`) ghi vào `branch_supersession`, không phải câu khẳng định chép lại.
+
+Scope **cố ý không** gồm `docs/postman/**` và FE `WMS_FE_CONTRACT_BASELINE.json`: chúng thuộc
+task khác và còn sống, đưa vào scope là tự chuốc pin rot — đúng bẫy `DISP-STK-236` đã ghi. Chúng
+được canh ở `CONTRACT_DIGEST_PIN.json` bằng bất biến bề mặt (xem 9.4).
+
+### 9.2 `DEV237-P1-01R2` — tách approval khỏi disposition
+
+Tài liệu này là **DEV-authored**; register R2 nói thẳng nó không thay thế approval. Nay bằng
+chứng approval là một artifact riêng, `docs/evidence/WWHN-237/APPROVAL_RECORD.json`, với ba slot
+(`Process Owner/Client`, `PM/PO`, `BA Main`) và check `APPROVAL-AUTHORITY` fail-closed khi:
+
+- `approval_state = APPROVED` mà còn slot chưa duyệt, hoặc thiếu `effective_date`;
+- một slot khai `APPROVED`/`REJECTED` mà thiếu approver, `jira_comment_ref`, hoặc `decided_at`;
+- người duyệt mang vai trò DEV, hoặc `approver` trùng `authored_by` (self-approval);
+- tài liệu này tự khai `Status: APPROVED` trong khi bản ghi approval còn `PENDING`;
+- bản ghi không nêu `WWHN-132 ATT-11898` — input authority bắt buộc phải được trích dẫn.
+
+`ATT-11898` là attachment Jira, **không** nằm trong repo, nên gate không hash được nó; bằng chứng
+là comment approver-authored có trích đúng attachment id + cặp SHA. Điều này được ghi thẳng trong
+`source_authority_inputs` thay vì giả vờ đã kiểm.
+
+### 9.3 `DEV237-P1-04R2` — ma trận QA từng dòng + raw API/DB
+
+R1 gộp cả bộ vào một `php artisan test --filter=…`, nên không đọc được N1..N8/R1..R4 từng mục.
+Nay `scripts/run-wwhn237-qa-matrix.mjs` chạy **từng dòng một**, mỗi dòng một raw log riêng, cộng:
+
+- `RAW-API` — `curl` thật vào runtime container: `/api/v1/stocktake-sessions`,
+  `/api/v1/inventory/apply-adjustment`, `/api/v1/variance-lines` trả `404 RESOURCE_NOT_FOUND`;
+  `/api/v1/reports/stocktake-variance` trả `401 UNAUTHENTICATED` vì khớp catch-all
+  `reports/{report_code}` và auth chặn trước — việc dispatcher từ chối mã variance được chứng
+  minh ở `N2` (PHPUnit, có xác thực). Ghi rõ như vậy trong log để QA1 không đọc nhầm 401 thành
+  "route tồn tại".
+- `RAW-DB` — `psql` **read-only** vào DB runtime PostgreSQL: 0 permission
+  `%stocktake%`/`%variance%`/`%adjustment%`, 0 bảng tương ứng, và
+  `chk_stock_movement_type_current` đúng 5 giá trị `OPENING/RECEIPT/ISSUE/COMPONENT_ISSUE/REVERSAL`.
+
+Check `QA-MATRIX` **anti-dangling** theo luật `DISP-STK-233`: một dòng khai `PASS` mà raw log
+không tồn tại hoặc rỗng là dòng chép tay — fail. `N/A` bắt buộc có `na_reason`.
+`executed_at_pair` phải trùng `CANDIDATE_PAIR.json`.
+
+`N7` là gate của chính bộ evidence này nên chạy **hai lần**: pass 1 bootstrap (lúc ma trận chưa
+tồn tại), pass 2 sau khi ma trận đã ghi — kết quả có giá trị là pass 2. Không làm vậy thì hai
+artifact tham chiếu vòng tròn nhau.
+
+> Bản chạy trong repo là **DEV pre-run**, dùng để QA1 tái lập bằng một lệnh. Nó **không** thay
+> QA1: trường `executed_by_role` phải được QA1 đổi thành tên mình khi ký.
+
+### 9.4 `DEV237-P1-05R2` — pin cùng version, nhưng không hard-pin artifact của task khác
+
+`docs/evidence/WWHN-237/CONTRACT_DIGEST_PIN.json` ghi digest + version của OpenAPI runtime,
+Postman DEV collection, FE contract baseline, FE governance status và pack immutable WWHN-180,
+tất cả **tại đúng cặp SHA đã pin**, kèm `blob_sha256_at_pair` để reviewer phân biệt nội dung
+working tree với nội dung tại commit.
+
+Phân loại `pin_class` là chỗ dễ làm sai:
+
+| Lớp | Ví dụ | Drift digest |
+|---|---|---|
+| `owned` | tài liệu này | **FAIL** |
+| `immutable` | `WWHN-180-posting-openapi.json` | **FAIL** (và không áp bất biến bề mặt — pack mô tả capability lịch sử) |
+| `consumed` | Postman DEV, OpenAPI runtime, FE baseline | FAIL **chỉ khi** bề mặt cấm quay lại; drift bytes thuần → NOTE + đòi refresh confirmation |
+
+Hard-pin digest artifact do task khác sở hữu chính là bẫy `DISP-STK-236` đã ghi: gate đỏ oan cho
+mọi PR không liên quan. Nhưng "ba consumer xác nhận cùng một version" vẫn được giữ, vì digest
+*được đóng băng trong bản ghi* — nếu artifact đổi, NOTE nói thẳng rằng confirmation phải xin lại.
+
+Ba slot `independent_confirmations` (`Tech Lead`, `BA`, `QA1`) fail-closed khi khai `CONFIRMED`
+mà thiếu người ký / comment Jira / cặp SHA, hoặc khi `confirmed_by` chứa `DEV` — FE
+self-confirmation của cùng DEV không tính là independent.
+
+### 9.5 `DEV237-P1-03R2` và `DEV237-P2-01R`
+
+`P1-03R2` **phụ thuộc** `P1-01R2`: không implement variance. Kết quả NO-CODE đã có ở
+`docs/evidence/WWHN-237/NO_CODE_HANDOFF.md`; nó chỉ **có hiệu lực** khi `APPROVAL_RECORD.json`
+chuyển `APPROVED`. Nếu authority đổi sang Later Phase/CR thì mở lại ở dạng positive
+implementation, và tài liệu này bị superseded bằng một decision record mới trỏ tới nó — không
+sửa nội dung (luật `DISP-STK-236 §3`).
+
+`P2-01R` là thao tác metadata trên Jira (chuẩn hoá historical BE2/Duy Khánh → DEV/Quang, giữ
+audit history). Không có phần code; ghi ở đây để register có một nơi duy nhất tra cứu.
+
+### 9.6 Lệnh tái lập vòng R2
+
+```bash
+node scripts/build-wwhn237-candidate-pair.mjs
+node scripts/build-wwhn237-contract-digest-pin.mjs
+node scripts/run-wwhn237-qa-matrix.mjs
+node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock
+node scripts/run-wwhn-237-evidence.mjs
+```

@@ -34,18 +34,37 @@ const git = (args, cwd) => {
 
 const sha256File = (abs) => (existsSync(abs) ? createHash("sha256").update(readFileSync(abs)).digest("hex") : null);
 
+/** Cặp SHA đã đóng băng — nguồn định danh duy nhất, thay cho `rev-parse HEAD`. */
+const PAIR_FILE = join(ROOT, "docs/evidence/WWHN-237/CANDIDATE_PAIR.json");
+const frozenPair = existsSync(PAIR_FILE) ? JSON.parse(readFileSync(PAIR_FILE, "utf8")) : null;
+const expectFlags = frozenPair
+  ? ` --expect-be-sha=${frozenPair.pair.backend.commit_sha} --expect-fe-sha=${frozenPair.pair.frontend.commit_sha}`
+  : "";
+
 const COMMANDS = [
+  {
+    id: "be-candidate-pair",
+    cwd: ROOT,
+    command: "node scripts/build-wwhn237-candidate-pair.mjs --check",
+    covers: "DEV237-P1-02R2 (cặp SHA đóng băng, giải lại khớp, m1-be-2 superseded)",
+  },
   {
     id: "be-disposition-gate",
     cwd: ROOT,
-    command: "node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock",
-    covers: "DEV237-P1-02, DEV237-P1-03",
+    command: `node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock${expectFlags}`,
+    covers: "DEV237-P1-01R2, P1-02R2, P1-03R2, P1-05R2",
+  },
+  {
+    id: "be-qa-matrix",
+    cwd: ROOT,
+    command: "node scripts/run-wwhn237-qa-matrix.mjs",
+    covers: "DEV237-P1-04R2 (N1..N8, R1..R4 từng dòng + raw API/DB)",
   },
   {
     id: "be-regression-test",
     cwd: ROOT,
     command: 'php artisan test --filter="Wwhn237VarianceReportDeferredGateTest|Flow05InventoryControlAlignmentTest"',
-    covers: "DEV237-P1-04 (N1..N6, R1..R4)",
+    covers: "DEV237-P1-04R2 (chạy gộp, đối chiếu với ma trận từng dòng)",
   },
   {
     id: "be-sibling-disposition-gates",
@@ -56,8 +75,8 @@ const COMMANDS = [
   {
     id: "fe-closure-gate",
     cwd: FE_ROOT,
-    command: "node scripts/verify-wwhn-237-closure.mjs",
-    covers: "DEV237-P1-02, DEV237-P1-05 (nửa FE)",
+    command: `node scripts/verify-wwhn-237-closure.mjs${expectFlags}`,
+    covers: "DEV237-P1-02R2, DEV237-P1-05R2 (nửa FE)",
   },
   {
     id: "fe-guard-test",
@@ -126,15 +145,21 @@ const register = {
     business_rules: "BR-NOSTK-01..03",
     adoption_issue: "WWHN-334",
   },
+  // Định danh **đọc từ bản pin**, không phải `rev-parse HEAD`. Đúng lỗi DEV237-P1-02R2:
+  // HEAD của m1 trôi theo task khác, và BE/FE chạy lệch giờ nên hai file định danh từng
+  // khai hai cặp SHA khác nhau. `head_at_run` giữ lại chỉ để truy vết môi trường chạy.
+  identity_source: "docs/evidence/WWHN-237/CANDIDATE_PAIR.json",
   repositories: {
     backend: {
-      branch: git("rev-parse --abbrev-ref HEAD", ROOT),
-      commit_sha: git("rev-parse HEAD", ROOT),
+      branch: frozenPair?.pair?.backend?.branch ?? git("rev-parse --abbrev-ref HEAD", ROOT),
+      commit_sha: frozenPair?.pair?.backend?.commit_sha ?? null,
+      head_at_run: git("rev-parse HEAD", ROOT),
       working_tree_clean: git("status --porcelain", ROOT) === "",
     },
     frontend: {
-      branch: git("rev-parse --abbrev-ref HEAD", FE_ROOT),
-      commit_sha: git("rev-parse HEAD", FE_ROOT),
+      branch: frozenPair?.pair?.frontend?.branch ?? git("rev-parse --abbrev-ref HEAD", FE_ROOT),
+      commit_sha: frozenPair?.pair?.frontend?.commit_sha ?? null,
+      head_at_run: git("rev-parse HEAD", FE_ROOT),
       working_tree_clean: git("status --porcelain", FE_ROOT) === "",
     },
   },
