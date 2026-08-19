@@ -117,3 +117,17 @@ AUDIT_WRITE_FAILED/outbox + vocabulary CHECK: raw output đầy đủ ở `OPS_U
 - HEAD trôi trong lúc chạy (9a8481f → 074a11f, phiên song song đóng WWHN-231 docs) —
   đã kiểm `git diff 879c970..HEAD -- <tập file WWHN-222>`: ngoài 2 commit của candidate
   (`879c9704`, `41dfa6f7`), không commit nào khác chạm tập file pin.
+
+## Run R2-5 — re-verify closure tại HEAD trôi xa candidate (2026-08-19, HEAD `5db3cb0`)
+
+Mục đích: chứng minh bất biến pin vẫn giữ khi `m1` đã đi tiếp 4 commit khỏi candidate
+`0222069b` (các phiên song song WWHN-231/258/postman đã commit thêm).
+
+| Bước | Lệnh | Kết quả |
+| --- | --- | --- |
+| Pin object-level | `node scripts/verify-wwhn222-candidate-pin.mjs` | **PASS 8/8 artifact** tại HEAD `5db3cb06a33aef726466e54801c7e087915d1801` — không commit nào sau candidate chạm đối tượng WWHN-222 |
+| sqlite đối chứng | phpunit `tests/Feature/Wwhn222AuditEventCatalogTest.php` | `{"result":"passed","tests":5,"passed":5,"assertions":23}` |
+| PostgreSQL cô lập | tạo DB `hoa_nam_wwhn222_hv` → RefreshDatabase migrate từ scratch → cùng suite → drop DB | `{"result":"passed","tests":5,"passed":5,"assertions":23,"duration_ms":116218}` — 3 migration candidate (`000001`/`000002`/`150000`) apply sạch |
+
+Kết luận: candidate R2 `0222069b` giữ nguyên hiệu lực tại HEAD hiện hành trên cả hai driver;
+không cần re-pin.
