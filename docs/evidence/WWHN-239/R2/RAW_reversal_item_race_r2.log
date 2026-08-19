@@ -1,0 +1,31 @@
+{
+    "status": "PASS",
+    "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "checks": {
+        "two_distinct_backend_connections": true,
+        "real_contention_proven": true,
+        "exactly_one_success": true,
+        "loser_rejected_with_expected_error": true,
+        "exactly_one_reversal_movement_for_item": true,
+        "exactly_one_posted_reversal_line_for_item": true,
+        "db_level_unique_index_present": true,
+        "balance_decreased_by_exactly_one": true,
+        "balance_never_negative": true
+    },
+    "workers": [
+        {
+            "worker_index": 0,
+            "backend_pid": 20183,
+            "outcome": "REJECTED",
+            "http_status": 409,
+            "error_code": "REVERSAL_ITEM_ALREADY_REVERSED"
+        },
+        {
+            "worker_index": 1,
+            "backend_pid": 20182,
+            "outcome": "SUCCESS",
+            "http_status": 200,
+            "error_code": null
+        }
+    ]
+}

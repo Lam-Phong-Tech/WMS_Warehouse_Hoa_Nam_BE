@@ -18,6 +18,7 @@ declare(strict_types=1);
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
+use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 
 require __DIR__.'/../vendor/autoload.php';
@@ -128,6 +129,20 @@ try {
             $operation['actor_id'] === null ? null : (string) $operation['actor_id'],
             (string) $operation['idempotency_key'],
             (string) $operation['request_hash'],
+        ),
+        // WWHN-239 (DEV239-P1-03R2/P1-04R2 case #8): CurrentBaselineReversalService is the
+        // service actually bound to CurrentBaselineStockFlowController::reverse() (the
+        // /inbound|outbound-documents/{id}/reverse routes). The 'reverse' case above targets
+        // CurrentBaselineStockService::reverseStockDocument(), which is no longer wired to any
+        // route, so it does not exercise the current runtime reversal guard.
+        'reversal_execute' => app(CurrentBaselineReversalService::class)->execute(
+            (string) $operation['document_id'],
+            (string) $operation['document_type'],
+            (array) $operation['payload'],
+            $operation['actor_id'] === null ? null : (string) $operation['actor_id'],
+            (string) $operation['idempotency_key'],
+            (string) $operation['request_hash'],
+            (int) $operation['expected_version'],
         ),
         default => throw new RuntimeException('Unknown operation type: '.$operation['type']),
     };

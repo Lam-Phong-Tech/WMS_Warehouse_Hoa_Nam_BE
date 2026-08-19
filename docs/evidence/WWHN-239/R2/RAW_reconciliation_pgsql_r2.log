@@ -1,0 +1,29 @@
+ original_movement_id | item_id | posted_reversal_lines 
+----------------------+---------+-----------------------
+(0 rows)
+
+ item_id | original_movement_id | reversal_movements 
+---------+----------------------+--------------------
+(0 rows)
+
+ check_name | offending_id 
+------------+--------------
+(0 rows)
+
+ check_name | offending_id 
+------------+--------------
+(0 rows)
+
+ check_name | offending_id 
+------------+--------------
+(0 rows)
+
+ warehouse_id | sku_id | stock_status | balance_qty | ledger_qty | delta 
+--------------+--------+--------------+-------------+------------+-------
+(0 rows)
+
+                 indexname                 |                                                                                               indexdef                                                                                                
+-------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ ux_reversal_line_posted_item_per_movement | CREATE UNIQUE INDEX ux_reversal_line_posted_item_per_movement ON public.reversal_lines USING btree (original_movement_id, item_id) WHERE ((item_id IS NOT NULL) AND (posted_movement_id IS NOT NULL))
+(1 row)
+
