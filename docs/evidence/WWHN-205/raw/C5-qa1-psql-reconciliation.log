@@ -1,0 +1,32 @@
+== WWHN-206 ledger reconciliation :: environment ==
+  database   |                                     postgres_version                                     | server_version_num |       checked_at_utc       
+-------------+------------------------------------------------------------------------------------------+--------------------+----------------------------
+ hn_wwhn205b | PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit | 160014             | 2026-08-19 01:59:24.847774
+
+
+== WWHN-206 ledger reconciliation :: metrics ==
+                 metric                 | value | expected | status |                                                        note                                                        
+----------------------------------------+-------+----------+--------+--------------------------------------------------------------------------------------------------------------------
+ ledger_balance_mismatch_count          |     0 |        0 | PASS   | inventory_balances.quantity phải bằng SUM(stock_movements.qty_delta) trên (warehouse_id, product_id, stock_status)
+ balance_without_ledger_count           |     0 |        0 | PASS   | Số dư khác 0 nhưng không có movement nào sinh ra nó
+ ledger_without_balance_count           |     0 |        0 | PASS   | Ledger có phát sinh nhưng projection chưa có dòng số dư tương ứng
+ duplicate_business_key_count           |     0 |        0 | PASS   | Một business_key chỉ được sinh đúng một movement
+ duplicate_source_count                 |     0 |        0 | PASS   | Một (source_type, source_id, source_line_id, movement_type) chỉ được ghi sổ một lần
+ orphan_movement_document_count         |     0 |        0 | PASS   | Movement trỏ tới chứng từ không tồn tại
+ orphan_movement_line_count             |     0 |        0 | PASS   | Movement trỏ tới dòng chứng từ không tồn tại
+ orphan_reversal_link_count             |     0 |        0 | PASS   | Movement đảo trỏ tới movement gốc không tồn tại
+ movement_on_unposted_document_count    |     0 |        0 | PASS   | Chứng từ chưa POSTED mà đã có movement => tàn dư của một lần post bị rollback
+ posted_document_without_movement_count |     0 |        0 | PASS   | Chứng từ POSTED mà không có movement nào => post commit nửa vời
+ negative_balance_count                 |     0 |        0 | PASS   | Số dư và available_qty không bao giờ được âm
+ negative_ledger_snapshot_count         |     0 |        0 | PASS   | Không movement nào được ghi lại một trạng thái tồn âm
+ inconsistent_ledger_row_count          |     0 |        0 | PASS   | Mỗi movement phải tự nhất quán: qty_after = qty_before + qty_delta
+ serial_subledger_mismatch_count        |     0 |        0 | PASS   | SRS §7.5 Serial subledger: available_qty = số Item_Instance IN_STOCK của SKU đó
+ quantity_subledger_mismatch_count      |     0 |        0 | PASS   | SRS §7.5 Quantity subledger: tổng quantity trong container mapping không vượt on_hand_qty
+ container_integrity_mismatch_count     |     0 |        0 | PASS   | SRS §7.5 Container integrity: container mapping không tạo thêm bucket tồn
+
+
+== WWHN-206 ledger reconciliation :: verdict ==
+ dimensions_checked | mismatch_count | ledger_rows | balance_rows | overall_status 
+--------------------+----------------+-------------+--------------+----------------
+                  2 |              0 |           3 |            2 | PASS
+

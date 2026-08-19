@@ -1,0 +1,27 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn219-worker-0",
+    "scenario": "s3-same-receipt-document-double-post",
+    "operation": "post_receipt",
+    "backend_pid": 4569,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "error_message": null,
+    "lock_wait_ms": 14,
+    "timeline": {
+        "booted_at": 1787104783.149779,
+        "released_at": 1787104783.169614,
+        "lock_acquired_at": 1787104783.185228,
+        "hold_released_at": 1787104784.689262,
+        "finished_at": 1787104784.900539
+    },
+    "payload": {
+        "document_id": "272623ef-736b-45ca-bc8b-15e4fc6e96fd",
+        "status": "POSTED",
+        "movement_ids": [
+            "30361910-7c83-4ce2-9235-34a5653e6eb1"
+        ],
+        "stock_effect": "INCREASE"
+    }
+}

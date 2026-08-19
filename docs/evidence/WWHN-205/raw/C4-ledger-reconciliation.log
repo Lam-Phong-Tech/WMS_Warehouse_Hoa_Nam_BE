@@ -1,0 +1,16 @@
+{
+    "status": "PASS",
+    "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "database": "hn_wwhn205b",
+    "git_sha": "d9f17695bb515dc43aa0451e13deddda433c185a",
+    "git_working_tree_dirty": true,
+    "rebuild_is_idempotent": true,
+    "verdict": {
+        "dimensions_checked": 2,
+        "mismatch_count": 0,
+        "ledger_rows": 3,
+        "balance_rows": 2,
+        "overall_status": "PASS"
+    },
+    "failed_metrics": []
+}

@@ -1,0 +1,201 @@
+name: WWHN-205 Ledger Invariant & Receipt/Issue Concurrency Gate
+
+# Vòng review trước chấm 70/100. Bốn mục P1-01R..P1-04R quy về đúng một câu hỏi:
+# "chứng minh lại được không, tại đúng SHA nào, bằng dữ liệu thô nào?". Workflow này
+# là dạng máy của câu trả lời:
+#
+#   P1-01R  chạy PG16 THẬT (migrate:fresh + target suite của WWHN-205) và
+#           upload log thô. Không bước nào có continue-on-error, nên không có
+#           đường nào để một lần chạy đỏ được mô tả là PASS.
+#   P1-02R  chạy rebuild bằng chính lệnh sản phẩm rồi khẳng định bằng SQL thuần
+#           qua psql — cùng file .sql mà QA1 chạy tay, nên hai đường không trôi khỏi nhau.
+#   P1-03R  chạy race Receipt vs Issue bằng nhiều OS process thật trên PostgreSQL.
+#           Đây là bước đóng BE1-INV-OP-03/WWHN-218 BE1-OP-04: trước đây các script
+#           concurrency chỉ được `node --check`, chưa từng thực thi trong CI.
+#   P1-04R  verify-wwhn205-closure.mjs kiểm lại chuỗi SHA pre-fix -> fix -> candidate
+#           và các semantic marker của fix, nên "còn file nhưng mất fix" sẽ đỏ.
+#
+# fetch-depth: 0 là bắt buộc — không có lịch sử đầy đủ thì không xác minh được exact SHA.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_15_000100_enforce_stock_movements_append_only_trigger.php'
+      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
+      - 'tests/Feature/Wwhn205StockMovementItemIdInvariantTest.php'
+      - 'tests/Feature/Wwhn205InvariantClosureContractTest.php'
+      - 'scripts/wwhn205-receipt-issue-race.php'
+      - 'scripts/wwhn206-ledger-reconciliation.php'
+      - 'scripts/wwhn206-ledger-reconciliation.sql'
+      - 'scripts/verify-wwhn205-closure.mjs'
+      - 'scripts/wwhn219-concurrency-worker.php'
+      - 'app/Console/Commands/ReconcileInventoryBalances.php'
+      - 'docs/evidence/WWHN-205/**'
+      - '.github/workflows/wwhn-205-invariant-gate.yml'
+      - '.github/workflows/erd-postgres-diagnostic.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/database/migrations/**'
+      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
+      - 'tests/Feature/Wwhn205*'
+      - 'scripts/wwhn205-receipt-issue-race.php'
+      - 'scripts/wwhn206-ledger-reconciliation.php'
+      - 'scripts/wwhn206-ledger-reconciliation.sql'
+      - 'scripts/verify-wwhn205-closure.mjs'
+      - 'docs/evidence/WWHN-205/**'
+      - '.github/workflows/wwhn-205-invariant-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ledger-invariant-gate:
+    name: PG16 ledger invariant, receipt/issue race and exact-SHA traceability
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn205
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn205"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_PASSWORD: Baseline-CI-Only-2026
+      WWHN180_NO_PERMISSION_PASSWORD: Baseline-CI-Only-2026
+      JWT_SECRET: WWHN205-CI-JWT-Ledger-Invariant-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn205
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      PGPASSWORD: postgres
+      WWHN205_EVIDENCE_DIR: docs/evidence/WWHN-205/runtime
+      WWHN206_EVIDENCE_DIR: docs/evidence/WWHN-205/runtime
+      WWHN205_LOCK_HOLD_MS: '1500'
+    steps:
+      # fetch-depth: 0 — verifier phải rev-parse được fad4242/7a78477/candidate.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Style check on WWHN-205 evidence surface
+        run: vendor/bin/pint --test
+          scripts/wwhn205-receipt-issue-race.php
+          scripts/wwhn206-ledger-reconciliation.php
+          Modules/Warehouse/app/Services/CurrentBaselineStockService.php
+          tests/Feature/Wwhn205StockMovementItemIdInvariantTest.php
+          tests/Feature/Wwhn205InvariantClosureContractTest.php
+
+      # ---- P1-01R --------------------------------------------------------
+      - name: PG16 migrate fresh and seed (exact annotation on failure)
+        shell: bash
+        run: |
+          set -o pipefail
+          if php artisan migrate:fresh --seed --force 2>&1 | tee docs/evidence/WWHN-205/raw/ci-pg16-migrate.log; then
+            exit 0
+          fi
+          msg="$(tail -n 160 docs/evidence/WWHN-205/raw/ci-pg16-migrate.log)"
+          msg="${msg//'%'/'%25'}"
+          msg="${msg//$'\n'/'%0A'}"
+          msg="${msg//$'\r'/'%0D'}"
+          echo "::error title=WWHN-205 PG16 migrate:fresh failed::$msg"
+          exit 1
+
+      - name: WWHN-205 target suite on PostgreSQL 16
+        shell: bash
+        run: |
+          set -o pipefail
+          php artisan test --filter '/(Wwhn205StockMovementItemIdInvariantTest|Wwhn205InvariantClosureContractTest|ErdBusinessInvariantParityTest|Wwhn204LedgerReconciliationCoverageTest|PostReceiptConcurrencyBehaviorTest|PostIssueConcurrencyBehaviorTest|StockDocumentConcurrencyGuardTest|StockDocumentIdempotencyTest)/' \
+            2>&1 | tee docs/evidence/WWHN-205/raw/ci-pg16-target-suite.log
+
+      # ---- P1-02R --------------------------------------------------------
+      # Thứ tự CÓ CHỦ ĐÍCH: đối soát chạy TRƯỚC race.
+      #
+      # Race S2 cố ý dựng kịch bản oversell (tổng nhu cầu vượt số dư). Với SKU
+      # serial-tracked, oversell theo đúng định nghĩa nghĩa là "sổ nói ít hơn số hàng
+      # có mặt", nên nó BẮT BUỘC làm lệch Serial subledger của SRS §7.5 — không có
+      # cách nào vừa giữ kịch bản oversell vừa giữ subledger khớp tuyệt đối. Vì vậy
+      # §7.5 được khẳng định trên dữ liệu seed thật của candidate (đúng thứ QA1 kiểm
+      # trên một deployment thật), còn bất biến ledger dưới contention do chính race
+      # script kiểm ở bước sau, kèm assert "lệch subledger bị giam đúng trong SKU S2".
+      - name: Rebuild + reconciliation bằng lệnh sản phẩm
+        shell: bash
+        run: |
+          set -o pipefail
+          php scripts/wwhn206-ledger-reconciliation.php "$WWHN206_EVIDENCE_DIR" \
+            2>&1 | tee docs/evidence/WWHN-205/raw/ci-ledger-reconciliation.log
+
+      # Đường độc lập của QA1: SQL thuần qua psql, không đi qua PHP/Laravel.
+      # ON_ERROR_STOP=1 để một lỗi SQL không bị nuốt thành "xanh".
+      - name: QA1 independent path — psql chạy thẳng file SQL đối soát
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -h 127.0.0.1 -U postgres -d "$DB_DATABASE" -v ON_ERROR_STOP=1 \
+            -f scripts/wwhn206-ledger-reconciliation.sql \
+            2>&1 | tee docs/evidence/WWHN-205/raw/ci-qa1-psql-reconciliation.log
+          if grep -q 'FAIL' docs/evidence/WWHN-205/raw/ci-qa1-psql-reconciliation.log; then
+            echo "::error title=WWHN-205 QA1 psql reconciliation FAIL::có metric không đạt, xem artifact ci-qa1-psql-reconciliation.log"
+            exit 1
+          fi
+
+      # ---- P1-03R --------------------------------------------------------
+      - name: Receipt vs Issue race — nhiều OS process thật trên PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          php scripts/wwhn205-receipt-issue-race.php "$WWHN205_EVIDENCE_DIR" \
+            2>&1 | tee docs/evidence/WWHN-205/raw/ci-receipt-issue-race.log
+
+      # ---- P1-04R --------------------------------------------------------
+      - name: Closure gate — register P1-01R..P1-04R còn đúng
+        run: node scripts/verify-wwhn205-closure.mjs
+
+      - name: Upload WWHN-205 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-205-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-205/
+          retention-days: 90

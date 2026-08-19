@@ -1,0 +1,18 @@
+{
+    "scenario": "s2-mixed-receipt-and-two-issues-non-negative",
+    "worker_index": 1,
+    "barrier_dir": "evidence\/runtime\/receipt-issue-race\/s2-mixed-receipt-and-two-issues-non-negative\/barrier",
+    "out_file": "evidence\/runtime\/receipt-issue-race\/s2-mixed-receipt-and-two-issues-non-negative\/worker-1.json",
+    "hold_ms": 1500,
+    "operation": {
+        "type": "post_issue",
+        "document_id": "7ea31700-59dd-45bd-810c-f96fe06b9901",
+        "document_type": "issue",
+        "actor_id": "01a017be-8c5b-710b-ab05-0b430bf67371",
+        "idempotency_key": "wwhn205-s2-issue-a-106E8849",
+        "request_hash": "4e3f32605f513a079d31da21e0aa9f6a10957d31",
+        "contended_table": "inventory_balances",
+        "contended_key": "warehouse_id",
+        "contended_value": "01a017be-9342-70cd-834f-d0551e637a08"
+    }
+}

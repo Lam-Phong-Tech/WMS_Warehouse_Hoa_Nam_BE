@@ -1,0 +1,27 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn219-worker-0",
+    "scenario": "s2-mixed-receipt-and-two-issues-non-negative",
+    "operation": "post_receipt",
+    "backend_pid": 4551,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "error_message": null,
+    "lock_wait_ms": 1824,
+    "timeline": {
+        "booted_at": 1787104774.883947,
+        "released_at": 1787104774.919077,
+        "lock_acquired_at": 1787104776.746528,
+        "hold_released_at": 1787104778.250275,
+        "finished_at": 1787104778.513818
+    },
+    "payload": {
+        "document_id": "975dae19-4e69-481c-9865-d4f55b597538",
+        "status": "POSTED",
+        "movement_ids": [
+            "3bd9f3e2-4132-419d-8298-f0341de3df85"
+        ],
+        "stock_effect": "INCREASE"
+    }
+}

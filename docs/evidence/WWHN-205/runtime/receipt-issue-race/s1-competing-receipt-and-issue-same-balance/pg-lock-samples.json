@@ -1,0 +1,602 @@
+[
+    {
+        "sampled_at": "2026-08-19T08:59:26+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:26+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:26+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:27+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:28+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:28+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 4526,
+                "application_name": "wwhn219-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:28+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:28+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:28+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:28+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:28+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:29+07:00",
+        "rows": [
+            {
+                "pid": 4525,
+                "application_name": "wwhn219-worker-1",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:30+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:31+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:31+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:31+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:31+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:31+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:31+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:31+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:32+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:32+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:32+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:32+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T08:59:32+07:00",
+        "rows": []
+    }
+]
