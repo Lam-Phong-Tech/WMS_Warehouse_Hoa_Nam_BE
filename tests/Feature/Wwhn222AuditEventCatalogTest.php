@@ -59,7 +59,7 @@ class Wwhn222AuditEventCatalogTest extends TestCase
         $response->assertJsonPath('meta.request_id', $requestId);
 
         $audit = AuditLog::where('action', 'LOGIN_FAILED')->where('request_id', $requestId)->firstOrFail();
-        $this->assertSame('FAILURE', $audit->result);
+        $this->assertSame('FAILED', $audit->result);
         $this->assertSame('UNAUTHENTICATED', $audit->error_code);
 
         // DEV222-P1-04: email của lần đăng nhập sai không được lọt raw vào audit_log.
@@ -91,7 +91,7 @@ class Wwhn222AuditEventCatalogTest extends TestCase
                 null,
                 $requestId,
                 afterData: ['email' => 'must-not-leak@wms-hoanam.test'],
-                result: 'FAILURE',
+                result: 'FAILED',
                 errorCode: 'INTERNAL_SERVER_ERROR',
             );
 
@@ -103,6 +103,25 @@ class Wwhn222AuditEventCatalogTest extends TestCase
         } finally {
             Schema::rename('audit_log_wwhn222_unavailable', 'audit_log');
         }
+    }
+
+    public function test_denied_login_uses_erd_result_vocabulary_denied(): void
+    {
+        // ERD §7 audit_logs.result CHECK SUCCESS/FAILED/DENIED — tài khoản bị
+        // khoá là DENIED (từ chối truy cập), không phải FAILED. Chốt vocabulary
+        // để catalog không trôi khỏi ERD (drift phát hiện ở review R2).
+        $user = $this->createUser('wwhn222_locked', 'wwhn222_locked@wms-hoanam.test');
+        User::query()->where('user_id', $user->user_id)->update(['status' => 'INACTIVE']);
+        $requestId = 'wwhn222-denied-'.(string) Str::uuid();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'wwhn222_locked@wms-hoanam.test',
+            'password' => 'secret123',
+        ], ['X-Request-ID' => $requestId])->assertStatus(403);
+
+        $audit = AuditLog::where('action', 'LOGIN_DENIED')->where('request_id', $requestId)->firstOrFail();
+        $this->assertSame('DENIED', $audit->result);
+        $this->assertSame('ACCESS_DENIED', $audit->error_code);
     }
 
     public function test_request_id_falls_back_to_current_request_when_caller_forgets_to_pass_it(): void

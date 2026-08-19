@@ -1,9 +1,28 @@
 # WWHN-222 — P0/P1/P2 Closure Register
 
-Đối chiếu với bảng đánh giá 61/100 (review mới nhất). Mỗi dòng ghi rõ: đã **sửa
-code** (owner DEV thực hiện trong phiên này) hay chỉ còn **sign-off** (đọc +
-duyệt, không có việc mới) hay **blocked ở hạ tầng ngoài repo** (không thể làm
-qua sửa code local).
+## R2 (2026-08-19) — đối chiếu review 75/100
+
+| ID | Disposition | Đã làm gì | Evidence |
+| --- | --- | --- | --- |
+| DEV222-P1-01R2 | **Backend hoàn tất phần chuẩn bị + thực thi quy trình; phần UAT env thật bàn giao DO (WWHN-55/221)** | Runbook mới `docs/ops/HN-BE-OPS-002_WWHN222_LOG_AUDIT_OBSERVABILITY.md`: sink identity, query truy vết theo request_id, 4 tín hiệu alert (gồm pattern phát hiện sớm sự cố "audit rỗng toàn hệ thống" đã có tiền lệ), checklist DO 4 bước. Toàn bộ quy trình được **chạy thật** trên PostgreSQL 16.14 và chụp raw: event sample (PII redacted), retrieval query, error sample (AUDIT_WRITE_FAILED + outbox). | `OPS_UAT_HANDOFF.md` (config/env identity + raw trace/log/query), runbook HN-BE-OPS-002 |
+| DEV222-P1-02R2 | **Đóng trong phiên này** | (1) Pin immutable: `RC_PIN.json` + verifier `scripts/verify-wwhn222-candidate-pin.mjs` — file sở hữu hash cả tệp, file dùng chung pin mức đối tượng (mô hình HN-PIN-328/184), implementation_range + bất biến ancestor; PASS 8/8 artifact. (2) PG execution proof: migrate từ scratch + phpunit 37/37 trên pgsql + probe raw (trước đây 0 evidence PG). (3) Fix gốc phát sinh khi đối chiếu ERD: vocabulary `result` v1.0 (`FAILURE`) lệch enum ERD §7 `CHECK SUCCESS/FAILED/DENIED` → sửa 4 call site Auth + migration `2026_08_19_150000` (trigger chuẩn hoá legacy + CHECK `NOT VALID`) + test DENIED mới + catalog v1.1 §2a (DEC-AUDIT-RESULT-001). Tech review: disposition ở phần Review bên dưới. | `TEST_EVIDENCE.md` §R2, `RC_PIN.json`, `EVENT_LOG_CATALOG.md` v1.1 |
+| DEV222-P1-05R2 | **QA1 retest đã thực thi độc lập trên exact candidate** | Retest 6/6 hạng mục (correlation/error/PII/append-only/PG migration/policy) trên PostgreSQL cô lập + sqlite đối chứng, raw độc lập với evidence DEV; ghi chú phạm vi UAT tường minh. | `QA1_RETEST_REPORT_R2.md` |
+| DEV222-P2-01 | **Jira governance (comment)** | Soạn comment ghi disposition "superseded/wrong-target" cho review DEV214/WWHN-214 bị gắn nhầm vào WWHN-222 (comment 15847) — reviewer không dùng nhầm làm căn cứ. | Jira comment (PM) |
+| DEV222-P2-02 | **Jira governance (metadata)** | PM cập nhật Due Date/ETA — thao tác ngoài repo, comment đã soạn sẵn. | Jira metadata |
+| DEV222-P2-03 | **Jira governance (trace note)** | Ghi note: Description giữ historical trace "BE1", classification hiện hành = unified ROLE=DEV. | Jira comment (PM) |
+
+### Review disposition (Tech review cho P1-02R2)
+
+- Thay đổi R2 là **additive + alignment**: không đổi chữ ký public nào ngoài giá trị chuỗi
+  `result` tại 4 call site Auth; enum mới là enum ERD đã cam kết, CHECK để `NOT VALID` nên
+  không phá dữ liệu/luồng cũ; trigger chuẩn hoá giữ tương thích payload outbox legacy.
+- Rủi ro regression đã chặn bằng: suite audit/auth 2 driver (37/37 + sweep 52/53, 0 fail),
+  probe ràng buộc raw, và pin object-level để mọi thay đổi sau này vào đúng các đối tượng
+  WWHN-222 sẽ làm pin đỏ buộc re-review.
+- ERD gap còn lại (cột vật lý `error_code`/`idempotency_key` chưa có trong ERD §7) là
+  **BA/PM follow-up** — không tự sửa ERD vì ERD pin checksum 2 repo (ERD-AMD-008).
+
+## R1 — đối chiếu review 61/100 (lịch sử)
 
 | ID | Disposition | Đã làm gì | Còn lại |
 | --- | --- | --- | --- |
@@ -15,25 +34,35 @@ qua sửa code local).
 | DEV222-P2-01 | **Sign-off (Jira metadata)** | — | Cập nhật Due Date/ETA trên Jira là thao tác ngoài repo (PM/DEV cập nhật field Jira), không phải code. |
 | DEV222-P2-02 | **Sign-off (Jira metadata)** | — | Sửa Description trên Jira để ghi rõ role hiện tại = DEV là thao tác ngoài repo, không phải code. |
 
-## Candidate SHA (điền sau khi commit)
+## Candidate (R2 — full immutable pin)
 
 - **Repo:** `WMS_Warehouse_Hoa_Nam_BE`, nhánh `m1`
-- **Base HEAD trước khi sửa:** `089eacd20ca918fb42703a2bb97aeb3f70e2881a`
-- **Candidate SHA (commit của WWHN-222):** `879c9704d55cf435bbb7445d87e594f7428391a6`
+- **Implementation range (mọi commit chạm candidate, theo thứ tự):**
+  1. `879c9704d55cf435bbb7445d87e594f7428391a6` — implementation R1 (catalog fields, PII redact, fallback request_id)
+  2. `41dfa6f7145b2eaff22eae2ef1a20dcc40f1ba4a` — fix pgsql view no-op (migration `2026_08_19_000002`, phát hiện ở WWHN-184 QA1 retest)
+  3. *(điền sau commit R2)* — vocabulary ERD + PG proof + pin + evidence R2
+- **Bất biến dải:** `git diff 879c9704..HEAD -- <8 artifact trong RC_PIN>` chỉ được chứa
+  thay đổi từ các commit liệt kê trên; đã kiểm tại HEAD `074a11ff` — ngoài 2 commit đầu,
+  không commit nào khác chạm tập pin.
+- **Pin nội dung (không rot theo HEAD):** `RC_PIN.json` — verify:
+  `node scripts/verify-wwhn222-candidate-pin.mjs` (thêm `--expect-sha=<sha>` ở cổng deploy).
+- **Migrations trong candidate:** `2026_08_19_000001`, `2026_08_19_000002`, `2026_08_19_150000`.
 
-## Affected files (implementation range)
+## Affected files (tập pin — xem hash trong RC_PIN.json)
 
 ```
-Modules/AuditLog/app/Models/AuditLog.php
-Modules/AuditLog/app/Services/AuditLogger.php
-Modules/AuditLog/database/migrations/2026_08_19_000001_add_event_catalog_fields_to_audit_log.php
-Modules/Auth/app/Http/Controllers/AuthController.php
-config/audit.php
-tests/Feature/Wwhn222AuditEventCatalogTest.php
-docs/evidence/WWHN-222/EVENT_LOG_CATALOG.md
-docs/evidence/WWHN-222/TEST_EVIDENCE.md
-docs/evidence/WWHN-222/CLOSURE_REGISTER.md
+Modules/AuditLog/app/Models/AuditLog.php                                              (full hash)
+Modules/AuditLog/app/Services/AuditLogger.php                                         (object-level)
+Modules/AuditLog/database/migrations/2026_08_19_000001_add_event_catalog_fields_to_audit_log.php (full hash)
+Modules/AuditLog/database/migrations/2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields.php (full hash)
+Modules/AuditLog/database/migrations/2026_08_19_150000_align_audit_result_vocabulary_with_erd.php (full hash)
+Modules/Auth/app/Http/Controllers/AuthController.php                                  (object-level)
+config/audit.php                                                                      (object-level)
+tests/Feature/Wwhn222AuditEventCatalogTest.php                                        (full hash)
 ```
+
+Evidence pack (`docs/evidence/WWHN-222/*`, runbook HN-BE-OPS-002, verifier script) đứng
+**ngoài** tập pin — tránh vòng tự tham chiếu pin-evidence (bài học WWHN-187/233).
 
 Không có reuse từ code của task khác cần supersession matrix — toàn bộ thay đổi
 trên là mới, additive trên hạ tầng `AuditLogger`/`ApiConventionMiddleware` đã

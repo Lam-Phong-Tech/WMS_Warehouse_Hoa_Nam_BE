@@ -1,0 +1,30 @@
+{
+  "pin_id": "HN-PIN-222",
+  "jira": "WWHN-222",
+  "description": "Immutable candidate pin cho event/log catalog + PII redact audit (DEV222-P1-02R2). File WWHN-222 sở hữu: hash cả tệp. File dùng chung (AuditLogger/config audit/AuthController): hash phần trích xuất đối tượng WWHN-222 sở hữu — commit ticket khác không làm đỏ pin, đụng đúng đối tượng thì đỏ ngay. implementation_range = các commit chạm candidate; verifier bắt buộc mọi commit trong range tồn tại và là ancestor của HEAD.",
+  "implementation_range": [
+    "879c9704d55cf435bbb7445d87e594f7428391a6",
+    "41dfa6f7145b2eaff22eae2ef1a20dcc40f1ba4a"
+  ],
+  "owned_artifacts": {
+    "Modules/AuditLog/app/Models/AuditLog.php": "8aeee70348c01b7a32afcce85ddd9ca4e221f8160393be3efd91aebc83fac867",
+    "Modules/AuditLog/database/migrations/2026_08_19_000001_add_event_catalog_fields_to_audit_log.php": "6cd89a20ad1fc92a474932f50a712a636f2740130fc4899425d7aaba9f21de99",
+    "Modules/AuditLog/database/migrations/2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields.php": "8b6aa2ac69563c0ed3a72cf047cb53bfa1232b47d7a8a2fb91d37af5f3a4fce3",
+    "Modules/AuditLog/database/migrations/2026_08_19_150000_align_audit_result_vocabulary_with_erd.php": "ba1350e3a5027daaf928a244270f9faa6032ade4362aa2749aef400d240de847",
+    "tests/Feature/Wwhn222AuditEventCatalogTest.php": "f49e170334305432ce3c5a501456373cbb694ce5ee1e3297eaeb6b14bb4921b3",
+    "Modules/AuditLog/app/Services/AuditLogger.php": {
+      "extractor": "audit-logger-owned-objects",
+      "sha256": "bfd0200171bd435ee10b7af19139a02216db7968ff68b5024050f9689defdcea"
+    },
+    "config/audit.php": {
+      "extractor": "audit-sensitive-keys-block",
+      "sha256": "0ca43ecb9ce320712f12fbe3d5c8d82006792eda80b459b65e94db2b56eaa02f"
+    },
+    "Modules/Auth/app/Http/Controllers/AuthController.php": {
+      "extractor": "auth-controller-audit-call-sites",
+      "sha256": "68e10bac662848eb7eb53cb2385c86a8877df167c9745000eb2138e28b290d50"
+    }
+  },
+  "pinned_at_head": "074a11ffef9b47aaacecbea1ba642c9f8c57f3f1",
+  "pinned_at_branch": "m1"
+}

@@ -63,7 +63,7 @@ class AuthController extends Controller
                 'LOGIN_THROTTLED', 'app_user', null, null,
                 $this->currentRequestId(), [], ['retry_after_seconds' => $retryAfter],
                 'Too many failed login attempts',
-                result: 'FAILURE', errorCode: 'RATE_LIMIT_EXCEEDED',
+                result: 'FAILED', errorCode: 'RATE_LIMIT_EXCEEDED',
             );
 
             return RateLimitResponse::make(
@@ -93,7 +93,7 @@ class AuthController extends Controller
                 [],
                 $logData,
                 'Invalid credentials',
-                result: 'FAILURE',
+                result: 'FAILED',
                 errorCode: 'UNAUTHENTICATED',
             );
 
@@ -114,7 +114,9 @@ class AuthController extends Controller
                 'LOGIN_DENIED', 'app_user', $user->user_id, $user->user_id,
                 $this->currentRequestId(), [], ['status' => $user->status],
                 'Inactive or locked account',
-                result: 'FAILURE', errorCode: 'ACCESS_DENIED',
+                // DENIED chứ không phải FAILED: đây là từ chối truy cập (403),
+                // theo enum ERD §7 audit_logs.result CHECK SUCCESS/FAILED/DENIED.
+                result: 'DENIED', errorCode: 'ACCESS_DENIED',
             );
 
             return $this->respondError('Tài khoản đang bị khoá hoặc ngừng hoạt động.', [], 403, 'ACCESS_DENIED');
@@ -165,7 +167,7 @@ class AuthController extends Controller
                 'TOKEN_REFRESH_FAILED', 'refresh_token', null, null,
                 $this->currentRequestId(), [], ['token_fingerprint' => substr(hash('sha256', $rawToken), 0, 12)],
                 'Invalid, expired, revoked or replayed refresh token',
-                result: 'FAILURE', errorCode: 'UNAUTHENTICATED',
+                result: 'FAILED', errorCode: 'UNAUTHENTICATED',
             );
 
             return $this->respondError('Refresh token không hợp lệ hoặc đã hết hạn.', [], 401, 'UNAUTHENTICATED');
