@@ -1,0 +1,173 @@
+{
+    "unauthorized_anonymous": {
+        "nfr": "NFR-SRS-005 / §8.2",
+        "post_receipt_http": 401,
+        "inbound_scan_http": 401,
+        "inventory_read_http": 401,
+        "error_code": "UNAUTHENTICATED",
+        "stock_effect_written": false,
+        "verdict": "PASS"
+    },
+    "unauthorized_underprivileged": {
+        "nfr": "NFR-SRS-005 / §8.2",
+        "granted_permissions": [
+            "inbound.view"
+        ],
+        "required_permission": "inbound.post",
+        "http": 403,
+        "error_code": "ACCESS_DENIED",
+        "stock_effect_written": false,
+        "verdict": "PASS"
+    },
+    "data_scope": {
+        "finding": "SEC289-01",
+        "srs": "§8.1 enforcement standard / §8.2 DATA_SCOPE_DENIED",
+        "post_receipt_http": 403,
+        "create_document_http": 403,
+        "read_document_http": 403,
+        "error_code": "DATA_SCOPE_DENIED",
+        "in_scope_request_still_allowed": true,
+        "stock_effect_written": false,
+        "verdict": "PASS"
+    },
+    "replay": {
+        "rotated_refresh_replay_http": 401,
+        "rotated_refresh_replay_rejected": true,
+        "verdict": "PASS"
+    },
+    "rate_limit_login": {
+        "finding": "SEC289-02",
+        "threshold_used": 3,
+        "http_after_threshold": 429,
+        "error_code": "RATE_LIMIT_EXCEEDED",
+        "retry_after_header_present": true,
+        "audit_action": "LOGIN_THROTTLED",
+        "verdict": "PASS"
+    },
+    "rate_limit_public_pv": {
+        "finding": "SEC289-02",
+        "threshold_used": 2,
+        "http_after_threshold": 429,
+        "error_code": "RATE_LIMIT_EXCEEDED",
+        "envelope_matches_8_2": true,
+        "verdict": "PASS"
+    },
+    "secret": {
+        "nfr": "NFR-SRS-008 / §8.2 ErrorEnvelope",
+        "login_response_leaks_credentials": false,
+        "audit_stores_plaintext_password": false,
+        "error_envelope_leaks_trace": false,
+        "verdict": "PASS"
+    },
+    "meta": {
+        "jira": "WWHN-289",
+        "register_item": "DEV289-P1-04",
+        "driver": "pgsql",
+        "generated_by": "Tests\\Feature\\Wwhn289SecurityRegressionProofTest"
+    },
+    "rbac_matrix": {
+        "nfr": "NFR-SRS-005 / §8.1 Enforcement standard (exact x-permission)",
+        "permissions_probed": [
+            "inbound.post",
+            "inventory.reversal.post",
+            "inventory.view"
+        ],
+        "cells": [
+            {
+                "granted_permission": "inbound.post",
+                "required_permission": "inbound.post",
+                "expected": "ALLOW",
+                "http_status": 200,
+                "error_code": null,
+                "movement_delta": 1
+            },
+            {
+                "granted_permission": "inbound.post",
+                "required_permission": "inventory.reversal.post",
+                "expected": "DENY",
+                "http_status": 403,
+                "error_code": "ACCESS_DENIED",
+                "movement_delta": 0
+            },
+            {
+                "granted_permission": "inbound.post",
+                "required_permission": "inventory.view",
+                "expected": "DENY",
+                "http_status": 403,
+                "error_code": "ACCESS_DENIED",
+                "movement_delta": 0
+            },
+            {
+                "granted_permission": "inventory.reversal.post",
+                "required_permission": "inbound.post",
+                "expected": "DENY",
+                "http_status": 403,
+                "error_code": "ACCESS_DENIED",
+                "movement_delta": 0
+            },
+            {
+                "granted_permission": "inventory.reversal.post",
+                "required_permission": "inventory.reversal.post",
+                "expected": "ALLOW",
+                "http_status": 422,
+                "error_code": "BUSINESS_RULE_ERROR",
+                "movement_delta": 0
+            },
+            {
+                "granted_permission": "inventory.reversal.post",
+                "required_permission": "inventory.view",
+                "expected": "DENY",
+                "http_status": 403,
+                "error_code": "ACCESS_DENIED",
+                "movement_delta": 0
+            },
+            {
+                "granted_permission": "inventory.view",
+                "required_permission": "inbound.post",
+                "expected": "DENY",
+                "http_status": 403,
+                "error_code": "ACCESS_DENIED",
+                "movement_delta": 0
+            },
+            {
+                "granted_permission": "inventory.view",
+                "required_permission": "inventory.reversal.post",
+                "expected": "DENY",
+                "http_status": 403,
+                "error_code": "ACCESS_DENIED",
+                "movement_delta": 0
+            },
+            {
+                "granted_permission": "inventory.view",
+                "required_permission": "inventory.view",
+                "expected": "ALLOW",
+                "http_status": 200,
+                "error_code": null,
+                "movement_delta": 0
+            }
+        ],
+        "denied_cells": 6,
+        "cross_operation_bleed": false,
+        "stock_effect_on_denied_cells": false,
+        "verdict": "PASS"
+    },
+    "rate_limit_threshold_contract": {
+        "finding": "SEC289-02",
+        "register_item": "DEV289-P1-04R (operational thresholds)",
+        "config_file": "config/rate_limit.php",
+        "env_overrides": {
+            "pv_public_per_minute": "RATE_LIMIT_PV_PUBLIC_PER_MINUTE",
+            "auth_login_per_minute": "RATE_LIMIT_AUTH_LOGIN_PER_MINUTE",
+            "auth_refresh_per_minute": "RATE_LIMIT_AUTH_REFRESH_PER_MINUTE"
+        },
+        "code_defaults": {
+            "pv_public_per_minute": 120,
+            "auth_login_per_minute": 10,
+            "auth_refresh_per_minute": 30
+        },
+        "zero_disables_guard": true,
+        "threshold_takes_effect_immediately": true,
+        "owner_of_numeric_values": "BA + DevOps (DEV chỉ khoá hợp đồng, không tự chốt số)",
+        "verdict": "PASS"
+    }
+}

@@ -106,9 +106,10 @@ return [
     // với cast đúng type đích. Hoàn tác = dựng lại đúng lỗi SQLSTATE[42804] đang chặn
     // `migrate:fresh` trên PostgreSQL, nên down() cố ý rỗng; định nghĩa mới là superset
     // hành vi (cột trùng type sinh biểu thức y nguyên).
-    // TRẠNG THÁI: đề xuất tại WWHN-289, CHỜ Tech Lead phê duyệt — chưa thuộc tập đã
-    // dispositioned của WWHN-300.
-    '2026_08_19_000050_repair_erd_mirror_projection_casts' => 'down() rỗng có chủ ý — fail-forward đề xuất tại WWHN-289, chờ Tech Lead phê duyệt',
+    // TRẠNG THÁI: dispositioned tại WWHN-289 R3 (DEV289-P1-02R3-TECH) — Tech Lead phê
+    // duyệt fail-forward bằng comment trên WWHN-289; down() dựng lại function sai type
+    // cũ là tái tạo chính defect BUILD289-05, đường lùi hợp lệ là restore backup.
+    '2026_08_19_000050_repair_erd_mirror_projection_casts' => 'down() rỗng có chủ ý — fail-forward dispositioned tại WWHN-289 R3 (Tech Lead, DEV289-P1-02R3-TECH)',
     // WWHN-184 (DEV184-P1-03R3): dựng lại view `audit_log` + trigger INSTEAD OF trên
     // PostgreSQL để phơi đủ idempotency_key/error_code (xem migration cho root cause).
     // Hoàn tác = xoá 2 cột vừa thêm khỏi audit_logs và dựng lại view/trigger cũ thiếu

@@ -1,0 +1,29 @@
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\Users\ACER\AppData\Local\Temp\claude\C--Users-ACER-Downloads-New-folder\39a84ef1-fc9b-4e94-a524-425b8e570b28\scratchpad\wt289_frozen\phpunit.xml
+
+﻿﻿Time: 03:17.284, Memory: 78.00 MB
+
+[4mWwhn289Security Regression Proof (Tests\Feature\Wwhn289SecurityRegressionProof)[0m
+[32m ✔ [0mUnauthorized dimension anonymous call to stock endpoint is rejected
+[32m ✔ [0mUnauthorized dimension underprivileged caller is rejected without stock effect
+[32m ✔ [0mData scope dimension scoped user cannot create stock effect outside scope
+[32m ✔ [0mReplay dimension rotated refresh token and revoked session cannot be replayed
+[32m ✔ [0mRate limit dimension login locks out after configured failed attempts
+[32m ✔ [0mRate limit dimension public pv catalog returns canonical 429
+[32m ✔ [0mSecret dimension no credential or internal detail is ever exposed
+[32m ✔ [0mRbac dimension permission matrix has no cross operation bleed
+[32m ✔ [0mRate limit dimension thresholds are config driven and zero disables guard
+
+[4mWwhn289Stock Invariant Proof (Tests\Feature\Wwhn289StockInvariantProof)[0m
+[32m ✔ [0mRetry dimension three identical post receipts produce exactly one movement
+[32m ✔ [0mIdempotency dimension same key with different payload is rejected
+[32m ✔ [0mRollback dimension injected failure rolls back document movement and balance
+[32m ✔ [0mConcurrent dimension duplicate reversal of the same movement is blocked
+[32m ✔ [0mReconcile dimension ledger and balance have zero mismatch after full cycle
+[32m ✔ [0mNegative stock dimension no path can drive balance below zero
+[32m ✔ [0mTrue concurrency dimension race losers are rejected without stock effect
+
+[30;42mOK (16 tests, 197 assertions)[0m
+{"tool":"phpunit","result":"passed","tests":16,"passed":16,"assertions":197,"duration_ms":197286}

@@ -113,25 +113,85 @@ for (const [label, sha] of [
   );
 }
 
-// Không commit nào SAU final được sửa file code thuộc phạm vi WWHN-289. Nếu có thì
-// `final` đã lạc hậu — đúng cái lỗi mà review 73/100 bắt được ở bản trước.
+// R3 (DEV289-P1-01R3-CANDIDATE): m1 là nhánh dùng chung nên "không ai được chạm code
+// sau final" là bất khả thi về vận hành — WWHN-222/WWHN-234 đã chạm AuthController và
+// test proof một cách hợp lệ cho ticket CỦA HỌ. Bất biến ĐÚNG từ R3: mọi commit hậu-final
+// chạm code scope phải nằm trong danh sách disposition tường minh của PINS
+// (post_final_delta_disposition.dispositioned_commits) — mỗi mục đủ trường bắt buộc và
+// có bằng chứng trung tính chạy thật. Commit NGOÀI danh sách -> FAIL (fail-closed, không
+// ai nới danh sách âm thầm được vì PINS + tài liệu delta đều digest/git-tracked).
 const codeScope = Array.isArray(pins.code_scope_paths) ? pins.code_scope_paths : [];
 check(
   "P1-02R/code-scope-declared",
   codeScope.length > 0,
-  "PINS liệt kê code_scope_paths để kiểm 'không ai sửa code sau final'",
+  "PINS liệt kê code_scope_paths để kiểm commit hậu-final chạm code",
+);
+
+const disposition = pins.post_final_delta_disposition ?? {};
+const dispositioned = Array.isArray(disposition.dispositioned_commits)
+  ? disposition.dispositioned_commits
+  : [];
+
+check(
+  "P1-01R3/disposition-declared",
+  typeof disposition.decision === "string" &&
+    disposition.decision.includes(String(range.final)) &&
+    typeof disposition.detail_document === "string" &&
+    existsSync(join(root, disposition.detail_document)),
+  "PINS khai post_final_delta_disposition: quyết định giữ frozen candidate + tài liệu delta tồn tại",
+);
+
+const dispositionFieldsOk = dispositioned.every(
+  (entry) =>
+    typeof entry.sha === "string" && /^[0-9a-f]{40}$/.test(entry.sha) &&
+    typeof entry.owner_ticket === "string" && entry.owner_ticket.length > 0 &&
+    Array.isArray(entry.files) && entry.files.length > 0 &&
+    typeof entry.classification === "string" && entry.classification.length > 0 &&
+    typeof entry.neutrality_evidence === "string" && entry.neutrality_evidence.length > 0,
+);
+check(
+  "P1-01R3/disposition-entries-complete",
+  dispositionFieldsOk,
+  dispositionFieldsOk
+    ? "Mỗi commit được disposition đủ trường: sha đầy đủ, owner_ticket, files, classification, neutrality_evidence"
+    : "Có mục disposition THIẾU trường bắt buộc — danh sách không được phép nở ra mà thiếu bằng chứng",
 );
 
 if (codeScope.length > 0 && range.final) {
-  const touched = git("log", "--format=%h %s", `${range.final}..HEAD`, "--", ...codeScope);
+  const touched = git("log", "--format=%H %s", `${range.final}..HEAD`, "--", ...codeScope);
+  const touchedLines = touched ? touched.split("\n").filter(Boolean) : [];
+  const allowedShas = new Set(dispositioned.map((entry) => String(entry.sha)));
+  const undispositioned = touchedLines.filter((line) => !allowedShas.has(line.slice(0, 40)));
   check(
-    "P1-02R/no-code-after-final",
-    touched === "" || touched === null,
-    touched
-      ? `CÓ commit sửa code WWHN-289 sau final -> pin đã lạc hậu:\n    ${touched.split("\n").join("\n    ")}`
-      : "Không commit nào sau code_range.final chạm file code trong phạm vi WWHN-289",
+    "P1-01R3/post-final-dispositioned",
+    undispositioned.length === 0,
+    undispositioned.length > 0
+      ? `CÓ commit hậu-final chạm code WWHN-289 NGOÀI danh sách disposition -> pin lạc hậu:\n    ${undispositioned.join("\n    ")}`
+      : touchedLines.length > 0
+        ? `Mọi commit hậu-final chạm code scope (${touchedLines.length}) đều nằm trong disposition tường minh của PINS`
+        : "Không commit nào sau code_range.final chạm file code trong phạm vi WWHN-289",
+  );
+
+  // Disposition không được khai khống: mỗi SHA trong danh sách phải THẬT SỰ là một
+  // commit hậu-final có chạm code scope (chặn kiểu độn danh sách để che một commit khác).
+  const touchedShas = new Set(touchedLines.map((line) => line.slice(0, 40)));
+  const phantom = dispositioned.filter((entry) => !touchedShas.has(String(entry.sha)));
+  check(
+    "P1-01R3/disposition-no-phantom",
+    phantom.length === 0,
+    phantom.length === 0
+      ? "Danh sách disposition khớp 1-1 với tập commit hậu-final thật sự chạm code scope"
+      : `Disposition khai SHA không hề chạm code scope sau final: ${phantom.map((entry) => entry.sha.slice(0, 12)).join(", ")}`,
   );
 }
+
+check(
+  "P1-01R3/delta-verified-on-postgres",
+  typeof disposition.delta_verification?.frozen_run === "string" &&
+    disposition.delta_verification.frozen_run.includes("pgsql") &&
+    typeof disposition.delta_verification?.head_run === "string",
+  "Disposition kèm bằng chứng chạy thật hai đầu dải delta (frozen + HEAD) trên PostgreSQL",
+);
 
 // ---------------------------------------------------------------------------
 // DEV289-P1-02R · digest artifact: tài liệu và số liệu thô phải khớp byte

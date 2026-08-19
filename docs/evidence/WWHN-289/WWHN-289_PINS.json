@@ -7,7 +7,7 @@
   "uat_parent": "WWHN-76",
   "dependency": "HN-UAT-003",
   "role": "BE1",
-  "review_addressed": "Wuangg — vòng 2: 73/100, register DEV289-P1-01R..06R + DEV289-P2-01 (vòng 1: 34/100, DEV289-P1-01..06)",
+  "review_addressed": "Wuangg — vòng 3: 84/100 PASS có điều kiện, register DEV289-P1-01R3..03R3 + DEV289-P2-01R3 (vòng 2: 73/100, DEV289-P1-01R..06R + DEV289-P2-01; vòng 1: 34/100, DEV289-P1-01..06)",
   "pinned_at": "2026-08-19",
   "pin_policy": "Mọi SHA/ngưỡng/kết quả trích trong bất kỳ artifact WWHN-289 nào PHẢI bằng giá trị ghi ở đây. Hai lớp canh: Wwhn289ClosureEvidenceTest ép cross-document equality, scripts/verify-wwhn289-closure.mjs kiểm pin còn resolve được, digest tài liệu còn khớp, và KHÔNG commit nào sau `code_range.final` chạm `code_scope_paths`. m1 là nhánh dùng chung nên pin RANGE INVARIANT (base -> final, final là ancestor của HEAD) chứ không pin blob tuyệt đối và không đòi final == HEAD.",
   "closure_revision_rule": "PINS này nằm ở closure revision và chứa SHA code cuối (`code_range.final`) — không có tham chiếu vòng, vì closure revision luôn là commit SAU commit code cuối. CI run được pin là run của một revision NẰM SAU final mà giữa hai điểm không ai chạm `code_scope_paths`, nên nó vẫn chứng minh đúng code đã pin.",
@@ -37,6 +37,41 @@
     "tests/Feature/Wwhn289SecurityRegressionProofTest.php"
   ],
   "code_scope_meaning": "Tập file mà nếu ai đó sửa SAU `change_range.final` thì pin đã lạc hậu và verifier phải đỏ. Cố ý KHÔNG liệt kê `.github/workflows/**`, `scripts/**`, `docs/**` — sửa cổng/tài liệu không làm kết quả đo trên code cũ sai đi. Cũng cố ý không liệt kê `tests/Feature/Wwhn289ErdMirrorTypeSafetyTest.php`: file đó do một luồng WWHN-289 song song sở hữu và còn đang lặp.",
+  "post_final_delta_disposition": {
+    "register_item": "DEV289-P1-01R3-CANDIDATE",
+    "decision": "GIỮ frozen candidate 8bdf9ad0a00461afe27e3e11a26e7fd13d68f9e6 làm QA candidate duy nhất. KHÔNG repin: CI run 32206778306 chỉ chứng minh code tại SHA này, và không được phép phát sinh run Actions mới (quota 3.000/3.000 phút đã cạn). Mọi commit hậu-final chạm code_scope_paths được liệt kê dưới đây kèm bằng chứng trung tính chạy thật; verifier fail-closed với commit ngoài danh sách.",
+    "detail_document": "docs/evidence/WWHN-289/R3/WWHN-289_R3_DELTA_DISPOSITION.md",
+    "measured_at_head": "5db3cb06a33aef726466e54801c7e087915d1801",
+    "dispositioned_commits": [
+      {
+        "sha": "879c9704d55cf435bbb7445d87e594f7428391a6",
+        "owner_ticket": "WWHN-222 (R1)",
+        "files": ["Modules/Auth/app/Http/Controllers/AuthController.php"],
+        "classification": "AUDIT-METADATA-ONLY",
+        "neutrality_evidence": "Bổ sung field catalog vào lời gọi AuditLogger, không đổi status code/envelope/logic throttle-scope-idempotency. Toàn bộ security suite PASS tại HEAD chứa commit này (R3/QA1_LIVE_RUN_HEAD_5db3cb0.txt)."
+      },
+      {
+        "sha": "a2e4fc4d497a7fa34c0a1b2615efece237046958",
+        "owner_ticket": "WWHN-234",
+        "files": ["tests/Feature/Wwhn289StockInvariantProofTest.php"],
+        "classification": "TEST-ADDITIVE-STRENGTHENING",
+        "neutrality_evidence": "Chỉ THÊM assertion posting_event unique (Query #4 QA1 WWHN-235) vào test retry — siết phép đo, không nới. Suite PASS ở cả hai đầu dải (16/197 tại frozen, 18/202 tại HEAD)."
+      },
+      {
+        "sha": "0222069b3c90b1227bdf4957c9c915ef8c7db191",
+        "owner_ticket": "WWHN-222 (R2)",
+        "files": ["Modules/Auth/app/Http/Controllers/AuthController.php"],
+        "classification": "AUDIT-METADATA-ONLY",
+        "neutrality_evidence": "Đổi vocabulary audit result FAILURE->FAILED/DENIED theo enum ERD §7 (DEC-AUDIT-RESULT-001); HTTP contract 401/403/429 + error_code + Retry-After giữ nguyên. Security suite PASS tại HEAD chứa commit này."
+      }
+    ],
+    "delta_verification": {
+      "harness": "local worktree detached + PostgreSQL 16.14 cô lập — KHÔNG dùng GitHub Actions",
+      "frozen_run": "8bdf9ad…, DB hn_wwhn289_r3_frozen: OK 16 tests / 197 assertions, artifact driver=pgsql, reconcile mismatch=0 — R3/QA1_LIVE_RUN_FROZEN_8bdf9ad.txt",
+      "head_run": "5db3cb0…, DB hn_wwhn289_r3_head: OK 18 tests / 202 assertions (thêm Wwhn289ErdMirrorTypeSafetyTest) — R3/QA1_LIVE_RUN_HEAD_5db3cb0.txt",
+      "committed_build_evidence_origin": "build/evidence/wwhn-289/*.json trong repo từ R3 là bản sinh bởi head_run trên pgsql — khôi phục sau khi commit e45856a83d45e3948e25fa5673caf8c0ec6ae290 (phiên song song) tái sinh chúng trên sqlite và làm check P1-03R/postgres-evidence đỏ tại thời điểm review R3."
+    }
+  },
   "ci_run": {
     "workflow_file": "wwhn-289-closure.yml",
     "workflow_name": "WWHN-289 Exact SHA Closure",
@@ -149,7 +184,9 @@
     "docs/evidence/WWHN-289/WWHN-289_STOCK_INVARIANT_PROOF.md": "e8fdcbd41310d7536b2c9a96395763248c02787f64032a1db5f262fba8db5861",
     "docs/evidence/WWHN-289/WWHN-289_SECURITY_TRACE.md": "8b6e834152bab117a0f1cb3c47d079d67e684c9209deb0e57b61d9c7d0dd7d13",
     "docs/evidence/WWHN-289/WWHN-289_QA1_HANDOFF.md": "df605f9d657f94bff772a1fd238f4ba8dbc39ef9a2548b27de5d8e82a58da61e",
-    "docs/evidence/WWHN-289/WWHN-289_SIGNOFF_COMMENTS.md": "6ebd10128213288c4debb401bfdf3fcb8284429ab8be6092ee102205d099324d"
+    "docs/evidence/WWHN-289/WWHN-289_SIGNOFF_COMMENTS.md": "6ebd10128213288c4debb401bfdf3fcb8284429ab8be6092ee102205d099324d",
+    "docs/evidence/WWHN-289/R3/WWHN-289_R3_DELTA_DISPOSITION.md": "cc029fbbd03b052f2eaaac7ec9bfe783e9506179e2ee8af639466b7f719e3e7b",
+    "docs/evidence/WWHN-289/R3/WWHN-289_R3_QA1_REPORT.md": "2f99d34b3638962be61c8fb5c0860260dd6f77de9bd5c996ee1bf231cb7263cf"
   },
   "artifact_digests_meaning": "sha256 của phần TĨNH. Cố ý KHÔNG digest-pin build/evidence/wwhn-289/*.json: hai file đó phải do lần chạy sinh lại nên byte đổi theo run; digest cố định sẽ buộc cổng quay lại đọc file tĩnh — đúng lỗi BUILD289-06. Với hai file đó verifier kiểm NGỮ NGHĨA (đủ chiều, mismatch=0, driver=pgsql).",
   "fe_consumer": {
@@ -209,7 +246,11 @@
     "DEV289-P1-04R": "QA1 + Security + BA/DevOps -> TL — retest 6 nhóm + chốt ngưỡng rate-limit vận hành",
     "DEV289-P1-05R": "QA1 trên WWHN-291 — đăng verdict PASS/FAIL kèm exact SHA",
     "DEV289-P1-06R": "BA trên WWHN-288 — business disposition",
-    "DEV289-P2-01": "DEV -> QA1 — một nguồn số duy nhất + supersession"
+    "DEV289-P2-01": "DEV -> QA1 — một nguồn số duy nhất + supersession",
+    "DEV289-P1-01R3-CANDIDATE": "DEV -> Tech Lead + QA1 — freeze candidate 8bdf9ad + delta disposition (post_final_delta_disposition); reviewer disposition bằng comment Jira",
+    "DEV289-P1-02R3-TECH": "Tech Lead -> QA1/BA — độc lập review security/core design + phê duyệt fail-forward migration 2026_08_19_000050 (down() rỗng có chủ ý, entry trong database/golive/fail_forward_allowlist.php); CONFIRMED/NOT CONFIRMED kèm exact SHA",
+    "DEV289-P1-03R3-QA": "QA1 -> BA/Tech — HARD GATE: chạy sống trên frozen candidate (local harness PostgreSQL — evidence R3/WWHN-289_R3_QA1_REPORT.md), đăng verdict PASS/FAIL kèm exact SHA trên WWHN-291",
+    "DEV289-P2-01R3-TRACE": "BA/PM — cross-reference disposition BA từ WWHN-289 sang WWHN-288 để workflow không mâu thuẫn"
   },
   "known_gaps_not_owned_by_this_ticket": [
     {
