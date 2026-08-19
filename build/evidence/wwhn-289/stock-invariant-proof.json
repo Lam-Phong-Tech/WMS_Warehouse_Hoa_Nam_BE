@@ -46,7 +46,7 @@
         "retry_after_failure_succeeds": true,
         "verdict": "PASS"
     },
-    "concurrent_duplicate_reversal": {
+    "reversal": {
         "nfr": "NFR-SRS-003",
         "first_reversal_http": 200,
         "second_reversal_http": 422,
@@ -68,5 +68,57 @@
         "register_item": "DEV289-P1-03",
         "driver": "sqlite",
         "generated_by": "Tests\\Feature\\Wwhn289StockInvariantProofTest"
+    },
+    "negative_stock": {
+        "nfr": "NFR-SRS-003 (prevents negative stock) / TC-NFR-003",
+        "guard": "CurrentBaselineStockService: kiem after<0 ben trong lockForUpdate() truoc CAS va truoc insert stock_movements",
+        "attempts": [
+            {
+                "leg": "over_reversal_beyond_received",
+                "requested_qty": 6,
+                "on_hand_before": 4,
+                "http_status": 422,
+                "error_code": "REVERSAL_QTY_EXCEEDED",
+                "on_hand_after": 4
+            },
+            {
+                "leg": "reversal_at_zero_balance",
+                "requested_qty": 1,
+                "on_hand_before": 0,
+                "http_status": 422,
+                "error_code": "REVERSAL_QTY_EXCEEDED",
+                "on_hand_after": 0
+            }
+        ],
+        "global_floor": {
+            "min_quantity": 0,
+            "min_on_hand_qty": 0,
+            "min_available_qty": 0
+        },
+        "negative_observed": false,
+        "verdict": "PASS"
+    },
+    "true_concurrency": {
+        "nfr": "NFR-SRS-003 (parallel requests: one success, others conflict) / TC-NFR-003",
+        "driver": "sqlite",
+        "row_lock": {
+            "mechanism": "DB::table(inventory_balances)->lockForUpdate() trong transaction ghi ton",
+            "statements_observed": 0,
+            "asserted_on_this_driver": false,
+            "note": "sqlite khoa toan file nen grammar khong sinh FOR UPDATE; chieu nay chi co gia tri chung minh tren PostgreSQL."
+        },
+        "lease_loser": {
+            "http_status": 409,
+            "error_code": "CONCURRENCY_CONFLICT",
+            "second_stock_effect": false
+        },
+        "optimistic_lock_loser": {
+            "http_status": 412,
+            "error_code": "STALE_VERSION",
+            "second_stock_effect": false
+        },
+        "winner_count": 1,
+        "balance_after_all_losers": 7,
+        "verdict": "PASS"
     }
 }
