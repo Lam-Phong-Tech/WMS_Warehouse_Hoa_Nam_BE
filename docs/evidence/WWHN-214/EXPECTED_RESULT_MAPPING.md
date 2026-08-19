@@ -5,6 +5,16 @@ nguồn → kết quả kỳ vọng* để BA/BAS chỉ cần đối chiếu và
 DEV214-P1-05R ("BA/BAS pin current controlling source + expected-result mapping;
 BRD v3.9 chỉ giữ historical nếu superseded").
 
+**Cách truy cập (accessible pin — DEV214-P1-05R2):** file này nằm trong repo BE
+tại `docs/evidence/WWHN-214/EXPECTED_RESULT_MAPPING.md` trên nhánh `m1` (đóng gói
+từ commit `965547a`); nguồn trích dẫn nằm trong repo FE
+`docs/HN_SRS_FRD_v1.12_FULL.md` và `docs/HoaNam_ERD_Moi_Nhat.md`. Trích dẫn đã
+đối chiếu lại với văn bản gốc ngày 19/08/2026: §1.6 Supersession Register (dòng
+220; "BRD v3.9 → BRD v3.20 · HISTORICAL / SUPERSEDED" dòng 225), §6 State Model
+(dòng 436), §8.2 (dòng 543–545: 409/412/422 + "State, stock and movement
+unchanged"), DEC-INV-001 (dòng 252), ERD `inventory_movements` #30 "Authoritative
+append-only ledger" (dòng 269), ERD 59 entity (HN-WMS-ERD-DD-001).
+
 ## 1. Controlling source
 
 | Vai trò | Tài liệu | Trạng thái |

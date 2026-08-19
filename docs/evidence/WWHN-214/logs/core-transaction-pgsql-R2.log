@@ -1,0 +1,30 @@
+WWHN-214 core-transaction retest — ROUND R2 — PostgreSQL (DB rieng wwhn214_retest)
+Driver: pgsql 127.0.0.1:5432/wwhn214_retest (PostgreSQL 16.14)
+Candidate SHA (main repo m1 HEAD at run): 9d888a1c490ea64f7c0eaf8026a0f08c92e7cd41
+Run timestamp (local): 2026-08-19T09:43:40Z
+Suite A: Wwhn214QaRetestRawEvidence (raw API/DB) + Wwhn199ReservationIndexContract (index contract PG)
+======================================================
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\phpunit.xml
+
+Time: 01:13.557, Memory: 76.00 MB
+
+[4mWwhn199Reservation Index Contract (Tests\Feature\Wwhn199ReservationIndexContract)[0m
+[32m ✔ [0mOutbound active item has exactly one canonical unique index
+[32m ✔ [0mInbound active item has exactly one canonical unique index
+[36m ↩ [0mDatabase rejects a second active match for the same item
+
+[4mWwhn214Qa Retest Raw Evidence (Tests\Feature\Wwhn214QaRetestRawEvidence)[0m
+[32m ✔ [0mArea no negative second issue on shared balance is rejected 422
+[32m ✔ [0mArea duplicate retry same key one effect and conflict on payload change
+[32m ✔ [0mArea concurrency precondition stale state guards block every conflicting write
+[32m ✔ [0mArea rollback injected failure reverts all and retry succeeds
+[32m ✔ [0mArea rbac anonymous and unpermitted actor cannot post
+[32m ✔ [0mArea append only ledger rejects raw update and delete at db level
+[32m ✔ [0mArea reconciliation delta is zero after full cycle
+
+[30;42mOK, but some tests were skipped![0m
+[30;42mTests: 10[0m[30;42m, Assertions: 87[0m[30;42m, Skipped: 1[0m[30;42m.[0m
+{"tool":"phpunit","result":"passed","tests":10,"passed":9,"assertions":87,"duration_ms":73556,"skipped":1}

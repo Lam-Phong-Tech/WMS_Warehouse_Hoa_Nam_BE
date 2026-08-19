@@ -1,0 +1,311 @@
+WWHN-214 core-transaction regression evidence — ROUND R2 (register 55/100, QA1 adoption run)
+Driver: sqlite (phpunit.xml default)
+Candidate SHA (main repo m1 HEAD at run): 9d888a1c490ea64f7c0eaf8026a0f08c92e7cd41
+Run timestamp (local): 2026-08-19T09:43:21Z
+Suite: 33 core-transaction test classes (same list as Round R)
+======================================================
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\phpunit.xml
+
+Time: 00:44.017, Memory: 96.00 MB
+
+[4mAuth Rbac Audit Hardening (Tests\Feature\AuthRbacAuditHardening)[0m
+[32m ✔ [0mExpired access token is rejected with standard 401
+[32m ✔ [0mRefresh replay revokes token family and creates failure audit
+[32m ✔ [0mWarehouse scope filters list and denies detail and mutation outside scope
+[32m ✔ [0mAudit logger redacts nested secrets
+[32m ✔ [0mAudit primary failure is persisted to outbox instead of silently lost
+[32m ✔ [0mNegative api contract for malformed json and missing refresh token
+
+[4mOutbound Permission (Tests\Feature\OutboundPermission)[0m
+[32m ✔ [0mUnauthenticated request is rejected with 401
+[32m ✔ [0mViewer role can read but not intake or scan or post
+[32m ✔ [0mWarehouse staff can intake and scan but not post or cancel
+[32m ✔ [0mWarehouse approver can post and cancel but not intake or scan
+[32m ✔ [0mSuper admin bypasses all outbound permissions
+[32m ✔ [0m403 response does not leak stack trace or secrets
+
+[4mPermission And Validation (Tests\Feature\PermissionAndValidation)[0m
+[32m ✔ [0mRequest without token returns 401
+[32m ✔ [0mUser without required permission gets 403
+[32m ✔ [0mUser with required permission is allowed
+[32m ✔ [0mUser without any permission is blocked from creating product
+[32m ✔ [0mProduct and sku routes share canonical sku permission
+[32m ✔ [0mProduct create with duplicate code returns 422
+[32m ✔ [0mProduct detail for unknown id returns 404
+[32m ✔ [0mDocument status history uses inventory view permission
+[32m ✔ [0mInbound document create without lines returns 422
+[32m ✔ [0mInbound document create is idempotent when key reused
+
+[4mPermission Catalog (Tests\Feature\PermissionCatalog)[0m
+[32m ✔ [0mPermission list and detail are readable
+[32m ✔ [0mPermission has no create update or delete route
+
+[4mSecurity Rbac Audit Negative (Tests\Feature\SecurityRbacAuditNegative)[0m
+[32m ✔ [0mProtected endpoints return 401 without token
+[32m ✔ [0mUser without permission gets 403 on protected endpoints
+[32m ✔ [0mExpired and invalid tokens return 401
+[32m ✔ [0mAuth lifecycle creates audit logs
+[32m ✔ [0mAudit logs do not contain sensitive data
+[32m ✔ [0mLocked account returns 403 and audits
+[32m ✔ [0mUser without warehouse scope gets 403
+[32m ✔ [0mSuper admin bypasses all permission checks
+[32m ✔ [0mPermission check is exact match
+[32m ✔ [0mBackend denies permissions from inactive expired and future roles
+[32m ✔ [0mBackend allows permissions from effective active role assignment
+[32m ✔ [0mLogin returns correct roles and permissions
+[32m ✔ [0mSession persistence and auth me
+[32m ✔ [0mRole based navigation capabilities
+[32m ✔ [0m403 response structure for ui navigation
+[32m ✔ [0mMultiple roles with different permissions
+
+[4mWwhn172Sku Container Transaction (Tests\Feature\Wwhn172SkuContainerTransaction)[0m
+[32m ✔ [0mSku aggregate create is atomic audited and replay safe
+[32m ✔ [0mSame idempotency key with different payload returns 409 without side effect
+[32m ✔ [0mComponent cycle rolls back edge version and audit
+[32m ✔ [0mStale sku version is rejected before mutation
+[32m ✔ [0mContainer contract uses canonical sku and plural tables
+[32m ✔ [0mInvalid box container create rolls back canonical root
+
+[4mWwhn190Posting Contract Parity (Tests\Feature\Wwhn190PostingContractParity)[0m
+[32m ✔ [0mContract release is present and versioned
+[32m ✔ [0mPack immutable wwhn180 khong bi sua
+[32m ✔ [0mEvery declared path exists with declared permission
+[32m ✔ [0mRemoved surfaces are absent from runtime
+[32m ✔ [0mMissing if match returns 428 precondition required
+[32m ✔ [0mMalformed if match returns 422 invalid version
+[32m ✔ [0mStale if match returns 412 stale version
+[32m ✔ [0mMissing idempotency key returns 428
+[32m ✔ [0mShort idempotency key returns 422 validation error
+[32m ✔ [0mHappy path returns etag and replay headers then replays exactly once
+[32m ✔ [0mSame key different payload returns 409 idempotency conflict
+[32m ✔ [0mDifferent key after posted returns 409 state conflict
+[32m ✔ [0mPartial scan is blocked by full post rule
+[32m ✔ [0mUnauthenticated is rejected with 401
+[32m ✔ [0mForbidden is rejected without stock effect
+[32m ✔ [0mNot found document returns 404 resource not found
+
+[4mWwhn191Balance Movement Projection (Tests\Feature\Wwhn191BalanceMovementProjection)[0m
+[32m ✔ [0mInventory balances list reflects ledger after post receipt and matches
+[32m ✔ [0mInventory balance subledger lists item instances and containers
+[32m ✔ [0mInventory balance subledger returns 404 for unknown id
+[32m ✔ [0mStock movements list show and trace source reflect posted receipt
+[32m ✔ [0mStock movement show returns 404 for unknown id
+[32m ✔ [0mStock movement trace by code returns 404 for unknown physical code
+[32m ✔ [0mStock movements endpoints require inventory permissions
+[32m ✔ [0mStock movements endpoint requires authentication
+[32m ✔ [0mStock movement is append only and rejects update and delete
+[32m ✔ [0mStock movement delete is rejected
+[32m ✔ [0mStock movement trace by code resolves sku code to posted receipt movement
+[32m ✔ [0mStock movement trace by code resolves container code of received box
+[32m ✔ [0mStock movements reversible lists posted receipt with full reversible qty
+[32m ✔ [0mAnnex c inventory trace path returns same payload as trace by code
+
+[4mWwhn195Outbound Contract Alignment (Tests\Feature\Wwhn195OutboundContractAlignment)[0m
+[32m ✔ [0mRoute table matches the handler that actually runs
+[32m ✔ [0mGhost create and update operations do not exist at runtime
+[32m ✔ [0mPublished contract declares exactly the runtime outbound surface
+[32m ✔ [0mCode value max length is identical in contract and runtime
+[32m ✔ [0mPacking label uses document level draft lifecycle not legacy per item print
+[32m ✔ [0mScan source is explicit and reaches audit evidence
+[32m ✔ [0mScan source falls back to inference and is labelled as such
+[32m ✔ [0mInvalid scan source is rejected against the erd check values
+[32m ✔ [0mMode is per scan event and not locked to the document
+[32m ✔ [0mAnnex c alias scans behaves identically to scan
+
+[4mWwhn198Packing Label Contract Alignment (Tests\Feature\Wwhn198PackingLabelContractAlignment)[0m
+[32m ✔ [0mOpenapi declares the batch level draft label behaviour
+[32m ✔ [0mEvery error code declared in the contract exists in runtime source
+[32m ✔ [0mPartial scan creates no label and full match creates exactly one draft label
+[32m ✔ [0mPost issue is blocked while the label is still draft with the documented error code
+[32m ✔ [0mUnmatch discards the unfrozen draft label as documented
+
+[4mWwhn198Reserved Qty Semantics (Tests\Feature\Wwhn198ReservedQtySemantics)[0m
+[32m ✔ [0mContract pins identity level reservation not quantity level
+[32m ✔ [0mReserved qty stays zero while an item is actually reserved by a scan
+[32m ✔ [0mReserved qty is still zero after post issue and availability comes from available qty
+[32m ✔ [0mNo production code path writes a non zero reserved qty
+
+[4mWwhn199Reservation Concurrency Guard (Tests\Feature\Wwhn199ReservationConcurrencyGuard)[0m
+[32m ✔ [0mScanning same item into two different outbound documents is rejected
+[32m ✔ [0mScanning same item twice into same document is rejected
+[32m ✔ [0mScanning same item into two different inbound documents is rejected
+[32m ✔ [0mConfirming a duplicate request no never creates a second outbound document
+[32m ✔ [0mItem removed from one document can be matched into another
+
+[4mWwhn199Reservation Index Contract (Tests\Feature\Wwhn199ReservationIndexContract)[0m
+[36m ↩ [0mOutbound active item has exactly one canonical unique index
+[36m ↩ [0mInbound active item has exactly one canonical unique index
+[36m ↩ [0mDatabase rejects a second active match for the same item
+
+[4mWwhn201Post Issue Atomic Non Negative Stock (Tests\Feature\Wwhn201PostIssueAtomicNonNegativeStock)[0m
+[32m ✔ [0mSecond post issue is rejected with insufficient stock when first post already consumed the shared balance
+[32m ✔ [0mReplaying post issue with same idempotency key returns identical result without creating a second movement
+
+[4mWwhn201Post Issue Error Contract (Tests\Feature\Wwhn201PostIssueErrorContract)[0m
+[32m ✔ [0mSame idempotency key with different payload returns 409 idempotency conflict without second stock effect
+[32m ✔ [0mDifferent idempotency key on already posted document returns 409 state conflict
+[32m ✔ [0mStale if match returns 412 and the same key still posts exactly once after reload
+[32m ✔ [0mBusiness guard rejection rolls back everything and does not poison the idempotency key
+[32m ✔ [0mInsufficient stock is 422 and never 409
+[32m ✔ [0mMissing idempotency key returns 428 precondition required
+
+[4mWwhn202Outbound Balance Evidence (Tests\Feature\Wwhn202OutboundBalanceEvidence)[0m
+[32m ✔ [0mPost issue moves balance ledger and subledger together with db before after
+[32m ✔ [0mAll movement read surfaces agree with the ledger after post issue
+[32m ✔ [0mReconciliation report passes all four checks and command creates no incident
+[32m ✔ [0mReverse restores stock and every read surface reflects the net effect
+[32m ✔ [0mEvery read surface rejects anonymous access with 401
+[32m ✔ [0mEvery read surface rejects missing permission with 403 and changes nothing
+[32m ✔ [0mRead surfaces return 404 and 422 without leaking internals
+[32m ✔ [0mPost issue error taxonomy matches srs 8 2
+[32m ✔ [0mMovement item attribution follows dec stk 202
+[32m ✔ [0mAggregate line leaves item id null and trace by code falls back to the line
+[32m ✔ [0mRead surface permission matrix matches the registered routes
+
+[4mWwhn204Ledger Projection Rebuild (Tests\Feature\Wwhn204LedgerProjectionRebuild)[0m
+[32m ✔ [0mStock movements rejects update and delete at database level
+[32m ✔ [0mRebuild restores projection to ledger after intentional drift
+[32m ✔ [0mRebuild is idempotent on a consistent system
+[32m ✔ [0mRebuild dry run reports plan without writing
+[32m ✔ [0mRebuild handles missing and orphan projection rows
+[32m ✔ [0mRebuild is not exposed as any http route
+
+[4mWwhn204Ledger Reconciliation Coverage (Tests\Feature\Wwhn204LedgerReconciliationCoverage)[0m
+[32m ✔ [0mStock movements reversible lists posted receipt with correct sku fields
+[32m ✔ [0mStock movements reversible search filter does not crash on sqlite
+[32m ✔ [0mStock movements reversible requires authentication
+[32m ✔ [0mInventory balances list succeeds with active container items present
+[32m ✔ [0mInventory reconcile command detects and records manufactured mismatch
+[32m ✔ [0mInventory reconcile command dry run does not write incident
+
+[4mWwhn205Invariant Closure Contract (Tests\Feature\Wwhn205InvariantClosureContract)[0m
+[32m ✔ [0mRegister pins three commit roles and all four p1 items
+[32m ✔ [0mEvery blocker carries owner and disposition
+[32m ✔ [0mFix semantics still present at head not just the files
+[32m ✔ [0mPostgres diagnostic workflow is not dormant again
+[32m ✔ [0mGate executes concurrency and reconciliation scripts for real
+[32m ✔ [0mReconciliation assertion layer is plain sql covering all required metrics
+[32m ✔ [0mRace script covers both directions and post race reconcile
+[32m ✔ [0mEvidence matrix and runbook pin exact shas and independent path
+
+[4mWwhn205Stock Movement Item Id Invariant (Tests\Feature\Wwhn205StockMovementItemIdInvariant)[0m
+[32m ✔ [0mPost issue sets item id on movement for single item line
+[32m ✔ [0mPost receipt sets item id on movement for single item serial tracked line
+[32m ✔ [0mPost receipt leaves item id null when line aggregates multiple items
+[32m ✔ [0mComponent receipt leaves item id null for quantity mode sku
+
+[4mWwhn207Inbound Reversal Flow (Tests\Feature\Wwhn207InboundReversalFlow)[0m
+[32m ✔ [0mReverse inbound partial quantity decreases balance and creates reversal movement
+[32m ✔ [0mReverse inbound full quantity then second reverse is rejected
+[32m ✔ [0mReverse inbound replays idempotently without double effect
+[32m ✔ [0mReverse inbound rejects quantity above reversible and invalid movement
+[32m ✔ [0mReverse inbound requires reversal post permission
+[32m ✔ [0mReverse inbound requires idempotency key and if match
+
+[4mWwhn207Outbound Balance Reconciliation (Tests\Feature\Wwhn207OutboundBalanceReconciliation)[0m
+[32m ✔ [0mInventory balances list reflects ledger after post issue and matches
+[32m ✔ [0mStock movements list show and trace source reflect posted issue
+[32m ✔ [0mStock movement trace by code resolves issued item and its movement
+[32m ✔ [0mStock movements reversible lists posted issue with dependency guard
+[32m ✔ [0mReconciliation report and command show match after post issue
+[32m ✔ [0mReverse after post issue is reflected in balances and movement trace
+[32m ✔ [0mInventory balance subledger excludes issued item after post
+[32m ✔ [0mStock movements endpoints require inventory permissions for outbound data
+
+[4mWwhn214Qa Retest Raw Evidence (Tests\Feature\Wwhn214QaRetestRawEvidence)[0m
+[32m ✔ [0mArea no negative second issue on shared balance is rejected 422
+[32m ✔ [0mArea duplicate retry same key one effect and conflict on payload change
+[32m ✔ [0mArea concurrency precondition stale state guards block every conflicting write
+[32m ✔ [0mArea rollback injected failure reverts all and retry succeeds
+[32m ✔ [0mArea rbac anonymous and unpermitted actor cannot post
+[32m ✔ [0mArea append only ledger rejects raw update and delete at db level
+[32m ✔ [0mArea reconciliation delta is zero after full cycle
+
+[4mWwhn231Stock Neutral Ledger (Tests\Feature\Wwhn231StockNeutralLedger)[0m
+[32m ✔ [0mNo stock mutating route exists outside canonical posting surface
+[32m ✔ [0mCanonical stock write surface is intact and guarded
+[32m ✔ [0mInbound scan does not touch movement or balance
+[32m ✔ [0mOutbound scan and label preparation are stock neutral
+[32m ✔ [0mReconciliation report and command are read only
+[32m ✔ [0mDetected divergence creates incident without touching stock
+[32m ✔ [0mOptimized ledger aggregate matches legacy group by shape
+[32m ✔ [0mInventory balance report issues a single ledger aggregate query
+[32m ✔ [0mLedger dimension index exists
+
+[4mWwhn234Conflict Class Contract (Tests\Feature\Wwhn234ConflictClassContract)[0m
+[32m ✔ [0mConflict code class matches srs 8 2 exactly
+[32m ✔ [0mIdempotency store reuses the single conflict code source
+[32m ✔ [0mRetired conflict codes never return to the write path
+[32m ✔ [0mConcurrency loss uses the canonical class in every stock write path
+[32m ✔ [0mDownstream dependency guard uses the code named by tc rev 02
+[32m ✔ [0mDocument level optimistic lock stays on 412
+
+[4mWwhn234Post Issue Idempotency Payload (Tests\Feature\Wwhn234PostIssueIdempotencyPayload)[0m
+[32m ✔ [0mPost issue with same key and different payload conflicts without second write
+[32m ✔ [0mPost issue replay is decided by idempotency key before optimistic lock
+
+[4mWwhn234Post Issue Rollback Proof (Tests\Feature\Wwhn234PostIssueRollbackProof)[0m
+[32m ✔ [0mG01 injected failure after movement insert rolls back document movement balance and posting event
+
+[4mWwhn239Reversal Item Level Closure (Tests\Feature\Wwhn239ReversalItemLevelClosure)[0m
+[32m ✔ [0mDouble reverse of the same serial item is blocked and creates no duplicate movement
+[32m ✔ [0mSame item declared twice in one reversal request is rejected
+[32m ✔ [0mSame key replay returns the first result without second write
+[32m ✔ [0mSame key with different payload conflicts without write
+[32m ✔ [0mReversal is denied for anonymous and for actor without permission
+[32m ✔ [0mDependency guard blocks receipt reversal when item moved downstream
+[32m ✔ [0mFailed line rolls back the whole reversal document
+[32m ✔ [0mLedger reconciles with balance and leaves no orphan after reversals
+
+[4mWwhn240Reversal Net Effect Contract (Tests\Feature\Wwhn240ReversalNetEffectContract)[0m
+[32m ✔ [0mXnt tach reversal theo movement type goc
+[32m ✔ [0mXnt khong gop nham dao xuat voi dao xuat linh kien
+[32m ✔ [0mXnt dao cua dao tra lai gross ban dau
+[32m ✔ [0mXnt reversal khong truy duoc goc van vao closing
+[32m ✔ [0mXnt cong bo ngu nghia cot gross reversal net
+[32m ✔ [0mXnt export van tra xlsx voi bo cot gross reversal net
+[32m ✔ [0mTrace source tra du chain va net effect cho movement goc
+[32m ✔ [0mTrace source khong con giau reversal thu hai
+[32m ✔ [0mTrace source di nguoc ve goc khi tra tu mot reversal
+[32m ✔ [0mTrace source danh dau fully reversed khi dao het
+[32m ✔ [0mTrace source movement khong ton tai tra 404
+[32m ✔ [0mTrace source ngoai warehouse scope bi tu choi 403
+[32m ✔ [0mTrace source thieu inventory view bi tu choi 403
+[32m ✔ [0mTrace source trong scope van doc duoc day du chain
+[32m ✔ [0mInventory xnt report requires report view permission
+
+[4mWwhn242Reversal Scope And Projection (Tests\Feature\Wwhn242ReversalScopeAndProjection)[0m
+[32m ✔ [0mList hides reversal documents outside warehouse scope
+[32m ✔ [0mList still returns documents inside scope
+[32m ✔ [0mDetail and lines outside scope are denied
+[32m ✔ [0mLifecycle write outside scope is denied without any stock effect
+[32m ✔ [0mCreate reversal for reference document outside scope is denied
+[32m ✔ [0mUnrestricted scope still reaches every reversal document
+[32m ✔ [0mRead projection exposes physical return and cancel columns
+
+[4mWwhn266Component Issue Core Transaction (Tests\Feature\Wwhn266ComponentIssueCoreTransaction)[0m
+[32m ✔ [0mTc p1 017 positive component issue post decrements stock exactly once
+[32m ✔ [0mTc p1 018 negative partial scan is rejected without stock effect
+[32m ✔ [0mTc p1 019 permission role without component issue cannot post
+[32m ✔ [0mTc p1 020 invalid state reposting a posted document is rejected
+[32m ✔ [0mTc p1 021 retry same key produces exactly one stock effect
+[32m ✔ [0mTc p1 022 same key with different payload is rejected
+[32m ✔ [0mTc p1 023 concurrency two documents racing the same balance
+[32m ✔ [0mTc p1 024 rollback injected failure reverts document movement and balance
+[32m ✔ [0mLedger balance and reconciliation delta is zero after component issue
+
+[4mWwhn289Stock Invariant Proof (Tests\Feature\Wwhn289StockInvariantProof)[0m
+[32m ✔ [0mRetry dimension three identical post receipts produce exactly one movement
+[32m ✔ [0mIdempotency dimension same key with different payload is rejected
+[32m ✔ [0mRollback dimension injected failure rolls back document movement and balance
+[32m ✔ [0mConcurrent dimension duplicate reversal of the same movement is blocked
+[32m ✔ [0mReconcile dimension ledger and balance have zero mismatch after full cycle
+[32m ✔ [0mNegative stock dimension no path can drive balance below zero
+[32m ✔ [0mTrue concurrency dimension race losers are rejected without stock effect
+
+[30;42mOK, but some tests were skipped![0m
+[30;42mTests: 232[0m[30;42m, Assertions: 2562[0m[30;42m, Skipped: 4[0m[30;42m.[0m
+{"tool":"phpunit","result":"passed","tests":232,"passed":228,"assertions":2562,"duration_ms":44018,"skipped":4}
