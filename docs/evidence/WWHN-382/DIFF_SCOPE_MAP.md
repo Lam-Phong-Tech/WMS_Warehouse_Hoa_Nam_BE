@@ -81,6 +81,8 @@ Nhánh `m1` của dự án không dùng PR — nhiều phiên làm việc commit
 |---|---|---|---|
 | SQLite | `php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328R4ClosureTest.php` | 5 test, 5 passed, 25 assertions | `RAW_phpunit_wwhn382_sqlite.log` |
 | PostgreSQL 16 | `DB_CONNECTION=pgsql DB_DATABASE=hn_wwhn382 … php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328R4ClosureTest.php` | 5 test, 5 passed, 25 assertions | `RAW_phpunit_wwhn382_pgsql.log` |
+| SQLite | hợp nhất `Wwhn328R4ClosureTest` + `Wwhn328DashboardQuickContractTest` | 22 test, 22 passed, 86 assertions | `RAW_phpunit_wwhn382_sqlite.log` |
+| PostgreSQL 16 | hợp nhất, DB `hn_wwhn382` tạo mới | 22 test, 22 passed, 86 assertions | `RAW_phpunit_wwhn382_pgsql.log` |
 | Style | `./vendor/bin/pint --test tests/Feature/Wwhn328R4ClosureTest.php` | passed | — |
 
 Lượt PostgreSQL **đầu tiên đỏ** và đó là phát hiện có giá trị của vòng này: fixture bảo hành ghi

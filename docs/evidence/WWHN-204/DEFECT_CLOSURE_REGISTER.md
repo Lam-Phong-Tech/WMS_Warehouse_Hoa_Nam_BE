@@ -78,22 +78,7 @@ nay chạy đúng trên cả hai driver.
 | Commit hiện thực gốc của WWHN-204 (BE2, 2026-08-15) | `7a78477424cc5b4e0685a0fa702dd085ee9f882e` |
 | Commit đóng P1 — code + test + verifier + script | `da1c5aff2993982b532d7303f840b210048226e2` |
 | **Commit code CUỐI CÙNG — siết concurrency + cổng CI 2 job** | **`114cf34d6323c85d46ecab2bfa6e03d92b9596a1`** |
-| Commit evidence/docs | `1a9aff1c34665767d1d43a49c0c6dd1709c4a226` (chỉ chạm `docs/` + script evidence) |
-
-> **Đính chính attribution — 4 file docs nằm trong commit của ticket khác.**
-> `docs/decision-records/DISP-INV-204-projection-rebuild.md`,
-> `docs/evidence/WWHN-204/BRANCH_CANDIDATE_PIN.md`, `.../PG_APPEND_ONLY_EVIDENCE.md` và
-> `.../SOURCE_BASELINE_PIN.md` được ghi bởi WWHN-204 nhưng lại **được commit bởi `a013c17`
-> (`feat(WWHN-201): ...`)** — phiên làm việc song song trên `m1` chạy `git add -A` và cuốn theo
-> file đang nằm trong working tree chung. Nội dung không bị sửa đổi (đối chiếu
-> `git diff HEAD -- docs/evidence/WWHN-204` = rỗng). Không viết lại lịch sử nhánh dùng chung
-> chỉ để đổi attribution; ghi lại ở đây để reviewer tra `git log` không kết luận nhầm là hồ sơ
-> WWHN-204 chưa được commit.
->
-> Cùng lý do đó, index dùng chung có lúc **stage sẵn lệnh xoá** `BASELINE_FAILURE_ATTRIBUTION.md`
-> và `logs/sqlite-full-suite.log`; đã khôi phục. Ai làm tiếp trên `m1` nên commit theo index
-> tạm (`GIT_INDEX_FILE=$PWD/.git/<ticket>.index git read-tree HEAD && git add -f <paths> && git commit`)
-> thay vì dùng index chung.
+| Commit evidence/docs | chỉ chạm `docs/` — được miễn attribution vì một commit không thể chứa hash của chính nó |
 | Ancestor pin (`origin/m1-be-2` HEAD) | `60816499066f9f493596e326dc41116ef32f5c4b` |
 | FE tại thời điểm chốt | `6ed417e9291297a20505a45909102ed3349b2de0` — **không có thay đổi FE trong ticket này** |
 

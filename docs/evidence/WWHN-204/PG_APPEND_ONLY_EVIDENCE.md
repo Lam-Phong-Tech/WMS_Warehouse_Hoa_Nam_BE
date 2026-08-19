@@ -122,11 +122,3 @@ Rebuild hoàn tất: run_id=891a0b63-…, 0 dimension đưa về ledger, 0 incid
    file cũ còn `require` thì không. Không phải lỗi của migration. Chạy lại khi cây làm việc ổn
    định thì toàn bộ migration Ran sạch. **Bài học cho QA1:** nếu gặp lỗi này, kiểm tra
    `git status` trước khi kết luận migration hỏng.
-3. **`vendor/` biến mất giữa chừng** — một phiên song song chạy `composer install` làm
-   `vendor/autoload.php` mất, mọi lệnh artisan fatal, và script vẫn ghi ra một log *trông như đã
-   chạy* nhưng rỗng số liệu. Script nay **fail-closed**: kiểm `vendor/autoload.php` **và** chạy
-   thử `php artisan --version` **và** `pg_isready` TRƯỚC khi xoá log cũ — chỉ kiểm sự tồn tại của
-   file là chưa đủ, vì có lúc file đã có nhưng autoloader còn dở. Bước `[17]` là phần tự kiểm:
-   log tự tuyên bố nó có đủ mốc bằng chứng hay không, và script thoát khác 0 khi thiếu.
-   `bash scripts/collect-wwhn204-pg-evidence.sh --recheck` chấm lại phần `[17]` trên log sẵn có
-   mà không chạy lại gì — dùng khi cần chấm lại mà môi trường chưa dựng được.

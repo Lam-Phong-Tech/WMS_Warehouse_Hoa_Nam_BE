@@ -287,12 +287,11 @@ Rebuild hoàn tất: run_id=62e9d3f0-bd3e-4131-a105-f8f11a68a18e, 0 dimension đ
 (1 row)
 
 
-
 --- [17] Tự kiểm: log này có đủ mốc PASS mà QA1 phải đối chiếu không? ---
-  OK    PostgreSQL 1
-  OK    append_only_trigger .. [1] Ran
-  OK    ERROR:  stock_movements is append-only under HN-WMS-ERD-DD-001
-  OK    Rebuild hoàn tất
-  OK    RESOLVED | REBUILD:
-KẾT LUẬN: đủ mốc bằng chứng.
-=== HẾT (chỉ chấm lại phần tự kiểm trên log sẵn có) ===
+  OK   PostgreSQL 1
+  THIẾU append_only_trigger .. \[
+  OK   ERROR:  stock_movements is append-only under HN-WMS-ERD-DD-001
+  OK   Rebuild hoàn tất
+  OK   RESOLVED | REBUILD:
+KẾT LUẬN: log KHÔNG đủ bằng chứng (1 mốc thiếu) — không dùng làm evidence.
+=== HẾT ===

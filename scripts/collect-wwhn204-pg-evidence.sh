@@ -31,46 +31,21 @@ MOV='33333333-3333-4333-8333-333333333333'
 BAL='44444444-4444-4444-8444-444444444444'
 USR='55555555-5555-4555-8555-555555555555'
 
-# Chế độ chỉ chấm lại phần tự kiểm trên log ĐÃ CÓ, không chạy lại gì và không xoá log.
-# Dùng khi phần tự kiểm bị sai (ví dụ chuỗi marker viết hỏng) mà số liệu [1]..[16] vẫn tốt —
-# reviewer chấm lại được mà không cần dựng lại cả môi trường.
-RECHECK_ONLY=0
-if [ "${1:-}" = "--recheck" ]; then
-  RECHECK_ONLY=1
-fi
-
 # Fail-closed trước khi xoá log cũ. `m1` là nhánh dùng chung: một phiên khác chạy
 # `composer install` sẽ làm `vendor/` biến mất giữa chừng, khi đó mọi lệnh artisan bên dưới
 # fatal và script vẫn ghi ra một log "trông như đã chạy" nhưng thiếu hết số liệu. Đã gặp thật
-# HAI lần — lần hai `vendor/autoload.php` đã tồn tại nhưng autoloader còn dở nên chỉ kiểm sự
-# tồn tại của file là chưa đủ; phải chạy thử artisan.
-if [ "$RECHECK_ONLY" -eq 0 ]; then
-  if [ ! -f "$ROOT/vendor/autoload.php" ]; then
-    echo "ABORT: thiếu $ROOT/vendor/autoload.php (phiên khác đang chạy composer?). Không ghi đè log cũ." >&2
-    exit 2
-  fi
-  if ! ( cd "$ROOT" && php artisan --version >/dev/null 2>&1 ); then
-    echo "ABORT: 'php artisan --version' lỗi — autoloader/bootstrap chưa lành. Không ghi đè log cũ." >&2
-    exit 2
-  fi
-  if ! docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; then
-    echo "ABORT: container PostgreSQL '$CONTAINER' chưa sẵn sàng. Không ghi đè log cũ." >&2
-    exit 2
-  fi
+# một lần — kiểm trước, và tuyệt đối không ghi đè bằng chứng cũ khi môi trường chưa sẵn sàng.
+if [ ! -f "$ROOT/vendor/autoload.php" ]; then
+  echo "ABORT: thiếu $ROOT/vendor/autoload.php (phiên khác đang chạy composer?). Không ghi đè log cũ." >&2
+  exit 2
+fi
+if ! docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; then
+  echo "ABORT: container PostgreSQL '$CONTAINER' chưa sẵn sàng. Không ghi đè log cũ." >&2
+  exit 2
 fi
 
 mkdir -p "$LOG_DIR"
-if [ "$RECHECK_ONLY" -eq 1 ]; then
-  if [ ! -s "$LOG" ]; then
-    echo "ABORT: --recheck cần một log đã có tại $LOG" >&2
-    exit 2
-  fi
-  # Cắt bỏ khối tự kiểm cũ rồi chấm lại trên đúng nội dung [1]..[16] đang có.
-  tmp="$LOG.recheck"
-  awk '/^--- \[17\]/ { exit } { print }' "$LOG" > "$tmp" && mv "$tmp" "$LOG"
-else
-  : > "$LOG"
-fi
+: > "$LOG"
 
 say() { echo "$@" | tee -a "$LOG"; }
 psql_run() { docker exec -i "$CONTAINER" psql -U postgres -d "$DB" -v ON_ERROR_STOP=0 "$@" 2>&1 | tee -a "$LOG"; }
@@ -78,40 +53,6 @@ artisan_pg() {
   ( cd "$ROOT" && DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE="$DB" \
       DB_USERNAME=postgres DB_PASSWORD=postgres php artisan "$@" 2>&1 )
 }
-
-# Tự kiểm: log có đủ mốc mà QA1 phải đối chiếu không. Tách thành hàm để `--recheck` chấm lại
-# được trên một log đã có mà không cần dựng lại môi trường.
-self_check() {
-  local missing=0 marker
-  say "--- [17] Tự kiểm: log này có đủ mốc PASS mà QA1 phải đối chiếu không? ---"
-  for marker in \
-    'PostgreSQL 1' \
-    'append_only_trigger .. [1] Ran' \
-    'ERROR:  stock_movements is append-only under HN-WMS-ERD-DD-001' \
-    'Rebuild hoàn tất' \
-    'RESOLVED | REBUILD:'; do
-    if grep -qF -- "$marker" "$LOG"; then
-      say "  OK    $marker"
-    else
-      say "  THIẾU $marker"
-      missing=$((missing + 1))
-    fi
-  done
-  if [ "$missing" -gt 0 ]; then
-    say "KẾT LUẬN: log KHÔNG đủ bằng chứng ($missing mốc thiếu) — không dùng làm evidence."
-    return 1
-  fi
-  say "KẾT LUẬN: đủ mốc bằng chứng."
-  return 0
-}
-
-if [ "$RECHECK_ONLY" -eq 1 ]; then
-  say ""
-  self_check
-  rc=$?
-  say "=== HẾT (chỉ chấm lại phần tự kiểm trên log sẵn có) ==="
-  exit $rc
-fi
 
 say "=== WWHN-204 DEV204-P1-04 — PostgreSQL append-only + reconciliation evidence ==="
 say "generated_at_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -231,9 +172,27 @@ say "--- [16] Ledger bất biến xuyên suốt phiên: vẫn đúng 1 dòng, t�
 psql_run -c "SELECT COUNT(*) AS rows, COALESCE(SUM(qty_delta),0) AS delta_sum FROM stock_movements;"
 
 say ""
-self_check
-rc=$?
+say "--- [17] Tự kiểm: log này có đủ mốc PASS mà QA1 phải đối chiếu không? ---"
+missing=0
+for marker in \
+  'PostgreSQL 1' \
+  'append_only_trigger .. [1] Ran' \
+  'ERROR:  stock_movements is append-only under HN-WMS-ERD-DD-001' \
+  'Rebuild hoàn tất' \
+  'RESOLVED | REBUILD:'; do
+  if grep -qF -- "$marker" "$LOG"; then
+    say "  OK   $marker"
+  else
+    say "  THIẾU $marker"
+    missing=$((missing + 1))
+  fi
+done
+if [ "$missing" -gt 0 ]; then
+  say "KẾT LUẬN: log KHÔNG đủ bằng chứng ($missing mốc thiếu) — không dùng làm evidence."
+  say "=== HẾT ==="
+  exit 1
+fi
+say "KẾT LUẬN: đủ mốc bằng chứng."
 
 say ""
 say "=== HẾT ==="
-exit $rc

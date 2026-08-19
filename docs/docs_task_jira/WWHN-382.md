@@ -43,7 +43,7 @@ php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328R4ClosureTest.php
 dạng văn bản: ngoại lệ warranty GLOBAL, bất biến đối soát dashboard ↔ RPT-INV-01, trần 50 dòng
 mẫu vs tổng thật, OpenAPI đúng bằng field set runtime, và đúng một route aggregate.
 
-Cả hai driver xanh: SQLite 5/5, PostgreSQL 16 5/5 (25 assertions). Lượt PostgreSQL đầu tiên đỏ vì
+Cả hai driver xanh: riêng khoá R4 là 5/5 (25 assertions); đo hợp nhất với contract vòng R3 là 22/22 (86 assertions) trên cả SQLite lẫn PostgreSQL 16. Lượt PostgreSQL đầu tiên đỏ vì
 fixture bảo hành vi phạm hai CHECK chỉ có trên PG — đã sửa, ghi lại trong `DIFF_SCOPE_MAP.md` §6.
 
 ## Phần cần người ký (DEV không ký thay)

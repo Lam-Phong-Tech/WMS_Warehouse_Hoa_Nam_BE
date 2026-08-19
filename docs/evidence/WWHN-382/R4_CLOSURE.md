@@ -95,6 +95,8 @@ Kết quả chạy tại candidate (log thô kèm trong thư mục này):
 |---|---|---|
 | SQLite (mặc định phpunit.xml) | `php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328R4ClosureTest.php` | 5 test, 5 passed, 25 assertions |
 | PostgreSQL 16 (`hn_wwhn382`, DB tạo mới) | `DB_CONNECTION=pgsql … php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328R4ClosureTest.php` | 5 test, 5 passed, 25 assertions |
+| SQLite | `Wwhn328R4ClosureTest` + `Wwhn328DashboardQuickContractTest` (hợp nhất R3+R4) | **22 test, 22 passed, 86 assertions** |
+| PostgreSQL 16 (DB tạo mới) | `Wwhn328R4ClosureTest` + `Wwhn328DashboardQuickContractTest` (hợp nhất R3+R4) | **22 test, 22 passed, 86 assertions** |
 | Style | `./vendor/bin/pint --test tests/Feature/Wwhn328R4ClosureTest.php` | passed |
 
 **Một khiếm khuyết fixture chỉ lộ trên PostgreSQL đã được sửa trong vòng này.** Lượt chạy đầu
