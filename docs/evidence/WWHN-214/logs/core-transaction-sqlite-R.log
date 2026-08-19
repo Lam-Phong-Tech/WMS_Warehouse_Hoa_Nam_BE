@@ -1,0 +1,311 @@
+WWHN-214 core-transaction regression evidence — ROUND R (re-review 32/100)
+Driver: sqlite (phpunit.xml default)
+Candidate SHA (worktree, detached, clean tree): 9c18f69f27352be78d9fadd23913ea7016876428
+Run timestamp (local): 2026-08-19T07:50:58Z
+Suite: 33 core-transaction test classes (29 tu vong 1 + RuntimeRace/RollbackProof/StockInvariantProof + Wwhn214QaRetestRawEvidence)
+======================================================
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\Users\ACER\AppData\Local\Temp\claude\C--Users-ACER-Downloads-New-folder\b6e3f888-a49f-4f98-9d98-7d43db7a2365\scratchpad\wt214\phpunit.xml
+
+Time: 00:39.536, Memory: 96.00 MB
+
+Auth Rbac Audit Hardening (Tests\Feature\AuthRbacAuditHardening)
+ ✔ Expired access token is rejected with standard 401
+ ✔ Refresh replay revokes token family and creates failure audit
+ ✔ Warehouse scope filters list and denies detail and mutation outside scope
+ ✔ Audit logger redacts nested secrets
+ ✔ Audit primary failure is persisted to outbox instead of silently lost
+ ✔ Negative api contract for malformed json and missing refresh token
+
+Outbound Permission (Tests\Feature\OutboundPermission)
+ ✔ Unauthenticated request is rejected with 401
+ ✔ Viewer role can read but not intake or scan or post
+ ✔ Warehouse staff can intake and scan but not post or cancel
+ ✔ Warehouse approver can post and cancel but not intake or scan
+ ✔ Super admin bypasses all outbound permissions
+ ✔ 403 response does not leak stack trace or secrets
+
+Permission And Validation (Tests\Feature\PermissionAndValidation)
+ ✔ Request without token returns 401
+ ✔ User without required permission gets 403
+ ✔ User with required permission is allowed
+ ✔ User without any permission is blocked from creating product
+ ✔ Product and sku routes share canonical sku permission
+ ✔ Product create with duplicate code returns 422
+ ✔ Product detail for unknown id returns 404
+ ✔ Document status history uses inventory view permission
+ ✔ Inbound document create without lines returns 422
+ ✔ Inbound document create is idempotent when key reused
+
+Permission Catalog (Tests\Feature\PermissionCatalog)
+ ✔ Permission list and detail are readable
+ ✔ Permission has no create update or delete route
+
+Security Rbac Audit Negative (Tests\Feature\SecurityRbacAuditNegative)
+ ✔ Protected endpoints return 401 without token
+ ✔ User without permission gets 403 on protected endpoints
+ ✔ Expired and invalid tokens return 401
+ ✔ Auth lifecycle creates audit logs
+ ✔ Audit logs do not contain sensitive data
+ ✔ Locked account returns 403 and audits
+ ✔ User without warehouse scope gets 403
+ ✔ Super admin bypasses all permission checks
+ ✔ Permission check is exact match
+ ✔ Backend denies permissions from inactive expired and future roles
+ ✔ Backend allows permissions from effective active role assignment
+ ✔ Login returns correct roles and permissions
+ ✔ Session persistence and auth me
+ ✔ Role based navigation capabilities
+ ✔ 403 response structure for ui navigation
+ ✔ Multiple roles with different permissions
+
+Wwhn172Sku Container Transaction (Tests\Feature\Wwhn172SkuContainerTransaction)
+ ✔ Sku aggregate create is atomic audited and replay safe
+ ✔ Same idempotency key with different payload returns 409 without side effect
+ ✔ Component cycle rolls back edge version and audit
+ ✔ Stale sku version is rejected before mutation
+ ✔ Container contract uses canonical sku and plural tables
+ ✔ Invalid box container create rolls back canonical root
+
+Wwhn190Posting Contract Parity (Tests\Feature\Wwhn190PostingContractParity)
+ ✔ Contract release is present and versioned
+ ✔ Pack immutable wwhn180 khong bi sua
+ ✔ Every declared path exists with declared permission
+ ✔ Removed surfaces are absent from runtime
+ ✔ Missing if match returns 428 precondition required
+ ✔ Malformed if match returns 422 invalid version
+ ✔ Stale if match returns 412 stale version
+ ✔ Missing idempotency key returns 428
+ ✔ Short idempotency key returns 422 validation error
+ ✔ Happy path returns etag and replay headers then replays exactly once
+ ✔ Same key different payload returns 409 idempotency conflict
+ ✔ Different key after posted returns 409 state conflict
+ ✔ Partial scan is blocked by full post rule
+ ✔ Unauthenticated is rejected with 401
+ ✔ Forbidden is rejected without stock effect
+ ✔ Not found document returns 404 resource not found
+
+Wwhn191Balance Movement Projection (Tests\Feature\Wwhn191BalanceMovementProjection)
+ ✔ Inventory balances list reflects ledger after post receipt and matches
+ ✔ Inventory balance subledger lists item instances and containers
+ ✔ Inventory balance subledger returns 404 for unknown id
+ ✔ Stock movements list show and trace source reflect posted receipt
+ ✔ Stock movement show returns 404 for unknown id
+ ✔ Stock movement trace by code returns 404 for unknown physical code
+ ✔ Stock movements endpoints require inventory permissions
+ ✔ Stock movements endpoint requires authentication
+ ✔ Stock movement is append only and rejects update and delete
+ ✔ Stock movement delete is rejected
+ ✔ Stock movement trace by code resolves sku code to posted receipt movement
+ ✔ Stock movement trace by code resolves container code of received box
+ ✔ Stock movements reversible lists posted receipt with full reversible qty
+ ✔ Annex c inventory trace path returns same payload as trace by code
+
+Wwhn195Outbound Contract Alignment (Tests\Feature\Wwhn195OutboundContractAlignment)
+ ✔ Route table matches the handler that actually runs
+ ✔ Ghost create and update operations do not exist at runtime
+ ✔ Published contract declares exactly the runtime outbound surface
+ ✔ Code value max length is identical in contract and runtime
+ ✔ Packing label uses document level draft lifecycle not legacy per item print
+ ✔ Scan source is explicit and reaches audit evidence
+ ✔ Scan source falls back to inference and is labelled as such
+ ✔ Invalid scan source is rejected against the erd check values
+ ✔ Mode is per scan event and not locked to the document
+ ✔ Annex c alias scans behaves identically to scan
+
+Wwhn198Packing Label Contract Alignment (Tests\Feature\Wwhn198PackingLabelContractAlignment)
+ ✔ Openapi declares the batch level draft label behaviour
+ ✔ Every error code declared in the contract exists in runtime source
+ ✔ Partial scan creates no label and full match creates exactly one draft label
+ ✔ Post issue is blocked while the label is still draft with the documented error code
+ ✔ Unmatch discards the unfrozen draft label as documented
+
+Wwhn198Reserved Qty Semantics (Tests\Feature\Wwhn198ReservedQtySemantics)
+ ✔ Contract pins identity level reservation not quantity level
+ ✔ Reserved qty stays zero while an item is actually reserved by a scan
+ ✔ Reserved qty is still zero after post issue and availability comes from available qty
+ ✔ No production code path writes a non zero reserved qty
+
+Wwhn199Reservation Concurrency Guard (Tests\Feature\Wwhn199ReservationConcurrencyGuard)
+ ✔ Scanning same item into two different outbound documents is rejected
+ ✔ Scanning same item twice into same document is rejected
+ ✔ Scanning same item into two different inbound documents is rejected
+ ✔ Confirming a duplicate request no never creates a second outbound document
+ ✔ Item removed from one document can be matched into another
+
+Wwhn199Reservation Index Contract (Tests\Feature\Wwhn199ReservationIndexContract)
+ ↩ Outbound active item has exactly one canonical unique index
+ ↩ Inbound active item has exactly one canonical unique index
+ ↩ Database rejects a second active match for the same item
+
+Wwhn201Post Issue Atomic Non Negative Stock (Tests\Feature\Wwhn201PostIssueAtomicNonNegativeStock)
+ ✔ Second post issue is rejected with insufficient stock when first post already consumed the shared balance
+ ✔ Replaying post issue with same idempotency key returns identical result without creating a second movement
+
+Wwhn201Post Issue Error Contract (Tests\Feature\Wwhn201PostIssueErrorContract)
+ ✔ Same idempotency key with different payload returns 409 idempotency conflict without second stock effect
+ ✔ Different idempotency key on already posted document returns 409 state conflict
+ ✔ Stale if match returns 412 and the same key still posts exactly once after reload
+ ✔ Business guard rejection rolls back everything and does not poison the idempotency key
+ ✔ Insufficient stock is 422 and never 409
+ ✔ Missing idempotency key returns 428 precondition required
+
+Wwhn202Outbound Balance Evidence (Tests\Feature\Wwhn202OutboundBalanceEvidence)
+ ✔ Post issue moves balance ledger and subledger together with db before after
+ ✔ All movement read surfaces agree with the ledger after post issue
+ ✔ Reconciliation report passes all four checks and command creates no incident
+ ✔ Reverse restores stock and every read surface reflects the net effect
+ ✔ Every read surface rejects anonymous access with 401
+ ✔ Every read surface rejects missing permission with 403 and changes nothing
+ ✔ Read surfaces return 404 and 422 without leaking internals
+ ✔ Post issue error taxonomy matches srs 8 2
+ ✔ Movement item attribution follows dec stk 202
+ ✔ Aggregate line leaves item id null and trace by code falls back to the line
+ ✔ Read surface permission matrix matches the registered routes
+
+Wwhn204Ledger Projection Rebuild (Tests\Feature\Wwhn204LedgerProjectionRebuild)
+ ✔ Stock movements rejects update and delete at database level
+ ✔ Rebuild restores projection to ledger after intentional drift
+ ✔ Rebuild is idempotent on a consistent system
+ ✔ Rebuild dry run reports plan without writing
+ ✔ Rebuild handles missing and orphan projection rows
+ ✔ Rebuild is not exposed as any http route
+
+Wwhn204Ledger Reconciliation Coverage (Tests\Feature\Wwhn204LedgerReconciliationCoverage)
+ ✔ Stock movements reversible lists posted receipt with correct sku fields
+ ✔ Stock movements reversible search filter does not crash on sqlite
+ ✔ Stock movements reversible requires authentication
+ ✔ Inventory balances list succeeds with active container items present
+ ✔ Inventory reconcile command detects and records manufactured mismatch
+ ✔ Inventory reconcile command dry run does not write incident
+
+Wwhn205Invariant Closure Contract (Tests\Feature\Wwhn205InvariantClosureContract)
+ ✔ Register pins three commit roles and all four p1 items
+ ✔ Every blocker carries owner and disposition
+ ✔ Fix semantics still present at head not just the files
+ ✔ Postgres diagnostic workflow is not dormant again
+ ✔ Gate executes concurrency and reconciliation scripts for real
+ ✔ Reconciliation assertion layer is plain sql covering all required metrics
+ ✔ Race script covers both directions and post race reconcile
+ ✔ Evidence matrix and runbook pin exact shas and independent path
+
+Wwhn205Stock Movement Item Id Invariant (Tests\Feature\Wwhn205StockMovementItemIdInvariant)
+ ✔ Post issue sets item id on movement for single item line
+ ✔ Post receipt sets item id on movement for single item serial tracked line
+ ✔ Post receipt leaves item id null when line aggregates multiple items
+ ✔ Component receipt leaves item id null for quantity mode sku
+
+Wwhn207Inbound Reversal Flow (Tests\Feature\Wwhn207InboundReversalFlow)
+ ✔ Reverse inbound partial quantity decreases balance and creates reversal movement
+ ✔ Reverse inbound full quantity then second reverse is rejected
+ ✔ Reverse inbound replays idempotently without double effect
+ ✔ Reverse inbound rejects quantity above reversible and invalid movement
+ ✔ Reverse inbound requires reversal post permission
+ ✔ Reverse inbound requires idempotency key and if match
+
+Wwhn207Outbound Balance Reconciliation (Tests\Feature\Wwhn207OutboundBalanceReconciliation)
+ ✔ Inventory balances list reflects ledger after post issue and matches
+ ✔ Stock movements list show and trace source reflect posted issue
+ ✔ Stock movement trace by code resolves issued item and its movement
+ ✔ Stock movements reversible lists posted issue with dependency guard
+ ✔ Reconciliation report and command show match after post issue
+ ✔ Reverse after post issue is reflected in balances and movement trace
+ ✔ Inventory balance subledger excludes issued item after post
+ ✔ Stock movements endpoints require inventory permissions for outbound data
+
+Wwhn214Qa Retest Raw Evidence (Tests\Feature\Wwhn214QaRetestRawEvidence)
+ ✔ Area no negative second issue on shared balance is rejected 422
+ ✔ Area duplicate retry same key one effect and conflict on payload change
+ ✔ Area concurrency precondition stale state guards block every conflicting write
+ ✔ Area rollback injected failure reverts all and retry succeeds
+ ✔ Area rbac anonymous and unpermitted actor cannot post
+ ✔ Area append only ledger rejects raw update and delete at db level
+ ✔ Area reconciliation delta is zero after full cycle
+
+Wwhn231Stock Neutral Ledger (Tests\Feature\Wwhn231StockNeutralLedger)
+ ✔ No stock mutating route exists outside canonical posting surface
+ ✔ Canonical stock write surface is intact and guarded
+ ✔ Inbound scan does not touch movement or balance
+ ✔ Outbound scan and label preparation are stock neutral
+ ✔ Reconciliation report and command are read only
+ ✔ Detected divergence creates incident without touching stock
+ ✔ Optimized ledger aggregate matches legacy group by shape
+ ✔ Inventory balance report issues a single ledger aggregate query
+ ✔ Ledger dimension index exists
+
+Wwhn234Conflict Class Contract (Tests\Feature\Wwhn234ConflictClassContract)
+ ✔ Conflict code class matches srs 8 2 exactly
+ ✔ Idempotency store reuses the single conflict code source
+ ✔ Retired conflict codes never return to the write path
+ ✔ Concurrency loss uses the canonical class in every stock write path
+ ✔ Downstream dependency guard uses the code named by tc rev 02
+ ✔ Document level optimistic lock stays on 412
+
+Wwhn234Post Issue Idempotency Payload (Tests\Feature\Wwhn234PostIssueIdempotencyPayload)
+ ✔ Post issue with same key and different payload conflicts without second write
+ ✔ Post issue replay is decided by idempotency key before optimistic lock
+
+Wwhn234Post Issue Rollback Proof (Tests\Feature\Wwhn234PostIssueRollbackProof)
+ ✔ G01 injected failure after movement insert rolls back document movement balance and posting event
+
+Wwhn239Reversal Item Level Closure (Tests\Feature\Wwhn239ReversalItemLevelClosure)
+ ✔ Double reverse of the same serial item is blocked and creates no duplicate movement
+ ✔ Same item declared twice in one reversal request is rejected
+ ✔ Same key replay returns the first result without second write
+ ✔ Same key with different payload conflicts without write
+ ✔ Reversal is denied for anonymous and for actor without permission
+ ✔ Dependency guard blocks receipt reversal when item moved downstream
+ ✔ Failed line rolls back the whole reversal document
+ ✔ Ledger reconciles with balance and leaves no orphan after reversals
+
+Wwhn240Reversal Net Effect Contract (Tests\Feature\Wwhn240ReversalNetEffectContract)
+ ✔ Xnt tach reversal theo movement type goc
+ ✔ Xnt khong gop nham dao xuat voi dao xuat linh kien
+ ✔ Xnt dao cua dao tra lai gross ban dau
+ ✔ Xnt reversal khong truy duoc goc van vao closing
+ ✔ Xnt cong bo ngu nghia cot gross reversal net
+ ✔ Xnt export van tra xlsx voi bo cot gross reversal net
+ ✔ Trace source tra du chain va net effect cho movement goc
+ ✔ Trace source khong con giau reversal thu hai
+ ✔ Trace source di nguoc ve goc khi tra tu mot reversal
+ ✔ Trace source danh dau fully reversed khi dao het
+ ✔ Trace source movement khong ton tai tra 404
+ ✔ Trace source ngoai warehouse scope bi tu choi 403
+ ✔ Trace source thieu inventory view bi tu choi 403
+ ✔ Trace source trong scope van doc duoc day du chain
+ ✔ Inventory xnt report requires report view permission
+
+Wwhn242Reversal Scope And Projection (Tests\Feature\Wwhn242ReversalScopeAndProjection)
+ ✔ List hides reversal documents outside warehouse scope
+ ✔ List still returns documents inside scope
+ ✔ Detail and lines outside scope are denied
+ ✔ Lifecycle write outside scope is denied without any stock effect
+ ✔ Create reversal for reference document outside scope is denied
+ ✔ Unrestricted scope still reaches every reversal document
+ ✔ Read projection exposes physical return and cancel columns
+
+Wwhn266Component Issue Core Transaction (Tests\Feature\Wwhn266ComponentIssueCoreTransaction)
+ ✔ Tc p1 017 positive component issue post decrements stock exactly once
+ ✔ Tc p1 018 negative partial scan is rejected without stock effect
+ ✔ Tc p1 019 permission role without component issue cannot post
+ ✔ Tc p1 020 invalid state reposting a posted document is rejected
+ ✔ Tc p1 021 retry same key produces exactly one stock effect
+ ✔ Tc p1 022 same key with different payload is rejected
+ ✔ Tc p1 023 concurrency two documents racing the same balance
+ ✔ Tc p1 024 rollback injected failure reverts document movement and balance
+ ✔ Ledger balance and reconciliation delta is zero after component issue
+
+Wwhn289Stock Invariant Proof (Tests\Feature\Wwhn289StockInvariantProof)
+ ✔ Retry dimension three identical post receipts produce exactly one movement
+ ✔ Idempotency dimension same key with different payload is rejected
+ ✔ Rollback dimension injected failure rolls back document movement and balance
+ ✔ Concurrent dimension duplicate reversal of the same movement is blocked
+ ✔ Reconcile dimension ledger and balance have zero mismatch after full cycle
+ ✔ Negative stock dimension no path can drive balance below zero
+ ✔ True concurrency dimension race losers are rejected without stock effect
+
+OK, but some tests were skipped!
+Tests: 232, Assertions: 2562, Skipped: 4.
+{"tool":"phpunit","result":"passed","tests":232,"passed":228,"assertions":2562,"duration_ms":39541,"skipped":4}

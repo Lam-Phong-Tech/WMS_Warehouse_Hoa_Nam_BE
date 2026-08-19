@@ -1,0 +1,30 @@
+WWHN-214 ROUND R — race runtime da ket noi that — PostgreSQL (DB rieng wwhn214_retest, migrate:fresh + db:seed cong thuc CI ngay truoc luot chay)
+Run tai main repo (base_path/CWD dong nhat), HEAD: 9c18f69f27352be78d9fadd23913ea7016876428
+Run timestamp (local): 2026-08-19T07:59:33Z
+Flags: WWHN198_RUNTIME_RACE=1 WWHN184_RUNTIME_CONCURRENCY=1 WWHN219_RUNTIME_CONCURRENCY=1
+======================================================
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\phpunit.xml
+
+Time: 00:38.246, Memory: 46.00 MB
+
+Wwhn184Post Receipt Runtime Concurrency (Tests\Feature\Wwhn184PostReceiptRuntimeConcurrency)
+ ✘ Post receipt multi connection races commit stock effect exactly once
+   │
+   │ Scenario same_document_same_version_two_keys: hai worker không hề chồng lấn trong wall-clock.
+   │ Failed asserting that false is true.
+   │
+   │ C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\tests\Feature\Wwhn184PostReceiptRuntimeConcurrencyTest.php:111
+   │
+
+Wwhn198Outbound Reservation Runtime Race (Tests\Feature\Wwhn198OutboundReservationRuntimeRace)
+ ✔ Multi connection reservation races keep one winner and no double active match
+
+Wwhn219Runtime Concurrency (Tests\Feature\Wwhn219RuntimeConcurrency)
+ ✔ Multi connection races preserve ledger balance and audit invariants
+
+FAILURES!
+Tests: 3, Assertions: 47, Failures: 1.
+{"tool":"phpunit","result":"failed","tests":3,"passed":2,"assertions":47,"duration_ms":38245,"failed":1,"failures":[{"test":"Tests\\Feature\\Wwhn184PostReceiptRuntimeConcurrencyTest::test_post_receipt_multi_connection_races_commit_stock_effect_exactly_once","file":"C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE\\tests\\Feature\\Wwhn184PostReceiptRuntimeConcurrencyTest.php","line":61,"message":"Scenario same_document_same_version_two_keys: hai worker kh\u00f4ng h\u1ec1 ch\u1ed3ng l\u1ea5n trong wall-clock.\nFailed asserting that false is true."}]}

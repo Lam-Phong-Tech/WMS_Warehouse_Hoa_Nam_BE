@@ -1,0 +1,319 @@
+{
+    "generated_at": "2026-08-19T15:00:12+07:00",
+    "ticket": "WWHN-219",
+    "evidence_type": "EXECUTED_RUNTIME_CONCURRENCY",
+    "note": "Each scenario spawns real OS processes with independent PostgreSQL backends; assertions cover ledger, balance and audit state, not HTTP status alone.",
+    "git_sha": null,
+    "github_run_id": null,
+    "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "lock_hold_ms": 1500,
+    "scenarios": {
+        "concurrent_post_receipt": {
+            "workers": [
+                {
+                    "worker_index": 0,
+                    "application_name": "wwhn219-worker-0",
+                    "scenario": "concurrent-post-receipt",
+                    "operation": "post_receipt",
+                    "backend_pid": 45785,
+                    "outcome": "REJECTED",
+                    "http_status": 409,
+                    "error_code": "STATE_CONFLICT",
+                    "error_message": "Chỉ chứng từ SCANNING mới được Post.",
+                    "lock_wait_ms": 1701,
+                    "timeline": {
+                        "booted_at": 1787126400.299902,
+                        "released_at": 1787126400.335058,
+                        "lock_acquired_at": 1787126402.039376,
+                        "hold_released_at": 1787126403.544491,
+                        "finished_at": 1787126403.58617
+                    }
+                },
+                {
+                    "worker_index": 1,
+                    "application_name": "wwhn219-worker-1",
+                    "scenario": "concurrent-post-receipt",
+                    "operation": "post_receipt",
+                    "backend_pid": 45786,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "error_message": null,
+                    "lock_wait_ms": 17,
+                    "timeline": {
+                        "booted_at": 1787126400.311852,
+                        "released_at": 1787126400.335033,
+                        "lock_acquired_at": 1787126400.355355,
+                        "hold_released_at": 1787126401.865408,
+                        "finished_at": 1787126402.05435
+                    },
+                    "payload": {
+                        "document_id": "c5fd891e-aeeb-4045-bb5e-61d3d5813f4a",
+                        "status": "POSTED",
+                        "movement_ids": [
+                            "544d7e45-557a-4b85-aa1e-39ef14e2fa52"
+                        ],
+                        "stock_effect": "INCREASE"
+                    }
+                }
+            ],
+            "distinct_backend_pids": [
+                45785,
+                45786
+            ],
+            "distinct_backend_pid_count": 2,
+            "observed_pg_lock_wait": true,
+            "max_worker_lock_wait_ms": 1701,
+            "lock_hold_ms": 1500,
+            "real_contention_proven": true,
+            "lock_sample_count": 22,
+            "fixture": {
+                "document_id": "c5fd891e-aeeb-4045-bb5e-61d3d5813f4a",
+                "line_id": "8c26f2b0-42cc-4eee-8379-ec2b10eb0293",
+                "warehouse_id": "01a01908-5703-72e9-850d-114ae7d34d3b",
+                "sku_id": "76934281-0af4-487b-9feb-a15e992fe181",
+                "qty": 5,
+                "actor_id": "01a01908-51e6-7113-b624-7865fe42fe67"
+            },
+            "balance_before": {
+                "exists": false,
+                "quantity": 0,
+                "on_hand_qty": 0,
+                "available_qty": 0,
+                "version": 0
+            },
+            "balance_after": {
+                "exists": true,
+                "quantity": 5,
+                "on_hand_qty": 5,
+                "available_qty": 5,
+                "version": 2
+            },
+            "movement_count": 1,
+            "audit_count": 1,
+            "document_status": "POSTED",
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "exactly_one_success": true,
+                "loser_rejected_not_errored": true,
+                "balance_increased_exactly_once": true,
+                "single_movement_written": true,
+                "single_audit_entry": true,
+                "document_posted": true
+            },
+            "passed": true
+        },
+        "concurrent_reversal": {
+            "workers": [
+                {
+                    "worker_index": 0,
+                    "application_name": "wwhn219-worker-0",
+                    "scenario": "concurrent-reversal",
+                    "operation": "reverse",
+                    "backend_pid": 45797,
+                    "outcome": "REJECTED",
+                    "http_status": 409,
+                    "error_code": "ALREADY_FULLY_REVERSED",
+                    "error_message": "Chứng từ đã được reversal toàn bộ.",
+                    "lock_wait_ms": 1647,
+                    "timeline": {
+                        "booted_at": 1787126404.439324,
+                        "released_at": 1787126404.467551,
+                        "lock_acquired_at": 1787126406.116062,
+                        "hold_released_at": 1787126407.623904,
+                        "finished_at": 1787126407.683137
+                    }
+                },
+                {
+                    "worker_index": 1,
+                    "application_name": "wwhn219-worker-1",
+                    "scenario": "concurrent-reversal",
+                    "operation": "reverse",
+                    "backend_pid": 45796,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "error_message": null,
+                    "lock_wait_ms": 10,
+                    "timeline": {
+                        "booted_at": 1787126404.425902,
+                        "released_at": 1787126404.467555,
+                        "lock_acquired_at": 1787126404.479033,
+                        "hold_released_at": 1787126405.98759,
+                        "finished_at": 1787126406.125564
+                    },
+                    "payload": {
+                        "original_document_id": "0edd9378-57e6-4fa4-92be-96b8ebad86c4",
+                        "original_document_status": "POSTED",
+                        "reversal_document_id": "0e4fdbbe-8daa-4600-a916-c44a4ea26691",
+                        "reversal_status": "POSTED",
+                        "correction_chain_id": "edd192aa-10f5-4de8-8450-259afa53b293",
+                        "movement_ids": [
+                            "ea538f09-77f5-41c1-ac53-79b02541ed40"
+                        ]
+                    }
+                }
+            ],
+            "distinct_backend_pids": [
+                45797,
+                45796
+            ],
+            "distinct_backend_pid_count": 2,
+            "observed_pg_lock_wait": true,
+            "max_worker_lock_wait_ms": 1647,
+            "lock_hold_ms": 1500,
+            "real_contention_proven": true,
+            "lock_sample_count": 21,
+            "fixture": {
+                "document_id": "0edd9378-57e6-4fa4-92be-96b8ebad86c4",
+                "line_id": "fcd6d1e9-c632-488e-b23a-f5b905427321",
+                "warehouse_id": "01a01908-5703-72e9-850d-114ae7d34d3b",
+                "sku_id": "106a3c25-e32b-41b1-a15a-7a0c26af3a07",
+                "qty": 4,
+                "actor_id": "01a01908-51e6-7113-b624-7865fe42fe67"
+            },
+            "balance_before": {
+                "exists": true,
+                "quantity": 4,
+                "on_hand_qty": 4,
+                "available_qty": 4,
+                "version": 2
+            },
+            "balance_after": {
+                "exists": true,
+                "quantity": 0,
+                "on_hand_qty": 0,
+                "available_qty": 0,
+                "version": 3
+            },
+            "original_quantity": 4,
+            "reversed_quantity": 4,
+            "posted_reversal_count": 1,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "exactly_one_success": true,
+                "exactly_one_posted_reversal": true,
+                "no_over_reversal": true,
+                "balance_decreased_exactly_once": true,
+                "balance_never_negative": true
+            },
+            "passed": true
+        },
+        "shared_balance_lost_update": {
+            "workers": [
+                {
+                    "worker_index": 0,
+                    "application_name": "wwhn219-worker-0",
+                    "scenario": "shared-balance-lost-update",
+                    "operation": "post_receipt",
+                    "backend_pid": 45807,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "error_message": null,
+                    "lock_wait_ms": 10,
+                    "timeline": {
+                        "booted_at": 1787126408.394924,
+                        "released_at": 1787126408.423969,
+                        "lock_acquired_at": 1787126408.435998,
+                        "hold_released_at": 1787126409.93709,
+                        "finished_at": 1787126410.261154
+                    },
+                    "payload": {
+                        "document_id": "91deea3a-61f9-4178-9c2c-207893ffeb08",
+                        "status": "POSTED",
+                        "movement_ids": [
+                            "460f7962-7f29-4f7f-84a5-3377937f0c81"
+                        ],
+                        "stock_effect": "INCREASE"
+                    }
+                },
+                {
+                    "worker_index": 1,
+                    "application_name": "wwhn219-worker-1",
+                    "scenario": "shared-balance-lost-update",
+                    "operation": "post_receipt",
+                    "backend_pid": 45808,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "error_message": null,
+                    "lock_wait_ms": 1826,
+                    "timeline": {
+                        "booted_at": 1787126408.381454,
+                        "released_at": 1787126408.424142,
+                        "lock_acquired_at": 1787126410.252346,
+                        "hold_released_at": 1787126411.760218,
+                        "finished_at": 1787126411.893572
+                    },
+                    "payload": {
+                        "document_id": "cc100e59-ab56-45f9-82e5-215c8f1ab90f",
+                        "status": "POSTED",
+                        "movement_ids": [
+                            "466c6474-2a62-4028-9e68-d5cca9cff4a8"
+                        ],
+                        "stock_effect": "INCREASE"
+                    }
+                }
+            ],
+            "distinct_backend_pids": [
+                45807,
+                45808
+            ],
+            "distinct_backend_pid_count": 2,
+            "observed_pg_lock_wait": true,
+            "max_worker_lock_wait_ms": 1826,
+            "lock_hold_ms": 1500,
+            "real_contention_proven": true,
+            "lock_sample_count": 21,
+            "fixtures": [
+                {
+                    "document_id": "91deea3a-61f9-4178-9c2c-207893ffeb08",
+                    "line_id": "faf854fe-2d10-4ff9-b37a-fd460bb76f79",
+                    "warehouse_id": "01a01908-5703-72e9-850d-114ae7d34d3b",
+                    "sku_id": "6ad5a82d-783f-437c-9b1d-e6062fb17bf5",
+                    "qty": 4,
+                    "actor_id": "01a01908-51e6-7113-b624-7865fe42fe67"
+                },
+                {
+                    "document_id": "cc100e59-ab56-45f9-82e5-215c8f1ab90f",
+                    "line_id": "ccc7da81-2e42-4d35-8fec-5446d73ab038",
+                    "warehouse_id": "01a01908-5703-72e9-850d-114ae7d34d3b",
+                    "sku_id": "6ad5a82d-783f-437c-9b1d-e6062fb17bf5",
+                    "qty": 6,
+                    "actor_id": "01a01908-51e6-7113-b624-7865fe42fe67"
+                }
+            ],
+            "balance_before": {
+                "exists": true,
+                "quantity": 2,
+                "on_hand_qty": 2,
+                "available_qty": 2,
+                "version": 2
+            },
+            "balance_after": {
+                "exists": true,
+                "quantity": 12,
+                "on_hand_qty": 12,
+                "available_qty": 12,
+                "version": 4
+            },
+            "expected_increase": 10,
+            "movement_count": 2,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "both_documents_committed": true,
+                "no_lost_update": true,
+                "both_movements_written": true,
+                "balance_version_advanced_twice": true,
+                "on_hand_matches_quantity": true
+            },
+            "passed": true
+        }
+    },
+    "failed_scenarios": [],
+    "status": "PASS"
+}

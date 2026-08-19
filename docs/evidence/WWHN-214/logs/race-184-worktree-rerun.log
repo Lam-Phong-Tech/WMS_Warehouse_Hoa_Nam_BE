@@ -1,0 +1,19 @@
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\Users\ACER\AppData\Local\Temp\claude\C--Users-ACER-Downloads-New-folder\b6e3f888-a49f-4f98-9d98-7d43db7a2365\scratchpad\wt214\phpunit.xml
+
+Time: 00:12.737, Memory: 44.00 MB
+
+Wwhn184Post Receipt Runtime Concurrency (Tests\Feature\Wwhn184PostReceiptRuntimeConcurrency)
+ ✘ Post receipt multi connection races commit stock effect exactly once
+   │
+   │ Scenario same_document_same_version_two_keys: hai worker không hề chồng lấn trong wall-clock.
+   │ Failed asserting that false is true.
+   │
+   │ C:\Users\ACER\AppData\Local\Temp\claude\C--Users-ACER-Downloads-New-folder\b6e3f888-a49f-4f98-9d98-7d43db7a2365\scratchpad\wt214\tests\Feature\Wwhn184PostReceiptRuntimeConcurrencyTest.php:111
+   │
+
+FAILURES!
+Tests: 1, Assertions: 12, Failures: 1.
+{"tool":"phpunit","result":"failed","tests":1,"passed":0,"assertions":12,"duration_ms":12739,"failed":1,"failures":[{"test":"Tests\\Feature\\Wwhn184PostReceiptRuntimeConcurrencyTest::test_post_receipt_multi_connection_races_commit_stock_effect_exactly_once","file":"C:\\Users\\ACER\\AppData\\Local\\Temp\\claude\\C--Users-ACER-Downloads-New-folder\\b6e3f888-a49f-4f98-9d98-7d43db7a2365\\scratchpad\\wt214\\tests\\Feature\\Wwhn184PostReceiptRuntimeConcurrencyTest.php","line":61,"message":"Scenario same_document_same_version_two_keys: hai worker kh\u00f4ng h\u1ec1 ch\u1ed3ng l\u1ea5n trong wall-clock.\nFailed asserting that false is true."}]}
