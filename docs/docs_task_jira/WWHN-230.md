@@ -58,6 +58,29 @@ Sau khi 5 vai trò đã comment sign-off, điền `DISP-STK-230-APPROVAL.json` r
 - BE `Wwhn230StocktakeScopeDispositionTest`: **11/11 pass**.
 - FE `wwhn-230-stocktake-scope-guard`: **4/4 pass**.
 - BE gate `verify-wwhn-230-closure.mjs`: **PASS** (27 check, 1 PENDING là sign-off).
+
+## 6. Vòng 2 — review 67/100 (register đổi tên `DEV230-P1-01..04R` + `DEV230-P2-01`)
+
+Không có P0. 4 hạng mục còn mở, không hạng mục nào yêu cầu implement chức năng kiểm kê:
+
+| ID | Ai làm | Trạng thái |
+|---|---|---|
+| `DEV230-P1-01R` | BA/PM/Tech/QA/BAS formalize Option B trên Jira + đối chiếu `WWHN-334` | Jira-side, chưa làm được từ repo — cần người có quyền Jira |
+| `DEV230-P1-02R` | DEV — regenerate evidence trên clean checkout candidate thật | **Đã đóng.** SHA cũ bị stale + `workingTreeClean=false` + `testResult=null`. Regenerate bằng `git worktree` sạch (đối xứng BE+FE để cross-reference đúng), pin đúng candidate, chạy PHPUnit/vitest thật. Commit BE `b589106` (candidate `831bda6`, 11/11 pass), commit FE `52969fb` (candidate `f9f2e65`, 4/4 pass). Cả hai phía `workingTreeClean=true`. |
+| `DEV230-P1-03R` | QA1 — chạy độc lập bộ absence & substitution | Cùng test run ở `DEV230-P1-02R` đã phủ đúng yêu cầu (route/OpenAPI/schema/source absence + Reversal substitute) — QA1 chỉ cần review + sign-off, không cần chạy lại bộ khác |
+| `DEV230-P1-04R` | TECH CLOSED, QA1 verify no regression | `TEMPKEY-*` 4/4 PASS trong lần chạy vừa rồi — không regression |
+| `DEV230-P2-01` | BA/PM + DEV — sửa metadata Jira | Jira-side; nội dung §1 tài liệu này đã đúng tinh thần "scope disposition" từ vòng 1, không cần sửa repo doc thêm |
+
+Cách chạy lại để tái tạo bằng chứng sạch (không đụng working tree chung đang có phiên khác sửa):
+
+```bash
+git worktree add --detach <tmp>/HoaNam_BE/WMS_Warehouse_Hoa_Nam_BE <candidate-sha>
+git worktree add --detach <tmp>/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE <candidate-sha-fe>
+# mklink /J <tmp>/HoaNam_BE/.../vendor <repo-that>/vendor  (junction, không copy)
+# mklink /J <tmp>/HoaNam_FE/.../node_modules <repo-that>/node_modules
+cd <tmp>/HoaNam_BE/WMS_Warehouse_Hoa_Nam_BE && node scripts/verify-wwhn-230-closure.mjs --with-tests
+cd <tmp>/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE && node scripts/verify-wwhn-230-closure.mjs --with-tests
+```
 - FE gate `wwhn-230:verify`: **PASS** (21 check, 1 PENDING là sign-off).
 
 ## 6. Điều còn mở, thuộc thẩm quyền ngoài repo
