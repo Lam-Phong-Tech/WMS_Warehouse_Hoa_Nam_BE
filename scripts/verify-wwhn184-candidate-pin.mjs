@@ -183,22 +183,62 @@ if (pinnedHead !== null) {
 
 /* ---- 4. Post-fix exact candidate SHA (DEV184-P1-05R4) ----
  * QA report R3 ghi SHA đầu lượt test (dae5ff1) trong khi PASS cuối cùng phát sinh SAU
- * khi sửa defect — reviewer yêu cầu resolve MỘT candidate SHA hậu-fix duy nhất. Theo
- * đúng sha_resolution của pin: candidate = commit cuối cùng chạm vào tập pin (owned ∪
- * critical_dependencies). Nếu pin đã tuyên bố post_fix_candidate.sha thì giá trị đó
- * phải khớp với kết quả resolve động — lệch nghĩa là có commit mới chạm tập pin sau
- * khi QA ký, candidate phải được review lại. */
+ * khi sửa defect — reviewer yêu cầu resolve MỘT candidate SHA hậu-fix duy nhất.
+ *
+ * Cách kiểm KHÔNG dùng `git log -1 -- <paths>`: hai file trong tập pin là file DÙNG
+ * CHUNG (routes/api.php, golive allowlist) nên "commit cuối chạm path" rot theo mọi
+ * commit của ticket khác — đúng căn bệnh mà pin mức đối tượng đã chữa. Thay vào đó
+ * kiểm bằng NỘI DUNG: mọi pinned object đọc tại chính post_fix_candidate.sha
+ * (`git show <sha>:<path>`, qua extractor nếu có) phải cho ra đúng hash đã pin.
+ * Kết hợp với phần 1 (working tree khớp pin) suy ra: nội dung QA đã test tại candidate
+ * == nội dung pin == nội dung hiện tại — commit của ticket khác lên phần không pin
+ * của file dùng chung không làm đỏ, còn ai đổi đúng object đã pin thì đỏ ngay. */
 const pinPaths = [...Object.keys(owned), ...Object.keys(dependencies)].filter(p => p !== 'note');
 const resolvedCandidate = pinPaths.length > 0 ? git('log', '-1', '--format=%H', '--', ...pinPaths) : null;
 const declaredCandidate = pin.post_fix_candidate?.sha ?? null;
 if (declaredCandidate !== null) {
   if (!/^[0-9a-f]{40}$/.test(declaredCandidate)) {
     failures.push(`post_fix_candidate.sha không phải SHA hợp lệ: ${declaredCandidate}`);
-  } else if (resolvedCandidate !== null && declaredCandidate !== resolvedCandidate) {
-    failures.push(
-      `post_fix_candidate.sha (${declaredCandidate}) khác commit cuối chạm tập pin (${resolvedCandidate}). ` +
-      'Có thay đổi trên tập pin sau khi QA ký — phải resolve lại candidate và retest.',
-    );
+  } else if (git('cat-file', '-t', declaredCandidate) !== 'commit') {
+    failures.push(`post_fix_candidate.sha ${declaredCandidate} không phải commit có thật trong repo.`);
+  } else {
+    const isAncestor = (() => {
+      try {
+        execFileSync('git', ['merge-base', '--is-ancestor', declaredCandidate, head], {stdio: 'ignore'});
+
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    if (!isAncestor) {
+      failures.push(`post_fix_candidate.sha ${declaredCandidate} không nằm trong lịch sử của HEAD ${head}.`);
+    }
+    for (const [sectionName, entries] of sections) {
+      for (const [relative, expected] of Object.entries(entries)) {
+        if (relative === 'note' || expected === null) continue;
+        let shown;
+        try {
+          shown = execFileSync('git', ['show', `${declaredCandidate}:${relative}`], {maxBuffer: 64 * 1024 * 1024});
+        } catch {
+          failures.push(`${relative} không tồn tại tại post_fix_candidate ${declaredCandidate}.`);
+          continue;
+        }
+        const isBlock = expected && typeof expected === 'object';
+        const atCandidate = isBlock
+          ? sha256text(EXTRACTORS[expected.extractor]?.(shown.toString('utf8')) ?? '')
+          : sha256text(shown);
+        const expectedHash = isBlock ? expected.sha256 : expected;
+        if (atCandidate !== expectedHash) {
+          failures.push(
+            `Nội dung pinned của ${relative} (${sectionName}) tại post_fix_candidate ${declaredCandidate.slice(0, 8)} ` +
+            `khác hash đã pin — candidate khai báo không phải bản đã được pin/QA.\n` +
+            `        pinned       : ${expectedHash}\n` +
+            `        at candidate : ${atCandidate}`,
+          );
+        }
+      }
+    }
   }
 }
 

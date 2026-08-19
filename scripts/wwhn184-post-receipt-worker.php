@@ -84,6 +84,8 @@ $result = [
     'if_match' => $op['if_match'] ?? null,
     'process_started_at' => $stamp(),
     'barrier_released_at' => null,
+    'lock_wait_started_at' => null,
+    'lock_acquired_at' => null,
     'request_started_at' => null,
     'request_finished_at' => null,
 ];
@@ -151,13 +153,18 @@ try {
 
         // Pre-lock tường minh trên hàng tranh chấp để bên thua thực sự block trong
         // PostgreSQL trước khi domain code tái chiếm cùng lock (vô hại vì cùng
-        // transaction/connection).
+        // transaction/connection). Mốc lock_wait_started_at/lock_acquired_at là
+        // ranh giới cửa sổ "engage DB" của worker: bên thua CHỒNG LẤN với request
+        // của bên thắng ở trạng thái blocked-on-lock, không phải ở cửa sổ request
+        // (pre-lock cùng hàng serialize cửa sổ request theo thiết kế).
+        $result['lock_wait_started_at'] = $stamp();
         $lockWaitStart = microtime(true);
         $contendedTable = (string) ($op['contended_table'] ?? 'stock_documents');
         $contendedKey = (string) ($op['contended_key'] ?? 'id');
         $contendedValue = (string) ($op['contended_value'] ?? $documentId);
         DB::table($contendedTable)->where($contendedKey, $contendedValue)->lockForUpdate()->get();
         $result['lock_wait_ms'] = (int) round((microtime(true) - $lockWaitStart) * 1000);
+        $result['lock_acquired_at'] = $stamp();
 
         if ($holdMs > 0) {
             usleep($holdMs * 1000);

@@ -329,7 +329,25 @@ function runRace(string $scenario, array $workerPlans, string $runtimeDir, int $
     ];
 }
 
-/** Bằng chứng hai tiến trình thực sự chồng lấn trong thời gian thực. */
+/**
+ * Bằng chứng hai tiến trình thực sự chồng lấn trong thời gian thực.
+ *
+ * Cửa sổ đo là cửa sổ ENGAGE DB của worker: bắt đầu từ lúc worker chạm hàng
+ * tranh chấp (`lock_wait_started_at` — mode locked) hoặc lúc phát request
+ * (`request_started_at` — mode plain), kết thúc tại `request_finished_at`.
+ *
+ * Vì sao không đo bằng cửa sổ request thuần (fix tại retest R4, DEV184-P1-03R4):
+ * ở mode `locked`, hai worker pre-lock CÙNG một hàng, nên bên thua chỉ stamp
+ * được `request_started_at` SAU khi bên thắng commit rồi hold thêm `hold_ms` —
+ * hai cửa sổ request bị serialize bởi CHÍNH cái lock đang được chứng minh, và
+ * assertion "chồng lấn request" là bất khả thi về cấu trúc (evidence R3 cũng
+ * ghi `workers_in_flight_simultaneously=false` cho kịch bản locked; test
+ * phpunit khi đó bị skip vì thiếu WWHN184_RUNTIME_CONCURRENCY=1 nên assertion
+ * chưa từng chạy). Chồng lấn thật của mode locked = bên thua blocked-on-lock
+ * trong PostgreSQL suốt lúc bên thắng chạy request — được chứng minh độc lập
+ * bằng pg_locks sample (`real_contention_proven`), và cửa sổ engage phản ánh
+ * đúng khoảng đó.
+ */
 function overlapEvidence(array $workers): array
 {
     $toMicros = static function (?string $value): ?float {
@@ -344,7 +362,9 @@ function overlapEvidence(array $workers): array
     $starts = [];
     $ends = [];
     foreach ($workers as $worker) {
-        $start = $toMicros($worker['request_started_at'] ?? null) ?? $toMicros($worker['barrier_released_at'] ?? null);
+        $start = $toMicros($worker['lock_wait_started_at'] ?? null)
+            ?? $toMicros($worker['request_started_at'] ?? null)
+            ?? $toMicros($worker['barrier_released_at'] ?? null);
         $end = $toMicros($worker['request_finished_at'] ?? null);
         if ($start === null || $end === null) {
             return ['measurable' => false, 'overlap_ms' => null, 'windows' => []];
@@ -357,6 +377,7 @@ function overlapEvidence(array $workers): array
 
     return [
         'measurable' => true,
+        'window_semantics' => 'db-engagement: [lock_wait_started_at ?? request_started_at, request_finished_at]',
         'overlap_ms' => round($overlap, 3),
         'workers_in_flight_simultaneously' => $overlap > 0,
         'windows' => array_map(static fn (array $w): array => [
@@ -365,6 +386,8 @@ function overlapEvidence(array $workers): array
             'os_pid' => $w['os_pid'] ?? null,
             'backend_pid' => $w['backend_pid'] ?? null,
             'barrier_released_at' => $w['barrier_released_at'] ?? null,
+            'lock_wait_started_at' => $w['lock_wait_started_at'] ?? null,
+            'lock_acquired_at' => $w['lock_acquired_at'] ?? null,
             'request_started_at' => $w['request_started_at'] ?? null,
             'request_finished_at' => $w['request_finished_at'] ?? null,
         ], array_values($workers)),

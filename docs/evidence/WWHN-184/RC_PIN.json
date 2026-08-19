@@ -79,13 +79,13 @@
     "docs/api-contract/WWHN-184-inbound-openapi.yaml": "a970c523294b76480f0d60c337d57306ce1ffe5a12fcc31213ab22ffc76bb775",
     "scripts/verify-wwhn184-postman-contract.mjs": "128844b1c798ef3855f43fac4c2e79ae249bb52e927a6a292a16c228427abdd8",
     "scripts/collect-wwhn184-evidence.sh": "f72702be85a0823cd9dc2b62668ad386a8c29de9691ec6c7afd167e9f5885d9e",
-    "scripts/wwhn184-post-receipt-runtime-concurrency.php": "9a6936a36a0d4ce0fddfc3d802f462b1e418dbb258d66ddc2c84c59a897fdd37",
-    "scripts/wwhn184-post-receipt-worker.php": "ceba5523950dacf58b1a7b4625a6668c82f9cb25a2328e41d247ebf4015eac51",
+    "scripts/wwhn184-post-receipt-runtime-concurrency.php": "fc75abc2dbd79208098e94ff7251a2bdac2b6687dcf7ad704247f115b9961ca6",
+    "scripts/wwhn184-post-receipt-worker.php": "2d8a3ef31bcf7f3c5819a8d5075ee888fb6b447c9ccbb6a2c9342508e7c8ea4b",
     "tests/Feature/Wwhn184InboundContractParityTest.php": "c565bf798725afeab07a46eeb5b23b93f271f38871776c567f5e58d1022f0377",
     "tests/Feature/Wwhn184PostReceiptRuntimeConcurrencyTest.php": "b910292bd5b2a380aa5e483bca4a699f0905e59d123ed2c4c919ff309a3dd6ec",
     ".github/workflows/wwhn-184-inbound-contract.yml": "8a5e411f0a98b8b962fe2888cda31b30b78aefd9a98568e62d7d14c23ead345f",
     "Modules/AuditLog/database/migrations/2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields.php": "8b6aa2ac69563c0ed3a72cf047cb53bfa1232b47d7a8a2fb91d37af5f3a4fce3",
-    "scripts/verify-wwhn184-candidate-pin.mjs": "f45ee3dce01a97925867828914c16a6dab2e848336bc24f0cbfd72ed130c3c8c"
+    "scripts/verify-wwhn184-candidate-pin.mjs": "8e9f5b8ddac3625f47a32f75cddf09dc22694d18782818d6c94677ccf184fb02"
   },
   "critical_dependencies": {
     "Modules/AuditLog/database/migrations/2026_08_19_000001_add_event_catalog_fields_to_audit_log.php": "6cd89a20ad1fc92a474932f50a712a636f2740130fc4899425d7aaba9f21de99",
@@ -99,7 +99,7 @@
   },
   "post_fix_candidate": {
     "why": "DEV184-P1-05R4: QA report R3 ghi exact SHA đầu lượt test (dae5ff108a80330922b94cc0d439f474b58bbec5) trong khi PASS cuối cùng phát sinh SAU các fix trong lượt (pin extractor, audit view pgsql, golive allowlist). Ô này resolve MỘT candidate hậu-fix duy nhất để QA/TL/DevOps cùng tham chiếu.",
-    "sha_resolution": "post_fix_candidate.sha = git log -1 --format=%H -- <owned_artifacts ∪ critical_dependencies>. Verifier resolve động và FAIL nếu giá trị khai ở đây lệch kết quả resolve — chống rot khi có commit mới chạm tập pin sau khi QA ký.",
+    "sha_resolution": "post_fix_candidate.sha = commit cuối cùng ĐỔI NỘI DUNG pinned object (không phải commit cuối chạm path — path-based rot theo commit của ticket khác trên file dùng chung). Verifier kiểm bằng nội dung: mọi pinned object đọc tại chính SHA này (git show <sha>:<path>, qua extractor nếu có) phải khớp hash đã pin, và SHA phải là ancestor của HEAD; kết hợp với check working-tree suy ra nội dung QA test == nội dung pin == nội dung hiện tại.",
     "sha": null,
     "pre_fix_sha_in_r3_report": "dae5ff108a80330922b94cc0d439f474b58bbec5",
     "range_invariant": null,
