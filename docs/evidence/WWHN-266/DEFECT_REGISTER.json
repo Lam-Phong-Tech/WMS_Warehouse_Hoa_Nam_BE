@@ -1,0 +1,190 @@
+{
+  "task": "WWHN-266",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "role": "BE1",
+  "branch": "m1",
+  "schemaVersion": "1.0.0",
+  "purpose": "Register defect 1-1 phía backend của vòng sửa lỗi/retest WWHN-70. Review vòng trước chấm 30/100 với lý do 'không có defect input' và '0 attachment, 0 implementation comment, 0 task SHA'. Mỗi dòng dưới đây phải đủ: module, route+method, môi trường/build, expected, actual, root cause, fix (file có thật), bằng chứng API/DB trước-sau, lệnh retest và người xác nhận độc lập. scripts/verify-wwhn-266-closure.mjs fail-closed khi thiếu trường, có chuỗi độn (TBD/N/A/...), trỏ tới đường dẫn không tồn tại, hoặc khai FIXED mà retest khác PASS.",
+  "evidencePolicy": {
+    "failClosed": true,
+    "noSelfSignForIndependentRoles": true,
+    "devRunIsNotQaRetest": true,
+    "genericRowsRejected": true,
+    "note": "Bằng chứng DEV chạy in-process trên DB test KHÔNG thay thế lượt retest độc lập của QA1 (WWHN-264) trên build đã deploy. Mọi số liệu trích ra ngoài phải lấy từ CI tại exact SHA."
+  },
+  "coreTransactionGate": {
+    "source": "HN_SRS_FRD_v1.12_FULL.md §13.3 Stock-changing Action Test Design Matrix",
+    "dimensions": [
+      "POSITIVE",
+      "NEGATIVE",
+      "PERMISSION",
+      "INVALID_STATE",
+      "RETRY_SAME_KEY",
+      "SAME_KEY_DIFF_PAYLOAD",
+      "CONCURRENCY",
+      "ROLLBACK"
+    ],
+    "matrixNumberingGap": {
+      "ids": "TC-P1-017..TC-P1-024",
+      "meaning": "Không tồn tại trong SRS §13.3. Nhóm action COMPONENT_ISSUE_POST — một action đổi tồn thật — không có hàng nào trong ma trận. WWHN-234 đã ghi nhận (F-07) nhưng chưa có test nào lái action đó qua HTTP.",
+      "closedBy": "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php"
+    }
+  },
+  "runManifest": {
+    "environment": "local-controlled (DEV) / CI PostgreSQL 16 tại exact SHA",
+    "coreTransactionCommand": "php artisan test tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+    "contractTruthCommand": "php artisan test tests/Feature/Wwhn266IfMatchContractTruthTest.php",
+    "openApiRegenCommand": "php artisan l5-swagger:generate",
+    "verifierCommand": "node scripts/verify-wwhn-266-closure.mjs",
+    "rawEvidence": "build/evidence/wwhn-266/component-issue-core-transaction.json",
+    "note": "File rawEvidence do chính test ghi ra khi chạy, không soạn tay."
+  },
+  "defects": [
+    {
+      "id": "BE266-D01",
+      "severity": "P1",
+      "owner": "BE1",
+      "confirmer": "Tech Lead + FE + QA1",
+      "registerItem": "DEV266-P1-06",
+      "module": "api-contract/openapi",
+      "route": "41 operation (gồm POST /api/v1/component-issue-documents/{id}/post, POST /api/v1/outbound-documents/{id}/post-issue, POST /api/v1/reversal-documents/{id}/post)",
+      "method": "POST/PATCH/DELETE",
+      "environment": "local-controlled + storage/api-docs/api-docs.json đã sinh",
+      "expected": "Contract công bố đúng hành vi runtime: operation nào ném 428 PRECONDITION_REQUIRED khi thiếu If-Match thì OpenAPI phải khai parameter If-Match với required:true, để FE/QA sinh client từ contract không gặp 428 bất ngờ.",
+      "actual": "58 operation khai header If-Match trong contract, trong đó 47 operation BẮT BUỘC header lúc chạy (ném 428 khi thiếu) — nhưng chỉ 6 operation (nhóm inbound có annotation viết tay) khai required:true. 41 operation còn lại publish required:false, trong đó có cả ba action đổi tồn chịu hard gate CORE_TRANSACTION. Postman collection sinh từ cùng nguồn nên thừa hưởng y nguyên lời khai sai.",
+      "rootCause": "app/Swagger/Processors/RouteSyncProcessor.php: contractHeaders() hard-code 'required' => false cho If-Match, còn actionContractFlags() chỉ trả bool 'action có đọc header hay không' nên không có thông tin để phân biệt bắt buộc/tuỳ chọn. Cùng hàm đó xử lý Idempotency-Key ĐÚNG (phân biệt IdempotencyKeyGuard::require vs ::optional) — WWHN-309 đã sửa nửa Idempotency-Key và bỏ sót nửa If-Match.",
+      "fix": {
+        "files": [
+          "app/Swagger/Processors/RouteSyncProcessor.php"
+        ],
+        "summary": "actionContractFlags() trả false|'required'|'optional' cho if_match. Điều kiện 'required' là ĐỒNG HIỆN DIỆN TRONG CÙNG MỘT THÂN METHOD: thân nào vừa đọc header('If-Match') vừa ném PRECONDITION_REQUIRED (pattern expectedVersion()) thì bắt buộc. Không được kiểm trên bản nối của cả chuỗi helper: trait ApiResponse chứa map `428 => 'PRECONDITION_REQUIRED'` và mọi action gọi respondSuccess() đều kéo trait đó vào, nên bản nối báo nhầm 5 operation thật sự tuỳ chọn (đo được ở UserController::update(), assertVersionMatches() return sớm khi header rỗng) là bắt buộc. contractHeaders() dùng cờ đó cho cả 'required' lẫn 'description'. Sửa tại nguồn sinh contract nên mọi operation hiện có và mọi route thêm sau đều đúng, không phải khai tay từng chỗ.",
+        "reviewNote": "Bản nháp đầu của chính fix này dùng heuristic trên bản nối và làm hỏng PATCH /api/v1/users/{id} (endpoint tuỳ chọn thật, có annotation viết tay required:false đúng). Bộ test bắt được và heuristic đã được siết lại — ghi ở đây để reviewer thấy con số 41 là sau khi đã loại 5 dương tính giả."
+      },
+      "beforeAfter": {
+        "before": "operation khai If-Match = 58; bắt buộc lúc chạy = 47; khai required:true = 6; LỆCH = 41",
+        "after": "operation khai If-Match = 58; bắt buộc lúc chạy = 47; khai required:true = 47; LỆCH = 0; 11 operation tuỳ chọn thật (catalog master dùng assertVersionIfProvided, users/{id} dùng assertVersionMatches) vẫn giữ required:false",
+        "measuredBy": "tests/Feature/Wwhn266IfMatchContractTruthTest.php::test_every_operation_that_hard_requires_if_match_declares_it_required"
+      },
+      "retest": {
+        "command": "php artisan test tests/Feature/Wwhn266IfMatchContractTruthTest.php",
+        "status": "PASS"
+      },
+      "status": "FIXED",
+      "contractImpact": "CÓ — thay đổi OpenAPI (required flag + description) và Postman collection sinh lại. Không đổi hành vi runtime, không đổi mã lỗi, không phá client đang gửi header. Client nào đang bỏ header vẫn nhận 428 y như trước; khác biệt là bây giờ contract nói trước điều đó."
+    },
+    {
+      "id": "BE266-D02",
+      "severity": "P1",
+      "owner": "BE1",
+      "confirmer": "QA1 + Tech Lead",
+      "registerItem": "DEV266-P1-03 / DEV266-P1-04",
+      "module": "warehouse/component-issue",
+      "route": "POST /api/v1/component-issue-documents/{id}/post (alias POST /api/v1/warranty-component-issues/{id}/post)",
+      "method": "POST",
+      "environment": "local-controlled, driver sqlite; CI PostgreSQL 16 tại exact SHA",
+      "expected": "Mọi action đổi tồn phải có bằng chứng chạy được cho đủ 8 chiều của SRS §13.3 (transaction/lock/idempotency replay/idempotency conflict/concurrency/rollback/không âm kho/không tác động hai lần) và hồ sơ ledger↔balance đối soát delta = 0.",
+      "actual": "COMPONENT_ISSUE_POST gọi mutateBalance(sign: -1) và ghi movement COMPONENT_ISSUE — là action đổi tồn thật — nhưng SRS §13.3 bỏ trống đúng dải TC-P1-017..024 cho nhóm này, và không test nào trong repo lái action đó qua HTTP. Bốn file test có nhắc route chỉ kiểm route tồn tại/alias/tài liệu (AnnexCEndpointAliasTest, CurrentBaselineFlowContractSourceTest, DocumentationBaselineContractTest, WarrantyFlow04ApiSurfaceTest). Hệ quả: hard gate CORE_TRANSACTION không có target evidence cho action này, đúng như review nêu.",
+      "rootCause": "Khoảng trống đánh số của ma trận SRS §13.3 được hiểu là 'không có action nào ở đó' thay vì 'thiếu hàng'. WWHN-234 đã ghi nhận khoảng trống (finding F-07) và chuyển cho BA, nhưng không bên nào dựng test bù trong lúc chờ, nên action đổi tồn này trôi qua mọi vòng gate trước.",
+      "fix": {
+        "files": [
+          "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+          "docs/evidence/WWHN-266/TC_P1_017_024_TRACEABILITY.json"
+        ],
+        "summary": "Bộ 9 ca khoá đủ 8 chiều cho COMPONENT_ISSUE_POST, đánh số TC-P1-017..024 đúng vị trí trống của ma trận, cộng một ca hồ sơ ledger/balance/đối soát. Tồn được dựng bằng ledger thật (inbound → box → scan → post-receipt), không INSERT thẳng inventory_balances — nếu seed tay thì đối soát §7.5 sẽ lệch và con số mất giá trị (bài học WWHN-289)."
+      },
+      "beforeAfter": {
+        "before": "0 test lái POST component-issue qua HTTP; 0 số đo tồn/movement/đối soát cho action này",
+        "after": "9 ca PASS; TC-P1-017 tồn 10→7 với đúng 1 movement COMPONENT_ISSUE (qty_delta -3, qty_before 10, qty_after 7), 1 posting_event, 1 audit row; TC-P1-021 ba lần cùng key ra replay flags [false,true,true], tồn giảm đúng một lần, version không bump lần hai; TC-P1-022 409 IDEMPOTENCY_CONFLICT không có write thứ hai; TC-P1-023 hai phiếu tranh tồn 5 → đúng 1 commit, tồn còn 2, không âm; TC-P1-024 lỗi tiêm sau INSERT stock_movements → 500 không lộ nội bộ, rollback cả movement/balance/subledger BOX/version, retry sau đó Post được; đối soát §7.5 mismatch_count = 0 và SQL thô SUM(qty_delta)=5 khớp balance=5",
+        "measuredBy": "build/evidence/wwhn-266/component-issue-core-transaction.json (do chính test ghi ra)"
+      },
+      "retest": {
+        "command": "php artisan test tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+        "status": "PASS"
+      },
+      "status": "FIXED",
+      "contractImpact": "KHÔNG — chỉ thêm test và hồ sơ, không đổi endpoint, schema hay mã lỗi."
+    },
+    {
+      "id": "BE266-D03",
+      "severity": "P1",
+      "owner": "BA + Tech Lead",
+      "confirmer": "BA",
+      "registerItem": "DEV266-P1-06 (contract impact) — CHỜ DISPOSITION",
+      "module": "warehouse/reversal",
+      "route": "POST /api/v1/reversal-documents · POST /api/v1/reversal-documents/{id}/post",
+      "method": "POST",
+      "environment": "phân tích mã nguồn tại HEAD nhánh m1",
+      "expected": "SRS §5.5 BR-REV-01: mọi sửa sai sau Post dùng append-only reversal, không UPDATE/DELETE movement gốc và không sửa Balance trực tiếp. AC-GWT-REV-001 chốt thêm: không có API/UI action sửa tồn trực tiếp. Suy ra: một Component Issue đã POSTED (đã trừ tồn) phải có đường sửa sai hợp lệ.",
+      "actual": "CurrentBaselineReversalService chỉ nhận movement_type IN ('RECEIPT','ISSUE') ở CẢ HAI chốt: lúc tạo reversal draft (dòng ~126, 422 ORIGINAL_MOVEMENT_INVALID — movement COMPONENT_ISSUE còn không thuộc stock_document nào nên không qua nổi điều kiện stock_document_id) và lúc Post (dòng ~280, 409 REVERSAL_OF_REVERSAL_FORBIDDEN kèm thông điệp nói về movement REVERSAL, không đúng nguyên nhân thật). Kết quả: một phiếu xuất linh kiện bảo hành post nhầm (sai SKU/số lượng/case) không có đường sửa sai hợp lệ nào — reversal chặn, mà sửa tồn trực tiếp thì baseline cấm.",
+      "rootCause": "Phạm vi reversal được chốt theo hai loại chứng từ receipt/issue từ WWHN-26, trước khi Component Issue trở thành action đổi tồn độc lập. Không ai mở lại phạm vi khi thêm movement_type COMPONENT_ISSUE.",
+      "fix": {
+        "files": [],
+        "summary": "BE1 KHÔNG tự sửa trong phạm vi WWHN-266. Mở phạm vi reversal sang COMPONENT_ISSUE là thay đổi contract: thêm loại chứng từ nguồn cho reversal, thêm movement đối ứng, chạm OpenAPI + bề mặt FE + bộ test reversal đã chốt (WWHN-239/240/242). Cần BA + Tech Lead disposition trước, đúng tiền lệ BE268-D02."
+      },
+      "beforeAfter": {
+        "before": "không có test nào ghi nhận hành vi này, nên khoảng trống vô hình",
+        "after": "hành vi hiện hành được ghi nhận tường minh trong register và trong docstring bộ test; nếu ai đó âm thầm đổi phạm vi reversal thì phải đụng vào dòng này",
+        "measuredBy": "phân tích mã: Modules/Warehouse/app/Services/CurrentBaselineReversalService.php"
+      },
+      "retest": {
+        "command": "không áp dụng — chờ disposition, chưa có mã để retest",
+        "status": "DEFERRED"
+      },
+      "status": "OPEN_NEEDS_DISPOSITION",
+      "contractImpact": "CÓ NẾU ĐƯỢC DUYỆT — mở phạm vi reversal chạm OpenAPI, FE và bộ test reversal đã chốt. Kiểm soát bù trong lúc chờ: Component Issue chỉ Post được khi scanned_qty = required_qty và case còn active, nên cửa sổ sai sót hẹp; mọi lần Post đều có posting_event + audit để truy vết thủ công."
+    },
+    {
+      "id": "BE266-D04",
+      "severity": "P2",
+      "owner": "BA",
+      "confirmer": "BA + QA1",
+      "registerItem": "DEV266-P1-01 (defect input) — CHỜ XÁC NHẬN QUY TRÌNH",
+      "module": "warehouse/container-subledger",
+      "route": "POST /api/v1/inbound-documents/{id}/post-receipt → POST /api/v1/component-issue-documents/{id}/scan",
+      "method": "POST",
+      "environment": "local-controlled, driver sqlite",
+      "expected": "SRS §5.4.1: 'quantity-only components use box + quantity'. Sau khi nhập kho một BOX linh kiện không serial, người dùng phải quét được BOX đó cho Component Issue theo số lượng.",
+      "actual": "Luồng inbound (tạo BOX → scan → post-receipt) KHÔNG ghi dòng container_items nào; BOX chỉ chuyển status sang RECEIVED_PENDING_PUTAWAY. ComponentContainerSubledgerService::assertContainerAvailable() cộng container_items.quantity nên luôn ra 0 và trả 422 COMPONENT_BOX_INSUFFICIENT. Đo được: tồn inventory_balances = 10 nhưng available_qty của BOX = 0. Đường duy nhất nạp nội dung BOX là POST /api/v1/containers/{id}/items (permission container.manage).",
+      "rootCause": "container_items chỉ có duy nhất một nơi ghi (CurrentBaselineContainerFlowController::addItem). Luồng nhập kho không gọi tới, nên subledger số lượng của BOX phải được khai bằng một thao tác quản trị riêng.",
+      "fix": {
+        "files": [],
+        "summary": "BE1 KHÔNG tự sửa. Hai cách đóng đều là quyết định nghiệp vụ: (a) post-receipt tự sinh container_items cho SKU không serial — chạm luồng nhập kho và số liệu subledger đã chốt; (b) giữ nguyên và ghi nhận 'khai nội dung BOX' là một bước vận hành bắt buộc trước khi xuất linh kiện theo số lượng. Cần BA chọn."
+      },
+      "beforeAfter": {
+        "before": "khoảng trống không được ghi ở đâu; người vận hành gặp 422 COMPONENT_BOX_INSUFFICIENT dù báo cáo tồn hiển thị còn hàng",
+        "after": "được ghi nhận kèm số đo và neo trong fixture của bộ test WWHN-266 (bước gọi /containers/{id}/items có comment giải thích vì sao bắt buộc)",
+        "measuredBy": "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php::stockedComponent()"
+      },
+      "retest": {
+        "command": "không áp dụng — chờ disposition nghiệp vụ",
+        "status": "DEFERRED"
+      },
+      "status": "OPEN_NEEDS_DISPOSITION",
+      "contractImpact": "KHÔNG ở trạng thái hiện tại. Nếu BA chọn phương án (a) thì chạm luồng nhập kho và đối soát §7.5."
+    }
+  ],
+  "externalItems": [
+    {
+      "id": "W266-EXT-01",
+      "registerItem": "DEV266-P1-05",
+      "owner": "QA1",
+      "work": "Retest độc lập toàn bộ defect trên exact final candidate; không dùng lượt chạy local của DEV thay cho QA độc lập.",
+      "ticket": "WWHN-264"
+    },
+    {
+      "id": "W266-EXT-02",
+      "registerItem": "DEV266-P1-07",
+      "owner": "DEV + DevOps",
+      "work": "Pin repo/branch/SHA/build/env của candidate và cho CI chạy đúng bộ regression của WWHN-266 tại SHA đó.",
+      "ticket": "WWHN-266"
+    },
+    {
+      "id": "W266-EXT-03",
+      "registerItem": "DEV266-P2-01",
+      "owner": "PM",
+      "work": "Làm rõ WWHN-266 là contingency post-sprint hay Beta-blocking của sprint hiện tại (Jira due 08/09 nằm sau Sprint 93 end 03/09).",
+      "ticket": "WWHN-266"
+    }
+  ]
+}

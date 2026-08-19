@@ -573,12 +573,15 @@ class RouteSyncProcessor
             ]);
         }
 
-        if ($flags['if_match']) {
+        if ($flags['if_match'] !== false) {
+            $ifMatchRequired = $flags['if_match'] === 'required';
             $headers[] = new OA\Parameter([
                 'name' => 'If-Match',
                 'in' => 'header',
-                'required' => false,
-                'description' => 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.',
+                'required' => $ifMatchRequired,
+                'description' => $ifMatchRequired
+                    ? 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+                    : 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.',
                 'schema' => new OA\Schema([
                     'type' => 'integer',
                     'minimum' => 0,
@@ -597,7 +600,7 @@ class RouteSyncProcessor
      * (assertVersion/assertVersionIfProvided/expectedVersion) mà không cần dựng
      * call graph đầy đủ.
      *
-     * @return array{idempotency: ?string, if_match: bool}
+     * @return array{idempotency: ?string, if_match: false|'required'|'optional'}
      */
     private function actionContractFlags(string $action): array
     {
@@ -631,6 +634,9 @@ class RouteSyncProcessor
         // ăn 428 lúc chạy thật.
         $seen = [$method => true];
         $pending = [$source];
+        // Giữ RIÊNG từng thân method bên cạnh bản nối, vì phép kiểm If-Match bên
+        // dưới cần biết hai dấu hiệu có nằm trong CÙNG một thân hay không.
+        $bodies = [$source];
         while ($pending !== []) {
             $current = array_pop($pending);
             preg_match_all('/\$this->([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $current, $matches);
@@ -644,6 +650,7 @@ class RouteSyncProcessor
                     continue;
                 }
                 $source .= "\n".$helperSource;
+                $bodies[] = $helperSource;
                 $pending[] = $helperSource;
             }
         }
@@ -655,7 +662,29 @@ class RouteSyncProcessor
         }
 
         if (preg_match("/header\(\s*'If-Match'/", $source) === 1) {
-            $flags['if_match'] = true;
+            // WWHN-266 (BE266-D01): phân biệt BẮT BUỘC vs TUỲ CHỌN thay vì chỉ
+            // "action có đọc header". Action ném 428 PRECONDITION_REQUIRED khi
+            // thiếu header (pattern `expectedVersion()`) là bắt buộc; action chỉ
+            // kiểm khi client có gửi (pattern `assertVersionIfProvided()`,
+            // `assertVersionMatches()`) mới là tuỳ chọn. Trước đây cả hai đều
+            // publish `required: false`: trong 47 operation bắt buộc If-Match lúc
+            // chạy, chỉ 6 operation (nhóm inbound khai tay) công bố đúng — 41
+            // operation còn lại nói sai, gồm cả bốn action đổi tồn. Đúng lỗi mà
+            // WWHN-309 đã sửa cho Idempotency-Key nhưng bỏ sót ở đây.
+            //
+            // Điều kiện phải là ĐỒNG HIỆN DIỆN TRONG CÙNG MỘT THÂN METHOD, không
+            // phải trên bản nối: trait ApiResponse có map `428 =>
+            // 'PRECONDITION_REQUIRED'` và mọi action gọi respondSuccess() đều kéo
+            // trait đó vào, nên kiểm trên bản nối sẽ báo nhầm mọi endpoint là bắt
+            // buộc (đo được: UserController::update() chỉ kiểm version khi client
+            // có gửi, nhưng bị xếp nhầm nhóm bắt buộc).
+            $flags['if_match'] = 'optional';
+            foreach ($bodies as $body) {
+                if (preg_match("/header\(\s*'If-Match'/", $body) === 1 && str_contains($body, 'PRECONDITION_REQUIRED')) {
+                    $flags['if_match'] = 'required';
+                    break;
+                }
+            }
         }
 
         return $cache[$action] = $flags;

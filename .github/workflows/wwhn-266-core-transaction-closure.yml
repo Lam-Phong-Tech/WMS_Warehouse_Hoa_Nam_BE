@@ -1,0 +1,177 @@
+name: WWHN-266 Core Transaction Closure
+
+# DEV266-P1-03 / P1-04 / P1-06 / P1-07.
+#
+# Vòng review trước chấm 30/100 với bốn lời cụ thể: "Không có defect input",
+# "0 attachment, 0 implementation comment, 0 task SHA", "Core invariants chưa có
+# target evidence", "Không ledger/balance proof". Cổng này biến từng lời đó thành
+# một bước máy kiểm được, chạy trên DB tham chiếu PostgreSQL 16 tại GITHUB_SHA.
+#
+# Hai bài học đã nhúng sẵn, lấy từ vòng WWHN-289:
+#   1. XOÁ `build/evidence/wwhn-266/*.json` TRƯỚC khi chạy test và bắt nó xuất hiện
+#      lại sau đó. Nếu đọc file đã commit thì cổng tự xác nhận bằng artifact tĩnh —
+#      xanh kể cả khi test không ghi được gì.
+#   2. OpenAPI phải được SINH LẠI trong run rồi mới kiểm, chứ không đọc bản đã
+#      commit; nếu không, defect BE266-D01 (contract nói sai về If-Match) có thể
+#      quay lại mà cổng vẫn xanh vì bản commit đang đúng.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-266/**'
+      - 'scripts/verify-wwhn-266-closure.mjs'
+      - 'scripts/sync-wwhn-266-postman-if-match.mjs'
+      - 'tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php'
+      - 'tests/Feature/Wwhn266IfMatchContractTruthTest.php'
+      - 'app/Swagger/Processors/RouteSyncProcessor.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php'
+      - '.github/workflows/wwhn-266-core-transaction-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-266/**'
+      - 'scripts/verify-wwhn-266-closure.mjs'
+      - 'scripts/sync-wwhn-266-postman-if-match.mjs'
+      - 'tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php'
+      - 'tests/Feature/Wwhn266IfMatchContractTruthTest.php'
+      - 'app/Swagger/Processors/RouteSyncProcessor.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php'
+      - '.github/workflows/wwhn-266-core-transaction-closure.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  closure:
+    name: COMPONENT_ISSUE_POST core transaction + If-Match contract truth
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn266
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn266"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      AUDIT_WRITE_POLICY: outbox_required
+      CI_DEMO_PASSWORD: WWHN266-CI-Only-2026
+      # HS256 đòi khoá >= 256 bit; giữ >= 32 ký tự (bài học WWHN-289).
+      JWT_SECRET: WWHN266-CI-JWT-Core-Transaction-Closure-Gate-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn266
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Style check on WWHN-266 sources
+        run: >-
+          vendor/bin/pint --test
+          tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php
+          tests/Feature/Wwhn266IfMatchContractTruthTest.php
+          app/Swagger/Processors/RouteSyncProcessor.php
+
+      - name: Fail-closed register markers
+        run: |
+          set -euo pipefail
+          register='docs/evidence/WWHN-266/DEFECT_REGISTER.json'
+          traceability='docs/evidence/WWHN-266/TC_P1_017_024_TRACEABILITY.json'
+          test -s "$register"
+          test -s "$traceability"
+          for marker in BE266-D01 BE266-D02 BE266-D03 BE266-D04 DEV266-P1-03 DEV266-P1-04 DEV266-P1-06; do
+            grep -Fq "$marker" "$register"
+          done
+          for tc in TC-P1-017 TC-P1-018 TC-P1-019 TC-P1-020 TC-P1-021 TC-P1-022 TC-P1-023 TC-P1-024; do
+            grep -Fq "$tc" "$traceability"
+          done
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Discard committed proof artifact so the run must regenerate it
+        run: rm -f build/evidence/wwhn-266/component-issue-core-transaction.json
+
+      - name: CORE_TRANSACTION suite for COMPONENT_ISSUE_POST (TC-P1-017..024)
+        run: php artisan test tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php
+
+      - name: Assert the suite actually wrote its raw evidence on PostgreSQL
+        run: |
+          set -euo pipefail
+          proof='build/evidence/wwhn-266/component-issue-core-transaction.json'
+          test -s "$proof"
+          node -e "
+            const raw = require('./' + process.argv[1]);
+            const need = ['TC-P1-017','TC-P1-018','TC-P1-019','TC-P1-020','TC-P1-021','TC-P1-022','TC-P1-023','TC-P1-024','LEDGER_BALANCE_RECONCILE'];
+            const missing = need.filter((k) => !raw.dimensions?.[k]);
+            if (missing.length) { console.error('Thiếu chiều: ' + missing.join(', ')); process.exit(1); }
+            if (raw.driver !== 'pgsql') { console.error('Bằng chứng phải sinh trên PostgreSQL, đang là ' + raw.driver); process.exit(1); }
+            const r = raw.dimensions.LEDGER_BALANCE_RECONCILE;
+            if (r.reconcile_mismatch_count !== 0 || r.variance !== 0) { console.error('Đối soát chưa sạch'); process.exit(1); }
+            if (r.ledger_sum_qty_delta !== r.balance_on_hand) { console.error('Ledger khác balance'); process.exit(1); }
+            console.log('Raw evidence OK trên pgsql: mismatch=0, variance=0, ledger=balance=' + r.balance_on_hand);
+          " "$proof"
+
+      - name: Regenerate OpenAPI from source, then assert contract tells the truth
+        # Sinh lại trong run: nếu chỉ đọc bản đã commit thì BE266-D01 có thể tái phát
+        # mà cổng vẫn xanh.
+        run: |
+          set -euo pipefail
+          php artisan l5-swagger:generate
+          php artisan test tests/Feature/Wwhn266IfMatchContractTruthTest.php
+
+      - name: Postman collection carries every required If-Match header
+        run: node scripts/sync-wwhn-266-postman-if-match.mjs --check
+
+      - name: Closure verifier (fail-closed)
+        run: node scripts/verify-wwhn-266-closure.mjs
+
+      - name: Publish evidence for the exact SHA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-266-core-transaction-${{ github.sha }}
+          path: |
+            build/evidence/wwhn-266/
+            docs/evidence/WWHN-266/
+            storage/api-docs/api-docs.json
+          if-no-files-found: error

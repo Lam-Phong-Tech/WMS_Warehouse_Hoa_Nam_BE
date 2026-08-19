@@ -1,0 +1,109 @@
+{
+  "ticket": "WWHN-266",
+  "registerItem": "DEV266-P1-03",
+  "purpose": "Lấp khoảng trống đánh số TC-P1-017..TC-P1-024 của SRS §13.3 cho nhóm action COMPONENT_ISSUE_POST, và ánh xạ máy-đọc-được từng chiều sang test có thật trong repo. Trước đây dải số này không tồn tại trong ma trận nên một action đổi tồn không chịu hard gate CORE_TRANSACTION nào.",
+  "sourceMatrix": "HN_SRS_FRD_v1.12_FULL.md §13.3 Stock-changing Action Test Design Matrix",
+  "priorFinding": "WWHN-234 finding F-07 — đã ghi nhận khoảng trống, chuyển BA, nhưng không dựng test bù nên action trôi qua mọi vòng gate trước.",
+  "action": "COMPONENT_ISSUE_POST",
+  "endpoints": [
+    "POST /api/v1/component-issue-documents/{id}/post",
+    "POST /api/v1/warranty-component-issues/{id}/post (alias Annex C)"
+  ],
+  "stockEffectProof": {
+    "service": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php::postComponentIssue()",
+    "call": "mutateBalance(..., movementType: 'COMPONENT_ISSUE', sign: -1, ...)",
+    "movementType": "COMPONENT_ISSUE",
+    "note": "Đây là bằng chứng action này ĐỔI TỒN thật, không phải bước stock-neutral."
+  },
+  "runner": "php artisan test tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+  "rawEvidence": "build/evidence/wwhn-266/component-issue-core-transaction.json",
+  "coverage": [
+    {
+      "tc": "TC-P1-017",
+      "dimension": "POSITIVE",
+      "expected": "Trừ tồn đúng required_qty; đúng một movement COMPONENT_ISSUE; commit exactly once; audit + posting_event đầy đủ.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_017_positive_component_issue_post_decrements_stock_exactly_once",
+      "measured": "HTTP 200; balance 10→7; qty_delta -3 (qty_before 10, qty_after 7); movement=1; posting_event=1; audit_log POST_COMPONENT_ISSUE=1; ETag \"3\"; Idempotent-Replay=false",
+      "status": "COVERED"
+    },
+    {
+      "tc": "TC-P1-018",
+      "dimension": "NEGATIVE",
+      "expected": "Vi phạm quy tắc nghiệp vụ → 422; tồn/balance không đổi; không movement, không posting_event; response có request_id.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_018_negative_partial_scan_is_rejected_without_stock_effect",
+      "measured": "HTTP 422 FULL_POST_REQUIRED; balance giữ 10; movement=0; posting_event=0; status giữ SCANNING",
+      "status": "COVERED"
+    },
+    {
+      "tc": "TC-P1-019",
+      "dimension": "PERMISSION",
+      "expected": "Thiếu quyền → 403 hoặc 404 theo masking policy; không có tác động tồn; không lộ stack trace.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_019_permission_role_without_component_issue_cannot_post",
+      "measured": "HTTP 403 ACCESS_DENIED (vai trò LEADERSHIP); balance giữ 10; movement=0",
+      "status": "COVERED",
+      "note": "Mã 403 mặc định của hệ thống là ACCESS_DENIED. SRS §8.2 nêu PERMISSION_DENIED ở cột 'Error code examples' (ví dụ, không phải enum) — chênh lệch cách gọi tên này đã được ghi thành BE268-D02 và đang chờ BA + Tech Lead; WWHN-266 không tự đổi."
+    },
+    {
+      "tc": "TC-P1-020",
+      "dimension": "INVALID_STATE",
+      "expected": "Chứng từ đã POSTED hoặc version cũ → 409/412; không có tác động lần hai.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_020_invalid_state_reposting_a_posted_document_is_rejected",
+      "measured": "Post lại bằng key mới + version hiện hành → 409 STATE_CONFLICT; post bằng version cũ → 412 STALE_VERSION; balance giữ 7; movement=1",
+      "status": "COVERED"
+    },
+    {
+      "tc": "TC-P1-021",
+      "dimension": "RETRY_SAME_KEY",
+      "expected": "3 lần cùng key + cùng payload → một tác động tồn, replayed=true từ lần hai, version không bump lần hai.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_021_retry_same_key_produces_exactly_one_stock_effect",
+      "measured": "Idempotent-Replay = [false, true, true]; balance 10→6 (giảm đúng một lần); movement=1; posting_event=1; version giữ 3",
+      "status": "COVERED"
+    },
+    {
+      "tc": "TC-P1-022",
+      "dimension": "SAME_KEY_DIFF_PAYLOAD",
+      "expected": "Cùng key khác payload hash → 409 IDEMPOTENCY_CONFLICT; không có write thứ hai.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_022_same_key_with_different_payload_is_rejected",
+      "measured": "HTTP 409 IDEMPOTENCY_CONFLICT; balance không đổi sau request xung đột; movement=1",
+      "status": "COVERED"
+    },
+    {
+      "tc": "TC-P1-023",
+      "dimension": "CONCURRENCY",
+      "expected": "Hai request tranh cùng tồn → tối đa một commit; request thua trả 409/412/422 theo điểm phát hiện; không âm kho, không over-post, không duplicate movement.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_023_concurrency_two_documents_racing_the_same_balance",
+      "measured": "Hai phiếu cùng đòi 3 trên tồn 5 → HTTP [200, 422]; request thua COMPONENT_BOX_INSUFFICIENT (chặn ở subledger BOX — điểm phát hiện sớm hơn balance); balance còn 2, không âm; tổng movement COMPONENT_ISSUE = 1",
+      "status": "COVERED"
+    },
+    {
+      "tc": "TC-P1-024",
+      "dimension": "ROLLBACK",
+      "expected": "Lỗi hạ tầng tiêm sau bước ghi movement → 500 + request_id; rollback toàn bộ document/movement/balance/subledger; retry sau đó an toàn.",
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_024_rollback_injected_failure_reverts_document_movement_and_balance",
+      "measured": "HTTP 500 không lộ 'insert into'/tên bảng/RuntimeException/stack frame; movement rollback; balance rollback về 10; subledger BOX rollback; document giữ SCANNING version 2; retry bằng key mới → 200, balance 10→7",
+      "status": "COVERED"
+    }
+  ],
+  "ledgerBalanceProof": {
+    "registerItem": "DEV266-P1-04",
+    "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_ledger_balance_and_reconciliation_delta_is_zero_after_component_issue",
+    "method": "Tồn dựng bằng ledger thật (inbound → box → scan → post-receipt), không INSERT thẳng inventory_balances. Đối soát hai nguồn: báo cáo RPT-INV-01 và SQL thô SUM(qty_delta).",
+    "measured": {
+      "ledger_sum_qty_delta": 5,
+      "balance_on_hand": 5,
+      "variance": 0,
+      "reconcile_mismatch_count": 0,
+      "reconcile_status": "PASS",
+      "reconcile_overall_status": "PASS",
+      "movement_types": ["COMPONENT_ISSUE", "RECEIPT"],
+      "appendOnly": "movement gốc không bị UPDATE/DELETE — chỉ có hai loại movement, không có bản ghi sửa đè"
+    }
+  },
+  "outOfScope": [
+    {
+      "id": "BE266-D03",
+      "note": "Movement COMPONENT_ISSUE hiện KHÔNG đảo được (CurrentBaselineReversalService chỉ nhận RECEIPT/ISSUE). Đây là khoảng trống năng lực sửa sai, đã ghi trong DEFECT_REGISTER.json và chờ BA + Tech Lead disposition — không tự mở phạm vi trong WWHN-266."
+    }
+  ],
+  "truthBoundary": "Số liệu trên là lượt chạy in-process của DEV trên driver sqlite. KHÔNG thay thế retest độc lập của QA1 (WWHN-264) trên build đã deploy. Số trích ra ngoài phải lấy từ CI tại exact SHA."
+}

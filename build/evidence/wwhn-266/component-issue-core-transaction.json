@@ -1,0 +1,89 @@
+{
+    "ticket": "WWHN-266",
+    "register_items": [
+        "DEV266-P1-03",
+        "DEV266-P1-04"
+    ],
+    "action": "COMPONENT_ISSUE_POST",
+    "matrix_slot": "TC-P1-017..TC-P1-024 (khoảng trống đánh số của SRS §13.3)",
+    "driver": "pgsql",
+    "producer": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest",
+    "dimensions": {
+        "TC-P1-017": {
+            "dimension": "POSITIVE",
+            "http": 200,
+            "balance_before": 10,
+            "balance_after": 7,
+            "qty_delta": -3,
+            "movements": 1
+        },
+        "TC-P1-018": {
+            "dimension": "NEGATIVE",
+            "http": 422,
+            "error_code": "FULL_POST_REQUIRED",
+            "balance_unchanged": 10,
+            "movements": 0
+        },
+        "TC-P1-019": {
+            "dimension": "PERMISSION",
+            "http": 403,
+            "error_code": "ACCESS_DENIED",
+            "balance_unchanged": 10
+        },
+        "TC-P1-020": {
+            "dimension": "INVALID_STATE",
+            "repost_http": 409,
+            "stale_http": 412,
+            "balance_after": 7,
+            "movements": 1
+        },
+        "TC-P1-021": {
+            "dimension": "RETRY_SAME_KEY",
+            "replay_flags": [
+                "false",
+                "true",
+                "true"
+            ],
+            "balance_after": 6,
+            "movements": 1,
+            "posting_events": 1
+        },
+        "TC-P1-022": {
+            "dimension": "SAME_KEY_DIFF_PAYLOAD",
+            "http": 409,
+            "error_code": "IDEMPOTENCY_CONFLICT",
+            "balance_after": 8,
+            "movements": 1
+        },
+        "TC-P1-023": {
+            "dimension": "CONCURRENCY",
+            "http_codes": [
+                200,
+                422
+            ],
+            "loser_error": "COMPONENT_BOX_INSUFFICIENT",
+            "balance_after": 2,
+            "movements_total": 1
+        },
+        "TC-P1-024": {
+            "dimension": "ROLLBACK",
+            "failed_http": 500,
+            "balance_rolled_back_to": 10,
+            "retry_http": 200,
+            "balance_after_retry": 7
+        },
+        "LEDGER_BALANCE_RECONCILE": {
+            "register_item": "DEV266-P1-04",
+            "ledger_sum_qty_delta": 5,
+            "balance_on_hand": 5,
+            "reconcile_mismatch_count": 0,
+            "reconcile_status": "PASS",
+            "reconcile_overall_status": "PASS",
+            "variance": 0,
+            "movement_types": [
+                "COMPONENT_ISSUE",
+                "RECEIPT"
+            ]
+        }
+    }
+}

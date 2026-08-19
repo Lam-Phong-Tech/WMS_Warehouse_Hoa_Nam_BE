@@ -16123,6 +16123,15 @@
                         },
                         "header": [
                             {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required)",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
+                            },
+                            {
                                 "key": "Content-Type",
                                 "value": "application/json"
                             }
@@ -17438,6 +17447,15 @@
                         },
                         "header": [
                             {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required)",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
+                            },
+                            {
                                 "key": "Content-Type",
                                 "value": "application/json"
                             }
@@ -17818,6 +17836,15 @@
                                 },
                                 "key": "Idempotency-Key",
                                 "value": "<string>"
+                            },
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required)",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
                             }
                         ],
                         "method": "POST",
@@ -19230,6 +19257,15 @@
                                 },
                                 "key": "Idempotency-Key",
                                 "value": "<string>"
+                            },
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required)",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
                             },
                             {
                                 "key": "Content-Type",
@@ -21903,6 +21939,15 @@
                         },
                         "header": [
                             {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
+                            },
+                            {
                                 "key": "Content-Type",
                                 "value": "application/json"
                             }
@@ -22283,6 +22328,15 @@
                                 },
                                 "key": "Idempotency-Key",
                                 "value": "<string>"
+                            },
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
                             }
                         ],
                         "method": "POST",
@@ -22746,6 +22800,15 @@
                                 },
                                 "key": "Idempotency-Key",
                                 "value": "<string>"
+                            },
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
                             },
                             {
                                 "key": "Content-Type",
@@ -23686,6 +23749,15 @@
                                 },
                                 "key": "Idempotency-Key",
                                 "value": "<string>"
+                            },
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
                             },
                             {
                                 "key": "Content-Type",
@@ -28878,6 +28950,15 @@
                         },
                         "header": [
                             {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
+                            },
+                            {
                                 "key": "Content-Type",
                                 "value": "application/json"
                             }
@@ -29303,6 +29384,15 @@
                         },
                         "header": [
                             {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
+                            },
+                            {
                                 "key": "Content-Type",
                                 "value": "application/json"
                             }
@@ -29692,7 +29782,18 @@
                                     "value": "{{bearerToken}}"
                                 }
                             ]
-                        }
+                        },
+                        "header": [
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
+                            }
+                        ]
                     },
                     "response": [
                         {
@@ -37088,6 +37189,15 @@
                             ]
                         },
                         "header": [
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required) Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
+                            },
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
