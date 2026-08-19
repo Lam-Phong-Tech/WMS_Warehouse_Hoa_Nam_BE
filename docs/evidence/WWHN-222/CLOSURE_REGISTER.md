@@ -19,7 +19,7 @@ qua sửa code local).
 
 - **Repo:** `WMS_Warehouse_Hoa_Nam_BE`, nhánh `m1`
 - **Base HEAD trước khi sửa:** `089eacd20ca918fb42703a2bb97aeb3f70e2881a`
-- **Candidate SHA (commit của WWHN-222):** _điền sau_
+- **Candidate SHA (commit của WWHN-222):** `879c9704d55cf435bbb7445d87e594f7428391a6`
 
 ## Affected files (implementation range)
 
