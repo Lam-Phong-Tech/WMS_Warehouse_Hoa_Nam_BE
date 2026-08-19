@@ -1,7 +1,7 @@
 {
   "ticket": "WWHN-188",
   "title": "[DEV] Rà soát giao dịch/khóa đồng thời (HN-IN-002, BE1)",
-  "generated_at": "2026-08-19T01:39:17.983Z",
+  "generated_at": "2026-08-19T01:51:04.184Z",
   "review_items_closed": [
     "DEV188-P1-01R2",
     "DEV188-P1-02R2",
@@ -13,14 +13,14 @@
   ],
   "branch": "m1",
   "candidate": {
-    "commit_sha": "49d4ccf9579bc4c8796d019c21ebd86b4b532dff",
-    "committed_at": "2026-08-19T08:39:08+07:00",
-    "subject": "docs(WWHN-188): neo bang chung race that PostgreSQL tai exact candidate SHA",
-    "code_commit_sha": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6",
-    "code_committed_at": "2026-08-19T08:36:07+07:00"
+    "commit_sha": "a5219f2909833cd7c4ee30c60f99d72091d1b887",
+    "committed_at": "2026-08-19T08:50:53+07:00",
+    "subject": "docs(WWHN-188): chay lai bang chung race tai candidate c2bb9f1 voi phep do chong lan da sua",
+    "code_commit_sha": "c2bb9f1ae2cd1f9c17d95acf53873e7a9386e122",
+    "code_committed_at": "2026-08-19T08:48:55+07:00"
   },
   "branch_head_at_pin_time": {
-    "sha": "49d4ccf9579bc4c8796d019c21ebd86b4b532dff",
+    "sha": "8bdf9ad0a00461afe27e3e11a26e7fd13d68f9e6",
     "note": "Chỉ ghi để đối chiếu. Nhánh m1 có nhiều phiên làm song song nên HEAD không phải candidate."
   },
   "openapi": {
@@ -60,8 +60,8 @@
       "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
     },
     "scripts/wwhn188-inbound-scan-runtime-concurrency.php": {
-      "blob_sha": "e1c0275b6464e8621720371897b13f359b3d3b78",
-      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+      "blob_sha": "c483e40b056f49047fde690816f14a6e52a85c06",
+      "last_commit": "c2bb9f1ae2cd1f9c17d95acf53873e7a9386e122"
     },
     "scripts/wwhn188-inbound-scan-worker.php": {
       "blob_sha": "966cc977f62be7c9339018d51a6e8fdbd101f790",
@@ -96,8 +96,8 @@
       "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
     },
     "docs/evidence/WWHN-188/runtime/runtime-concurrency-summary.json": {
-      "blob_sha": "b0762c52464ecb981ae3c583428be536c639ebf2",
-      "last_commit": "49d4ccf9579bc4c8796d019c21ebd86b4b532dff"
+      "blob_sha": "1f330b65dd68fb415e95964887602677225a02f4",
+      "last_commit": "a5219f2909833cd7c4ee30c60f99d72091d1b887"
     }
   },
   "verifier": {
