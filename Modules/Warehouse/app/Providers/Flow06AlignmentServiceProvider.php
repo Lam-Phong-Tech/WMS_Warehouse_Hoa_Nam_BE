@@ -4,9 +4,7 @@ namespace Modules\Warehouse\Providers;
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
-use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Services\AlignedOutboundStockService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 
@@ -26,17 +24,17 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
     {
         $this->app->booted(function (): void {
             Route::middleware(['api', 'auth:api'])->prefix('api/v1')->group(function (): void {
-                // Override giữ nguyên cả permission lẫn data scope (§8.1 Enforcement
-                // standard) — nếu bỏ scope ở đây thì route gốc bị thay thế và mất guard.
-                Route::get('outbound-documents', [AlignedOutboundDocumentController::class, 'index'])
-                    ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
-                Route::post('outbound-documents/{id}/scan', [AlignedOutboundFlowController::class, 'outboundScan'])
-                    ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
-                Route::post('outbound-documents/{id}/unmatch', [AlignedOutboundFlowController::class, 'outboundUnmatch'])
-                    ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
-                Route::post('outbound-documents/{id}/post-issue', [AlignedOutboundFlowController::class, 'postIssue'])
-                    ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
-
+                // WWHN-195 / DEV195-P1-05R2: bốn override outbound (GET danh sách,
+                // /scan, /unmatch, /post-issue) đã được đưa thẳng vào
+                // Modules/Warehouse/routes/api.php nên không khai lại ở đây. Giữ
+                // override ở hai nơi sẽ tái lập đúng cái bẫy cũ: bảng route tĩnh mô tả
+                // một handler còn runtime chạy handler khác, nên contract/Swagger dựng
+                // từ route bị sai mà không ai phát hiện.
+                //
+                // Hai route label-snapshots dưới đây VẪN phải override vì routes/api.php
+                // trỏ CurrentBaselineOperationsController (nhãn theo snapshot lẻ), còn
+                // baseline hiện hành là 01 Packing Label cho mỗi phiếu xuất (SRS §5.2).
+                // Override giữ nguyên permission theo §8.1 Enforcement standard.
                 Route::post('label-snapshots', [AlignedOutboundFlowController::class, 'storePackingLabel'])
                     ->middleware('permission:label.print');
                 Route::post('label-snapshots/{id}/apply', [AlignedOutboundFlowController::class, 'applyPackingLabel'])

@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\AgencyController;
 use Modules\Warehouse\Http\Controllers\AlignedImportMatchReportController;
 use Modules\Warehouse\Http\Controllers\AlignedLabelLogReportController;
+use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
 use Modules\Warehouse\Http\Controllers\AlignedWarrantyReportController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
@@ -125,17 +126,23 @@ Route::prefix('v1')->group(function (): void {
         // chỉ được sinh từ Confirm toa (POST /outbound-request-imports/{id}/confirm);
         // Annex C cũng không khai createOutboundDocument/updateOutboundDocument.
         // §8.1 Enforcement standard: permission + data scope cho mọi route phiếu xuất.
-        Route::get('outbound-documents', [OutboundDocumentController::class, 'index'])
+        // WWHN-195 / DEV195-P1-05R2: bảng route phải trùng handler chạy thật.
+        // Bốn route dưới đây trước trỏ CurrentBaseline* rồi bị
+        // Flow06AlignmentServiceProvider override sang Aligned* lúc boot, nên ai đọc
+        // routes/api.php để dựng contract đều mô tả nhầm nghiệp vụ đã bị supersede
+        // (nhãn per-item PENDING_PRINT + in ngay lúc scan, code_value max lệch nhau).
+        // Nay trỏ thẳng handler canonical.
+        Route::get('outbound-documents', [AlignedOutboundDocumentController::class, 'index'])
             ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
         Route::get('outbound-documents/{id}', [OutboundDocumentController::class, 'show'])
             ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
         Route::post('outbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelOutbound'])
             ->middleware(['permission:outbound.cancel', EnforceOutboundWarehouseScope::class]);
-        Route::post('outbound-documents/{id}/scan', [CurrentBaselineStockFlowController::class, 'outboundScan'])
+        Route::post('outbound-documents/{id}/scan', [AlignedOutboundFlowController::class, 'outboundScan'])
             ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
-        Route::post('outbound-documents/{id}/unmatch', [CurrentBaselineStockFlowController::class, 'outboundUnmatch'])
+        Route::post('outbound-documents/{id}/unmatch', [AlignedOutboundFlowController::class, 'outboundUnmatch'])
             ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
-        Route::post('outbound-documents/{id}/post-issue', [CurrentBaselineStockFlowController::class, 'postIssue'])
+        Route::post('outbound-documents/{id}/post-issue', [AlignedOutboundFlowController::class, 'postIssue'])
             ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
         Route::post('outbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseOutbound'])
             ->middleware(['permission:inventory.reversal.post', EnforceOutboundWarehouseScope::class]);

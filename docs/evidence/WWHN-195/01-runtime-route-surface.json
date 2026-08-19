@@ -1,0 +1,162 @@
+{
+  "task": "WWHN-195",
+  "register": "R2",
+  "captured_by": "php artisan route:list --json",
+  "outbound_document_operations": 14,
+  "routes": [
+    {
+      "method": "GET",
+      "uri": "api/v1/outbound-documents",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundDocumentController@index",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:outbound.view",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "GET",
+      "uri": "api/v1/outbound-documents/{id}",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundDocumentController@show",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:outbound.view",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/cancel",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineDocumentController@cancelOutbound",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:outbound.cancel",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "PUT",
+      "uri": "api/v1/outbound-documents/{id}/items/{itemId}/rfid",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselinePhysicalCodeController@assignOutboundItemRfid",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:physical_code.assign_rfid",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@previewPackingLabel",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:packing_label.preview|label.print",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/packing-labels/{labelId}/print",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineOperationsController@printPackingLabelForDocument",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:packing_label.print|label.print",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/packing-labels/{labelId}/ready",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@readyPackingLabel",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:packing_label.ready|label.print",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineOperationsController@reprintPackingLabelForDocument",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:packing_label.reprint|label.reprint",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/post-issue",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@postIssue",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:outbound.post",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/reversals",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineStockFlowController@reverseOutbound",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:inventory.reversal.post",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/reverse",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineStockFlowController@reverseOutbound",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:inventory.reversal.post",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/scan",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@outboundScan",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:outbound.scan",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/scans",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@outboundScan",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:outbound.scan",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    },
+    {
+      "method": "POST",
+      "uri": "api/v1/outbound-documents/{id}/unmatch",
+      "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@outboundUnmatch",
+      "middleware": [
+        "api",
+        "auth:api",
+        "permission:outbound.scan",
+        "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+      ]
+    }
+  ]
+}

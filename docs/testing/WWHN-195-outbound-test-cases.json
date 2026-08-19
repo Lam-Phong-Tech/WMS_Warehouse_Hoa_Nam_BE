@@ -1,50 +1,628 @@
 {
   "jira_key": "WWHN-195",
-  "version": "1.0.0",
-  "status": "PROPOSED",
-  "approval_status": "PENDING_BA_SIGN_OFF",
-  "note": "WWHN-195 gốc trên Jira trống nội dung tại thời điểm soạn tài liệu này (2026-08-15). Test case này được suy ra từ code baseline thực tế đã verify bằng HTTP integration test, không phải từ AC gốc trên Jira — cần BA đối chiếu lại.",
+  "version": "2.0.0-R2",
+  "status": "ALIGNED_WITH_RUNTIME",
+  "approval_status": "PENDING_QA1_EXECUTION",
+  "note": "Bản R2: re-scope nhóm create (W195-CREATE-001, W195-CREATE-002, W195-CREATE-003, W195-CREATE-004) sang đường Confirm toa vì §8.1 không có direct POST/PATCH /outbound-documents — giữ nguyên quy tắc nghiệp vụ, chỉ đổi cửa vào. Bổ sung nhóm case source-of-truth (route == handler == contract), scan-mode tường minh theo ERD bảng 25, vòng đời Packing Label §6 và driver parity cho scan_source.",
   "cases": [
-    { "id": "W195-CREATE-001", "priority": "P0", "area": "create", "scenario": "tạo outbound document từ toa OPEN — lines hydrate tự động", "expected_http": 201, "expected": ["status=DRAFT", "lines khớp outbound_request_lines", "outbound_request chuyển CONSUMED"] },
-    { "id": "W195-CREATE-002", "priority": "P0", "area": "create", "scenario": "gửi lines thủ công trong payload", "expected_http": 422, "expected": ["validation error trên field lines (prohibited)"] },
-    { "id": "W195-CREATE-003", "priority": "P0", "area": "create", "scenario": "outbound_request đã CONSUMED bởi document khác", "expected_http": 409, "expected": ["OUTBOUND_REQUEST_ALREADY_USED"] },
-    { "id": "W195-CREATE-004", "priority": "P1", "area": "create", "scenario": "outbound_request CANCELLED hoặc không tồn tại", "expected_http": 422, "expected": ["OUTBOUND_REQUEST_NOT_ACTIVE"] },
-    { "id": "W195-SCAN-001", "priority": "P0", "area": "scan-mode", "scenario": "chế độ nhập tay — payload gửi item_id", "expected_http": 200, "expected": ["item_id trong response khớp item_id gửi lên", "stock_effect=NONE", "scanned_qty tăng"] },
-    { "id": "W195-SCAN-002", "priority": "P0", "area": "scan-mode", "scenario": "chế độ quét mã — payload gửi code_value", "expected_http": 200, "expected": ["server tự resolve item qua physical_codes", "stock_effect=NONE"] },
-    { "id": "W195-SCAN-003", "priority": "P1", "area": "scan-mode", "scenario": "gửi cả item_id và code_value không khớp cùng một item", "expected_http": 422, "expected": ["PHYSICAL_CODE_ITEM_MISMATCH"] },
-    { "id": "W195-SCAN-004", "priority": "P1", "area": "scan", "scenario": "scan vượt available stock", "expected_http": 422, "expected": ["INSUFFICIENT_STOCK", "không tạo match"] },
-    { "id": "W195-SCAN-005", "priority": "P1", "area": "scan", "scenario": "item đã match ở outbound document khác đang active", "expected_http": 409, "expected": ["ITEM_ALREADY_MATCHED"] },
-    { "id": "W195-UNMATCH-001", "priority": "P1", "area": "unmatch", "scenario": "gỡ match ACTIVE trước Post", "expected_http": 200, "expected": ["match status ACTIVE -> REMOVED", "scanned_qty giảm tương ứng", "stock_effect=NONE", "item vẫn IN_STOCK"] },
-    { "id": "W195-STATUS-001", "priority": "P0", "area": "status-lifecycle", "scenario": "DRAFT -> SCANNING khi scan đầu tiên thành công", "expected_http": 200, "expected": ["status chuyển SCANNING", "version tăng"] },
-    { "id": "W195-STATUS-002", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue khi chưa scan đủ (scanned_qty != qty_planned)", "expected_http": 422, "expected": ["FULL_POST_REQUIRED"] },
-    { "id": "W195-STATUS-003", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue khi PRODUCT item chưa có label PRINTED", "expected_http": 422, "expected": ["LABEL_NOT_PRINTED"] },
-    { "id": "W195-STATUS-004", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue khi PRODUCT item chưa có RFID active — RFID OPTIONAL theo SRS v1.12 REQ-SRS-011/DEC-RFID-FALLBACK-001, KHÔNG phải Post Issue gate; case đã đóng vì ITEM_RFID_REQUIRED không còn tồn tại trong baseline", "expected_http": 200, "expected": ["Post Issue vẫn thành công dù không có RFID hardware_uid ACTIVE, miễn PRODUCT_ITEM_MATCH_REQUIRED và LABEL_NOT_PRINTED đã thoả"] },
-    { "id": "W195-STATUS-005", "priority": "P0", "area": "status-lifecycle", "scenario": "Post Issue happy path", "expected_http": 200, "expected": ["status=POSTED", "stock_effect=DECREASE", "item_status=ISSUED", "match status=POSTED", "một posting_event COMMITTED"] },
-    { "id": "W195-STATUS-006", "priority": "P0", "area": "status-lifecycle", "scenario": "Cancel document DRAFT/SCANNING", "expected_http": 200, "expected": ["status=CANCELLED (terminal)", "outbound_request trả về OPEN nếu không còn phiếu active khác"] },
-    { "id": "W195-STATUS-007", "priority": "P1", "area": "status-lifecycle", "scenario": "Cancel/Update trên document đã POSTED hoặc CANCELLED", "expected_http": 409, "expected": ["STATE_CONFLICT"] },
-    { "id": "W195-RACE-001", "priority": "P0", "area": "concurrency", "scenario": "post-issue racer với If-Match cũ sau khi winner đã commit", "expected_http": 412, "expected": ["PRECONDITION_FAILED", "stock effect chỉ áp dụng đúng một lần"] },
-    { "id": "W195-RACE-002", "priority": "P0", "area": "concurrency", "scenario": "post-issue lần hai với If-Match hiện hành sau khi document đã POSTED", "expected_http": 409, "expected": ["STATE_CONFLICT", "không tạo thêm stock_movement"] },
-    { "id": "W195-RACE-003", "priority": "P1", "area": "concurrency", "scenario": "scan với If-Match cũ (stale) sau khi winner đã scan trước", "expected_http": 412, "expected": ["PRECONDITION_FAILED", "chỉ một match được tạo"] },
-    { "id": "W195-RACE-004", "priority": "P1", "area": "concurrency", "scenario": "business_key duy nhất theo document+line sau Post Issue", "expected_http": "N/A", "expected": ["sha1('ISSUE|doc_id|line_id') duy nhất trong stock_movements"] },
-    { "id": "W195-IDEM-001", "priority": "P0", "area": "idempotency", "scenario": "post-issue lặp lại cùng Idempotency-Key và payload", "expected_http": 200, "expected": ["Idempotent-Replay=true", "không double-apply stock effect", "không nhân đôi audit_log row"] },
-    { "id": "W195-IDEM-002", "priority": "P1", "area": "idempotency", "scenario": "post-issue thiếu header Idempotency-Key", "expected_http": 428, "expected": ["PRECONDITION_REQUIRED"] },
-    { "id": "W195-AUDIT-001", "priority": "P0", "area": "audit", "scenario": "tạo outbound document ghi audit_log CREATE_OUTBOUND", "expected_http": "N/A", "expected": ["audit_log row action=CREATE_OUTBOUND", "actor_id đúng", "after_data chứa outbound_request_id"] },
-    { "id": "W195-AUDIT-002", "priority": "P0", "area": "audit", "scenario": "post-issue ghi audit_log POST_ISSUE, replay không nhân đôi", "expected_http": "N/A", "expected": ["audit_log row action=POST_ISSUE duy nhất", "before_data.status=SCANNING", "after_data.status=POSTED"] },
-    { "id": "W195-AUDIT-003", "priority": "P1", "area": "audit", "scenario": "cancel document ghi audit_log CANCEL_STOCK_DOCUMENT kèm reason", "expected_http": "N/A", "expected": ["audit_log row action=CANCEL_STOCK_DOCUMENT", "reason đúng nội dung gửi lên"] },
-    { "id": "W195-RBAC-001", "priority": "P0", "area": "permission", "scenario": "chưa xác thực gọi bất kỳ endpoint outbound", "expected_http": 401, "expected": ["UNAUTHENTICATED"] },
-    { "id": "W195-RBAC-002", "priority": "P0", "area": "permission", "scenario": "role VIEWER (chỉ outbound.view) gọi create", "expected_http": 403, "expected": ["ACCESS_DENIED"] },
-    { "id": "W195-RBAC-003", "priority": "P1", "area": "permission", "scenario": "role WAREHOUSE_STAFF (create/scan, không post/cancel) gọi post-issue/cancel", "expected_http": 403, "expected": ["ACCESS_DENIED"] },
-    { "id": "W195-RBAC-004", "priority": "P1", "area": "permission", "scenario": "role WAREHOUSE_APPROVER (post/cancel, không create/scan) gọi create/scan", "expected_http": 403, "expected": ["ACCESS_DENIED"] },
-    { "id": "W195-RBAC-005", "priority": "P1", "area": "permission", "scenario": "SUPER_ADMIN bypass mọi permission outbound", "expected_http": 200, "expected": ["mọi endpoint outbound truy cập được"] },
-    { "id": "W195-RBAC-006", "priority": "P1", "area": "permission", "scenario": "403 response format không lộ stack trace/secret", "expected_http": 403, "expected": ["không có field trace/stack", "error.code=ACCESS_DENIED", "error.details=[]"] }
+    {
+      "id": "W195-CREATE-001",
+      "priority": "P0",
+      "area": "create-via-confirm",
+      "scenario": "tạo outbound document từ toa OPEN — lines hydrate tự động (qua POST /outbound-request-imports/{id}/confirm — §8.1 không có direct create)",
+      "expected_http": 200,
+      "expected": [
+        "status=DRAFT",
+        "lines khớp outbound_request_lines",
+        "outbound_request chuyển CONSUMED"
+      ],
+      "traces": [
+        "SRS §8.1",
+        "REQ-SRS-014",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-CREATE-002",
+      "priority": "P0",
+      "area": "create-via-confirm",
+      "scenario": "gửi lines thủ công trong payload (qua POST /outbound-request-imports/{id}/confirm — §8.1 không có direct create)",
+      "expected_http": 422,
+      "expected": [
+        "validation error trên field lines (prohibited)"
+      ],
+      "traces": [
+        "SRS §8.1",
+        "REQ-SRS-014",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-CREATE-003",
+      "priority": "P0",
+      "area": "create-via-confirm",
+      "scenario": "outbound_request đã CONSUMED bởi document khác (qua POST /outbound-request-imports/{id}/confirm — §8.1 không có direct create)",
+      "expected_http": 409,
+      "expected": [
+        "OUTBOUND_REQUEST_ALREADY_USED"
+      ],
+      "traces": [
+        "SRS §8.1",
+        "REQ-SRS-014",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-CREATE-004",
+      "priority": "P1",
+      "area": "create-via-confirm",
+      "scenario": "outbound_request CANCELLED hoặc không tồn tại (qua POST /outbound-request-imports/{id}/confirm — §8.1 không có direct create)",
+      "expected_http": 422,
+      "expected": [
+        "OUTBOUND_REQUEST_NOT_ACTIVE"
+      ],
+      "traces": [
+        "SRS §8.1",
+        "REQ-SRS-014",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-SCAN-001",
+      "priority": "P0",
+      "area": "scan-mode",
+      "scenario": "chế độ nhập tay — payload gửi item_id",
+      "expected_http": 200,
+      "expected": [
+        "item_id trong response khớp item_id gửi lên",
+        "stock_effect=NONE",
+        "scanned_qty tăng",
+        "response kèm scan_source + scan_source_origin (R2)"
+      ]
+    },
+    {
+      "id": "W195-SCAN-002",
+      "priority": "P0",
+      "area": "scan-mode",
+      "scenario": "chế độ quét mã — payload gửi code_value",
+      "expected_http": 200,
+      "expected": [
+        "server tự resolve item qua physical_codes",
+        "stock_effect=NONE",
+        "response kèm scan_source + scan_source_origin (R2)"
+      ]
+    },
+    {
+      "id": "W195-SCAN-003",
+      "priority": "P1",
+      "area": "scan-mode",
+      "scenario": "gửi cả item_id và code_value không khớp cùng một item",
+      "expected_http": 422,
+      "expected": [
+        "PHYSICAL_CODE_ITEM_MISMATCH",
+        "response kèm scan_source + scan_source_origin (R2)"
+      ]
+    },
+    {
+      "id": "W195-SCAN-004",
+      "priority": "P1",
+      "area": "scan",
+      "scenario": "scan vượt available stock",
+      "expected_http": 422,
+      "expected": [
+        "INSUFFICIENT_STOCK",
+        "không tạo match"
+      ]
+    },
+    {
+      "id": "W195-SCAN-005",
+      "priority": "P1",
+      "area": "scan",
+      "scenario": "item đã match ở outbound document khác đang active",
+      "expected_http": 409,
+      "expected": [
+        "ITEM_ALREADY_MATCHED"
+      ]
+    },
+    {
+      "id": "W195-UNMATCH-001",
+      "priority": "P1",
+      "area": "unmatch",
+      "scenario": "gỡ match ACTIVE trước Post",
+      "expected_http": 200,
+      "expected": [
+        "match status ACTIVE -> REMOVED",
+        "scanned_qty giảm tương ứng",
+        "stock_effect=NONE",
+        "item vẫn IN_STOCK"
+      ]
+    },
+    {
+      "id": "W195-STATUS-001",
+      "priority": "P0",
+      "area": "status-lifecycle",
+      "scenario": "DRAFT -> SCANNING khi scan đầu tiên thành công",
+      "expected_http": 200,
+      "expected": [
+        "status chuyển SCANNING",
+        "version tăng"
+      ]
+    },
+    {
+      "id": "W195-STATUS-002",
+      "priority": "P0",
+      "area": "status-lifecycle",
+      "scenario": "Post Issue khi chưa scan đủ (scanned_qty != qty_planned)",
+      "expected_http": 422,
+      "expected": [
+        "FULL_POST_REQUIRED"
+      ]
+    },
+    {
+      "id": "W195-STATUS-003",
+      "priority": "P0",
+      "area": "status-lifecycle",
+      "scenario": "Post Issue khi PRODUCT item chưa có label PRINTED",
+      "expected_http": 422,
+      "expected": [
+        "LABEL_NOT_PRINTED"
+      ]
+    },
+    {
+      "id": "W195-STATUS-004",
+      "priority": "P0",
+      "area": "status-lifecycle",
+      "scenario": "Post Issue khi PRODUCT item chưa có RFID active — RFID OPTIONAL theo SRS v1.12 REQ-SRS-011/DEC-RFID-FALLBACK-001, KHÔNG phải Post Issue gate; case đã đóng vì ITEM_RFID_REQUIRED không còn tồn tại trong baseline",
+      "expected_http": 200,
+      "expected": [
+        "Post Issue vẫn thành công dù không có RFID hardware_uid ACTIVE, miễn PRODUCT_ITEM_MATCH_REQUIRED và LABEL_NOT_PRINTED đã thoả"
+      ]
+    },
+    {
+      "id": "W195-STATUS-005",
+      "priority": "P0",
+      "area": "status-lifecycle",
+      "scenario": "Post Issue happy path",
+      "expected_http": 200,
+      "expected": [
+        "status=POSTED",
+        "stock_effect=DECREASE",
+        "item_status=ISSUED",
+        "match status=POSTED",
+        "một posting_event COMMITTED"
+      ]
+    },
+    {
+      "id": "W195-STATUS-006",
+      "priority": "P0",
+      "area": "status-lifecycle",
+      "scenario": "Cancel document DRAFT/SCANNING",
+      "expected_http": 200,
+      "expected": [
+        "status=CANCELLED (terminal)",
+        "outbound_request trả về OPEN nếu không còn phiếu active khác"
+      ]
+    },
+    {
+      "id": "W195-STATUS-007",
+      "priority": "P1",
+      "area": "status-lifecycle",
+      "scenario": "Cancel/Update trên document đã POSTED hoặc CANCELLED",
+      "expected_http": 409,
+      "expected": [
+        "STATE_CONFLICT"
+      ]
+    },
+    {
+      "id": "W195-RACE-001",
+      "priority": "P0",
+      "area": "concurrency",
+      "scenario": "post-issue racer với If-Match cũ sau khi winner đã commit",
+      "expected_http": 412,
+      "expected": [
+        "PRECONDITION_FAILED",
+        "stock effect chỉ áp dụng đúng một lần"
+      ]
+    },
+    {
+      "id": "W195-RACE-002",
+      "priority": "P0",
+      "area": "concurrency",
+      "scenario": "post-issue lần hai với If-Match hiện hành sau khi document đã POSTED",
+      "expected_http": 409,
+      "expected": [
+        "STATE_CONFLICT",
+        "không tạo thêm stock_movement"
+      ]
+    },
+    {
+      "id": "W195-RACE-003",
+      "priority": "P1",
+      "area": "concurrency",
+      "scenario": "scan với If-Match cũ (stale) sau khi winner đã scan trước",
+      "expected_http": 412,
+      "expected": [
+        "PRECONDITION_FAILED",
+        "chỉ một match được tạo"
+      ]
+    },
+    {
+      "id": "W195-RACE-004",
+      "priority": "P1",
+      "area": "concurrency",
+      "scenario": "business_key duy nhất theo document+line sau Post Issue",
+      "expected_http": "N/A",
+      "expected": [
+        "sha1('ISSUE|doc_id|line_id') duy nhất trong stock_movements"
+      ]
+    },
+    {
+      "id": "W195-IDEM-001",
+      "priority": "P0",
+      "area": "idempotency",
+      "scenario": "post-issue lặp lại cùng Idempotency-Key và payload",
+      "expected_http": 200,
+      "expected": [
+        "Idempotent-Replay=true",
+        "không double-apply stock effect",
+        "không nhân đôi audit_log row"
+      ]
+    },
+    {
+      "id": "W195-IDEM-002",
+      "priority": "P1",
+      "area": "idempotency",
+      "scenario": "post-issue thiếu header Idempotency-Key",
+      "expected_http": 428,
+      "expected": [
+        "PRECONDITION_REQUIRED"
+      ]
+    },
+    {
+      "id": "W195-AUDIT-001",
+      "priority": "P0",
+      "area": "audit",
+      "scenario": "tạo outbound document ghi audit_log CREATE_OUTBOUND",
+      "expected_http": "N/A",
+      "expected": [
+        "audit_log row action=CREATE_OUTBOUND",
+        "actor_id đúng",
+        "after_data chứa outbound_request_id"
+      ]
+    },
+    {
+      "id": "W195-AUDIT-002",
+      "priority": "P0",
+      "area": "audit",
+      "scenario": "post-issue ghi audit_log POST_ISSUE, replay không nhân đôi",
+      "expected_http": "N/A",
+      "expected": [
+        "audit_log row action=POST_ISSUE duy nhất",
+        "before_data.status=SCANNING",
+        "after_data.status=POSTED"
+      ]
+    },
+    {
+      "id": "W195-AUDIT-003",
+      "priority": "P1",
+      "area": "audit",
+      "scenario": "cancel document ghi audit_log CANCEL_STOCK_DOCUMENT kèm reason",
+      "expected_http": "N/A",
+      "expected": [
+        "audit_log row action=CANCEL_STOCK_DOCUMENT",
+        "reason đúng nội dung gửi lên"
+      ]
+    },
+    {
+      "id": "W195-RBAC-001",
+      "priority": "P0",
+      "area": "permission",
+      "scenario": "chưa xác thực gọi bất kỳ endpoint outbound",
+      "expected_http": 401,
+      "expected": [
+        "UNAUTHENTICATED"
+      ]
+    },
+    {
+      "id": "W195-RBAC-002",
+      "priority": "P0",
+      "area": "permission",
+      "scenario": "role VIEWER (chỉ outbound.view) gọi create",
+      "expected_http": 403,
+      "expected": [
+        "ACCESS_DENIED"
+      ]
+    },
+    {
+      "id": "W195-RBAC-003",
+      "priority": "P1",
+      "area": "permission",
+      "scenario": "role WAREHOUSE_STAFF (create/scan, không post/cancel) gọi post-issue/cancel",
+      "expected_http": 403,
+      "expected": [
+        "ACCESS_DENIED"
+      ]
+    },
+    {
+      "id": "W195-RBAC-004",
+      "priority": "P1",
+      "area": "permission",
+      "scenario": "role WAREHOUSE_APPROVER (post/cancel, không create/scan) gọi create/scan",
+      "expected_http": 403,
+      "expected": [
+        "ACCESS_DENIED"
+      ]
+    },
+    {
+      "id": "W195-RBAC-005",
+      "priority": "P1",
+      "area": "permission",
+      "scenario": "SUPER_ADMIN bypass mọi permission outbound",
+      "expected_http": 200,
+      "expected": [
+        "mọi endpoint outbound truy cập được"
+      ]
+    },
+    {
+      "id": "W195-RBAC-006",
+      "priority": "P1",
+      "area": "permission",
+      "scenario": "403 response format không lộ stack trace/secret",
+      "expected_http": 403,
+      "expected": [
+        "không có field trace/stack",
+        "error.code=ACCESS_DENIED",
+        "error.details=[]"
+      ]
+    },
+    {
+      "id": "W195-SRC-001",
+      "priority": "P0",
+      "area": "source-of-truth",
+      "scenario": "POST /api/v1/outbound-documents không có route runtime (§8.1: no direct create operation)",
+      "expected_http": 404,
+      "expected": [
+        "route table không đăng ký POST /outbound-documents",
+        "OutboundDocumentController không còn annotation operationId stock_out_create",
+        "WWHN-195-outbound-openapi.yaml không khai operation này"
+      ],
+      "traces": [
+        "SRS §8.1",
+        "Annex C",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-SRC-002",
+      "priority": "P0",
+      "area": "source-of-truth",
+      "scenario": "PATCH /api/v1/outbound-documents/{id} không có route runtime",
+      "expected_http": 404,
+      "expected": [
+        "route table không đăng ký PATCH/PUT /outbound-documents/{id}",
+        "không còn annotation operationId stock_out_update",
+        "FE không còn hàm updateOutboundDocument gọi PATCH"
+      ],
+      "traces": [
+        "SRS §8.1",
+        "REQ-SRS-014",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-SRC-003",
+      "priority": "P0",
+      "area": "source-of-truth",
+      "scenario": "Bảng route tĩnh trùng handler chạy thật — /scan, /scans, /unmatch, /post-issue, GET list đều là Aligned*",
+      "expected_http": null,
+      "expected": [
+        "mỗi cặp method+uri chỉ được đăng ký đúng một lần (không override kép routes/api.php + ServiceProvider)",
+        "POST /scan và POST /scans cùng AlignedOutboundFlowController@outboundScan",
+        "POST /post-issue = AlignedOutboundFlowController@postIssue"
+      ],
+      "traces": [
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-SRC-004",
+      "priority": "P1",
+      "area": "source-of-truth",
+      "scenario": "File contract khai đúng bằng tập route runtime của /outbound-documents (14 operation, không thừa không thiếu)",
+      "expected_http": null,
+      "expected": [
+        "diff giữa contract và route table = rỗng ở cả hai chiều"
+      ],
+      "traces": [
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-MODE-001",
+      "priority": "P0",
+      "area": "scan-mode",
+      "scenario": "Scan khai scan_source=CAMERA — mode được ghi tường minh vào scan evidence",
+      "expected_http": 200,
+      "expected": [
+        "response data.scan_source=CAMERA",
+        "response data.scan_source_origin=EXPLICIT",
+        "scan evidence lưu scan_source=CAMERA (ERD bảng 25)"
+      ],
+      "traces": [
+        "REQ-SRS-005",
+        "AC-SRS-005",
+        "DEC-CAMERA-001",
+        "ERD bảng 25",
+        "DEV195-P1-01R2"
+      ]
+    },
+    {
+      "id": "W195-MODE-002",
+      "priority": "P1",
+      "area": "scan-mode",
+      "scenario": "Không gửi scan_source — server suy luận và đánh dấu rõ là suy luận",
+      "expected_http": 200,
+      "expected": [
+        "chỉ có item_id → data.scan_source=MANUAL",
+        "data.scan_source_origin=INFERRED",
+        "backward compatible: client cũ không phải đổi payload"
+      ],
+      "traces": [
+        "DEV195-P1-01R2"
+      ]
+    },
+    {
+      "id": "W195-MODE-003",
+      "priority": "P1",
+      "area": "scan-mode",
+      "scenario": "scan_source ngoài CAMERA/MANUAL/HARDWARE bị từ chối",
+      "expected_http": 422,
+      "expected": [
+        "giá trị hợp lệ bám đúng CHECK của scan_events.scan_source",
+        "không ghi scan evidence, không đổi scanned_qty"
+      ],
+      "traces": [
+        "ERD bảng 25",
+        "DEV195-P1-01R2"
+      ]
+    },
+    {
+      "id": "W195-MODE-004",
+      "priority": "P0",
+      "area": "scan-mode",
+      "scenario": "Mode KHÔNG bị khoá theo phiếu — cùng một outbound scan lần 1 CAMERA, lần 2 MANUAL đều thành công",
+      "expected_http": 200,
+      "expected": [
+        "không có endpoint switch mode và không có state mode trên document",
+        "evidence của phiếu giữ đủ cả hai giá trị CAMERA và MANUAL",
+        "cùng permission outbound.scan, cùng state guard DRAFT/SCANNING cho mọi mode"
+      ],
+      "traces": [
+        "AC-SRS-005",
+        "NFR-SRS-021",
+        "DEV195-P1-01R2"
+      ]
+    },
+    {
+      "id": "W195-MODE-005",
+      "priority": "P1",
+      "area": "scan-mode",
+      "scenario": "FE khai mode đúng nguồn: camera modal gửi CAMERA, ô nhập tay/Enter gửi MANUAL",
+      "expected_http": 200,
+      "expected": [
+        "AlignedOutboundDetailModal: CameraScanModal.onDetected → scanSource CAMERA",
+        "ô nhập tay (onPressEnter/click) → scanSource MANUAL"
+      ],
+      "traces": [
+        "AC-SRS-005",
+        "NFR-SRS-021",
+        "DEV195-P1-01R2"
+      ]
+    },
+    {
+      "id": "W195-CONTRACT-001",
+      "priority": "P1",
+      "area": "contract",
+      "scenario": "code_value maxLength khớp nhau giữa contract và runtime = 150",
+      "expected_http": 422,
+      "expected": [
+        "contract OutboundScanRequest.code_value.maxLength = 150",
+        "AlignedOutboundFlowController validate max:150",
+        "gửi 151 ký tự trả 422 và không ghi scan"
+      ],
+      "traces": [
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-LABEL-001",
+      "priority": "P0",
+      "area": "packing-label",
+      "scenario": "Full match tạo đúng 01 Packing Label DRAFT cho cả phiếu; scan không sinh lệnh in",
+      "expected_http": 200,
+      "expected": [
+        "label_snapshots của phiếu = 1 dòng, status=DRAFT",
+        "outbound_item_match_id = null (không còn nhãn per-item)",
+        "label_print_events = 0 sau khi scan",
+        "response packing_label_ready=true, label_status=DRAFT"
+      ],
+      "traces": [
+        "SRS §5.2",
+        "SRS §6",
+        "Annex C",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-LABEL-002",
+      "priority": "P0",
+      "area": "packing-label",
+      "scenario": "Post Issue bị chặn khi nhãn chưa PRINTED",
+      "expected_http": 422,
+      "expected": [
+        "error code LABEL_NOT_PRINTED",
+        "không tạo movement, tồn không đổi"
+      ],
+      "traces": [
+        "SRS §5.2",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-LABEL-003",
+      "priority": "P1",
+      "area": "packing-label",
+      "scenario": "Vòng đời nhãn theo §6: DRAFT → PREVIEWED → READY_TO_PRINT → PRINTED, mọi bước stock-neutral",
+      "expected_http": 200,
+      "expected": [
+        "không còn trạng thái khởi tạo PENDING_PRINT ở luồng outbound",
+        "từ READY_TO_PRINT trở đi snapshot đóng băng, sửa match bị chặn",
+        "stock_effect=NONE ở mọi action nhãn"
+      ],
+      "traces": [
+        "SRS §6",
+        "DEV195-P1-05R2"
+      ]
+    },
+    {
+      "id": "W195-ALIAS-001",
+      "priority": "P2",
+      "area": "contract",
+      "scenario": "Alias Annex C /scans hành xử y hệt /scan",
+      "expected_http": 200,
+      "expected": [
+        "cùng handler, cùng permission, cùng response shape"
+      ],
+      "traces": [
+        "Annex C §8.1"
+      ]
+    },
+    {
+      "id": "W195-PG-001",
+      "priority": "P2",
+      "area": "driver-parity",
+      "scenario": "scan_source tồn tại và ghi được trên cả PostgreSQL lẫn sqlite (nhánh CI)",
+      "expected_http": null,
+      "expected": [
+        "PostgreSQL: scan_events là bảng vật lý, có sẵn CHECK CAMERA/MANUAL/HARDWARE",
+        "sqlite: migration 2026_08_19_000300 thêm scan_source/context_type/context_id vào scan_event và dựng lại view scan_events",
+        "cùng một test khẳng định giá trị mode trên cả hai driver"
+      ],
+      "traces": [
+        "ERD bảng 25",
+        "DEV195-P2-02R2"
+      ]
+    }
   ],
   "automation": {
     "phpunit": [
+      "tests/Feature/Wwhn195OutboundContractAlignmentTest.php",
       "tests/Feature/OutboundDocumentFlowTest.php",
       "tests/Feature/PostIssueConcurrencyBehaviorTest.php",
       "tests/Feature/PostIssueAuditLogTest.php",
       "tests/Feature/OutboundPermissionTest.php",
-      "tests/Feature/OutboundDocsAlignmentContractTest.php"
+      "tests/Feature/OutboundDocsAlignmentContractTest.php",
+      "tests/Feature/Flow06PackingLabelAlignmentTest.php"
     ],
     "postman": "docs/postman/WWHN-195 Outbound Contract.postman_collection.json",
     "openapi": [
@@ -53,7 +631,8 @@
     ]
   },
   "known_gaps_for_ba_review": [
-    "Chế độ nhập tay/quét mã không phải một field enum tường minh trong request/response hay migration — được suy luận từ việc payload /scan có item_id (nhập tay) hay code_value (quét mã). Cần BA xác nhận cơ chế ngầm định này có đáp ứng đủ AC gốc của WWHN-195 hay cần thêm field input_mode tường minh.",
-    "Nội dung WWHN-195 gốc trên Jira, task cha WWHN-45, và dependency HN-PIN-06/HN-FND-001/HN-MC-001 không có trong repo tại thời điểm soạn tài liệu — cần đối chiếu lại với Jira để xác nhận scope/AC đầy đủ."
+    "ĐÃ ĐÓNG (DEV195-P1-01R2): chế độ quét không còn ngầm định. `scan_source` là field tường minh theo CHECK của ERD bảng 25 (CAMERA/MANUAL/HARDWARE); không khai thì server suy luận và đánh dấu scan_source_origin=INFERRED. Mode là thuộc tính của từng scan event, không khoá theo phiếu, không có endpoint switch — bám AC-SRS-005 + NFR-SRS-021 (camera-denied phải rơi về nhập tay giữa luồng).",
+    "CÒN MỞ (ngoài phạm vi WWHN-195, chuyển BE2/ERD owner): physical_codes.code_value — ERD ghi varchar(200), migration tạo varchar(100), API chốt 150. Không gây dữ liệu sai (mã > 100 ký tự chỉ không resolve được) nhưng cần một ERD amendment để ba con số về một.",
+    "CÒN MỞ (BA): actor gắn/ghi/kiểm tra RFID theo OP-05 vẫn chờ formal disposition theo chính SRS v1.12 (DR-CARRIER-001); không chặn luồng xuất vì RFID không phải gate Post Issue."
   ]
 }

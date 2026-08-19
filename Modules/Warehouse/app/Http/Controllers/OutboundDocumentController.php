@@ -14,10 +14,15 @@ use OpenApi\Attributes as OA;
 /**
  * Phiếu xuất kho (doc_type=issue) — read side (index/show).
  *
- * Mutation (create/update/cancel/scan/unmatch/post-issue/reverse) đi qua
- * CurrentBaselineDocumentController / CurrentBaselineStockFlowController để
- * enforce baseline full-post; mọi transition duyệt/partial legacy đã bị
- * supersede và không còn tồn tại (SCOPE LOCK 0.3).
+ * Mutation (cancel/scan/unmatch/post-issue/reverse) đi qua
+ * CurrentBaselineDocumentController / AlignedOutboundFlowController để enforce
+ * baseline full-post; mọi transition duyệt/partial legacy đã bị supersede và
+ * không còn tồn tại (SCOPE LOCK 0.3).
+ *
+ * WWHN-195 / DEV195-P1-05R2 — nguồn sự thật của annotation trong file này:
+ * routes/api.php + Flow06AlignmentServiceProvider (handler thực thi). Không khai
+ * operation nào không có route tương ứng; RouteSyncProcessor sẽ cắt bỏ nhưng
+ * annotation ghost vẫn khiến FE/QA đọc nhầm contract nên phải xoá tại nguồn.
  */
 #[OA\Get(
     path: '/api/v1/outbound-documents',
@@ -37,40 +42,11 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 403, description: 'Không có quyền outbound.view'),
     ]
 )]
-#[OA\Post(
-    path: '/api/v1/outbound-documents',
-    operationId: 'stock_out_create',
-    summary: 'Tạo phiếu xuất kho DRAFT từ toa yêu cầu xuất',
-    description: 'outbound_request_id là bắt buộc; lines được hydrate từ outbound_request_lines (BP-WMS-04). Không nhận lines thủ công. DRAFT chưa ảnh hưởng tồn kho. Idempotency-Key là tuỳ chọn ở action này.',
-    security: [['bearerAuth' => []]],
-    tags: ['10. Stock Out (Outbound)'],
-    parameters: [
-        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: false, schema: new OA\Schema(type: 'string')),
-    ],
-    requestBody: new OA\RequestBody(
-        required: true,
-        content: new OA\JsonContent(
-            required: ['src_warehouse_id', 'outbound_request_id'],
-            properties: [
-                new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true),
-                new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
-                new OA\Property(property: 'src_warehouse_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'outbound_request_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
-                new OA\Property(property: 'recipient_address', type: 'string', maxLength: 2000, nullable: true),
-                new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
-            ]
-        )
-    ),
-    responses: [
-        new OA\Response(response: 201, description: 'Tạo phiếu xuất kho thành công (ETag = version)'),
-        new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền outbound.create'),
-        new OA\Response(response: 409, description: 'Toa đã có outbound document hoặc Idempotency-Key dùng với payload khác'),
-        new OA\Response(response: 422, description: 'Kho không ACTIVE, toa không hợp lệ hoặc gửi lines thủ công'),
-    ]
-)]
+// GHOST OPERATION ĐÃ GỠ (DEV195-P1-05R2): `POST /api/v1/outbound-documents`
+// (operationId stock_out_create). SRS v1.12 §8.1/Annex C ghi rõ "Confirm creates
+// exactly one outbound DRAFT; no direct POST /outbound-documents create
+// operation" và routes/api.php:124-127 cũng đã bỏ route này. Đường tạo phiếu
+// duy nhất: POST /api/v1/outbound-request-imports/{id}/confirm.
 #[OA\Get(
     path: '/api/v1/outbound-documents/{id}',
     operationId: 'stock_out_detail',
@@ -84,37 +60,10 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
     ]
 )]
-#[OA\Patch(
-    path: '/api/v1/outbound-documents/{id}',
-    operationId: 'stock_out_update',
-    summary: 'Sửa header phiếu xuất kho (DRAFT/SCANNING, bắt buộc If-Match)',
-    description: 'Phiếu sinh từ toa không được sửa lines (SOURCE_REQUEST_IMMUTABLE); phiếu đã có scan evidence không được thay cấu trúc dòng (SCANNED_DOCUMENT_IMMUTABLE).',
-    security: [['bearerAuth' => []]],
-    tags: ['10. Stock Out (Outbound)'],
-    parameters: [
-        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
-    ],
-    requestBody: new OA\RequestBody(
-        content: new OA\JsonContent(properties: [
-            new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true),
-            new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
-            new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
-            new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
-            new OA\Property(property: 'recipient_address', type: 'string', maxLength: 2000, nullable: true),
-            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
-        ])
-    ),
-    responses: [
-        new OA\Response(response: 200, description: 'Cập nhật thành công (ETag = version mới)'),
-        new OA\Response(response: 401, description: 'Chưa xác thực'),
-        new OA\Response(response: 403, description: 'Không có quyền outbound.create'),
-        new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
-        new OA\Response(response: 409, description: 'STATE_CONFLICT / SOURCE_REQUEST_IMMUTABLE / SCANNED_DOCUMENT_IMMUTABLE'),
-        new OA\Response(response: 412, description: 'If-Match version mismatch'),
-        new OA\Response(response: 428, description: 'Thiếu If-Match'),
-    ]
-)]
+// GHOST OPERATION ĐÃ GỠ (DEV195-P1-05R2): `PATCH /api/v1/outbound-documents/{id}`
+// (operationId stock_out_update). Không có route runtime; header phiếu xuất được
+// chốt tại bước Confirm toa (recipient/địa chỉ/SĐT resolve trước Confirm theo
+// REQ-SRS-014), sau đó phiếu chỉ đi tiếp scan → label → post-issue → cancel.
 #[OA\Post(
     path: '/api/v1/outbound-documents/{id}/cancel',
     operationId: 'stock_out_cancel',
@@ -143,8 +92,8 @@ use OpenApi\Attributes as OA;
 #[OA\Post(
     path: '/api/v1/outbound-documents/{id}/scan',
     operationId: 'stock_out_scan',
-    summary: 'Quét & match item vào dòng phiếu xuất; tự tạo label snapshot + direct print (stock_effect=NONE)',
-    description: 'Camera và nhập tay dùng chung endpoint/validation. Match hợp lệ tạo Label_Snapshot PENDING_PRINT và gửi lệnh in trực tiếp; kết quả PRINTED/PRINT_FAILED trả kèm response. Không ghi stock_movements, không đổi inventory_balances.',
+    summary: 'Quét & match item vào dòng phiếu xuất (stock_effect=NONE)',
+    description: 'Handler thực thi là AlignedOutboundFlowController::outboundScan (Flow06AlignmentServiceProvider override); alias Annex C `/scans` dùng chung handler nên hai path có cùng nghiệp vụ. Camera và nhập tay dùng chung endpoint/validation (AC-SRS-005); `scan_source` khai báo tường minh nguồn quét theo ERD bảng 25 (CAMERA/MANUAL/HARDWARE), không gửi thì server suy luận và ghi rõ scan_source_origin=INFERRED. Mỗi lần scan là một scan event độc lập — không khoá chế độ theo phiếu, được đổi qua lại giữa camera và nhập tay trong cùng phiếu (NFR-SRS-021 camera-denied fallback). Scan KHÔNG in nhãn: chỉ khi full match hệ thống mới tổng hợp và tạo/đảm bảo đúng 01 Packing Label DRAFT cho cả phiếu (SRS §5.2/§6); Preview/Ready/Print là action riêng dưới /packing-labels/{label_id}. Không ghi stock_movements, không đổi inventory_balances.',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [
@@ -158,14 +107,15 @@ use OpenApi\Attributes as OA;
             properties: [
                 new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
                 new OA\Property(property: 'quantity', type: 'integer', example: 1),
-                new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true),
+                new OA\Property(property: 'code_value', type: 'string', maxLength: 150, nullable: true),
                 new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'MANUAL', 'HARDWARE'], nullable: true),
+                new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
             ]
         )
     ),
     responses: [
-        new OA\Response(response: 200, description: 'Item matched; label result kèm theo; stock_effect=NONE'),
+        new OA\Response(response: 200, description: 'Item matched; kèm scan_source/scan_source_origin, packing_label_ready và label_status (DRAFT khi vừa full match, NOT_CREATED khi chưa đủ); stock_effect=NONE'),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
         new OA\Response(response: 403, description: 'Không có quyền outbound.scan'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ hoặc dòng'),
@@ -203,7 +153,7 @@ use OpenApi\Attributes as OA;
     path: '/api/v1/outbound-documents/{id}/post-issue',
     operationId: 'stock_out_post_issue',
     summary: 'Full Post Issue (SCANNING → POSTED, giảm tồn atomic đúng một lần)',
-    description: 'Chỉ Post khi mọi line scanned_qty = required_qty, đủ tồn, mọi PRODUCT item có nhãn PRINTED và active RFID/hardware_uid. Bắt buộc Idempotency-Key + If-Match. Không có xuất một phần.',
+    description: 'Chỉ Post khi mọi line scanned_qty = required_qty, đủ tồn, mọi PRODUCT unit có item match ACTIVE, và Packing Label của phiếu đã PRINTED + snapshot còn current + đã xác nhận dán nhãn (SRS §5.2/§6: DRAFT → PREVIEWED → READY_TO_PRINT → PRINTED). RFID/hardware_uid là tuỳ chọn và KHÔNG phải gate (DEC-RFID-FALLBACK-001). Bắt buộc Idempotency-Key + If-Match. Không có xuất một phần.',
     security: [['bearerAuth' => []]],
     tags: ['10. Stock Out (Outbound)'],
     parameters: [

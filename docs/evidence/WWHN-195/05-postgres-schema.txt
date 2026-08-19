@@ -1,0 +1,48 @@
+Output format is unaligned.
+Field separator is "|".
+=== A. scan_events la BANG VAT LY hay VIEW ===
+relname|kind
+scan_batch|TABLE
+scan_batches|TABLE
+scan_event|VIEW
+scan_events|TABLE
+(4 rows)
+=== B. Cot scan_source theo ERD bang 25 ===
+column_name|data_type|character_maximum_length|is_nullable
+code_value|character varying|200|NO
+context_id|uuid||YES
+context_type|character varying|50|NO
+result|character varying|30|NO
+scan_source|character varying|20|NO
+(5 rows)
+=== C. CHECK constraint cua scan_source ===
+conname|definition
+chk_erd_scan_events_0|CHECK (((scan_source)::text = ANY ((ARRAY['CAMERA'::character varying, 'MANUAL'::character varying, 'HARDWARE'::character varying])::text[])))
+(1 row)
+=== D. FK cua scan evidence (physical_code repoint) ===
+conname|definition
+fk_erd_scan_events_actor_id|FOREIGN KEY (actor_id) REFERENCES app_users(id) ON DELETE RESTRICT
+fk_erd_scan_events_physical_code_id|FOREIGN KEY (physical_code_id) REFERENCES physical_codes(id) ON DELETE RESTRICT
+(2 rows)
+=== E. physical_codes.code_value do dai that ===
+table_name|column_name|data_type|character_maximum_length
+physical_code|code_value|character varying|200
+physical_codes|code_value|character varying|200
+scan_events|code_value|character varying|200
+(3 rows)
+=== F. label_snapshots: 01 nhan cho moi phieu xuat ===
+conname|definition
+chk_erd_label_snapshots_0|CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PREVIEWED'::character varying, 'READY_TO_PRINT'::character varying, 'PENDING_PRINT'::character varying, 'PRINTED'::character varying, 'PRINT_FAILED'::character varying])::text[])))
+chk_label_snapshot_current_status|CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PREVIEWED'::character varying, 'READY_TO_PRINT'::character varying, 'PENDING_PRINT'::character varying, 'PRINTED'::character varying, 'PRINT_FAILED'::character varying])::text[])))
+uk_label_snapshot_one_per_match|UNIQUE (outbound_item_match_id)
+uk_label_snapshots_outbound_document|UNIQUE (outbound_document_id)
+(4 rows)
+=== G. Trigger dang suy luan scan_source ===
+tgname
+trg_erd_normalize_canonical_scan_events
+trg_hn_legacy_scan_event_write
+(2 rows)
+=== H. Tong so migration da chay ===
+migrations_applied
+155
+(1 row)

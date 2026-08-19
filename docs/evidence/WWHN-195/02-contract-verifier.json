@@ -1,0 +1,44 @@
+{
+  "task": "WWHN-195",
+  "register": "R2",
+  "checks": [
+    {
+      "id": "V1",
+      "title": "Ghost operation POST/PATCH /outbound-documents đã bị gỡ",
+      "status": "PASS",
+      "detail": "route + annotation đều sạch"
+    },
+    {
+      "id": "V2",
+      "title": "Mỗi route outbound chỉ đăng ký một nơi (không override kép)",
+      "status": "PASS",
+      "detail": "14 route trong routes/api.php, 0 override, 0 chồng lấn"
+    },
+    {
+      "id": "V3",
+      "title": "Contract khai đúng bằng tập route runtime",
+      "status": "PASS",
+      "detail": "14 operation khớp 1-1 (nguồn route: artisan route:list)"
+    },
+    {
+      "id": "V4",
+      "title": "code_value maxLength giống nhau giữa contract và runtime = 150",
+      "status": "PASS",
+      "detail": "contract 150 == runtime 150"
+    },
+    {
+      "id": "V5",
+      "title": "Packing Label theo vòng đời §6, không còn model nhãn per-item",
+      "status": "PASS",
+      "detail": "DRAFT → PREVIEWED → READY_TO_PRINT → PRINTED; 0 nhãn per-item"
+    },
+    {
+      "id": "V6",
+      "title": "scan_source tường minh, đúng CHECK của ERD bảng 25, có ở cả BE lẫn FE",
+      "status": "PASS",
+      "detail": "BE + contract + FE đều khai tường minh"
+    }
+  ],
+  "passed": 6,
+  "failed": 0
+}

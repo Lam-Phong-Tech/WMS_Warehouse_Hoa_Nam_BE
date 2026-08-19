@@ -80,6 +80,10 @@ class AlignedOutboundFlowController extends Controller
             $result['label_status'] = $label !== null ? (string) $label->status : 'NOT_CREATED';
             $result['packing_label_ready'] = $fullScan;
             $result['rfid_required'] = false;
+            // DEV195-P1-01R2: trả lại đúng mode đã ghi vào audit để FE/QA đối chiếu
+            // được, thay vì phải suy luận ngược từ payload đã gửi.
+            $result['scan_source'] = (string) $payload['scan_source'];
+            $result['scan_source_origin'] = (string) $payload['scan_source_origin'];
 
             return $result;
         }, 3);
@@ -580,21 +584,55 @@ class AlignedOutboundFlowController extends Controller
         ];
     }
 
+    /**
+     * WWHN-195 / DEV195-P1-01R2 — chế độ quét là EXPLICIT, không suy luận ngầm.
+     *
+     * ERD bảng 25 `scan_events.scan_source` đã có CHECK IN ('CAMERA','MANUAL',
+     * 'HARDWARE') nhưng trước đây API không nhận field này, nên giá trị hoàn toàn
+     * do trigger DB đoán theo `physical_code_id IS NULL` — cách đoán đó không bao
+     * giờ sinh ra được 'CAMERA' và ghi camera scan thành 'HARDWARE', trái
+     * REQ-SRS-005/DEC-CAMERA-001. Nay client khai `scan_source` tường minh; nếu
+     * không khai thì server vẫn suy luận nhưng đánh dấu scan_source_origin=
+     * INFERRED để audit phân biệt được hai nguồn.
+     *
+     * Không khoá/không switch theo phiếu: AC-SRS-005 + NFR-SRS-021 yêu cầu
+     * camera-denied/unsupported rơi về nhập tay ngay giữa luồng và dùng chung
+     * server validation, nên mode là thuộc tính của từng scan event chứ không
+     * phải state của outbound document. Cùng permission `outbound.scan`, cùng
+     * state guard DRAFT/SCANNING cho mọi mode.
+     */
+    private const SCAN_SOURCES = ['CAMERA', 'MANUAL', 'HARDWARE'];
+
     private function scanPayload(Request $request): array
     {
+        if ($request->has('scan_source') && $request->input('scan_source') !== null) {
+            $request->merge(['scan_source' => strtoupper(trim((string) $request->input('scan_source')))]);
+        }
+
         $validated = $request->validate([
             'line_id' => ['required', 'uuid'],
             'quantity' => ['required_without:qty', 'integer', 'min:1'],
             'qty' => ['required_without:quantity', 'integer', 'min:1'],
-            'code_value' => ['nullable', 'string', 'max:200'],
+            // DEV195-P1-05R2: contract và runtime cùng 150 ký tự. Trước đây route
+            // này nhận 200 còn handler bị che nhận 150 nên review đọc ra hai số.
+            'code_value' => ['nullable', 'string', 'max:150'],
             'item_id' => ['nullable', 'uuid'],
             'container_id' => ['nullable', 'uuid'],
+            'scan_source' => ['nullable', 'string', 'in:'.implode(',', self::SCAN_SOURCES)],
             // accepted only for backward-compatible clients; printing is deliberately deferred
             // until the whole outbound document has been scanned and aggregated.
             'printer_config_id' => ['nullable', 'uuid', 'exists:printer_configs,id'],
         ]);
         $validated['quantity'] = (int) ($request->input('quantity') ?? $request->input('qty'));
         unset($validated['printer_config_id']);
+
+        $explicit = isset($validated['scan_source']) && $validated['scan_source'] !== null;
+        $validated['scan_source_origin'] = $explicit ? 'EXPLICIT' : 'INFERRED';
+        $validated['scan_source'] = $explicit
+            ? (string) $validated['scan_source']
+            // Suy luận chỉ phân biệt được "có gửi mã" hay "chọn thẳng item"; camera
+            // và nhập tay mã đều rơi vào HARDWARE nên client nên khai tường minh.
+            : (($validated['code_value'] ?? null) !== null && $validated['code_value'] !== '' ? 'HARDWARE' : 'MANUAL');
 
         return $validated;
     }

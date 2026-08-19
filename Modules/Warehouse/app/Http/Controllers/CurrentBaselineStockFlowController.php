@@ -11,8 +11,6 @@ use App\Support\ScanRequestFingerprint;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
@@ -89,19 +87,20 @@ class CurrentBaselineStockFlowController extends Controller
         return $response;
     }
 
-    public function outboundScan(Request $request, string $id)
-    {
-        $payload = $this->scanPayload($request);
-        $expectedVersion = $this->expectedVersion($request);
-        $result = $this->versionedScan($id, 'issue', $payload, $expectedVersion);
-
-        if (! empty($result['item_id'])) {
-            $result += $this->createAndDispatchLabel($request, $id, (string) $result['line_id'], (string) $result['item_id']);
-        }
-
-        return $this->respondSuccess($result, 'Outbound item matched; label result is included; stock_effect=NONE.')
-            ->header('ETag', '"'.((int) $result['version']).'"');
-    }
+    // WWHN-195 / DEV195-P1-05R2 — đã gỡ `outboundScan()` cùng đường in nhãn per-item
+    // (`createAndDispatchLabel()` + `recordPrintResult()`) khỏi controller này.
+    //
+    // Chúng hiện thực model nhãn cũ: mỗi item match sinh một Label_Snapshot
+    // PENDING_PRINT rồi bắn lệnh in ngay trong lúc scan. SRS v1.12 §5.2/§6 chốt
+    // ngược lại — scan không tạo nhãn/lệnh in; chỉ khi full match mới tổng hợp đúng
+    // 01 Packing Label DRAFT cho cả phiếu rồi mới PREVIEWED → READY_TO_PRINT →
+    // PRINTED. Annex C: "legacy per-Item-label operations = 0".
+    //
+    // Từ 2026-08-15 không route nào còn trỏ tới các method này (bị
+    // Flow06AlignmentServiceProvider override) nhưng chúng vẫn nằm trong source, nên
+    // WWHN-195-outbound-openapi.* và annotation Swagger đã bị viết theo chúng. Xoá
+    // tại gốc để không ai dựng lại contract sai. Handler thực thi hiện hành:
+    // AlignedOutboundFlowController::outboundScan().
 
     /**
      * Gỡ một dòng đã quét khỏi phiếu nhập trước khi Post.
@@ -290,10 +289,12 @@ class CurrentBaselineStockFlowController extends Controller
         return $this->postDocument($request, $id, 'receipt');
     }
 
-    public function postIssue(Request $request, string $id)
-    {
-        return $this->postDocument($request, $id, 'issue');
-    }
+    // `postIssue()` cũng đã gỡ cùng lý do (DEV195-P1-05R2): route
+    // POST /outbound-documents/{id}/post-issue trỏ thẳng
+    // AlignedOutboundFlowController::postIssue — nơi có đủ gate label PRINTED +
+    // snapshot current + label-applied confirmation theo SRS §5.2. Nhánh
+    // `$type === 'issue'` trong postDocument() được giữ lại vì reverse('issue')
+    // vẫn dùng chung hạ tầng idempotency/version của method này.
 
     public function reverseInbound(Request $request, string $id)
     {
@@ -440,117 +441,6 @@ class CurrentBaselineStockFlowController extends Controller
         $body = IdempotentEnvelope::withReplayFlag($body, $replay);
 
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
-    }
-
-    private function createAndDispatchLabel(Request $request, string $documentId, string $lineId, string $itemId): array
-    {
-        $match = DB::table('outbound_item_matches')->where('outbound_line_id', $lineId)->where('item_id', $itemId)->orderByDesc('created_at')->first();
-        if ($match === null) {
-            ApiError::abort(500, 'OUTBOUND_MATCH_MISSING', 'Scan đã thành công nhưng không tìm thấy match để tạo label snapshot.');
-        }
-
-        $snapshot = DB::table('label_snapshots')->where('outbound_item_match_id', $match->id)->first();
-        if ($snapshot === null) {
-            $document = DB::table('stock_documents')->where('id', $documentId)->first();
-            $line = DB::table('stock_document_lines')->where('id', $lineId)->first();
-            $sku = DB::table('sku')->where('sku_id', $line->product_id)->first();
-            $snapshotId = (string) Str::uuid();
-            DB::table('label_snapshots')->insert([
-                'id' => $snapshotId,
-                'outbound_item_match_id' => $match->id,
-                'sku_id' => $line->product_id,
-                'item_id' => $itemId,
-                'label_payload' => json_encode([
-                    'outbound_no' => $document->doc_no,
-                    'recipient_name' => $document->recipient_name,
-                    'recipient_address' => $document->recipient_address,
-                    'sku_code' => $sku?->sku_code,
-                    'sku_name' => $sku?->sku_name,
-                    'item_id' => $itemId,
-                ], JSON_UNESCAPED_UNICODE),
-                'status' => 'PENDING_PRINT',
-                'version' => 1,
-                'created_at' => now(),
-                'created_by' => $this->actorId(),
-                'updated_at' => now(),
-                'updated_by' => $this->actorId(),
-            ]);
-            $snapshot = DB::table('label_snapshots')->where('id', $snapshotId)->first();
-        }
-
-        if ($snapshot->status === 'PRINTED') {
-            return ['label_snapshot_id' => (string) $snapshot->id, 'label_status' => 'PRINTED'];
-        }
-
-        $printerId = $request->input('printer_config_id');
-        $printerQuery = DB::table('printer_configs')->where('status', 'ACTIVE');
-        $printer = $printerId ? $printerQuery->where('id', $printerId)->first() : $printerQuery->orderBy('printer_code')->first();
-        if ($printer === null || empty($printer->agent_endpoint)) {
-            return $this->recordPrintResult($snapshot, $printer?->id, 'PRINT_FAILED', 'Không có printer agent ACTIVE/configured.');
-        }
-
-        $status = 'PRINT_FAILED';
-        $error = null;
-        try {
-            $response = Http::acceptJson()->timeout(2)->post((string) $printer->agent_endpoint, [
-                'printer_code' => $printer->printer_code,
-                'label_size' => $printer->label_size,
-                'label' => json_decode((string) $snapshot->label_payload, true),
-                'request_id' => $request->attributes->get('request_id'),
-                'reprint' => false,
-            ]);
-            if ($response->successful() && (bool) $response->json('success', true)) {
-                $status = 'PRINTED';
-            } else {
-                $error = 'Printer agent rejected command: HTTP '.$response->status();
-            }
-        } catch (\Throwable $e) {
-            $error = $e->getMessage();
-        }
-
-        return $this->recordPrintResult($snapshot, $printer->id, $status, $error);
-    }
-
-    private function recordPrintResult(object $snapshot, ?string $printerId, string $status, ?string $error): array
-    {
-        $eventId = (string) Str::uuid();
-        DB::transaction(function () use ($snapshot, $printerId, $status, $error, $eventId): void {
-            DB::table('label_print_events')->insert([
-                'id' => $eventId,
-                'label_snapshot_id' => $snapshot->id,
-                'printer_config_id' => $printerId,
-                'status' => $status,
-                'error_message' => $error,
-                'printed_at' => $status === 'PRINTED' ? now() : null,
-                'version' => 1,
-                'created_at' => now(),
-                'created_by' => $this->actorId(),
-                'updated_at' => now(),
-                'updated_by' => $this->actorId(),
-            ]);
-            DB::table('label_snapshots')->where('id', $snapshot->id)->update([
-                'status' => $status,
-                'version' => ((int) ($snapshot->version ?? 0)) + 1,
-                'updated_at' => now(),
-                'updated_by' => $this->actorId(),
-            ]);
-        }, 3);
-
-        AuditLogger::record(
-            action: 'LABEL_DIRECT_PRINT',
-            objectType: 'label_snapshot',
-            objectId: (string) $snapshot->id,
-            actorId: $this->actorId(),
-            requestId: request()?->attributes->get('request_id'),
-            afterData: ['status' => $status, 'printer_config_id' => $printerId, 'error' => $error],
-        );
-
-        return [
-            'label_snapshot_id' => (string) $snapshot->id,
-            'label_print_event_id' => $eventId,
-            'label_status' => $status,
-            'print_error' => $error,
-        ];
     }
 
     private function assertLabelsPrinted(string $documentId): void

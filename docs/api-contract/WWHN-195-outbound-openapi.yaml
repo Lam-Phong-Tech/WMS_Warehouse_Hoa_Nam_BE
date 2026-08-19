@@ -38,16 +38,18 @@ info:
     srs: HN_SRS_FRD_v1.12_FULL.md §5.2, §6, §8.1, Annex C, Annex D
     erd: HoaNam_ERD_Moi_Nhat.md bảng 25 (scan_events), bảng 37 (outbound_requests)
     regression_guard: tests/Feature/Wwhn195OutboundContractAlignmentTest.php
-  x-known-data-gap:
+  x-code-value-width:
     field: physical_codes.code_value
     erd_declares: varchar(200)
-    migration_creates: varchar(100)
+    postgres_effective: varchar(200)
+    sqlite_effective: varchar (sqlite không cưỡng chế độ dài)
     api_accepts: 150
+    verified_by: docs/evidence/WWHN-195/05-postgres-schema.txt
     disposition: >-
-      API chốt 150 theo register R2. Cột vật lý hẹp hơn (100) chỉ khiến mã dài hơn 100 ký tự không
-      bao giờ resolve được và trả PHYSICAL_CODE_NOT_FOUND — không tạo dữ liệu sai. Chênh lệch ERD
-      200 vs migration 100 nằm ngoài phạm vi WWHN-195 (task API không sửa schema); chuyển BE2/ERD
-      owner xử lý bằng ERD amendment riêng.
+      Đã đo trên DB tham chiếu: cột vật lý ở PostgreSQL là varchar(200), khớp ERD. Migration khởi
+      tạo ghi 100 nhưng bước materialize ERD (2026_08_10_000750) đã nới lên 200, nên KHÔNG có lệch
+      schema ở đây. API cố ý chốt hẹp hơn ở 150 theo register R2 — đó là trần đầu vào của API chứ
+      không phải giới hạn lưu trữ, và là con số duy nhất mà contract lẫn runtime cùng khai.
 servers:
   - url: /
     description: Cùng host với ứng dụng; mọi path dưới đây đã gồm prefix /api/v1.

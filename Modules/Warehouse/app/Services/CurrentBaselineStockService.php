@@ -688,8 +688,9 @@ class CurrentBaselineStockService
             'created_by' => $actorId,
             'created_at' => now(),
         ]);
+        $scanEventId = (string) Str::uuid();
         DB::table('scan_event')->insert([
-            'scan_event_id' => (string) Str::uuid(),
+            'scan_event_id' => $scanEventId,
             'scan_batch_id' => $batchId,
             'raw_code' => $rawCode,
             'physical_code_id' => $legacyPhysicalId,
@@ -699,6 +700,63 @@ class CurrentBaselineStockService
             'message' => 'Validated against current baseline',
             'created_at' => now(),
         ]);
+
+        $this->stampScanSource(
+            $scanEventId,
+            $payload['scan_source'] ?? null,
+            $document->doc_type === 'receipt' ? 'INBOUND' : 'OUTBOUND',
+            (string) $document->id
+        );
+    }
+
+    /**
+     * WWHN-195 / DEV195-P1-01R2 — ghi tường minh nguồn quét vào evidence canonical.
+     *
+     * `scan_event` (số ít) là view/bảng compatibility và KHÔNG lộ cột scan_source,
+     * nên trước đây tầng ứng dụng không có đường nào ghi giá trị này: trên
+     * PostgreSQL trigger `hn_fill_scan_evidence_fields` đoán
+     * `physical_code_id IS NULL ? 'MANUAL' : 'HARDWARE'` — không bao giờ ra
+     * 'CAMERA' dù ERD bảng 25 có CHECK cho phép. Hàm này ghi đè giá trị đoán bằng
+     * mode client khai, và điền luôn context_type theo loại chứng từ.
+     *
+     * Cả hai driver đều được phục vụ: thử bảng canonical `scan_events` trước
+     * (PostgreSQL — số nhiều là bảng vật lý), nếu không có dòng nào bị chạm thì
+     * thử `scan_event` (sqlite — số ít là bảng vật lý). Thiếu cột/thiếu bảng thì
+     * bỏ qua im lặng để không chặn nghiệp vụ scan.
+     */
+    private function stampScanSource(string $scanEventId, ?string $scanSource, string $contextType, string $contextId): void
+    {
+        if ($scanSource === null || $scanSource === '') {
+            return;
+        }
+
+        foreach (['scan_events' => 'id', 'scan_event' => 'scan_event_id'] as $table => $key) {
+            if (! Schema::hasTable($table) && ! Schema::hasView($table)) {
+                continue;
+            }
+            if (! Schema::hasColumn($table, 'scan_source')) {
+                continue;
+            }
+
+            $values = ['scan_source' => $scanSource];
+            if (Schema::hasColumn($table, 'context_type')) {
+                $values['context_type'] = $contextType;
+            }
+            if (Schema::hasColumn($table, 'context_id')) {
+                $values['context_id'] = $contextId;
+            }
+
+            try {
+                $affected = DB::table($table)->where($key, $scanEventId)->update($values);
+            } catch (\Throwable) {
+                // View compatibility không cho UPDATE cột này trên driver hiện tại.
+                continue;
+            }
+
+            if ($affected > 0) {
+                return;
+            }
+        }
     }
 
     private function assertMatchedProductRfids(string $documentId, $lines): void
