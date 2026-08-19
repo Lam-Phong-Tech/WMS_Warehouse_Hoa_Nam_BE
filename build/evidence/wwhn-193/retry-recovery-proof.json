@@ -1,0 +1,102 @@
+{
+    "response_loss_replay": {
+        "scenario": "timeout-after-commit; retry cùng key + cùng payload",
+        "first": {
+            "http": 200,
+            "replayed": false
+        },
+        "retry": {
+            "http": 200,
+            "replayed": true
+        },
+        "state_after_first": {
+            "movements": 0,
+            "event_version": 2,
+            "event_status": "CONFIRMED",
+            "box_version": 2,
+            "box_parent": "01a017a0-28b8-7290-b35c-f3b34f277f47"
+        },
+        "state_after_retry": {
+            "movements": 0,
+            "event_version": 2,
+            "event_status": "CONFIRMED",
+            "box_version": 2,
+            "box_parent": "01a017a0-28b8-7290-b35c-f3b34f277f47"
+        },
+        "verdict": "PASS — replay trả kết quả cũ, không transition lần hai, movements=0"
+    },
+    "same_key_different_payload": {
+        "http": 409,
+        "error_code": "IDEMPOTENCY_CONFLICT",
+        "state_unchanged": true,
+        "verdict": "PASS"
+    },
+    "concurrent_same_operation": {
+        "http": 409,
+        "error_code": "CONCURRENCY_CONFLICT",
+        "event_status_after": "DRAFT",
+        "movements": 0,
+        "verdict": "PASS — chỉ một lượt được chạy, lượt còn lại conflict và không ghi gì"
+    },
+    "recovery_without_key_same_actor": {
+        "http": 409,
+        "error_code": "STATE_CONFLICT",
+        "recovery": {
+            "contract": "DEC-PTW-RETRY-001",
+            "outcome": "ALREADY_APPLIED_BY_CALLER",
+            "applied_by_caller": true,
+            "safe_to_treat_as_success": true,
+            "next_action": "RELOAD_AND_CONTINUE",
+            "idempotent_retry_hint": "Gửi lại cùng Idempotency-Key để nhận đúng response cũ thay vì 409."
+        },
+        "verdict": "PASS — FE phân biệt được \"chính mình đã làm xong\""
+    },
+    "recovery_without_key_other_actor": {
+        "http": 409,
+        "recovery": {
+            "contract": "DEC-PTW-RETRY-001",
+            "outcome": "ALREADY_APPLIED_BY_OTHER",
+            "applied_by_caller": false,
+            "safe_to_treat_as_success": true,
+            "next_action": "RELOAD_AND_CONTINUE",
+            "idempotent_retry_hint": "Gửi lại cùng Idempotency-Key để nhận đúng response cũ thay vì 409."
+        },
+        "leaks_other_actor_id": false,
+        "verdict": "PASS"
+    },
+    "cancel_after_confirm": {
+        "http": 409,
+        "recovery": {
+            "contract": "DEC-PTW-RETRY-001",
+            "outcome": "FINALIZED_DIFFERENT_OUTCOME",
+            "applied_by_caller": true,
+            "safe_to_treat_as_success": false,
+            "next_action": "RELOAD_AND_REVIEW",
+            "idempotent_retry_hint": "Gửi lại cùng Idempotency-Key để nhận đúng response cũ thay vì 409."
+        },
+        "verdict": "PASS — terminal khác nhau không được coi là thành công"
+    },
+    "cancel_replay": {
+        "first": {
+            "http": 200,
+            "replayed": false
+        },
+        "retry": {
+            "http": 200,
+            "replayed": true
+        },
+        "state_after": {
+            "movements": 0,
+            "event_version": 2,
+            "event_status": "CANCELLED",
+            "box_version": 1,
+            "box_parent": null
+        },
+        "verdict": "PASS"
+    },
+    "idempotency_key_optional": {
+        "confirm_without_key": 200,
+        "confirm_without_if_match": 428,
+        "verdict": "PASS — không phá contract Annex C"
+    }
+}

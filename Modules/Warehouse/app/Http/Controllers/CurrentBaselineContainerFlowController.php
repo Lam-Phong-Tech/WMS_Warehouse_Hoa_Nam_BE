@@ -26,16 +26,50 @@ class CurrentBaselineContainerFlowController extends Controller
         'CLOSED',
     ];
 
+    /**
+     * WWHN-193 (DEV193-P1-05R) — trạng thái duy nhất được phép khai lúc TẠO container.
+     *
+     * Mọi giá trị còn lại trong self::STATUSES là *kết quả* của một sự kiện nghiệp vụ đã
+     * xảy ra (Post Receipt -> RECEIVED_PENDING_PUTAWAY, Putaway confirm -> STORED,
+     * add/remove content -> IN_STOCK/PARTIAL/EMPTY, Post Issue -> ISSUED). Cho client khai
+     * thẳng những trạng thái đó ở POST /containers đồng nghĩa dựng ra container "đã xếp
+     * kho"/"đã xuất" mà không có phiếu, không putaway_event và không audit của sự kiện
+     * tương ứng — đúng lỗ hổng DEV193-P1-05R.
+     */
+    private const CREATABLE_STATUSES = ['EMPTY'];
+
+    /**
+     * Trạng thái vòng đời chỉ được đặt bởi luồng canonical sở hữu sự kiện, không được set
+     * qua endpoint CRUD chung (POST hoặc PATCH /containers).
+     */
+    private const LIFECYCLE_MANAGED_STATUSES = [
+        'RECEIVED_PENDING_PUTAWAY',
+        'STORED',
+        'ISSUED',
+    ];
+
+    /**
+     * POST /containers — tạo vỏ chứa rỗng. KHÔNG phải đường tạo putaway.
+     *
+     * WWHN-193 (DEV193-P1-05R): trước đây endpoint này nhận `parent_container_id` rồi
+     * INSERT thẳng một `putaway_events` status = CONFIRMED (không DRAFT, không If-Match,
+     * không eligibility BOX, không PUTAWAY_DRAFT_EXISTS guard, không kiểm Posted Receipt),
+     * đồng thời nhận cả `status` vòng đời như STORED/RECEIVED_PENDING_PUTAWAY. Đó là một
+     * đường vòng đầy đủ qua mọi guard của POST /putaway-tasks + confirm. PATCH đã chặn từ
+     * trước; POST thì chưa. Nay cả hai method đều bắt buộc đi qua luồng canonical.
+     */
     public function store(Request $request)
     {
+        $this->assertNoPutawaySideEffectRequested($request, 'POST /containers');
+        $this->assertCreatableStatus($request);
+
         $validated = $request->validate([
             'container_code' => ['required', 'string', 'max:120', 'unique:containers,container_code'],
             'container_type' => ['required', Rule::in(['CARTON', 'BOX', 'TRAY'])],
             'primary_sku_id' => ['nullable', 'uuid', 'exists:sku,sku_id'],
-            'parent_container_id' => ['nullable', 'uuid', 'exists:containers,container_id'],
             'zone_code' => ['nullable', 'string', 'max:50'],
             'location_hint' => ['nullable', 'string', 'max:200'],
-            'status' => ['nullable', Rule::in(self::STATUSES)],
+            'status' => ['nullable', Rule::in(self::CREATABLE_STATUSES)],
             'migration_run_id' => ['nullable', 'uuid', 'exists:migration_runs,id'],
             'physical_code_id' => ['nullable', 'uuid', 'exists:physical_codes,physical_code_id'],
         ]);
@@ -44,12 +78,6 @@ class CurrentBaselineContainerFlowController extends Controller
             $type = strtoupper((string) $validated['container_type']);
             if (in_array($type, ['CARTON', 'BOX'], true) && empty($validated['primary_sku_id'])) {
                 ApiError::abort(422, 'PRIMARY_SKU_REQUIRED', 'CARTON/BOX bắt buộc primary_sku_id.');
-            }
-            if (! empty($validated['parent_container_id'])) {
-                if ($type !== 'BOX') {
-                    ApiError::abort(422, 'PUTAWAY_BOX_REQUIRED', 'Trong MVP chỉ BOX được putaway vào TRAY.');
-                }
-                $this->assertTrayUsable((string) $validated['parent_container_id']);
             }
 
             $id = (string) Str::uuid();
@@ -74,7 +102,8 @@ class CurrentBaselineContainerFlowController extends Controller
                 'container_type' => $type,
                 'physical_code_id' => $physicalCodeId,
                 'primary_sku_id' => $validated['primary_sku_id'] ?? null,
-                'parent_container_id' => $validated['parent_container_id'] ?? null,
+                // Container mới luôn đứng độc lập; gắn vào TRAY là thao tác putaway.
+                'parent_container_id' => null,
                 'zone_code' => $validated['zone_code'] ?? null,
                 'location_hint' => $validated['location_hint'] ?? null,
                 'status' => $validated['status'] ?? 'EMPTY',
@@ -98,10 +127,6 @@ class CurrentBaselineContainerFlowController extends Controller
                     'updated_by' => $this->actorId(),
                     'updated_at' => now(),
                 ]);
-            }
-
-            if (! empty($validated['parent_container_id'])) {
-                $this->recordPutaway($id, null, (string) $validated['parent_container_id'], null, $validated['location_hint'] ?? null);
             }
 
             $container = DB::table('containers')->where('container_id', $id)->first();
@@ -149,6 +174,26 @@ class CurrentBaselineContainerFlowController extends Controller
             if (array_key_exists('parent_container_id', $validated)
                 && (string) $validated['parent_container_id'] !== (string) $container->parent_container_id) {
                 ApiError::abort(422, 'PUTAWAY_MUST_USE_TASK_FLOW', 'Đổi parent_container_id là thao tác putaway; dùng POST /putaway/tasks rồi confirm, không dùng PATCH /containers/{id}.');
+            }
+
+            // WWHN-193 (DEV193-P1-05R) — cùng lý do với parent_container_id: STORED /
+            // RECEIVED_PENDING_PUTAWAY / ISSUED là kết quả của Putaway confirm, Post Receipt
+            // và Post Issue. Đặt tay qua PATCH sẽ tạo container "đã xếp kho"/"đã xuất" mà
+            // không có putaway_event, không có chứng từ và không có audit của sự kiện đó,
+            // nên vẫn qua mặt được eligibility check của POST /putaway-tasks.
+            if (array_key_exists('status', $validated)
+                && $validated['status'] !== null
+                && in_array(strtoupper((string) $validated['status']), self::LIFECYCLE_MANAGED_STATUSES, true)
+                && strtoupper((string) $validated['status']) !== strtoupper((string) $container->status)) {
+                ApiError::abort(
+                    422,
+                    'CONTAINER_STATUS_LIFECYCLE_MANAGED',
+                    'Trạng thái vòng đời của container do luồng nghiệp vụ sở hữu sự kiện đặt (Post Receipt / Putaway confirm / Post Issue), không set qua PATCH /containers/{id}.',
+                    [
+                        'requested_status' => strtoupper((string) $validated['status']),
+                        'lifecycle_managed_statuses' => self::LIFECYCLE_MANAGED_STATUSES,
+                    ],
+                );
             }
 
             $updates = $validated + [
@@ -319,38 +364,56 @@ class CurrentBaselineContainerFlowController extends Controller
         return $this->respondSuccess($result, 'Container content removed.');
     }
 
-    private function recordPutaway(string $boxId, ?string $fromTrayId, string $toTrayId, ?string $fromLocation, ?string $toLocation): void
+    /**
+     * WWHN-193 (DEV193-P1-05R) — chặn mọi mưu toan đặt placement BOX -> TRAY qua endpoint
+     * CRUD chung. Từ chối ngay cả khi client gửi `parent_container_id: null` tường minh là
+     * không cần thiết (null = đứng độc lập = mặc định), nên chỉ chặn giá trị non-null.
+     */
+    private function assertNoPutawaySideEffectRequested(Request $request, string $surface): void
     {
-        DB::table('putaway_events')->insert([
-            'id' => (string) Str::uuid(),
-            'stock_document_id' => null,
-            'warehouse_id' => null,
-            'container_id' => $boxId,
-            'box_container_id' => $boxId,
-            'from_parent_container_id' => $fromTrayId,
-            'from_tray_id' => $fromTrayId,
-            'to_parent_container_id' => $toTrayId,
-            'to_tray_id' => $toTrayId,
-            'from_location_hint' => $fromLocation,
-            'to_location_hint' => $toLocation,
-            'location_hint' => $toLocation,
-            'status' => 'CONFIRMED',
-            'confirmed_at' => now(),
-            'confirmed_by' => $this->actorId(),
-            'created_by' => $this->actorId(),
-            'created_at' => now(),
-            'updated_at' => now(),
-            'updated_by' => $this->actorId(),
-            'version' => 1,
-        ]);
+        if (! $request->has('parent_container_id')) {
+            return;
+        }
+        $requested = $request->input('parent_container_id');
+        if ($requested === null || $requested === '') {
+            return;
+        }
+
+        ApiError::abort(
+            422,
+            'PUTAWAY_MUST_USE_TASK_FLOW',
+            'Gắn container vào TRAY là thao tác putaway; dùng POST /putaway-tasks rồi confirm (If-Match), không dùng '.$surface.'.',
+            [
+                'surface' => $surface,
+                'canonical_flow' => ['POST /api/v1/putaway-tasks', 'POST /api/v1/putaway-tasks/{id}/confirm'],
+            ],
+        );
     }
 
-    private function assertTrayUsable(string $trayId): void
+    /**
+     * WWHN-193 (DEV193-P1-05R) — chỉ EMPTY được khai lúc tạo. Trả mã nghiệp vụ riêng thay
+     * vì VALIDATION_ERROR chung để QA/FE truy được đúng nguyên nhân từ chối.
+     */
+    private function assertCreatableStatus(Request $request): void
     {
-        $tray = DB::table('containers')->where('container_id', $trayId)->lockForUpdate()->first();
-        if ($tray === null || strtoupper((string) $tray->container_type) !== 'TRAY' || in_array($tray->status, ['CLOSED', 'ISSUED'], true)) {
-            ApiError::abort(422, 'TRAY_REQUIRED', 'Putaway yêu cầu TRAY tồn tại và chưa CLOSED/ISSUED.');
+        $requested = $request->input('status');
+        if ($requested === null || $requested === '') {
+            return;
         }
+        if (in_array(strtoupper((string) $requested), self::CREATABLE_STATUSES, true)) {
+            return;
+        }
+
+        ApiError::abort(
+            422,
+            'CONTAINER_STATUS_NOT_CREATABLE',
+            'Container mới chỉ được tạo ở trạng thái EMPTY; các trạng thái còn lại là kết quả của Post Receipt / Putaway confirm / thao tác content / Post Issue.',
+            [
+                'requested_status' => strtoupper((string) $requested),
+                'creatable_statuses' => self::CREATABLE_STATUSES,
+                'lifecycle_managed_statuses' => self::LIFECYCLE_MANAGED_STATUSES,
+            ],
+        );
     }
 
     private function expectedVersion(Request $request): int

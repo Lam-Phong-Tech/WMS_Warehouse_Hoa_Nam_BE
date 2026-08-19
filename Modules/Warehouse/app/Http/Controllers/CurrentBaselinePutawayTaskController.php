@@ -59,14 +59,14 @@ class CurrentBaselinePutawayTaskController extends Controller
             }
 
             $eventId = (string) Str::uuid();
-            $receipt = $this->latestPostedReceipt((string) $box->container_id);
+            $receipt = $this->assertPostedReceiptLinkage((string) $box->container_id, (string) $box->status);
             $locationHint = $payload['location_hint'] ?? $tray->location_hint;
             $now = now();
 
             DB::table('putaway_events')->insert([
                 'id' => $eventId,
-                'stock_document_id' => $receipt?->id,
-                'warehouse_id' => $receipt?->dst_warehouse_id,
+                'stock_document_id' => $receipt->id,
+                'warehouse_id' => $receipt->dst_warehouse_id,
                 'container_id' => $box->container_id,
                 'box_container_id' => $box->container_id,
                 'from_parent_container_id' => $box->parent_container_id,
@@ -145,6 +145,36 @@ class CurrentBaselinePutawayTaskController extends Controller
                 ->value('parent_container_id');
             $cursor = $parent ? (string) $parent : '';
         }
+    }
+
+    /**
+     * WWHN-193 (DEV193-P1-05R) — Initial Putaway phải neo vào một Posted Receipt thật.
+     *
+     * Trước đây eligibility chỉ dựa vào `containers.status = RECEIVED_PENDING_PUTAWAY` và
+     * receipt chỉ được nạp *tuỳ chọn* để điền metadata (`$receipt?->id`). Trạng thái đó
+     * lại từng đặt được qua POST/PATCH /containers, nên một BOX chưa hề có phiếu nhập
+     * POSTED vẫn tạo được putaway task, ra `putaway_events.stock_document_id = NULL` —
+     * mất hẳn liên kết chứng từ mà SRS §6 ("Create sau Receipt") và ERD putaway_events
+     * yêu cầu. Nay linkage là điều kiện tiên quyết, kiểm ở cả tầng dữ liệu chứ không chỉ
+     * tầng trạng thái, nên dù trạng thái bị đặt sai bằng đường nào thì putaway vẫn dừng.
+     */
+    private function assertPostedReceiptLinkage(string $boxId, string $boxStatus): object
+    {
+        $receipt = $this->latestPostedReceipt($boxId);
+        if ($receipt === null) {
+            ApiError::abort(
+                409,
+                'BOX_NOT_PUTAWAY_ELIGIBLE',
+                'BOX chưa gắn với phiếu nhập đã POSTED; Initial Putaway chỉ được tạo sau Post Receipt.',
+                [
+                    'box_container_id' => $boxId,
+                    'box_status' => $boxStatus,
+                    'reason' => 'NO_POSTED_RECEIPT',
+                ],
+            );
+        }
+
+        return $receipt;
     }
 
     private function latestPostedReceipt(string $boxId): ?object

@@ -1,0 +1,62 @@
+{
+    "defect": "DEV193-P1-04R",
+    "scenario": "Injected audit write failure (fail_closed) trong POST /putaway-tasks/{id}/confirm",
+    "engine": {
+        "driver": "pgsql",
+        "database": "hoa_nam_audit",
+        "server_version": "16.14"
+    },
+    "audit_write_policy": "fail_closed",
+    "http_status": 500,
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "leaks_internal_detail": false,
+    "db_before": {
+        "putaway_event": {
+            "id": "c4b8b59b-b238-4596-99ac-c8e3346a0e89",
+            "status": "DRAFT",
+            "version": 1,
+            "confirmed_at": null,
+            "confirmed_by": null
+        },
+        "container": {
+            "container_id": "01a017a0-25f1-7219-84d0-c87fef3119c0",
+            "status": "RECEIVED_PENDING_PUTAWAY",
+            "parent_container_id": null,
+            "version": 1
+        },
+        "stock_movements": 0
+    },
+    "db_after": {
+        "putaway_event": {
+            "id": "c4b8b59b-b238-4596-99ac-c8e3346a0e89",
+            "status": "DRAFT",
+            "version": 1,
+            "confirmed_at": null,
+            "confirmed_by": null
+        },
+        "container": {
+            "container_id": "01a017a0-25f1-7219-84d0-c87fef3119c0",
+            "status": "RECEIVED_PENDING_PUTAWAY",
+            "parent_container_id": null,
+            "version": 1
+        },
+        "stock_movements": 0
+    },
+    "audit_log_rows_delta": 0,
+    "audit_outbox_rows": 0,
+    "raw_error_response": {
+        "success": false,
+        "message": "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
+        "error_code": "INTERNAL_SERVER_ERROR",
+        "errors": [],
+        "error": {
+            "code": "INTERNAL_SERVER_ERROR",
+            "details": []
+        },
+        "meta": {
+            "request_id": "277b3f6d-5663-4d77-8f73-40a3430de164",
+            "timestamp": "2026-08-19T08:26:07+07:00"
+        }
+    },
+    "verdict": "PASS — rollback toàn phần, không có trạng thái \"đã xếp hàng nhưng mất dấu vết audit\""
+}

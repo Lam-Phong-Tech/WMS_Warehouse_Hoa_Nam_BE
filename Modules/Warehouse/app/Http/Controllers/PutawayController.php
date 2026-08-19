@@ -4,6 +4,9 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\IdempotencyKeyGuard;
+use App\Support\IdempotencyStore;
+use App\Support\IdempotentEnvelope;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -15,6 +18,39 @@ use OpenApi\Attributes as OA;
 class PutawayController extends Controller
 {
     use ApiResponse;
+
+    private const OPERATION_CONFIRM = 'confirm';
+
+    private const OPERATION_CANCEL = 'cancel';
+
+    /**
+     * WWHN-193 · DEV193-P1-03R — hợp đồng phục hồi sau mất response (DEC-PTW-RETRY-001).
+     *
+     * Vấn đề: confirm/cancel chỉ được bảo vệ bằng If-Match. Khi client gửi request thành
+     * công nhưng **mất response** (timeout mạng, đóng tab, proxy cắt), lần retry mang đúng
+     * If-Match cũ sẽ rơi vào nhánh `status !== 'DRAFT'` và nhận 409 "trần" — không thể phân
+     * biệt "chính mình vừa làm xong" với "người khác vừa kết thúc tác vụ này", nên FE không
+     * có cách phục hồi xác định. Đó là "controlled 409 nhưng chưa formal recovery semantics".
+     *
+     * Hợp đồng mới, hai tầng, không phá contract Annex C (Idempotency-Key vẫn KHÔNG bắt buộc):
+     *
+     *  1. CÓ `Idempotency-Key` → đi qua IdempotencyStore. Retry cùng key + cùng payload trả
+     *     lại đúng snapshot 200 đã commit kèm `data.replayed = true` và header
+     *     `Idempotent-Replay: true` (SRS §8.2: "unless this is an idempotent replay of a
+     *     prior success"; §13.2 header list đã khai Idempotency-Key). Cùng key khác payload
+     *     → 409 IDEMPOTENCY_CONFLICT; đụng lease đang chạy → 409 CONCURRENCY_CONFLICT. Đây
+     *     là đường phục hồi *xác định*, khuyến nghị cho FE.
+     *  2. KHÔNG có key (client cũ) → vẫn 409 STATE_CONFLICT như trước, nhưng kèm
+     *     `error.details.recovery` đủ để phục hồi máy-đọc-được: outcome, có an toàn coi như
+     *     thành công không, và hành động kế tiếp.
+     *
+     * Cả hai tầng đều giữ nguyên bất biến stock-neutral: không nhánh nào sinh stock movement.
+     */
+    private const RECOVERY_ALREADY_APPLIED_BY_CALLER = 'ALREADY_APPLIED_BY_CALLER';
+
+    private const RECOVERY_ALREADY_APPLIED_BY_OTHER = 'ALREADY_APPLIED_BY_OTHER';
+
+    private const RECOVERY_FINALIZED_DIFFERENT_OUTCOME = 'FINALIZED_DIFFERENT_OUTCOME';
 
     #[OA\Get(
         path: '/api/v1/putaway/tasks',
@@ -186,24 +222,31 @@ class PutawayController extends Controller
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: false, description: 'DEC-PTW-RETRY-001: tuỳ chọn. Có key thì retry sau mất response trả lại đúng kết quả cũ kèm replayed=true; không có key thì retry nhận 409 STATE_CONFLICT kèm error.details.recovery.', schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'CONFIRMED, stock_effect=NONE'),
+            new OA\Response(response: 200, description: 'CONFIRMED, stock_effect=NONE (replayed=true nếu là retry cùng Idempotency-Key)'),
+            new OA\Response(response: 409, description: 'STATE_CONFLICT kèm recovery outcome, hoặc IDEMPOTENCY_CONFLICT / CONCURRENCY_CONFLICT'),
             new OA\Response(response: 412, description: 'Version conflict'),
         ],
     )]
     public function confirm(Request $request, string $id)
     {
-        $expectedVersion = $this->expectedVersion($request);
-        $actorId = $this->actorId();
+        return $this->transitionPutaway($request, $id, self::OPERATION_CONFIRM);
+    }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function applyConfirm(Request $request, string $id, int $expectedVersion, string $actorId): array
+    {
         $result = DB::transaction(function () use ($id, $expectedVersion, $actorId, $request): array {
             $event = DB::table('putaway_events')->where('id', $id)->lockForUpdate()->first();
             if ($event === null) {
                 ApiError::abort(404, 'PUTAWAY_NOT_FOUND', 'Không tìm thấy tác vụ putaway.');
             }
             if ((string) $event->status !== 'DRAFT') {
-                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ putaway DRAFT mới được xác nhận.');
+                $this->abortWithRecovery($event, 'CONFIRMED', $expectedVersion, $actorId, self::OPERATION_CONFIRM);
             }
             $this->assertVersion($event, $expectedVersion);
 
@@ -214,6 +257,7 @@ class PutawayController extends Controller
             $this->assertBoxPutawayEligible($box, true);
             $this->assertTrayUsable($tray);
             $this->assertNoCycle($boxId, $trayId);
+            $this->assertReceiptLinkageStillValid($event, $boxId);
 
             $movementBefore = DB::table('stock_movements')->count();
             DB::table('containers')->where('container_id', $boxId)->update([
@@ -261,7 +305,7 @@ class PutawayController extends Controller
             'box_version' => (int) $result['box']->version,
             'stock_effect' => 'NONE',
             'movement_created' => false,
-        ], 'Putaway CONFIRMED; không phát sinh biến động tồn.');
+        ], 'Putaway CONFIRMED; không phát sinh biến động tồn.')->getData(true);
     }
 
     #[OA\Post(
@@ -273,21 +317,30 @@ class PutawayController extends Controller
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: false, description: 'DEC-PTW-RETRY-001: tuỳ chọn, cùng ngữ nghĩa như confirm.', schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)),
         ],
-        responses: [new OA\Response(response: 200, description: 'CANCELLED, stock-neutral')],
+        responses: [
+            new OA\Response(response: 200, description: 'CANCELLED, stock-neutral (replayed=true nếu là retry cùng Idempotency-Key)'),
+            new OA\Response(response: 409, description: 'STATE_CONFLICT kèm recovery outcome, hoặc IDEMPOTENCY_CONFLICT / CONCURRENCY_CONFLICT'),
+        ],
     )]
     public function cancel(Request $request, string $id)
     {
-        $expectedVersion = $this->expectedVersion($request);
-        $actorId = $this->actorId();
+        return $this->transitionPutaway($request, $id, self::OPERATION_CANCEL);
+    }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function applyCancel(Request $request, string $id, int $expectedVersion, string $actorId): array
+    {
         $event = DB::transaction(function () use ($id, $expectedVersion, $actorId, $request) {
             $event = DB::table('putaway_events')->where('id', $id)->lockForUpdate()->first();
             if ($event === null) {
                 ApiError::abort(404, 'PUTAWAY_NOT_FOUND', 'Không tìm thấy tác vụ putaway.');
             }
             if ((string) $event->status !== 'DRAFT') {
-                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ putaway DRAFT mới được hủy.');
+                $this->abortWithRecovery($event, 'CANCELLED', $expectedVersion, $actorId, self::OPERATION_CANCEL);
             }
             $this->assertVersion($event, $expectedVersion);
             DB::table('putaway_events')->where('id', $id)->update([
@@ -312,7 +365,7 @@ class PutawayController extends Controller
             return $updatedEvent;
         }, 3);
 
-        return $this->respondSuccess($this->eventResponse($event), 'Đã hủy tác vụ putaway.');
+        return $this->respondSuccess($this->eventResponse($event), 'Đã hủy tác vụ putaway.')->getData(true);
     }
 
     #[OA\Get(
@@ -369,6 +422,130 @@ class PutawayController extends Controller
         return $this->respondPaginated(
             new LengthAwarePaginator($mapped->all(), $rows->total(), $rows->perPage(), $rows->currentPage()),
             'Lịch sử putaway đã xác nhận.'
+        );
+    }
+
+    /**
+     * Điểm vào chung của confirm/cancel: bọc thao tác trong hợp đồng retry DEC-PTW-RETRY-001.
+     */
+    private function transitionPutaway(Request $request, string $id, string $operation)
+    {
+        $expectedVersion = $this->expectedVersion($request);
+        $actorId = $this->actorId();
+        // Annex C khai confirm/cancel chỉ bắt buộc If-Match, nên key là TUỲ CHỌN: thiếu key
+        // không được 428, có key thì phải hành xử đúng như operation idempotent bắt buộc.
+        $key = IdempotencyKeyGuard::optional($request);
+        $hash = IdempotencyStore::requestHash($request);
+
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $key,
+            'putaway_'.$operation.'_'.$id,
+            $actorId,
+            $hash,
+            function () use ($request, $id, $operation, $expectedVersion, $actorId): array {
+                $payload = $operation === self::OPERATION_CONFIRM
+                    ? $this->applyConfirm($request, $id, $expectedVersion, $actorId)
+                    : $this->applyCancel($request, $id, $expectedVersion, $actorId);
+
+                return [200, $payload];
+            }
+        );
+
+        // Cờ replay phải hiện ở BODY chứ không chỉ header: proxy/log tuỳ biến hay nuốt header,
+        // còn QA/FE đọc body (WWHN-234 · F-09).
+        $body = IdempotentEnvelope::withReplayFlag($body, $replay);
+
+        $response = response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+        $version = data_get($body, 'data.version');
+        if ($version !== null) {
+            $response->header('ETag', '"'.((int) $version).'"');
+        }
+
+        return $response;
+    }
+
+    /**
+     * 409 STATE_CONFLICT có ngữ nghĩa phục hồi (nhánh không dùng Idempotency-Key).
+     *
+     * Không trả về id của actor khác: caller có thể không có quyền đọc hồ sơ người dùng, nên
+     * chỉ phát cờ boolean `applied_by_caller` — đủ để FE quyết định, không lộ danh tính.
+     */
+    private function abortWithRecovery(object $event, string $targetStatus, int $expectedVersion, string $actorId, string $operation): void
+    {
+        $current = strtoupper((string) $event->status);
+        $currentVersion = (int) ($event->version ?? 0);
+        $lastActor = (string) ($current === 'CONFIRMED'
+            ? ($event->confirmed_by ?? $event->updated_by ?? '')
+            : ($event->updated_by ?? ''));
+        $appliedByCaller = $lastActor !== '' && $lastActor === $actorId && $currentVersion === $expectedVersion + 1;
+
+        if ($current === $targetStatus) {
+            $outcome = $appliedByCaller
+                ? self::RECOVERY_ALREADY_APPLIED_BY_CALLER
+                : self::RECOVERY_ALREADY_APPLIED_BY_OTHER;
+            $message = $operation === self::OPERATION_CONFIRM
+                ? 'Tác vụ putaway này đã được xác nhận trước đó; kết quả nghiệp vụ mong muốn đã đạt.'
+                : 'Tác vụ putaway này đã được hủy trước đó; kết quả nghiệp vụ mong muốn đã đạt.';
+        } else {
+            $outcome = self::RECOVERY_FINALIZED_DIFFERENT_OUTCOME;
+            $message = 'Tác vụ putaway đã kết thúc ở trạng thái khác với thao tác đang yêu cầu; tải lại trước khi quyết định.';
+        }
+
+        ApiError::abort(409, 'STATE_CONFLICT', $message, [
+            'putaway_event_id' => (string) $event->id,
+            'operation' => $operation,
+            'current_status' => $current,
+            'current_version' => $currentVersion,
+            'expected_version' => $expectedVersion,
+            'confirmed_at' => $event->confirmed_at ?? null,
+            'recovery' => [
+                'contract' => 'DEC-PTW-RETRY-001',
+                'outcome' => $outcome,
+                'applied_by_caller' => $appliedByCaller,
+                // Cả hai nhánh ALREADY_APPLIED_* đều đạt đúng kết quả nghiệp vụ mà caller
+                // yêu cầu trên CHÍNH tác vụ này, nên FE tải lại rồi đi tiếp là an toàn.
+                'safe_to_treat_as_success' => $outcome !== self::RECOVERY_FINALIZED_DIFFERENT_OUTCOME,
+                'next_action' => $outcome === self::RECOVERY_FINALIZED_DIFFERENT_OUTCOME
+                    ? 'RELOAD_AND_REVIEW'
+                    : 'RELOAD_AND_CONTINUE',
+                'idempotent_retry_hint' => 'Gửi lại cùng Idempotency-Key để nhận đúng response cũ thay vì 409.',
+            ],
+            'stock_effect' => 'NONE',
+            'movement_created' => false,
+        ]);
+    }
+
+    /**
+     * WWHN-193 (DEV193-P1-05R) — DRAFT phải còn neo vào một phiếu nhập POSTED tại thời điểm
+     * confirm, không chỉ tại thời điểm tạo. Chặn cả DRAFT tồn dư sinh trước khi linkage trở
+     * thành bắt buộc và trường hợp phiếu bị đảo/huỷ trong lúc DRAFT còn treo.
+     */
+    private function assertReceiptLinkageStillValid(object $event, string $boxId): void
+    {
+        $documentId = $event->stock_document_id ?? null;
+        if ($documentId !== null) {
+            $stillPosted = DB::table('stock_documents')
+                ->where('id', $documentId)
+                ->where('status', 'POSTED')
+                ->exists();
+            if ($stillPosted) {
+                return;
+            }
+        }
+
+        if ($this->latestPostedReceipt($boxId) !== null) {
+            return;
+        }
+
+        ApiError::abort(
+            409,
+            'BOX_NOT_PUTAWAY_ELIGIBLE',
+            'BOX không còn gắn với phiếu nhập đã POSTED; không thể xác nhận putaway.',
+            [
+                'box_container_id' => $boxId,
+                'stock_document_id' => $documentId,
+                'reason' => 'NO_POSTED_RECEIPT',
+            ],
         );
     }
 

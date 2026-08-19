@@ -12,6 +12,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
+use Tests\Feature\Concerns\PreparesPutawayFixtures;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,7 @@ use Tests\TestCase;
  */
 class Wwhn193PutawayLifecycleTest extends TestCase
 {
+    use PreparesPutawayFixtures;
     use RefreshDatabase;
 
     private function authHeaders(string $roleCode = 'SUPER_ADMIN'): array
@@ -88,15 +90,22 @@ class Wwhn193PutawayLifecycleTest extends TestCase
         ]);
     }
 
+    /**
+     * DEV193-P1-05R: eligibility khong con chi dua vao `status`; BOX phai that su neo vao
+     * mot phieu nhap da POSTED. Fixture vi the dung ca chuoi chung tu, khong chi trang thai.
+     */
     private function boxReadyForPutaway(string $code, string $skuId): Container
     {
-        return Container::create([
+        $box = Container::create([
             'container_code' => $code,
             'container_type' => 'BOX',
             'primary_sku_id' => $skuId,
             'status' => 'RECEIVED_PENDING_PUTAWAY',
             'version' => 1,
         ]);
+        $this->seedPostedReceiptForBox((string) $box->container_id, $skuId);
+
+        return $box;
     }
 
     private function emptyTray(string $code): Container

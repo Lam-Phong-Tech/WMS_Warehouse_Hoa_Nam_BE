@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
+use Tests\Feature\Concerns\PreparesPutawayFixtures;
 use Tests\TestCase;
 
 /**
@@ -30,6 +31,7 @@ use Tests\TestCase;
 class Flow02InboundPutawayAlignmentTest extends TestCase
 {
     use PreparesOutboundFixtures;
+    use PreparesPutawayFixtures;
     use RefreshDatabase;
 
     /** Phiếu nhập DRAFT với 1 line PRODUCT serial-tracked. */
@@ -99,6 +101,8 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
             'status' => 'RECEIVED_PENDING_PUTAWAY',
             'version' => 1,
         ]);
+        // DEV193-P1-05R: putaway task đòi linkage phiếu nhập POSTED, không chỉ trạng thái.
+        $this->seedPostedReceiptForBox((string) $box->container_id, (string) $sku->sku_id);
         $tray = Container::create([
             'container_code' => 'TRAY-FLOW02-PTW',
             'container_type' => 'TRAY',
@@ -150,6 +154,7 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
             'status' => 'RECEIVED_PENDING_PUTAWAY',
             'version' => 1,
         ]);
+        $this->seedPostedReceiptForBox((string) $box->container_id, (string) $sku->sku_id);
         $tray = Container::create([
             'container_code' => 'TRAY-FLOW02-CANCEL',
             'container_type' => 'TRAY',

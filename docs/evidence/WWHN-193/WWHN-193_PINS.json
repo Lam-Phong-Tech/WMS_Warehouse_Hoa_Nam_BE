@@ -1,0 +1,132 @@
+{
+  "jira": "WWHN-193",
+  "jira_title": "[BE] Rà soát trạng thái/thao tác putaway (HN-IN-004)",
+  "role": "BE2",
+  "review_addressed": "Wuangg — 72/100, register DEV193-P1-01R..05R + EXT-DEP-01R",
+  "pinned_at": "2026-08-19",
+
+  "source_conflict_disposition": {
+    "finding": "DEV193-P1-01R — candidate được nhắc tới trên nhánh m1-be-2 (c14281…) trong khi test WWHN-193 chỉ tồn tại trên m1.",
+    "measurement": "git merge-base --is-ancestor origin/m1-be-2 m1",
+    "m1_be_2_head": "60816499066f9f493596e326dc41116ef32f5c4b",
+    "result": "m1-be-2 là ANCESTOR THUẦN của m1 (m1 đi trước 719 commit tại thời điểm pin).",
+    "decision": "RE-PIN sang m1. KHÔNG port ngược: m1 đã chứa toàn bộ nội dung của m1-be-2 cộng thêm test, nên port sẽ tạo bản sao thứ hai của cùng một thay đổi trên một nhánh đã lỗi thời.",
+    "consequence": "Mọi artifact WWHN-193 chỉ trích dẫn SHA trên m1. Nhánh m1-be-2 KHÔNG còn là nguồn candidate của ticket này."
+  },
+
+  "canonical_source": {
+    "be_repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "be_branch": "m1",
+    "be_role": "BACKEND_IMPLEMENTATION_SOURCE",
+    "fe_repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "fe_branch": "m1",
+    "fe_role": "CONSUMER_ADAPTATION_FOR_THIS_TICKET"
+  },
+
+  "pin_policy": {
+    "why_no_self_sha": "Một commit không thể chứa hash của chính nó. Bản pin trước bị bác đúng ở chỗ này: file PINS ghi tay một SHA rồi commit tiếp, nên SHA trong file không bao giờ là SHA của revision đang xét (và dễ mục dần khi m1 chạy tiếp).",
+    "mechanism": "Pin theo NỘI DUNG + RANGE INVARIANT, còn SHA chính xác do CỔNG khẳng định: verify-wwhn193-closure.mjs nhận --expect-sha <SHA> và tự đối chiếu với git rev-parse HEAD. Comment Jira mang đúng SHA đó.",
+    "invariants": [
+      "base là ancestor của revision đang xét",
+      "mọi file trong code_paths/evidence_paths có sha256 khớp bảng dưới",
+      "không commit nào sau closure revision chạm code_paths mà không cập nhật lại pin"
+    ],
+    "shared_branch_note": "m1 là nhánh dùng chung, nhiều ticket commit cùng ngày. Vì thế WWHN-193 pin phạm vi + digest theo TỪNG FILE thuộc ticket, không pin tree-hash toàn repo."
+  },
+
+  "change_range": {
+    "base": "114cf34d6323c85d46ecab2bfa6e03d92b9596a1",
+    "base_meaning": "HEAD của m1 ngay trước commit triển khai vòng đóng WWHN-193",
+    "final": "RECORDED_BY_GATE",
+    "final_meaning": "SHA chính xác của closure revision; xem WWHN-193_EXACT_SHA_GATE_RUN.md và tham số --expect-sha của verifier."
+  },
+
+  "fe_consumer": {
+    "repo_branch": "m1",
+    "base": "a2b555b28e3c680a1c303873c04d7e64d71bb7d2",
+    "final": "RECORDED_BY_GATE",
+    "scope": "putawayService: gửi Idempotency-Key suy diễn cho confirm/cancel và phục hồi 409 STATE_CONFLICT theo DEC-PTW-RETRY-001."
+  },
+
+  "findings": {
+    "PTW193-01": {
+      "register_id": "DEV193-P1-05R",
+      "severity": "P1",
+      "area": "requirement / data integrity",
+      "title": "POST /containers là đường vòng đầy đủ qua mọi guard của putaway",
+      "root_cause": "store() nhận parent_container_id rồi INSERT thẳng putaway_events status = CONFIRMED, và nhận cả status vòng đời (STORED/RECEIVED_PENDING_PUTAWAY/ISSUED). PATCH đã chặn parent từ trước; POST thì chưa.",
+      "impact": "Tạo được container 'đã xếp kho' không qua DRAFT->CONFIRMED, không If-Match, không eligibility BOX, không PUTAWAY_DRAFT_EXISTS, không audit của sự kiện putaway — vi phạm SRS §6 (Putaway Task) và §6 (Box state).",
+      "fix": "CurrentBaselineContainerFlowController: assertNoPutawaySideEffectRequested() + assertCreatableStatus(); CREATABLE_STATUSES = ['EMPTY']; PATCH chặn thêm LIFECYCLE_MANAGED_STATUSES; xoá recordPutaway()/assertTrayUsable() đã chết.",
+      "regression_test": "tests/Feature/Wwhn193ContainerPutawayBypassRegressionTest.php"
+    },
+    "PTW193-02": {
+      "register_id": "DEV193-P1-05R",
+      "severity": "P1",
+      "area": "requirement / data integrity",
+      "title": "Canonical POST /putaway-tasks không đòi Posted Receipt",
+      "root_cause": "latestPostedReceipt() chỉ được dùng làm metadata tuỳ chọn ($receipt?->id). Eligibility thực chất chỉ dựa vào containers.status — mà status lại đặt được qua endpoint CRUD ở PTW193-01.",
+      "impact": "putaway_events.stock_document_id = NULL, mất liên kết chứng từ mà SRS §6 ('Create sau Receipt') và ERD putaway_events yêu cầu.",
+      "fix": "assertPostedReceiptLinkage() ở CurrentBaselinePutawayTaskController::store (409 BOX_NOT_PUTAWAY_ELIGIBLE + reason NO_POSTED_RECEIPT) và assertReceiptLinkageStillValid() ở PutawayController::confirm cho DRAFT tồn dư.",
+      "regression_test": "tests/Feature/Wwhn193ContainerPutawayBypassRegressionTest.php::test_putaway_task_create_requires_posted_receipt_even_when_status_looks_eligible"
+    },
+    "PTW193-03": {
+      "register_id": "DEV193-P1-03R",
+      "severity": "P1",
+      "area": "core / contract",
+      "title": "Retry sau mất response không có ngữ nghĩa phục hồi",
+      "root_cause": "confirm/cancel chỉ có If-Match; retry rơi vào 409 trần, không phân biệt được 'chính mình đã xong' với 'người khác vừa kết thúc'.",
+      "impact": "FE không có đường phục hồi xác định sau timeout; người vận hành thao tác lại bằng tay.",
+      "fix": "DEC-PTW-RETRY-001 — Idempotency-Key tuỳ chọn (replay 200 + replayed=true) + khối error.details.recovery cho nhánh không key.",
+      "regression_test": "tests/Feature/Wwhn193PutawayRetryRecoveryContractTest.php"
+    }
+  },
+
+  "evidence_artifacts": {
+    "retry_recovery": {
+      "artifact": "build/evidence/wwhn-193/retry-recovery-proof.json",
+      "producer": "tests/Feature/Wwhn193PutawayRetryRecoveryContractTest.php",
+      "fail_closed": true
+    },
+    "dependency_chain": {
+      "artifact": "build/evidence/wwhn-193/dependency-chain-proof.json",
+      "producer": "tests/Feature/Wwhn193PutawayDependencyChainTest.php",
+      "covers": "EXT-DEP-01R",
+      "fail_closed": true
+    },
+    "audit_fail_closed": {
+      "artifact_pattern": "build/evidence/wwhn-193/audit-fail-closed-proof-{driver}.json",
+      "producer": "tests/Feature/Wwhn193PutawayAuditFailClosedTest.php",
+      "covers": "DEV193-P1-04R",
+      "note": "Tên file mang driver thật của lần chạy, nên không thể ký nhầm bằng chứng sqlite cho một cổng đòi PostgreSQL."
+    }
+  },
+
+  "local_runs": {
+    "sqlite": {
+      "driver": "sqlite :memory: (phpunit.xml mặc định)",
+      "scope": "5 file test WWHN-193 + 4 file test bị fixture chạm tới",
+      "result": "0 fail / 0 error"
+    },
+    "postgresql": {
+      "driver": "pgsql",
+      "server_version": "16.14",
+      "database": "hoa_nam_audit",
+      "scope": "Wwhn193PutawayAuditFailClosedTest, Wwhn193PutawayRetryRecoveryContractTest, Wwhn193ContainerPutawayBypassRegressionTest, Wwhn193PutawayDependencyChainTest, Wwhn193PutawayLifecycleTest",
+      "result": "42 test / 42 pass / 0 fail / 0 error / 290 assertion",
+      "note": "Đây là engine đích của DEV193-P1-04R. Ba khác biệt PostgreSQL đã lộ ra và được xử lý ở tầng test: trigger mirror idempotency_records đòi request_hash NOT NULL, trigger hn_reject_posted_document_change() giữ phiếu POSTED bất biến, và app_users trên PG có hình dạng cột khác app_user."
+    },
+    "full_suite": {
+      "status": "NOT_MEASURED_IN_THIS_REVISION",
+      "reason": "vendor/ của repo bị một phiên song song cài lại giữa chừng (composer install) nên hai lần chạy full suite đều chết ở autoload. Cổng CI wwhn-193-putaway-closure.yml chạy full-scope trên môi trường sạch và là nguồn số liệu chính thức."
+    }
+  },
+
+  "independent_gates": {
+    "DEV193-P1-01R": "Tech Lead + QA1 — duyệt disposition re-pin sang m1 và exact SHA do cổng khẳng định",
+    "DEV193-P1-02R": "QA1 trên WWHN-194 — DEV không tự ký",
+    "DEV193-P1-03R": "Tech Lead + BA — duyệt DEC-PTW-RETRY-001",
+    "DEV193-P1-04R": "QA1 + DevOps — xác nhận bằng chứng chạy trên PostgreSQL",
+    "DEV193-P1-05R": "Tech Lead + BA + QA1 — duyệt siết contract POST/PATCH /containers",
+    "EXT-DEP-01R": "QA1 — chuỗi WWHN-43/190/191/192 trên cùng build"
+  }
+}

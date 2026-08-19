@@ -1,0 +1,166 @@
+name: WWHN-193 Putaway Closure
+
+# Vòng review 72/100 bác CHUỖI BẰNG CHỨNG chứ không bác nội dung fix. Cổng này dựng lại chuỗi
+# đó theo bốn nguyên tắc:
+#   1. Chạy trên PostgreSQL — DEV193-P1-04R đòi đích danh engine đích, không nhận sqlite.
+#   2. XOÁ artifact đã commit TRƯỚC khi chạy test và bắt chúng xuất hiện lại. Nếu không, cổng
+#      chỉ đang đọc lại file tĩnh do người viết cam vào repo, tức tự xác nhận chính mình.
+#   3. Kiểm nội dung artifact (mismatch=0, replayed=true, driver=pgsql, DB before==after…),
+#      không chỉ kiểm "file có tồn tại".
+#   4. verify-wwhn193-closure.mjs --expect-sha ${{ github.sha }}: SHA chính xác được khẳng
+#      định TỪ NGOÀI, vì không commit nào chứa được hash của chính nó.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/PutawayController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php'
+      - 'tests/Feature/Wwhn193*.php'
+      - 'tests/Feature/Concerns/PreparesPutawayFixtures.php'
+      - 'docs/evidence/WWHN-193/**'
+      - 'docs/decision-records/DEC-PTW-RETRY-001-putaway-retry-recovery-contract.md'
+      - 'scripts/verify-wwhn193-closure.mjs'
+      - '.github/workflows/wwhn-193-putaway-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/PutawayController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php'
+      - 'tests/Feature/Wwhn193*.php'
+      - 'tests/Feature/Concerns/PreparesPutawayFixtures.php'
+      - 'docs/evidence/WWHN-193/**'
+      - 'docs/decision-records/DEC-PTW-RETRY-001-putaway-retry-recovery-contract.md'
+      - 'scripts/verify-wwhn193-closure.mjs'
+      - '.github/workflows/wwhn-193-putaway-closure.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  closure:
+    name: Putaway lifecycle / retry contract / bypass regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn193
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn193"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN193-CI-JWT-Putaway-Closure-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn193
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Verifier cần lịch sử để kiểm range invariant (base là ancestor của HEAD).
+          # Shallow clone làm phép đo đó im lặng trả sai.
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Style check on WWHN-193 sources
+        run: >-
+          vendor/bin/pint --test
+          Modules/Warehouse/app/Http/Controllers/PutawayController.php
+          Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php
+          Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php
+          tests/Feature/Concerns/PreparesPutawayFixtures.php
+          tests/Feature/Wwhn193PutawayLifecycleTest.php
+          tests/Feature/Wwhn193PutawayAuditFailClosedTest.php
+          tests/Feature/Wwhn193PutawayRetryRecoveryContractTest.php
+          tests/Feature/Wwhn193ContainerPutawayBypassRegressionTest.php
+          tests/Feature/Wwhn193PutawayDependencyChainTest.php
+
+      - name: Pin and content invariants (chưa cần artifact)
+        run: node scripts/verify-wwhn193-closure.mjs --expect-sha "${GITHUB_SHA}"
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Discard committed proof artifacts so the run must regenerate them
+        run: |
+          set -euo pipefail
+          rm -f build/evidence/wwhn-193/retry-recovery-proof.json
+          rm -f build/evidence/wwhn-193/dependency-chain-proof.json
+          rm -f build/evidence/wwhn-193/audit-fail-closed-proof-pgsql.json
+          echo "Đã xoá artifact đã commit — từ đây cổng chỉ đọc thứ do lần chạy này sinh ra."
+
+      - name: WWHN-193 focused regression suite
+        # Bao gồm cả những file bị fixture của P1-05R chạm tới, để một fix siết contract
+        # không âm thầm làm đỏ luồng nhập kho / container ở chỗ khác.
+        run: >-
+          php artisan test --filter
+          '/(Wwhn193PutawayLifecycleTest|Wwhn193PutawayAuditFailClosedTest|Wwhn193PutawayRetryRecoveryContractTest|Wwhn193ContainerPutawayBypassRegressionTest|Wwhn193PutawayDependencyChainTest|Flow02InboundPutawayAlignmentTest|FoundationInboundPutawayReadinessTest|ContainerTest|Wwhn172SkuContainerTransactionTest|Wwhn204LedgerReconciliationCoverageTest)/'
+
+      - name: Assert proof artifacts came from THIS run
+        run: node scripts/verify-wwhn193-closure.mjs --expect-sha "${GITHUB_SHA}" --require-evidence
+
+      - name: Exact SHA evidence summary
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wwhn-193
+          cp build/evidence/wwhn-193/*.json artifacts/wwhn-193/
+          mismatch="$(php -r '$d=json_decode(file_get_contents("artifacts/wwhn-193/dependency-chain-proof.json"), true, 512, JSON_THROW_ON_ERROR); echo (int) $d["dependency_chain"]["reconcile"]["mismatch_count"];')"
+          driver="$(php -r '$d=json_decode(file_get_contents("artifacts/wwhn-193/audit-fail-closed-proof-pgsql.json"), true, 512, JSON_THROW_ON_ERROR); echo $d["engine"]["driver"];')"
+          cat > artifacts/wwhn-193/manifest.txt <<EOF
+          jira=WWHN-193
+          branch=${GITHUB_REF_NAME}
+          sha=${GITHUB_SHA}
+          run_id=${GITHUB_RUN_ID}
+          db=postgres16
+          audit_fail_closed_driver=${driver}
+          artifact_origin=regenerated_by_this_run
+          dependency_chain_mismatch=${mismatch}
+          result=PASS
+          qa1_signoff=NOT_CLAIMED_BY_DEV
+          EOF
+          sha256sum artifacts/wwhn-193/* > artifacts/wwhn-193/SHA256SUMS
+          cat artifacts/wwhn-193/manifest.txt
+          cat artifacts/wwhn-193/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-193-exact-sha-${{ github.sha }}
+          path: artifacts/wwhn-193
+          if-no-files-found: error
+          retention-days: 30

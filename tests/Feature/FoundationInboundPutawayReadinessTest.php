@@ -11,10 +11,12 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\PreparesPutawayFixtures;
 use Tests\TestCase;
 
 class FoundationInboundPutawayReadinessTest extends TestCase
 {
+    use PreparesPutawayFixtures;
     use RefreshDatabase;
 
     private function authHeaders(): array
@@ -258,6 +260,8 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             'status' => 'RECEIVED_PENDING_PUTAWAY',
             'version' => 1,
         ]);
+        // DEV193-P1-05R: linkage phiếu nhập POSTED là điều kiện tiên quyết của putaway task.
+        $this->seedPostedReceiptForBox((string) $box->container_id, (string) $sku->sku_id);
         $tray = Container::create([
             'container_code' => 'TRAY-PUT-001',
             'container_type' => 'TRAY',

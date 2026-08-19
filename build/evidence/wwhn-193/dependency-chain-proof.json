@@ -1,0 +1,81 @@
+{
+    "dependency_chain": {
+        "jira_dependencies": [
+            "WWHN-43",
+            "WWHN-190",
+            "WWHN-191",
+            "WWHN-192"
+        ],
+        "same_build": true,
+        "quantity": 7,
+        "document_id": "dd28e631-9751-4d46-9c0e-44d8918b7c0c",
+        "box_container_id": "6f505f34-c4e0-4053-85d3-2da1cb3c43e6",
+        "putaway_event_id": "e69f03ca-96e0-455b-b235-5acc33f9514e",
+        "steps": [
+            {
+                "step": "create_inbound_document",
+                "http": 201,
+                "stock_effect": "NONE"
+            },
+            {
+                "step": "register_box",
+                "http": 201,
+                "box_status": "EMPTY",
+                "stock_effect": "NONE"
+            },
+            {
+                "step": "scan",
+                "http": 200,
+                "movements_after": 0,
+                "stock_effect": "NONE"
+            },
+            {
+                "step": "post_receipt",
+                "http": 200,
+                "movements_after": 1,
+                "balance_after": 7,
+                "stock_effect": "INCREASE"
+            },
+            {
+                "step": "box_eligible",
+                "box_status": "RECEIVED_PENDING_PUTAWAY",
+                "receipt_id": "dd28e631-9751-4d46-9c0e-44d8918b7c0c"
+            },
+            {
+                "step": "putaway_draft",
+                "http": 201,
+                "stock_document_id": "dd28e631-9751-4d46-9c0e-44d8918b7c0c",
+                "stock_effect": "NONE"
+            },
+            {
+                "step": "putaway_confirm",
+                "http": 200,
+                "box_status": "STORED",
+                "movements_after": 1,
+                "balance_after": 7,
+                "stock_effect": "NONE"
+            }
+        ],
+        "reconcile": {
+            "rows_checked": 1,
+            "mismatch_count": 0,
+            "rows": [
+                {
+                    "key": "01a017a0-3f72-710b-8201-d9f4fec4c4d6|01a017a0-3f77-73bf-852d-09577deee70e",
+                    "ledger_net": 7,
+                    "balance_total": 7,
+                    "match": true
+                }
+            ]
+        },
+        "verdict": "PASS — chuỗi phụ thuộc qualified trên cùng build, mismatch=0"
+    },
+    "negative_dependency": {
+        "scenario": "BOX đã scan nhưng phiếu chưa POSTED",
+        "http": 409,
+        "error_code": "BOX_NOT_PUTAWAY_ELIGIBLE",
+        "putaway_events": 0,
+        "movements": 0,
+        "verdict": "PASS — Putaway thực sự phụ thuộc Post Receipt"
+    }
+}
