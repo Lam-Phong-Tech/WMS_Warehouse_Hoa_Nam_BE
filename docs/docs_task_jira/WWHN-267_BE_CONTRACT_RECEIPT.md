@@ -81,5 +81,10 @@ npx vitest run src/shared/api/__tests__/wwhn-267-forbidden-code-contract.test.ts
 Test Files 1 passed · Tests 7 passed
 ```
 
+Lưu ý khi chạy lại tại chỗ: nếu cây làm việc đang mang thay đổi seeder chưa commit
+của phiên khác (xem `W267-EXT-06`), ca `test_role_baseline_matches_the_pin` sẽ đỏ —
+đó chính là hành vi mong muốn của pin, không phải hồi quy. Trên trạng thái đã commit,
+bộ test xanh 8/8.
+
 Ranh giới sự thật: đây là lượt chạy in-process trên DB test tại máy dev. Bằng chứng
 trích dẫn ra ngoài phải lấy từ lượt chạy CI trên `GITHUB_SHA` của `m1`.
