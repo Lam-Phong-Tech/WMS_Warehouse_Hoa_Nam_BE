@@ -6,13 +6,19 @@ Baseline hiệu lực: **SRS/FRD v1.12** (adopt tại WWHN-334), **ERD HoaNam_ER
 
 ## 0. Định danh candidate
 
+**Round 2 (19/08/2026):** candidate `c855851b…` đã DRIFT 125 commit (BE) / 48 commit (FE)
+kể từ 18/08 — review 64/100 bắt đúng gap này ở DEV254-P1-02R. Đã re-pin sang SHA dưới đây
+sau khi soát lại toàn bộ report-scope không bị lệch (`git diff --stat` rỗng cho
+`*Report*`, `config/l5-swagger.php`, `docs/postman`, `docs/api-contract/releases`,
+`routes/api.php`) và tìm/sửa 1 regression thật do ticket khác gây ra (mục 6).
+
 | Hạng mục | Giá trị |
 | --- | --- |
 | Nhánh | `m1` (không tạo nhánh riêng) |
-| BE candidate SHA | `c855851b37920237d110f7dffe5dbbad509aebce` |
-| BE evidence/doc SHA | điền sau commit docs kèm theo |
+| BE candidate SHA (Round 2) | `e02903f1fc6b7635c2deac84a0284f49ddfb0fdd` |
+| BE candidate SHA (Round 1, superseded) | `c855851b37920237d110f7dffe5dbbad509aebce` |
 | FE candidate SHA | xem `docs/Task_docs_Jira/WWHN-254.md` bên repo FE |
-| Gate exact-SHA | `.github/workflows/flow06-exact-sha.yml` |
+| Gate exact-SHA | `.github/workflows/flow06-exact-sha.yml` — **CHƯA chạy lại qua GitHub Actions ở Round 2** (xem mục 6, lý do là chỉ thị của chủ dự án tạm dừng mọi tiêu hao CI-minutes) |
 
 **Cách sinh bằng chứng PASS tại đúng SHA đã pin** (đây chính là thứ trước đây không làm
 được, nên candidate `bbc93d…` không bao giờ có run xanh):
@@ -142,3 +148,82 @@ Bộ full suite BE tại thời điểm chạy có 14 đỏ, **không** thuộc 
 `CurrentBaselineFlowContractSourceTest`, `SchemaApiModulesTest` — do các thay đổi đang dở
 của phiên làm việc song song trên cùng nhánh `m1` (PV / permission catalog / go-live).
 Trước khi pin candidate cuối, phải chạy lại full suite ở trạng thái sạch.
+
+## 6. Round 2 (19/08/2026) — re-pin sau drift 125 commit, đóng DEV254-P1-02R
+
+### 6.1 Regression thật tìm ra và đã sửa: REQ-SRS-037 guard báo nhầm
+
+`WWHN-190` (Post Receipt R2, commit `d9f1769`) thêm release pack mới
+`docs/api-contract/releases/WWHN-190/1.8.0/` (`openapi.json`, `openapi.yaml`,
+`CHANGELOG.md`). Pack này dùng đúng mẫu `x-removed-surfaces` + `x-supersedes` để **ghi lại**
+việc đã gỡ `/stocktake/sessions/{id}/apply-adjustment` theo DISP-STK-236 §3 (immutable
+handoff, superseded chứ không sửa nội dung cũ) — bằng chứng TUÂN THỦ REQ-SRS-037, không
+phải capability còn sống. Nhưng guard `test_published_contract_artifacts_carry_no_stocktake_capability`
+(chính guard do WWHN-254 thêm) so needle `/stocktake` trên toàn bộ nội dung file kể cả field
+tường thuật (`description`, `x-removed-surfaces.path`) nên báo nhầm 3 file là vi phạm.
+
+Sửa tại `tests/Feature/Flow05InventoryControlAlignmentTest.php` (commit `e02903f1`): thêm
+`stripStocktakeNarrativeFields()` — trước khi so needle, với `.json`/`.yaml` thì
+`json_decode`/`Symfony\Yaml::parse` rồi gỡ khoá `description|summary|reason|declared_in|
+notes|title` + toàn bộ khối `x-removed-surfaces`/`x-supersedes`; với `.md` (văn xuôi thuật
+lại, không phải hợp đồng máy đọc) bỏ qua bước quét nội dung. Path/tag/enum/permission SỐNG
+nằm ngoài các khoá này vẫn bị bắt nguyên vẹn — không nới lỏng guard, chỉ sửa đúng chỗ hổng.
+Test lại: `Flow05InventoryControlAlignmentTest` 10/10 pass; đây là điều kiện tiên quyết để
+pin được candidate Round 2 (full suite phải sạch ở report/no-Stocktake scope trước khi pin).
+
+### 6.2 Hai lỗi hạ tầng tìm ra trong chính `flow06-exact-sha.yml` — CHƯA sửa (ngoài phạm vi cho phép)
+
+Theo chỉ thị hiện hành của chủ dự án, **không được sửa/chạy bất cứ gì thuộc GitHub Actions**
+(ngân sách CI đã dùng hết 3000/3000 phút, tránh phát sinh phí). Hai lỗi dưới đây nằm
+trong file `.github/workflows/flow06-exact-sha.yml` nên KHÔNG được sửa ở vòng này — ghi lại
+đúng nguyên nhân + bản vá cần áp dụng, để Tech Lead áp 1 lần khi có ngân sách CI trở lại,
+tránh phải điều tra lại từ đầu:
+
+1. **Bước "Current-baseline documentation semantics" trỏ vào file đã bị xoá.**
+   `docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md` bị gỡ tại commit `7c2ecd4` (16/08, đổi sang
+   `docs/HoaNam_Tai_Lieu_Tong_hop_Dev_Test_v1.0_20260812_Moi_Nhat.md`), rồi file đó cũng
+   không còn tồn tại trong cây hiện tại — nội dung đã được hợp nhất vào 4 tài liệu baseline
+   chính thức (`HN_SRS_FRD_v1.12_FULL.md`, `HoaNam_ERD_Moi_Nhat.md`,
+   `HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html`,
+   `WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`). Bước `run:` này sẽ **luôn fail ngay**
+   (`grep: No such file or directory`) ở bất kỳ lần chạy nào kể cả khi CI có ngân sách trở
+   lại. Đã xác nhận lại từng assertion vẫn đúng về nội dung, chỉ đổi chỗ neo:
+   - `'01 nhãn/item'` / `'PRODUCT bắt buộc active RFID trước Post Issue'` — vẫn KHÔNG xuất
+     hiện ở cả 4 tài liệu baseline (đã grep xác nhận).
+   - `'đúng 01 Packing Label cho phiếu/lô'` — nội dung tương đương nay nằm ở
+     `docs/HoaNam_ERD_Moi_Nhat.md:2044` dạng *"Đúng 01 Packing Label canonical / phiếu-lô
+     xuất."* (đổi chữ hoa + chèn "canonical /" khi hợp nhất baseline).
+   - `'UNIQUE(outbound_document_id)'`, `'customer_phone'` — vẫn ở `HoaNam_ERD_Moi_Nhat.md`.
+   - `"REPORT_EXPORT: 'report.export'"` — vẫn ở `WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md`.
+   **Bản vá cần áp (không tự áp ở vòng này):** đổi 5 dòng `grep … docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md`
+   trong `flow06-exact-sha.yml` sang trỏ đúng 2 file baseline còn tồn tại ở trên, và cập
+   nhật literal `đúng 01 Packing Label cho phiếu/lô` → `Đúng 01 Packing Label canonical / phiếu-lô xuất`.
+2. **Bước "Exact SHA evidence summary" tính hash Postman sai với file có khoảng trắng trong
+   tên.** Lệnh `find docs/postman -type f | sort | xargs sha256sum | sha256sum` không
+   null-delimit; nhiều file Postman bàn giao có khoảng trắng trong tên (vd.
+   `"WMS_HoaNam API Contract - DEV.postman_collection.json"`), khiến `xargs` tách thành
+   nhiều "đường dẫn" rác không tồn tại → `sha256sum` lỗi từng phần → cả bước fail (shell
+   step của GitHub Actions chạy với `-eo pipefail`). Tính lại đúng cục bộ bằng
+   `find … -print0 | sort -z | xargs -0 sha256sum | sha256sum` (mục 6.3). **Bản vá cần áp:**
+   đổi đúng 1 dòng lệnh trong bước "Exact SHA evidence summary" sang biến thể `-print0`/`-z`/`-0`.
+
+### 6.3 Bằng chứng chạy thật Round 2 (19/08/2026, local — không qua GitHub Actions)
+
+| Hạng mục | Kết quả |
+| --- | --- |
+| sqlite — report scope (`ReportFlow06\|Flow06\|Flow05InventoryControlAlignmentTest\|Wwhn328DashboardQuickContractTest\|Wwhn254ReportEvidenceTest\|Wwhn237VarianceReportDeferredGateTest`) | 119/119 pass, 2555 assertion |
+| sqlite — full suite (`php artisan test`, sau khi sửa 6.1) | 1078/1123 pass; **9 fail còn lại đều ngoài phạm vi WWHN-254** — 7× `Wwhn300BackendGoLiveCheckTest` (migration `2026_08_19_130000_sync_inbound_lines_mirror_deletes` của phiên song song chưa dispositioned vào `fail_forward_allowlist.php`), 1× `DocumentationBaselineContractTest` (health thiếu 400, pre-existing), 1× `Wwhn309PermissionCatalogEvidenceTest` (catalog doc stale, pre-existing). `ReportFlow06DocsAlignmentTest::test_swagger_publishes_report_filters_and_export_request_body` cũng rớt trong lượt full-suite này nhưng **pass lại khi chạy riêng** (flaky do state chung khi nhiều phiên cùng ghi `storage/api-docs/`, không phải regression) |
+| PostgreSQL 16 (container tạm `wwhn254-pg-verify`, KHÔNG dùng container CI dùng chung `wms_warehouse_hoa_nam_be-postgres-1`, đã xoá sau khi xong) — `migrate:fresh --seed --force` + report scope | 92/92 pass, 1003 assertion |
+| `vendor/bin/pint --test` đúng danh sách file trong bước "Flow 06 Pint / syntax" của gate | passed |
+| Doc-semantics (grep, mục 6.2, trỏ đúng 2 file baseline hiện hành thay vì file đã xoá) | cả 5 assertion đều đúng |
+| REQ-SRS-037 no-Stocktake trong `docs/postman` + `docs/api-contract/releases` | 0 offender (sau fix 6.1) |
+| `openapi_sha256` (tại `e02903f1`, `php artisan l5-swagger:generate`) | `14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8` |
+| `postman_set_sha256` (tính đúng, null-delimited — xem 6.2 mục 2) | `d5841748b60e69ce235e8f4f1f7acf0580f33506cf71cc1e7cd955c4bff15c26` |
+| FE — `npx tsc --noEmit`, `npx vitest run` (tại FE SHA `f9f2e65e`) | typecheck sạch; 701/701 test (90 file), gồm `flow06-report-pagination-export.test.ts` 7/7 |
+
+**Điều CHƯA làm ở Round 2, cố ý:** chưa `gh workflow run flow06-exact-sha.yml` (chưa có
+run GitHub Actions PASS chính thức cho SHA `e02903f1`) vì (a) chỉ thị chủ dự án tạm dừng
+mọi hoạt động tiêu tốn CI-minutes, và (b) kể cả khi được phép chạy, gate sẽ tự fail ở 2 lỗi
+hạ tầng tại mục 6.2 cho tới khi ai đó có quyền sửa `.yml` áp bản vá đã nêu. Bằng chứng local
+ở trên (sqlite + PG16 thật, không mock) là bản thay thế tạm thời cho tới khi có run CI chính
+thức; Tech Lead cần đối chiếu lại khi ngân sách CI mở lại.
