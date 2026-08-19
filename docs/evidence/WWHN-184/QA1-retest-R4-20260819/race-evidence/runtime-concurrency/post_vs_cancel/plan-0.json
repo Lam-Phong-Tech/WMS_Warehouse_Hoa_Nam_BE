@@ -1,0 +1,15 @@
+{
+    "scenario": "post_vs_cancel",
+    "worker_index": 0,
+    "barrier_dir": "docs\/evidence\/WWHN-184\/QA1-retest-R4-20260819\/race-evidence\/runtime-concurrency\/post_vs_cancel\/barrier",
+    "out_file": "docs\/evidence\/WWHN-184\/QA1-retest-R4-20260819\/race-evidence\/runtime-concurrency\/post_vs_cancel\/worker-0.json",
+    "hold_ms": 1200,
+    "operation": {
+        "action": "post_receipt",
+        "mode": "locked",
+        "actor_id": "01a019dc-93a8-73fe-a906-9044508fbb1b",
+        "document_id": "e23f795b-7ddf-4ef9-97a1-523b010a22d6",
+        "if_match": "2",
+        "idempotency_key": "w184-race-c-post-8CA6E311"
+    }
+}

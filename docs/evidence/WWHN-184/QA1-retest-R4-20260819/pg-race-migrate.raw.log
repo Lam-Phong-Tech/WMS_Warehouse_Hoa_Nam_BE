@@ -1,0 +1,168 @@
+
+ INFO Preparing database. 
+
+ Creating migration table .. 18.05ms DONE
+
+ INFO Running migrations. 
+
+ 0001_01_01_000001_create_cache_table .. 39.96ms DONE
+ 0001_01_01_000002_create_jobs_table .. 53.44ms DONE
+ 2026_01_01_000010_create_idempotency_keys_table .. 52.00ms DONE
+ 2026_01_01_000020_create_app_user_table .. 28.07ms DONE
+ 2026_01_01_000021_create_role_table .. 17.72ms DONE
+ 2026_01_01_000022_create_permission_table .. 24.56ms DONE
+ 2026_01_01_000023_create_user_role_table .. 39.29ms DONE
+ 2026_01_01_000024_create_role_permission_table .. 42.02ms DONE
+ 2026_01_01_000025_create_refresh_tokens_table .. 45.64ms DONE
+ 2026_01_01_000030_create_product_masters_table .. 37.91ms DONE
+ 2026_01_01_000030_create_warehouses_table .. 25.55ms DONE
+ 2026_01_01_000031_create_products_table .. 43.51ms DONE
+ 2026_01_01_000032_create_stock_documents_table .. 116.94ms DONE
+ 2026_01_01_000033_create_stock_document_lines_table .. 38.48ms DONE
+ 2026_01_01_000034_create_inventory_balances_table .. 39.10ms DONE
+ 2026_01_01_000035_create_stock_movements_table .. 71.57ms DONE
+ 2026_01_01_000036_create_document_status_history_table .. 39.04ms DONE
+ 2026_01_01_000040_create_audit_log_table .. 50.16ms DONE
+ 2026_01_01_000041_create_safe_stock_configs_table .. 39.07ms DONE
+ 2026_01_01_000042_create_safe_stock_alerts_history_table .. 33.17ms DONE
+ 2026_01_01_000043_create_inventory_serials_table .. 42.40ms DONE
+ 2026_01_01_000044_create_hoanam_erd_extension_tables .. 1 giây DONE
+ 2026_01_01_000044_create_physical_codes_table .. 41.11ms DONE
+ 2026_01_01_000045_create_import_batches_table .. 37.19ms DONE
+ 2026_01_01_000046_create_containers_table .. 50.06ms DONE
+ 2026_01_01_000047_create_item_instances_table .. 52.08ms DONE
+ 2026_01_01_000048_create_container_items_table .. 30.24ms DONE
+ 2026_07_30_000001_create_document_status_transitions_table .. 43.21ms DONE
+ 2026_07_30_000002_create_inventory_reservations_table .. 33.99ms DONE
+ 2026_07_30_000003_create_inventory_report_snapshots_table .. 40.73ms DONE
+ 2026_07_30_000004_create_stock_requests_table .. 66.89ms DONE
+ 2026_07_30_000005_create_stock_request_lines_table .. 28.55ms DONE
+ 2026_07_30_000006_create_in_transit_ledger_table .. 48.55ms DONE
+ 2026_07_31_000001_create_agencies_table .. 21.33ms DONE
+ 2026_07_31_000002_create_defect_catalogs_table .. 25.75ms DONE
+ 2026_08_02_000001_add_single_active_warehouse_guard .. 10.83ms DONE
+ 2026_08_02_000002_safe_guard_products_to_sku_rename .. 7.11ms DONE
+ 2026_08_02_190000_expand_idempotency_operation_columns .. 23.01ms DONE
+ 2026_08_03_000001_create_audit_outbox_table .. 30.01ms DONE
+ 2026_08_03_000100_harden_stocktake_three_layer_contract .. 497.89ms DONE
+ 2026_08_03_000200_allow_completed_idempotency_lease_release .. 9.62ms DONE
+ 2026_08_03_000210_harden_sku_component_container_contract .. 136.79ms DONE
+ 2026_08_04_000220_harden_wwhn172_serial_and_code_uniqueness .. 168.56ms DONE
+ 2026_08_09_000300_create_products_compatibility_view .. 20.77ms DONE
+ 2026_08_09_000305_make_products_view_writable_on_sqlite .. 3.35ms DONE
+ 2026_08_09_000310_add_stock_status_to_stock_movements .. 16.57ms DONE
+ 2026_08_09_000400_align_latest_erd_baseline .. 1 giây DONE
+ 2026_08_09_000410_drop_non_erd_unused_tables .. 75.52ms DONE
+ 2026_08_09_000420_harden_latest_mvp_contract .. 90.49ms DONE
+ 2026_08_10_000500_align_documented_schema_contract .. 295.43ms DONE
+ 2026_08_10_000590_seed_canonical_masters_before_fk_hardening .. 38.32ms DONE
+ 2026_08_10_000600_enforce_current_erd_business_contract .. 2 giây DONE
+ 2026_08_10_000610_repoint_sku_to_canonical_masters .. 395.45ms DONE
+ 2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history .. 220.89ms DONE
+ 2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes .. 50.12ms DONE
+ 2026_08_10_000640_materialize_putaway_events .. 80.00ms DONE
+ 2026_08_10_000650_align_container_subledger_quantity .. 39.87ms DONE
+ 2026_08_10_000660_finalize_current_baseline_contract .. 836.57ms DONE
+ 2026_08_10_000665_backfill_legacy_container_physical_code_targets .. 13.89ms DONE
+ 2026_08_10_000670_align_identity_container_and_scan_lifecycle .. 1 giây DONE
+ 2026_08_10_000680_align_putaway_and_container_compatibility .. 264.20ms DONE
+ 2026_08_10_000690_complete_component_issue_storage_contract .. 193.85ms DONE
+ 2026_08_10_000700_enforce_scan_evidence_storage_invariants .. 76.26ms DONE
+ 2026_08_10_000710_enforce_cross_aggregate_business_guards .. 55.13ms DONE
+ 2026_08_10_000720_enforce_all_documented_quantities_bigint .. 395.74ms DONE
+ 2026_08_10_000730_add_version_to_remaining_mutable_aggregates .. 92.83ms DONE
+ 2026_08_10_000740_verify_mutable_aggregate_version_contract .. 107.48ms DONE
+ 2026_08_10_000750_materialize_erd_1_0_physical_objects .. 5 giây DONE
+ 2026_08_10_000760_align_erd_1_0_fields_types_and_data .. 8 giây DONE
+ 2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync .. 2 giây DONE
+ 2026_08_10_000766_backfill_structured_erd_payload_columns .. 71.47ms DONE
+ 2026_08_10_0007674_add_missing_defect_catalog_runtime_columns .. 47.23ms DONE
+ 2026_08_10_0007675_prepare_defect_catalog_canonical_key .. 13.19ms DONE
+ 2026_08_10_000767_complete_import_batch_runtime_compatibility .. 13.08ms DONE
+ 2026_08_10_000768_sync_defect_catalog_runtime_to_erd .. 20.48ms DONE
+ 2026_08_10_0007695_prepare_all_canonical_erd_keys .. 1 giây DONE
+ 2026_08_10_0007697_backfill_iam_canonical_required_fields .. 66.96ms DONE
+ 2026_08_10_0007698_backfill_warranty_canonical_required_fields .. 15.80ms DONE
+ 2026_08_10_0007699_prepare_legacy_label_snapshot_check .. 18.83ms DONE
+ 2026_08_10_000769_remove_superseded_label_print_event_status_guard .. 13.04ms DONE
+ 2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints .. 49 giây DONE
+ 2026_08_10_000772_promote_documented_canonical_primary_keys .. 1 giây DONE
+ 2026_08_10_000773_sync_warranty_runtime_to_erd .. 29.90ms DONE
+ 2026_08_10_000774_sync_iam_runtime_to_erd .. 133.28ms DONE
+ 2026_08_10_000780_enforce_cross_table_erd_business_invariants .. 135.70ms DONE
+ 2026_08_10_000781_enable_putaway_history_guard .. 19.58ms DONE
+ 2026_08_10_000782_enforce_item_tracking_and_container_sku_rules .. 35.48ms DONE
+ 2026_08_10_000783_enforce_documented_nonpartial_unique_indexes .. 735.13ms DONE
+ 2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules .. 124.06ms DONE
+ 2026_08_10_000790_retire_legacy_runtime_tables .. 309.28ms DONE
+ 2026_08_10_000791_retire_remaining_singular_legacy_tables .. 480.10ms DONE
+ 2026_08_10_000792_drop_retired_runtime_normalizers .. 13.39ms DONE
+ 2026_08_11_000001_add_item_instance_trace_to_stock_document_lines .. 54.50ms DONE
+ 2026_08_11_161500_materialize_receipt_putaway_status .. 81.93ms DONE
+ 2026_08_11_184000_sync_sqlite_defect_compatibility .. 3.61ms DONE
+ 2026_08_12_000001_create_scan_record_tables .. 82.40ms DONE
+ 2026_08_12_130500_align_putaway_draft_confirmation_lifecycle .. 54.42ms DONE
+ 2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger .. 17.01ms DONE
+ 2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents .. 10.55ms DONE
+ 2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger .. 52.85ms DONE
+ 2026_08_13_000100_add_issued_at_to_item_instances .. 25.59ms DONE
+ 2026_08_13_104828_relax_outbound_request_id_requirement .. 24.99ms DONE
+ 2026_08_13_150000_expose_warranty_flow04_runtime_contract .. 173.47ms DONE
+ 2026_08_14_000001_add_catalog_report_warranty_pv_integrity_indexes .. 36.24ms DONE
+ 2026_08_14_000100_add_import_lifecycle_columns .. 34.22ms DONE
+ 2026_08_14_000200_create_import_reports_table .. 69.49ms DONE
+ 2026_08_15_000100_enforce_stock_movements_append_only_trigger .. 31.94ms DONE
+ 2026_08_15_140000_align_packing_label_to_outbound_document .. 88.20ms DONE
+ 2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column .. 16.44ms DONE
+ 2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast .. 18.65ms DONE
+ 2026_08_15_170000_add_contact_name_to_agencies .. 262.90ms DONE
+ 2026_08_16_000100_restore_user_role_effective_window .. 42.11ms DONE
+ 2026_08_16_120000_relax_physical_code_target_to_at_most_one .. 44.86ms DONE
+ 2026_08_16_121000_project_publish_state_through_sku_compat_views .. 50.36ms DONE
+ 2026_08_16_122000_restore_reversal_immutability_and_accessory_fks .. 35.97ms DONE
+ 2026_08_16_123000_add_containers_id_default_and_products_write_trigger .. 44.43ms DONE
+ 2026_08_16_124000_sync_product_masters_to_canonical_master_tables .. 25.64ms DONE
+ 2026_08_16_125000_make_outbound_recipient_address_nullable .. 41.27ms DONE
+ 2026_08_16_126000_drop_rfid_required_post_gate .. 8.65ms DONE
+ 2026_08_16_127000_mirror_inventory_serials_to_item_instances .. 30.29ms DONE
+ 2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box .. 11.34ms DONE
+ 2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check .. 24.97ms DONE
+ 2026_08_16_132000_materialize_reversal_physical_return_columns .. 77.35ms DONE
+ 2026_08_16_133000_sync_idempotency_mirror_deletes .. 29.35ms DONE
+ 2026_08_16_135000_sync_canonical_masters_back_to_product_masters .. 120.15ms DONE
+ 2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model .. 58.73ms DONE
+ 2026_08_16_137000_fix_label_snapshot_immutability_guard_columns .. 38.51ms DONE
+ 2026_08_17_000100_materialize_erd_columns_on_sqlite .. 3.82ms DONE
+ 2026_08_17_000200_backfill_warranty_pii_retention_deadline .. 25.63ms DONE
+ 2026_08_17_001000_align_reversal_read_views_with_erd .. 3.42ms DONE
+ 2026_08_17_001100_align_reconciliation_incident_with_erd .. 2.76ms DONE
+ 2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view .. 33.07ms DONE
+ 2026_08_17_140000_add_recipient_contact_phone_to_outbound_intake .. 35.90ms DONE
+ 2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers .. 2.37ms DONE
+ 2026_08_18_000100_align_defect_catalogs_with_erd_dictionary .. 81.91ms DONE
+ 2026_08_18_000100_enforce_warranty_one_active_case_all_drivers .. 26.91ms DONE
+ 2026_08_18_150000_fix_posting_events_posting_action_operation_overflow .. 22.30ms DONE
+ 2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view .. 23.56ms DONE
+ 2026_08_18_150200_add_posting_action_to_posting_event_sqlite .. 1.84ms DONE
+ 2026_08_18_180000_add_error_file_columns_to_import_reports .. 18.64ms DONE
+ 2026_08_18_190000_add_migration_run_trace_to_erd_identity_tables .. 107.71ms DONE
+ 2026_08_18_190000_add_options_fingerprint_to_import_reports .. 30.58ms DONE
+ 2026_08_18_193000_add_duplicate_row_count_to_migration_runs .. 13.81ms DONE
+ 2026_08_18_193000_align_defect_catalogs_to_erd_entity_15 .. 212.10ms DONE
+ 2026_08_18_193100_add_canonical_ledger_fks_to_reversal_lines .. 43.20ms DONE
+ 2026_08_18_193200_add_documented_partial_unique_on_inbound_scan_entries .. 19.43ms DONE
+ 2026_08_18_193300_restore_label_print_event_status_vocabulary .. 22.74ms DONE
+ 2026_08_18_214000_enforce_one_posted_reversal_per_item .. 18.12ms DONE
+ 2026_08_19_000001_add_event_catalog_fields_to_audit_log .. 5.36ms DONE
+ 2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields .. 45.64ms DONE
+ 2026_08_19_000050_repair_erd_mirror_projection_casts .. 295.37ms DONE
+ 2026_08_19_000100_add_optimistic_lock_to_pv_master_tables .. 93.39ms DONE
+ 2026_08_19_000200_sync_sqlite_pv_profile_publish_state .. 4.37ms DONE
+ 2026_08_19_000300_expose_scan_source_on_sqlite_scan_evidence .. 4.53ms DONE
+ 2026_08_19_010000_add_ledger_dimension_index_to_stock_movements .. 23.89ms DONE
+ 2026_08_19_050100_enforce_stock_movements_append_only_on_sqlite .. 4.71ms DONE
+ 2026_08_19_120000_consolidate_outbound_active_item_unique_index .. 26.51ms DONE
+ 2026_08_19_130000_sync_inbound_lines_mirror_deletes .. 42.33ms DONE
+ 2026_08_19_140000_create_sku_import_claims_table .. 46.88ms DONE
+ 2026_08_19_150000_align_audit_result_vocabulary_with_erd .. 55.25ms DONE
+

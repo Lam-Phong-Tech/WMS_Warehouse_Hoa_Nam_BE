@@ -1,0 +1,13 @@
+{
+  "pin_id": "HN-PIN-184",
+  "jira": "WWHN-184",
+  "checked_at_head": "e16862ee6c33913330f69a888d33fba8f14442b1",
+  "pinned_at_head": "8e82dd6ad26e36e0096c3cf1987260a6782012ab",
+  "expect_sha": null,
+  "artifact_count": 21,
+  "dependency_count": 3,
+  "declared_post_fix_candidate": "e16862ee6c33913330f69a888d33fba8f14442b1",
+  "resolved_post_fix_candidate": "e16862ee6c33913330f69a888d33fba8f14442b1",
+  "failures": [],
+  "status": "PASS"
+}

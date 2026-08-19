@@ -1,0 +1,15 @@
+{
+    "scenario": "shared_idempotency_key",
+    "worker_index": 0,
+    "barrier_dir": "docs\/evidence\/WWHN-184\/QA1-retest-R4-20260819\/race-evidence\/runtime-concurrency\/shared_idempotency_key\/barrier",
+    "out_file": "docs\/evidence\/WWHN-184\/QA1-retest-R4-20260819\/race-evidence\/runtime-concurrency\/shared_idempotency_key\/worker-0.json",
+    "hold_ms": 1200,
+    "operation": {
+        "action": "post_receipt",
+        "mode": "plain",
+        "actor_id": "01a019dc-93a8-73fe-a906-9044508fbb1b",
+        "document_id": "ff6b4df6-963e-4317-94f1-3ca9335b0e09",
+        "if_match": "2",
+        "idempotency_key": "w184-race-shared-8CA6E311"
+    }
+}

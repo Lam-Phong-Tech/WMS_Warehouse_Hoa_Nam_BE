@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0.0",
+  "jira_key": "WWHN-184",
+  "register_id": "DEV184-P1-01R",
+  "collection": "WWHN-184 Inbound Contract.postman_collection.json",
+  "environment": "WWHN-184 Inbound CI.postman_environment.json",
+  "request_count": 33,
+  "mutation_count": 14,
+  "refetch_count": 9,
+  "state_conflict_probe_count": 3,
+  "stale_version_probe_count": 2,
+  "checks": [
+    {
+      "rule": "R1",
+      "status": "PASS",
+      "detail": "Mọi mutation 2xx đều bắt lại inbound_version từ data.version."
+    },
+    {
+      "rule": "R2",
+      "status": "PASS",
+      "detail": "Mọi mutation 2xx đều đối chiếu ETag với data.version."
+    },
+    {
+      "rule": "R3",
+      "status": "PASS",
+      "detail": "3 probe STATE_CONFLICT đều dùng version hiện hành."
+    },
+    {
+      "rule": "R4",
+      "status": "PASS",
+      "detail": "Probe thứ tự guard: \"D04 Cancel lan 2 voi version CU -> 412 STALE_VERSION (thu tu guard)\"."
+    },
+    {
+      "rule": "R5",
+      "status": "PASS",
+      "detail": "Mọi mutation đổi trạng thái đều có refetch GET trước probe kế tiếp."
+    },
+    {
+      "rule": "R7",
+      "status": "PASS",
+      "detail": "Environment khai đủ key và không commit secret."
+    }
+  ],
+  "failures": [],
+  "summary": {
+    "status": "PASS",
+    "failure_count": 0
+  }
+}

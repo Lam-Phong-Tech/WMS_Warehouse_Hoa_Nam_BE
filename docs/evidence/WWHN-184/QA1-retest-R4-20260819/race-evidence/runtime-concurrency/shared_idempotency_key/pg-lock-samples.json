@@ -1,0 +1,114 @@
+[
+    {
+        "sampled_at": "2026-08-19T18:51:25+07:00",
+        "rows": [
+            {
+                "pid": 9159,
+                "application_name": "wwhn184-worker-0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            },
+            {
+                "pid": 9160,
+                "application_name": "wwhn184-worker-1",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:25+07:00",
+        "rows": [
+            {
+                "pid": 9159,
+                "application_name": "wwhn184-worker-0",
+                "state": "active",
+                "wait_event_type": null,
+                "wait_event": null,
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:26+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:26+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:26+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:26+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:26+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:26+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:27+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:27+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:27+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:27+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:27+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:27+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:28+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:28+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:28+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:28+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:28+07:00",
+        "rows": []
+    },
+    {
+        "sampled_at": "2026-08-19T18:51:28+07:00",
+        "rows": []
+    }
+]

@@ -100,9 +100,9 @@
   "post_fix_candidate": {
     "why": "DEV184-P1-05R4: QA report R3 ghi exact SHA đầu lượt test (dae5ff108a80330922b94cc0d439f474b58bbec5) trong khi PASS cuối cùng phát sinh SAU các fix trong lượt (pin extractor, audit view pgsql, golive allowlist). Ô này resolve MỘT candidate hậu-fix duy nhất để QA/TL/DevOps cùng tham chiếu.",
     "sha_resolution": "post_fix_candidate.sha = commit cuối cùng ĐỔI NỘI DUNG pinned object (không phải commit cuối chạm path — path-based rot theo commit của ticket khác trên file dùng chung). Verifier kiểm bằng nội dung: mọi pinned object đọc tại chính SHA này (git show <sha>:<path>, qua extractor nếu có) phải khớp hash đã pin, và SHA phải là ancestor của HEAD; kết hợp với check working-tree suy ra nội dung QA test == nội dung pin == nội dung hiện tại.",
-    "sha": null,
+    "sha": "e16862ee6c33913330f69a888d33fba8f14442b1",
     "pre_fix_sha_in_r3_report": "dae5ff108a80330922b94cc0d439f474b58bbec5",
-    "range_invariant": null,
-    "qa_report_at_candidate": null
+    "range_invariant": "dae5ff1..e16862e: mọi commit ĐỔI NỘI DUNG pinned object trong dải đã được liệt kê và giải trình tại QA1_RETEST_REPORT_R4_20260819.md §0.2 (41dfa6f, ea3bdc4, 0222069, 27ea46e, 259066e, e16862e). Commit ticket khác chạm phần không pin của file dùng chung (vd ce5f28d sửa entry WWHN-289 trong allowlist) không đổi nội dung pinned nên không phá bất biến.",
+    "qa_report_at_candidate": "docs/evidence/WWHN-184/QA1_RETEST_REPORT_R4_20260819.md"
   }
 }
