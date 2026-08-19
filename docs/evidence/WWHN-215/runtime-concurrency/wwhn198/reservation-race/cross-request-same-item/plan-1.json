@@ -1,0 +1,17 @@
+{
+    "scenario": "cross-request-same-item",
+    "worker_index": 1,
+    "barrier_dir": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn198\/reservation-race\/cross-request-same-item\/barrier",
+    "out_file": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn198\/reservation-race\/cross-request-same-item\/worker-1.json",
+    "hold_ms": 1500,
+    "operation": {
+        "type": "outbound_scan",
+        "document_id": "0a328037-de63-41ba-9ed3-1eae275120f1",
+        "line_id": "b751c649-0f7d-466a-99e8-7872da95fa88",
+        "item_id": "ceb533f3-4b10-4a8f-8fe0-0f4d149657d6",
+        "actor_id": "01a0190a-57f7-7075-9832-7d14299aca37",
+        "contended_table": "item_instances",
+        "contended_key": "item_id",
+        "contended_value": "ceb533f3-4b10-4a8f-8fe0-0f4d149657d6"
+    }
+}

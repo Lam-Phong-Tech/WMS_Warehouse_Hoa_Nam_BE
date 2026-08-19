@@ -58,5 +58,36 @@
     "description": "Wwhn204LedgerReconciliationCoverageTest fail tren PG dung chung: SQLSTATE[42703] column idempotency_key of relation audit_log does not exist -- phien khac dang them cot nhung chua apply nhat quan tren DB chung",
     "log": "docs/evidence/WWHN-215/logs/pgsql-known-drift-audit-log-column.log"
   },
-  "ci_gate": "KHONG CHAM — nguoi dung xac nhan ngan sach GitHub Actions da het 3000/3000 phut, tuyet doi khong kich hoat workflow moi"
+  "ci_gate": "KHONG CHAM — nguoi dung xac nhan ngan sach GitHub Actions da het 3000/3000 phut, tuyet doi khong kich hoat workflow moi",
+  "round2_register_R": {
+    "date": "2026-08-19",
+    "score_at_start": "68/100",
+    "disposition_file": "docs/evidence/WWHN-215/DEV215_DISPOSITION_R2.md",
+    "isolated_db_created": ["hn_wwhn215_race"],
+    "DEV215-P0-01R": {
+      "status": "PHAN DEV CLOSED — cho PM/Tech Lead dang Jira comment (khong tu ky duoc)",
+      "rev_list_today": "0\t866",
+      "candidate_ancestor_of_origin_m1": true
+    },
+    "DEV215-P1-02R": {
+      "status": "CLOSED — chay that multi-connection PostgreSQL tai candidate 0142b49",
+      "wwhn188_scan_race": { "status": "PASS", "assertions": 37, "scenarios_pass": 4, "scenarios_total": 4 },
+      "wwhn184_post_receipt_race": { "business_checks": "PASS (10/10 + 8/8 + 9/9 checks true doc truc tiep tu JSON)", "phpunit_self_check": "FAIL o 1 assertion timing do thiet ke worker script (khong phai loi nghiep vu) — xem DISPOSITION_R2.md muc 1.2" },
+      "wwhn198_outbound_reservation_race": { "status": "PASS", "assertions": 22 },
+      "evidence_dir": "docs/evidence/WWHN-215/runtime-concurrency/"
+    },
+    "DEV215-P1-03R": {
+      "status": "PASS_WITH_DISPOSITION",
+      "duplicate": 0, "orphan": 0, "negative_balance": 0, "mismatch": 3,
+      "mismatch_root_cause": "scripts/wwhn198-outbound-reservation-race.php dong 103 seed truc tiep inventory_balances, khong qua ledger — fixture cua ticket khac, ngoai pham vi WWHN-215",
+      "evidence": "docs/evidence/WWHN-215/RECONCILIATION_RUN_POPULATED_20260819.json"
+    },
+    "DEV215-P1-05R": {
+      "status": "CLOSED — hash pin",
+      "evidence": "docs/evidence/WWHN-215/CONTRACT_NO_CHANGE_20260819.json",
+      "cross_checked_against": "docs/evidence/WWHN-231/CONTRACT_NO_CHANGE.json (cung ngay, cung hash)"
+    },
+    "fe_recheck": "grep scanReceipt|scanIssue|scanLine tren HoaNam_FE/src = 0 match (do lai tai HEAD hien tai)",
+    "still_pending_non_dev": ["DEV215-P1-04R (QA1 doc lap)", "DEV215-P2-01 (PM Jira metadata)"]
+  }
 }

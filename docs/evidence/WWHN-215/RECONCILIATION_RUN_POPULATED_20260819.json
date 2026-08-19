@@ -1,0 +1,34 @@
+{
+    "task": "WWHN-215",
+    "register_item": "DEV215-P1-03R",
+    "method": "Tai su dung chinh DB co lap hn_wwhn215_race sau khi da chay 3 bo runtime-concurrency that (WWHN-184 post-receipt, WWHN-188 inbound scan, WWHN-198 outbound reservation) qua HTTP-in-process that - khong seed rieng vi DB da 'populated' bang du lieu that tu cac race o tren, dung tinh than 'khong tao du lieu gia de dep so'.",
+    "database": "hn_wwhn215_race",
+    "postgres_version": "16.14",
+    "reconcile_command": "php artisan inventory:reconcile",
+    "reconcile_command_exit_note": "chay KHONG --dry-run (ghi incident that) de chung minh SRS Ss7.5 'Create Reconciliation_Incident and block readiness/sign-off'",
+    "reconcile_command_output": "+--------------------------------------+--------------------------------------+--------------+-------------+------------+----------+----------------------------+\n| warehouse_id                         | product_id                           | stock_status | on_hand_qty | ledger_qty | variance | divergence_type            |\n+--------------------------------------+--------------------------------------+--------------+-------------+------------+----------+----------------------------+\n| 7e6d2cb7-4539-4263-87dd-9ba03f51be50 | 3158ba5c-33e4-48d9-a13e-87da54323d26 | AVAILABLE    | 2           | 0          | 2        | LEDGER_MISSING_FOR_BALANCE |\n| 7e6d2cb7-4539-4263-87dd-9ba03f51be50 | 64dd3311-94b0-412b-b2e6-2fb08bb30c1d | AVAILABLE    | 2           | 0          | 2        | LEDGER_MISSING_FOR_BALANCE |\n| 7e6d2cb7-4539-4263-87dd-9ba03f51be50 | 6df14915-0285-4043-8e96-01a97ad1fb75 | AVAILABLE    | 2           | 0          | 2        | LEDGER_MISSING_FOR_BALANCE |\n+--------------------------------------+--------------------------------------+--------------+-------------+------------+----------+----------------------------+\nDoi soat hoan tat: 5 dimension kiem tra, 3 lech phat hien, 3 incident moi",
+    "dataset_summary": {
+        "total_stock_movements": 2,
+        "total_inventory_balance_rows": 5,
+        "total_reconciliation_incidents_created": 3
+    },
+    "checks": {
+        "mismatch_count": 3,
+        "duplicate_movement_count": 0,
+        "duplicate_movement_query": "SELECT business_key, count(*) FROM stock_movements GROUP BY business_key HAVING count(*) > 1  -> 0 rows",
+        "orphan_movement_count": 0,
+        "orphan_movement_query": "SELECT m.id FROM stock_movements m LEFT JOIN sku s ON s.sku_id = m.product_id WHERE s.sku_id IS NULL -> 0 rows",
+        "negative_balance_count": 0,
+        "negative_balance_query": "SELECT * FROM inventory_balances WHERE on_hand_qty < 0 OR available_qty < 0 OR reserved_qty < 0 -> 0 rows"
+    },
+    "mismatch_disposition": {
+        "divergence_type": "LEDGER_MISSING_FOR_BALANCE",
+        "affected_rows": 3,
+        "root_cause": "scripts/wwhn198-outbound-reservation-race.php dong 103 seed truc tiep 'inventory_balances' (INSERT on_hand_qty=qty) de dung san tồn cho kich ban dua reservation, khong di qua stock_movements/ledger - day la fixture co chu dich cho rieng test WWHN-198 (kiem tra khoa reservation), khong phai luong nghiep vu that va khong thuoc pham vi WWHN-215.",
+        "not_a_wwhn215_defect_because": "Ca 2 balance duoc tao qua HTTP post-receipt that (production code path CurrentBaselineStockFlowController::postReceipt) deu khop hoan hao voi ledger (0 lech) - dung 2 movement, dung 2 balance khop. 3 lech con lai 100% truy duoc ve dong code fixture cu the cua mot test khac (WWHN-198), khong phai code dang duoc WWHN-215 danh gia (scan/ledger/reconcile).",
+        "positive_proof": "inventory:reconcile phat hien dung 3/3 lech co that, tao dung 3 incident, khong bo sot cung khong bao dong gia (0 false positive tren 2 balance hop le) - dung REQ SRS Ss7.5.",
+        "action_taken": "Khong sua fixture cua WWHN-198 (ngoai pham vi, tranh dung vao evidence da dong cua ticket khac). Ghi nhan disposition nay thay vi ep mismatch=0 gia tao."
+    },
+    "verdict": "PASS_WITH_DISPOSITION",
+    "verdict_note": "duplicate=0, orphan=0, negative=0 (that, khong dieu kien). mismatch=3 nhung co disposition day du va la bang chung reconciliation hoat dong dung, khong phai loi WWHN-215."
+}

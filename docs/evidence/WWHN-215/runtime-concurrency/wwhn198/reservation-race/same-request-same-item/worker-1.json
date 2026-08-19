@@ -1,0 +1,34 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn198-worker-1",
+    "scenario": "same-request-same-item",
+    "operation": "outbound_scan",
+    "document_id": "6a164e3c-c3ad-4311-9561-f2c9371fd3c3",
+    "item_id": "598a9696-0bfe-4b8a-ad06-e6f8655c1fae",
+    "backend_pid": 46423,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "sqlstate": null,
+    "error_message": null,
+    "lock_wait_ms": 10,
+    "timeline": {
+        "booted_at": 1787126698.883905,
+        "released_at": 1787126698.913324,
+        "lock_acquired_at": 1787126698.924811,
+        "hold_released_at": 1787126700.438492,
+        "finished_at": 1787126700.542685
+    },
+    "payload": {
+        "document_id": "6a164e3c-c3ad-4311-9561-f2c9371fd3c3",
+        "line_id": "5e2ac730-0b58-44fe-836d-ea2c2111d1a2",
+        "sku_id": "64dd3311-94b0-412b-b2e6-2fb08bb30c1d",
+        "item_id": "598a9696-0bfe-4b8a-ad06-e6f8655c1fae",
+        "quantity": 1,
+        "required_quantity": 2,
+        "scanned_quantity": 1,
+        "status": "SCANNING",
+        "stock_effect": "NONE",
+        "movement_created": false
+    }
+}

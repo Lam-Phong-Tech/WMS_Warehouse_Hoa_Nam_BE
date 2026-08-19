@@ -1,0 +1,25 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn198-worker-0",
+    "scenario": "unique-index-guard",
+    "operation": "raw_active_match_insert",
+    "document_id": "40ce1ec2-6d59-4ba6-be4f-8f96af28dab5",
+    "item_id": "34c584ac-8f21-4af2-b77e-b6a8687604bb",
+    "backend_pid": 46434,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "sqlstate": null,
+    "error_message": null,
+    "lock_wait_ms": 10,
+    "timeline": {
+        "booted_at": 1787126702.842469,
+        "released_at": 1787126702.872205,
+        "lock_acquired_at": 1787126702.883562,
+        "hold_released_at": 1787126704.387812,
+        "finished_at": 1787126704.412887
+    },
+    "payload": {
+        "raw_insert": true
+    }
+}

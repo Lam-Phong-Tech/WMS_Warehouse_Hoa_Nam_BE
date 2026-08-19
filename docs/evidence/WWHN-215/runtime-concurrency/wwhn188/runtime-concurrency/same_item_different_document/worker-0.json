@@ -1,0 +1,22 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn188-worker-0",
+    "scenario": "same_item_different_document",
+    "mode": "locked",
+    "backend_pid": 46321,
+    "os_pid": 20896,
+    "outcome": "REJECTED",
+    "http_status": 409,
+    "error_code": "ITEM_ALREADY_RECEIVING",
+    "error_message": "Item đang thuộc một inbound chưa Post khác.",
+    "lock_wait_ms": 1367,
+    "response_version": null,
+    "response_scanned_quantity": null,
+    "response_replayed": null,
+    "idempotent_replay_header": null,
+    "idempotency_key": null,
+    "process_started_at": "2026-08-19T08:04:05.122584+00:00",
+    "barrier_released_at": "2026-08-19T15:04:05.353987+07:00",
+    "request_started_at": "2026-08-19T15:04:07.955221+07:00",
+    "request_finished_at": "2026-08-19T15:04:08.033255+07:00"
+}

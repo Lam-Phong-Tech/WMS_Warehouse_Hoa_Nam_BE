@@ -1,0 +1,17 @@
+{
+    "scenario": "unique-index-guard",
+    "worker_index": 1,
+    "barrier_dir": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn198\/reservation-race\/unique-index-guard\/barrier",
+    "out_file": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn198\/reservation-race\/unique-index-guard\/worker-1.json",
+    "hold_ms": 1500,
+    "operation": {
+        "type": "raw_active_match_insert",
+        "document_id": "28d183f5-00cc-422b-88d2-cd6e9c825c26",
+        "line_id": "d821ffaf-5df1-4d86-a626-76244acac455",
+        "item_id": "34c584ac-8f21-4af2-b77e-b6a8687604bb",
+        "actor_id": "01a0190a-57f7-7075-9832-7d14299aca37",
+        "contended_table": "item_instances",
+        "contended_key": "item_id",
+        "contended_value": "34c584ac-8f21-4af2-b77e-b6a8687604bb"
+    }
+}

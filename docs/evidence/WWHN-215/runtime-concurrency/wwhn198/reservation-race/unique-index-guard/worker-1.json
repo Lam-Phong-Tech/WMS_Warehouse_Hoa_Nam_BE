@@ -1,0 +1,22 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn198-worker-1",
+    "scenario": "unique-index-guard",
+    "operation": "raw_active_match_insert",
+    "document_id": "28d183f5-00cc-422b-88d2-cd6e9c825c26",
+    "item_id": "34c584ac-8f21-4af2-b77e-b6a8687604bb",
+    "backend_pid": 46435,
+    "outcome": "DB_CONSTRAINT_REJECTED",
+    "http_status": null,
+    "error_code": null,
+    "sqlstate": "23505",
+    "error_message": "SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint \"ux_erd_outbound_active_item\"\nDETAIL:  Key (item_id)=(34c584ac-8f21-4af2-b77e-b6a8687604bb) already exists. (Connection: pgsql, Host: 127.0.0.1, Port: 5432, Database: hn_wwhn215_race, SQL: insert into \"outbound_item_matches\" (\"id\", \"outbound_line_id\", \"item_id\", \"container_id\", \"quantity\", \"status\", \"matched_at\", \"matched_by\", \"created_at\", \"created_by\", \"updated_at\", \"updated_by\", \"version\") values (43f529be-c328-4034-9a30-e3cd5dac184f, d821ffaf-5df1-4d86-a626-76244acac455, 34c584ac-8f21-4af2-b77e-b6a8687604bb, ?, 1, ACTIVE, 2026-08-19 15:05:05, 01a0190a-57f7-7075-9832-7d14299aca37, 2026-08-19 15:05:05, 01a0190a-57f7-7075-9832-7d14299aca37, 2026-08-19 15:05:05, 01a0190a-57f7-7075-9832-7d14299aca37, 0))",
+    "lock_wait_ms": 1540,
+    "timeline": {
+        "booted_at": 1787126702.843226,
+        "released_at": 1787126702.872154,
+        "lock_acquired_at": 1787126704.413298,
+        "hold_released_at": 1787126705.919105,
+        "finished_at": 1787126705.942006
+    }
+}

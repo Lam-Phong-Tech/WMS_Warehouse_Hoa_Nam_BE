@@ -1,0 +1,16 @@
+{
+    "scenario": "same_idempotency_key_quantity_mode",
+    "worker_index": 1,
+    "barrier_dir": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn188\/runtime-concurrency\/same_idempotency_key_quantity_mode\/barrier",
+    "out_file": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn188\/runtime-concurrency\/same_idempotency_key_quantity_mode\/worker-1.json",
+    "hold_ms": 0,
+    "operation": {
+        "document_id": "885b8d77-af30-4c28-8e51-44c541df6b36",
+        "line_id": "0ed795cf-6e98-47e1-98e7-17e0706ebcf4",
+        "quantity": 2,
+        "if_match": 1,
+        "actor_id": "01a0190c-6377-7168-90db-5a7ef403777f",
+        "idempotency_key": "wwhn188-race-a577c365-gos1yh4i",
+        "mode": "plain"
+    }
+}

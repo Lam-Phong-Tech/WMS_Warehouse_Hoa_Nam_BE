@@ -1,0 +1,22 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn198-worker-0",
+    "scenario": "same-request-same-item",
+    "operation": "outbound_scan",
+    "document_id": "6a164e3c-c3ad-4311-9561-f2c9371fd3c3",
+    "item_id": "598a9696-0bfe-4b8a-ad06-e6f8655c1fae",
+    "backend_pid": 46424,
+    "outcome": "REJECTED",
+    "http_status": 409,
+    "error_code": "DUPLICATE_ITEM_MATCH",
+    "sqlstate": null,
+    "error_message": "Item đã được match vào dòng outbound này.",
+    "lock_wait_ms": 1628,
+    "timeline": {
+        "booted_at": 1787126698.883969,
+        "released_at": 1787126698.913326,
+        "lock_acquired_at": 1787126700.54307,
+        "hold_released_at": 1787126702.05436,
+        "finished_at": 1787126702.11163
+    }
+}

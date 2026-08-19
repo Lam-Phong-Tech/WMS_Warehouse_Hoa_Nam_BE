@@ -1,0 +1,44 @@
+{
+  "task": "WWHN-215",
+  "register_item": "DEV215-P1-05R",
+  "disposition": "NO CONTRACT CHANGE",
+  "statement": "WWHN-215 khong tao commit code nao (chi doc + chay test that + viet evidence). Response shape cua POST /inbound-documents/{id}/scan va POST /outbound-documents/{id}/scan giu nguyen stock_effect: 'NONE', movement_created: false nhu da publish tu WWHN-188/WWHN-195/WWHN-198.",
+  "candidate_pin": {
+    "backend_sha": "0142b49ed11ac410136ca96993b3fb6ca2ac2971",
+    "note": "candidate = commit cuoi cham tap file scan/ledger (xem MANIFEST.json.note_pin); khong doi tu round 1 vi khong co commit moi nao cham surface nay."
+  },
+  "artifacts_hash_pin": {
+    "note": "sha256 do lai 2026-08-19 sau khi HEAD da di xa candidate vi nhieu phien khac commit len m1. Trung khop tuyet doi voi hash da ghi cung ngay o docs/evidence/WWHN-231/CONTRACT_NO_CHANGE.json (cung 3 file, cung ngay) - xac nhan cheo doc lap rang cac file nay khong doi giua hai lan do.",
+    "files": [
+      {
+        "path": "storage/api-docs/api-docs.json",
+        "sha256": "14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8",
+        "cross_check_against": "docs/evidence/WWHN-231/CONTRACT_NO_CHANGE.json .artifacts_not_modified.files[0].sha256_today_20260819",
+        "matches": true
+      },
+      {
+        "path": "storage/api-docs/api-docs.yaml",
+        "sha256": "01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec",
+        "cross_check_against": "docs/evidence/WWHN-231/CONTRACT_NO_CHANGE.json .artifacts_not_modified.files[1].sha256_today_20260819",
+        "matches": true
+      },
+      {
+        "path": "docs/contracts/HoaNam_Current_Baseline_Contract.json",
+        "sha256": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+        "cross_check_against": "docs/evidence/WWHN-231/CONTRACT_NO_CHANGE.json .artifacts_not_modified.files[2].sha256_today_20260819",
+        "matches": true
+      }
+    ],
+    "git_status_check": "git status --short storage/api-docs/ docs/contracts/ -> rong (khong co thay doi chua commit tren 2 thu muc nay)"
+  },
+  "response_shape_source_check": {
+    "file": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php",
+    "grep": "'stock_effect' => 'NONE'",
+    "line_confirmed": 106,
+    "meaning": "Duong scanStockDocument() (ca inbound lan outbound) van tra dung stock_effect=NONE nhu contract da publish; INCREASE/DECREASE chi xuat hien o nhanh postStockDocument() (dong 217/501), khong lien quan endpoint scan."
+  },
+  "postman": {
+    "disposition": "N/A - khong collection nao can cap nhat vi khong co thay doi contract",
+    "same_disposition_as": "docs/evidence/WWHN-231/CONTRACT_NO_CHANGE.json .artifacts_not_modified.postman"
+  }
+}

@@ -1,0 +1,15 @@
+{
+    "scenario": "shared_idempotency_key",
+    "worker_index": 1,
+    "barrier_dir": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn184\/runtime-concurrency\/shared_idempotency_key\/barrier",
+    "out_file": "docs\/evidence\/WWHN-215\/runtime-concurrency\/wwhn184\/runtime-concurrency\/shared_idempotency_key\/worker-1.json",
+    "hold_ms": 1200,
+    "operation": {
+        "action": "post_receipt",
+        "mode": "plain",
+        "actor_id": "01a0190a-989b-70e5-b6ed-e95663a23985",
+        "document_id": "b4cead8c-da1b-4dbe-bfde-7d189485604f",
+        "if_match": "2",
+        "idempotency_key": "w184-race-shared-749B09F6"
+    }
+}
