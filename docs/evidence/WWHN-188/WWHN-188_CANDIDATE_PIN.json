@@ -1,0 +1,107 @@
+{
+  "ticket": "WWHN-188",
+  "title": "[DEV] Rà soát giao dịch/khóa đồng thời (HN-IN-002, BE1)",
+  "generated_at": "2026-08-19T01:39:17.983Z",
+  "review_items_closed": [
+    "DEV188-P1-01R2",
+    "DEV188-P1-02R2",
+    "DEV188-P1-03R2",
+    "DEV188-P1-04R2",
+    "DEV188-P1-05R2",
+    "DEV188-P1-06R2",
+    "DEV188-P2-01"
+  ],
+  "branch": "m1",
+  "candidate": {
+    "commit_sha": "49d4ccf9579bc4c8796d019c21ebd86b4b532dff",
+    "committed_at": "2026-08-19T08:39:08+07:00",
+    "subject": "docs(WWHN-188): neo bang chung race that PostgreSQL tai exact candidate SHA",
+    "code_commit_sha": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6",
+    "code_committed_at": "2026-08-19T08:36:07+07:00"
+  },
+  "branch_head_at_pin_time": {
+    "sha": "49d4ccf9579bc4c8796d019c21ebd86b4b532dff",
+    "note": "Chỉ ghi để đối chiếu. Nhánh m1 có nhiều phiên làm song song nên HEAD không phải candidate."
+  },
+  "openapi": {
+    "operation_extract": "docs/evidence/WWHN-188/openapi/stock_in_scan.operation.json",
+    "sha256_canonical": "ccc14a4da121bf9cfa9ae869193f8008d3d5122d991078149386546482bd4eef",
+    "operation_ids": [
+      "stock_in_scan"
+    ],
+    "paths": [
+      "/api/v1/inbound-documents/{id}/scan",
+      "/api/v1/inbound-documents/{id}/scans"
+    ]
+  },
+  "artifacts": {
+    "app/Support/ScanRequestFingerprint.php": {
+      "blob_sha": "5c05ad2bd6a21e86ff287f4ae74c1c2739808579",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php": {
+      "blob_sha": "f31c97b491496ff0c93056d24e9987e049577a42",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php": {
+      "blob_sha": "8507f257bb800cbe110c353d35af23923aae5688",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "tests/Feature/Wwhn188ScanIdempotencyContractTest.php": {
+      "blob_sha": "de983fc6f7c1325b0074f532baef55b452a802f5",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "tests/Feature/InboundScanConcurrencyBehaviorTest.php": {
+      "blob_sha": "12cb1342e29d3c038b964213bbc299494bb19a99",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "tests/Feature/InboundScanRuntimeConcurrencyTest.php": {
+      "blob_sha": "0d99fb20c44ca3e2534747375e6d93576b4e22a4",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "scripts/wwhn188-inbound-scan-runtime-concurrency.php": {
+      "blob_sha": "e1c0275b6464e8621720371897b13f359b3d3b78",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "scripts/wwhn188-inbound-scan-worker.php": {
+      "blob_sha": "966cc977f62be7c9339018d51a6e8fdbd101f790",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/docs_task_jira/WWHN-188.md": {
+      "blob_sha": "3923954e13162b0401e225abede295567831aba6",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/decision-records/DEC-SCAN-IDEMP-001-inbound-scan-request-idempotency.md": {
+      "blob_sha": "250c7cdf3735d96b27543a01adddded398d7fa71",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/evidence/WWHN-188/WWHN-188_TRACE_SUPERSESSION.md": {
+      "blob_sha": "0eb831d937ce9a7e94f63e7145a9f5b0a2b90265",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/evidence/WWHN-188/WWHN-188_SOURCE_REGISTER.md": {
+      "blob_sha": "fdc445fc21f9ea697f91106fa6aab794b92c6d81",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/evidence/WWHN-188/WWHN-188_QA_TEST_MATRIX.md": {
+      "blob_sha": "55ca8315d428e494f7cae7961b55ef5190336c84",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/evidence/WWHN-188/WWHN-188_CLOSURE_REGISTER.md": {
+      "blob_sha": "96960cbe8103ae5bdb32b2745baafc5f9f177af0",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/evidence/WWHN-188/openapi/stock_in_scan.operation.json": {
+      "blob_sha": "f1cee4591f7f1aa94501f50b65e342b9958ed245",
+      "last_commit": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6"
+    },
+    "docs/evidence/WWHN-188/runtime/runtime-concurrency-summary.json": {
+      "blob_sha": "b0762c52464ecb981ae3c583428be536c639ebf2",
+      "last_commit": "49d4ccf9579bc4c8796d019c21ebd86b4b532dff"
+    }
+  },
+  "verifier": {
+    "command": "node scripts/verify-wwhn-188-closure.mjs",
+    "exact_sha_command": "node scripts/verify-wwhn-188-closure.mjs --expect-sha=<candidate.commit_sha>"
+  }
+}
