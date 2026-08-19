@@ -1,0 +1,19 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn219-worker-0",
+    "scenario": "concurrent-post-issue-same-document",
+    "operation": "post_issue",
+    "backend_pid": 31509,
+    "outcome": "REJECTED",
+    "http_status": 409,
+    "error_code": "STATE_CONFLICT",
+    "error_message": "Chỉ chứng từ SCANNING mới được Post.",
+    "lock_wait_ms": 1654,
+    "timeline": {
+        "booted_at": 1787034155.7241,
+        "released_at": 1787034155.731694,
+        "lock_acquired_at": 1787034157.386746,
+        "hold_released_at": 1787034158.88702,
+        "finished_at": 1787034158.967035
+    }
+}

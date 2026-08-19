@@ -1,0 +1,19 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn219-worker-0",
+    "scenario": "concurrent-post-issue-non-negative-shared-balance",
+    "operation": "post_issue",
+    "backend_pid": 31511,
+    "outcome": "REJECTED",
+    "http_status": 422,
+    "error_code": "INSUFFICIENT_AVAILABLE_STOCK",
+    "error_message": "Post Issue sẽ làm tồn/available_qty âm.",
+    "lock_wait_ms": 1663,
+    "timeline": {
+        "booted_at": 1787034160.055408,
+        "released_at": 1787034160.069296,
+        "lock_acquired_at": 1787034161.733426,
+        "hold_released_at": 1787034163.233731,
+        "finished_at": 1787034163.345601
+    }
+}

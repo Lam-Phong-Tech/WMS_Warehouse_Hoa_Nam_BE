@@ -1,0 +1,28 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn219-worker-1",
+    "scenario": "concurrent-post-issue-non-negative-shared-balance",
+    "operation": "post_issue",
+    "backend_pid": 31512,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "error_message": null,
+    "lock_wait_ms": 9,
+    "timeline": {
+        "booted_at": 1787034160.060054,
+        "released_at": 1787034160.06891,
+        "lock_acquired_at": 1787034160.078617,
+        "hold_released_at": 1787034161.578816,
+        "finished_at": 1787034161.733294
+    },
+    "payload": {
+        "document_id": "c9dc6905-5efd-40e4-9eda-e6e3caa8aa69",
+        "status": "POSTED",
+        "movement_ids": [
+            "d6493e54-8173-4a37-922a-2890e5e88669"
+        ],
+        "stock_effect": "DECREASE",
+        "rfid_required": false
+    }
+}

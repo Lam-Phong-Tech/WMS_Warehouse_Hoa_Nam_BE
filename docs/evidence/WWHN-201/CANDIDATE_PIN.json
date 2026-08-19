@@ -1,0 +1,107 @@
+{
+  "ticket": "WWHN-201",
+  "finding": "DEV201-P1-03R",
+  "decision": "DEC-OUT-STOCK-HTTP-001",
+  "branch": "m1",
+  "generated_from_head": "7f591cbabc0d1c8be8d1b21e4f25d206bc647385",
+  "reviewed_shas": {
+    "behavior": "74100825ac0c333e04a5758602595224ba438f19",
+    "harness": "f615b6a727beb17e21175f8520426f9c8219b49f",
+    "superseded": "7241621b59a05388ba6915802ddc16c35e0bcc8b"
+  },
+  "superseded": {
+    "sha": "7241621b59a05388ba6915802ddc16c35e0bcc8b",
+    "reason": "Bản 7241621… đã được register đánh dấu superseded; giữ lại trong pin để mọi comment cũ trỏ về nó đọc được lý do, không phải tra Jira."
+  },
+  "candidate": {
+    "behavior": {
+      "files": [
+        "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php",
+        "Modules/Warehouse/app/Services/CurrentBaselineStockService.php",
+        "app/Support/IdempotencyStore.php",
+        "Modules/Warehouse/routes/api.php"
+      ],
+      "missing": [],
+      "last_commit": "696868ce44ccccca51884c3c1ac7e9f41fd405b8",
+      "last_commit_date": "2026-08-18",
+      "last_commit_subject": "fix(WWHN-234): canonical hoa bon lop xung dot 409 §8.2 va co replayed cho moi action doi ton",
+      "uncommitted_changes": [
+        "M Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php",
+        "M Modules/Warehouse/app/Services/CurrentBaselineStockService.php",
+        "M Modules/Warehouse/routes/api.php"
+      ],
+      "digests": {
+        "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php": "d7e0ef2bbc1ce72f9bb7d50625c49bf220e06e8f8d83161d9607434fb59fd460",
+        "Modules/Warehouse/app/Services/CurrentBaselineStockService.php": "807ccd010073682e4322ada7383acde0e0195f281761432dffdd529b72a09f57",
+        "app/Support/IdempotencyStore.php": "917cf9f89180d16a7e62858f8e044fd78cea02308eded991b494df2ddfa017f0",
+        "Modules/Warehouse/routes/api.php": "88dde3a72402750df15fca970d1d5830450cb567c07169977dc180da434a66b9"
+      }
+    },
+    "harness": {
+      "files": [
+        "scripts/wwhn201-runtime-concurrency.php",
+        "scripts/wwhn219-concurrency-worker.php",
+        "scripts/wwhn201-evidence-manifest.php",
+        "tests/Feature/Wwhn201PostIssueErrorContractTest.php",
+        "tests/Feature/Wwhn201PostIssueAtomicNonNegativeStockTest.php"
+      ],
+      "missing": [],
+      "last_commit": "a013c1756e06181168e35403c712f766f6875545",
+      "last_commit_date": "2026-08-19",
+      "last_commit_subject": "feat(WWHN-201): chot 422 cho thieu ton, khoa hop dong Outbound va dong goi bang chung",
+      "uncommitted_changes": [],
+      "digests": {
+        "scripts/wwhn201-runtime-concurrency.php": "d731c2095417deb48b4a82326c047a5e6c7d17378228417c430c1f58ec5f7e9b",
+        "scripts/wwhn219-concurrency-worker.php": "4f18415e98e09b08c383524e45ce75c73247848b0d32c3631855ed2b4cf014d2",
+        "scripts/wwhn201-evidence-manifest.php": "62a706ccb78da15d98dd2fdccb374266f9f1f344e7106a0c20731e58a521cb4c",
+        "tests/Feature/Wwhn201PostIssueErrorContractTest.php": "920123cce845a6637592190213aaed015f08222664e065aa2f660f190eeed9f5",
+        "tests/Feature/Wwhn201PostIssueAtomicNonNegativeStockTest.php": "033cd5d50d88ca2d05e9ba6fd4447012e1ec361e00fb7ec93b04da2e827325dc"
+      }
+    },
+    "contract": {
+      "files": [
+        "docs/api-contract/WWHN-195-outbound-openapi.json",
+        "docs/api-contract/WWHN-195-outbound-openapi.yaml",
+        "docs/api-contract/WWHN-201-outbound-contract-lock.json",
+        "docs/postman/WWHN-195-outbound.postman_collection.json",
+        "docs/decision-records/DEC-OUT-STOCK-HTTP-001-insufficient-stock-http-status.md",
+        "scripts/wwhn-201-outbound-contract-lock.mjs",
+        "scripts/verify-wwhn-201-contract.mjs"
+      ],
+      "missing": [],
+      "last_commit": "7f591cbabc0d1c8be8d1b21e4f25d206bc647385",
+      "last_commit_date": "2026-08-19",
+      "last_commit_subject": "fix(WWHN-201): khoa hop dong Outbound theo version cua spec, khong gianh version voi task khac",
+      "uncommitted_changes": [],
+      "digests": {
+        "docs/api-contract/WWHN-195-outbound-openapi.json": "9f1e6213522cd074709a455f72fce91098abbbdfbf5593afd8181ccf8a93137e",
+        "docs/api-contract/WWHN-195-outbound-openapi.yaml": "4c4a0fbda1a9a6e9e14a52b66e5cee4792b30b30c86feb3d17c86ac49eb12777",
+        "docs/api-contract/WWHN-201-outbound-contract-lock.json": "bf10c050201228917116f562389394f672be00b8a555e50c8659a1399dfd7578",
+        "docs/postman/WWHN-195-outbound.postman_collection.json": "2042c15459d47d4586fd7a62b491f5ce1bf1e9589da6766f808d49f95960fc47",
+        "docs/decision-records/DEC-OUT-STOCK-HTTP-001-insufficient-stock-http-status.md": "c394843a5583f2728b07f0f52c9e64c3f81a28a4086c70115a425949be3d5e08",
+        "scripts/wwhn-201-outbound-contract-lock.mjs": "47285f6e83c945f78c83fce67ff12182a737a891ae2ccbc23e3ff4bf3aee5721",
+        "scripts/verify-wwhn-201-contract.mjs": "dbcea445b833a56413ba9bd258e187394f5faa4667bdf3f66bd80de44a789649"
+      }
+    }
+  },
+  "behavior_drift_since_reviewed": {
+    "from": "74100825ac0c333e04a5758602595224ba438f19",
+    "commits": [
+      "696868c fix(WWHN-234): canonical hoa bon lop xung dot 409 §8.2 va co replayed cho moi action doi ton",
+      "b90d5ef feat(WWHN-252): dung mat cong khai App PV va PV Admin theo Annex C",
+      "e593202 fix(WWHN-289): data scope luồng nhập, rate limit anti-abuse, mã lỗi 409 đúng §8.2",
+      "0b32578 perf(cache): production-ready Valkey application caching"
+    ],
+    "note": "Đây là delta Tech Lead cần duyệt. Danh sách RỖNG nghĩa là candidate y hệt bản đã review. Danh sách KHÔNG rỗng không phải lỗi — nó là lý do vì sao pin phải sinh lại, và vì sao gate WWHN-201 phải chạy lại ở candidate hiện tại chứ không dựa vào kết quả cũ."
+  },
+  "gate": {
+    "commands": [
+      "php artisan test --filter=Wwhn201",
+      "node scripts/verify-wwhn-201-contract.mjs",
+      "DB_CONNECTION=pgsql php scripts/wwhn201-runtime-concurrency.php storage/app/wwhn-201-evidence",
+      "DB_CONNECTION=pgsql php scripts/wwhn201-evidence-manifest.php storage/app/wwhn-201-evidence",
+      "node scripts/verify-wwhn-201-evidence.mjs"
+    ],
+    "note": "Cả năm lệnh phải xanh TẠI ĐÚNG candidate ở trên thì mới đóng được DEV201-P1-01R/02R/03R."
+  }
+}

@@ -1,0 +1,28 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn219-worker-1",
+    "scenario": "concurrent-post-issue-same-document",
+    "operation": "post_issue",
+    "backend_pid": 31510,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "error_message": null,
+    "lock_wait_ms": 9,
+    "timeline": {
+        "booted_at": 1787034155.72104,
+        "released_at": 1787034155.731799,
+        "lock_acquired_at": 1787034155.741803,
+        "hold_released_at": 1787034157.239921,
+        "finished_at": 1787034157.38673
+    },
+    "payload": {
+        "document_id": "a5ff5adc-e3b8-4757-87f4-9e279439a150",
+        "status": "POSTED",
+        "movement_ids": [
+            "300cd6fd-34c9-4a9c-a6ef-51f3ff51cc3a"
+        ],
+        "stock_effect": "DECREASE",
+        "rfid_required": false
+    }
+}

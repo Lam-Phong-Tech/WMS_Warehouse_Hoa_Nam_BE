@@ -1,0 +1,106 @@
+{
+    "ticket": "WWHN-201",
+    "findings_covered": [
+        "DEV201-P1-02R",
+        "DEV201-P1-03R"
+    ],
+    "generated_at": "2026-08-19T08:25:18+07:00",
+    "decision": "DEC-OUT-STOCK-HTTP-001",
+    "sha_mapping": {
+        "behavior": {
+            "files": [
+                "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php",
+                "Modules/Warehouse/app/Services/CurrentBaselineStockService.php",
+                "app/Support/IdempotencyStore.php",
+                "Modules/Warehouse/routes/api.php"
+            ],
+            "missing_files": [],
+            "last_commit": "696868ce44ccccca51884c3c1ac7e9f41fd405b8",
+            "last_commit_subject": "fix(WWHN-234): canonical hoa bon lop xung dot 409 §8.2 va co replayed cho moi action doi ton",
+            "file_digests": {
+                "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php": "d7e0ef2bbc1ce72f9bb7d50625c49bf220e06e8f8d83161d9607434fb59fd460",
+                "Modules/Warehouse/app/Services/CurrentBaselineStockService.php": "807ccd010073682e4322ada7383acde0e0195f281761432dffdd529b72a09f57",
+                "app/Support/IdempotencyStore.php": "917cf9f89180d16a7e62858f8e044fd78cea02308eded991b494df2ddfa017f0",
+                "Modules/Warehouse/routes/api.php": "88dde3a72402750df15fca970d1d5830450cb567c07169977dc180da434a66b9"
+            }
+        },
+        "harness": {
+            "files": [
+                "scripts/wwhn201-runtime-concurrency.php",
+                "scripts/wwhn219-concurrency-worker.php",
+                "scripts/wwhn201-evidence-manifest.php",
+                "tests/Feature/Wwhn201PostIssueErrorContractTest.php",
+                "tests/Feature/Wwhn201PostIssueAtomicNonNegativeStockTest.php"
+            ],
+            "missing_files": [],
+            "last_commit": "a013c1756e06181168e35403c712f766f6875545",
+            "last_commit_subject": "feat(WWHN-201): chot 422 cho thieu ton, khoa hop dong Outbound va dong goi bang chung",
+            "file_digests": {
+                "scripts/wwhn201-runtime-concurrency.php": "d731c2095417deb48b4a82326c047a5e6c7d17378228417c430c1f58ec5f7e9b",
+                "scripts/wwhn219-concurrency-worker.php": "4f18415e98e09b08c383524e45ce75c73247848b0d32c3631855ed2b4cf014d2",
+                "scripts/wwhn201-evidence-manifest.php": "62a706ccb78da15d98dd2fdccb374266f9f1f344e7106a0c20731e58a521cb4c",
+                "tests/Feature/Wwhn201PostIssueErrorContractTest.php": "920123cce845a6637592190213aaed015f08222664e065aa2f660f190eeed9f5",
+                "tests/Feature/Wwhn201PostIssueAtomicNonNegativeStockTest.php": "033cd5d50d88ca2d05e9ba6fd4447012e1ec361e00fb7ec93b04da2e827325dc"
+            }
+        },
+        "head_at_generation": "7f591cbabc0d1c8be8d1b21e4f25d206bc647385",
+        "note": "behavior SHA = commit cuối chạm code Post Issue/Idempotency; harness SHA = commit cuối chạm script + test bằng chứng. Đừng pin HEAD: HEAD trôi mỗi lần nhánh m1 nhận commit của task khác, còn hai SHA này chỉ đổi khi đúng phần liên quan đổi."
+    },
+    "db_evidence_status": "UNAVAILABLE",
+    "db_evidence_error": "SQLSTATE[08006] [7] connection to server at \"127.0.0.1\", port 5432 failed: fe_sendauth: no password supplied (Connection: pgsql, Host: 127.0.0.1, Port: 5432, Database: wms_hoanam, SQL: select version() as v)",
+    "database": {
+        "driver": "pgsql",
+        "server_version": null,
+        "migrations_ran": null,
+        "last_migration": null
+    },
+    "indexes": [],
+    "runtime_summary_status": "PASS",
+    "runtime_summary_scenarios": {
+        "concurrent_post_issue_same_document": {
+            "passed": true,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "exactly_one_success": true,
+                "loser_rejected_state_conflict": true,
+                "single_movement_written": true,
+                "business_key_matches_expected": true,
+                "document_posted": true,
+                "movement_sum_equals_balance_delta": true,
+                "balance_never_negative": true
+            }
+        },
+        "concurrent_post_issue_non_negative_shared_balance": {
+            "passed": true,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "exactly_one_success": true,
+                "loser_rejected_insufficient_stock": true,
+                "single_movement_written": true,
+                "movement_sum_equals_balance_delta": true,
+                "balance_never_negative": true,
+                "balance_matches_winner_qty_only": true
+            }
+        }
+    },
+    "evidence_files": {
+        "runtime/runtime-concurrency-summary.json": "8fd54d2beb40da15d515f7deb26ed227c9299dfb7e8ef1b83c90c82cb74b0026",
+        "runtime/runtime-concurrency/concurrent-post-issue-non-negative-shared-balance/pg-lock-samples.json": "9c64952478320bfae4fa084ade2d389982550546867b6f1b46041a4448297119",
+        "runtime/runtime-concurrency/concurrent-post-issue-non-negative-shared-balance/worker-0.json": "1073a079230cac88c145782ed7452b6baa8f3364fbea81fe9e51890657e12ab0",
+        "runtime/runtime-concurrency/concurrent-post-issue-non-negative-shared-balance/worker-0.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime/runtime-concurrency/concurrent-post-issue-non-negative-shared-balance/worker-0.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime/runtime-concurrency/concurrent-post-issue-non-negative-shared-balance/worker-1.json": "721767fa82a91d07bd2dfb742e968953cdc8b2bda15efd5058d2d3815fef939e",
+        "runtime/runtime-concurrency/concurrent-post-issue-non-negative-shared-balance/worker-1.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime/runtime-concurrency/concurrent-post-issue-non-negative-shared-balance/worker-1.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime/runtime-concurrency/concurrent-post-issue-same-document/pg-lock-samples.json": "1bbfe98e06cefaaabec7055ee525f1d0b1f229daa4d17b2bb1edff770d02c866",
+        "runtime/runtime-concurrency/concurrent-post-issue-same-document/worker-0.json": "69c9fd3d69572c6322896e53a701a2c690081ffd6452aac2940e7b66cbf132a8",
+        "runtime/runtime-concurrency/concurrent-post-issue-same-document/worker-0.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime/runtime-concurrency/concurrent-post-issue-same-document/worker-0.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime/runtime-concurrency/concurrent-post-issue-same-document/worker-1.json": "58c07d65c9195d96d14b90569a8bde456b858ff616fd93fa8d7f08a7dc09d887",
+        "runtime/runtime-concurrency/concurrent-post-issue-same-document/worker-1.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime/runtime-concurrency/concurrent-post-issue-same-document/worker-1.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "evidence_file_count": 15
+}
