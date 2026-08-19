@@ -37,14 +37,20 @@
   "change_range": {
     "base": "114cf34d6323c85d46ecab2bfa6e03d92b9596a1",
     "base_meaning": "HEAD của m1 ngay trước commit triển khai vòng đóng WWHN-193",
+    "implementation_commit": "a077e7ca7415f68ac4379478d4a30555f2a45708",
+    "implementation_commit_meaning": "Commit mang toàn bộ code + test + evidence của vòng đóng này. Đây KHÔNG tự động là closure revision: m1 là nhánh dùng chung nên các ticket khác vẫn commit tiếp sau nó.",
     "final": "RECORDED_BY_GATE",
-    "final_meaning": "SHA chính xác của closure revision; xem WWHN-193_EXACT_SHA_GATE_RUN.md và tham số --expect-sha của verifier."
+    "final_meaning": "SHA chính xác của closure revision do CỔNG khẳng định bằng --expect-sha (một commit không thể chứa hash của chính nó). Điều kiện hợp lệ: implementation_commit là ancestor, và không commit nào sau nó chạm code_paths của WWHN-193.",
+    "how_to_verify": "node scripts/verify-wwhn193-closure.mjs --expect-sha <SHA> --require-evidence"
   },
 
   "fe_consumer": {
     "repo_branch": "m1",
     "base": "a2b555b28e3c680a1c303873c04d7e64d71bb7d2",
-    "final": "RECORDED_BY_GATE",
+    "landed_in": "824dc9e19b627cbdf00b53e3c5a8df95da27f4a2",
+    "landed_in_note": "Nội dung WWHN-193 bị một phiên song song `git add -A` cuốn vào commit mang tiêu đề WWHN-327. Không viết lại lịch sử chung; pin theo nội dung ở docs/evidence/WWHN-193/FE_CONSUMER_PIN.json (repo FE).",
+    "content_pin_commit": "727eacf8040b8e040b135157141e29331b06faeb",
+    "putaway_service_sha256": "5c4074dbe4b46482da664cba5e2680a36c205a7db0c371a82809425e14d429b6",
     "scope": "putawayService: gửi Idempotency-Key suy diễn cho confirm/cancel và phục hồi 409 STATE_CONFLICT theo DEC-PTW-RETRY-001."
   },
 
