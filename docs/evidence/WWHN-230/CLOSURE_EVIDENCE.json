@@ -12,21 +12,21 @@
   "identity": {
     "backend": {
       "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
-      "branch": "m1",
-      "commitSha": "b90d5ef67c6577db166fdac00f1323741ccfd888",
-      "workingTreeClean": false
+      "branch": "HEAD",
+      "commitSha": "831bda6d554faf3d1e1b11c5ff299bd53792f7bf",
+      "workingTreeClean": true
     },
     "frontend": {
       "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
-      "branch": "m1",
-      "commitSha": "cc76a4e36069d3b6f299b0e0b4d371cf65a5e996",
-      "workingTreeClean": false
+      "branch": "HEAD",
+      "commitSha": "f9f2e65e687669f033d259a693635546876f05a8",
+      "workingTreeClean": true
     }
   },
   "baselineDigests": {
     "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
     "docs/HoaNam_ERD_Moi_Nhat.md": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
-    "docs/decision-records/DISP-STK-230-scope-disposition.md": "bc70aedf9fcb17256f07befe7c89d44aaa22d618ac85ba2cbcb58bb2d3ac8574",
+    "docs/decision-records/DISP-STK-230-scope-disposition.md": "91a51dd25c5bbfbe3f28503c53c6c85234da3ca4a372a02ae697f07eb1d7a746",
     "docs/decision-records/DISP-STK-230-APPROVAL.json": "61e82879abe409edb131049061225f18c0541476c3dea2ad8d02d916f350064b",
     "docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json": "a63fa86286909f66d6da0e5000083bc540a1e2f0c247c5f3478dc6689cf0d38d"
   },
@@ -165,9 +165,17 @@
       "id": "TEMPKEY-NO-GUESSING",
       "status": "PASS",
       "detail": "Rows assert a Jira key without CONFIRMED/CANDIDATE status: "
+    },
+    {
+      "id": "TEST-LOCK",
+      "status": "PASS",
+      "detail": "Wwhn230StocktakeScopeDispositionTest passed."
     }
   ],
-  "testResult": null,
+  "testResult": {
+    "exitCode": 0,
+    "tail": "{\"tool\":\"phpunit\",\"result\":\"passed\",\"tests\":11,\"passed\":11,\"assertions\":73,\"duration_ms\":5053}"
+  },
   "result": "PASS",
   "failures": []
 }
