@@ -48,7 +48,7 @@ trong ngày.
 
 | Repo | Nhánh | Candidate SHA | Artifact được đóng băng |
 |---|---|---|---|
-| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `7f919da12d777356c089ff525e4f41d2d1ebd2a8` | `docs/evidence/WWHN-187/**`, `docs/decision-records/DEC-SCAN-AUDIT-001-*.md`, `docs/postman/WWHN-187 Inbound Scan Retry.postman_collection.json`, `scripts/verify-wwhn-187-closure.mjs` |
+| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `5adc2341f9dff239f00f0169c981b864d76d7fe6` | `docs/evidence/WWHN-187/**`, `docs/decision-records/DEC-SCAN-AUDIT-001-*.md`, `docs/postman/WWHN-187 Inbound Scan Retry.postman_collection.json`, `scripts/verify-wwhn-187-closure.mjs` |
 | FE `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `3f2a5c2f5416be8019e0c1d8b91d1732a103f861` | `src/modules/inbound/services/inboundService.ts`, `src/modules/inbound/hooks/use-inbound.ts`, `src/modules/inbound/pages/MvpInboundScreens.tsx`, `src/modules/inbound/types/index.ts`, `src/modules/inbound/services/inboundService.test.ts` |
 
 **Range invariant** (chống pin rot, theo cách đã dùng ở WWHN-290): điều kiện hợp lệ

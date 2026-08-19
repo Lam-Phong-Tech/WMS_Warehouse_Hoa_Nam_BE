@@ -6,7 +6,7 @@
     "/api/v1/inbound-documents/{id}/scans"
   ],
   "openapi_scan_digest": "3015696f3d799a0f4c97ad0b0e07e07a2e416227c3f7e92317adb5c83fffc28a",
-  "candidate_sha_be": "7f919da12d777356c089ff525e4f41d2d1ebd2a8",
+  "candidate_sha_be": "5adc2341f9dff239f00f0169c981b864d76d7fe6",
   "pinned_artifacts": [
     "docs/decision-records/DEC-SCAN-AUDIT-001-scan-evidence-vs-audit-log.md",
     "docs/postman/WWHN-187 Inbound Scan Retry.postman_collection.json",

@@ -8,7 +8,7 @@ xanh — bao gồm ca `quantity retry` mà register gọi đích danh.
 
 | Repo | Nhánh | Candidate SHA |
 |---|---|---|
-| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `7f919da12d777356c089ff525e4f41d2d1ebd2a8` |
+| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `5adc2341f9dff239f00f0169c981b864d76d7fe6` |
 | FE `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `3f2a5c2f5416be8019e0c1d8b91d1732a103f861` |
 
 `m1` có nhiều task chạy song song nên `HEAD` sẽ khác candidate. Điều kiện hợp lệ **không
