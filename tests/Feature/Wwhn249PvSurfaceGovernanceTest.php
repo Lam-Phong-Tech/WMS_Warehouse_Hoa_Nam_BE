@@ -323,6 +323,23 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
         }
     }
 
+    /**
+     * DEV249-P1-03R2 — closure evidence đòi đúng định dạng "seed diff + manager
+     * 200 + unauthorized 403 tests". Test reflection ở trên khoá seeder đúng ma
+     * trận SRS; test này chứng minh bằng HTTP thật qua AuthDatabaseSeeder thật
+     * (không phải permission rời rạc): WAREHOUSE_MANAGER đăng nhập vào được
+     * /pv-admin/resources (200), NV kho WAREHOUSE_STAFF (không có
+     * pv.master.manage theo §3, cột V/D) bị 403.
+     */
+    public function test_warehouse_manager_role_gets_200_and_warehouse_staff_role_gets_403_on_pv_admin(): void
+    {
+        $this->getJson('/api/v1/pv-admin/resources/industries', $this->authHeadersWithRole('WAREHOUSE_MANAGER'))
+            ->assertOk();
+
+        $this->getJson('/api/v1/pv-admin/resources/industries', $this->authHeadersWithRole('WAREHOUSE_STAFF'))
+            ->assertStatus(403);
+    }
+
     /** @return array{paths: array<string, mixed>} */
     private function openApiSpec(): array
     {
