@@ -174,14 +174,39 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
+/**
+ * `m1_commits_ahead_of_m1_be_2` là **số đếm biết trôi**: mỗi commit mới trên `m1` của bất kỳ
+ * task nào cũng làm nó tăng. Đưa nó vào phép so byte biến bản pin thành đồ hết hạn sau vài
+ * phút — đúng kiểu pin rot mà vòng review trước đã bắt. Nó vẫn được **ghi lại** làm số đo tại
+ * thời điểm pin; chỉ bị loại khỏi phép so. Bất biến thật (`ahead = 0`, `is_pure_ancestor`)
+ * được kiểm **sống** ở phần `problems` phía trên, không phải bằng cách so chuỗi.
+ */
+const VOLATILE_FIELDS = ["m1_commits_ahead_of_m1_be_2"];
+const comparable = (obj) => {
+  const clone = JSON.parse(JSON.stringify(obj));
+  for (const field of VOLATILE_FIELDS) delete clone.branch_supersession?.[field];
+  return JSON.stringify(clone, null, 2) + "\n";
+};
+
 if (CHECK_ONLY) {
+  const expected = comparable(record);
   const targets = [join(BE_ROOT, PAIR_RELATIVE_PATH), join(FE_ROOT, PAIR_RELATIVE_PATH)];
-  const drift = targets.filter((p) => !existsSync(p) || readFileSync(p, "utf8") !== serialized);
+  const missing = targets.filter((p) => !existsSync(p));
+  if (missing.length > 0) {
+    console.error("\nFAIL: thieu ban pin:\n  " + missing.join("\n  "));
+    process.exit(1);
+  }
+  const contents = targets.map((p) => readFileSync(p, "utf8"));
+  const drift = targets.filter((p, i) => comparable(JSON.parse(contents[i])) !== expected);
   if (drift.length > 0) {
     console.error("\nFAIL: ban pin lech voi ket qua giai lai:\n  " + drift.join("\n  "));
     process.exit(1);
   }
-  console.log("\nOK — hai ban pin khop byte-identical voi ket qua giai lai.");
+  if (contents[0] !== contents[1]) {
+    console.error("\nFAIL: hai ban pin BE/FE khong byte-identical voi nhau.");
+    process.exit(1);
+  }
+  console.log("\nOK — hai ban pin khop nhau va khop ket qua giai lai (bo qua so dem biet troi).");
   process.exit(0);
 }
 
