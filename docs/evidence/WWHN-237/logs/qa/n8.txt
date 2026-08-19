@@ -1,0 +1,30 @@
+$ node scripts/verify-wwhn-237-closure.mjs --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380
+(cwd: C:\LAM_PHONG_TECH\HoaNam_FE\WMS_Warehouse_Hoa_Nam_FE)
+(driver: node v22.17.1 / win32 (gate tinh, khong boot DB))
+
+WWHN-237 / DISP-STK-237 — FE closure gate
+
+  PASS [FE-CONTRACT-FLOWS] 21 criticalFlow: zero bề mặt kiểm kê
+  PASS [FE-CONTRACT-SCAN-CONTEXT] SCAN_CLASSIFY.context = [INBOUND, OUTBOUND, INVENTORY, TRACE, WARRANTY_RECEIVE, WARRANTY_TEMP_ONLY]
+  PASS [FE-CONTRACT-DISPOSITION] removedFromMvp neo REQ-SRS-037 / WWHN-237
+  PASS [GOVERNANCE-DISPOSITION] scopeDisposition = WWHN-237 / OPTION_A_NO_CODE_REMOVAL_CLOSURE
+  PASS [GOVERNANCE-NO-OVERCLAIM] không tuyên bố approved standalone Decision ID khi WWHN-25 còn mở
+  PASS [GOVERNANCE-REOPEN-GATE] điều kiện tái mở neo vào CR/Later Phase hoặc WWHN-25
+  PASS [FE-REPORT-CODES] 8 report code, tất cả nằm trong registry MVP
+  PASS [FE-REPORT-SURFACE] trang báo cáo không có tab/cột kiểm kê
+  PASS [FE-SOURCE src/styles/hn-wms-page-normalize.css] sạch
+  PASS [FE-SOURCE src/shared/constants/wms-permissions.ts] sạch
+  PASS [FE-SOURCE src/shared/constants/routes.ts] sạch
+  PASS [FE-SOURCE src/shared/api/endpoints.ts] sạch
+  PASS [BASELINE-SRS] REQ-SRS-037 còn hiệu lực trong SRS/FRD v1.12
+  PASS [BASELINE-ERD] ERD §0.1 vẫn loại Variance_Line khỏi baseline
+  PASS [BASELINE-WIREFRAME] wireframe MVP không có màn hình/menu kiểm kê
+  PASS [BE-DISPOSITION] DISP-STK-237 phía BE có mặt và neo REQ-SRS-037
+  PASS [BE-GATE] gate BE có mặt
+  PASS [CANDIDATE-PAIR] một cặp duy nhất BE d1af7ca0 / FE c77ba642, giải lại khớp, hai bản pin byte-identical
+
+  identity → docs/evidence/WWHN-237/FE_CLOSURE_IDENTITY.json
+
+OK — 18 check pass.
+
+EXIT_CODE=0

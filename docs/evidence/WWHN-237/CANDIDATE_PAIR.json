@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "record_id": "WWHN-237-CANDIDATE-PAIR",
+  "jira_key": "WWHN-237",
+  "parent_key": "WWHN-60",
+  "qa_gate": "WWHN-238",
+  "disposition": "DISP-STK-237",
+  "register_item": "DEV237-P1-02R2",
+  "canonical_branch": "m1",
+  "resolution_rule": "candidate = `git log -1 --format=%H -- <artifact_scope>` (commit cuoi cham tap artifact do task so huu). TUYET DOI KHONG dung `git rev-parse HEAD`: HEAD cua m1 chay tiep cho task khac nen pin se troi, va hai repo chay lech thoi diem se sinh hai cap khac nhau — dung loi DEV237-P1-02R2 ghi nhan o vong R1.",
+  "pair": {
+    "backend": {
+      "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+      "branch": "m1",
+      "commit_sha": "d1af7ca00016271b64312e2d537ca45bdea9d794",
+      "committed_at": "2026-08-19T16:37:41+07:00",
+      "subject": "fix(WWHN-237): loai so dem biet troi khoi phep so pin - chong pin rot cho --check [skip ci]",
+      "artifact_scope": [
+        "docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md",
+        "scripts/verify-wwhn237-variance-report-disposition.mjs",
+        "scripts/run-wwhn-237-evidence.mjs",
+        "scripts/run-wwhn237-qa-matrix.mjs",
+        "scripts/build-wwhn237-candidate-pair.mjs",
+        "scripts/build-wwhn237-contract-digest-pin.mjs",
+        "scripts/lib/wwhn237-candidate-pair.mjs",
+        "tests/Feature/Wwhn237VarianceReportDeferredGateTest.php"
+      ]
+    },
+    "frontend": {
+      "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+      "branch": "m1",
+      "commit_sha": "c77ba6429c68982c7e7b8d297917c0cab26f8380",
+      "committed_at": "2026-08-19T16:28:45+07:00",
+      "subject": "fix(WWHN-237): FE doc dinh danh tu cap SHA dong bang thay vi rev-parse HEAD (DEV237-P1-02R2) [skip ci]",
+      "artifact_scope": [
+        "scripts/verify-wwhn-237-closure.mjs",
+        "src/test/wwhn-237-variance-report-guard.test.ts"
+      ]
+    }
+  },
+  "excluded_from_scope": [
+    "docs/evidence/WWHN-237/**"
+  ],
+  "excluded_reason": "Cat vong ga-trung: file pin khong duoc nam trong tap no pin, neu khong moi lan ghi pin lai lam pin tu lech (cung co che `excluded_from_digest` cua WWHN-290).",
+  "branch_supersession": {
+    "superseded_branch": "m1-be-2",
+    "canonical_branch": "m1",
+    "m1_be_2_tip": "60816499066f9f493596e326dc41116ef32f5c4b",
+    "m1_be_2_commits_ahead_of_m1": 0,
+    "m1_commits_ahead_of_m1_be_2": 883,
+    "is_pure_ancestor": true,
+    "measurement": "git rev-list --left-right --count origin/m1-be-2...m1 ; git merge-base --is-ancestor origin/m1-be-2 m1",
+    "prior_decision_records": [
+      "docs/decision-records/DISP-OUT-198-CANONICAL-BRANCH.md",
+      "docs/decision-records/DEC-MIG-SRC-001-migration-source-disposition.md"
+    ],
+    "jira_action": "Moi tham chieu `m1-be-2` tren WWHN-60 / WWHN-237 / WWHN-238 phai duoc thay bang `m1` + dung cap SHA tren. m1-be-2 la ancestor thuan (0 commit vuot truoc), khong phai nguon thay the."
+  },
+  "reproduce": {
+    "backend": "node scripts/verify-wwhn237-variance-report-disposition.mjs --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380",
+    "frontend": "node scripts/verify-wwhn-237-closure.mjs --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380",
+    "qa_matrix": "node scripts/run-wwhn237-qa-matrix.mjs",
+    "rebuild_pin": "node scripts/build-wwhn237-candidate-pair.mjs"
+  },
+  "copies_must_be_byte_identical": [
+    "BE  docs/evidence/WWHN-237/CANDIDATE_PAIR.json",
+    "FE  docs/evidence/WWHN-237/CANDIDATE_PAIR.json"
+  ],
+  "consumers": [
+    "BE docs/evidence/WWHN-237/SOURCE_REGISTER.json",
+    "BE docs/evidence/WWHN-237/QA_EXECUTION_MATRIX.json",
+    "BE docs/evidence/WWHN-237/CONTRACT_DIGEST_PIN.json",
+    "FE docs/evidence/WWHN-237/FE_CLOSURE_IDENTITY.json"
+  ]
+}

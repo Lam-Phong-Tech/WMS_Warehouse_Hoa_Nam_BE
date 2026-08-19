@@ -1,0 +1,178 @@
+{
+  "schema_version": "1.0.0",
+  "record_id": "WWHN-237-CONTRACT-DIGEST-PIN",
+  "jira_key": "WWHN-237",
+  "register_item": "DEV237-P1-05R2",
+  "disposition": "DISP-STK-237",
+  "pinned_at_pair": {
+    "backend": "d1af7ca00016271b64312e2d537ca45bdea9d794",
+    "frontend": "c77ba6429c68982c7e7b8d297917c0cab26f8380"
+  },
+  "digest_field_meaning": {
+    "sha256": "digest cua working tree luc chay build — quan sat duoc, co the mang thay doi chua commit cua phien song song.",
+    "blob_sha256_at_pair": "digest cua noi dung TAI commit da pin (`git show <pair>:<path>`) — tai lap duoc tu git.",
+    "authoritative_digest_for_confirmation": "Gia tri ba consumer ky vao. Bang blob_sha256_at_pair khi co, vi confirmation phai neo vao noi dung tai commit."
+  },
+  "pin_class_rule": {
+    "owned": "WWHN-237 so huu — digest drift = FAIL.",
+    "immutable": "Pack dong bang (WWHN-180/150) — digest drift = FAIL; khong ap bat bien be mat vi pack mo ta capability lich su.",
+    "consumed": "Hop dong dang song do task khac so huu — digest ghi lai lam bang chung version ma consumer da xac nhan. Gate FAIL khi be mat cam quay lai; drift bytes thuan chi NOTE kem yeu cau refresh confirmation. Ly do khong hard-pin: DISP-STK-236 da ghi ro hard-pin digest artifact cua task khac lam gate do oan."
+  },
+  "artifacts": [
+    {
+      "repo": "BE",
+      "path": "docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md",
+      "kind": "disposition",
+      "pin_class": "owned",
+      "owner_task": "WWHN-237",
+      "present": true,
+      "sha256": "253a77e92e9157add87b712e4fcc3d262880edfe7a62695e1a766eef9d70fb02",
+      "blob_sha256_at_pair": "253a77e92e9157add87b712e4fcc3d262880edfe7a62695e1a766eef9d70fb02",
+      "blob_matches_worktree": true,
+      "authoritative_digest_for_confirmation": "253a77e92e9157add87b712e4fcc3d262880edfe7a62695e1a766eef9d70fb02",
+      "version": null,
+      "surface_invariant_forbidden": [
+        "stocktake",
+        "apply-adjustment",
+        "apply_adjustment",
+        "variance_line",
+        "stocktake_variance",
+        "discrepancy"
+      ]
+    },
+    {
+      "repo": "BE",
+      "path": "storage/api-docs/api-docs.json",
+      "kind": "openapi-runtime",
+      "pin_class": "consumed",
+      "owner_task": "WWHN-309 (BE contract handover)",
+      "present": true,
+      "sha256": "46cbfc0140fe3da389625ed55c0ef91e18a21f50dbd5389488c270be4e2e7af2",
+      "blob_sha256_at_pair": "14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8",
+      "blob_matches_worktree": false,
+      "authoritative_digest_for_confirmation": "14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8",
+      "version": "2.0.0",
+      "surface_invariant_forbidden": [
+        "stocktake",
+        "apply-adjustment",
+        "apply_adjustment",
+        "variance_line",
+        "stocktake_variance",
+        "discrepancy"
+      ]
+    },
+    {
+      "repo": "BE",
+      "path": "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json",
+      "kind": "postman-living",
+      "pin_class": "consumed",
+      "owner_task": "WWHN-267 / WWHN-309",
+      "present": true,
+      "sha256": "8c845281a3f29f9e62f73bf8236cd0dc6f675feed66d405338cd03b53fbae4e9",
+      "blob_sha256_at_pair": "5d556a476b25668d865bf2ced01e8fa687a1e00e97131b072e5dfc178c624a70",
+      "blob_matches_worktree": false,
+      "authoritative_digest_for_confirmation": "5d556a476b25668d865bf2ced01e8fa687a1e00e97131b072e5dfc178c624a70",
+      "version": "WMS_HoaNam API",
+      "surface_invariant_forbidden": [
+        "stocktake",
+        "apply-adjustment",
+        "apply_adjustment",
+        "variance_line",
+        "stocktake_variance",
+        "discrepancy"
+      ]
+    },
+    {
+      "repo": "BE",
+      "path": "docs/api-contract/WWHN-180-posting-openapi.json",
+      "kind": "openapi-immutable-pack",
+      "pin_class": "immutable",
+      "owner_task": "WWHN-180",
+      "note": "Historical, superseded bang decision record theo DISP-STK-236 §3 — khong sua noi dung. Bat bien be mat KHONG ap: pack nay con mo ta capability lich su.",
+      "skip_surface_invariant": true,
+      "present": true,
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "blob_sha256_at_pair": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "blob_matches_worktree": true,
+      "authoritative_digest_for_confirmation": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "version": "1.7.0",
+      "surface_invariant_forbidden": []
+    },
+    {
+      "repo": "FE",
+      "path": "docs/api-evidence/WMS_FE_CONTRACT_BASELINE.json",
+      "kind": "fe-negative-contract",
+      "pin_class": "consumed",
+      "owner_task": "FE contract baseline (WWHN-296/309)",
+      "present": true,
+      "sha256": "fa3128b0840b979a924b1a113fa1c9cdc6271fa714e2e831a9c11341286a14f9",
+      "blob_sha256_at_pair": "fa3128b0840b979a924b1a113fa1c9cdc6271fa714e2e831a9c11341286a14f9",
+      "blob_matches_worktree": true,
+      "authoritative_digest_for_confirmation": "fa3128b0840b979a924b1a113fa1c9cdc6271fa714e2e831a9c11341286a14f9",
+      "version": "schemaVersion 4.0.0 @ 2026-08-07",
+      "surface_invariant_forbidden": [
+        "stocktake",
+        "apply-adjustment",
+        "apply_adjustment",
+        "variance_line",
+        "stocktake_variance",
+        "discrepancy"
+      ]
+    },
+    {
+      "repo": "FE",
+      "path": "docs/api-evidence/STOCKTAKE_GOVERNANCE_STATUS.json",
+      "kind": "fe-governance-status",
+      "pin_class": "consumed",
+      "owner_task": "WWHN-230/233/236/237 chung",
+      "present": true,
+      "sha256": "f7a9700ea33c1f902725076dd740173a79ad6e71a39bb25f2edc1d30367f423d",
+      "blob_sha256_at_pair": "f7a9700ea33c1f902725076dd740173a79ad6e71a39bb25f2edc1d30367f423d",
+      "blob_matches_worktree": true,
+      "authoritative_digest_for_confirmation": "f7a9700ea33c1f902725076dd740173a79ad6e71a39bb25f2edc1d30367f423d",
+      "version": "2.1.0",
+      "surface_invariant_forbidden": [
+        "stocktake",
+        "apply-adjustment",
+        "apply_adjustment",
+        "variance_line",
+        "stocktake_variance",
+        "discrepancy"
+      ]
+    }
+  ],
+  "independent_confirmations": [
+    {
+      "role": "Tech Lead",
+      "scope": "Cap SHA BE/FE la mot cap duy nhat; supersede m1-be-2 → m1; digest OpenAPI/Postman dung version dang ban giao.",
+      "status": "PENDING",
+      "confirmed_by": null,
+      "jira_comment_ref": null,
+      "confirmed_at": null,
+      "pair_backend_sha": null,
+      "pair_frontend_sha": null
+    },
+    {
+      "role": "BA",
+      "scope": "Hop dong FE khong con khai capability variance/kiem ke; AC WWHN-60/237/238 duoc rebaseline theo REQ-SRS-037.",
+      "status": "PENDING",
+      "confirmed_by": null,
+      "jira_comment_ref": null,
+      "confirmed_at": null,
+      "pair_backend_sha": null,
+      "pair_frontend_sha": null
+    },
+    {
+      "role": "QA1",
+      "scope": "N1..N8 + R1..R4 chay tren dung cap da pin; raw log khop QA_EXECUTION_MATRIX.json.",
+      "status": "PENDING",
+      "confirmed_by": null,
+      "jira_comment_ref": null,
+      "confirmed_at": null,
+      "pair_backend_sha": null,
+      "pair_frontend_sha": null
+    }
+  ],
+  "independence_rule": "FE self-confirmation cua chinh DEV viet code KHONG tinh la independent (register R2). Truong confirmed_by khong duoc chua 'DEV'.",
+  "refresh_procedure": "node scripts/build-wwhn237-contract-digest-pin.mjs  (chay lai sau khi cap SHA doi, roi xin lai 3 xac nhan)"
+}

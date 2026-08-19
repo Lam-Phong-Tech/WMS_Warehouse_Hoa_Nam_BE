@@ -1,4 +1,4 @@
-$ node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock
+$ node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380
 (cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE)
 
 WWHN-237 / DISP-STK-237 — Variance query/report disposition gate
@@ -14,10 +14,15 @@ WWHN-237 / DISP-STK-237 — Variance query/report disposition gate
   PASS [OPENAPI-RUNTIME] OpenAPI runtime: 183 path, zero bề mặt variance
   PASS [CONTRACT-SURFACE] 39 contract artifact: zero bề mặt bị cấm ngoài 1 artifact historical đã có disposition
   PASS [BASELINE-CONTRACT] baseline contract vẫn khai forbidden fragment + excluded table kiểm kê
+  PASS [CANDIDATE-PAIR] một cặp duy nhất BE d1af7ca0 / FE c77ba642, giải lại khớp, m1-be-2 superseded
+  PASS [APPROVAL-AUTHORITY] approval_state=PENDING, 3 slot approver-authored, không self-approval, ATT-11898 được nêu
+  PASS [QA-MATRIX] 12 dòng N1..N8/R1..R4 có raw log thật (0 N/A có lý do), chạy đúng cặp đã pin
+  PASS [CONTRACT-DIGEST-PIN] 6 artifact pin cùng version, 3 slot xác nhận độc lập
   NOTE [CONTRACT-HISTORICAL] docs/postman/WWHN-180 Canonical Contract.postman_collection.json → stocktake, apply-adjustment — historical, superseded bởi DISP-STK-236 §3 / DISP-STK-237 §4; không sửa nội dung.
+  NOTE [QA-MATRIX] N7 là chính gate này — trạng thái ghi trong ma trận (PASS) là của lần chạy trước; kết quả có hiệu lực là exit code của lần chạy hiện tại.
 
   lock → docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json
 
-OK — 11 check pass, 1 note.
+OK — 15 check pass, 2 note.
 
 EXIT_CODE=0

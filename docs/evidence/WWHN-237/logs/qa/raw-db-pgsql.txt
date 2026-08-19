@@ -1,0 +1,38 @@
+WWHN-237 — RAW DB evidence (PostgreSQL runtime, READ-ONLY)
+container: wms_warehouse_hoa_nam_be-postgres-1   db: wms_hoanam
+Chi SELECT. Khong migrate/seed/ghi: DB nay dung chung nhieu phien.
+
+-- permission cam
+SQL: SELECT count(*) AS forbidden_permission_count FROM permissions WHERE permission_key ILIKE '%stocktake%' OR permission_key ILIKE '%variance%' OR permission_key ILIKE '%adjustment%';
+forbidden_permission_count 
+----------------------------
+                          0
+(1 row)
+
+-- bang cam
+SQL: SELECT count(*) AS forbidden_table_count FROM information_schema.tables WHERE table_schema='public' AND (table_name ILIKE '%stocktake%' OR table_name ILIKE '%variance%' OR table_name ILIKE '%adjustment%');
+forbidden_table_count 
+-----------------------
+                     0
+(1 row)
+
+-- movement_type CHECK
+SQL: SELECT conname, pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname LIKE '%movement_type%';
+conname             |                                                                                                      definition                                                                                                      
+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ chk_stock_movement_type_current | CHECK (((movement_type)::text = ANY ((ARRAY['OPENING'::character varying, 'RECEIPT'::character varying, 'ISSUE'::character varying, 'COMPONENT_ISSUE'::character varying, 'REVERSAL'::character varying])::text[])))
+(1 row)
+
+-- duong thay the con song
+SQL: SELECT count(*) AS reconciliation_incident_table FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('reconciliation_incidents','reconciliation_incident');
+reconciliation_incident_table 
+-------------------------------
+                             2
+(1 row)
+
+-- reversal con song
+SQL: SELECT count(*) AS reversal_document_table FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('reversal_documents','reversal_document');
+reversal_document_table 
+-------------------------
+                       2
+(1 row)

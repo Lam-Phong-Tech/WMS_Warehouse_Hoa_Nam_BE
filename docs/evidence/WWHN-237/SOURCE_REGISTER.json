@@ -16,24 +16,27 @@
     "business_rules": "BR-NOSTK-01..03",
     "adoption_issue": "WWHN-334"
   },
+  "identity_source": "docs/evidence/WWHN-237/CANDIDATE_PAIR.json",
   "repositories": {
     "backend": {
       "branch": "m1",
-      "commit_sha": "809d483981f5f323fb8b30c90bed48a73bceffbc",
+      "commit_sha": "d1af7ca00016271b64312e2d537ca45bdea9d794",
+      "head_at_run": "d1af7ca00016271b64312e2d537ca45bdea9d794",
       "working_tree_clean": false
     },
     "frontend": {
       "branch": "m1",
-      "commit_sha": "f9f2e65e687669f033d259a693635546876f05a8",
+      "commit_sha": "c77ba6429c68982c7e7b8d297917c0cab26f8380",
+      "head_at_run": "49149962487c60e734bc966b9559c1bba85e876c",
       "working_tree_clean": false
     }
   },
   "baselines": {
-    "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+    "docs/HN_SRS_FRD_v1.12_FULL.md": "5ab1dd6c468e93f57a932741e823855806a9d37ac5dde9b118335ff8f84de086",
     "docs/HoaNam_ERD_Moi_Nhat.md": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
     "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md": "232e4d313a0bd4ff6f70f42ab679bab63d559d07e2b33a994dfbfcfd27ac9b5b",
     "docs/contracts/HoaNam_Current_Baseline_Contract.json": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
-    "docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md": "c16a5e82a1bb46cb830e5b479f89ca85c721c8ec74210bfc1cc24c854f004f64"
+    "docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md": "253a77e92e9157add87b712e4fcc3d262880edfe7a62695e1a766eef9d70fb02"
   },
   "baseline_hash_rule": "Digest ghi tại thời điểm chạy, không dán tay. Guard xác minh bằng anchor text của REQ-SRS-037 và ERD §0.1; digest chỉ để QA1 tái lập đúng bản đã kiểm.",
   "environment": {
@@ -43,19 +46,37 @@
   },
   "commands": [
     {
+      "id": "be-candidate-pair",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "command": "node scripts/build-wwhn237-candidate-pair.mjs --check",
+      "covers": "DEV237-P1-02R2 (cặp SHA đóng băng, giải lại khớp, m1-be-2 superseded)",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/be-candidate-pair.txt"
+    },
+    {
       "id": "be-disposition-gate",
       "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
-      "command": "node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock",
-      "covers": "DEV237-P1-02, DEV237-P1-03",
+      "command": "node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380",
+      "covers": "DEV237-P1-01R2, P1-02R2, P1-03R2, P1-05R2",
       "status": "PASS",
       "exit_code": 0,
       "log": "docs/evidence/WWHN-237/logs/be-disposition-gate.txt"
     },
     {
+      "id": "be-qa-matrix",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "command": "node scripts/run-wwhn237-qa-matrix.mjs",
+      "covers": "DEV237-P1-04R2 (N1..N8, R1..R4 từng dòng + raw API/DB)",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "docs/evidence/WWHN-237/logs/be-qa-matrix.txt"
+    },
+    {
       "id": "be-regression-test",
       "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
       "command": "php artisan test --filter=\"Wwhn237VarianceReportDeferredGateTest|Flow05InventoryControlAlignmentTest\"",
-      "covers": "DEV237-P1-04 (N1..N6, R1..R4)",
+      "covers": "DEV237-P1-04R2 (chạy gộp, đối chiếu với ma trận từng dòng)",
       "status": "PASS",
       "exit_code": 0,
       "log": "docs/evidence/WWHN-237/logs/be-regression-test.txt"
@@ -72,8 +93,8 @@
     {
       "id": "fe-closure-gate",
       "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_FE\\WMS_Warehouse_Hoa_Nam_FE",
-      "command": "node scripts/verify-wwhn-237-closure.mjs",
-      "covers": "DEV237-P1-02, DEV237-P1-05 (nửa FE)",
+      "command": "node scripts/verify-wwhn-237-closure.mjs --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380",
+      "covers": "DEV237-P1-02R2, DEV237-P1-05R2 (nửa FE)",
       "status": "PASS",
       "exit_code": 0,
       "log": "docs/evidence/WWHN-237/logs/fe-closure-gate.txt"
@@ -92,16 +113,21 @@
       "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_FE\\WMS_Warehouse_Hoa_Nam_FE",
       "command": "npm run check:api-mapping",
       "covers": "không hồi quy guard no-Stocktake của WWHN-296",
-      "status": "FAIL",
+      "known_external_failure": {
+        "owner_ticket": "WWHN-309",
+        "reason": "docs/api-evidence/BE_CONTRACT_PIN.json lệch swagger-api.json hiện hành; cần npm run contract:sync bởi chủ artifact"
+      },
+      "status": "FAIL_KNOWN_EXTERNAL",
       "exit_code": 1,
       "log": "docs/evidence/WWHN-237/logs/fe-api-mapping.txt"
     }
   ],
   "summary": {
-    "total": 6,
-    "passed": 5,
-    "failed": 1,
+    "total": 8,
+    "passed": 7,
+    "failed": 0,
+    "failed_known_external": 1,
     "skipped": 0,
-    "status": "FAIL"
+    "status": "PASS"
   }
 }

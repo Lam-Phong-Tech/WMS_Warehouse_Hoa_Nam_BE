@@ -1,0 +1,13 @@
+$ node scripts/build-wwhn237-candidate-pair.mjs --check
+(cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE)
+
+WWHN-237 — frozen candidate pair (DEV237-P1-02R2)
+
+  BE  d1af7ca00016271b64312e2d537ca45bdea9d794  2026-08-19T16:37:41+07:00  fix(WWHN-237): loai so dem biet troi khoi phep so pin - chong pin rot cho --check [skip ci]
+  FE  c77ba6429c68982c7e7b8d297917c0cab26f8380  2026-08-19T16:28:45+07:00  fix(WWHN-237): FE doc dinh danh tu cap SHA dong bang thay vi rev-parse HEAD (DEV237-P1-02R2) [skip ci]
+  m1-be-2 tip 60816499066f9f493596e326dc41116ef32f5c4b — ahead 0 / m1 ahead 883 / ancestor true
+  record sha256 c02f890e6ca9b92b706cbe555fa9cb5cbf0d4189a2f2aeea8c2d292c326b27d3
+
+OK — hai ban pin khop nhau va khop ket qua giai lai (bo qua so dem biet troi).
+
+EXIT_CODE=0

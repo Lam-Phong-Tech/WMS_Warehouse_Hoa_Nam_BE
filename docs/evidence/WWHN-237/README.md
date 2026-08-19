@@ -55,3 +55,67 @@ Ba điểm dễ đọc nhầm:
 |---|---|
 | `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/`: `CreateReversalRequest.original_document_type` còn enum `ADJUSTMENT`, runtime chỉ sinh `INBOUND`/`OUTBOUND` | `WWHN-26` / `WWHN-134` |
 | `docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS`: 3 mismatch có sẵn trước WWHN-237 | `WWHN-180` |
+
+---
+
+## Vòng R2 (review 67/100, 19/08/2026)
+
+Bốn artifact mới, mỗi cái đóng đúng một mục register:
+
+| File | Đóng mục | Nội dung |
+|---|---|---|
+| `CANDIDATE_PAIR.json` | `DEV237-P1-02R2` | **Một** cặp SHA BE/FE đóng băng, hai bản byte-identical ở hai repo, kèm số đo supersede `m1-be-2` → `m1` |
+| `APPROVAL_RECORD.json` | `DEV237-P1-01R2` | Ba slot approver-authored tách khỏi disposition DEV-authored; fail-closed khi self-approval hoặc thiếu effective date |
+| `QA_EXECUTION_MATRIX.json` | `DEV237-P1-04R2` | `N1..N8` + `R1..R4` **từng dòng**, mỗi dòng một raw log, cộng raw API/DB trên driver production |
+| `CONTRACT_DIGEST_PIN.json` | `DEV237-P1-05R2` | Digest + version OpenAPI/Postman/FE tại đúng cặp đã pin; ba slot xác nhận độc lập |
+| `logs/qa/*.txt` | `DEV237-P1-04R2` | Raw output từng dòng N/R + `raw-api-pgsql.txt`, `raw-db-pgsql.txt` |
+
+### Lỗi thật của vòng R1 mà R2 sửa
+
+`SOURCE_REGISTER.json` và `FE_CLOSURE_IDENTITY.json` đều ghi `git rev-parse HEAD` tại thời điểm
+chạy. Hai repo chạy lệch giờ nên bộ evidence khai **bốn** SHA cho **một** cặp:
+
+| File | BE SHA | FE SHA |
+|---|---|---|
+| BE `SOURCE_REGISTER.json` (R1) | `809d4839…` | `f9f2e65e…` |
+| FE `FE_CLOSURE_IDENTITY.json` (R1) | `22564b46…` | `cf0fe8d0…` |
+
+Nay cả hai file **đọc định danh từ `CANDIDATE_PAIR.json`**; `head_at_run` được giữ lại nhưng chỉ
+để truy vết môi trường, không phải định danh candidate. Candidate = `git log -1 -- <scope>`, tức
+commit cuối chạm tập artifact do task sở hữu, nên `m1` chạy tiếp cho task khác thì pin vẫn đúng.
+
+### Bốn điểm dễ đọc nhầm ở vòng R2
+
+1. **`N7` là chính gate BE.** Nó chạy hai lần: pass 1 bootstrap (ma trận trên đĩa còn là của lần
+   chạy trước), pass 2 sau khi ma trận đã ghi — kết quả có hiệu lực là pass 2. Và check
+   `QA-MATRIX` **cố ý loại N7** khỏi mệnh đề "không còn dòng FAIL": khẳng định trạng thái của N7
+   bên trong chính N7 là vòng tự tham chiếu, một lần đỏ sẽ khiến gate đỏ vĩnh viễn kể cả sau khi
+   đã sửa xong.
+2. **`401` ở `RAW-API` không có nghĩa là route variance tồn tại.** `/api/v1/reports/stocktake-variance`
+   khớp catch-all `reports/{report_code}` nên middleware auth trả `401` trước khi dispatcher chạy.
+   Việc dispatcher từ chối mã variance được chứng minh ở `N2` (PHPUnit, có xác thực). Các route
+   kiểm kê thật sự vắng mặt trả `404 RESOURCE_NOT_FOUND` — xem `logs/qa/raw-api-pgsql.txt`.
+3. **`digest drift` của artifact `consumed` là NOTE, không phải FAIL.** Postman DEV collection và
+   OpenAPI runtime thuộc task khác và còn sống; hard-pin digest của chúng làm gate đỏ oan cho mọi
+   PR không liên quan — đúng bẫy `DISP-STK-236` đã ghi. Gate chỉ FAIL khi bề mặt cấm quay lại.
+   Giá trị ba consumer ký vào là `authoritative_digest_for_confirmation` (nội dung **tại commit**),
+   không phải digest working tree.
+4. **`FAIL_KNOWN_EXTERNAL` ≠ hồi quy của task này.** `fe-api-mapping` đỏ sẵn từ trước WWHN-237 do
+   `BE_CONTRACT_PIN.json` lệch swagger hiện hành; bề mặt lệch **không** chứa stocktake/variance.
+   Owner là `WWHN-309`. Raw log vẫn giữ nguyên để reviewer tự kiểm.
+
+### Tái lập vòng R2
+
+```bash
+node scripts/build-wwhn237-candidate-pair.mjs
+node scripts/build-wwhn237-contract-digest-pin.mjs
+node scripts/run-wwhn237-qa-matrix.mjs
+node scripts/verify-wwhn237-variance-report-disposition.mjs --emit-lock
+node scripts/run-wwhn-237-evidence.mjs
+```
+
+Khoá đúng cặp đang review (cả hai gate đều nhận cờ):
+
+```bash
+node scripts/verify-wwhn237-variance-report-disposition.mjs --expect-be-sha=<BE> --expect-fe-sha=<FE>
+```

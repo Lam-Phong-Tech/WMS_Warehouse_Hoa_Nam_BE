@@ -1,0 +1,28 @@
+$ node scripts/run-wwhn237-qa-matrix.mjs
+(cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE)
+
+WWHN-237 / WWHN-238 — QA matrix N1..N8 + R1..R4 (DEV237-P1-04R2)
+
+  pair BE d1af7ca00016271b64312e2d537ca45bdea9d794
+  pair FE c77ba6429c68982c7e7b8d297917c0cab26f8380
+
+  PASS N1  Route/API khong lo be mat kiem ke
+  PASS N2  Report code la khong routable; dispatcher tra 404 RESOURCE_NOT_FOUND
+  PASS N3  Registry/hub/export khong co ma variance
+  PASS N4  KPI dashboard khong co field stocktake_variance
+  PASS N5  Khong seed permission stocktake.*/variance.*
+  PASS N6  Khong con entity stocktake_*/variance_* sau migrate
+  PASS N7  Contract ban giao hien hanh: gate BE fail-closed
+  PASS N8  Hop dong FE: gate FE 17 check
+  PASS R1  Reconciliation variance ledger-vs-balance PHAI con song
+  PASS R2  Reversal append-only la duong sua sai duy nhat
+  PASS R3  Khong hoi quy luong ton kho Flow05
+  PASS R4  Neo governance: disposition + REQ-SRS-037 con truy duoc
+  PASS RAW-API  curl that vao runtime
+  PASS RAW-DB   psql read-only vao runtime
+  PASS N7   (pass 2 — sau khi ma tran da duoc ghi)
+
+  matrix → docs/evidence/WWHN-237/QA_EXECUTION_MATRIX.json
+  summary: 12 PASS / 0 FAIL / 0 N/A
+
+EXIT_CODE=0

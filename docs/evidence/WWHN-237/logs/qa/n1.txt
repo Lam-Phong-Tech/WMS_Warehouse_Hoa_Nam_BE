@@ -1,0 +1,7 @@
+$ php vendor/bin/phpunit --filter "Wwhn237VarianceReportDeferredGateTest::test_no_route_exposes_a_variance_or_stocktake_surface$" --no-coverage
+(cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE)
+(driver: sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite))
+
+{"tool":"phpunit","result":"passed","tests":1,"passed":1,"assertions":1434,"duration_ms":2687}
+
+EXIT_CODE=0

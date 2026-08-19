@@ -14,10 +14,16 @@ WWHN-236 / DISP-STK-236 — Apply Adjustment disposition gate
   PASS [DB-CONSTRAINT] chk_stock_movement_type_current = [OPENING, RECEIPT, ISSUE, COMPONENT_ISSUE, REVERSAL], zero ADJUST_*
   PASS [MIGRATION-TABLES] 4 bảng stocktake_* do migration lịch sử tạo đều bị drop ở migration sau (trạng thái cuối = zero)
   PASS [SPEC-SURFACE] 25 spec contract: zero bề mặt bị cấm ngoài 3 artifact historical đã có disposition
+  PASS [APPROVAL-RECORD] approval record hợp lệ: DEFERRED_NO_CODE · disposition v1.1.0 · hash khớp · LIM-STK-236-01 tường minh
+  PASS [CHAIN-DISPOSITION] 9 ticket cùng disposition DEFERRED (4 thuộc nhánh song song, chỉ đọc); zero ticket Blocked/Pending
+  PASS [CANDIDATE-PIN] candidate BE b69f068 / FE 4914996 · 12 governed file khớp blob · PR=N/A direct-to-m1
+  PASS [PARENT-REBASELINE] WWHN-60 rebaseline sang SRS v1.12/REQ-SRS-037 (WWHN-334); 5 nhóm AC bị gỡ; v3.9 = historical
+  PASS [QA-RERUN] scripts/qa-wwhn236-exact-sha-gate.mjs + 1 raw log qa-rerun-* khớp SHA đã pin; QA1 ghi kết quả trực tiếp trên WWHN-238
   NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-150-scan-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
   NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.json → /api/v1/stocktake/sessions/{id}/apply-adjustment, enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
   NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
+  NOTE [APPROVAL-SIGNOFF] còn 6/6 vai trò chưa ký (dev, baMain, pmPo, bas, techLead, qa1). Guard vẫn active bất kể trạng thái phê duyệt; chạy với --require-signoff để biến việc này thành gate cứng.
 
-11/11 check PASS — bề mặt adjustment/stocktake đang sống = zero.
+16/16 check PASS — bề mặt adjustment/stocktake đang sống = zero.
 
 EXIT_CODE=0

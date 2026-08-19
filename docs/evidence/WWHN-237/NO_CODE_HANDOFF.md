@@ -103,10 +103,35 @@ npx vitest run src/test/wwhn-237-variance-report-guard.test.ts
 Định danh exact SHA + digest baseline tại `docs/evidence/WWHN-237/SOURCE_REGISTER.json` (BE) và
 `docs/evidence/WWHN-237/FE_CLOSURE_IDENTITY.json` (FE).
 
-## 6. Consumer confirmation cần cho `DEV237-P1-05`
+## 6. Consumer confirmation cần cho `DEV237-P1-05` / `DEV237-P1-05R2`
 
 | Vai trò | Xác nhận trên cùng version |
 |---|---|
 | FE1 | Hợp đồng FE hiện hành = `WMS_FE_CONTRACT_BASELINE.json` sau khi gỡ `APPLY_ADJUSTMENT`; không dùng Swagger Standard cũ hay OpenAPI Changelog BE1 v1.0.1 |
 | QA1 | Bộ test WWHN-238 là negative gate + regression, chạy trên đúng exact SHA ở §5 |
 | BA | AC của `WWHN-60`/`WWHN-237` liên quan variance được rebaseline |
+
+Vòng R2 biến bảng trên thành artifact chạy được: `docs/evidence/WWHN-237/CONTRACT_DIGEST_PIN.json`.
+Ba slot `Tech Lead` / `BA` / `QA1` fail-closed khi khai `CONFIRMED` mà thiếu người ký, thiếu
+`jira_comment_ref`, thiếu cặp SHA, hoặc khi `confirmed_by` chứa `DEV` — FE self-confirmation của
+chính DEV viết code không tính là independent.
+
+Giá trị mà ba vai trò ký vào là `authoritative_digest_for_confirmation` (digest **tại commit** đã
+pin), không phải digest working tree: nhiều phiên chạy song song trên cùng cây làm việc nên
+worktree có thể mang thay đổi chưa commit của task khác.
+
+## 7. Trạng thái hiệu lực của handoff này (vòng R2)
+
+Tài liệu này mô tả kết quả NO-CODE, nhưng nó **chỉ có hiệu lực** khi
+`docs/evidence/WWHN-237/APPROVAL_RECORD.json` chuyển `approval_state = APPROVED` với đủ ba slot
+approver-authored + `effective_date`. Chừng nào còn `PENDING`:
+
+- `WWHN-237` chưa được coi là đóng chính thức — `DEV237-P1-03R2` phụ thuộc `DEV237-P1-01R2`;
+- guard vẫn active bất kể trạng thái phê duyệt (không bề mặt variance nào được mọc lại);
+- nếu authority đổi sang Later Phase/CR có effective date thì `DEV237-P1-03R2` mở lại ở dạng
+  positive implementation, và `DISP-STK-237` bị superseded bằng một decision record mới trỏ tới
+  nó — **không sửa nội dung** (luật `DISP-STK-236 §3`).
+
+Định danh exact SHA dùng cho mọi mục ở trên: `docs/evidence/WWHN-237/CANDIDATE_PAIR.json`
+(hai bản byte-identical BE/FE). Không dùng `git rev-parse HEAD` — đó chính là lỗi `DEV237-P1-02R2`:
+hai file định danh của vòng R1 khai bốn SHA cho một cặp.

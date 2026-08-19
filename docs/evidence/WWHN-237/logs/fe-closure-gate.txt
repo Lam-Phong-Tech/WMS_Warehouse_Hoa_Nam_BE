@@ -1,4 +1,4 @@
-$ node scripts/verify-wwhn-237-closure.mjs
+$ node scripts/verify-wwhn-237-closure.mjs --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380
 (cwd: C:\LAM_PHONG_TECH\HoaNam_FE\WMS_Warehouse_Hoa_Nam_FE)
 
 WWHN-237 / DISP-STK-237 — FE closure gate
@@ -20,9 +20,10 @@ WWHN-237 / DISP-STK-237 — FE closure gate
   PASS [BASELINE-WIREFRAME] wireframe MVP không có màn hình/menu kiểm kê
   PASS [BE-DISPOSITION] DISP-STK-237 phía BE có mặt và neo REQ-SRS-037
   PASS [BE-GATE] gate BE có mặt
+  PASS [CANDIDATE-PAIR] một cặp duy nhất BE d1af7ca0 / FE c77ba642, giải lại khớp, hai bản pin byte-identical
 
   identity → docs/evidence/WWHN-237/FE_CLOSURE_IDENTITY.json
 
-OK — 17 check pass.
+OK — 18 check pass.
 
 EXIT_CODE=0

@@ -1,0 +1,192 @@
+{
+  "schema_version": "1.0.0",
+  "record_id": "WWHN-237-QA-EXECUTION-MATRIX",
+  "jira_key": "WWHN-237",
+  "qa_gate": "WWHN-238",
+  "register_item": "DEV237-P1-04R2",
+  "disposition": "DISP-STK-237",
+  "source_of_truth": "docs/evidence/WWHN-237/QA_DISPOSITION_WWHN-238.md §2",
+  "executed_at_pair": {
+    "backend": "d1af7ca00016271b64312e2d537ca45bdea9d794",
+    "frontend": "c77ba6429c68982c7e7b8d297917c0cab26f8380"
+  },
+  "executed_by_role": "DEV (pre-run). QA1 phai chay lai doc lap va ky vao Jira — ban chay nay KHONG thay the QA1.",
+  "independence_note": "Register R2 doi QA1 independent execute/review. File nay la bo cong cu + ket qua chay tham chieu de QA1 tai lap trong mot lenh; cot executed_by_role phai duoc QA1 doi thanh ten minh khi ky.",
+  "environment": {
+    "node": "v22.17.1",
+    "platform": "win32",
+    "api_base": "http://localhost:8080",
+    "pg_container": "wms_warehouse_hoa_nam_be-postgres-1",
+    "pg_database": "wms_hoanam"
+  },
+  "two_pass_note": "N7 la gate cua chinh bo evidence nay nen chay hai lan: pass1 bootstrap truoc khi ma tran ton tai, pass2 sau khi ma tran da ghi. Ket qua co gia tri la pass2 (raw_log tro toi n7-pass2.txt).",
+  "rows": [
+    {
+      "id": "N1",
+      "scope": "negative",
+      "check": "Route/API khong lo be mat kiem ke",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_no_route_exposes_a_variance_or_stocktake_surface$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n1.txt",
+      "log_sha256": "ea82931f18718165f400244ffe16a1ce2dc83eb8d4bd6c5aa607a0d73fac69be"
+    },
+    {
+      "id": "N2",
+      "scope": "negative",
+      "check": "Report code la khong routable; dispatcher tra 404 RESOURCE_NOT_FOUND",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::(test_variance_report_codes_are_not_routable|test_report_dispatcher_rejects_a_variance_report_code)$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n2.txt",
+      "log_sha256": "666fea01b34ea61ff390fa617508ffe42af7af33a2aa59ca23fe578906c0db8c"
+    },
+    {
+      "id": "N3",
+      "scope": "negative",
+      "check": "Registry/hub/export khong co ma variance",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_report_registry_hub_and_export_paths_carry_no_variance_code$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n3.txt",
+      "log_sha256": "f10c3440541f10c38432fa7573f1967e3a001be001071bef0c107ceccb94fc3a"
+    },
+    {
+      "id": "N4",
+      "scope": "negative",
+      "check": "KPI dashboard khong co field stocktake_variance",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_dashboard_quick_has_no_stocktake_variance_field$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n4.txt",
+      "log_sha256": "e4b4f4431ac2654e1b1108472fa7dcb607ae3f400687464a1083665f545d1013"
+    },
+    {
+      "id": "N5",
+      "scope": "negative",
+      "check": "Khong seed permission stocktake.*/variance.*",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_no_variance_permission_is_seeded$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n5.txt",
+      "log_sha256": "796d3b6f15d243bbffc117d61a820cebbc18223ea57cea84e88382c1180e95d2"
+    },
+    {
+      "id": "N6",
+      "scope": "negative",
+      "check": "Khong con entity stocktake_*/variance_* sau migrate",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_no_variance_entity_survives_migration$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n6.txt",
+      "log_sha256": "2ff5be5eaac01a53be1ef2b4991af73089585f6a793bcd38f5bf46208b7f968d"
+    },
+    {
+      "id": "N7",
+      "scope": "negative",
+      "check": "Contract ban giao hien hanh: gate BE fail-closed",
+      "driver": "node v22.17.1 / win32 (gate tinh, khong boot DB)",
+      "command": "node scripts/verify-wwhn237-variance-report-disposition.mjs --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n7-pass2.txt",
+      "log_sha256": "545f2446b9d187b5dd691d97695c92be0be4eadbbf719dc1c54c21766d9474bb",
+      "pass1_log": "docs/evidence/WWHN-237/logs/qa/n7-pass1.txt"
+    },
+    {
+      "id": "N8",
+      "scope": "negative",
+      "check": "Hop dong FE: gate FE 17 check",
+      "driver": "node v22.17.1 / win32 (gate tinh, khong boot DB)",
+      "command": "node scripts/verify-wwhn-237-closure.mjs --expect-be-sha=d1af7ca00016271b64312e2d537ca45bdea9d794 --expect-fe-sha=c77ba6429c68982c7e7b8d297917c0cab26f8380",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_FE\\WMS_Warehouse_Hoa_Nam_FE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/n8.txt",
+      "log_sha256": "ae107407b7eb15f90a555636a7aec9efb95b3e94ea4b0b4ad6fe2e82f564265c"
+    },
+    {
+      "id": "R1",
+      "scope": "regression",
+      "check": "Reconciliation variance ledger-vs-balance PHAI con song",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_reconciliation_variance_between_balance_and_ledger_stays_available$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/r1.txt",
+      "log_sha256": "9a6259cfea43c5b9b5696232d1b605c7765ba6668859c33db5b2de0b9c264cd1"
+    },
+    {
+      "id": "R2",
+      "scope": "regression",
+      "check": "Reversal append-only la duong sua sai duy nhat",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_append_only_reversal_stays_the_only_correction_path$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/r2.txt",
+      "log_sha256": "bd5940775873bc9a520af0e1c107d2a57043bd1c1e17b8b085b51c933307b607"
+    },
+    {
+      "id": "R3",
+      "scope": "regression",
+      "check": "Khong hoi quy luong ton kho Flow05",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Flow05InventoryControlAlignmentTest\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/r3.txt",
+      "log_sha256": "c26dd33c1d7fff43c3bce43ebdb9ca18b5305680324e8cd55fab0bd113e183f7"
+    },
+    {
+      "id": "R4",
+      "scope": "regression",
+      "check": "Neo governance: disposition + REQ-SRS-037 con truy duoc",
+      "driver": "sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite)",
+      "command": "php vendor/bin/phpunit --filter \"Wwhn237VarianceReportDeferredGateTest::test_disposition_record_and_controlling_requirement_stay_traceable$\" --no-coverage",
+      "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE",
+      "status": "PASS",
+      "exit_code": 0,
+      "raw_log": "docs/evidence/WWHN-237/logs/qa/r4.txt",
+      "log_sha256": "8d3a9ca65a4cf1a6a111a1551ed8126a574b4d00db4754a3333a86554f410067"
+    }
+  ],
+  "raw_api_db_evidence": [
+    {
+      "id": "RAW-API",
+      "driver": "pgsql wms_hoanam @ wms_warehouse_hoa_nam_be-postgres-1 (runtime container, READ-ONLY)",
+      "status": "PASS",
+      "log": "docs/evidence/WWHN-237/logs/qa/raw-api-pgsql.txt",
+      "log_sha256": "733a0164be1f28a9c0bfb4c3fe1fba9250463e01057a177fc24afc3567ce4326"
+    },
+    {
+      "id": "RAW-DB",
+      "driver": "pgsql wms_hoanam @ wms_warehouse_hoa_nam_be-postgres-1 (runtime container, READ-ONLY)",
+      "status": "PASS",
+      "log": "docs/evidence/WWHN-237/logs/qa/raw-db-pgsql.txt",
+      "log_sha256": "a72c7abb96367a706c6fc9727bb078cb610cf5963e3eb963dcdf6aa4705a96eb"
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "pass": 12,
+    "fail": 0,
+    "na": 0
+  }
+}

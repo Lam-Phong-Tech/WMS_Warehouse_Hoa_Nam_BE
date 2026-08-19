@@ -2,8 +2,8 @@
   "jira_key": "WWHN-237",
   "disposition": "DISP-STK-237",
   "checks": {
-    "disposition_sha256": "c16a5e82a1bb46cb830e5b479f89ca85c721c8ec74210bfc1cc24c854f004f64",
-    "srs_sha256": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+    "disposition_sha256": "253a77e92e9157add87b712e4fcc3d262880edfe7a62695e1a766eef9d70fb02",
+    "srs_sha256": "5ab1dd6c468e93f57a932741e823855806a9d37ac5dde9b118335ff8f84de086",
     "erd_sha256": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
     "report_registry_literals": [
       "/api/v1/reports/document-history/export-excel",
@@ -39,9 +39,9 @@
       "outbound-by-agency",
       "warranty-defects"
     ],
-    "report_controller_sha256": "f0317831c8f416033338526da42a3ed7eafd31ea9cdc5c922872eaab375b711e",
+    "report_controller_sha256": "5caa5e68042c0f575a114fe80eefd404af90379d6482758d8387da66a4ac6518",
     "route_source_sha256": "64d4a8a389d1733196b5e4110fe5b77be3c4ccb8f9a9cf480d80f57eacf18336",
-    "openapi_runtime_sha256": "14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8",
+    "openapi_runtime_sha256": "46cbfc0140fe3da389625ed55c0ef91e18a21f50dbd5389488c270be4e2e7af2",
     "historical_artifact_drift": [
       "docs/postman/WWHN-180 Canonical Contract.postman_collection.json → stocktake, apply-adjustment"
     ],
@@ -56,7 +56,16 @@
       "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/openapi.yaml": "c852d2bb19687045a0298ed6135f218afb3636588fd4ce16c0a8de1067f3738a",
       "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/reversal.schema.json": "08146ec2d07155a8fce7c92a2b9b287033675ae2360c2ea18b6035077ec4623f"
     },
-    "baseline_contract_sha256": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64"
+    "baseline_contract_sha256": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+    "candidate_pair": {
+      "backend": "d1af7ca00016271b64312e2d537ca45bdea9d794",
+      "frontend": "c77ba6429c68982c7e7b8d297917c0cab26f8380",
+      "record_sha256": "c02f890e6ca9b92b706cbe555fa9cb5cbf0d4189a2f2aeea8c2d292c326b27d3"
+    },
+    "approval_state": "PENDING",
+    "approval_record_sha256": "2fe95763bcfd9b1b802dcf4cd4bc99cb23d6a02351d51f96c2cb29d800414cb3",
+    "qa_matrix_sha256": "9f9affa5790f93bcb59e4cbfe3a488b77b7a91ed2be00ca699106bf6ae35edaa",
+    "contract_digest_pin_sha256": "6a9bb0336d3d62e022e0398f4e0cd7deeeef5d5c024c45f51919801c6f5befcb"
   },
   "status": "PASS",
   "controlling_requirement": "REQ-SRS-037",

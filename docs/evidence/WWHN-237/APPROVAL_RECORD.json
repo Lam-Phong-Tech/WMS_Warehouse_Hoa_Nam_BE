@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0.0",
+  "record_id": "WWHN-237-APPROVAL-RECORD",
+  "jira_key": "WWHN-237",
+  "parent_key": "WWHN-60",
+  "qa_gate": "WWHN-238",
+  "disposition": "DISP-STK-237",
+  "register_item": "DEV237-P1-01R2",
+  "approval_state": "PENDING",
+  "authored_by": "DEV — WWHN-237",
+  "rule": "DISP-STK-237 la ban ghi DEV-authored. No chot authority va bien quyet dinh thanh rang buoc chay duoc, nhung KHONG thay the approval. Chi khi approval_state = APPROVED va du moi truong bat buoc thi disposition moi co hieu luc.",
+  "self_approval_forbidden_roles": [
+    "DEV",
+    "BE1",
+    "BE2",
+    "FE1",
+    "DEV/Quang",
+    "DEV/Duy Khanh"
+  ],
+  "required_fields_when_approved": [
+    "approver",
+    "approver_role",
+    "jira_comment_ref",
+    "decided_at",
+    "decision"
+  ],
+  "required_approvals": [
+    {
+      "slot": "PROCESS_OWNER_CLIENT",
+      "role": "Process Owner / Client",
+      "subject": "Approve hoac reject DEFERRED / NO-GO cho variance query-report o MVP v1.12 hien tai (WWHN-25, WWHN-60, WWHN-237, WWHN-238).",
+      "status": "PENDING",
+      "approver": null,
+      "approver_role": null,
+      "jira_comment_ref": null,
+      "decided_at": null,
+      "decision": null
+    },
+    {
+      "slot": "PM_PO",
+      "role": "PM / PO",
+      "subject": "Xac nhan khong mo Change Request nang pham vi MVP cho variance o release nay; WWHN-238 chuyen Deferred / N-A thay vi Blocked.",
+      "status": "PENDING",
+      "approver": null,
+      "approver_role": null,
+      "jira_comment_ref": null,
+      "decided_at": null,
+      "decision": null
+    },
+    {
+      "slot": "BA_MAIN",
+      "role": "BA Main",
+      "subject": "Pin effective disposition va rebaseline AC cua WWHN-60 / WWHN-237 / WWHN-238 theo REQ-SRS-037; go trich dan BRD-Handoff v3.9 khoi AC.",
+      "status": "PENDING",
+      "approver": null,
+      "approver_role": null,
+      "jira_comment_ref": null,
+      "decided_at": null,
+      "decision": null
+    }
+  ],
+  "effective_date": null,
+  "effective_disposition": null,
+  "source_authority_inputs": [
+    {
+      "ref": "REQ-SRS-037",
+      "location": "docs/HN_SRS_FRD_v1.12_FULL.md",
+      "state": "ADOPTED / Must",
+      "role": "CONTROLLING",
+      "present_in_repo": true
+    },
+    {
+      "ref": "WWHN-25 / DEC-STK-001",
+      "location": "docs/decision-records/DEC-STK-001.md",
+      "state": "PROPOSED / NO EFFECTIVE DATE",
+      "role": "INPUT — khong co hieu luc chung nao chua co effective date",
+      "present_in_repo": true
+    },
+    {
+      "ref": "WWHN-132 ATT-11898",
+      "location": "Jira attachment — khong nam trong repo",
+      "state": "EXTERNAL",
+      "role": "INPUT — approver phai trich dung attachment id nay trong comment duyet",
+      "present_in_repo": false,
+      "note": "Gate khong the hash mot file khong co trong repo. Bang chung la comment approver-authored tren Jira co trich ATT-11898 + cap SHA o CANDIDATE_PAIR.json."
+    },
+    {
+      "ref": "WWHN-60 / WWHN-237 / WWHN-238",
+      "location": "Jira",
+      "state": "OPEN",
+      "role": "TARGET — ba ticket duoc rebaseline theo ket qua duyet",
+      "present_in_repo": false
+    }
+  ],
+  "outcome_when_approved": {
+    "WWHN-237": "DEFERRED — NO CODE (removal / deprecation closure)",
+    "WWHN-238": "DEFERRED / N-A cho MVP v1.12 — khong de Blocked, khong de Pending",
+    "WWHN-60": "AC lien quan variance query-report khong con hieu luc, cho BA rebaseline"
+  },
+  "outcome_when_rejected": {
+    "next": "Neu authority doi sang Later Phase / CR co effective date thi DEV237-P1-03R2 mo lai o dang positive implementation; luc do disposition nay bi superseded bang mot decision record moi tro toi no, khong sua noi dung."
+  },
+  "how_to_record_approval": [
+    "1. Approver comment tren WWHN-237, ghi ro: quyet dinh (APPROVE/REJECT), ATT-11898, cap SHA BE/FE lay tu docs/evidence/WWHN-237/CANDIDATE_PAIR.json, va effective date.",
+    "2. Dien slot tuong ung trong file nay: approver, approver_role, jira_comment_ref, decided_at, decision.",
+    "3. Khi ca 3 slot APPROVED, dat approval_state = APPROVED + effective_date + effective_disposition.",
+    "4. Chay lai `node scripts/verify-wwhn237-variance-report-disposition.mjs` — check APPROVAL-AUTHORITY fail-closed neu thieu bat ky truong nao hoac neu approver trung vai tro DEV."
+  ]
+}

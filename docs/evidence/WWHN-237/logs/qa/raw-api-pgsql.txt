@@ -1,0 +1,39 @@
+WWHN-237 — RAW API evidence (driver production, runtime container)
+base: http://localhost:8080
+phuong phap: curl khong kem token. 404 = route vang mat that; 401 = route generic ton tai nhung
+khong lo be mat nao cho khach chua xac thuc. Khong dung tai khoan that de tranh dung account hygiene.
+
+GET /api/v1/stocktake-sessions
+  ky vong: 404 RESOURCE_NOT_FOUND — khong co route kiem ke
+  {"success":false,"message":"Kh\u00f4ng t\u00ecm th\u1ea5y t\u00e0i nguy\u00ean ho\u1eb7c \u0111\u01b0\u1eddng d\u1eabn y\u00eau c\u1ea7u.","error_code":"RESOURCE_NOT_FOUND","errors":[],"error":{"code":"RESOURCE_NOT_FOUND","details":[]},"meta":{"request_id":"bad7523c-cda0-4332-bd74-ca5a3c330eec","timestamp":"2026-08-19T16:38:56+07:00"}}
+  HTTP_STATUS=404
+
+GET /api/v1/stocktake-sessions/1/apply-adjustment
+  ky vong: 404 RESOURCE_NOT_FOUND
+  {"success":false,"message":"Kh\u00f4ng t\u00ecm th\u1ea5y t\u00e0i nguy\u00ean ho\u1eb7c \u0111\u01b0\u1eddng d\u1eabn y\u00eau c\u1ea7u.","error_code":"RESOURCE_NOT_FOUND","errors":[],"error":{"code":"RESOURCE_NOT_FOUND","details":[]},"meta":{"request_id":"9e9a99d0-a6b1-46b7-87d8-9b0093bb36c6","timestamp":"2026-08-19T16:38:56+07:00"}}
+  HTTP_STATUS=404
+
+GET /api/v1/inventory/apply-adjustment
+  ky vong: 404 RESOURCE_NOT_FOUND
+  {"success":false,"message":"Kh\u00f4ng t\u00ecm th\u1ea5y t\u00e0i nguy\u00ean ho\u1eb7c \u0111\u01b0\u1eddng d\u1eabn y\u00eau c\u1ea7u.","error_code":"RESOURCE_NOT_FOUND","errors":[],"error":{"code":"RESOURCE_NOT_FOUND","details":[]},"meta":{"request_id":"6cb13dd9-a093-4f5d-8340-3d838af8e654","timestamp":"2026-08-19T16:38:56+07:00"}}
+  HTTP_STATUS=404
+
+GET /api/v1/variance-lines
+  ky vong: 404 RESOURCE_NOT_FOUND
+  {"success":false,"message":"Kh\u00f4ng t\u00ecm th\u1ea5y t\u00e0i nguy\u00ean ho\u1eb7c \u0111\u01b0\u1eddng d\u1eabn y\u00eau c\u1ea7u.","error_code":"RESOURCE_NOT_FOUND","errors":[],"error":{"code":"RESOURCE_NOT_FOUND","details":[]},"meta":{"request_id":"a4d63e4b-6592-4c44-b817-02e5507863a8","timestamp":"2026-08-19T16:38:56+07:00"}}
+  HTTP_STATUS=404
+
+GET /api/v1/reports/stocktake-variance
+  ky vong: 401 UNAUTHENTICATED — khop catch-all reports/{report_code}, auth chan truoc; viec dispatcher tu choi ma variance duoc chung minh o N2
+  {"success":false,"message":"Ch\u01b0a x\u00e1c th\u1ef1c","error_code":"UNAUTHENTICATED","errors":[],"error":{"code":"UNAUTHENTICATED","details":[]},"meta":{"request_id":"571cd2be-d2b1-4846-8aef-2fcae2ed8863","timestamp":"2026-08-19T16:38:57+07:00"}}
+  HTTP_STATUS=401
+
+GET /api/v1/reports/hub
+  ky vong: 401 UNAUTHENTICATED — hub ton tai, khong lo ma variance cho khach chua dang nhap
+  {"success":false,"message":"Ch\u01b0a x\u00e1c th\u1ef1c","error_code":"UNAUTHENTICATED","errors":[],"error":{"code":"UNAUTHENTICATED","details":[]},"meta":{"request_id":"6cde15fa-3d0a-45b0-b8bb-211ea27e4f04","timestamp":"2026-08-19T16:38:57+07:00"}}
+  HTTP_STATUS=401
+
+GET /api/v1/health
+  ky vong: 200 — chung minh runtime that dang phuc vu, khong phai server tat
+  {"success":true,"message":"Backend health check passed.","data":{"status":"ok","version":"1.0.0","build":{"sha":null,"ref":null,"built_at":null},"environment":"local","server_time":"2026-08-19T16:38:57+07:00","request_id":"6fa63270-0b11-4d8c-9dc6-14a9290e427f","checks":{"app":{"status":"ok"},"database":{"status":"ok","driver":"pgsql"},"migrations":{"status":"ok","ran_count":158},"seed":{"status":"ok","markers":{"admin_user":true,"baseline_warehouse":true,"baseline_product":true}},"cache":{"status":"ok","store":"redis","ping":"PONG"}}},"meta":{"request_id":"6fa63270-0b11-4d8c-9dc6-14a9290e427f","timestamp":"2026-08-19T16:38:57+07:00"}}
+  HTTP_STATUS=200

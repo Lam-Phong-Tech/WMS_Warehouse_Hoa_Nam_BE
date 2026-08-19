@@ -1,0 +1,7 @@
+$ php vendor/bin/phpunit --filter "Wwhn237VarianceReportDeferredGateTest::(test_variance_report_codes_are_not_routable|test_report_dispatcher_rejects_a_variance_report_code)$" --no-coverage
+(cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE)
+(driver: sqlite :memory: (phpunit.xml ep DB_CONNECTION=sqlite))
+
+{"tool":"phpunit","result":"passed","tests":2,"passed":2,"assertions":4,"duration_ms":3131}
+
+EXIT_CODE=0

@@ -50,13 +50,22 @@ QA1 vì vậy **không** chạy exact-build test cho chức năng variance. Thay
 ## 3. Bằng chứng QA1 phải nộp
 
 ```text
-Exact BE SHA:  <sha>          (docs/evidence/WWHN-237/SOURCE_REGISTER.json)
-Exact FE SHA:  <sha>          (docs/evidence/WWHN-237/FE_CLOSURE_IDENTITY.json)
-Driver/env:    sqlite :memory: (mặc định phpunit.xml) hoặc PostgreSQL — ghi rõ cái nào
-Raw log:       docs/evidence/WWHN-237/logs/*.txt
-Kết quả:       N1..N8 PASS/FAIL · R1..R4 PASS/FAIL
-DB/API:        docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json
+Exact BE SHA:  docs/evidence/WWHN-237/CANDIDATE_PAIR.json  -> pair.backend.commit_sha
+Exact FE SHA:  docs/evidence/WWHN-237/CANDIDATE_PAIR.json  -> pair.frontend.commit_sha
+               (hai ban byte-identical o hai repo; KHONG lay tu rev-parse HEAD)
+Driver/env:    ghi theo cot `driver` cua tung dong trong QA_EXECUTION_MATRIX.json
+Ma tran N/R:   docs/evidence/WWHN-237/QA_EXECUTION_MATRIX.json  (N1..N8 + R1..R4, tung dong mot)
+Raw log:       docs/evidence/WWHN-237/logs/qa/*.txt
+Raw API/DB:    docs/evidence/WWHN-237/logs/qa/raw-api-pgsql.txt + raw-db-pgsql.txt
+Contract:      docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json + CONTRACT_DIGEST_PIN.json
+Ket qua:       N1..N8 PASS/FAIL/N-A  ·  R1..R4 PASS/FAIL/N-A  (N-A bat buoc co na_reason)
+Khoa dung cap: node scripts/verify-wwhn237-variance-report-disposition.mjs --expect-be-sha=<BE> --expect-fe-sha=<FE>
 ```
+
+> Ban chay dang co trong repo la **DEV pre-run** de QA1 tai lap bang mot lenh
+> (`node scripts/run-wwhn237-qa-matrix.mjs`). No **khong** thay QA1: truong
+> `executed_by_role` phai duoc QA1 doi thanh ten minh khi ky, va register R2 doi
+> QA1 independent execute/review.
 
 Không dùng kết quả của `WWHN-236`/`WWHN-233` thay cho `WWHN-238`: ba ticket khoá ba chiều khác
 nhau (hành động / đếm-đếm lại / truy vấn-báo cáo).
