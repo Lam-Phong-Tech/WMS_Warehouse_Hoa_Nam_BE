@@ -38,7 +38,7 @@ DEV dry run tại frozen candidate (`frozen_candidate.sha` trong `WWHN-290_PINS.
 | Verifier độc lập | `bash scripts/verify-wwhn290-closure.sh` | `RESULT=PASS` | `runs/verify-wwhn290-closure.log` |
 | Bộ regression tập trung | `php artisan test --filter '/(Wwhn290ClosureEvidenceTest\|ReportFlow06ContractTest\|ReportFlow06IntegrationTest\|Flow06WarrantyReportAlignmentTest\|WarrantyFlow04ApiSurfaceTest\|WarrantyIdempotencyKeyContractTest\|AuthorizationTest\|InventoryReconciliationIntegrityTest\|BackendMigrationSeedHealthTest\|SwaggerRouteSyncTest)/'` | **98 test / 789 assertion / 0 fail** (chạy theo danh sách file, xem ghi chú §2.1) | `runs/focused-suite.log` |
 | Style/syntax của gói | `vendor/bin/pint --test` trên file của gói + `bash -n` + `php -l` | PASS | `runs/verify-wwhn290-closure.log` |
-| CI run của cổng | GitHub Actions, job `closure` | ghi ở `runs/ci-run.txt` sau khi push frozen candidate | `runs/ci-run.txt` |
+| CI run của cổng | GitHub Actions run [`32204932596`](https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32204932596) tại `440459509dae9a66b54c798e377c98190052821c` | **run `success`** · job chặn `closure` **success** (103 passed / 851 assertions) · job `postgres-diagnostic` **failure**, không chặn | `runs/ci-run.txt` |
 
 Đây là **dry run của DEV**, không phải chữ ký QA1/Data — hai vai trò đó vẫn phải tự đối chiếu.
 
@@ -67,6 +67,18 @@ Ghi lại ở đây thay vì lặng lẽ sửa: cổng mà báo xanh sai một l
 Kết luận đo được từ lượt này: **defect PostgreSQL của nhóm A vẫn còn sống tại frozen candidate**
 (`migrate_seed_outcome=failure`), và bản vá `2026_08_19_000050_repair_erd_mirror_projection_casts.php`
 của WWHN-289 vẫn **chưa được commit** lên `m1`.
+
+### 2.3 Kết quả cuối tại frozen candidate `440459509dae9a66b54c798e377c98190052821c`
+
+Run `32204932596`: **workflow run = success**.
+
+| Job | Kết quả | Ý nghĩa |
+|---|---|---|
+| `closure` (chặn) | **success** | verifier `RESULT=PASS`, bộ regression 103 test / 851 assertion / 0 fail trên sqlite, manifest exact-SHA được upload |
+| `postgres-diagnostic` (không chặn) | **failure** (`migrate_seed_outcome=failure`) | defect PostgreSQL của nhóm A vẫn còn sống; hiện đỏ đúng sự thật và vẫn không chặn closure của WWHN-290 |
+
+Đây chính là hình dạng mà `DEV290-P1-05R` yêu cầu: **một closure run xanh tại đúng frozen candidate**, đồng thời
+vẫn phơi bày và quy trách nhiệm chỗ hỏng của ticket khác thay vì giấu đi.
 
 ## 3. DISPOSITION — toàn bộ project check tại commit `c29a220e5ebc070012d4ff0715a2f42ef0e4324c`
 

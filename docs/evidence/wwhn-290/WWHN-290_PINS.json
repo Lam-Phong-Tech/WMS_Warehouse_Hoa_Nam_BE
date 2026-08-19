@@ -23,7 +23,7 @@
     },
     "frozen_candidate": {
         "policy": "The closure package is frozen by a fixed commit plus a content digest. The digest is a sha256 over the manifest of 'sha256(file)  path' lines, sorted by path, computed from the frozen commit's own git objects. Later commits on the shared m1 branch therefore cannot rot it, which is the failure mode that made the revision-1 blob pin worthless within hours.",
-        "sha": null,
+        "sha": "440459509dae9a66b54c798e377c98190052821c",
         "sha_note": "Written by the evidence-only commit that immediately follows the freeze commit: a commit can never contain its own hash.",
         "effective_date": "2026-08-19",
         "package_digest": "5b31141ace86745dfdd0fd7fa51149c6317ee73c8d343c1e07a652f1cc0cc825",
@@ -57,7 +57,7 @@
             "Tech Lead"
         ],
         "effective_date": "2026-08-19",
-        "effective_sha": null,
+        "effective_sha": "440459509dae9a66b54c798e377c98190052821c",
         "effective_sha_note": "Equals frozen_candidate.sha; written by the same evidence-only commit.",
         "supersedes": "m1-be-2@60816499066f9f493596e326dc41116ef32f5c4b (STRICT_ANCESTOR, superseded by containment)",
         "port_option_rejected_because": "merge-base(m1, m1-be-2) equals the m1-be-2 HEAD, so a port/merge is a no-op and would create a second, older copy of the closure source.",
@@ -83,7 +83,9 @@
             "96e545dcc7112576ae4ae00e783bfd642a114399",
             "f8942321f2a673137eb9e16c9fc86d013140f84a",
             "c1ce7bf1d4a18d2a428a46f10ea2e025cffd646c",
-            "f97edcd6c401a8541f288620db3eed5f798dbfb8"
+            "f97edcd6c401a8541f288620db3eed5f798dbfb8",
+            "80f92373788d1dbffb1feb6e74bbb15affd8fa9b",
+            "440459509dae9a66b54c798e377c98190052821c"
         ],
         "runtime_paths_touched": 0,
         "contract_file_touched": 0,
@@ -183,7 +185,18 @@
             "owner_ticket": "WWHN-289",
             "owner_note": "The repair migration 2026_08_19_000050_repair_erd_mirror_projection_casts.php is authored under WWHN-289 (DEV289-P1-02R) and was still uncommitted while this package was frozen. WWHN-290 changes 0 migrations and must not adopt this fix, because DEV290-P1-05R requires this ticket to prove NO DATA/MIGRATION CHANGE.",
             "blocking_for_wwhn_290": false,
-            "status_at_first_gate_run": "STILL_OPEN - run 32169269579 recorded migrate_seed_outcome=failure"
+            "status_at_first_gate_run": "STILL_OPEN - run 32169269579 recorded migrate_seed_outcome=failure",
+            "status_at_frozen_candidate": "STILL_OPEN - run 32204932596 recorded migrate_seed_outcome=failure; repair remains uncommitted under WWHN-289"
+        },
+        "run": {
+            "run_id": "32204932596",
+            "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32204932596",
+            "head_sha": "440459509dae9a66b54c798e377c98190052821c",
+            "run_conclusion": "success",
+            "blocking_job_conclusion": "success",
+            "diagnostic_job_conclusion": "failure",
+            "focused_suite": "103 passed / 851 assertions / 0 failed (sqlite)",
+            "evidence": "docs/evidence/wwhn-290/runs/ci-run.txt"
         }
     },
     "defect_input": {

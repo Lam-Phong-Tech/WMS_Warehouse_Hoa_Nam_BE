@@ -1,0 +1,12 @@
+# WWHN-290 exact-SHA gate run at the frozen candidate
+url=https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32204932596
+run_id=32204932596
+head_sha=440459509dae9a66b54c798e377c98190052821c
+created=2026-08-19T01:26:29Z
+workflow=WWHN-290 Exact SHA Closure
+run_conclusion=success
+job_closure=success   # BLOCKING - verifier PASS, focused suite 103 passed / 851 assertions
+job_postgres_diagnostic=failure   # NON-BLOCKING - migrate_seed_outcome=failure, owned by WWHN-289 (see DISPOSITION)
+closure_verifier=RESULT=PASS
+focused_suite=103 passed (851 assertions), 0 failed, driver sqlite
+artifacts=wwhn-290-exact-sha-440459509dae9a66b54c798e377c98190052821c, wwhn-290-postgres-diagnostic-440459509dae9a66b54c798e377c98190052821c
