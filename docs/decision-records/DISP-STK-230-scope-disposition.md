@@ -195,6 +195,7 @@ nhau**; mỗi bản phủ một nhánh ticket riêng:
 | `DISP-STK-236` | `WWHN-236` | Apply Adjustment |
 | `DISP-STK-237` | `WWHN-237 / 238 / 60` | Variance report |
 | `DISP-ADJ-001` | `WWHN-219` | `apply-adjustment` là business action, không phải endpoint |
+| `DISP-STK-268` | `WWHN-70 / 264 / 265 / 268` | Pointer: xác nhận vòng sửa lỗi/retest QA (`HN-QA-005-ST01`) không mở lại kiểm kê, kế thừa 4 nhánh trên |
 
 Bên FE, mỗi nhánh giữ **file disposition riêng** trong `docs/api-evidence/`
 (`WWHN-230_SCOPE_DISPOSITION.json` cho bản này). `STOCKTAKE_GOVERNANCE_STATUS.json` chỉ giữ

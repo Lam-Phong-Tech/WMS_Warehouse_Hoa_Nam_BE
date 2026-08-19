@@ -69,7 +69,8 @@
       "impact": "Không có: FE nhận diện phiên hết hạn theo HTTP 401, không theo chuỗi mã.",
       "disposition": "OPEN_NEEDS_BA_DECISION",
       "owner": "BA + Tech Lead",
-      "note": "BE268-D02 chỉ ghi nhận khác biệt ở 403. Đo lại ở WWHN-267 cho thấy khác biệt cùng loại còn ở 401/422/500 — phải disposition một lần cho cả nhóm, không vá lẻ từng status."
+      "note": "BE268-D02 chỉ ghi nhận khác biệt ở 403. Đo lại ở WWHN-267 cho thấy khác biệt cùng loại còn ở 401/422/500 — phải disposition một lần cho cả nhóm, không vá lẻ từng status.",
+      "proposedResolutionRef": "docs/decision-records/DEC-API-ERRORCODE-001-srs-8-2-example-vs-implementation.md — đề xuất giữ nguyên mã, đọc §8.2 là ví dụ minh hoạ; PROPOSED, chờ BA+Tech Lead sign-off (WWHN-268 round 2, FE268-R2-P1-05)."
     },
     {
       "id": "DIV-403-01",
@@ -80,7 +81,8 @@
       "impact": "Không có ở tầng trạng thái UI (FE isNoPermissionError() nhận diện theo HTTP 403). CÓ ở tầng thông điệp: màn nào map theo chuỗi mã sẽ mất thông điệp riêng — đã sửa ở FE267-D06.",
       "disposition": "OPEN_NEEDS_BA_DECISION",
       "owner": "BA + Tech Lead",
-      "note": "Kế thừa BE268-D02 của WWHN-268; WWHN-267 không tự đổi mã, chỉ hợp nhất hồ sơ và bịt đường lệ thuộc chuỗi mã ở FE."
+      "note": "Kế thừa BE268-D02 của WWHN-268; WWHN-267 không tự đổi mã, chỉ hợp nhất hồ sơ và bịt đường lệ thuộc chuỗi mã ở FE.",
+      "proposedResolutionRef": "docs/decision-records/DEC-API-ERRORCODE-001-srs-8-2-example-vs-implementation.md — đề xuất giữ nguyên mã, đọc §8.2 là ví dụ minh hoạ; PROPOSED, chờ BA+Tech Lead sign-off (WWHN-268 round 2, FE268-R2-P1-05)."
     },
     {
       "id": "DIV-422-01",
@@ -90,7 +92,8 @@
       "evidence": "app/Traits/ApiResponse.php:77; docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json.",
       "impact": "Không có: FE hiển thị message + field errors, không phân nhánh theo tên mã mặc định.",
       "disposition": "OPEN_NEEDS_BA_DECISION",
-      "owner": "BA + Tech Lead"
+      "owner": "BA + Tech Lead",
+      "proposedResolutionRef": "docs/decision-records/DEC-API-ERRORCODE-001-srs-8-2-example-vs-implementation.md — đề xuất giữ nguyên mã, đọc §8.2 là ví dụ minh hoạ; PROPOSED, chờ BA+Tech Lead sign-off (WWHN-268 round 2, FE268-R2-P1-05)."
     },
     {
       "id": "DIV-500-01",
@@ -100,7 +103,8 @@
       "evidence": "app/Traits/ApiResponse.php:77; Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:395.",
       "impact": "Không có với client. OUTBOUND_MATCH_MISSING là guard bất biến nội bộ ('scan thành công nhưng không có match'), đúng nghĩa 'Unexpected' của §8.2; giữ tên riêng để log truy được nguyên nhân.",
       "disposition": "OPEN_NEEDS_BA_DECISION",
-      "owner": "BA + Tech Lead"
+      "owner": "BA + Tech Lead",
+      "proposedResolutionRef": "docs/decision-records/DEC-API-ERRORCODE-001-srs-8-2-example-vs-implementation.md — đề xuất giữ nguyên mã, đọc §8.2 là ví dụ minh hoạ; PROPOSED, chờ BA+Tech Lead sign-off (WWHN-268 round 2, FE268-R2-P1-05)."
     },
     {
       "id": "DIV-409-01",
