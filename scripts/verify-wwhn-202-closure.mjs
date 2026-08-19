@@ -297,12 +297,23 @@ for (const [file, tests] of Object.entries(REQUIRED_TESTS)) {
   }
 }
 
+// PHPUnit 12 đã bỏ metadata dạng docblock: `@group wwhn-202` trong comment sẽ khiến
+// `--group wwhn-202` im lặng trả "No tests found" thay vì báo lỗi. Ràng buộc phải là
+// attribute `#[Group('wwhn-202')]`, và cổng này canh đúng attribute đó.
 for (const file of [
   'tests/Feature/Wwhn202OutboundBalanceEvidenceTest.php',
   'tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php',
 ]) {
-  if (existsSync(join(ROOT, file)) && !read(file).includes('@group wwhn-202')) {
-    fail('C6', `${file} phải mang @group wwhn-202 — đó là ràng buộc cơ học thay cho việc đổi tên file (DEV202-P1-01R2).`)
+  if (!existsSync(join(ROOT, file))) continue
+  const source = read(file)
+  if (!source.includes("#[Group('wwhn-202')]")) {
+    fail(
+      'C6',
+      `${file} phải mang attribute #[Group('wwhn-202')] — đó là ràng buộc cơ học thay cho việc đổi tên file (DEV202-P1-01R2). Docblock @group KHÔNG có tác dụng trên PHPUnit 12.`,
+    )
+  }
+  if (!source.includes('use PHPUnit\\Framework\\Attributes\\Group;')) {
+    fail('C6', `${file} thiếu import PHPUnit\\Framework\\Attributes\\Group.`)
   }
 }
 

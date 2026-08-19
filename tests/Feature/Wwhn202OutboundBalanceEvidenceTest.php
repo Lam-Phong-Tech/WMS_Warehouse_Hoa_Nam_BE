@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -34,9 +35,8 @@ use Tests\TestCase;
  * AC-GWT-OUT-001, §7.5 (4 check đối soát), §8.1 (exact permission + data scope), §8.2
  * (HTTP/error contract), RPT-INV-01 (§13.10). ERD: `stock_movements` là ledger append-only,
  * `inventory_balances` là projection.
- *
- * @group wwhn-202
  */
+#[Group('wwhn-202')]
 class Wwhn202OutboundBalanceEvidenceTest extends TestCase
 {
     use PreparesOutboundFixtures;

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -33,12 +34,13 @@ use Tests\TestCase;
  * (HN-OUT-003 / HN-OUT-003-ST01) is **WWHN-202**. The name is deliberately NOT changed: eight
  * frozen evidence packs and task files (WWHN-190/191/198/199/201/205, WWHN-231, WWHN-239) pin
  * this exact path, and renaming would break already-approved evidence. The binding is
- * mechanical instead of prose-only — the `@group wwhn-202` below makes the whole class
- * runnable as `--group wwhn-202` together with `Wwhn202OutboundBalanceEvidenceTest`.
+ * mechanical instead of prose-only — the #[Group('wwhn-202')] attribute below makes the whole
+ * class runnable as `--group wwhn-202` together with `Wwhn202OutboundBalanceEvidenceTest`.
+ * PHPUnit 12 removed docblock metadata, so this binding MUST be a PHP attribute: an @group
+ * docblock silently yields "No tests found" instead of failing loudly.
  * Mapping of record: `docs/evidence/WWHN-202/EVIDENCE_MATRIX.md` §2.
- *
- * @group wwhn-202
  */
+#[Group('wwhn-202')]
 class Wwhn207OutboundBalanceReconciliationTest extends TestCase
 {
     use PreparesOutboundFixtures;
