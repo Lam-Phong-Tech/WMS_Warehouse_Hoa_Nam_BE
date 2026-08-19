@@ -35,10 +35,10 @@
     ]
   },
   "candidate": {
-    "be_commit_sha": "9a252a0a1d595df4390b3c74d1fc414ed481fb33",
+    "be_commit_sha": "cf5293a4805c860a7493276d0f42e3880cf612ef",
     "be_range_start": "2c82d0e8427eaeda986d55ecfaa5b211bfe3186f",
-    "be_range": "2c82d0e8427eaeda986d55ecfaa5b211bfe3186f..9a252a0a1d595df4390b3c74d1fc414ed481fb33",
-    "be_commit_count_touching_source": 4,
+    "be_range": "2c82d0e8427eaeda986d55ecfaa5b211bfe3186f..cf5293a4805c860a7493276d0f42e3880cf612ef",
+    "be_commit_count_touching_source": 5,
     "fe_commit_sha": "2d87fb5b69e5e838bf298245f422546a883c8fc0",
     "meaning": "Commit cuối cùng chạm TẬP NGUỒN của WWHN-233. Không phải HEAD của m1, và không dịch chuyển khi evidence pack được phát hành lại — nên pin là idempotent."
   },

@@ -85,7 +85,7 @@
   },
   "repository": {
     "branch": "m1",
-    "be_commit_sha": "9a252a0a1d595df4390b3c74d1fc414ed481fb33",
+    "be_commit_sha": "cf5293a4805c860a7493276d0f42e3880cf612ef",
     "be_commit_sha_meaning": "Commit cuối cùng chạm artifact của WWHN-233, không phải HEAD của nhánh dùng chung — nhiều nhánh Stocktake commit song song vào m1.",
     "fe_commit_sha": "2d87fb5b69e5e838bf298245f422546a883c8fc0"
   }

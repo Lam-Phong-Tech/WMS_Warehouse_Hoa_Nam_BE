@@ -12,10 +12,10 @@
 | Người chạy & kết luận | **QA1** (độc lập với DEV) |
 | Ngày chạy | `2026-08-19` |
 | Loại kiểm | **NEGATIVE GATE** — chứng minh capability *không* tồn tại ở mọi tầng |
-| Candidate SHA | `IMMUTABLE_CANDIDATE_PIN.json` → `candidate.be_commit_sha` = `__BE_CANDIDATE_SHA__` |
-| Candidate fingerprint (mức đối tượng) | `__BE_FINGERPRINT__` |
-| FE candidate SHA | `__FE_CANDIDATE_SHA__` (fingerprint `__FE_FINGERPRINT__`) |
-| Raw evidence | `docs/evidence/WWHN-233/raw/` — 6 file, liệt kê ở §2 |
+| Candidate SHA | `IMMUTABLE_CANDIDATE_PIN.json` → `candidate.be_commit_sha` = `cf5293a4805c860a7493276d0f42e3880cf612ef` |
+| Candidate fingerprint (mức đối tượng) | `bb00f181f713d2ed40b9d7abff61ac06fbbe1483941e351df160a928f71ab63e` |
+| FE candidate SHA | `2d87fb5b69e5e838bf298245f422546a883c8fc0` (fingerprint `14d15bfc647323dc0d017c250c17c9ae8850b866bc7221722ac0c8d8f85823cd`) |
+| Raw evidence | `docs/evidence/WWHN-233/raw/` — 7 file (6 log + 1 script SQL chạy lại được), liệt kê ở §2 |
 
 ---
 
@@ -61,7 +61,7 @@ chạy sqlite — chứng tỏ biến môi trường mới là cái quyết đ�
 | 8 | `DORMANT-SOURCE` | 0 class/route kiểm kê; tập file còn nhắc bề mặt trùng khớp đăng ký | verifier quét 478 file PHP trên cây làm việc | `docs/evidence/WWHN-233/raw/06-be-verifier.txt` | **PASS** — 10 file, tất cả đã có disposition |
 | 9 | `FE-SURFACE` | 0 route / menu / permission kiểm kê ở FE | verifier FE + 10 vitest | `docs/evidence/WWHN-233/raw/05-fe-gate.txt` | **PASS** — 12 check PASS, 10/10 test |
 
-Bộ gate BE: `docs/evidence/WWHN-233/raw/03-gate-test-pgsql.txt` — **13/13 test PASS, 359 assertion**.
+Bộ gate BE: `docs/evidence/WWHN-233/raw/03-gate-test-pgsql.txt` — **13/13 test PASS, 361 assertion**.
 Verifier BE: `docs/evidence/WWHN-233/raw/06-be-verifier.txt`.
 
 ---
@@ -105,12 +105,21 @@ còn nguyên (§D).
 `WWHN-233`, nhưng nếu chỉ chạy lệnh mặc định thì bốn assertion `stocktake_*` PASS mà không chứng
 minh gì. QA kết luận trên bản chạy PostgreSQL; ai chạy lại phải dùng đúng lệnh ở §6.
 
-**4.2 — `verify-wwhn236-adjustment-disposition.mjs` đang FAIL 4 mục.** Cả 4 thuộc **register
-riêng của `WWHN-236`** ở vòng R3 (`APPROVAL-RECORD`, `CANDIDATE-PIN`, `PARENT-REBASELINE`,
-`QA-RERUN`) — không mục nào chạm bề mặt kiểm kê. Toàn bộ 12 check *bề mặt* của `DISP-STK-236`
-vẫn PASS. Verifier của `WWHN-233` phân tách đúng hai loại: fail cứng nếu bề mặt hỏng, cảnh báo
-nếu chỉ là governance của nhánh kia. QA đồng ý cách phân tách này; **không** coi đây là defect
-của `WWHN-233` và **không** yêu cầu `WWHN-233` sửa artifact của nhánh khác.
+**4.2 — Nhánh `WWHN-236` chạy song song, và điều đó suýt làm gate này đỏ oan.** Đầu vòng R2,
+`verify-wwhn236-adjustment-disposition.mjs` FAIL 4 mục — cả 4 thuộc **register riêng của
+`WWHN-236`** ở vòng R3 (`APPROVAL-RECORD`, `CANDIDATE-PIN`, `PARENT-REBASELINE`, `QA-RERUN`),
+không mục nào chạm bề mặt kiểm kê; toàn bộ check *bề mặt* của `DISP-STK-236` vẫn PASS. Verifier
+của `WWHN-233` khi đó fail cứng theo, dù không có lỗi thật nào thuộc phạm vi `WWHN-233`.
+
+Cách xử lý: **không** sửa artifact của nhánh kia. Check `CHAIN-236` được tách làm hai loại — bề
+mặt (`DISP-CONTENT`, `BASELINE-*`, `OPENAPI-RUNTIME`, `PERMISSION-MATRIX`, `ROUTE-SOURCE`,
+`DB-CONSTRAINT`, `MIGRATION-TABLES`, `SPEC-SURFACE`, `CHAIN-DISPOSITION`) là ràng buộc cứng và
+**bắt buộc phải có mặt** trong output (thiếu ⇒ fail-closed), còn register riêng của `WWHN-236`
+chỉ hạ xuống cảnh báo kèm tên chủ sở hữu.
+
+Tại thời điểm chạy bộ evidence này, `WWHN-236` đã tự đóng phần của họ và `CHAIN-236` **PASS toàn
+bộ** (`docs/evidence/WWHN-233/raw/06-be-verifier.txt`). QA ghi lại cả hai trạng thái có chủ đích:
+gate phải đúng ở cả hai, vì hai nhánh còn mở vòng review lệch pha nhau.
 
 **4.3 — `docs/postman/WWHN-180 Canonical Contract.postman_collection.json` còn khai
 `/api/v1/stocktake/sessions/{{stocktake_id}}/apply-adjustment`.** Đây là **bản khai trong pack
@@ -143,7 +152,7 @@ register, và bộ negative gate này trở thành regression suite của lần 
 ## 6. Chạy lại (bất kỳ ai cũng tái lập được)
 
 ```bash
-node scripts/verify-wwhn233-count-disposition.mjs --expect-sha=__BE_CANDIDATE_SHA__
+node scripts/verify-wwhn233-count-disposition.mjs --expect-sha=cf5293a4805c860a7493276d0f42e3880cf612ef
 docker exec -w /var/www/html -e DB_CONNECTION=pgsql wms_warehouse_hoa_nam_be-backend-1 \
   php artisan test tests/Feature/Wwhn233CountDeferredGateTest.php
 docker exec -i wms_warehouse_hoa_nam_be-postgres-1 psql -U postgres -d wms_hoanam \
@@ -168,7 +177,7 @@ check `CANDIDATE-PIN` sẽ đỏ — đó là hành vi đúng, không phải nhi
 Disposition: DEFERRED / N/A cho MVP v1.12 (khong phai Blocked, khong phai Pending)
 Can cu: REQ-SRS-037 (Must, SRS/FRD v1.12 @ WWHN-334) + DISP-STK-233 v1.1.0 §8
 QA result: PASS (negative gate) - QA1 tu chay, khong dua tren ket luan cua DEV
-Candidate: BE __BE_CANDIDATE_SHA__ / FE __FE_CANDIDATE_SHA__
+Candidate: BE cf5293a4805c860a7493276d0f42e3880cf612ef / FE 2d87fb5b69e5e838bf298245f422546a883c8fc0
 Env: PHP 8.3.30, Laravel 13.23.0, PostgreSQL 16, Node 22.17.1
 Evidence: docs/evidence/WWHN-233/QA_INDEPENDENT_VERIFICATION_WWHN-235.md + raw/ (6 file)
 Dieu kien re-open: dung chung voi WWHN-233 (DISP-STK-233 §2)

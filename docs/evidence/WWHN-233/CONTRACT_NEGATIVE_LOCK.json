@@ -53,12 +53,12 @@
     "[EVIDENCE] NO_CODE_HANDOFF + QA_DISPOSITION_WWHN-235 có mặt.",
     "[CHAIN-236] verify-wwhn236-adjustment-disposition.mjs PASS toàn bộ.",
     "[CANDIDATE-PIN] Fingerprint mức đối tượng khớp (bb00f181f713d2ed…), 3 file nguồn.",
-    "[CANDIDATE-PIN] candidate 9a252a0a1d59 nằm trên nhánh, range bắt đầu từ 2c82d0e8427e.",
+    "[CANDIDATE-PIN] candidate cf5293a4805c nằm trên nhánh, range bắt đầu từ 2c82d0e8427e.",
     "[APPROVAL-INTEGRITY] Bản ghi phê duyệt hợp lệ: status=PROPOSED, effective_date=null, 7 slot, DEV không đứng tên gate phạm vi.",
     "[PARENT-REBASELINE] WWHN-59 rebaseline: 7 nhóm AC có disposition, v3.9 superseded, Decision version 1.1.0.",
     "[DORMANT-SOURCE] Quét 478 file PHP: 0 class/route kiểm kê; 10 file còn nhắc bề mặt này đều đã có disposition.",
     "[QA-EVIDENCE] Báo cáo QA1 có exact SHA + env + verdict, 7 raw log được trích và đều tồn tại."
   ],
   "warnings": [],
-  "verified_at_commit": "9a252a0a1d595df4390b3c74d1fc414ed481fb33"
+  "verified_at_commit": "cf5293a4805c860a7493276d0f42e3880cf612ef"
 }
