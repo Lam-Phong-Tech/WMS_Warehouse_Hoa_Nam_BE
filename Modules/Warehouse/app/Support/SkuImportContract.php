@@ -122,6 +122,42 @@ final class SkuImportContract
         return strtoupper((string) config('warehouse.sku_import.lock.on_timeout', 'FAIL_CLOSED')) !== 'FAIL_OPEN';
     }
 
+    /**
+     * FE331-P1-08R4 — hạn của CHỖ GIỮ CHÍNH DANH trong cơ sở dữ liệu (durable claim).
+     *
+     * Đây KHÔNG phải "thời gian import được phép chạy" mà là van cứu hộ cho tiến trình
+     * chết giữa chừng: quá hạn thì request sau được tiếp quản chỗ giữ đó. Vì vậy giá trị
+     * phải lớn hơn hẳn ngân sách hiệu năng đã duyệt cho một lần commit ở đúng hạn mức
+     * (`performance_objective_ms.commit_at_max_rows`, mặc định 60s) — mặc định 900s là
+     * 15× ngân sách đó và cũng lớn hơn mọi trần thực thi ở tầng dưới (PHP
+     * `max_execution_time`, `fastcgi_read_timeout` của nginx), nên một chỗ giữ chỉ có
+     * thể hết hạn khi tiến trình giữ nó đã thực sự chết.
+     *
+     * Sàn cứng: không bao giờ nhỏ hơn 2× ngân sách commit (và không nhỏ hơn TTL khoá
+     * cache), kể cả khi cấu hình sai — một giá trị quá thấp sẽ mở lại đúng ca đua mà chỗ
+     * giữ sinh ra để đóng, và đó không phải thứ được phép hạ bằng một biến môi trường.
+     */
+    public static function claimTtlSeconds(): int
+    {
+        $configured = (int) config('warehouse.sku_import.lock.claim_ttl_seconds', 900);
+        $commitBudgetSeconds = (int) ceil(self::performanceObjectiveMs()['commit_at_max_rows'] / 1000);
+
+        return max($configured, 2 * $commitBudgetSeconds, self::lockTtlSeconds());
+    }
+
+    /**
+     * FE331-P1-08R4 — định danh một lần import, băm lại làm khoá chính của chỗ giữ.
+     *
+     * Đúng bằng bộ định danh replay của DEC-IMP-001 §2 (`file_sha256 + actor_id +
+     * options_fingerprint`), không phải một định nghĩa thứ hai: chỗ giữ và phép kiểm tra
+     * trùng phải nói về CÙNG một khái niệm "một lần import" — nếu lệch nhau thì thứ được
+     * tuần tự hoá không còn là thứ được kiểm tra.
+     */
+    public static function identityHash(string $actorId, string $fileSha256, string $optionsFingerprint): string
+    {
+        return hash('sha256', $actorId.'|'.$fileSha256.'|'.$optionsFingerprint);
+    }
+
     /** Số giờ file lỗi CSV còn tải được kể từ lúc sinh (hạn dùng LOGIC). */
     public static function errorFileExpiryHours(): int
     {
@@ -212,6 +248,16 @@ final class SkuImportContract
             // request thứ hai bị từ chối 409 CONCURRENCY_CONFLICT (không âm thầm chạy
             // song song). Công bố để client hiển thị đúng thông điệp "thử lại sau".
             'concurrent_import_policy' => self::lockFailsClosed() ? 'FAIL_CLOSED_409' : 'FAIL_OPEN',
+            // FE331-P1-08R4: `concurrent_import_policy` ở trên chỉ mô tả hành vi khi HẾT
+            // THỜI GIAN CHỜ khoá cache — nó không nói gì về chuyện khoá ấy có thật sự
+            // khoá hay không. Trường dưới đây công bố chốt chặn thật: chỗ giữ chính danh
+            // nằm trong cơ sở dữ liệu, độc lập hoàn toàn với cache driver, và KHÔNG bị
+            // `FAIL_OPEN` vô hiệu hoá. Client (và QA) nhờ đó phân biệt được "đang chạy
+            // trên một hệ có bảo đảm" với "đang chạy trên một khoá có thể im lặng không
+            // khoá gì" mà không phải đọc mã nguồn.
+            'concurrency_guard' => 'DB_DURABLE_CLAIM',
+            'concurrency_guard_table' => 'sku_import_claims',
+            'claim_ttl_seconds' => self::claimTtlSeconds(),
         ];
     }
 

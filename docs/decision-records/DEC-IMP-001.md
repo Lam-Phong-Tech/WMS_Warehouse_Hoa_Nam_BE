@@ -4,7 +4,7 @@
 |---|---|
 | Mã quyết định | `DEC-IMP-001` |
 | Ngày lập | 18/08/2026 |
-| Bản sửa đổi | **Rev.2 — 18/08/2026** (đóng WWHN-330 register R3) |
+| Bản sửa đổi | **Rev.3 — 19/08/2026** (đóng WWHN-331 register R4; Rev.2 18/08 đóng WWHN-330 register R3) |
 | Phạm vi | `POST /api/v1/skus/import-excel`, `GET /api/v1/skus/import-template`, `GET /api/v1/skus/import-reports[/{id}[/error-file]]`, lệnh `import:purge-error-files` |
 | Ticket | WWHN-330 (BE), WWHN-331 (FE), WWHN-332 (QA), task cha WWHN-89 |
 | Đóng mục review | FE331-P1-02R3, FE331-P1-03R3, FE331-P1-06R3 · **DEV330-P1-01R3, DEV330-P1-02R3, DEV330-P1-03R3, DEV330-P1-06R3, DEV330-P1-07R3** |
@@ -261,6 +261,11 @@ một giá trị gõ sai không vô tình hạ tiêu chuẩn toàn vẹn dữ li
 
 `dry_run` không lấy khoá (không ghi gì nên không cần tuần tự hoá).
 
+> **§12 (R4, 19/08) thay thế một phần mục này.** Mọi điều trên vẫn đúng, nhưng khoá cache
+> nay chỉ còn vai trò **hàng chờ**; bất biến nguyên tử được giữ bởi **chỗ giữ chính danh
+> trong cơ sở dữ liệu**. Hệ quả quan trọng: `lock.on_timeout = FAIL_OPEN` **không còn**
+> khả năng hạ tiêu chuẩn toàn vẹn dữ liệu — nó chỉ bỏ qua bước xếp hàng.
+
 ---
 
 ## 7. Hợp đồng file lỗi CSV — theo SRS §13.12
@@ -433,3 +438,118 @@ nhau nên không dùng chung một mã.
 | `docs/decision-records/DISP-IMP-224-sku-import-scope-mapping.json` | **Mới** — phạm vi SKU-only + mapping khoá theo field/type/required/default/owner (chờ BA/Data Owner duyệt tại WWHN-225) |
 | `tests/Feature/Wwhn224P1ClosureTest.php` | **Mới** — 8 test: 4 ca bơm lỗi báo cáo, bất biến report id, 2 guard hợp đồng quyền, đối chiếu register |
 | FE `src/modules/master-data/services/sku-import.service.ts` | **Mới** `SkuImportUnavailableError` — 503 mang khối `data` nên nếu không tách lớp lỗi, UI sẽ hiển thị "file có lỗi" cho một file hợp lệ |
+
+---
+
+## 12. Bảo đảm chống ghi trùng và vân tay payload — R4 (bổ sung 19/08)
+
+Vòng review R4 mở hai mục P1 mới. Cả hai cùng một bản chất: **một bảo đảm được xây trên
+một thứ có thể im lặng không hoạt động**, nên nó không phải bảo đảm.
+
+### 12.1 Quyết định — chốt chặn chống ghi trùng nằm trong CSDL (FE331-P1-08R4)
+
+| Tham số | Giá trị | Khoá config |
+|---|---:|---|
+| Chốt chặn | **`DB_DURABLE_CLAIM`** (bảng `sku_import_claims`) | *(không tắt được)* |
+| Định danh chỗ giữ | `sha256(actor_id \| file_sha256 \| options_fingerprint)` | — |
+| Hạn chỗ giữ (van cứu hộ) | 900 giây, sàn cứng ≥ 2× ngân sách commit | `lock.claim_ttl_seconds` |
+| Khoá cache (`§6`) | **giữ nguyên**, hạ cấp thành hàng chờ | `lock.*` |
+
+`§6` bảo vệ bất biến nguyên tử bằng `Cache::lock`. Vòng R4 chỉ ra rằng sợi dây đó đứt
+**lặng lẽ** — không exception, không log — trong ba hoàn cảnh có thật:
+
+1. **Cache store không khoá được liên tiến trình**: `array`/`null`, hoặc `file` khi chạy
+   nhiều node không dùng chung đĩa. `block()` "thành công" cho **cả hai** request.
+2. **Redis/Valkey hỏng**: khoá không dựng được.
+3. **`lock.on_timeout = FAIL_OPEN`**: chính hợp đồng cho phép bỏ qua khoá.
+
+Trong cả ba, mã trước R4 vẫn chạy tiếp và vẫn trả 200 — tức tính idempotent bị phá mà
+không ai biết, đúng dạng lỗi mà §6 tưởng đã đóng.
+
+Nay mọi lần import COMMIT phải giành một hàng UNIQUE trong `sku_import_claims`. Trọng tài
+là **chính cơ sở dữ liệu mà kết quả đằng nào cũng phải ghi vào**, nên bảo đảm đúng trên
+mọi driver, mọi node, và không tồn tại kịch bản "khoá im lặng không khoá gì".
+
+- Giành chỗ: `INSERT ... ON CONFLICT DO NOTHING` — **một câu lệnh nguyên tử**, không phải
+  đọc-rồi-ghi (đọc-rồi-ghi chính là ca đua đang đóng).
+- Không giành được → **409 `CONCURRENCY_CONFLICT`** (§6, §8.2 giữ nguyên).
+- Không **vận hành được** chốt chặn (mất bảng/mất kết nối) → **503**, cùng nguyên tắc đã
+  áp cho `findRecentDuplicateReport()` ở §11: mất phương tiện bảo đảm bất biến là sự cố
+  khả dụng, **không phải** tranh chấp nghiệp vụ — gọi sai loại là đẩy nhầm việc cho người
+  dùng.
+- Hết hạn chỗ giữ → request sau **tiếp quản** bằng `UPDATE ... WHERE expires_at <= now()`
+  (so-sánh-rồi-đổi, cũng nguyên tử), và **luôn** ghi log WARNING
+  `SKU_IMPORT_CLAIM_TAKEOVER`.
+- Trả chỗ giữ chỉ xoá đúng `owner_token` của mình, nên một request đã bị tiếp quản không
+  xoá mất chỗ giữ của người kế nhiệm.
+
+**Hạn chỗ giữ không phải cửa sổ idempotent.** Cửa sổ idempotent (24h, §2) vẫn do
+`import_reports` giữ. 900 giây chỉ là van cứu hộ cho tiến trình chết giữa chừng: nó lớn
+hơn 15× ngân sách commit đã duyệt (§4: 60s) và lớn hơn mọi trần thực thi ở tầng dưới (PHP
+`max_execution_time`, `fastcgi_read_timeout`), nên một chỗ giữ chỉ hết hạn khi tiến trình
+giữ nó đã thực sự chết. Sàn cứng ≥ 2× ngân sách commit để một giá trị cấu hình quá thấp
+không mở lại chính ca đua này.
+
+**Residual được ghi nhận (không giấu):** nếu một tiến trình vừa vượt 900 giây vừa còn
+sống, chỗ giữ của nó có thể bị tiếp quản. Khi đó phép kiểm tra trùng ở §2 vẫn là lớp thứ
+hai, và mọi lần tiếp quản đều có log WARNING để vận hành truy được. Đây là đánh đổi có ý
+thức, không phải khoảng trống bị bỏ sót.
+
+**ERD.** `sku_import_claims` là **bảng vận hành**, cùng loại với `import_reports` — không
+thuộc 59 bảng canonical (xem §9 hàng 2). `HoaNamErdSchema::TABLE_COUNT` giữ nguyên **59**;
+`ErdCompilerSourcePinTest` / `ErdPhysicalSchemaParityTest` kiểm "đủ 59 bảng tài liệu hoá",
+không cấm bảng vận hành. Đề nghị BA gộp cả hai bảng vào cùng một ERD amendment.
+
+### 12.2 Quyết định — vân tay payload lấy từ NỘI DUNG file (FE331-P1-07R4)
+
+| Trước R4 | Từ R4 |
+|---|---|
+| `name` + `size` + `lastModified` + `update_existing` | **`sha256(nội dung file)`** + `update_existing` |
+
+`FE331-P1-01R3` đã đóng lỗi "commit một payload chưa hề được kiểm tra thử" bằng cách gắn
+vân tay vào kết quả dry-run. Nhưng vân tay đó dựng từ metadata, mà metadata **không định
+danh nội dung** — nên đúng lỗ hổng ấy còn nguyên qua hai đường vào, cả hai đều là thao tác
+đời thường của người dùng kho:
+
+1. **Hai file khác nhau, trùng cả ba.** Dry-run `sku.xlsx` ở thư mục A rồi chọn
+   `sku.xlsx` đồng nghiệp gửi. Trùng tên là chuyện thường; hai workbook cùng template
+   thường trùng cỡ; `lastModified` trùng khi file được sao chép giữ mốc thời gian, giải
+   nén từ zip, hoặc đồng bộ qua ổ mạng. Ba điều kiện đủ → nút Import **sáng lên** cho một
+   file chưa hề được kiểm tra thử.
+2. **Cùng một file, nội dung đã đổi.** Dry-run thấy lỗi → mở Excel sửa → **ghi đè lên
+   chính file đó** → bấm Import mà không kiểm tra lại. `size` có thể không đổi khi chỉ sửa
+   vài ô, và `lastModified` mà trình duyệt chụp lúc chọn file thì không tự cập nhật. Đây
+   là ca nguy hiểm nhất, vì người dùng **đinh ninh** là đã kiểm tra rồi.
+
+Từ R4, vân tay là SHA-256 của chính các byte, và được đối chiếu **hai chiều**:
+
+- với `file_sha256` máy chủ trả về — xác nhận thứ máy chủ đã đọc đúng là thứ người dùng
+  đang cầm, thay vì tin rằng đường truyền không làm gì với nó;
+- với chính file đó **ngay trước khi commit** — bắt ca "sửa file rồi bấm Import", kể cả
+  trên trình duyệt đọc ra nội dung mới mà không báo lỗi.
+
+Kèm theo là **số thế hệ payload** (generation token): response của một lần kiểm tra thử đã
+bị người dùng bỏ qua sẽ bị **loại hẳn**, thay vì được ghi vào state rồi mới bị vô hiệu hoá
+bằng phép so vân tay — nếu không, người dùng đọc một bảng số không thuộc về thao tác nào
+họ vừa làm.
+
+**Không có secure context thì sao.** `crypto.subtle` chỉ tồn tại trong secure context, mà
+máy trạm kho mở ứng dụng bằng `http://192.168.x.x` (không phải `localhost`) thì không có
+nó. Nếu chỉ dựa vào Web Crypto, đúng những máy đó lại rơi về so metadata — tức lỗ hổng còn
+nguyên ở chính môi trường phổ biến nhất của dự án. Vì vậy FE có bản SHA-256 thuần
+JavaScript làm đường dự phòng, khoá bằng **vector chuẩn FIPS 180-4/NIST CAVP** để bảo đảm
+nó khớp tuyệt đối với `hash_file('sha256')` của BE.
+
+### 12.3 Ảnh hưởng mã nguồn (bổ sung cho §10)
+
+| Tệp | Thay đổi |
+|---|---|
+| `Modules/Warehouse/database/migrations/2026_08_19_140000_create_sku_import_claims_table.php` | **Mới** — bảng chỗ giữ, PK `identity_hash`, index `expires_at` |
+| `Modules/Warehouse/app/Support/SkuImportContract.php` | **Mới** `identityHash()`, `claimTtlSeconds()` (có sàn cứng); `constraints` công bố `concurrency_guard` / `concurrency_guard_table` / `claim_ttl_seconds` |
+| `Modules/Warehouse/app/Services/ImportService.php` | `withImportLock()` tách hai tầng: `withCacheQueue()` (hàng chờ, chịu được cache hỏng) + `withDurableClaim()` (bảo đảm); `claimImportIdentity()` / `releaseImportIdentity()` |
+| `config/warehouse.php` | `lock.claim_ttl_seconds`; ghi rõ vì sao cache không phải bảo đảm |
+| `tests/Feature/Wwhn331ImportDurableClaimTest.php` | **Mới** — 10 test, trong đó có chồng lấn THẬT: lần import thứ hai gọi từ giữa lần thứ nhất |
+| FE `src/shared/utils/file-digest.ts` | **Mới** — SHA-256 (Web Crypto + đường thuần JS), `sha256OfFile()` |
+| FE `src/shared/utils/file-digest.test.ts` | **Mới** — 21 test, khoá bằng vector chuẩn FIPS 180-4 + ranh giới đệm |
+| FE `src/modules/master-data/components/SkuImportModal.tsx` | `payloadSignature()` theo sha256 nội dung; `payloadGeneration`; băm lại trước khi commit; đối chiếu `file_sha256` của BE |
+| FE `src/modules/master-data/components/SkuImportModal.test.tsx` | +5 test R4; `file_sha256` giả lập nay là sha256 THẬT của nội dung fixture |

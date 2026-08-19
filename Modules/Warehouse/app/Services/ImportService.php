@@ -124,7 +124,7 @@ class ImportService
         $optionsFingerprint = SkuImportContract::optionsFingerprint($updateExisting);
 
         if (! $dryRun && $actorId !== null) {
-            return $this->withImportLock($checksum, $actorId, $optionsFingerprint, function () use (
+            return $this->withImportLock($checksum, $actorId, $optionsFingerprint, $requestId, function () use (
                 $checksum, $filePath, $updateExisting, $actorId, $requestId, $originalName, $dryRun, $optionsFingerprint
             ): array {
                 $duplicate = $this->findRecentDuplicateReport($checksum, $actorId, $optionsFingerprint);
@@ -163,16 +163,78 @@ class ImportService
      * Hướng ngược lại vẫn cấu hình được (`lock.on_timeout = FAIL_OPEN`) nhưng phải là một
      * quyết định được ghi ra, không phải mặc định ẩn.
      *
+     * ── FE331-P1-08R4: KHOÁ CACHE LÀ HÀNG CHỜ, KHÔNG PHẢI BẢO ĐẢM ─────────────────────
+     *
+     * Vòng trước sửa đúng nhánh hết-thời-gian-chờ, nhưng bất biến "kiểm tra trùng + ghi
+     * là một thao tác nguyên tử" vẫn treo trên MỘT sợi dây duy nhất là `Cache::lock`, và
+     * sợi dây đó đứt LẶNG LẼ — không exception, không log — trong ba hoàn cảnh có thật:
+     *
+     * 1. Cache store không khoá được liên tiến trình: `array`/`null`, hoặc `file` khi
+     *    chạy nhiều node. `block()` "thành công" cho CẢ HAI request; cả hai cùng thấy
+     *    "chưa import lần nào" và cùng ghi → hai `import_reports` COMMITTED một file.
+     * 2. Redis/Valkey hỏng: khoá không dựng được.
+     * 3. `lock.on_timeout = FAIL_OPEN`: chính hợp đồng cho phép bỏ qua khoá.
+     *
+     * Trong cả ba, đoạn mã cũ vẫn chạy tiếp và vẫn trả 200 — tức tính idempotent bị phá
+     * mà không ai biết, đúng dạng lỗi mà vòng trước tưởng đã đóng.
+     *
+     * Nên chốt chặn thật được hạ xuống nơi kết quả đằng nào cũng phải ghi vào: một CHỖ
+     * GIỮ CHÍNH DANH trong bảng `sku_import_claims`, UNIQUE theo định danh import. Cơ sở
+     * dữ liệu là trọng tài duy nhất, dùng chung cho mọi node và mọi driver, nên không tồn
+     * tại kịch bản "khoá im lặng không khoá gì", và `FAIL_OPEN` KHÔNG vô hiệu hoá được
+     * nó: cấu hình đó chỉ còn quyền đổi cách XẾP HÀNG, không còn quyền hạ chuẩn TOÀN VẸN.
+     *
      * @param  callable(): array<string, mixed>  $callback
      * @return array<string, mixed>
      */
-    private function withImportLock(string $checksum, string $actorId, string $optionsFingerprint, callable $callback): array
+    private function withImportLock(
+        string $checksum,
+        string $actorId,
+        string $optionsFingerprint,
+        ?string $requestId,
+        callable $callback,
+    ): array {
+        return $this->withCacheQueue(
+            $checksum,
+            $actorId,
+            $optionsFingerprint,
+            fn (): array => $this->withDurableClaim($checksum, $actorId, $optionsFingerprint, $requestId, $callback),
+        );
+    }
+
+    /**
+     * Tầng 1 — hàng chờ cấp ứng dụng. Giữ nguyên ngữ nghĩa DEV330-P1-07R3.
+     *
+     * Mục đích ở đây là TRẢI NGHIỆM, không phải bảo đảm: người dùng bấm đúp hoặc mạng
+     * gửi lại thì request thứ hai chờ vài giây rồi đi tiếp thay vì bị từ chối ngay. Vì
+     * nó không phải bảo đảm nên khi bản thân hạ tầng cache hỏng (`Cache::lock` ném lỗi),
+     * ta KHÔNG biến sự cố đó thành 500 cho một request hợp lệ — ghi log rồi đi tiếp, vì
+     * tầng 2 mới là nơi bất biến được giữ.
+     *
+     * @param  callable(): array<string, mixed>  $callback
+     * @return array<string, mixed>
+     */
+    private function withCacheQueue(string $checksum, string $actorId, string $optionsFingerprint, callable $callback): array
     {
         $waitSeconds = SkuImportContract::lockWaitSeconds();
-        $lock = Cache::lock(
-            'sku-import:'.$actorId.':'.$checksum.':'.$optionsFingerprint,
-            SkuImportContract::lockTtlSeconds(),
-        );
+
+        try {
+            $lock = Cache::lock(
+                'sku-import:'.$actorId.':'.$checksum.':'.$optionsFingerprint,
+                SkuImportContract::lockTtlSeconds(),
+            );
+        } catch (Throwable $e) {
+            // Hạ tầng cache không dùng được. Trước đây điều này hoặc thành 500, hoặc
+            // (tệ hơn) thành một khoá giả vờ. Nay nói thẳng ra trong log và để chỗ giữ
+            // chính danh làm việc của nó.
+            Log::warning('SKU_IMPORT_CACHE_LOCK_UNAVAILABLE_FALLING_BACK_TO_DB_CLAIM', [
+                'actor_id' => $actorId,
+                'file_sha256' => $checksum,
+                'exception' => $e::class,
+            ]);
+
+            return $callback();
+        }
 
         try {
             $lock->block($waitSeconds);
@@ -191,6 +253,8 @@ class ImportService
                 'exception' => $e::class,
             ]);
 
+            // Cấu hình FAIL_OPEN chỉ bỏ qua HÀNG CHỜ. Chỗ giữ chính danh bên dưới vẫn
+            // chạy, nên hai request trùng định danh vẫn không thể cùng ghi.
             return $callback();
         }
 
@@ -198,6 +262,147 @@ class ImportService
             return $callback();
         } finally {
             $lock->release();
+        }
+    }
+
+    /**
+     * Tầng 2 — chỗ giữ chính danh trong cơ sở dữ liệu (durable claim). Đây là nơi bất
+     * biến thật sự được giữ.
+     *
+     * @param  callable(): array<string, mixed>  $callback
+     * @return array<string, mixed>
+     */
+    private function withDurableClaim(
+        string $checksum,
+        string $actorId,
+        string $optionsFingerprint,
+        ?string $requestId,
+        callable $callback,
+    ): array {
+        $identityHash = SkuImportContract::identityHash($actorId, $checksum, $optionsFingerprint);
+        $ownerToken = bin2hex(random_bytes(32));
+
+        $this->claimImportIdentity($identityHash, $ownerToken, $actorId, $checksum, $optionsFingerprint, $requestId);
+
+        try {
+            return $callback();
+        } finally {
+            $this->releaseImportIdentity($identityHash, $ownerToken);
+        }
+    }
+
+    /**
+     * Giành chỗ giữ, hoặc từ chối. Không có nhánh thứ ba.
+     *
+     * `insertOrIgnore` là một câu lệnh nguyên tử của chính cơ sở dữ liệu (`ON CONFLICT DO
+     * NOTHING` / `INSERT OR IGNORE`): hai request cùng định danh gửi cùng lúc thì đúng
+     * một request nhận `1`, không cần đọc trước rồi ghi sau (đọc-rồi-ghi mới là cái ca
+     * đua đang phải đóng).
+     *
+     * Tiếp quản chỗ giữ đã hết hạn cũng phải là một câu lệnh nguyên tử vì cùng lý do:
+     * `UPDATE ... WHERE identity_hash = ? AND expires_at <= now()` là một phép so-sánh-
+     * rồi-đổi (compare-and-swap); hai request cùng thấy "đã hết hạn" thì vẫn chỉ một
+     * request nhận được `1` dòng bị ảnh hưởng.
+     */
+    private function claimImportIdentity(
+        string $identityHash,
+        string $ownerToken,
+        string $actorId,
+        string $checksum,
+        string $optionsFingerprint,
+        ?string $requestId,
+    ): void {
+        $now = now();
+        $expiresAt = $now->copy()->addSeconds(SkuImportContract::claimTtlSeconds());
+        $takenOver = 0;
+
+        try {
+            $claimed = DB::table('sku_import_claims')->insertOrIgnore([
+                'identity_hash' => $identityHash,
+                'owner_token' => $ownerToken,
+                'actor_id' => $actorId,
+                'file_sha256' => $checksum,
+                'options_fingerprint' => $optionsFingerprint,
+                'request_id' => $requestId,
+                'claimed_at' => $now,
+                'expires_at' => $expiresAt,
+            ]);
+
+            if ($claimed === 1) {
+                return;
+            }
+
+            $takenOver = DB::table('sku_import_claims')
+                ->where('identity_hash', $identityHash)
+                ->where('expires_at', '<=', $now)
+                ->update([
+                    'owner_token' => $ownerToken,
+                    'actor_id' => $actorId,
+                    'file_sha256' => $checksum,
+                    'options_fingerprint' => $optionsFingerprint,
+                    'request_id' => $requestId,
+                    'claimed_at' => $now,
+                    'expires_at' => $expiresAt,
+                ]);
+        } catch (Throwable $e) {
+            // Không vận hành được chốt chặn thì KHÔNG được chạy tiếp — đúng nguyên tắc đã
+            // áp cho `findRecentDuplicateReport()`: mất phương tiện bảo đảm bất biến là
+            // sự cố hạ tầng phía máy chủ (503, đã rollback), không phải tranh chấp khoá
+            // (409, "đợi rồi thử lại"). Nói sai loại sự cố là đẩy nhầm việc cho người dùng.
+            Log::error('SKU_IMPORT_CLAIM_STORE_UNAVAILABLE_FAIL_CLOSED', [
+                'actor_id' => $actorId,
+                'file_sha256' => $checksum,
+                'identity_hash' => $identityHash,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            throw new ImportReportPersistenceException(
+                'Không giành được chỗ giữ chống ghi trùng cho lần import này; từ chối để không ghi trùng dữ liệu.',
+                previous: $e,
+            );
+        }
+
+        if ($takenOver === 1) {
+            // Tiếp quản KHÔNG BAO GIỜ im lặng: nó chỉ xảy ra khi một tiến trình chết giữa
+            // chừng, và đó là thứ vận hành phải nhìn thấy.
+            Log::warning('SKU_IMPORT_CLAIM_TAKEOVER', [
+                'actor_id' => $actorId,
+                'file_sha256' => $checksum,
+                'identity_hash' => $identityHash,
+                'claim_ttl_seconds' => SkuImportContract::claimTtlSeconds(),
+            ]);
+
+            return;
+        }
+
+        throw new ImportConcurrencyException(
+            'Cùng file này đang được import với cùng tùy chọn; vui lòng đợi lần chạy hiện tại kết thúc rồi thử lại.',
+            SkuImportContract::lockWaitSeconds(),
+        );
+    }
+
+    /**
+     * Trả chỗ giữ — chỉ trả CHỖ CỦA MÌNH (`owner_token`), để một request đã bị tiếp quản
+     * không xoá mất chỗ giữ của người kế nhiệm.
+     *
+     * Lỗi ở bước này không được che mất kết quả thật của lần import (kể cả khi lần import
+     * đang ném exception): chỗ giữ còn sót lại tự hết hạn, còn một exception ném ra từ
+     * `finally` sẽ nuốt nguyên nhân gốc.
+     */
+    private function releaseImportIdentity(string $identityHash, string $ownerToken): void
+    {
+        try {
+            DB::table('sku_import_claims')
+                ->where('identity_hash', $identityHash)
+                ->where('owner_token', $ownerToken)
+                ->delete();
+        } catch (Throwable $e) {
+            Log::error('SKU_IMPORT_CLAIM_RELEASE_FAILED', [
+                'identity_hash' => $identityHash,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 

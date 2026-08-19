@@ -75,10 +75,30 @@ return [
          | không ai biết. Đúng tính chất một hạng mục Data Integrity: khi không bảo đảm
          | được bất biến thì phải từ chối, không được lặng lẽ hạ tiêu chuẩn.
          */
+        /*
+         | FE331-P1-08R4 — CHỐT CHẶN THẬT NẰM TRONG CƠ SỞ DỮ LIỆU, KHÔNG NẰM Ở CACHE.
+         |
+         | Khoá cache bên trên là hàng chờ (xếp hàng, chờ `wait_seconds` rồi mới từ chối)
+         | — tiện cho người dùng bấm đúp, nhưng nó KHÔNG phải bảo đảm: `array`/`null`
+         | store, hoặc `file` store khi chạy nhiều node, vẫn trả về một khoá "giành được"
+         | cho cả hai request mà không ném lỗi nào; Redis/Valkey hỏng thì khoá không dựng
+         | được; và `on_timeout=FAIL_OPEN` cho phép bỏ qua khoá bằng cấu hình.
+         |
+         | Vì vậy mọi lần import COMMIT còn phải giành một CHỖ GIỮ CHÍNH DANH trong bảng
+         | `sku_import_claims` (UNIQUE theo định danh import). Chốt này dùng chính cơ sở
+         | dữ liệu mà kết quả đằng nào cũng phải ghi vào, nên đúng trên mọi driver, mọi
+         | node, và `FAIL_OPEN` KHÔNG vô hiệu hoá được nó.
+         |
+         | `claim_ttl_seconds` chỉ là van cứu hộ cho tiến trình chết giữa chừng, KHÔNG
+         | phải cửa sổ idempotent (24h). Hết hạn thì request sau tiếp quản và ghi log
+         | WARNING `SKU_IMPORT_CLAIM_TAKEOVER`. Giá trị bị ép sàn ở mức 2× ngân sách
+         | commit đã duyệt để một cấu hình quá thấp không mở lại ca đua.
+         */
         'lock' => [
             'ttl_seconds' => (int) env('SKU_IMPORT_LOCK_TTL_SECONDS', 120),
             'wait_seconds' => (int) env('SKU_IMPORT_LOCK_WAIT_SECONDS', 15),
             'on_timeout' => env('SKU_IMPORT_LOCK_ON_TIMEOUT', 'FAIL_CLOSED'),
+            'claim_ttl_seconds' => (int) env('SKU_IMPORT_CLAIM_TTL_SECONDS', 900),
         ],
 
         /** Số giờ file lỗi CSV còn tải được kể từ lúc sinh (hạn dùng LOGIC → API trả 404). */
