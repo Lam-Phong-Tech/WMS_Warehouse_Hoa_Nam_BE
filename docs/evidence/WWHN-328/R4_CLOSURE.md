@@ -31,7 +31,7 @@ commit**, thay vì pin một ảnh chụp tệp.
 | ID | Trạng thái | Đóng bằng |
 |---|---|---|
 | DEV328-P1-01R4 | **CLOSED (DEV)** — chờ chữ ký BA | KPI matrix **v1.2** (`KPI_MATRIX.md`): công thức K0–K10, nguồn authoritative + ánh xạ ERD, filter, timezone/cutoff đo trên DB tham chiếu (§5), permission/data-scope (§1), expected totals (§3), bất biến đối soát (§7). Mỗi dòng có **cột "Test khoá"**. §9 quy ước comment ký một-verdict. |
-| DEV328-P1-02R4 | **CLOSED** | `m1-be-2` và `b8cfcf0`/`6db0965`/`127c573` khai superseded ở `EVIDENCE_INDEX.md §2`, lý do kỹ thuật ở `DIFF_MAP.md §3`. Candidate mới: repo `WMS_Warehouse_Hoa_Nam_BE`, branch `m1`, SHA đầy đủ `__BE_CANDIDATE_SHA__`. Không dùng HEAD đang chạy: xem §3. |
+| DEV328-P1-02R4 | **CLOSED** | `m1-be-2` và `b8cfcf0`/`6db0965`/`127c573` khai superseded ở `EVIDENCE_INDEX.md §2`, lý do kỹ thuật ở `DIFF_MAP.md §3`. Candidate mới: repo `WMS_Warehouse_Hoa_Nam_BE`, branch `m1`, SHA đầy đủ `b610b1ff191f8c1f2cce3c24571de850f946d690`. Không dùng HEAD đang chạy: xem §3. |
 | DEV328-P1-03R4 | **CLOSED** | `DIFF_MAP.md` — ranh giới file thuộc WWHN-328, numstat từng commit bundled (chạy lại được), disposition *approved direct-commit + post-hoc reviewable slice*, và lệnh chạy test đúng phạm vi. Gate xanh tại exact SHA: §4. |
 | DEV328-P1-04R4 | **CLOSED** | `CONTRACT_PIN.json` sinh bởi fingerprint script: pin OpenAPI operation, Postman request, khối controller, dòng route — kèm hash cả tệp ở mục `whole_file_informational` (tham chiếu lịch sử, **không** dùng làm điều kiện đạt). Scope/timezone/warning count+sample/ngoại lệ warranty/auth-error đều nằm trong operation được pin. |
 | DEV328-P1-05R4 | **CLOSED (DEV/PM-ready)** | `EVIDENCE_INDEX.md` — cụm 88/327/328/329, map `HN-STR-002-ST01`, bảng "WWHN-327 tiêu thụ đúng cái gì", pin FE `16a3eea9f5241ba3ca24e36c53c811a45f9ae45d`. Native issue link vẫn do PM/BAS tạo trên Jira. |
@@ -44,7 +44,7 @@ commit**, thay vì pin một ảnh chụp tệp.
 
 | Thành phần | Repo | Branch | Exact SHA |
 |---|---|---|---|
-| Backend candidate | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `__BE_CANDIDATE_SHA__` |
+| Backend candidate | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `b610b1ff191f8c1f2cce3c24571de850f946d690` |
 | Backend contract origin | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `c855851b37920237d110f7dffe5dbbad509aebce` |
 | Frontend candidate | `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `16a3eea9f5241ba3ca24e36c53c811a45f9ae45d` |
 | Contract version | — | — | KPI matrix **v1.2** |
@@ -54,7 +54,7 @@ và tính hợp lệ được duy trì bằng bất biến:
 
 ```bash
 node scripts/wwhn-328-contract-fingerprint.mjs \
-  --check docs/evidence/WWHN-328/CONTRACT_PIN.json --range __BE_CANDIDATE_SHA__..HEAD
+  --check docs/evidence/WWHN-328/CONTRACT_PIN.json --range b610b1ff191f8c1f2cce3c24571de850f946d690..HEAD
 ```
 
 Lệnh này **đỏ ngay** khi bất kỳ commit nào sau candidate đổi ngữ nghĩa dashboard, và **xanh**

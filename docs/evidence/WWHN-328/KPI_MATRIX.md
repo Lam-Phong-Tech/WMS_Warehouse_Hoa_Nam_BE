@@ -176,7 +176,7 @@ khoá bằng `test_openapi_operation_declares_exactly_the_runtime_field_set`.
 
 Matrix này phát hành ở trạng thái **decisive**: mỗi ô đều là một khẳng định đơn, không có
 phương án kép, không có chỗ trống chờ điền. Ba vòng review trước bị trả lại vì comment ký để
-nguyên dạng lựa chọn (`[GLOBAL / WAREHOUSE-SCOPED]`, `VERIFIED PASS / CHANGES REQUIRED`) —
+nguyên dạng liệt kê cả hai lựa chọn — kiểu «GLOBAL hoặc WAREHOUSE-SCOPED», «VERIFIED PASS hoặc CHANGES REQUIRED» —
 reviewer đọc dual verdict là **chưa ký**. Vì vậy quy ước của v1.2:
 
 > Một comment ký chỉ hợp lệ khi nêu **một** kết luận, **một** version matrix (`v1.2`) và

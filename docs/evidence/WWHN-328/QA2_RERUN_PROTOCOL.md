@@ -8,11 +8,11 @@ nào, và verdict để dạng lựa chọn kép.
 
 | Thành phần | Repo | Branch | Exact SHA |
 |---|---|---|---|
-| Backend | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `__BE_CANDIDATE_SHA__` |
+| Backend | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `b610b1ff191f8c1f2cce3c24571de850f946d690` |
 | Frontend | `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `16a3eea9f5241ba3ca24e36c53c811a45f9ae45d` |
 
 ```bash
-git -C HoaNam_BE/WMS_Warehouse_Hoa_Nam_BE checkout __BE_CANDIDATE_SHA__
+git -C HoaNam_BE/WMS_Warehouse_Hoa_Nam_BE checkout b610b1ff191f8c1f2cce3c24571de850f946d690
 git -C HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE checkout 16a3eea9f5241ba3ca24e36c53c811a45f9ae45d
 ```
 

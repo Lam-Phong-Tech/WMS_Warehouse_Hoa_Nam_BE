@@ -19,7 +19,7 @@ vẫn cần thiết sau khi có link vì Jira không pin được SHA.
 
 | Thành phần | Repo | Branch | Exact SHA | Vai trò |
 |---|---|---|---|---|
-| Backend | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `__BE_CANDIDATE_SHA__` | candidate WWHN-328 |
+| Backend | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `b610b1ff191f8c1f2cce3c24571de850f946d690` | candidate WWHN-328 |
 | Backend (gốc contract) | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `c855851b37920237d110f7dffe5dbbad509aebce` | commit xa nhất mà contract hiện hành đã đúng |
 | Frontend | `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `16a3eea9f5241ba3ca24e36c53c811a45f9ae45d` | candidate WWHN-327 — đây là **output của WWHN-327 mà WWHN-328 tiêu thụ** |
 
