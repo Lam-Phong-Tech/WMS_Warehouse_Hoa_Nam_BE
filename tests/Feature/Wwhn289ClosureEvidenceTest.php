@@ -81,7 +81,21 @@ class Wwhn289ClosureEvidenceTest extends TestCase
         $this->assertStringContainsString($beFinal, $handoff, 'Handoff QA1 phải chỉ đúng build đã pin.');
 
         // Không tài liệu nào được nhắc tới một SHA 40 ký tự lạ ngoài tập đã pin.
-        $allowed = [$beBase, $beFinal, (string) $pins['fe_consumer']['base'], (string) $pins['fe_consumer']['final']];
+        // Tập hợp lệ gồm cả revision ĐÃ BỊ THAY THẾ và head_sha của CI run được pin:
+        // DEV289-P2-01 đòi ghi supersession tường minh, mà muốn ghi thì tài liệu buộc phải
+        // gọi tên revision cũ. Nếu không cho phép, register sẽ phải im lặng về đúng thứ nó
+        // có nghĩa vụ giải thích.
+        $allowed = array_values(array_filter([
+            $beBase,
+            $beFinal,
+            (string) $pins['fe_consumer']['base'],
+            (string) $pins['fe_consumer']['final'],
+            (string) ($pins['ci_run']['head_sha'] ?? ''),
+            ...array_map(
+                static fn (array $entry): string => (string) ($entry['sha'] ?? ''),
+                $pins['superseded_revisions'] ?? []
+            ),
+        ]));
         foreach (['WWHN-289_DEFECT_FIX_REGISTER.md', 'WWHN-289_QA1_HANDOFF.md', 'WWHN-289_STOCK_INVARIANT_PROOF.md', 'WWHN-289_SECURITY_TRACE.md'] as $document) {
             preg_match_all('/\b[0-9a-f]{40}\b/', $this->read($document), $matches);
             foreach (array_unique($matches[0]) as $sha) {

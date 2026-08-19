@@ -130,7 +130,7 @@ jobs:
           set -euo pipefail
           register='docs/evidence/WWHN-289/WWHN-289_DEFECT_FIX_REGISTER.md'
           test -s "$register"
-          for marker in DEV289-P1-01 DEV289-P1-02 DEV289-P1-03 DEV289-P1-04 DEV289-P1-05 DEV289-P1-06 SEC289-01 SEC289-02 SEC289-03; do
+          for marker in DEV289-P1-01R DEV289-P1-02R DEV289-P1-03R DEV289-P1-04R DEV289-P1-05R DEV289-P1-06R DEV289-P2-01 SEC289-01 SEC289-02 SEC289-03; do
             grep -Fq "$marker" "$register"
           done
           grep -Fq 'FAIL-CLOSED / NEEDS OWNER DISPOSITION' "$register"
@@ -199,12 +199,19 @@ jobs:
             echo "Bay chieu stock + sau nhom security deu do lan chay nay sinh ra va deu PASS\n";
           '
 
+      - name: Verify pin / digest / supersession chain
+        # Chỉ có nghĩa từ closure revision trở đi: PINS phải đã trỏ vào một run XANH có
+        # thật. Bước này canh pin rot (final còn là ancestor, không ai sửa code sau final),
+        # digest 5 tài liệu tĩnh, và bản ghi supersession của DEV289-P2-01.
+        run: node scripts/verify-wwhn289-closure.mjs
+
       - name: Exact SHA evidence summary
         run: |
           set -euo pipefail
           mkdir -p artifacts/wwhn-289
           cp build/evidence/wwhn-289/stock-invariant-proof.json artifacts/wwhn-289/
           cp build/evidence/wwhn-289/security-regression-proof.json artifacts/wwhn-289/
+          node scripts/verify-wwhn289-closure.mjs --json > artifacts/wwhn-289/verifier.json
           mismatch="$(php -r '$d=json_decode(file_get_contents("artifacts/wwhn-289/stock-invariant-proof.json"), true, 512, JSON_THROW_ON_ERROR); echo (int) $d["reconcile"]["mismatch_count"];')"
           cat > artifacts/wwhn-289/manifest.txt <<EOF
           jira=WWHN-289

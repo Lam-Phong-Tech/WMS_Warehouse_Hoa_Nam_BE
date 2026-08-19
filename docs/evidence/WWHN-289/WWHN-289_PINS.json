@@ -7,9 +7,10 @@
   "uat_parent": "WWHN-76",
   "dependency": "HN-UAT-003",
   "role": "BE1",
-  "review_addressed": "Wuangg — 34/100, P0/P1/P2 Exact Fix Action Register DEV289-P1-01..06",
-  "pinned_at": "2026-08-18",
-  "pin_policy": "Mọi SHA/ngưỡng/kết quả trích trong bất kỳ artifact WWHN-289 nào PHẢI bằng giá trị ghi ở đây. Wwhn289ClosureEvidenceTest ép cross-document equality nên một pin chép tay bị lệch sẽ làm đỏ build thay vì âm thầm đánh lừa reviewer. m1 là nhánh dùng chung: WWHN-289 pin RANGE INVARIANT (base -> final) chứ không pin blob tuyệt đối của file mà ticket khác cũng sửa.",
+  "review_addressed": "Wuangg — vòng 2: 73/100, register DEV289-P1-01R..06R + DEV289-P2-01 (vòng 1: 34/100, DEV289-P1-01..06)",
+  "pinned_at": "2026-08-19",
+  "pin_policy": "Mọi SHA/ngưỡng/kết quả trích trong bất kỳ artifact WWHN-289 nào PHẢI bằng giá trị ghi ở đây. Hai lớp canh: Wwhn289ClosureEvidenceTest ép cross-document equality, scripts/verify-wwhn289-closure.mjs kiểm pin còn resolve được, digest tài liệu còn khớp, và KHÔNG commit nào sau `code_range.final` chạm `code_scope_paths`. m1 là nhánh dùng chung nên pin RANGE INVARIANT (base -> final, final là ancestor của HEAD) chứ không pin blob tuyệt đối và không đòi final == HEAD.",
+  "closure_revision_rule": "PINS này nằm ở closure revision và chứa SHA code cuối (`code_range.final`) — không có tham chiếu vòng, vì closure revision luôn là commit SAU commit code cuối. CI run được pin là run của một revision NẰM SAU final mà giữa hai điểm không ai chạm `code_scope_paths`, nên nó vẫn chứng minh đúng code đã pin.",
   "canonical_source": {
     "be_repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
     "be_branch": "m1",
@@ -20,15 +21,45 @@
   },
   "change_range": {
     "base": "93b1e71f0e01c8a7c77670e0c8f0af38d2e68470",
-    "base_meaning": "HEAD của m1 ngay trước commit triển khai WWHN-289",
-    "final": "e593202a580d8033257e8aabaae0e5d886071ab2",
-    "final_meaning": "Commit triển khai WWHN-289 (code + test + evidence). Commit ghi pin này là commit kế tiếp và chỉ chứa giá trị SHA đó."
+    "base_meaning": "HEAD của m1 ngay trước commit triển khai WWHN-289 vòng 1",
+    "final": "8bdf9ad0a00461afe27e3e11a26e7fd13d68f9e6",
+    "final_meaning": "Commit CUỐI chạm code WWHN-289 (vòng 2): migration sửa write-bridge PostgreSQL, chiều negative_stock + true_concurrency, chiều RBAC + hợp đồng ngưỡng rate-limit, sửa lỗi không ghi được artifact, allowlist fail-forward."
   },
-  "fe_consumer": {
-    "repo_branch": "m1",
-    "base": "226075d21f2bf953c5f639c71598136e434fc42b",
-    "final": "404267083d2c0ca79507f7fc1fdf05170cdae48e",
-    "scope": "Nhận diện 429 RATE_LIMIT_EXCEEDED + Retry-After, và xếp DATA_SCOPE_DENIED vào nhóm lỗi thiếu quyền."
+  "code_scope_paths": [
+    "app/Support/IdempotencyStore.php",
+    "app/Support/RateLimitResponse.php",
+    "app/Providers/AppServiceProvider.php",
+    "config/rate_limit.php",
+    "Modules/Auth/app/Http/Controllers/AuthController.php",
+    "Modules/Warehouse/app/Http/Middleware/EnforceInboundWarehouseScope.php",
+    "Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php",
+    "tests/Feature/Wwhn289StockInvariantProofTest.php",
+    "tests/Feature/Wwhn289SecurityRegressionProofTest.php"
+  ],
+  "code_scope_meaning": "Tập file mà nếu ai đó sửa SAU `change_range.final` thì pin đã lạc hậu và verifier phải đỏ. Cố ý KHÔNG liệt kê `.github/workflows/**`, `scripts/**`, `docs/**` — sửa cổng/tài liệu không làm kết quả đo trên code cũ sai đi. Cũng cố ý không liệt kê `tests/Feature/Wwhn289ErdMirrorTypeSafetyTest.php`: file đó do một luồng WWHN-289 song song sở hữu và còn đang lặp.",
+  "ci_run": {
+    "workflow_file": "wwhn-289-closure.yml",
+    "workflow_name": "WWHN-289 Exact SHA Closure",
+    "run_id": "32206778306",
+    "run_url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32206778306",
+    "head_sha": "d1d2e145c9f14798fb2b11706476fd8e174ae31f",
+    "head_sha_meaning": "Revision chạy run: `code_range.final` cộng đúng hai file ngoài code scope (workflow, verifier). Giữa final và điểm này không commit nào chạm code_scope_paths.",
+    "conclusion": "success",
+    "created_at": "2026-08-19T01:57:05Z",
+    "database": "postgres:16",
+    "focused_suite_result": "93 passed / 0 failed / 850 assertions",
+    "artifact": {
+      "name": "wwhn-289-exact-sha-d1d2e145c9f14798fb2b11706476fd8e174ae31f",
+      "id": "9349417390",
+      "size_bytes": 3429,
+      "digest": "sha256:7e8e25f2af5b4d666b01be08f9aa7a5408eb396051fec08bd9ce503a51332e5b",
+      "member_digests": {
+        "manifest.txt": "9a651e320149bcf55a6d76c485dac0091619dad40a2cd8fd7e3463896f7f9c05",
+        "security-regression-proof.json": "7a9f72b16387af11f4f2524d197f219461b42230bc14be29675e3a2bb91096f3",
+        "stock-invariant-proof.json": "b5e6cccc43b41505aa2824bcdd7c002acdf66bf234ed88fc6309e6a3be7cbc0c"
+      }
+    },
+    "history": "Ba run trước (32149843840, 32160962005, 32163575388) đều FAILURE tại bước 'Migrate and seed PostgreSQL'. Run 32206427989 là lần đầu qua được bước đó và lộ ra JWT_SECRET 232-bit của chính workflow. 32206778306 là run XANH đầu tiên của cổng này."
   },
   "findings": {
     "SEC289-01": {
@@ -47,7 +78,7 @@
       "root_cause": "Codebase không đăng ký RateLimiter nào và không route nào dùng middleware throttle.",
       "impact": "POST /auth/login dò mật khẩu không giới hạn tốc độ; nhóm PV ẩn danh được Annex C khai error set 400,404,429,500 và §8.1 bảng Security đòi rate-limit/anti-abuse nhưng 429 không thể xảy ra.",
       "fix": "config/rate_limit.php + App\\Support\\RateLimitResponse (429 đúng envelope §8.2) + limiter pv-public/auth-refresh trong AppServiceProvider + khoá theo lần-ĐĂNG-NHẬP-SAI trong AuthController (audit LOGIN_THROTTLED).",
-      "regression_test": "tests/Feature/Wwhn289SecurityRegressionProofTest.php::test_rate_limit_dimension_login_locks_out_after_configured_failed_attempts + ::test_rate_limit_dimension_public_pv_catalog_returns_canonical_429"
+      "regression_test": "tests/Feature/Wwhn289SecurityRegressionProofTest.php::test_rate_limit_dimension_login_locks_out_after_configured_failed_attempts + ::test_rate_limit_dimension_public_pv_catalog_returns_canonical_429 + ::test_rate_limit_dimension_thresholds_are_config_driven_and_zero_disables_guard"
     },
     "SEC289-03": {
       "severity": "P1",
@@ -55,43 +86,144 @@
       "title": "Mã lỗi 409 idempotency nằm ngoài contract",
       "root_cause": "IdempotencyStore trả error_code IDEMPOTENCY_ERROR cho mọi loại 409.",
       "impact": "SRS §8.2 chỉ công nhận STATE_CONFLICT / IDEMPOTENCY_CONFLICT / CONCURRENCY_CONFLICT / DOWNSTREAM_DEPENDENCY_EXISTS; AC-GWT-IDEMP-001 và TC-P1-006/014/030/038 gọi đích danh IDEMPOTENCY_CONFLICT. FE đã map sẵn IDEMPOTENCY_CONFLICT nên kịch bản 'cùng key khác payload' không bao giờ khớp ở hai đầu.",
-      "fix": "IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS = IDEMPOTENCY_CONFLICT (khác payload) và CONFLICT_LEASE_BUSY = CONCURRENCY_CONFLICT (tranh chấp lease).",
+      "fix": "IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS = IDEMPOTENCY_CONFLICT (khác payload) và CONFLICT_LEASE_BUSY = CONCURRENCY_CONFLICT (tranh chấp lease). Nguồn phát thứ hai dễ sót: ApiConventionMiddleware case 409.",
       "regression_test": "tests/Feature/Wwhn289StockInvariantProofTest.php::test_idempotency_dimension_same_key_with_different_payload_is_rejected"
+    },
+    "BUILD289-05": {
+      "severity": "P1",
+      "area": "build / evidence chain",
+      "title": "Write-bridge ERD không cast type làm mọi CI PostgreSQL đỏ",
+      "root_cause": "Migration 2026_08_10_000765 sinh write-bridge dạng INSERT INTO <canonical> (cols) SELECT cols FROM <canonical>__legacy_projection KHÔNG có cast, ngầm giả định type cột view trùng type cột bảng vật lý. Giả định sai với nhóm PV: projection khai NULL::text cho created_by/updated_by còn ERD định nghĩa uuid. Trigger chỉ nổ khi có ai GHI vào bảng nguồn nên lỗi nằm im tới khi WWHN-252 backfill version.",
+      "impact": "php artisan migrate:fresh trên PostgreSQL vỡ với SQLSTATE[42804]; cổng closure WWHN-289 đỏ 3/3 run tại bước migrate, kéo theo nhiều workflow PostgreSQL khác. Không cổng nào phát hiện được vì suite mặc định chạy sqlite — nơi các function này thậm chí không tồn tại.",
+      "fix": "Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php — viết lại mọi function hn_erd_mirror_* sinh tự động với cast đúng type đích, giữ nguyên nguyên văn ON CONFLICT/cleanup nên không đổi semantics upsert. Mốc thời gian nhỏ hơn 2026_08_19_000100 để chạy trước và biến điều kiện tiên quyết của migration đó thành đúng.",
+      "regression_test": "tests/Feature/Wwhn289ErdMirrorTypeSafetyTest.php (do luồng WWHN-289 song song viết — chân tĩnh: mọi cặp cột phải cùng type/ép được/có cast; chân động: ghi thật vào bảng nguồn PV để trigger chạy)"
+    },
+    "BUILD289-06": {
+      "severity": "P1",
+      "area": "build / evidence chain",
+      "title": "Artifact bằng chứng chưa từng được lần chạy nào ghi ra, và cổng đọc lại file đã commit",
+      "root_cause": "tearDownAfterClass() của hai test proof gọi base_path() sau khi Laravel đã Container::setInstance(null), nên ném Error; hai toán tử @ bọc mkdir/file_put_contents nuốt sạch dấu vết. Workflow thì cp build/evidence/wwhn-289/*.json artifacts/ rồi đọc reconcile.mismatch_count từ chính file đã commit.",
+      "impact": "Cổng tự xác nhận bằng một artifact tĩnh: nó xanh kể cả khi test không ghi được gì. Đây đúng là 'exact-build evidence chain chưa sạch' mà DEV289-P1-02R nêu.",
+      "fix": "Đường dẫn evidence suy từ __DIR__ (không cần container) và ghi FAIL-CLOSED (ném nếu không ghi được). Workflow thêm bước xoá artifact đã commit TRƯỚC khi chạy test và bắt buộc chúng xuất hiện lại, rồi kiểm đủ 7 chiều stock + 6 nhóm security + driver=pgsql.",
+      "regression_test": "Bước CI 'Discard committed proof artifacts so the run must regenerate them' + 'Assert proof artifacts came from THIS run'"
+    },
+    "BUILD289-07": {
+      "severity": "P1",
+      "area": "build",
+      "title": "JWT_SECRET của cổng closure ngắn hơn 256 bit",
+      "root_cause": "Workflow đặt JWT_SECRET dài 29 ký tự = 232 bit, trong khi HS256 đòi >= 256 bit.",
+      "impact": "lcobucci ném 'Key provided is shorter than 256 bits' ngay tại JWTGuard::attempt(); toàn bộ test đăng nhập/RBAC đỏ. Ba run đầu không thấy vì chúng chết sớm hơn ở bước migrate.",
+      "fix": "JWT_SECRET >= 32 ký tự trong .github/workflows/wwhn-289-closure.yml.",
+      "regression_test": "Chính cổng: run 32206778306 xanh 93/93 sau khi sửa"
     }
   },
   "stock_invariant_proof": {
     "artifact": "build/evidence/wwhn-289/stock-invariant-proof.json",
+    "artifact_origin": "Sinh bởi run CI 32206778306 trên PostgreSQL 16 (không phải file chép tay). Bản trong repo là bản tải về từ artifact của chính run đó.",
     "producer": "tests/Feature/Wwhn289StockInvariantProofTest.php",
     "dimensions": {
       "retry": "3 request cùng key/payload -> 1 stock_movement, balance +5 đúng một lần (NFR-SRS-001)",
-      "idempotency": "cùng key khác payload -> 409 IDEMPOTENCY_CONFLICT, movement/balance không đổi (AC-GWT-IDEMP-001)",
+      "idempotency_conflict": "cùng key khác payload -> 409 IDEMPOTENCY_CONFLICT, movement/balance không đổi (AC-GWT-IDEMP-001)",
       "rollback": "tiêm lỗi ngay sau INSERT stock_movements -> 500 không lộ trace, movement/balance rollback, document giữ SCANNING, retry sau sự cố vẫn Post được (NFR-SRS-002)",
-      "concurrent": "reversal trùng của cùng movement -> 422 REVERSAL_QTY_EXCEEDED, không sinh movement, tồn không âm (NFR-SRS-003)",
-      "reconcile": "rows_checked=2, mismatch_count=0, report status PASS, đối soát SQL thô độc lập cũng 0 lệch (§7.5)"
+      "negative_stock": "đảo vượt số đã nhập -> từ chối; đảo thêm khi tồn = 0 -> từ chối; MIN(quantity/on_hand_qty/available_qty) toàn DB >= 0 (NFR-SRS-003 vế 'prevents negative stock')",
+      "true_concurrency": "khoá bi quan select ... for update trên inventory_balances quan sát được 2 lần trên PostgreSQL; lease đang bay -> 409 CONCURRENCY_CONFLICT; thua optimistic lock -> 412/409; không nhánh thua nào ghi stock effect (NFR-SRS-003 vế 'parallel requests: one success')",
+      "reversal": "reversal trùng của cùng movement -> 422/409, không sinh movement, tồn không âm (BR-REV-08)",
+      "reconcile": "rows_checked > 0, mismatch_count=0, report status PASS, đối soát SQL thô độc lập cũng 0 lệch (§7.5)"
     }
   },
   "security_proof": {
     "artifact": "build/evidence/wwhn-289/security-regression-proof.json",
+    "artifact_origin": "Sinh bởi run CI 32206778306 trên PostgreSQL 16.",
     "producer": "tests/Feature/Wwhn289SecurityRegressionProofTest.php",
     "dimensions": {
-      "unauthorized": "ẩn danh -> 401 UNAUTHENTICATED trên post-receipt/scan/inventory; thiếu quyền -> 403 ACCESS_DENIED; cả hai không ghi stock effect",
+      "unauthorized": "ẩn danh -> 401 trên post-receipt/scan/inventory; thiếu quyền -> 403; cả hai không ghi stock effect",
+      "rbac": "ma trận 3x3 permission (inbound.post / inventory.reversal.post / inventory.view): 6 ô ngoài đường chéo đều 403 và movement_delta = 0, ô đường chéo không bị 403 -> không rò quyền chéo",
       "data_scope": "scope_ref kho khác -> 403 DATA_SCOPE_DENIED cho post-receipt/create/read; đúng scope vẫn 200",
       "replay": "refresh token đã xoay vòng bị từ chối khi replay (401)",
+      "rate_limit": "khoá login theo lần sai + 429 RATE_LIMIT_EXCEEDED có Retry-After; PV ẩn danh 429 đúng envelope §8.2; ngưỡng đọc từ config có env override, 0 = tắt guard",
       "secret": "login response không chứa password_hash/mật khẩu; audit LOGIN_FAILED không lưu mật khẩu thô; envelope lỗi không có trace/file/line/SQLSTATE"
     }
   },
+  "artifact_digests": {
+    "docs/evidence/WWHN-289/WWHN-289_DEFECT_FIX_REGISTER.md": "b53f7fce005bf146a16f260e738a2731c7c72973c5251bf3b3b7f2d41a5a4232",
+    "docs/evidence/WWHN-289/WWHN-289_STOCK_INVARIANT_PROOF.md": "e8fdcbd41310d7536b2c9a96395763248c02787f64032a1db5f262fba8db5861",
+    "docs/evidence/WWHN-289/WWHN-289_SECURITY_TRACE.md": "8b6e834152bab117a0f1cb3c47d079d67e684c9209deb0e57b61d9c7d0dd7d13",
+    "docs/evidence/WWHN-289/WWHN-289_QA1_HANDOFF.md": "df605f9d657f94bff772a1fd238f4ba8dbc39ef9a2548b27de5d8e82a58da61e",
+    "docs/evidence/WWHN-289/WWHN-289_SIGNOFF_COMMENTS.md": "6ebd10128213288c4debb401bfdf3fcb8284429ab8be6092ee102205d099324d"
+  },
+  "artifact_digests_meaning": "sha256 của phần TĨNH. Cố ý KHÔNG digest-pin build/evidence/wwhn-289/*.json: hai file đó phải do lần chạy sinh lại nên byte đổi theo run; digest cố định sẽ buộc cổng quay lại đọc file tĩnh — đúng lỗi BUILD289-06. Với hai file đó verifier kiểm NGỮ NGHĨA (đủ chiều, mismatch=0, driver=pgsql).",
+  "fe_consumer": {
+    "repo_branch": "m1",
+    "base": "226075d21f2bf953c5f639c71598136e434fc42b",
+    "final": "404267083d2c0ca79507f7fc1fdf05170cdae48e",
+    "scope": "Nhận diện 429 RATE_LIMIT_EXCEEDED + Retry-After, và xếp DATA_SCOPE_DENIED vào nhóm lỗi thiếu quyền.",
+    "supersession_doc": "docs/evidence/WWHN-289/WWHN-289_FE_CONSUMER_SUPERSESSION.md",
+    "supersession_owner": "Luồng WWHN-289 song song — tài liệu đó đo lại hành vi WWHN-289 tại FE HEAD và ghi các commit chạm lớp mã lỗi sau pin. KHÔNG digest-pin ở đây vì file thuộc luồng đó."
+  },
   "test_baseline": {
-    "driver": "sqlite :memory: (phpunit.xml mặc định)",
-    "before": "681 test / 657 pass / 1 fail / 1 error / 22 skip",
-    "after": "738 test / 712 pass / 0 fail / 0 error / 26 skip",
-    "note": "Chênh lệch tổng số test gồm cả test do ticket khác thêm vào m1 trong cùng ngày; điều WWHN-289 khẳng định là 0 fail / 0 error sau thay đổi."
+    "authoritative_measurement": "focused closure suite tại CI run 32206778306, PostgreSQL 16",
+    "measured_at_sha": "8bdf9ad0a00461afe27e3e11a26e7fd13d68f9e6",
+    "after": "93 test / 93 pass / 0 fail / 0 error / 850 assertions",
+    "driver": "pgsql (postgres:16 service container của GitHub Actions)",
+    "local_sqlite_note": "Suite đầy đủ trên sqlite là phép đo THỨ HAI, không dùng để ký: nó gộp cả test của ticket khác đang mở trên m1 nên số dao động theo giờ. Con số duy nhất dùng để ký là dòng after ở trên, đo tại measured_at_sha bằng run đã pin.",
+    "supersedes": "Mọi con số test khác từng nêu cho WWHN-289 (738/712 trong PINS vòng 1; 743/717 trong comment DEV) đều bị thay thế bởi mục này — xem superseded_revisions."
+  },
+  "superseded_revisions": [
+    {
+      "sha": "e593202a580d8033257e8aabaae0e5d886071ab2",
+      "role": "change_range.final của vòng 1",
+      "reason": "Không còn là commit cuối chạm code WWHN-289: 24f9bde sửa tiếp ApiConventionMiddleware, rồi vòng 2 (8bdf9ad) sửa write-bridge PostgreSQL và bổ sung bốn chiều bằng chứng. Pin cũ đúng-mà-không-đủ — đây là DEV289-P1-02R."
+    },
+    {
+      "sha": "c7e42bf",
+      "role": "commit ghi pin của vòng 1",
+      "reason": "PINS tại revision đó khai final = e593202, nay đã lạc hậu."
+    },
+    {
+      "sha": "24f9bde",
+      "role": "fix ApiConventionMiddleware case 409",
+      "reason": "Thuộc phạm vi SEC289-03 nhưng nằm ngoài change_range của vòng 1 — bằng chứng cho thấy pin vòng 1 đã trôi ngay khi được ghi."
+    },
+    {
+      "sha": "d1d2e145c9f14798fb2b11706476fd8e174ae31f",
+      "role": "revision chạy CI run được pin",
+      "reason": "Không phải code_range.final: chỉ sửa workflow (JWT_SECRET 232-bit lên >= 256-bit) và verifier. Ghi lại để reviewer thấy vì sao head_sha của run khác final."
+    }
+  ],
+  "test_count_reconciliation": {
+    "register_item": "DEV289-P2-01",
+    "problem": "Comment DEV nêu 743/717 trong khi PINS vòng 1 nêu 738/712.",
+    "root_cause": "Cả hai đều là số của suite đầy đủ trên sqlite, đo ở hai thời điểm khác nhau trên nhánh dùng chung m1 — nơi ticket khác thêm/bớt test trong cùng ngày. Không con số nào gắn với một SHA.",
+    "resolution": "Chuyển nguồn số liệu ký sang focused closure suite đo tại test_baseline.measured_at_sha bằng CI run đã pin. Suite đầy đủ trên sqlite bị giáng xuống phép đo tham khảo và không được trích trong bất kỳ comment nào."
   },
   "independent_gates": {
-    "DEV289-P1-01": "QA1 (WWHN-286) + BA (WWHN-288) — nạp defect UAT cụ thể",
+    "DEV289-P1-01": "QA1 (WWHN-286) + BA (WWHN-288) — nạp defect UAT cụ thể hoặc xác nhận N/A",
     "DEV289-P1-02": "Tech Lead / PM — duyệt pin SHA + fix map",
     "DEV289-P1-03": "QA1 — chạy lại trên build đã pin",
     "DEV289-P1-04": "QA1 / Security / Tech Lead — duyệt finding->fix->retest",
     "DEV289-P1-05": "QA1 trên WWHN-291 — DEV không tự ký",
-    "DEV289-P1-06": "BA trên WWHN-288 — expected/waiver"
-  }
+    "DEV289-P1-06": "BA trên WWHN-288 — expected/waiver",
+    "DEV289-P1-01R": "QA1 + BA -> PM/DEV — formal disposition defect UAT (defect ID thật hoặc explicit N/A); DEV KHÔNG được dùng defect do DEV tự tìm làm defect UAT",
+    "DEV289-P1-02R": "DEV/DevOps -> Tech Lead + QA1 — pin immutable revision, CI run thật, artifact digest, tech review độc lập",
+    "DEV289-P1-03R": "QA1 -> Tech/BA — chạy 7 chiều trên exact candidate, PostgreSQL, raw log, mismatch=0",
+    "DEV289-P1-04R": "QA1 + Security + BA/DevOps -> TL — retest 6 nhóm + chốt ngưỡng rate-limit vận hành",
+    "DEV289-P1-05R": "QA1 trên WWHN-291 — đăng verdict PASS/FAIL kèm exact SHA",
+    "DEV289-P1-06R": "BA trên WWHN-288 — business disposition",
+    "DEV289-P2-01": "DEV -> QA1 — một nguồn số duy nhất + supersession"
+  },
+  "known_gaps_not_owned_by_this_ticket": [
+    {
+      "id": "XREF-289-01",
+      "observation": "Catalog mã lỗi sinh tự động docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json KHÔNG chứa IDEMPOTENCY_CONFLICT và RATE_LIMIT_EXCEEDED — đúng hai mã WWHN-289 đưa vào.",
+      "root_cause": "Scanner của scripts/generate-error-code-catalog.mjs chỉ nhận abort(<http>, ConflictCode::X) cạnh nhau; WWHN-289 phát mã qua hằng cấp hai (IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS) và qua RateLimitResponse, nên scanner mù. Bảng mặc định của scanner còn khai 429 = TOO_MANY_REQUESTS trong khi runtime phát RATE_LIMIT_EXCEEDED.",
+      "why_not_fixed_here": "Generator và hai file catalog thuộc WWHN-234/WWHN-309 và đang được một luồng song song sửa dở tại thời điểm chốt. Sửa chèn vào sẽ ghi đè công việc của họ và làm hỏng cổng verify-wwhn-309-handover-contract.",
+      "action": "Chuyển cho chủ WWHN-309 (handover contract) — không phải blocker của WWHN-289 vì runtime và FE đã khớp nhau; chỉ tài liệu sinh tự động bị thiếu."
+    },
+    {
+      "id": "XREF-289-02",
+      "observation": "Sau khi migrate PostgreSQL hết vỡ, suite PostgreSQL lộ ra một tập test đỏ thuộc ticket khác (Putaway/WWHN-193, IfMatch contract, Swagger route parity, permission catalog WWHN-309).",
+      "why_not_fixed_here": "Chưa từng chạy được trên PostgreSQL nên chưa từng có baseline xanh; chúng nằm ngoài phạm vi stock/bảo mật/core của WWHN-289.",
+      "action": "Báo cho chủ từng ticket; cổng closure của WWHN-289 chỉ chạy tập filter của nó và tập đó đang 93/93 xanh."
+    }
+  ]
 }
