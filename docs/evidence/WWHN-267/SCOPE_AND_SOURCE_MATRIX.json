@@ -1,0 +1,149 @@
+{
+  "document": "WWHN-267-SCOPE-AND-SOURCE-MATRIX",
+  "task": "WWHN-267",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "branch": "m1",
+  "schemaVersion": "1.0.0",
+  "registerItem": "DEV267-P1-02R",
+  "createdDate": "2026-08-19",
+  "purpose": "Đóng DEV267-P1-02R: thay BRD v3.9 bằng nguồn kiểm soát hiện hành kèm exact version/hash, và map chính xác phạm vi regression 5 vùng (kiểm kê / đảo giao dịch / bảo hành / PV / báo cáo) về requirement + decision hiện hành. Stocktake KHÔNG bị xoá khỏi ma trận — nó được giữ nguyên dưới dạng dòng có disposition, đúng yêu cầu register R2 ('Không remove Stocktake chỉ vì review cũ').",
+  "controlledSources": [
+    {
+      "id": "SRC-267-01",
+      "artifact": "HN-SRS-FRD-001 — SRS/FRD v1.12 FULL",
+      "path": "docs/HN_SRS_FRD_v1.12_FULL.md (tồn tại ở CẢ HAI repo, byte-identical)",
+      "version": "1.12 — REVISION APPROVAL CANDIDATE / READY FOR FORMAL REVIEW; cover date 14/08/2026; §12 change log ghi v1.12 = 11/08/2026; §15 Controlled Amendment 12/08/2026 + mục bổ sung 19/08/2026 (DISP-IN-184)",
+      "sha256": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+      "gitBlob": "7943a9f171ac128cb4c4037b2a58f018902dd454",
+      "lastCommitFe": "09e0dd3",
+      "lastCommitBe": "127c573",
+      "note": "Hash tính trên blob ĐÃ COMMIT (git show <commit>:path). Working tree BE thời điểm đo có +1 dòng chưa commit của phiên WWHN-184 (dòng Inbound/Outbound Document trong §6 STATE MODEL, đúng nội dung §15 mục 19/08/2026) — pin này quy chiếu bản committed, không quy chiếu working tree."
+    },
+    {
+      "id": "SRC-267-02",
+      "artifact": "BRD v3.20 (controlling business source — thay thế BRD v3.9)",
+      "supersessionEvidence": "SRS v1.12 §1.6 Supersession Register, row nguyên văn: 'BRD v3.9 | BRD v3.20 | HISTORICAL / SUPERSEDED'. §15 mục 19/08/2026 nói rõ: wording BRD v3.9 cho luồng nhập là HISTORICAL/SUPERSEDED và 'không được trích dẫn làm controlling contract'.",
+      "note": "WWHN-70 Source & Traceability phải trích BRD v3.20 + SRS v1.12; mọi AC sinh từ BRD v3.9 phải được map lại qua ma trận này trước khi dùng làm căn cứ test."
+    },
+    {
+      "id": "SRC-267-03",
+      "artifact": "Wireframe MVP ALIGNED v3.20/v1.12",
+      "path": "docs/HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html (repo FE)",
+      "version": "Identity trong file: 'Bám BRD v3.20 / SRS-FRD v1.12 / BPD v1.12' + 'Nguồn hiện hành: … DEC-HN-20260814-01'; ngày 20260814 nằm ở tên file và mã decision",
+      "sha256": "22c69d4b96d6c4f797e77e8f87075cc89d67aa12ed6eac8bbc71ae78297b47d6",
+      "gitBlob": "56e5a106dfd15724547e03038ebe376e70f14220",
+      "lastCommitFe": "aec74c9"
+    },
+    {
+      "id": "SRC-267-04",
+      "artifact": "HN-WMS-ERD-DD-001 — ERD & Data Dictionary",
+      "path": "docs/HoaNam_ERD_Moi_Nhat.md (repo FE; bản BE đồng bộ bằng checksum pin docs/contracts/erd-document-pin.json — WWHN-310)",
+      "version": "1.0 (04/08/2026); bản hiệu lực 1.0+AMD008 (ERD-AMD-001..008); 59 bảng vật lý",
+      "sha256": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
+      "gitBlob": "ef28a86d5234aba79ab4088627dc956efd2a454a",
+      "lastCommitFe": "719c1a4",
+      "pinGuards": [
+        "tests/Feature/Wwhn310ErdDocumentPinTest.php (BE)",
+        "src/test/wwhn-310-erd-document-pin.test.ts (FE)"
+      ]
+    },
+    {
+      "id": "SRC-267-05",
+      "artifact": "WMS Hoa Nam Techstack / Architecture Dev Guide",
+      "path": "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md (repo FE)",
+      "version": "v1.0, 2026-07-31, owner FE1/Tech Lead; kèm appendix chưa bump version 'Flow 06 — Current Report / Packing Label Baseline (2026-08-15)'",
+      "sha256": "2d217aedfd466796f5155b16efbc505bf3cf0e2885cea1f197aa4d5605240c08",
+      "gitBlob": "7efc32ebfbaf5b705f1c9601382f8b6c20fd0d0a",
+      "lastCommitFe": "27caec5"
+    }
+  ],
+  "scopeMatrix": [
+    {
+      "area": "Kiểm kê / stock correctness (Stocktake — GIỮ DÒNG, KHÔNG XOÁ)",
+      "disposition": "SUPERSEDED_BY_REQ-SRS-037 — Stocktake positive case không còn trong scope, NHƯNG vùng này vẫn PHẢI được regression theo 3 trục thay thế bên dưới. Ca kiểm kê cũ đánh SUPERSEDED_BY_REQ-SRS-037, không đánh FAIL/BLOCKED.",
+      "controllingRequirements": ["REQ-SRS-037 (Must)", "REQ-SRS-023", "REQ-SRS-030", "REQ-SRS-021", "REQ-SRS-034"],
+      "sections": ["§0.1.1", "§1.2 (row: Physical stocktake, variance và hành động sửa tồn trực tiếp = Outside MVP/Beta)", "§5.3 Camera Scan and No-Stocktake Control", "§7.5 Reconciliation Controls", "§2 DEC-NO-STOCKTAKE-001 (04/08/2026, PM/PO + Client, formal Decision WWHN-25)"],
+      "acTc": ["AC-SRS-037", "TC-SRS-037", "BR-NOSTK-01..03", "BR-RECON-01..04"],
+      "erdEvidence": "ERD §0.1: 'Không tạo Stocktake_Session, Stocktake_Snapshot, Stocktake_Count, Variance_Line, Adjustment hoặc report/permission tương ứng.' Bảng thay thế: #29 inventory_balances, #30 inventory_movements (append-only), #20 item_instances, #23 container_items, #31 posting_events, #32 reconciliation_incidents.",
+      "uiEvidence": "Wireframe KHÔNG có màn stocktake (grep 0 match); màn thay thế INV-01 'Tra cứu tồn & đối soát' + TRACE-01. Techstack Flow 06: 'Stocktake/Variance/Adjustment are outside current MVP; reconciliation + append-only Reversal is the correction path.'",
+      "regressionMustCover": [
+        "Absence guard: không tồn tại entity/API/permission/screen/report stocktake ở Annex C/D và deployment (yarn wwhn-296:verify + yarn wwhn-236:verify phía FE — chạy LOCAL, không qua CI ở vòng này)",
+        "Reconciliation triple-check: Balance = Opening + Posted Receipt − Posted Issue + Posted Reversal; serial subledger = đếm Item IN_STOCK; quantity subledger = tổng theo box; lệch → Reconciliation_Incident, KHÔNG bao giờ sửa ledger trực tiếp",
+        "Đường sửa sai duy nhất: đối soát + Reversal append-only (WWHN-26)"
+      ],
+      "relatedDeferrals": ["WWHN-230 (de-scope kiểm kê)", "WWHN-233 (count/recount DEFERRED)", "WWHN-236 (Apply Adjustment DEFERRED)", "WWHN-237 (variance report DEFERRED)"]
+    },
+    {
+      "area": "Đảo giao dịch / Reversal",
+      "disposition": "IN_SCOPE",
+      "controllingRequirements": ["REQ-SRS-013 (Reversal append-only cho Receipt/Issue; không có action sửa tồn trực tiếp)", "REQ-SRS-012", "REQ-SRS-023", "REQ-SRS-037"],
+      "sections": ["§5.5 Reversal Guard (BR-REV-01..12)", "§6 STATE MODEL rows Reversal (DRAFT, CONFIRMED, POSTED, CANCELLED) + Reversal chain (OPEN, RESOLVED)", "§13.2 AC-GWT-REV-001/002", "§13.3 TC-P1-025..032", "§2 DEC-REV-001 / WWHN-26"],
+      "acTc": ["TC-SRS-013", "TC-REV-02..07", "TC-P1-025..032"],
+      "erdEvidence": "ERD #33 reversal_documents (+ AMD-002: condition_status, physical_return_status, idempotency_key) + #34 reversal_lines; inventory_movements có original_movement_id + correction_chain_id; 'POSTED immutable; không reverse trực tiếp reversal'.",
+      "uiEvidence": "Wireframe REV-00 (danh sách) + REV-01 (tạo; movement gốc giữ nguyên, movement đối ứng, original_movement_id); route /reverse → inventory.reversal.post (techstack ROUTE_PERMISSIONS).",
+      "regressionMustCover": [
+        "Movement gốc bất biến; counter-movement tham chiếu original_movement_id/reversal_chain_id",
+        "409 DOWNSTREAM_DEPENDENCY_EXISTS (TC-REV-02); 422 REVERSAL_QTY_EXCEEDS_REVERSIBLE (TC-REV-03)",
+        "SELLABLE cộng tồn đúng một lần; DEFECTIVE/NON_SELLABLE không cộng",
+        "Concurrency: đúng một commit, bên thua 409/412; idempotency: same key replay / khác payload → 409",
+        "Report hiển thị gross + full chain + net, không giấu movement gốc"
+      ]
+    },
+    {
+      "area": "Bảo hành / Warranty",
+      "disposition": "IN_SCOPE",
+      "controllingRequirements": ["REQ-SRS-016", "REQ-SRS-035 (Component issue: purpose WARRANTY + active case)", "REQ-SRS-028 (Defect Catalog)"],
+      "sections": ["§5.4 + §5.4.1", "§6 rows Warranty (RECEIVED..CANCELLED — không có sellable stock movement) + Component Issue (DRAFT, SCANNING, POSTED, CANCELLED)", "§13.8 Privacy Contract (DR-PRIV-001)", "§8.3 SCR-WAR-01 / SCR-COMP-01"],
+      "acTc": ["AC-SRS-016/035/028", "BR-WAR-01..13", "BR-COMP-WAR-01..06", "NFR-SRS-015", "NFR-SRS-018"],
+      "erdEvidence": "ERD #45 warranty_cases (customer_name/phone/address đánh dấu PII) + #46..50 + #15 defect_catalogs (AMD-005); 'không raw PII trong app log'.",
+      "uiEvidence": "Wireframe WAR-01/02/03 + COMP-01 (Mục đích = WARRANTY); permission warranty.manage / warranty.component_issue / warranty.pii.view / warranty.pii.export.",
+      "regressionMustCover": [
+        "Một active case trên một item; TEMP_ONLY path (sales_trace_status=NOT_TRACEABLE); purchase_date không ở tương lai",
+        "Warranty không đổi sellable stock (chỉ IN_STOCK là available)",
+        "PII masking theo role (N*** H***, ******9922); export PII cần warranty.pii.export + reason + audit; log không chứa raw PII"
+      ]
+    },
+    {
+      "area": "PV (PV profile / publish / App PV)",
+      "disposition": "IN_SCOPE (backend/data + public read); UI admin PV ngoài wireframe MVP — 'Không dựng App PV trong bộ wireframe này' là loại trừ TÀI LIỆU WIREFRAME, không phải loại trừ nghiệp vụ",
+      "controllingRequirements": ["REQ-SRS-017", "REQ-SRS-018", "REQ-SRS-019", "REQ-SRS-020", "REQ-SRS-033", "REQ-SRS-036"],
+      "sections": ["§8.1 PV endpoint row", "§8.3 SCR-PV-01/02/SCR-PV-ADM-01", "§13.7 PV cache (NFR-SRS-016: staleness ≤60s, data_as_of)", "§15 mục App PV (OP-09): anonymous chỉ expose published SKU available_qty/stock_status/data_as_of, không serial/item/container/movement/cost"],
+      "acTc": ["AC-SRS-017..020/033/036", "BR-PV-01..14", "BR-PV-MST-01..06", "BR-CATALOG-01..05"],
+      "erdEvidence": "ERD #51 pv_product_profiles (published/published_at/published_by; 'Chỉ SKU active được publish; zero-stock vẫn visible') + #52..57.",
+      "uiEvidence": "PV là backend/data-only trong bộ tài liệu hiện hành: wireframe không dựng App PV, techstack không có module pv/ — App PV surface được quản trị ở WWHN-249/252 (DEC-API-IFMATCH-002).",
+      "regressionMustCover": [
+        "Anonymous read chỉ thấy SKU published+active, đúng available_qty/stock_status/data_as_of, không lộ dữ liệu nội bộ",
+        "Publish gate: pv.publish + If-Match; SKU inactive bị chặn; zero-stock hiển thị 'Chưa có hàng' (REQ-SRS-036)",
+        "Cache staleness ≤60s kèm data_as_of"
+      ]
+    },
+    {
+      "area": "Báo cáo / Reports",
+      "disposition": "IN_SCOPE",
+      "controllingRequirements": ["REQ-SRS-031", "REQ-SRS-032 (Should — export)", "REQ-SRS-023", "REQ-SRS-030"],
+      "sections": ["§13.10 Report Contract (RPT-INV-01, RPT-WAR-01, RPT-OUT-MATCH-01, RPT-LABEL-01, RPT-XNT-01, RPT-MOV-01, RPT-WAR-COMP-01, RPT-RECIPIENT-01, RPT-IO-01)", "§5.6 BR-RPT/BR-EXP", "§8.3 SCR-RPT-01"],
+      "acTc": ["AC-SRS-031 (bao gồm: KHÔNG tồn tại stocktake report)", "AC-SRS-032", "BR-RPT-01..10", "BR-EXP-01..05"],
+      "erdEvidence": "Không có bảng report riêng — report derive từ ledger/documents; audit = #7 audit_logs (append-only).",
+      "uiEvidence": "Wireframe RPT-01 6 tab; techstack Flow 06 appendix nêu 8 nhóm (thêm Movement/Trace + Outbound-by-recipient/Agency); report.view / report.export; PII cần warranty.pii.export.",
+      "regressionMustCover": [
+        "RPT-XNT-01: closing = opening + posted receipt − posted issue ± posted reversal; chỉ chứng từ POSTED ảnh hưởng XNT",
+        "as_of inclusive, timezone Asia/Ho_Chi_Minh; RPT-MOV-01 gross + chain + net, không giấu movement gốc",
+        "Data-scope enforce ở backend (lưu ý ngoại lệ có chủ ý WWHN-254: data-scope kho không áp cho /reports/*); export cùng filter/scope với màn, audited, PII exclude mặc định"
+      ]
+    }
+  ],
+  "decisionIndex": [
+    "DEC-NO-STOCKTAKE-001 (§2, 04/08/2026 — neo requirement là REQ-SRS-037, KHÔNG trích cột 'New controlling source' của §1.6 làm neo)",
+    "DEC-REV-001 / WWHN-26 (reversal append-only)",
+    "DR-PRIV-001 + DEC-COMP-WARRANTY-001 (warranty/PII)",
+    "DR-PLAT-001 / DEC-CATALOG-001 (PV)",
+    "DEC-HN-20260814-01 (wireframe alignment)",
+    "DISP-IN-184-INBOUND-DOCUMENT-STATE-BASELINE (§15 mục 19/08/2026 — state model Inbound/Outbound; không đổi hành vi runtime)"
+  ],
+  "owner": "BA Main/BAS + QA1",
+  "confirmer": "PM / Tech Lead",
+  "changeLog": [
+    {"version": "1.0.0", "date": "2026-08-19", "change": "Tạo mới cho vòng R2 (đánh giá 34/100) — đóng DEV267-P1-02R."}
+  ]
+}

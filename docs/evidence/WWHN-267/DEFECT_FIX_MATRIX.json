@@ -1,0 +1,121 @@
+{
+  "document": "WWHN-267-DEFECT-FIX-MATRIX",
+  "task": "WWHN-267",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "branch": "m1",
+  "schemaVersion": "1.0.0",
+  "registerItem": "DEV267-P1-03R",
+  "createdDate": "2026-08-19",
+  "purpose": "Đóng DEV267-P1-03R: với từng defect, map root cause → exact location → code/data fix → before/after → exact SHA trên m1. SHA ở đây là commit THẬT trong ancestry của m1 (kiểm bằng git merge-base --is-ancestor); xem mục shaCorrection cho vụ pin 9ea9c18.",
+  "shaCorrection": {
+    "issue": "Vòng 1 pin beCandidateSha = 9ea9c18. Đo lại 19/08: 9ea9c18 tồn tại trong object DB nhưng KHÔNG phải ancestor của m1 HEAD (hệ quả của quy trình push-qua-index-tạm khi nhiều phiên dùng chung working tree — commit được dựng lại trên origin/m1 với SHA khác). Commit tương đương TRONG ancestry là 4fcaef0 (cùng tree change, subject bị dính prefix '@ ' do bẫy here-string).",
+    "correctedTo": "4fcaef006c7f8874e9351585fd6f9f5e08c0a871",
+    "verification": "git merge-base --is-ancestor 4fcaef0 HEAD → true; git merge-base --is-ancestor 9ea9c18 HEAD → false; git diff 70278a0 HEAD -- <toàn bộ file WWHN-267> → rỗng.",
+    "registeredAsDefect": "BE267-D08"
+  },
+  "commits": {
+    "be-4fcaef0": {"sha": "4fcaef006c7f8874e9351585fd6f9f5e08c0a871", "date": "2026-08-19", "subject": "fix(WWHN-267): hop dong loi §8.2 + ma tran RBAC + pin role baseline cho vong retest WWHN-70"},
+    "be-873bba8": {"sha": "873bba8178e9525396d91b68dc6e8f443e9c6043", "date": "2026-08-19", "subject": "docs(WWHN-267): huong dan cap nhat pin role + 2 bay do luong"},
+    "be-2496e6c": {"sha": "2496e6cc0bff1481e4a9562ca817c9fdf133f0db", "date": "2026-08-19", "subject": "docs(WWHN-267): dien candidate SHA that vao ho so dong"},
+    "be-172e1de": {"sha": "172e1def62ca2ae8e50a8d06c2e185c9539d671c", "date": "2026-08-19", "subject": "docs(WWHN-268-r2): decision record BE268-D02 + pointer DISP-STK-268 (cập nhật HTTP_ERROR_CODE_PAIRING)"},
+    "be-70278a0": {"sha": "70278a0ff815ee25df43fadb49f22e41f91ff94b", "date": "2026-08-19", "subject": "fix(WWHN-267): refresh ROLE_BASELINE_PIN sau khi WWHN-249 D-04 them pv.master.manage"},
+    "fe-a2b555b": {"sha": "a2b555b28e3c680a1c303873c04d7e64d71bb7d2", "date": "2026-08-19", "subject": "fix(WWHN-267): FE khong con doan mot ten ma trong hang 403 (FE267-D06)", "repo": "HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE"},
+    "be-R2": {"sha": "TO_BE_FILLED_AFTER_R2_COMMIT", "date": "2026-08-19", "subject": "Vòng R2: bộ artifact DEV267-P1-01R..06R + regenerate catalog HN-BE-API-002"}
+  },
+  "matrix": [
+    {
+      "defect": "BE267-D01",
+      "severity": "P1",
+      "requirement": "SRS v1.12 §8.2 dòng Envelope ('HTTP and business code must match Annex/API contract') + §0.3.1 FIX-16 + §13.3",
+      "rootCause": "§8.2 chỉ tồn tại dưới dạng bảng ví dụ trong tài liệu — không có bản máy đọc được trong repo, nên 248 mã lỗi trên 12 HTTP status trôi tự do (3 mã dùng 2 status) và mỗi vòng review đọc bằng mắt ra kết luận khác nhau.",
+      "exactLocation": "Toàn bộ call site ApiError::abort trong source BE (516 điểm thời điểm đo) + docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.*",
+      "fix": "Hợp đồng ghép cặp máy đọc được (reservedPairings 18 mã, governedStatuses 9, statusesOutsideSrs82 405/429/503 kèm disposition, dualStatusCodes 3 mã cấm mở status thứ ba) + test quét source độc lập với catalog.",
+      "before": "Không có hợp đồng nào; drift không bị phát hiện.",
+      "after": "docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json + tests/Feature/Wwhn267ContractClosureTest.php (3 test pairing) + scripts/verify-wwhn-267-closure.mjs; PHPUnit 8/8 PASS 120 assertions (R2, 19/08).",
+      "shas": ["be-4fcaef0", "be-172e1de"]
+    },
+    {
+      "defect": "BE267-D02",
+      "severity": "P2",
+      "requirement": "SRS v1.12 §8.2 row 422 (INSUFFICIENT_STOCK thuộc 422) + row 400",
+      "rootCause": "ApiConventionMiddleware suy mã lỗi nghiệp vụ từ chuỗi tiếng Việt trong message hiển thị — nhánh 400 phát INSUFFICIENT_STOCK (mã dành riêng 422) khi message chứa 'tồn kho'/'stock'/'không đủ'.",
+      "exactLocation": "app/Http/Middleware/ApiConventionMiddleware.php — nhánh fallback case 400",
+      "fix": "Bỏ suy đoán INSUFFICIENT_STOCK khỏi nhánh 400; fallback 400 giữ đúng BAD_REQUEST. 8/8 call site INSUFFICIENT_STOCK thật vốn dùng 422 nên không endpoint nào đổi hành vi.",
+      "before": "Cặp (400, 'Không đủ tồn kho để xuất.') → INSUFFICIENT_STOCK (đo trong RUN_EVIDENCE.md §3).",
+      "after": "test_middleware_fallback_never_pairs_a_reserved_code_with_a_wrong_status PASS; mutation check: khôi phục nhánh cũ → đúng 1 test đỏ chỉ ra cặp sai.",
+      "shas": ["be-4fcaef0"]
+    },
+    {
+      "defect": "BE267-D03",
+      "severity": "P1",
+      "requirement": "SRS v1.12 §8.2 rows 401/403/422/500",
+      "rootCause": "Khác biệt tên mã giữa §8.2 và cài đặt được ghi nhận rời rạc theo từng lần ai đó chạm phải (WWHN-268 chỉ ghi 403), không có một lần rà đủ 9 status.",
+      "exactLocation": "app/Traits/ApiResponse.php:77 (bảng mã mặc định) + register divergence",
+      "fix": "Hợp nhất divergences[] DIV-401-01/DIV-403-01/DIV-422-01/DIV-500-01 (+DIV-409-01 đã đóng bởi WWHN-234), mỗi mục có evidence/impact/owner/disposition; test đối chiếu mã backend THẬT trả về với trường implemented. KHÔNG đổi tên mã — đổi tên là thay đổi contract, thuộc BA + Tech Lead (W267-EXT-01).",
+      "before": "WWHN-268 receipt §4 chỉ phủ 403.",
+      "after": "HTTP_ERROR_CODE_PAIRING.json divergences[] + test_divergence_register_matches_the_codes_backend_actually_returns PASS.",
+      "shas": ["be-4fcaef0", "be-172e1de"]
+    },
+    {
+      "defect": "BE267-D04",
+      "severity": "P1",
+      "requirement": "SRS v1.12 §3 row 'User/role manage' (QL kho = D; key iam.user.manage/iam.role.manage) + legend 'Backend phải enforce permission và data scope, không chỉ ẩn nút UI'",
+      "rootCause": "Không có nguồn nào ràng buộc seed role với bảng actor §3 → tập quyền lớn dần: WAREHOUSE_MANAGER 68 quyền (> ADMIN 61), giữ iam.user.manage/iam.role.manage; LEADERSHIP giữ warranty.view/putaway.view (§3 không có row mức view → khoảng trống nguồn).",
+      "exactLocation": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php const ROLES",
+      "fix": "Pin fail-closed sha256 tập quyền 11 role + ánh xạ role↔actor §3 + DELTA-01/02/03 có owner và kiểm soát bù; refresh pin khi WWHN-249 D-04 grant pv.master.manage (khớp §3 row 'PV Industry/Tag/... manage' = A cho QL kho). KHÔNG tự gỡ quyền — disposition thuộc BA + Tech Lead (W267-EXT-02).",
+      "before": "Không pin, không ánh xạ; nới quyền im lặng qua từng PR.",
+      "after": "ROLE_BASELINE_PIN.json + test_role_baseline_matches_the_pin PASS + test_leadership_cannot_read_warranty_pii_even_though_it_can_list_cases PASS (kiểm soát bù DELTA-02).",
+      "shas": ["be-4fcaef0", "be-873bba8", "be-70278a0"]
+    },
+    {
+      "defect": "BE267-D05",
+      "severity": "P1",
+      "requirement": "SRS v1.12 §8.1 Enforcement standard ('Exact x-permission + data scope; default deny')",
+      "rootCause": "Cổng 403 của WWHN-268 viết kiểu 'có ít nhất một bằng chứng' (continue + assertGreaterThan(0,$denied)) — LEADERSHIP thực tế chỉ bị chặn 2/6 bề mặt mà cổng vẫn xanh.",
+      "exactLocation": "tests/Feature/Wwhn268RegressionContractTest.php::test_protected_surfaces_return_403_permission_denied_for_a_role_without_the_permission",
+      "fix": "Ma trận RBAC 3 role × 6 bề mặt = 18 ô, mỗi ô khẳng định đúng HTTP status theo §3; ô 403 phải mang mã trong danh mục 403 + request_id. Không viết lại test WWHN-268 (bằng chứng lịch sử của ticket đó).",
+      "before": "LEADERSHIP: 403/403/200/200/200/200 nhưng cổng xanh.",
+      "after": "test_rbac_matrix_is_enforced_cell_by_cell PASS (18/18 ô).",
+      "shas": ["be-4fcaef0"]
+    },
+    {
+      "defect": "FE267-D06",
+      "severity": "P2",
+      "requirement": "SRS v1.12 §8.2 row 403 (PERMISSION_DENIED / DATA_SCOPE_DENIED) + §8.3 SCR-MST",
+      "rootCause": "Danh mục mã 403 không có nguồn duy nhất ở FE — mỗi màn chép tay một tập con (WarehouseConfigScreen chỉ so ACCESS_DENIED; isNoPermissionError thiếu WAREHOUSE_SCOPE_DENIED).",
+      "exactLocation": "HoaNam_FE: src/shared/api/api-error.ts + src/modules/master-data/pages/WarehouseConfigScreen.tsx",
+      "fix": "FORBIDDEN_ERROR_CODES + isForbiddenErrorCode làm nguồn duy nhất; màn cấu hình kho nhận diện theo HTTP 403 trước, danh mục mã chỉ là fallback cho envelope không mang status.",
+      "before": "DATA_SCOPE_DENIED/WAREHOUSE_SCOPE_DENIED rơi về thông điệp chung.",
+      "after": "src/shared/api/__tests__/wwhn-267-forbidden-code-contract.test.ts — vitest 7/7 PASS (R2, 19/08, FE HEAD cf0fe8d; 3 file fix không đổi từ a2b555b).",
+      "shas": ["fe-a2b555b"]
+    },
+    {
+      "defect": "BE267-D07",
+      "severity": "P2",
+      "requirement": "HN-BE-API-002 catalog là companion contract của §8.2; verifier WWHN-267 yêu cầu catalog khớp source (fail-closed)",
+      "rootCause": "Catalog HN-BE-API-002 sinh thủ công bằng lệnh generator; các ticket khác (WWHN-184/190/215/234...) sửa call site sau 4fcaef0 làm reference/line trong catalog lệch source, và không lượt regenerate nào chạy vì CI gate không được kích hoạt (Actions quota 3000/3000).",
+      "exactLocation": "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md + .json",
+      "fix": "Chạy node scripts/generate-error-code-catalog.mjs trên cây làm việc sạch (code-level): 248 mã giữ nguyên, 0 mã thêm/bớt, 0 status đổi — chỉ trôi vị trí call site. Commit lại catalog trong vòng R2.",
+      "before": "node scripts/verify-wwhn-267-closure.mjs → FAIL ('catalog mã lỗi không còn khớp source').",
+      "after": "Regenerate xong → verifier PASS đủ 5 hạng mục (log trong QA_RETEST_REPORT_R2_20260819.md).",
+      "shas": ["be-R2"]
+    },
+    {
+      "defect": "BE267-D08",
+      "severity": "P1",
+      "requirement": "DEV267-P1-04R2 — candidate SHA phải là commit thật trong ancestry của source branch đã khoá",
+      "rootCause": "Quy trình commit qua index tạm + push-dựng-lại-trên-origin (bắt buộc khi nhiều phiên dùng chung working tree) tạo ra hai commit cùng nội dung với SHA khác nhau; vòng 1 pin nhầm SHA của bản không nằm trong ancestry (9ea9c18).",
+      "exactLocation": "docs/evidence/WWHN-267/DEFECT_REGISTER.json → buildContext.beCandidateSha + SOURCE_AND_BRANCH_DISPOSITION.json → pins",
+      "fix": "Sửa pin về 4fcaef0 (in-ancestry, đã verify bằng git merge-base --is-ancestor); giữ bất biến candidateShaRule (commit-cuối-chạm-artifact) làm cơ chế tự kiểm khi HEAD trôi; thêm bước verify ancestry vào quy trình điền pin.",
+      "before": "beCandidateSha=9ea9c18 — không phải ancestor của m1.",
+      "after": "Pin 4fcaef0 + shaCorrection có lệnh verify; vòng R2 điền be-R2 theo cùng quy trình (verify ancestry trước khi điền).",
+      "shas": ["be-R2"]
+    }
+  ],
+  "owner": "DEV",
+  "confirmer": "Tech Lead + QA",
+  "changeLog": [
+    {"version": "1.0.0", "date": "2026-08-19", "change": "Tạo mới cho vòng R2 — đóng DEV267-P1-03R."}
+  ]
+}

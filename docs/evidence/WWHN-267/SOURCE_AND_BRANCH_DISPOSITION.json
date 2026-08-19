@@ -3,8 +3,31 @@
   "task": "WWHN-267",
   "parent": "WWHN-70",
   "qaSource": "HN-QA-005-ST01",
-  "schemaVersion": "1.0.0",
-  "purpose": "Đóng hai mục nguồn/nhánh của register review WWHN-267: DEV267-P1-02 (baseline parent stale, xung đột Stocktake) và DEV267-P1-04 (Jira pin m1-be-2 trong khi phát triển thật ở m1).",
+  "schemaVersion": "1.1.0",
+  "purpose": "Đóng hai mục nguồn/nhánh của register review WWHN-267: DEV267-P1-02 (baseline parent stale, xung đột Stocktake) và DEV267-P1-04 (Jira pin m1-be-2 trong khi phát triển thật ở m1). Bản 1.1.0 đóng thêm DEV267-P1-04R2 (khoá formal không cần CI) và DEV267-P2-02 (planning). Ma trận scope chi tiết cho DEV267-P1-02R: SCOPE_AND_SOURCE_MATRIX.json.",
+  "changeLog": [
+    {"version": "1.0.0", "date": "2026-08-19", "change": "Vòng 1."},
+    {"version": "1.1.0", "date": "2026-08-19", "change": "Vòng R2: formalLockR2 (không yêu cầu CI/CD), sửa pin rot 9ea9c18→4fcaef0 (BE267-D08), planningDisposition cho DEV267-P2-02."}
+  ],
+  "formalLockR2": {
+    "registerItem": "DEV267-P1-04R2",
+    "sourceBranch": "m1 — canonical source/target duy nhất của WWHN-267 (m1-be-2 SUPERSEDED, chỉ là dấu vết lịch sử; quan hệ ancestor thuần đã chứng minh ở branchDisposition.provenRelation)",
+    "candidateShaRule": "Candidate = commit cuối trên m1 chạm docs/evidence/WWHN-267/**, tests/Feature/Wwhn267ContractClosureTest.php, scripts/verify-wwhn-267-closure.mjs. Trước khi điền SHA vào hồ sơ PHẢI verify: git merge-base --is-ancestor <sha> m1 (bài học BE267-D08).",
+    "candidateCodeSha": "4fcaef006c7f8874e9351585fd6f9f5e08c0a871",
+    "candidateArtifactShaAtR2Measurement": "70278a0ff815ee25df43fadb49f22e41f91ff94b",
+    "candidateR2Sha": "TO_BE_FILLED_AFTER_R2_COMMIT",
+    "feCandidateSha": "a2b555b28e3c680a1c303873c04d7e64d71bb7d2",
+    "ciPolicy": "Register R2 ghi nguyên văn: 'Không yêu cầu CI/CD ở vòng này.' Đồng thời GitHub Actions của tổ chức đã dùng hết 3000/3000 phút — WWHN-267 R2 KHÔNG kích hoạt bất kỳ workflow nào, không sửa file nào dưới .github/. Evidence R2 = local controlled run + chứng minh tương đương diff-rỗng với candidate (QA_RETEST_REPORT_R2_20260819.md §1). W267-EXT-04 (CI SHA/build ID) giữ trạng thái MỞ, chờ quota Actions, không chặn vòng này.",
+    "owner": "PM/TL + DEV",
+    "confirmer": "QA1"
+  },
+  "planningDisposition": {
+    "registerItem": "DEV267-P2-02",
+    "issue": "Active Sprint kết thúc 03/09 nhưng task due 08/09.",
+    "proposal": "Ghi nhận là intended carry-over: chuỗi phụ thuộc của WWHN-267 (QA retest độc lập WWHN-264/265 trên Beta + BA disposition W267-EXT-01/02) nằm ngoài quyền tự đóng của DEV nên due sau ngày kết thúc sprint là chủ ý, không phải lỗi kế hoạch. PM xác nhận (một lần, bằng comment) hoặc sửa due/sprint plan.",
+    "owner": "PM",
+    "status": "PENDING_PM_CONFIRMATION"
+  },
   "sourceDisposition": {
     "registerItem": "DEV267-P1-02",
     "conflict": "Review nêu WWHN-70 mang AC Stocktake theo BRD v3.9, trong khi baseline hiện hành (BRD v3.20 / SRS v1.12) là no-Stocktake. Hai nguồn cùng được trích dẫn trong một vòng regression thì QA không biết ca kiểm kê là in-scope hay out-of-scope.",
@@ -35,7 +58,7 @@
       "meaning": "m1 chứa toàn bộ lịch sử của m1-be-2 và đi trước 738 commit tại thời điểm đo (con số này chỉ tăng); m1-be-2 không có commit nào mà m1 thiếu. Việc supersede KHÔNG mất công việc và KHÔNG cần cherry-pick."
     },
     "decision": "m1 là canonical source/target/release branch cho WWHN-267. m1-be-2 giữ nguyên làm dấu vết lịch sử, không nhận commit mới, không dùng để chạy CI hay xuất artifact.",
-    "artifactRule": "Mọi bằng chứng trích dẫn ra ngoài phải sinh từ lượt chạy CI trên GITHUB_SHA của m1 (.github/workflows/wwhn-267-be-contract-closure.yml). Lượt chạy tại chỗ trên Windows chỉ dùng để phát hiện lỗi, không dùng để sign-off.",
+    "artifactRule": "[SUPERSEDED tại R2 bởi formalLockR2.ciPolicy] Bản 1.0.0 yêu cầu evidence từ CI trên GITHUB_SHA. Register R2 (DEV267-P1-04R2) bỏ yêu cầu CI cho vòng này; Actions hết quota 3000/3000 nên không kích hoạt workflow. Evidence R2 = local controlled run + chứng minh tương đương diff-rỗng (QA_RETEST_REPORT_R2_20260819.md §1). Yêu cầu CI sẽ trở lại khi có quota (W267-EXT-04).",
     "disposition": "CANONICAL_BRANCH_LOCKED",
     "owner": "PM / Tech Lead",
     "confirmer": "QA1"
@@ -51,9 +74,10 @@
   "pins": {
     "beMeasuredSha": "301899c48af13ea01171b30b280cc6f5d39d3404",
     "feMeasuredSha": "42e6957",
-    "candidateShaRule": "Candidate SHA của WWHN-267 là commit trên m1 chạm docs/evidence/WWHN-267/**, tests/Feature/Wwhn267ContractClosureTest.php và scripts/verify-wwhn-267-closure.mjs. Dùng bất biến này thay vì hard-pin HEAD: m1 có nhiều phiên làm việc song song nên HEAD trôi liên tục, hard-pin sẽ mục ngay ngày hôm sau (bài học WWHN-247/WWHN-233).",
-    "beCandidateSha": "9ea9c18",
-    "feCandidateSha": "a2b555b",
+    "candidateShaRule": "Candidate SHA của WWHN-267 là commit trên m1 chạm docs/evidence/WWHN-267/**, tests/Feature/Wwhn267ContractClosureTest.php và scripts/verify-wwhn-267-closure.mjs. Dùng bất biến này thay vì hard-pin HEAD: m1 có nhiều phiên làm việc song song nên HEAD trôi liên tục, hard-pin sẽ mục ngay ngày hôm sau (bài học WWHN-247/WWHN-233). Bổ sung R2: trước khi điền SHA phải verify git merge-base --is-ancestor <sha> m1.",
+    "beCandidateSha": "4fcaef006c7f8874e9351585fd6f9f5e08c0a871",
+    "beCandidateShaCorrection": "Bản 1.0.0 pin 9ea9c18 — KHÔNG phải ancestor của m1 (pin rot, defect BE267-D08). Sửa về 4fcaef0 tại R2; xem DEFECT_FIX_MATRIX.json → shaCorrection.",
+    "feCandidateSha": "a2b555b28e3c680a1c303873c04d7e64d71bb7d2",
     "candidateNote": "Candidate duoc dien sau khi commit; bat bien candidateShaRule van la cach kiem chinh khi SHA nay bi rebase hoac khi m1 tien them."
   }
 }

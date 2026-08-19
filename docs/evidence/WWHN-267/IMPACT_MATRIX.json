@@ -1,0 +1,95 @@
+{
+  "document": "WWHN-267-IMPACT-MATRIX",
+  "task": "WWHN-267",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "branch": "m1",
+  "schemaVersion": "1.0.0",
+  "registerItem": "DEV267-P1-06R",
+  "createdDate": "2026-08-19",
+  "purpose": "Đóng DEV267-P1-06R: per defect ghi impact API / schema-migration / existing-data / FE; artifact bị ảnh hưởng update cùng version, không ảnh hưởng thì formal N/A kèm lý do. Không có ô nào để trống.",
+  "legend": {
+    "NO_CHANGE": "Bề mặt tồn tại nhưng defect/fix không làm nó đổi — có lý do kèm theo.",
+    "CHANGED": "Bề mặt đổi — artifact tương ứng đã update cùng vòng.",
+    "N/A": "Bề mặt không tồn tại trong phạm vi defect — formal N/A kèm lý do."
+  },
+  "matrix": [
+    {
+      "defect": "BE267-D01",
+      "api": {"value": "NO_CHANGE", "reason": "Không đổi tên mã/status của endpoint nào; chỉ khai báo lại ràng buộc đã có trong §8.2 thành artifact máy đọc."},
+      "openapi": {"value": "N/A", "reason": "Không thêm/bớt/đổi operation hay schema."},
+      "schemaMigration": {"value": "N/A", "reason": "Không có migration."},
+      "existingData": {"value": "N/A", "reason": "Không chạm dữ liệu; hợp đồng là docs + test."},
+      "frontend": {"value": "N/A", "reason": "Contract không đổi nên FE không phải sửa theo dòng này."},
+      "declaredBy": "DEV", "reviewedBy": "Tech Lead"
+    },
+    {
+      "defect": "BE267-D02",
+      "api": {"value": "NO_CHANGE", "reason": "Không endpoint nào đang phát INSUFFICIENT_STOCK ở 400 (grep 8/8 call site dùng 422) — không client nào mất nhánh xử lý."},
+      "openapi": {"value": "N/A", "reason": "Không có mô tả nào khai 400 INSUFFICIENT_STOCK."},
+      "schemaMigration": {"value": "N/A", "reason": "Thay đổi trong middleware HTTP, không có migration."},
+      "existingData": {"value": "N/A", "reason": "Không chạm bảng nào."},
+      "frontend": {"value": "N/A", "reason": "FE phân loại insufficient-stock theo mã (post-issue-contract.ts), không phụ thuộc status nhánh fallback."},
+      "declaredBy": "DEV", "reviewedBy": "Tech Lead"
+    },
+    {
+      "defect": "BE267-D03",
+      "api": {"value": "NO_CHANGE", "reason": "Hồ sơ hoá khác biệt, không đổi mã nào. Nếu BA quyết đổi tên (W267-EXT-01) thì OpenAPI + Postman + FE + test phải đổi cùng version — đã ghi thành điều kiện."},
+      "openapi": {"value": "N/A", "reason": "Vòng này không đổi đặc tả."},
+      "schemaMigration": {"value": "N/A", "reason": "Không có migration."},
+      "existingData": {"value": "N/A", "reason": "Không chạm dữ liệu."},
+      "frontend": {"value": "MITIGATED", "reason": "FE nhận diện 403/401 theo HTTP status; điểm phụ thuộc chuỗi mã còn lại đã sửa ở FE267-D06."},
+      "declaredBy": "DEV", "reviewedBy": "BA + Tech Lead"
+    },
+    {
+      "defect": "BE267-D04",
+      "api": {"value": "NO_CHANGE", "reason": "Pin dữ liệu seed hiện hành, không đổi endpoint/permission nào."},
+      "openapi": {"value": "N/A", "reason": "Role baseline là dữ liệu seed, không xuất hiện trong OpenAPI."},
+      "schemaMigration": {"value": "N/A", "reason": "Không có migration — chỉ pin, không sửa."},
+      "existingData": {"value": "CONDITIONAL", "reason": "Nếu BA quyết gỡ quyền (W267-EXT-02) thì cần cả seed lẫn script sửa role đã cấp trên Beta/Prod + reconcile — ghi thành điều kiện trong DELTA-01. Vòng này: không đổi dữ liệu."},
+      "frontend": {"value": "N/A", "reason": "Vòng này không gỡ quyền; nếu gỡ, menu/route guard FE phải rà cùng lúc."},
+      "declaredBy": "DEV", "reviewedBy": "BA + Tech Lead + DBA"
+    },
+    {
+      "defect": "BE267-D05",
+      "api": {"value": "NO_CHANGE", "reason": "Chỉ bổ sung test."},
+      "openapi": {"value": "N/A", "reason": "Không chạm operation nào."},
+      "schemaMigration": {"value": "N/A", "reason": "Không có migration; test dùng seeder sẵn có."},
+      "existingData": {"value": "N/A", "reason": "Test chạy trên DB test."},
+      "frontend": {"value": "N/A", "reason": "Cổng thuần backend."},
+      "declaredBy": "DEV", "reviewedBy": "QA1"
+    },
+    {
+      "defect": "FE267-D06",
+      "api": {"value": "NO_CHANGE", "reason": "FE nới khả năng đọc; backend không đổi."},
+      "openapi": {"value": "N/A", "reason": "Chỉ sửa cách FE đọc mã lỗi."},
+      "schemaMigration": {"value": "N/A", "reason": "Không có migration."},
+      "existingData": {"value": "N/A", "reason": "Không chạm dữ liệu."},
+      "frontend": {"value": "CHANGED", "reason": "2 file shared/module + 1 test file, commit fe-a2b555b; không đổi API surface, không đổi route."},
+      "declaredBy": "DEV", "reviewedBy": "FE1 + QA2"
+    },
+    {
+      "defect": "BE267-D07",
+      "api": {"value": "NO_CHANGE", "reason": "Regenerate catalog: 248 mã giữ nguyên, 0 thêm/bớt, 0 status đổi — chỉ cập nhật vị trí call site tham chiếu."},
+      "openapi": {"value": "N/A", "reason": "Catalog là artifact docs, không phải đặc tả OpenAPI."},
+      "schemaMigration": {"value": "N/A", "reason": "Không có migration."},
+      "existingData": {"value": "N/A", "reason": "Không chạm dữ liệu."},
+      "frontend": {"value": "N/A", "reason": "FE không đọc catalog này lúc runtime."},
+      "declaredBy": "DEV", "reviewedBy": "Tech Lead"
+    },
+    {
+      "defect": "BE267-D08",
+      "api": {"value": "N/A", "reason": "Sửa pin traceability trong docs/evidence, không chạm code."},
+      "openapi": {"value": "N/A", "reason": "Không chạm đặc tả."},
+      "schemaMigration": {"value": "N/A", "reason": "Không có migration."},
+      "existingData": {"value": "N/A", "reason": "Không chạm dữ liệu."},
+      "frontend": {"value": "N/A", "reason": "Không chạm FE."},
+      "declaredBy": "DEV", "reviewedBy": "Tech Lead + QA1"
+    }
+  ],
+  "owner": "DEV",
+  "confirmer": "Tech Lead + FE1 + QA + DBA",
+  "changeLog": [
+    {"version": "1.0.0", "date": "2026-08-19", "change": "Tạo mới cho vòng R2 — đóng DEV267-P1-06R."}
+  ]
+}

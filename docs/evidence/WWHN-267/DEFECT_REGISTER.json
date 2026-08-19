@@ -3,8 +3,12 @@
   "parent": "WWHN-70",
   "qaSource": "HN-QA-005-ST01",
   "branch": "m1",
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "role": "BE2 — contract / error / sample / data",
+  "registerChangeLog": [
+    {"version": "1.0.0", "date": "2026-08-19", "change": "Tạo register vòng 1 (6 defect D01..D06)."},
+    {"version": "1.1.0", "date": "2026-08-19", "change": "Vòng R2 (đánh giá 34/100): thêm trường requirement per defect (DEV267-P1-01R); thêm BE267-D07 (catalog drift) + BE267-D08 (pin rot 9ea9c18); sửa buildContext theo DEV267-P1-04R2 — vòng này không yêu cầu CI/CD, evidence = local controlled run trên exact candidate (xem QA_RETEST_REPORT_R2_20260819.md)."}
+  ],
   "purpose": "Register defect canonical của WWHN-267. Register review nêu: không tồn tại defect input nào cho WWHN-267 (DEV267-P1-01) và không truy được root cause → code → fix → bằng chứng (DEV267-P1-03). Mỗi dòng dưới đây phải đủ: defectId, testCase, module, endpoint/entity, severity, expected, actual, repro, build/SHA/env, rootCause, fix (file có thật), bằng chứng trước/sau, lệnh retest, routing, contract/data impact, owner, confirmer.",
   "evidencePolicy": {
     "failClosed": true,
@@ -19,9 +23,12 @@
     "feMeasuredSha": "42e6957",
     "environment": "local-controlled · sqlite in-memory (phpunit.xml) · PHP 8.3.30 · Windows",
     "candidateShaRule": "Xem docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json → pins.candidateShaRule",
-    "note": "Lượt chạy tại chỗ chỉ dùng để phát hiện lỗi và chứng minh fix. Bằng chứng exact-SHA trích ra ngoài phải lấy từ CI trên GITHUB_SHA.",
-    "beCandidateSha": "9ea9c18",
-    "feCandidateSha": "a2b555b"
+    "note": "Vòng 1 ghi: bằng chứng exact-SHA phải lấy từ CI trên GITHUB_SHA. Register R2 (DEV267-P1-04R2) đã bỏ yêu cầu CI cho vòng này; GitHub Actions hết quota (3000/3000) nên KHÔNG kích hoạt workflow — evidence R2 là local controlled run kèm chứng minh tương đương diff-rỗng với candidate (QA_RETEST_REPORT_R2_20260819.md §1).",
+    "beCandidateSha": "4fcaef006c7f8874e9351585fd6f9f5e08c0a871",
+    "beCandidateShaCorrection": "Pin cũ 9ea9c18 KHÔNG nằm trong ancestry của m1 (git merge-base --is-ancestor → false) — hệ quả push-qua-index-tạm giữa nhiều phiên. 4fcaef0 là commit in-ancestry tương đương (verify → true). Chi tiết: DEFECT_FIX_MATRIX.json → shaCorrection; defect BE267-D08.",
+    "feCandidateSha": "a2b555b28e3c680a1c303873c04d7e64d71bb7d2",
+    "beMeasuredShaR2": "22564b46898f616c0df2880f797fcc0f1fcf9507",
+    "feMeasuredShaR2": "cf0fe8d0a948b650492d5a96ad3509bf1180d23b"
   },
   "defects": [
     {
@@ -31,6 +38,7 @@
       "confirmer": "QA1 (WWHN-264)",
       "routing": "DEV core",
       "testCase": "RT267-04",
+      "requirement": "SRS v1.12 §8.2 dòng Envelope ('HTTP and business code must match Annex/API contract') + §0.3.1 FIX-16 + §13.3",
       "module": "api-contract / error envelope",
       "endpointOrEntity": "Toàn bộ Annex C (248 mã lỗi trên 12 HTTP status)",
       "environment": "local-controlled · BE 301899c",
@@ -79,6 +87,7 @@
       "confirmer": "QA1 (WWHN-264)",
       "routing": "DEV core",
       "testCase": "RT267-04",
+      "requirement": "SRS v1.12 §8.2 row 422 (INSUFFICIENT_STOCK thuộc hàng 422) + row 400 (INVALID_JSON/INVALID_QUERY/INVALID_PATH)",
       "module": "http-middleware",
       "endpointOrEntity": "app/Http/Middleware/ApiConventionMiddleware.php — nhánh fallback error code, case 400",
       "environment": "local-controlled · BE 301899c",
@@ -123,6 +132,7 @@
       "confirmer": "BA + Tech Lead",
       "routing": "DEV core + BA",
       "testCase": "RT267-04",
+      "requirement": "SRS v1.12 §8.2 rows 401 (AUTH_REQUIRED/TOKEN_EXPIRED), 403 (PERMISSION_DENIED/DATA_SCOPE_DENIED), 422, 500",
       "module": "api-contract / error naming",
       "endpointOrEntity": "app/Traits/ApiResponse.php:77 (bảng mã mặc định) + toàn bộ bề mặt bảo vệ",
       "environment": "local-controlled · BE 301899c",
@@ -169,6 +179,7 @@
       "confirmer": "BA + Tech Lead",
       "routing": "DEV core + BA",
       "testCase": "RT267-02",
+      "requirement": "SRS v1.12 §3 row 'User/role manage' (QL kho = D; keys iam.user.manage/iam.role.manage) + legend '*Backend phải enforce permission và data scope, không chỉ ẩn nút UI*'",
       "module": "iam / role baseline (data)",
       "endpointOrEntity": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php const ROLES",
       "environment": "local-controlled · BE 301899c",
@@ -214,6 +225,7 @@
       "confirmer": "QA1 (WWHN-264)",
       "routing": "DEV core",
       "testCase": "RT267-01, RT267-02",
+      "requirement": "SRS v1.12 §8.1 Enforcement standard ('Exact x-permission + data scope; default deny' trên mọi protected endpoint)",
       "module": "test-contract / RBAC",
       "endpointOrEntity": "tests/Feature/Wwhn268RegressionContractTest.php::test_protected_surfaces_return_403_permission_denied_for_a_role_without_the_permission",
       "environment": "local-controlled · BE 301899c",
@@ -258,6 +270,7 @@
       "confirmer": "QA2 (WWHN-265)",
       "routing": "FE",
       "testCase": "RT267-06",
+      "requirement": "SRS v1.12 §8.2 row 403 + §8.3 SCR-MST (màn master-data phải hiển thị đúng thông điệp scope-denial)",
       "module": "master-data / warehouse config + shared api-error",
       "endpointOrEntity": "src/modules/master-data/pages/WarehouseConfigScreen.tsx (saveErrorMessage) và src/shared/api/api-error.ts (isNoPermissionError, nhánh ApiEnvelopeError) — repo HoaNam_FE",
       "environment": "local-controlled · FE 42e6957 · vitest",
@@ -295,6 +308,85 @@
         "frontend": "CHANGED — hai file shared/module; không đổi API surface, không đổi route.",
         "declaredBy": "BE2",
         "reviewedBy": "FE1 + QA2"
+      },
+      "status": "FIXED"
+    },
+    {
+      "id": "BE267-D07",
+      "severity": "P2",
+      "owner": "DEV",
+      "confirmer": "Tech Lead",
+      "routing": "DEV core",
+      "testCase": "RT267-04",
+      "requirement": "HN-BE-API-002 catalog là companion contract của §8.2; verifier WWHN-267 yêu cầu catalog khớp source (fail-closed trên cây làm việc sạch)",
+      "module": "api-contract / error catalog",
+      "endpointOrEntity": "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md + .json",
+      "environment": "local-controlled · BE 22564b4 · Windows · Node",
+      "expected": "Catalog mã lỗi phải khớp source tại mọi thời điểm chốt evidence; verifier PASS trên cây làm việc sạch.",
+      "actual": "node scripts/verify-wwhn-267-closure.mjs → FAIL: catalog đã lệch so với source. Nguyên nhân: các ticket khác (WWHN-184/190/215/234...) sửa call site sau 4fcaef0; không lượt regenerate nào chạy vì CI gate không được kích hoạt (GitHub Actions hết quota 3000/3000).",
+      "repro": "node scripts/verify-wwhn-267-closure.mjs (trước khi regenerate) — log lượt 1 trong QA_RETEST_REPORT_R2_20260819.md §3.4",
+      "rootCause": "Catalog sinh thủ công; khi CI không chạy thì không còn cơ chế nào ép regenerate theo source.",
+      "fix": {
+        "files": [
+          "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md",
+          "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json"
+        ],
+        "summary": "Chạy node scripts/generate-error-code-catalog.mjs trên cây làm việc sạch (phạm vi code): 248 mã giữ nguyên, 0 mã thêm/bớt, 0 status đổi — chỉ cập nhật vị trí call site. Commit trong vòng R2. Khi Actions có quota lại, workflow sẵn có sẽ tự bắt drift này (W267-EXT-04 vẫn mở, KHÔNG kích hoạt CI ở vòng này)."
+      },
+      "evidenceBefore": ["docs/evidence/WWHN-267/QA_RETEST_REPORT_R2_20260819.md#34-node-verifier--phát-hiện-và-đóng-be267-d07-trong-cùng-vòng"],
+      "evidenceAfter": ["docs/evidence/WWHN-267/QA_RETEST_REPORT_R2_20260819.md#34-node-verifier--phát-hiện-và-đóng-be267-d07-trong-cùng-vòng"],
+      "retest": {
+        "runner": "node",
+        "commands": ["node scripts/verify-wwhn-267-closure.mjs"],
+        "result": "PASS"
+      },
+      "contractDataImpact": {
+        "apiContract": "NO_CHANGE — 0 mã/status đổi, chỉ vị trí tham chiếu.",
+        "openapi": "N/A — catalog là artifact docs.",
+        "database": "N/A — không có migration.",
+        "frontend": "N/A — FE không đọc catalog lúc runtime.",
+        "declaredBy": "DEV",
+        "reviewedBy": "Tech Lead"
+      },
+      "status": "FIXED"
+    },
+    {
+      "id": "BE267-D08",
+      "severity": "P1",
+      "owner": "DEV",
+      "confirmer": "Tech Lead + QA1",
+      "routing": "DEV core",
+      "testCase": "N/A (traceability)",
+      "requirement": "DEV267-P1-04R2 — candidate SHA phải là commit thật trong ancestry của source branch đã khoá (m1)",
+      "module": "traceability / candidate pin",
+      "endpointOrEntity": "docs/evidence/WWHN-267/DEFECT_REGISTER.json → buildContext + SOURCE_AND_BRANCH_DISPOSITION.json → pins",
+      "environment": "local-controlled · BE 22564b4 · git",
+      "expected": "Mọi SHA được pin làm candidate phải verify được bằng git merge-base --is-ancestor <sha> m1.",
+      "actual": "Pin vòng 1 beCandidateSha=9ea9c18 tồn tại trong object DB nhưng KHÔNG phải ancestor của m1 — hệ quả quy trình push-qua-index-tạm khi nhiều phiên dùng chung working tree (commit được dựng lại trên origin/m1 với SHA khác, bản cũ chỉ còn reachable qua reflog).",
+      "repro": "git merge-base --is-ancestor 9ea9c18 HEAD → exit 1; git merge-base --is-ancestor 4fcaef0 HEAD → exit 0",
+      "rootCause": "Quy trình điền pin vòng 1 không có bước verify ancestry sau khi push-dựng-lại.",
+      "fix": {
+        "files": [
+          "docs/evidence/WWHN-267/DEFECT_REGISTER.json",
+          "docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json",
+          "docs/evidence/WWHN-267/DEFECT_FIX_MATRIX.json"
+        ],
+        "summary": "Sửa pin về 4fcaef0 (in-ancestry, cùng nội dung thay đổi); ghi thủ tục verify ancestry vào shaCorrection; bất biến candidateShaRule giữ nguyên làm cơ chế tự kiểm khi HEAD trôi."
+      },
+      "evidenceBefore": ["docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json#pins"],
+      "evidenceAfter": ["docs/evidence/WWHN-267/DEFECT_FIX_MATRIX.json#shaCorrection", "docs/evidence/WWHN-267/QA_RETEST_REPORT_R2_20260819.md#1-exact-candidate-và-chứng-minh-tương-đương"],
+      "retest": {
+        "runner": "git",
+        "commands": ["git merge-base --is-ancestor 4fcaef006c7f8874e9351585fd6f9f5e08c0a871 HEAD"],
+        "result": "PASS"
+      },
+      "contractDataImpact": {
+        "apiContract": "N/A — chỉ sửa docs/evidence, không chạm code hay endpoint nào.",
+        "openapi": "N/A — không chạm đặc tả operation/schema nào.",
+        "database": "N/A — không có migration, không chạm bảng nào.",
+        "frontend": "N/A — không chạm repo FE ở dòng này.",
+        "declaredBy": "DEV",
+        "reviewedBy": "Tech Lead + QA1"
       },
       "status": "FIXED"
     }
