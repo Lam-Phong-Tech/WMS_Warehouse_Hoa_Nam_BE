@@ -76,6 +76,36 @@ silently-missing ở nơi khác. Không tự ý sửa DB chia sẻ `hoa_nam_audi
 tự áp dụng an toàn (guard `hasColumn`-style) khi bất kỳ phiên nào chạy `php artisan migrate` tiếp
 theo trên DB đó.
 
+### 1.3. Hệ quả kéo theo — `wms:golive-check` (WWHN-300) đỏ vì thiếu khai báo fail-forward — FIXED
+
+Migration mới ở mục 1.2 có `down()` cố ý rỗng (dựng lại view/trigger cũ nghĩa là mang defect P0
+quay lại). Gate `wms:golive-check` (`Wwhn300BackendGoLiveCheckTest`, phát hiện qua full-suite
+regression 1143 test ở mục 1.4 dưới) đòi mọi migration `down()` rỗng phải khai tường minh trong
+`database/golive/fail_forward_allowlist.php`, nếu không FAIL. Đã thêm dòng cho migration của mình
+(đánh dấu "đề xuất tại WWHN-184, chờ Tech Lead phê duyệt", đúng format đã có ở mục WWHN-289 trong
+cùng file). Nhân tiện phát hiện `2026_08_19_130000_sync_inbound_lines_mirror_deletes` (không phải
+của WWHN-184, đã landing từ trước) cũng thiếu khai báo cùng kiểu — khai báo hộ, ghi rõ không phải
+quyết định của phiên này, chờ Tech Lead phê duyệt nguồn gốc riêng.
+
+Verify: `php artisan wms:golive-check` → `migrations.reversible` từ **FAIL** sang **WARN**
+(`dispositioned_count == irreversible_count == 78`). `seed.identity_markers` vẫn FAIL trên
+`hn_wwhn184_race` — không liên quan, DB đó chỉ `migrate:fresh` không `db:seed`, không phải regression.
+`php vendor/bin/phpunit --filter=Wwhn300BackendGoLiveCheckTest` → **18/18 pass, 109 assertions**
+(trước khi vá: 6/18 fail đúng như mục 1.4 liệt kê).
+
+### 1.4. Full-suite regression 1143 test trên PostgreSQL — 17 lỗi còn lại không thuộc WWHN-184
+
+Trước khi vá mục 1.3: `php vendor/bin/phpunit` (full suite, `hn_wwhn184_retest`) → **1143 test,
+1104 pass, 19 fail** (742s). Sau khi vá mục 1.3, 6/19 lỗi thuộc `Wwhn300BackendGoLiveCheckTest`
+hết — xem xác nhận riêng ở mục 1.3. 13/19 lỗi còn lại (17 tên test, một số thuộc cùng 1 nhóm lỗi)
+thuộc các ticket
+khác đang chạy song song trên `m1` (không đụng file của WWHN-184): `MigrationFinalDataLoadTest`,
+`Wwhn260MigrationPackClosureTest` (trùng khoá chính `brands_pkey` — test không tự cô lập dữ liệu
+khi chạy full suite, không phải logic sai), `Wwhn234P1P2ClosureTest`, `Wwhn299CutoverRehearsalEvidenceTest`,
+`Wwhn309PermissionCatalogEvidenceTest`, `DocumentationBaselineContractTest`, `Wwhn224P1ClosureTest`,
+`Wwhn252PvContractTest` — không sửa, không thuộc phạm vi được giao (đúng nguyên tắc không tự ý sửa
+việc của phiên khác); ghi nhận lại để người phụ trách từng ticket biết.
+
 ## 2. API + hợp đồng lỗi (mục 2 checklist) — PASS
 
 `node scripts/verify-wwhn184-postman-contract.mjs "docs/postman/WWHN-184 Inbound Contract.postman_collection.json" "docs/postman/WWHN-184 Inbound CI.postman_environment.json" docs/evidence/WWHN-184/QA1-retest-20260819/postman-contract-verification.json`
@@ -150,7 +180,7 @@ Không dòng nào `on_hand_qty < 0`. 7.1 (rollback giữa chừng) và 7.4 (reve
 | Exact SHA đã test | `dae5ff108a80330922b94cc0d439f474b58bbec5` (pin PASS tại thời điểm ký) |
 | DB engine | PostgreSQL 16.14 (local docker, không phải CI) |
 | Số ca đạt / tổng | Mục 2–7 checklist: toàn bộ PASS sau khi vá 2 defect ở mục 1 |
-| Defect mở còn lại | Không — cả 2 defect phát hiện khi retest đã sửa tận gốc trong lần chạy này |
+| Defect mở còn lại | Không cho phạm vi WWHN-184 — 3 defect phát hiện khi retest (pin drift, audit_log view PostgreSQL, golive allowlist thiếu khai báo) đã sửa tận gốc và re-verify PASS trong lần chạy này. 2 dòng allowlist tự thêm (mục 1.3) đánh dấu "chờ Tech Lead phê duyệt" — chưa phải approval chính thức. 13 lỗi full-suite còn lại (mục 1.4) thuộc ticket khác, đã báo lại, không tự sửa |
 | Kết luận | **PASS** — khuyến nghị đóng `DEV184-P1-03R3` (phần automatable). Phần thủ công còn lại (race 2 terminal tay, ký tên QA1 chính danh trên Jira `WWHN-185`) vẫn cần người có role QA1 thật thực hiện trên Jira; báo cáo này là bằng chứng chạy độc lập đầu tiên để QA1 đối chiếu thay vì chạy lại từ số 0. |
 
 **Việc KHÔNG làm trong lần retest này (theo đúng giới hạn công việc được giao):** không chạm
