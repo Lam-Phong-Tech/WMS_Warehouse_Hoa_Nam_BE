@@ -1,0 +1,43 @@
+{
+    "worker_index": 0,
+    "scenario": "01-same-key-same-payload",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 27398,
+    "http_status": 409,
+    "error_code": "CONCURRENCY_CONFLICT",
+    "message": "Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.",
+    "idempotent_replay_header": "false",
+    "etag": null,
+    "body_replayed_flag": null,
+    "movement_ids": [],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/e1bd7bf2-71d3-460f-baa2-cda0a5d1e9ef/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s1-9D34A02F",
+        "body": {
+            "note": "same-payload"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787117301.810264,
+        "released_at": 1787117301.835374,
+        "request_started_at": 1787117301.835452,
+        "request_finished_at": 1787117302.013624,
+        "finished_at": 1787117302.014223
+    },
+    "body": {
+        "success": false,
+        "message": "Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.",
+        "error_code": "CONCURRENCY_CONFLICT",
+        "errors": [],
+        "error": {
+            "code": "CONCURRENCY_CONFLICT",
+            "details": []
+        },
+        "meta": {
+            "request_id": "09aeee39-463a-4d2c-8680-8e303db617ef",
+            "timestamp": "2026-08-19T12:28:22+07:00"
+        }
+    }
+}

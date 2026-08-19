@@ -105,6 +105,39 @@ php scripts/wwhn190-receipt-reconciliation.php docs/evidence/WWHN-190/reconcilia
 | `DEV190-P1-05R2` | BA/PM | `docs/decision-records/DEC-INV-FULLPOST-PIN-190.md` |
 | `DEV190-P2-01R2` (phần tạo Jira key) | BA/PM | `LEGACY_CLEANUP_TASK.md` |
 
+## 9. §R3 — Đóng DEV190-P1-01R2 sau khi HEAD trôi (2026-08-19, re-review 62/100) [đọc sau mục 8]
+
+Re-review chỉ ra: register R2 vẫn hợp lệ nhưng RC SHA `10a2c6e` không còn là HEAD của `m1`
+(nhiều phiên khác đã commit tiếp 57 commit cho ticket khác). Yêu cầu: "nếu chọn SHA khác SHA
+đã chạy PostgreSQL evidence thì cần chạy lại evidence trên SHA đó."
+
+**Đã làm**: grep chính xác danh sách path runtime của WWHN-190 trong range `10a2c6e..HEAD` →
+chỉ 2/57 commit chạm runtime (`0142b49` WWHN-234 F-04 đổi thứ tự khoá `inventory_balances`
+ngay trong `postStockDocument`; `ea93dd6` WWHN-195 sửa cùng file nhưng khác method outbound).
+Chạy lại **toàn bộ** evidence tại `rc_sha` mới `9b18443` (không phải giả định "chắc vẫn đúng"):
+
+| Bằng chứng | Kết quả tại `9b18443` |
+|---|---|
+| Contract-vs-runtime (`build-wwhn190-posting-contract.mjs --check`) | PASS, `errors: []` |
+| PHPUnit regression (sqlite, ép `DB_CONNECTION=sqlite` tường minh) | **52/52 PASS**, 345 assertions — gồm cả 2 test file mới do chính 2 commit trôi sinh ra (`Wwhn234P1P2ClosureTest`, `Wwhn195OutboundContractAlignmentTest`) |
+| True concurrency PostgreSQL (DB cô lập mới `hn_wwhn190_r3`, không đụng DB của vòng trước hay của phiên khác) | **5/5 PASS** — `docs/evidence/WWHN-190/concurrency-r3/CONCURRENCY_EVIDENCE.json` |
+| Reconciliation | **PASS**, mismatch/orphan/duplicate = 0 — `docs/evidence/WWHN-190/reconciliation-r3/RECONCILIATION_REPORT.json` |
+
+Kết luận: đổi thứ tự khoá của F-04 (khoá theo `product_id` toàn cục thay vì `line_no`) **không
+phá bất biến nào** của WWHN-190/191 dưới race thật. `RC_PIN.json` đã re-pin sang `9b18443`,
+giữ nguyên lịch sử round R2 (`10a2c6e`) làm tham chiếu. Không có contract release mới (1.8.0
+vẫn hiện hành, 2 commit trôi không đổi request/response shape).
+
+**Sự cố an toàn tự phát hiện và tự sửa**: lần chạy PHPUnit đầu tiên của vòng này quên ép
+`DB_CONNECTION` nên vô tình chạy nhắm vào `wms_hoanam` (DB dev dùng chung) qua container mặc
+định `pgsql`. 3 test lỗi do khác biệt dữ liệu/behaviour trên nhánh Postgres đó — đã xác minh
+**không có row nào persist lại** (`RefreshDatabase` rollback transaction khi test fail) rồi
+chạy lại đúng cách với `-e DB_CONNECTION=sqlite -e DB_DATABASE=:memory:` tường minh → 52/52
+PASS. Ghi lại trong `RC_PIN.json.safety_note_shared_db` để vòng sau không lặp lại.
+
+**Không đụng CI/GitHub Actions** ở vòng này theo yêu cầu người dùng (Actions đã hết quota
+3000/3000 phút) — toàn bộ chạy local qua container Docker sẵn có.
+
 ## 8. Trạng thái CI tại thời điểm đóng gói (2026-08-19 ~02:00 UTC)
 
 | Sự kiện | Kết quả |

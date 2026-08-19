@@ -332,3 +332,14 @@ Vòng này đã chạy `pint` cho đúng 23 file đó (chỉ format: `ordered_im
 | DEV190-P1-01R2 | Tech Lead + QA1 | Pin exact RC SHA, chấp nhận PR=N/A (code vào thẳng `m1`), và điều kiện xanh của WWHN-180 gate ở R2.5 |
 | DEV190-P1-04R2 | QA1 → BA + Tech Lead | Chạy độc lập theo `docs/evidence/WWHN-190/QA1_INDEPENDENT_TEST_PACK.md` tại đúng RC SHA |
 | DEV190-P1-05R2 | BA/PM → Tech Lead + QA | Formalize DEC-INV-001 + DEC-FULL-POST-001 theo `docs/decision-records/DEC-INV-FULLPOST-PIN-190.md`; cập nhật WWHN-43 bỏ nguồn v3.9 |
+
+## §R3 — Re-pin sau khi HEAD trôi khỏi RC SHA của R2 (2026-08-19)
+
+Re-review 62/100 chỉ ra RC SHA `10a2c6e` của R2 không còn là HEAD `m1` (57 commit khác đã
+vào sau, do nhiều phiên Claude khác làm song song ticket khác). Đã grep chính xác 2/57 commit
+chạm runtime path của WWHN-190 (`0142b49` WWHN-234 F-04 đổi thứ tự khoá `inventory_balances`
+ngay trong `postStockDocument`; `ea93dd6` WWHN-195 sửa cùng file khác method) và chạy lại toàn
+bộ evidence (contract-parity, 52 test PHPUnit sqlite, 5 kịch bản true-concurrency PostgreSQL DB
+cô lập mới, reconciliation) tại RC SHA mới `9b18443` — tất cả PASS, không cần sửa code. Chi
+tiết đầy đủ: `EVIDENCE_PACK.md §9`, pin mới: `RC_PIN.json` (giữ lịch sử round R2 làm tham
+chiếu). Không chạy/động CI theo yêu cầu người dùng (Actions hết quota).

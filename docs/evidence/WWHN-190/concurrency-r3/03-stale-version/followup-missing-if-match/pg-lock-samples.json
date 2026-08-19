@@ -1,0 +1,111 @@
+[
+    {
+        "at": 1787117310.596204,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787117310.661254,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787117310.728051,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787117310.792605,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787117310.855657,
+        "locks": [
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "user_role",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "role",
+                "mode": "AccessShareLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": null,
+                "wait_event": null,
+                "query": "select \"role\".*, \"user_role\".\"user_id\" as \"pivot_user_id\", \"user_role\".\"role_id\" as \"pivot_role_id\", \"user_role\".\"scope_"
+            }
+        ]
+    },
+    {
+        "at": 1787117310.918432,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 27425,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000006"
+            }
+        ]
+    }
+]

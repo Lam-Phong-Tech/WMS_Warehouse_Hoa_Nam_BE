@@ -1,0 +1,43 @@
+{
+    "worker_index": 0,
+    "scenario": "05-forced-rollback",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 27440,
+    "http_status": 500,
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "message": "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
+    "idempotent_replay_header": null,
+    "etag": null,
+    "body_replayed_flag": null,
+    "movement_ids": [],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/05b360f2-cc15-4b7f-8639-185ff46df203/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s5a-9D34A02F",
+        "body": {
+            "note": "rollback-A"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787117315.935861,
+        "released_at": 1787117315.964966,
+        "request_started_at": 1787117315.965021,
+        "request_finished_at": 1787117316.761798,
+        "finished_at": 1787117316.76272
+    },
+    "body": {
+        "success": false,
+        "message": "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
+        "error_code": "INTERNAL_SERVER_ERROR",
+        "errors": [],
+        "error": {
+            "code": "INTERNAL_SERVER_ERROR",
+            "details": []
+        },
+        "meta": {
+            "request_id": "1d5a5db5-8819-4193-adc9-bb0b670bf12d",
+            "timestamp": "2026-08-19T12:28:36+07:00"
+        }
+    }
+}

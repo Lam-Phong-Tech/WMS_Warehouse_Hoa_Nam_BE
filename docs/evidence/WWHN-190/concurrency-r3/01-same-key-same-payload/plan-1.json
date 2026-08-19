@@ -1,0 +1,16 @@
+{
+    "worker_index": 1,
+    "scenario": "01-same-key-same-payload",
+    "barrier_dir": "docs/evidence/WWHN-190/concurrency-r3/01-same-key-same-payload/barrier",
+    "out_file": "docs/evidence/WWHN-190/concurrency-r3/01-same-key-same-payload/worker-1.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/e1bd7bf2-71d3-460f-baa2-cda0a5d1e9ef/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s1-9D34A02F",
+        "body": {
+            "note": "same-payload"
+        }
+    }
+}
