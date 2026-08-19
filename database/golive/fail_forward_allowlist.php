@@ -125,4 +125,12 @@ return [
     // TRẠNG THÁI: ghi nhận hộ, chờ Tech Lead phê duyệt nguồn gốc (không phải quyết định
     // của phiên WWHN-184 này).
     '2026_08_19_130000_sync_inbound_lines_mirror_deletes' => 'down() rỗng có chủ ý — fail-forward phát hiện thiếu khi chạy regression WWHN-184, chờ Tech Lead phê duyệt nguồn gốc',
+    // WWHN-222 R2: migration chuẩn hoá vocabulary result (FAILURE→FAILED) trên view/trigger
+    // audit_log pgsql + CHECK NOT VALID trên bảng append-only. Hoàn tác = dựng lại trigger
+    // cho phép drift vocabulary khỏi ERD §7 và gỡ CHECK — quay lại đúng defect nó vá, nên
+    // down() cố ý rỗng (xem docblock trong migration).
+    // TRẠNG THÁI: khai báo hộ — entry bị THIẾU khi WWHN-222 R2 landing (phát hiện vì
+    // wms:golive-check đỏ trong retest R4 của WWHN-184, cùng kiểu thiếu như dòng 130000
+    // ngay phía trên); chờ Tech Lead phê duyệt nguồn gốc tại WWHN-222.
+    '2026_08_19_150000_align_audit_result_vocabulary_with_erd' => 'down() rỗng có chủ ý — fail-forward của WWHN-222 R2, khai bổ sung khi retest R4 WWHN-184 phát hiện thiếu, chờ Tech Lead phê duyệt nguồn gốc',
 ];
