@@ -136,7 +136,8 @@ class Wwhn310Round2ClosureTest extends TestCase
 
         $this->assertSame('BLOCKED', $blocked['status'] ?? null);
         $this->assertSame('DRY_RUN_NOT_PASSED', $blocked['error_code'] ?? null);
-        $this->assertNull($blocked['migration_run_id'] ?? 'not-null', 'Commit bị chặn không được để lại run rác.');
+        $this->assertArrayHasKey('migration_run_id', $blocked);
+        $this->assertNull($blocked['migration_run_id'], 'Commit bị chặn không được để lại run rác.');
     }
 
     public function test_evidence_doi_soat_bang_sql_co_that(): void

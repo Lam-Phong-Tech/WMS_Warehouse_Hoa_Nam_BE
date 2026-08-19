@@ -67,13 +67,29 @@ cho từng tiến trình.
 | Phép đo | Kết quả | Raw |
 | --- | --- | --- |
 | `migrate:fresh --seed --force` (PostgreSQL, DB `hn_wwhn310_fdl`) | **PASS** (exit 0) — chạy lại nhiều lần trong phiên, lần cuối sạch | `docs/evidence/WWHN-310/round2/fdl-migrate-fresh-seed.log` |
-| Nhóm cổng dữ liệu (ERD parity + baseline contract + business invariant + runtime mirror + Wwhn310*) | PLACEHOLDER_GATE | `docs/evidence/WWHN-310/round2/pg-focused-gate.log` |
+| Nhóm cổng dữ liệu (ERD parity + baseline contract + business invariant + runtime mirror + Wwhn310*) | **65 test / 4604 assertion — 63 pass, 2 fail** (chạy trong container `wms_warehouse_hoa_nam_be-backend-1`, DB `hn_wwhn310_r3`). 1 đỏ thuộc WWHN-295/309; 1 đỏ là chính cổng pin đòi `final_candidate.sha` — đã điền ở commit kế tiếp, xác minh lại ở cuối mục này | `docs/evidence/WWHN-310/round2/pg-focused-gate.log` |
 | FE `typecheck` + `lint` + `test` | typecheck **PASS**; `vitest run` **654/656 pass**; 2 đỏ thuộc ticket khác (xem danh sách bên dưới) | `docs/evidence/WWHN-310/fe-gate.log` (repo FE) |
 
 **Danh sách đỏ được phép tồn tại tại revision này** (QA1 dùng đúng danh sách này ở §7 của
 `docs/evidence/WWHN-310/QA1_RETEST_PACKET.md`):
 
-PLACEHOLDER_KNOWN_FAILURES
+| # | Đỏ | Owner ticket | Cách quy trách nhiệm bằng máy (không phải lời khai) |
+| --- | --- | --- | --- |
+| 1 | BE · `DocumentationBaselineContractTest::test_generated_swagger_has_route_parity_and_baseline_error_responses` — *"get /api/v1/health missing HTTP 400"* | **WWHN-295 / WWHN-309** | Tại thời điểm đo, `git status` cho thấy `app/Http/Controllers/HealthController.php`, `app/Swagger/Processors/RouteSyncProcessor.php`, `app/Swagger/HealthSchemas.php`, `storage/api-docs/api-docs.json|yaml` **đang sửa dở, chưa commit** bởi một phiên khác trên cùng `m1`. Không file nào trong số đó nằm trong file set của WWHN-310 (xem `WWHN-310_SOURCE_PIN.json`). Test này đọc Swagger sinh ra từ đúng những file đó. |
+| 2 | FE · `src/test/wms-contract-signoff-guards.test.ts` — guard WWHN-181 (inbound raw code → line_id + If-Match) | **WWHN-181 / phiên đang sửa inbound** | `git status` ở repo FE: `src/modules/inbound/pages/InboundPage.tsx`, `use-inbound.ts`, `MvpInboundScreens.tsx` đang modified chưa commit. Commit FE của WWHN-310 (`719c1a4`) chỉ gồm docs + hai file test pin, không chạm module inbound. |
+
+**Đỏ từng có và đã được sửa trong vòng này**: `src/test/wwhn-233-count-deferral-gate.test.ts` (PIN ROT)
+đỏ vì ERD đổi checksum. Đã cập nhật digest ở mọi register và thêm cổng quét toàn repo ở cả hai phía;
+đo lại **695/696 pass** ở FE.
+
+**Blocker hạ tầng không thuộc WWHN-310 nhưng phải nêu**: `migrate:fresh` trên PostgreSQL từng chết ở
+`2026_08_19_000100_add_optimistic_lock_to_pv_master_tables` (WWHN-252) với
+`SQLSTATE[42804] column "created_by" is of type uuid but expression is of type text`. Gốc là
+write-bridge `hn_erd_mirror_*` sinh ở `2026_08_10_000765` **không cast type**, còn projection PV khai
+`NULL::text AS created_by`. Phiên WWHN-289 sửa bằng
+`2026_08_19_000050_repair_erd_mirror_projection_casts.php`. Số liệu ở bảng trên đo khi bản sửa đó có
+mặt trong cây làm việc; nếu chạy lại ở một checkout **không có** file đó thì `migrate:fresh` sẽ đỏ và
+đó **không** phải lỗi của WWHN-310.
 
 Quy tắc chống "implementer self-claim": mỗi đỏ ở trên phải có **owner ticket** và **cách quy trách
 nhiệm bằng máy** (commit/migration gây ra nó, hoặc lệnh tái lập). Đỏ nào không có thì không được
@@ -163,3 +179,26 @@ Phần thuộc PM/BAS: sửa Description/label trên Jira.
 | Số liệu test không gắn với revision | Log raw trong repo + `QA1_RETEST_PACKET.md` bắt kết luận phải ghi revision |
 | Hard gate dữ liệu chỉ là mô tả | Diễn tập thật, artifact JSON + đối soát SQL + script chạy lại được |
 | Không có sổ bàn giao | `HN-HANDOVER-INDEX.md` với điều kiện nghiệm thu 4 bước |
+
+---
+
+## Xác minh lại tại final candidate
+
+Sau khi điền `final_candidate.sha` vào pin, chạy lại đúng hai cổng của ticket:
+
+```bash
+docker exec wms_warehouse_hoa_nam_be-backend-1 sh -lc "cd /var/www/html && \
+  DB_CONNECTION=pgsql DB_HOST=postgres DB_PORT=5432 DB_DATABASE=hn_wwhn310_r3 \
+  DB_USERNAME=postgres DB_PASSWORD=postgres php vendor/bin/phpunit --no-coverage \
+  tests/Feature/Wwhn310ErdDocumentPinTest.php tests/Feature/Wwhn310Round2ClosureTest.php"
+```
+
+Kết quả nộp kèm: `docs/evidence/WWHN-310/round2/pg-final-candidate-gate.log`.
+
+### Ghi chú vận hành khi chạy lại
+
+- Chạy trong container `wms_warehouse_hoa_nam_be-backend-1`: container có `vendor` riêng ở volume
+  `wms_vendor` nên không bị ảnh hưởng khi `vendor/` ở host bị các phiên song song cài đè.
+- Trong container phải truyền **đường dẫn file test**, không dùng `--filter` (ở container `--filter`
+  không discover được vài class, trả "No tests executed"); ở host thì `--filter` chạy bình thường.
+- Mỗi tiến trình một database riêng; không chạy hai tiến trình phpunit trên cùng một DB.

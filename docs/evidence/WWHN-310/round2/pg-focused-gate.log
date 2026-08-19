@@ -1,0 +1,27 @@
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.33
+Configuration: /var/www/html/phpunit.xml
+
+.............[41;37mF[0m......................[41;37mF[0m............................ 65 / 65 (100%)
+
+
+Time: 02:56.544, Memory: 125.00 MB
+
+There were 2 failures:
+
+1) Tests\Feature\DocumentationBaselineContractTest::test_generated_swagger_has_route_parity_and_baseline_error_responses
+get /api/v1/health missing HTTP 400.
+Failed asserting that an array has the key '400'.
+
+/var/www/html/tests/Feature/DocumentationBaselineContractTest.php:261
+
+2) Tests\Feature\Wwhn310Round2ClosureTest::test_pin_nguon_ghi_dung_supersede_va_exact_sha
+final_candidate.sha phải là exact SHA 40 ký tự — không dùng tên nhánh hay placeholder.
+Failed asserting that 'FILL_AFTER_CLOSURE_COMMIT' matches PCRE pattern "/^[0-9a-f]{40}$/".
+
+/var/www/html/tests/Feature/Wwhn310Round2ClosureTest.php:49
+
+[37;41mFAILURES![0m
+[37;41mTests: 65[0m[37;41m, Assertions: 4604[0m[37;41m, Failures: 2[0m[37;41m.[0m
+EXIT=1
