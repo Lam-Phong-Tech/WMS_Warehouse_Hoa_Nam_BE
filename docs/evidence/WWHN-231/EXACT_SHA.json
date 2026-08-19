@@ -1,7 +1,7 @@
 {
   "task": "WWHN-231",
   "register_item": "DEV231-P1-02",
-  "disposition": "DISP-STK-231 v1.0.0 — re-scope sang doi soat ledger stock-neutral + toi uu truy van",
+  "disposition": "DISP-STK-231 v1.1.0 (EFFECTIVE 2026-08-19) — re-scope sang doi soat ledger stock-neutral + toi uu truy van",
   "branch": "m1",
   "candidate": {
     "backend": {
