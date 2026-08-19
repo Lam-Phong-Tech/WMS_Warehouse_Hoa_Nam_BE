@@ -88,7 +88,10 @@ class InventoryProjectionRebuildService
         $applied = DB::transaction(function () use ($plan, $runId, $actorId, $reason): array {
             $rows = [];
             foreach ($plan as $row) {
-                $rows[] = $this->applyOne($row, $runId, $actorId, $reason);
+                $applied = $this->applyOne($row, $runId, $actorId, $reason);
+                if ($applied !== null) {
+                    $rows[] = $applied;
+                }
             }
 
             return $rows;
@@ -171,26 +174,51 @@ class InventoryProjectionRebuildService
     /**
      * Ghi một dimension về đúng ledger.
      *
+     * Trả `null` khi dimension đã khớp ngay tại thời điểm giữ khoá (không có gì để sửa).
+     *
      * @param  array<string,mixed>  $row
-     * @return array<string,mixed>
+     * @return array<string,mixed>|null
      */
-    private function applyOne(array $row, string $runId, ?string $actorId, ?string $reason): array
+    private function applyOne(array $row, string $runId, ?string $actorId, ?string $reason): ?array
     {
         $warehouseId = (string) $row['warehouse_id'];
         $productId = (string) $row['product_id'];
         $stockStatus = (string) $row['stock_status'];
-        $target = (float) $row['on_hand_after'];
 
         // Khoá dòng projection để không đè lên một posting đang chạy song song; posting cũng
         // lockForUpdate đúng dòng này nên hai bên xếp hàng thay vì mất update.
+        //
+        // Chọn dòng theo ĐÚNG cột dimension mà LedgerReconciliationService gom (`product_id`),
+        // không dùng `sku_id OR product_id` như đường ghi nghiệp vụ: nếu hai bên chọn dòng theo
+        // tiêu chí khác nhau thì rebuild có thể sửa một dòng khác với dòng mà báo cáo đang báo
+        // lệch, và /reports/inventory-reconciliation vẫn đỏ sau khi rebuild nói là đã xong.
         $balance = DB::table('inventory_balances')
             ->where('warehouse_id', $warehouseId)
-            ->where(function ($query) use ($productId): void {
-                $query->where('sku_id', $productId)->orWhere('product_id', $productId);
-            })
+            ->where('product_id', $productId)
             ->where('stock_status', $stockStatus)
             ->lockForUpdate()
             ->first();
+
+        // Tính LẠI tổng ledger của đúng dimension này BÊN TRONG transaction, sau khi đã giữ
+        // khoá dòng projection. `plan()` chạy ngoài transaction nên giữa lúc lập kế hoạch và
+        // lúc ghi có thể có một Post Receipt/Issue chen vào; dùng con số cũ sẽ ghi đè mất
+        // biến động đó. Posting cũng lockForUpdate đúng dòng này, nên tới đây mọi movement
+        // của dimension đã commit xong và phép gom dưới đây là giá trị đúng tại thời điểm ghi.
+        $target = (float) DB::table('stock_movements')
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->where('stock_status', $stockStatus)
+            ->sum('qty_delta');
+
+        $current = (float) ($balance->on_hand_qty ?? 0);
+        if ($balance !== null && bccomp((string) $current, (string) $target, 3) === 0) {
+            // Posting song song đã tự đưa dimension về đúng ledger — không ghi đè, không audit rỗng.
+            return null;
+        }
+
+        $row['on_hand_before'] = $current;
+        $row['on_hand_after'] = $target;
+        $row['variance'] = (float) bcsub((string) $current, (string) $target, 3);
 
         $reserved = (float) ($balance->reserved_qty ?? 0);
         // Cùng công thức mà đường ghi nghiệp vụ đang dùng: bucket AVAILABLE mới có

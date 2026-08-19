@@ -19,7 +19,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -184,6 +184,36 @@ check(
   /sqlite_master[\s\S]{0,120}type\s*=\s*'table'/.test(sqliteMigration)
 );
 
+// Bất biến chống hồi quy: ngoài test của chính WWHN-204 (cố tình thử để chứng minh bị chặn),
+// KHÔNG file test nào được UPDATE/DELETE ledger. Nếu ai đó thêm, người review cần biết ngay:
+// hoặc test đó sai, hoặc trigger append-only đã bị gỡ mất.
+// `(?!DB::table\()` chặn cửa sổ quét nhảy sang một bảng khác: `Wwhn289StockInvariantProofTest`
+// đọc `stock_movements` rồi vài dòng sau update `idempotency_keys` — không có chốt này thì
+// verifier báo nhầm nó mutate ledger.
+const MUTATE_LEDGER = /table\('stock_movements'\)(?:(?!DB::table\()[\s\S]){0,300}?->(update|delete|truncate)\(/;
+const testDir = join(ROOT, 'tests');
+const offenders = [];
+(function walk(dir) {
+  let entries = [];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) walk(full);
+    else if (entry.name.endsWith('.php') && entry.name !== 'Wwhn204LedgerProjectionRebuildTest.php') {
+      if (MUTATE_LEDGER.test(read(full))) offenders.push(entry.name);
+    }
+  }
+})(testDir);
+check(
+  'Không test nào ngoài WWHN-204 mutate ledger stock_movements',
+  offenders.length === 0,
+  offenders.join(', ')
+);
+
 const pgLog = read(join(EV, 'logs', 'pg-append-only.log'));
 check('Log bằng chứng PostgreSQL có mặt', pgLog !== '');
 const PG_MARKERS = [
@@ -235,10 +265,12 @@ for (const file of [
   'PG_APPEND_ONLY_EVIDENCE.md',
   'SOURCE_BASELINE_PIN.md',
   'DEFECT_CLOSURE_REGISTER.md',
+  'BASELINE_FAILURE_ATTRIBUTION.md',
   'WWHN-204_PINS.json',
   'logs/pg-append-only.log',
   'logs/pg-suite.log',
   'logs/sqlite-focused.log',
+  'logs/sqlite-full-suite.log',
 ]) {
   check(`Evidence có mặt: ${file}`, existsSync(join(EV, file)));
 }

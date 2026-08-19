@@ -1,0 +1,196 @@
+name: WWHN-204 Ledger / Balance / Rebuild Closure
+
+# Cổng của WWHN-204 (register DEV204-P1-01..P1-05).
+#
+# Hai job là CỐ Ý:
+#   * `closure` (CHẶN)     — chạy trên sqlite, đúng driver mặc định của phpunit.xml và của CI
+#                            `current-baseline-doc-contract.yml`. Kiểm invariant nhánh, cơ chế
+#                            rebuild, và append-only ở tầng DB. Job này phải xanh.
+#   * `postgres` (CHẶN)    — chạy lại đúng bằng chứng DEV204-P1-04 trên PostgreSQL thật:
+#                            migrate + raw SQL UPDATE/DELETE bị từ chối + drift → rebuild →
+#                            mismatch = 0. Đây là hạng mục mà register gọi là "DB hard gate",
+#                            nên nó KHÔNG được phép chỉ là diagnostic.
+#
+# Lưu ý: `closure` cần full history + ref m1-be-2 vì verifier dựng lại ancestry proof từ git
+# object thật, không đọc lại một con số chép tay.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php'
+      - 'Modules/Warehouse/app/Services/LedgerReconciliationService.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_15_000100_enforce_stock_movements_append_only_trigger.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_19_050100_enforce_stock_movements_append_only_on_sqlite.php'
+      - 'app/Console/Commands/ReconcileInventoryBalances.php'
+      - 'tests/Feature/Wwhn204LedgerProjectionRebuildTest.php'
+      - 'tests/Feature/Wwhn204LedgerReconciliationCoverageTest.php'
+      - 'scripts/verify-wwhn-204-closure.mjs'
+      - 'scripts/collect-wwhn204-pg-evidence.sh'
+      - 'docs/evidence/WWHN-204/**'
+      - 'docs/decision-records/DISP-INV-204-projection-rebuild.md'
+      - '.github/workflows/wwhn-204-ledger-rebuild-gate.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php'
+      - 'app/Console/Commands/ReconcileInventoryBalances.php'
+      - 'tests/Feature/Wwhn204LedgerProjectionRebuildTest.php'
+      - 'scripts/verify-wwhn-204-closure.mjs'
+      - 'docs/evidence/WWHN-204/**'
+      - '.github/workflows/wwhn-204-ledger-rebuild-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  closure:
+    name: Closure invariants + ledger/rebuild suite (sqlite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      CI_DEMO_PASSWORD: WWHN204-CI-Only-2026
+      JWT_SECRET: WWHN204-CI-JWT-Ledger-Rebuild-2026
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Verifier dựng lại ancestry m1 ↔ m1-be-2 từ git object thật.
+          fetch-depth: 0
+
+      - name: Fetch nhánh ancestor cho ancestry proof
+        run: git fetch origin m1-be-2:refs/remotes/origin/m1-be-2 || echo "m1-be-2 unavailable; verifier sẽ báo FAIL kèm hướng dẫn"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Style + syntax của artifact thuộc ticket
+        run: |
+          set -euo pipefail
+          vendor/bin/pint --test \
+            Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php \
+            app/Console/Commands/ReconcileInventoryBalances.php \
+            tests/Feature/Wwhn204LedgerProjectionRebuildTest.php \
+            Modules/Warehouse/database/migrations/2026_08_19_050100_enforce_stock_movements_append_only_on_sqlite.php
+          bash -n scripts/collect-wwhn204-pg-evidence.sh
+          node --check scripts/verify-wwhn-204-closure.mjs
+
+      - name: Verifier đóng WWHN-204 (63 check)
+        run: node scripts/verify-wwhn-204-closure.mjs
+
+      - name: Suite ledger / balance / reconcile / rebuild
+        run: |
+          php vendor/bin/phpunit \
+            tests/Feature/Wwhn204LedgerProjectionRebuildTest.php \
+            tests/Feature/Wwhn204LedgerReconciliationCoverageTest.php \
+            tests/Feature/Wwhn219InventoryReconcileCommandTest.php \
+            tests/Feature/Wwhn231StockNeutralLedgerTest.php \
+            tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php \
+            tests/Feature/InventoryReconciliationIntegrityTest.php \
+            tests/Feature/InventoryReconciliationSignedStatusTest.php
+
+      - name: Không có bề mặt sửa tồn trực tiếp trên HTTP (REQ-SRS-037)
+        run: |
+          set -euo pipefail
+          if grep -rniE "['\"\`][^'\"\`]*(rebuild|stocktake|apply-adjustment)[^'\"\`]*['\"\`]" \
+               routes/api.php Modules/Warehouse/routes/api.php; then
+            echo "FAIL: route khai bề mặt bị REQ-SRS-037 cấm" >&2
+            exit 1
+          fi
+          echo "OK: không route nào phơi rebuild/stocktake/apply-adjustment"
+
+  postgres:
+    name: DB hard gate — append-only + reconciliation trên PostgreSQL (DEV204-P1-04)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hn_wwhn204
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      CI_DEMO_PASSWORD: WWHN204-CI-Only-2026
+      JWT_SECRET: WWHN204-CI-JWT-Ledger-Rebuild-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hn_wwhn204
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Migrate trên PostgreSQL mục tiêu
+        run: php artisan migrate --force --no-interaction
+
+      - name: Trigger append-only phải nằm trên BẢNG stock_movements
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          # relkind phải là 'r' (bảng vật lý). Nếu trigger rơi nhầm lên view/bảng mirror thì
+          # ledger live không được bảo vệ — đúng lỗi mà 2026_08_10_000770 từng mắc.
+          relkind=$(psql -h 127.0.0.1 -U postgres -d hn_wwhn204 -tAc \
+            "SELECT c.relkind FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE t.tgname = 'trg_stock_movements_append_only'")
+          echo "relkind=${relkind}"
+          test "${relkind}" = "r"
+
+      - name: Định nghĩa trigger phải phủ cả UPDATE lẫn DELETE, mức FOR EACH ROW
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          # Không chạy UPDATE/DELETE "khan" ở đây: DB vừa migrate còn rỗng nên trigger
+          # FOR EACH ROW sẽ không bắn, và bước kiểm sẽ xanh/đỏ giả. Việc chứng minh RAW SQL
+          # bị từ chối trên dữ liệu thật do test PG ở bước sau đảm nhiệm
+          # (Wwhn204LedgerProjectionRebuildTest::test_stock_movements_rejects_update_and_delete_at_database_level).
+          def=$(psql -h 127.0.0.1 -U postgres -d hn_wwhn204 -tAc \
+            "SELECT pg_get_triggerdef(t.oid) FROM pg_trigger t WHERE t.tgname = 'trg_stock_movements_append_only'")
+          echo "$def"
+          # PostgreSQL chuẩn hoá lại thứ tự sự kiện khi in ra ("BEFORE DELETE OR UPDATE"),
+          # nên kiểm từng thành phần thay vì so nguyên chuỗi theo thứ tự mình viết.
+          echo "$def" | grep -q "ON public.stock_movements"
+          echo "$def" | grep -qE "BEFORE (DELETE OR UPDATE|UPDATE OR DELETE)"
+          echo "$def" | grep -q "FOR EACH ROW"
+          echo "$def" | grep -q "hn_erd_reject_append_only_change"
+
+      - name: Suite ledger / balance / rebuild trên PostgreSQL
+        run: |
+          php vendor/bin/phpunit \
+            tests/Feature/Wwhn204LedgerProjectionRebuildTest.php \
+            tests/Feature/Wwhn204LedgerReconciliationCoverageTest.php \
+            tests/Feature/Wwhn219InventoryReconcileCommandTest.php \
+            tests/Feature/Wwhn231StockNeutralLedgerTest.php

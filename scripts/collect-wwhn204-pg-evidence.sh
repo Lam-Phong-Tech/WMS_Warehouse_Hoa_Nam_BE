@@ -31,6 +31,19 @@ MOV='33333333-3333-4333-8333-333333333333'
 BAL='44444444-4444-4444-8444-444444444444'
 USR='55555555-5555-4555-8555-555555555555'
 
+# Fail-closed trước khi xoá log cũ. `m1` là nhánh dùng chung: một phiên khác chạy
+# `composer install` sẽ làm `vendor/` biến mất giữa chừng, khi đó mọi lệnh artisan bên dưới
+# fatal và script vẫn ghi ra một log "trông như đã chạy" nhưng thiếu hết số liệu. Đã gặp thật
+# một lần — kiểm trước, và tuyệt đối không ghi đè bằng chứng cũ khi môi trường chưa sẵn sàng.
+if [ ! -f "$ROOT/vendor/autoload.php" ]; then
+  echo "ABORT: thiếu $ROOT/vendor/autoload.php (phiên khác đang chạy composer?). Không ghi đè log cũ." >&2
+  exit 2
+fi
+if ! docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; then
+  echo "ABORT: container PostgreSQL '$CONTAINER' chưa sẵn sàng. Không ghi đè log cũ." >&2
+  exit 2
+fi
+
 mkdir -p "$LOG_DIR"
 : > "$LOG"
 
@@ -157,6 +170,29 @@ psql_run -c "SELECT action, entity_type, after_data->>'derived_from' AS derived_
 say ""
 say "--- [16] Ledger bất biến xuyên suốt phiên: vẫn đúng 1 dòng, tổng delta 10 ---"
 psql_run -c "SELECT COUNT(*) AS rows, COALESCE(SUM(qty_delta),0) AS delta_sum FROM stock_movements;"
+
+say ""
+say "--- [17] Tự kiểm: log này có đủ mốc PASS mà QA1 phải đối chiếu không? ---"
+missing=0
+for marker in \
+  'PostgreSQL 1' \
+  'append_only_trigger .. \[' \
+  'ERROR:  stock_movements is append-only under HN-WMS-ERD-DD-001' \
+  'Rebuild hoàn tất' \
+  'RESOLVED | REBUILD:'; do
+  if grep -qF -- "$marker" "$LOG"; then
+    say "  OK   $marker"
+  else
+    say "  THIẾU $marker"
+    missing=$((missing + 1))
+  fi
+done
+if [ "$missing" -gt 0 ]; then
+  say "KẾT LUẬN: log KHÔNG đủ bằng chứng ($missing mốc thiếu) — không dùng làm evidence."
+  say "=== HẾT ==="
+  exit 1
+fi
+say "KẾT LUẬN: đủ mốc bằng chứng."
 
 say ""
 say "=== HẾT ==="
