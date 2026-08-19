@@ -5,14 +5,14 @@
     "out_file": "docs\/evidence\/WWHN-188\/runtime\/runtime-concurrency\/same_item_different_document\/worker-0.json",
     "hold_ms": 1200,
     "operation": {
-        "document_id": "34999b85-7240-405b-9083-3c4ba828abc3",
-        "line_id": "fa54bee8-bb2b-46bb-96ce-204ff084e7bb",
+        "document_id": "bfd6ccc7-0da4-4f36-bba6-72ab29efee08",
+        "line_id": "8669cab2-f28d-4206-abbb-e7dc36ee328d",
         "quantity": 1,
-        "item_id": "333c6128-fc58-4557-9544-c92546594ab8",
+        "item_id": "2f920056-f74f-4b09-a86c-aca2d3b2090c",
         "if_match": 1,
-        "actor_id": "01a017aa-41b9-701a-8c5d-92b15a6ead87",
+        "actor_id": "01a017b6-3ae4-7004-bf9a-d95ea2437186",
         "contended_table": "item_instances",
         "contended_key": "item_id",
-        "contended_value": "333c6128-fc58-4557-9544-c92546594ab8"
+        "contended_value": "2f920056-f74f-4b09-a86c-aca2d3b2090c"
     }
 }

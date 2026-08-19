@@ -1,19 +1,9 @@
 [
     {
-        "sampled_at": "2026-08-19T08:37:19+07:00",
+        "sampled_at": "2026-08-19T08:50:24+07:00",
         "rows": [
             {
-                "pid": 1773,
-                "application_name": "wwhn188-worker-1",
-                "state": "idle",
-                "wait_event_type": "Client",
-                "wait_event": "ClientRead",
-                "granted": null,
-                "locktype": null,
-                "mode": null
-            },
-            {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle",
                 "wait_event_type": "Client",
@@ -21,14 +11,34 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
+            },
+            {
+                "pid": 3329,
+                "application_name": "wwhn188-worker-1",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
             }
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:19+07:00",
+        "sampled_at": "2026-08-19T08:50:24+07:00",
         "rows": [
             {
-                "pid": 1773,
+                "pid": 3328,
+                "application_name": "wwhn188-worker-0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "granted": false,
+                "locktype": "transactionid",
+                "mode": "ShareLock"
+            },
+            {
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -36,9 +46,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:24+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -46,14 +61,9 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:20+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -61,9 +71,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:24+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -71,14 +86,9 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:20+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -86,9 +96,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:25+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -96,14 +111,9 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:20+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -111,9 +121,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:25+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -121,14 +136,9 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:20+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -136,9 +146,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:25+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -146,14 +161,9 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:20+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -161,9 +171,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:25+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -171,14 +186,9 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:20+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -186,9 +196,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:25+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -196,24 +211,24 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:21+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
-                "state": "active",
-                "wait_event_type": null,
-                "wait_event": null,
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:26+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -221,39 +236,9 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:21+07:00",
-        "rows": [
-            {
-                "pid": 1773,
-                "application_name": "wwhn188-worker-1",
-                "state": "active",
-                "wait_event_type": null,
-                "wait_event": null,
-                "granted": null,
-                "locktype": null,
-                "mode": null
             },
             {
-                "pid": 1774,
-                "application_name": "wwhn188-worker-0",
-                "state": "active",
-                "wait_event_type": "Lock",
-                "wait_event": "transactionid",
-                "granted": false,
-                "locktype": "transactionid",
-                "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:21+07:00",
-        "rows": [
-            {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
                 "state": "active",
                 "wait_event_type": null,
@@ -261,9 +246,14 @@
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:26+07:00",
+        "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "active",
                 "wait_event_type": "Lock",
@@ -271,39 +261,24 @@
                 "granted": false,
                 "locktype": "transactionid",
                 "mode": "ShareLock"
-            }
-        ]
-    },
-    {
-        "sampled_at": "2026-08-19T08:37:21+07:00",
-        "rows": [
+            },
             {
-                "pid": 1773,
+                "pid": 3329,
                 "application_name": "wwhn188-worker-1",
-                "state": "active",
-                "wait_event_type": null,
-                "wait_event": null,
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
                 "granted": null,
                 "locktype": null,
                 "mode": null
-            },
-            {
-                "pid": 1774,
-                "application_name": "wwhn188-worker-0",
-                "state": "active",
-                "wait_event_type": "Lock",
-                "wait_event": "transactionid",
-                "granted": false,
-                "locktype": "transactionid",
-                "mode": "ShareLock"
             }
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:21+07:00",
+        "sampled_at": "2026-08-19T08:50:26+07:00",
         "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -315,10 +290,10 @@
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:22+07:00",
+        "sampled_at": "2026-08-19T08:50:26+07:00",
         "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -330,10 +305,10 @@
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:22+07:00",
+        "sampled_at": "2026-08-19T08:50:26+07:00",
         "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -345,10 +320,10 @@
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:22+07:00",
+        "sampled_at": "2026-08-19T08:50:26+07:00",
         "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -360,10 +335,10 @@
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:22+07:00",
+        "sampled_at": "2026-08-19T08:50:27+07:00",
         "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -375,10 +350,10 @@
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:22+07:00",
+        "sampled_at": "2026-08-19T08:50:27+07:00",
         "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",
@@ -390,10 +365,25 @@
         ]
     },
     {
-        "sampled_at": "2026-08-19T08:37:22+07:00",
+        "sampled_at": "2026-08-19T08:50:27+07:00",
         "rows": [
             {
-                "pid": 1774,
+                "pid": 3328,
+                "application_name": "wwhn188-worker-0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "granted": null,
+                "locktype": null,
+                "mode": null
+            }
+        ]
+    },
+    {
+        "sampled_at": "2026-08-19T08:50:27+07:00",
+        "rows": [
+            {
+                "pid": 3328,
                 "application_name": "wwhn188-worker-0",
                 "state": "idle in transaction",
                 "wait_event_type": "Client",

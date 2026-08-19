@@ -3,8 +3,8 @@
     "application_name": "wwhn188-worker-0",
     "scenario": "same_idempotency_key_quantity_mode",
     "mode": "plain",
-    "backend_pid": 1775,
-    "os_pid": 10252,
+    "backend_pid": 3332,
+    "os_pid": 9700,
     "outcome": "REJECTED",
     "http_status": 409,
     "error_code": "CONCURRENCY_CONFLICT",
@@ -14,9 +14,9 @@
     "response_scanned_quantity": null,
     "response_replayed": null,
     "idempotent_replay_header": "false",
-    "idempotency_key": "wwhn188-race-57417cc3-cjeot7f8",
-    "process_started_at": "2026-08-19T01:37:23.467562+00:00",
-    "barrier_released_at": "2026-08-19T08:37:24.106991+07:00",
-    "request_started_at": "2026-08-19T08:37:24.194043+07:00",
-    "request_finished_at": "2026-08-19T08:37:24.340359+07:00"
+    "idempotency_key": "wwhn188-race-4cf6e534-6pbpnidg",
+    "process_started_at": "2026-08-19T01:50:28.094536+00:00",
+    "barrier_released_at": "2026-08-19T08:50:28.541753+07:00",
+    "request_started_at": "2026-08-19T08:50:28.578201+07:00",
+    "request_finished_at": "2026-08-19T08:50:28.697848+07:00"
 }

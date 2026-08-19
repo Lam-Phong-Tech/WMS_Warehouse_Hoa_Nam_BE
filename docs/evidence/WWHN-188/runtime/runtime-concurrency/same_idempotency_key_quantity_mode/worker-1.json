@@ -3,8 +3,8 @@
     "application_name": "wwhn188-worker-1",
     "scenario": "same_idempotency_key_quantity_mode",
     "mode": "plain",
-    "backend_pid": 1776,
-    "os_pid": 7320,
+    "backend_pid": 3331,
+    "os_pid": 10128,
     "outcome": "SUCCESS",
     "http_status": 200,
     "error_code": null,
@@ -14,9 +14,9 @@
     "response_scanned_quantity": 2,
     "response_replayed": false,
     "idempotent_replay_header": "false",
-    "idempotency_key": "wwhn188-race-57417cc3-cjeot7f8",
-    "process_started_at": "2026-08-19T01:37:23.474791+00:00",
-    "barrier_released_at": "2026-08-19T08:37:24.106991+07:00",
-    "request_started_at": "2026-08-19T08:37:24.171374+07:00",
-    "request_finished_at": "2026-08-19T08:37:24.717051+07:00"
+    "idempotency_key": "wwhn188-race-4cf6e534-6pbpnidg",
+    "process_started_at": "2026-08-19T01:50:28.096188+00:00",
+    "barrier_released_at": "2026-08-19T08:50:28.541753+07:00",
+    "request_started_at": "2026-08-19T08:50:28.578112+07:00",
+    "request_finished_at": "2026-08-19T08:50:28.866894+07:00"
 }

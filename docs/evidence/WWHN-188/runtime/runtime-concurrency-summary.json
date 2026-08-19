@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-08-19T08:37:27+07:00",
+    "generated_at": "2026-08-19T08:50:31+07:00",
     "ticket": "WWHN-188",
     "reviewer_finding": [
         "DEV188-P1-02R2",
@@ -10,7 +10,7 @@
     "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
     "database": "wms_hoanam",
     "lock_hold_ms": 1200,
-    "run_token": "57417CC3",
+    "run_token": "4CF6E534",
     "scenarios": {
         "same_document_same_line": {
             "workers": [
@@ -19,63 +19,63 @@
                     "application_name": "wwhn188-worker-0",
                     "scenario": "same_document_same_line",
                     "mode": "locked",
-                    "backend_pid": 1752,
-                    "os_pid": 27144,
-                    "outcome": "REJECTED",
-                    "http_status": 412,
-                    "error_code": "STALE_VERSION",
-                    "error_message": "Document version mismatch.",
-                    "lock_wait_ms": 1909,
-                    "response_version": null,
-                    "response_scanned_quantity": null,
-                    "response_replayed": null,
-                    "idempotent_replay_header": null,
+                    "backend_pid": 3306,
+                    "os_pid": 6048,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "error_message": null,
+                    "lock_wait_ms": 13,
+                    "response_version": 2,
+                    "response_scanned_quantity": 1,
+                    "response_replayed": false,
+                    "idempotent_replay_header": "false",
                     "idempotency_key": null,
-                    "process_started_at": "2026-08-19T01:37:09.807329+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:11.047385+07:00",
-                    "request_started_at": "2026-08-19T08:37:14.366070+07:00",
-                    "request_finished_at": "2026-08-19T08:37:14.462754+07:00"
+                    "process_started_at": "2026-08-19T01:50:14.263913+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:14.683627+07:00",
+                    "request_started_at": "2026-08-19T08:50:15.953675+07:00",
+                    "request_finished_at": "2026-08-19T08:50:16.626860+07:00"
                 },
                 {
                     "worker_index": 1,
                     "application_name": "wwhn188-worker-1",
                     "scenario": "same_document_same_line",
                     "mode": "locked",
-                    "backend_pid": 1753,
-                    "os_pid": 27436,
-                    "outcome": "SUCCESS",
-                    "http_status": 200,
-                    "error_code": null,
-                    "error_message": null,
-                    "lock_wait_ms": 121,
-                    "response_version": 2,
-                    "response_scanned_quantity": 1,
-                    "response_replayed": false,
-                    "idempotent_replay_header": "false",
+                    "backend_pid": 3307,
+                    "os_pid": 6888,
+                    "outcome": "REJECTED",
+                    "http_status": 412,
+                    "error_code": "STALE_VERSION",
+                    "error_message": "Document version mismatch.",
+                    "lock_wait_ms": 1901,
+                    "response_version": null,
+                    "response_scanned_quantity": null,
+                    "response_replayed": null,
+                    "idempotent_replay_header": null,
                     "idempotency_key": null,
-                    "process_started_at": "2026-08-19T01:37:09.825109+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:11.047371+07:00",
-                    "request_started_at": "2026-08-19T08:37:12.443733+07:00",
-                    "request_finished_at": "2026-08-19T08:37:13.143679+07:00"
+                    "process_started_at": "2026-08-19T01:50:14.263953+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:14.683627+07:00",
+                    "request_started_at": "2026-08-19T08:50:17.853525+07:00",
+                    "request_finished_at": "2026-08-19T08:50:18.060751+07:00"
                 }
             ],
             "distinct_backend_pids": [
-                1752,
-                1753
+                3306,
+                3307
             ],
             "distinct_backend_pid_count": 2,
             "observed_pg_lock_wait": true,
-            "max_worker_lock_wait_ms": 1909,
+            "max_worker_lock_wait_ms": 1901,
             "lock_hold_ms": 1200,
             "real_contention_proven": true,
             "lock_sample_count": 18,
             "db_before": {
-                "captured_at": "2026-08-19T08:37:09.443905+07:00",
-                "document_id": "7ad7af4f-dec8-4b14-87ad-b1f1629e8b87",
+                "captured_at": "2026-08-19T08:50:13.994773+07:00",
+                "document_id": "abf84b8b-739d-4633-a25c-4f55ad38bf37",
                 "document_status": "SCANNING",
                 "document_version": 1,
                 "lines": {
-                    "1c8bbb1c-807b-4c3c-a843-a2e525cdc637": {
+                    "861e7298-76d7-4cde-9cd0-6debcef4958a": {
                         "scanned_qty": 0,
                         "qty_planned": 2,
                         "scan_entries": 0,
@@ -84,12 +84,12 @@
                 }
             },
             "db_after": {
-                "captured_at": "2026-08-19T08:37:14.587651+07:00",
-                "document_id": "7ad7af4f-dec8-4b14-87ad-b1f1629e8b87",
+                "captured_at": "2026-08-19T08:50:18.393820+07:00",
+                "document_id": "abf84b8b-739d-4633-a25c-4f55ad38bf37",
                 "document_status": "SCANNING",
                 "document_version": 2,
                 "lines": {
-                    "1c8bbb1c-807b-4c3c-a843-a2e525cdc637": {
+                    "861e7298-76d7-4cde-9cd0-6debcef4958a": {
                         "scanned_qty": 1,
                         "qty_planned": 2,
                         "scan_entries": 1,
@@ -99,29 +99,30 @@
             },
             "timing": {
                 "measurable": true,
-                "overlap_ms": -1222.391,
-                "workers_in_flight_simultaneously": false,
+                "overlap_ms": 1943.233,
+                "request_call_overlap_ms": -1226.665,
+                "workers_in_flight_simultaneously": true,
                 "windows": [
                     {
                         "worker_index": 0,
-                        "os_pid": 27144,
-                        "backend_pid": 1752,
-                        "barrier_released_at": "2026-08-19T08:37:11.047385+07:00",
-                        "request_started_at": "2026-08-19T08:37:14.366070+07:00",
-                        "request_finished_at": "2026-08-19T08:37:14.462754+07:00"
+                        "os_pid": 6048,
+                        "backend_pid": 3306,
+                        "barrier_released_at": "2026-08-19T08:50:14.683627+07:00",
+                        "request_started_at": "2026-08-19T08:50:15.953675+07:00",
+                        "request_finished_at": "2026-08-19T08:50:16.626860+07:00"
                     },
                     {
                         "worker_index": 1,
-                        "os_pid": 27436,
-                        "backend_pid": 1753,
-                        "barrier_released_at": "2026-08-19T08:37:11.047371+07:00",
-                        "request_started_at": "2026-08-19T08:37:12.443733+07:00",
-                        "request_finished_at": "2026-08-19T08:37:13.143679+07:00"
+                        "os_pid": 6888,
+                        "backend_pid": 3307,
+                        "barrier_released_at": "2026-08-19T08:50:14.683627+07:00",
+                        "request_started_at": "2026-08-19T08:50:17.853525+07:00",
+                        "request_finished_at": "2026-08-19T08:50:18.060751+07:00"
                     }
                 ]
             },
-            "document_id": "7ad7af4f-dec8-4b14-87ad-b1f1629e8b87",
-            "line_id": "1c8bbb1c-807b-4c3c-a843-a2e525cdc637",
+            "document_id": "abf84b8b-739d-4633-a25c-4f55ad38bf37",
+            "line_id": "861e7298-76d7-4cde-9cd0-6debcef4958a",
             "final_document_version": 2,
             "final_scanned_qty": 1,
             "checks": {
@@ -142,69 +143,69 @@
                     "application_name": "wwhn188-worker-0",
                     "scenario": "same_document_different_line",
                     "mode": "locked",
-                    "backend_pid": 1764,
-                    "os_pid": 12628,
-                    "outcome": "SUCCESS",
-                    "http_status": 200,
-                    "error_code": null,
-                    "error_message": null,
-                    "lock_wait_ms": 8,
-                    "response_version": 2,
-                    "response_scanned_quantity": 1,
-                    "response_replayed": false,
-                    "idempotent_replay_header": "false",
+                    "backend_pid": 3316,
+                    "os_pid": 20044,
+                    "outcome": "REJECTED",
+                    "http_status": 412,
+                    "error_code": "STALE_VERSION",
+                    "error_message": "Document version mismatch.",
+                    "lock_wait_ms": 1714,
+                    "response_version": null,
+                    "response_scanned_quantity": null,
+                    "response_replayed": null,
+                    "idempotent_replay_header": null,
                     "idempotency_key": null,
-                    "process_started_at": "2026-08-19T01:37:15.014927+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:15.667692+07:00",
-                    "request_started_at": "2026-08-19T08:37:16.941475+07:00",
-                    "request_finished_at": "2026-08-19T08:37:17.269160+07:00"
+                    "process_started_at": "2026-08-19T01:50:19.333519+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:19.923859+07:00",
+                    "request_started_at": "2026-08-19T08:50:22.911447+07:00",
+                    "request_finished_at": "2026-08-19T08:50:23.145581+07:00"
                 },
                 {
                     "worker_index": 1,
                     "application_name": "wwhn188-worker-1",
                     "scenario": "same_document_different_line",
                     "mode": "locked",
-                    "backend_pid": 1763,
-                    "os_pid": 12276,
-                    "outcome": "REJECTED",
-                    "http_status": 412,
-                    "error_code": "STALE_VERSION",
-                    "error_message": "Document version mismatch.",
-                    "lock_wait_ms": 1550,
-                    "response_version": null,
-                    "response_scanned_quantity": null,
-                    "response_replayed": null,
-                    "idempotent_replay_header": null,
+                    "backend_pid": 3317,
+                    "os_pid": 27900,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "error_message": null,
+                    "lock_wait_ms": 36,
+                    "response_version": 2,
+                    "response_scanned_quantity": 1,
+                    "response_replayed": false,
+                    "idempotent_replay_header": "false",
                     "idempotency_key": null,
-                    "process_started_at": "2026-08-19T01:37:15.024046+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:15.667696+07:00",
-                    "request_started_at": "2026-08-19T08:37:18.470560+07:00",
-                    "request_finished_at": "2026-08-19T08:37:18.559966+07:00"
+                    "process_started_at": "2026-08-19T01:50:19.333520+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:19.923863+07:00",
+                    "request_started_at": "2026-08-19T08:50:21.234516+07:00",
+                    "request_finished_at": "2026-08-19T08:50:21.704199+07:00"
                 }
             ],
             "distinct_backend_pids": [
-                1764,
-                1763
+                3316,
+                3317
             ],
             "distinct_backend_pid_count": 2,
             "observed_pg_lock_wait": true,
-            "max_worker_lock_wait_ms": 1550,
+            "max_worker_lock_wait_ms": 1714,
             "lock_hold_ms": 1200,
             "real_contention_proven": true,
-            "lock_sample_count": 20,
+            "lock_sample_count": 17,
             "db_before": {
-                "captured_at": "2026-08-19T08:37:14.695174+07:00",
-                "document_id": "9e0dc445-8dd1-4430-b0c3-a1f4fe741ccb",
+                "captured_at": "2026-08-19T08:50:19.054810+07:00",
+                "document_id": "76e23098-625e-4158-8bc9-ace7b729c853",
                 "document_status": "SCANNING",
                 "document_version": 1,
                 "lines": {
-                    "2659c82b-ee1e-4183-a6fe-58fcbad276db": {
+                    "0d54abe5-2409-45d2-b4eb-0b3781183681": {
                         "scanned_qty": 0,
                         "qty_planned": 1,
                         "scan_entries": 0,
                         "active_scan_entries": 0
                     },
-                    "67e3364e-6380-41cb-844a-7bac777bfd29": {
+                    "7b906005-45d2-4d44-abf4-5d8ad9c0fed3": {
                         "scanned_qty": 0,
                         "qty_planned": 1,
                         "scan_entries": 0,
@@ -213,52 +214,53 @@
                 }
             },
             "db_after": {
-                "captured_at": "2026-08-19T08:37:19.032619+07:00",
-                "document_id": "9e0dc445-8dd1-4430-b0c3-a1f4fe741ccb",
+                "captured_at": "2026-08-19T08:50:23.488770+07:00",
+                "document_id": "76e23098-625e-4158-8bc9-ace7b729c853",
                 "document_status": "SCANNING",
                 "document_version": 2,
                 "lines": {
-                    "2659c82b-ee1e-4183-a6fe-58fcbad276db": {
-                        "scanned_qty": 1,
-                        "qty_planned": 1,
-                        "scan_entries": 1,
-                        "active_scan_entries": 1
-                    },
-                    "67e3364e-6380-41cb-844a-7bac777bfd29": {
+                    "0d54abe5-2409-45d2-b4eb-0b3781183681": {
                         "scanned_qty": 0,
                         "qty_planned": 1,
                         "scan_entries": 0,
                         "active_scan_entries": 0
+                    },
+                    "7b906005-45d2-4d44-abf4-5d8ad9c0fed3": {
+                        "scanned_qty": 1,
+                        "qty_planned": 1,
+                        "scan_entries": 1,
+                        "active_scan_entries": 1
                     }
                 }
             },
             "timing": {
                 "measurable": true,
-                "overlap_ms": -1201.4,
-                "workers_in_flight_simultaneously": false,
+                "overlap_ms": 1780.336,
+                "request_call_overlap_ms": -1207.248,
+                "workers_in_flight_simultaneously": true,
                 "windows": [
                     {
                         "worker_index": 0,
-                        "os_pid": 12628,
-                        "backend_pid": 1764,
-                        "barrier_released_at": "2026-08-19T08:37:15.667692+07:00",
-                        "request_started_at": "2026-08-19T08:37:16.941475+07:00",
-                        "request_finished_at": "2026-08-19T08:37:17.269160+07:00"
+                        "os_pid": 20044,
+                        "backend_pid": 3316,
+                        "barrier_released_at": "2026-08-19T08:50:19.923859+07:00",
+                        "request_started_at": "2026-08-19T08:50:22.911447+07:00",
+                        "request_finished_at": "2026-08-19T08:50:23.145581+07:00"
                     },
                     {
                         "worker_index": 1,
-                        "os_pid": 12276,
-                        "backend_pid": 1763,
-                        "barrier_released_at": "2026-08-19T08:37:15.667696+07:00",
-                        "request_started_at": "2026-08-19T08:37:18.470560+07:00",
-                        "request_finished_at": "2026-08-19T08:37:18.559966+07:00"
+                        "os_pid": 27900,
+                        "backend_pid": 3317,
+                        "barrier_released_at": "2026-08-19T08:50:19.923863+07:00",
+                        "request_started_at": "2026-08-19T08:50:21.234516+07:00",
+                        "request_finished_at": "2026-08-19T08:50:21.704199+07:00"
                     }
                 ]
             },
-            "document_id": "9e0dc445-8dd1-4430-b0c3-a1f4fe741ccb",
+            "document_id": "76e23098-625e-4158-8bc9-ace7b729c853",
             "line_ids": [
-                "2659c82b-ee1e-4183-a6fe-58fcbad276db",
-                "67e3364e-6380-41cb-844a-7bac777bfd29"
+                "0d54abe5-2409-45d2-b4eb-0b3781183681",
+                "7b906005-45d2-4d44-abf4-5d8ad9c0fed3"
             ],
             "final_document_version": 2,
             "checks": {
@@ -278,64 +280,64 @@
                     "application_name": "wwhn188-worker-0",
                     "scenario": "same_item_different_document",
                     "mode": "locked",
-                    "backend_pid": 1774,
-                    "os_pid": 27164,
+                    "backend_pid": 3328,
+                    "os_pid": 23460,
                     "outcome": "REJECTED",
                     "http_status": 409,
                     "error_code": "ITEM_ALREADY_RECEIVING",
                     "error_message": "Item đang thuộc một inbound chưa Post khác.",
-                    "lock_wait_ms": 1983,
+                    "lock_wait_ms": 1801,
                     "response_version": null,
                     "response_scanned_quantity": null,
                     "response_replayed": null,
                     "idempotent_replay_header": null,
                     "idempotency_key": null,
-                    "process_started_at": "2026-08-19T01:37:19.348456+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:19.762325+07:00",
-                    "request_started_at": "2026-08-19T08:37:22.997297+07:00",
-                    "request_finished_at": "2026-08-19T08:37:23.144355+07:00"
+                    "process_started_at": "2026-08-19T01:50:23.982119+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:24.500217+07:00",
+                    "request_started_at": "2026-08-19T08:50:27.565419+07:00",
+                    "request_finished_at": "2026-08-19T08:50:27.675669+07:00"
                 },
                 {
                     "worker_index": 1,
                     "application_name": "wwhn188-worker-1",
                     "scenario": "same_item_different_document",
                     "mode": "locked",
-                    "backend_pid": 1773,
-                    "os_pid": 21048,
+                    "backend_pid": 3329,
+                    "os_pid": 5432,
                     "outcome": "SUCCESS",
                     "http_status": 200,
                     "error_code": null,
                     "error_message": null,
-                    "lock_wait_ms": 9,
+                    "lock_wait_ms": 7,
                     "response_version": 2,
                     "response_scanned_quantity": 1,
                     "response_replayed": false,
                     "idempotent_replay_header": "false",
                     "idempotency_key": null,
-                    "process_started_at": "2026-08-19T01:37:19.359618+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:19.762325+07:00",
-                    "request_started_at": "2026-08-19T08:37:21.027932+07:00",
-                    "request_finished_at": "2026-08-19T08:37:21.787234+07:00"
+                    "process_started_at": "2026-08-19T01:50:23.992862+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:24.500278+07:00",
+                    "request_started_at": "2026-08-19T08:50:25.777616+07:00",
+                    "request_finished_at": "2026-08-19T08:50:26.354916+07:00"
                 }
             ],
             "distinct_backend_pids": [
-                1774,
-                1773
+                3328,
+                3329
             ],
             "distinct_backend_pid_count": 2,
             "observed_pg_lock_wait": true,
-            "max_worker_lock_wait_ms": 1983,
+            "max_worker_lock_wait_ms": 1801,
             "lock_hold_ms": 1200,
             "real_contention_proven": true,
             "lock_sample_count": 19,
             "db_before": [
                 {
-                    "captured_at": "2026-08-19T08:37:19.094388+07:00",
-                    "document_id": "34999b85-7240-405b-9083-3c4ba828abc3",
+                    "captured_at": "2026-08-19T08:50:23.700211+07:00",
+                    "document_id": "bfd6ccc7-0da4-4f36-bba6-72ab29efee08",
                     "document_status": "SCANNING",
                     "document_version": 1,
                     "lines": {
-                        "fa54bee8-bb2b-46bb-96ce-204ff084e7bb": {
+                        "8669cab2-f28d-4206-abbb-e7dc36ee328d": {
                             "scanned_qty": 0,
                             "qty_planned": 1,
                             "scan_entries": 0,
@@ -344,12 +346,12 @@
                     }
                 },
                 {
-                    "captured_at": "2026-08-19T08:37:19.109696+07:00",
-                    "document_id": "2b4eb295-1087-48d2-8dd8-e4a6d0acf4a3",
+                    "captured_at": "2026-08-19T08:50:23.731235+07:00",
+                    "document_id": "e7a617fe-0e8c-4ba8-b760-62c99509c8f6",
                     "document_status": "SCANNING",
                     "document_version": 1,
                     "lines": {
-                        "5de10921-0d4f-4f71-b189-4a353d38e36f": {
+                        "679653fc-d1f3-4eb7-af9d-0074f0251f83": {
                             "scanned_qty": 0,
                             "qty_planned": 1,
                             "scan_entries": 0,
@@ -360,12 +362,12 @@
             ],
             "db_after": [
                 {
-                    "captured_at": "2026-08-19T08:37:23.186438+07:00",
-                    "document_id": "34999b85-7240-405b-9083-3c4ba828abc3",
+                    "captured_at": "2026-08-19T08:50:27.837890+07:00",
+                    "document_id": "bfd6ccc7-0da4-4f36-bba6-72ab29efee08",
                     "document_status": "SCANNING",
                     "document_version": 1,
                     "lines": {
-                        "fa54bee8-bb2b-46bb-96ce-204ff084e7bb": {
+                        "8669cab2-f28d-4206-abbb-e7dc36ee328d": {
                             "scanned_qty": 0,
                             "qty_planned": 1,
                             "scan_entries": 0,
@@ -374,12 +376,12 @@
                     }
                 },
                 {
-                    "captured_at": "2026-08-19T08:37:23.201591+07:00",
-                    "document_id": "2b4eb295-1087-48d2-8dd8-e4a6d0acf4a3",
+                    "captured_at": "2026-08-19T08:50:27.853440+07:00",
+                    "document_id": "e7a617fe-0e8c-4ba8-b760-62c99509c8f6",
                     "document_status": "SCANNING",
                     "document_version": 2,
                     "lines": {
-                        "5de10921-0d4f-4f71-b189-4a353d38e36f": {
+                        "679653fc-d1f3-4eb7-af9d-0074f0251f83": {
                             "scanned_qty": 1,
                             "qty_planned": 1,
                             "scan_entries": 1,
@@ -390,31 +392,32 @@
             ],
             "timing": {
                 "measurable": true,
-                "overlap_ms": -1210.063,
-                "workers_in_flight_simultaneously": false,
+                "overlap_ms": 1854.638,
+                "request_call_overlap_ms": -1210.503,
+                "workers_in_flight_simultaneously": true,
                 "windows": [
                     {
                         "worker_index": 0,
-                        "os_pid": 27164,
-                        "backend_pid": 1774,
-                        "barrier_released_at": "2026-08-19T08:37:19.762325+07:00",
-                        "request_started_at": "2026-08-19T08:37:22.997297+07:00",
-                        "request_finished_at": "2026-08-19T08:37:23.144355+07:00"
+                        "os_pid": 23460,
+                        "backend_pid": 3328,
+                        "barrier_released_at": "2026-08-19T08:50:24.500217+07:00",
+                        "request_started_at": "2026-08-19T08:50:27.565419+07:00",
+                        "request_finished_at": "2026-08-19T08:50:27.675669+07:00"
                     },
                     {
                         "worker_index": 1,
-                        "os_pid": 21048,
-                        "backend_pid": 1773,
-                        "barrier_released_at": "2026-08-19T08:37:19.762325+07:00",
-                        "request_started_at": "2026-08-19T08:37:21.027932+07:00",
-                        "request_finished_at": "2026-08-19T08:37:21.787234+07:00"
+                        "os_pid": 5432,
+                        "backend_pid": 3329,
+                        "barrier_released_at": "2026-08-19T08:50:24.500278+07:00",
+                        "request_started_at": "2026-08-19T08:50:25.777616+07:00",
+                        "request_finished_at": "2026-08-19T08:50:26.354916+07:00"
                     }
                 ]
             },
-            "shared_item_id": "333c6128-fc58-4557-9544-c92546594ab8",
+            "shared_item_id": "2f920056-f74f-4b09-a86c-aca2d3b2090c",
             "document_ids": [
-                "34999b85-7240-405b-9083-3c4ba828abc3",
-                "2b4eb295-1087-48d2-8dd8-e4a6d0acf4a3"
+                "bfd6ccc7-0da4-4f36-bba6-72ab29efee08",
+                "e7a617fe-0e8c-4ba8-b760-62c99509c8f6"
             ],
             "scan_entry_count_for_item": 1,
             "checks": {
@@ -433,8 +436,8 @@
                     "application_name": "wwhn188-worker-0",
                     "scenario": "same_idempotency_key_quantity_mode",
                     "mode": "plain",
-                    "backend_pid": 1775,
-                    "os_pid": 10252,
+                    "backend_pid": 3332,
+                    "os_pid": 9700,
                     "outcome": "REJECTED",
                     "http_status": 409,
                     "error_code": "CONCURRENCY_CONFLICT",
@@ -444,19 +447,19 @@
                     "response_scanned_quantity": null,
                     "response_replayed": null,
                     "idempotent_replay_header": "false",
-                    "idempotency_key": "wwhn188-race-57417cc3-cjeot7f8",
-                    "process_started_at": "2026-08-19T01:37:23.467562+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:24.106991+07:00",
-                    "request_started_at": "2026-08-19T08:37:24.194043+07:00",
-                    "request_finished_at": "2026-08-19T08:37:24.340359+07:00"
+                    "idempotency_key": "wwhn188-race-4cf6e534-6pbpnidg",
+                    "process_started_at": "2026-08-19T01:50:28.094536+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:28.541753+07:00",
+                    "request_started_at": "2026-08-19T08:50:28.578201+07:00",
+                    "request_finished_at": "2026-08-19T08:50:28.697848+07:00"
                 },
                 {
                     "worker_index": 1,
                     "application_name": "wwhn188-worker-1",
                     "scenario": "same_idempotency_key_quantity_mode",
                     "mode": "plain",
-                    "backend_pid": 1776,
-                    "os_pid": 7320,
+                    "backend_pid": 3331,
+                    "os_pid": 10128,
                     "outcome": "SUCCESS",
                     "http_status": 200,
                     "error_code": null,
@@ -466,16 +469,16 @@
                     "response_scanned_quantity": 2,
                     "response_replayed": false,
                     "idempotent_replay_header": "false",
-                    "idempotency_key": "wwhn188-race-57417cc3-cjeot7f8",
-                    "process_started_at": "2026-08-19T01:37:23.474791+00:00",
-                    "barrier_released_at": "2026-08-19T08:37:24.106991+07:00",
-                    "request_started_at": "2026-08-19T08:37:24.171374+07:00",
-                    "request_finished_at": "2026-08-19T08:37:24.717051+07:00"
+                    "idempotency_key": "wwhn188-race-4cf6e534-6pbpnidg",
+                    "process_started_at": "2026-08-19T01:50:28.096188+00:00",
+                    "barrier_released_at": "2026-08-19T08:50:28.541753+07:00",
+                    "request_started_at": "2026-08-19T08:50:28.578112+07:00",
+                    "request_finished_at": "2026-08-19T08:50:28.866894+07:00"
                 }
             ],
             "distinct_backend_pids": [
-                1775,
-                1776
+                3332,
+                3331
             ],
             "distinct_backend_pid_count": 2,
             "observed_pg_lock_wait": false,
@@ -483,16 +486,16 @@
             "lock_hold_ms": 0,
             "real_contention_proven": true,
             "lock_sample_count": 18,
-            "document_id": "4a214d0c-d91f-476c-89d7-3e1ebf53ad18",
-            "line_id": "5b790670-1cd8-43f3-a556-507248acfd2b",
-            "shared_idempotency_key": "wwhn188-race-57417cc3-cjeot7f8",
+            "document_id": "62267162-bc62-4528-bf46-46f2ab420d6d",
+            "line_id": "97bc1883-439a-43a9-99ba-b166057edba5",
+            "shared_idempotency_key": "wwhn188-race-4cf6e534-6pbpnidg",
             "db_before": {
-                "captured_at": "2026-08-19T08:37:23.241229+07:00",
-                "document_id": "4a214d0c-d91f-476c-89d7-3e1ebf53ad18",
+                "captured_at": "2026-08-19T08:50:27.908411+07:00",
+                "document_id": "62267162-bc62-4528-bf46-46f2ab420d6d",
                 "document_status": "SCANNING",
                 "document_version": 1,
                 "lines": {
-                    "5b790670-1cd8-43f3-a556-507248acfd2b": {
+                    "97bc1883-439a-43a9-99ba-b166057edba5": {
                         "scanned_qty": 0,
                         "qty_planned": 4,
                         "scan_entries": 0,
@@ -501,12 +504,12 @@
                 }
             },
             "db_after": {
-                "captured_at": "2026-08-19T08:37:27.166018+07:00",
-                "document_id": "4a214d0c-d91f-476c-89d7-3e1ebf53ad18",
+                "captured_at": "2026-08-19T08:50:31.674265+07:00",
+                "document_id": "62267162-bc62-4528-bf46-46f2ab420d6d",
                 "document_status": "SCANNING",
                 "document_version": 2,
                 "lines": {
-                    "5b790670-1cd8-43f3-a556-507248acfd2b": {
+                    "97bc1883-439a-43a9-99ba-b166057edba5": {
                         "scanned_qty": 2,
                         "qty_planned": 4,
                         "scan_entries": 1,
@@ -516,24 +519,25 @@
             },
             "timing": {
                 "measurable": true,
-                "overlap_ms": 146.316,
+                "overlap_ms": 156.095,
+                "request_call_overlap_ms": 119.647,
                 "workers_in_flight_simultaneously": true,
                 "windows": [
                     {
                         "worker_index": 0,
-                        "os_pid": 10252,
-                        "backend_pid": 1775,
-                        "barrier_released_at": "2026-08-19T08:37:24.106991+07:00",
-                        "request_started_at": "2026-08-19T08:37:24.194043+07:00",
-                        "request_finished_at": "2026-08-19T08:37:24.340359+07:00"
+                        "os_pid": 9700,
+                        "backend_pid": 3332,
+                        "barrier_released_at": "2026-08-19T08:50:28.541753+07:00",
+                        "request_started_at": "2026-08-19T08:50:28.578201+07:00",
+                        "request_finished_at": "2026-08-19T08:50:28.697848+07:00"
                     },
                     {
                         "worker_index": 1,
-                        "os_pid": 7320,
-                        "backend_pid": 1776,
-                        "barrier_released_at": "2026-08-19T08:37:24.106991+07:00",
-                        "request_started_at": "2026-08-19T08:37:24.171374+07:00",
-                        "request_finished_at": "2026-08-19T08:37:24.717051+07:00"
+                        "os_pid": 10128,
+                        "backend_pid": 3331,
+                        "barrier_released_at": "2026-08-19T08:50:28.541753+07:00",
+                        "request_started_at": "2026-08-19T08:50:28.578112+07:00",
+                        "request_finished_at": "2026-08-19T08:50:28.866894+07:00"
                     }
                 ]
             },
@@ -552,16 +556,43 @@
     },
     "failed_scenarios": [],
     "status": "PASS",
-    "git_sha": "b5a6129b8abb2bd42d2ddc39fc33e71809337df6",
+    "git_sha": "c2bb9f1ae2cd1f9c17d95acf53873e7a9386e122",
     "git_branch": "HEAD",
     "git_working_tree_clean": false,
     "git_dirty_paths": [
-        "?? docs/evidence/WWHN-188/runtime/"
+        "M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_different_line/barrier/ready-0",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_different_line/barrier/ready-1",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_different_line/pg-lock-samples.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_different_line/plan-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_different_line/plan-1.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_different_line/worker-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_different_line/worker-1.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_same_line/barrier/ready-0",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_same_line/barrier/ready-1",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_same_line/pg-lock-samples.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_same_line/plan-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_same_line/plan-1.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_same_line/worker-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_document_same_line/worker-1.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_idempotency_key_quantity_mode/barrier/ready-0",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_idempotency_key_quantity_mode/barrier/ready-1",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_idempotency_key_quantity_mode/pg-lock-samples.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_idempotency_key_quantity_mode/plan-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_idempotency_key_quantity_mode/plan-1.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_idempotency_key_quantity_mode/worker-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_idempotency_key_quantity_mode/worker-1.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_item_different_document/barrier/ready-0",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_item_different_document/barrier/ready-1",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_item_different_document/pg-lock-samples.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_item_different_document/plan-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_item_different_document/plan-1.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_item_different_document/worker-0.json",
+        " M docs/evidence/WWHN-188/runtime/runtime-concurrency/same_item_different_document/worker-1.json"
     ],
     "artifact_blob_sha": {
         "app/Support/ScanRequestFingerprint.php": "5c05ad2bd6a21e86ff287f4ae74c1c2739808579",
         "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php": "f31c97b491496ff0c93056d24e9987e049577a42",
-        "scripts/wwhn188-inbound-scan-runtime-concurrency.php": "e1c0275b6464e8621720371897b13f359b3d3b78",
+        "scripts/wwhn188-inbound-scan-runtime-concurrency.php": "c483e40b056f49047fde690816f14a6e52a85c06",
         "scripts/wwhn188-inbound-scan-worker.php": "966cc977f62be7c9339018d51a6e8fdbd101f790",
         "tests/Feature/Wwhn188ScanIdempotencyContractTest.php": "de983fc6f7c1325b0074f532baef55b452a802f5",
         "tests/Feature/InboundScanConcurrencyBehaviorTest.php": "12cb1342e29d3c038b964213bbc299494bb19a99",
