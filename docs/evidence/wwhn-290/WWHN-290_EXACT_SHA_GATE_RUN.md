@@ -53,6 +53,15 @@ nó không nằm trong frozen candidate và không ảnh hưởng CI. Vì vậy 
 thẳng 10 file test (98 test / 789 assertion / 0 fail); con số khác lượt `--filter` vì regex của `--filter`
 còn khớp thêm một số test cùng tên phương thức ở class khác. CI vẫn chạy bản `--filter`.
 
+**Cập nhật 2026-08-19 — kiểm chứng lại tại máy dev.** Khi `vendor/` nguyên vẹn, lượt `--filter` **chạy
+được** và cho đúng **103 test / 851 assertion / 0 fail**, trùng khít con số CI ở §2.3. Trở ngại mô tả ở đoạn
+trên là **trạng thái nhất thời của working tree dùng chung**, không phải thuộc tính của gói closure: `m1`
+được nhiều phiên làm việc song song, nên có lúc gặp file test chưa commit bị lỗi, có lúc gặp
+`vendor/autoload.php` biến mất giữa chừng vì một phiên khác đang `composer install`. Vì vậy con số có thẩm
+quyền cho `DEV290-P1-05R` là **lượt CI tại frozen candidate** (§2.3, `runs/ci-run.txt`) chứ không phải lượt
+chạy tay; reviewer chạy lại tại máy mình có thể ra 103/851 hoặc gặp trở ngại môi trường tuỳ thời điểm, và cả
+hai đều không làm thay đổi kết luận.
+
 ### 2.2 Lượt CI đầu tiên của cấu trúc cổng mới — ghi lại cả cái sai của chính DEV
 
 Run `32169269579` (commit `80f92373788d1dbffb1feb6e74bbb15affd8fa9b`) là lượt đầu chạy cấu trúc hai job:
