@@ -1,0 +1,108 @@
+{
+  "document": "WWHN-267-QA-RETEST",
+  "task": "WWHN-267",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "branch": "m1",
+  "schemaVersion": "1.0.0",
+  "registerItem": "DEV267-P1-05",
+  "purpose": "Phạm vi retest độc lập cho QA sau khi WWHN-267 giao fix. Máy đọc được để phạm vi không co lại giữa hai lần chạy, và để câu 'đã retest' luôn quy chiếu về đúng danh sách ca này.",
+  "truthBoundary": "Kế hoạch này KHÔNG phải bằng chứng retest. Lượt chạy độc lập trên build đã deploy thuộc QA1 (WWHN-264) và QA2 (WWHN-265). BE2 không tự đánh PASS thay QA.",
+  "prerequisites": {
+    "candidateBuild": "Build sinh từ commit trên m1 chạm docs/evidence/WWHN-267/**, theo SOURCE_AND_BRANCH_DISPOSITION.json.pins.candidateShaRule",
+    "environment": "Beta đã deploy — không phải máy dev",
+    "mustRecord": ["build id", "exact commit SHA", "environment", "tài khoản + role", "thời điểm chạy", "raw response/log"],
+    "seedRequired": "Modules\\Auth\\Database\\Seeders\\AuthDatabaseSeeder (role baseline đúng bản đã pin trong ROLE_BASELINE_PIN.json)"
+  },
+  "cases": [
+    {
+      "id": "RT267-01",
+      "owner": "QA1",
+      "jira": "WWHN-264",
+      "type": "NEGATIVE_AUTH",
+      "coversDefect": ["BE267-D05"],
+      "endpoints": [
+        "GET /api/v1/inbound-documents",
+        "GET /api/v1/outbound-documents",
+        "GET /api/v1/inventory/balances",
+        "GET /api/v1/reversal-documents",
+        "GET /api/v1/warranty-cases",
+        "GET /api/v1/reports/hub"
+      ],
+      "steps": "Gọi sáu endpoint khi CHƯA đăng nhập.",
+      "expected": "Tất cả trả HTTP 401; body có success=false, error_code không rỗng, meta.request_id không rỗng. Không có bản ghi nghiệp vụ nào được tạo.",
+      "srsRef": "§8.2 (401), §13.3 FIX-16"
+    },
+    {
+      "id": "RT267-02",
+      "owner": "QA1",
+      "jira": "WWHN-264",
+      "type": "RBAC_MATRIX",
+      "coversDefect": ["BE267-D05", "BE267-D04"],
+      "endpoints": ["6 endpoint như RT267-01"],
+      "steps": "Với từng role LEADERSHIP / WAREHOUSE_STAFF / WARRANTY_STAFF, gọi đủ sáu endpoint. Ghi lại đúng cặp (role, endpoint) → HTTP status.",
+      "expected": "Kết quả khớp từng ô của ma trận trong RUN_EVIDENCE.md §2. Ô 403 phải có error_code thuộc {ACCESS_DENIED, PERMISSION_DENIED, DATA_SCOPE_DENIED, WAREHOUSE_SCOPE_DENIED} và có request_id. KHÔNG chấp nhận kết luận 'có ít nhất một ô bị chặn'.",
+      "srsRef": "§3, §8.1 Enforcement standard, §8.2 (403)"
+    },
+    {
+      "id": "RT267-03",
+      "owner": "QA1",
+      "jira": "WWHN-264",
+      "type": "NEGATIVE_NO_WRITE",
+      "coversDefect": ["BE267-D01"],
+      "endpoints": ["POST /api/v1/inbound-documents/{id}/post-receipt", "POST /api/v1/outbound-documents/{id}/post-issue", "POST /api/v1/reversal-documents/{id}/post"],
+      "steps": "Chạy TC-P1-003 / TC-P1-011 / TC-P1-027 của §13.3 với actor thiếu quyền, và với If-Match cũ.",
+      "expected": "403 (hoặc 404 theo masking policy) và 412 STALE_VERSION tương ứng; tồn/balance không đổi, không sinh Inventory_Movement hay Posting_Event thành công, document state không đổi, response đúng HTTP + error code + request_id, audit thất bại không chứa PII thô.",
+      "srsRef": "§13.3 TC-P1-003/011/027, §8.2"
+    },
+    {
+      "id": "RT267-04",
+      "owner": "QA1",
+      "jira": "WWHN-264",
+      "type": "CONTRACT_PAIRING",
+      "coversDefect": ["BE267-D01", "BE267-D02", "BE267-D03"],
+      "endpoints": ["toàn bộ Annex C"],
+      "steps": "Đối chiếu response lỗi thu được trong lượt regression với docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json.",
+      "expected": "Không có mã dành riêng §8.2 nào xuất hiện ở status khác với reservedPairings. Mã lạ hoặc status lạ phải được báo là defect mới, không được im lặng bỏ qua.",
+      "srsRef": "§8.2 dòng Envelope"
+    },
+    {
+      "id": "RT267-05",
+      "owner": "QA1",
+      "jira": "WWHN-264",
+      "type": "DB_RECONCILIATION",
+      "coversDefect": [],
+      "endpoints": [],
+      "steps": "Sau toàn bộ ca negative ở trên, chạy đối soát ledger ↔ balance projection.",
+      "expected": "Tổng movement khớp balance; không có movement nào sinh ra bởi request bị từ chối. Đây là bằng chứng 'no-write' ở tầng dữ liệu, không chỉ ở tầng HTTP.",
+      "srsRef": "§5.3, §9"
+    },
+    {
+      "id": "RT267-06",
+      "owner": "QA2",
+      "jira": "WWHN-265",
+      "type": "UI_E2E",
+      "coversDefect": ["FE267-D06"],
+      "endpoints": ["/master-data/warehouse-config"],
+      "steps": "Đăng nhập bằng tài khoản có warehouse.manage nhưng data scope KHÔNG chứa kho đang sửa; bấm Lưu.",
+      "expected": "Màn hiển thị thông điệp data-scope ('Kho này nằm ngoài phạm vi dữ liệu của tài khoản...'), không phải thông điệp chung 'Không lưu được cấu hình kho.' — với cả ba mã 403 mà BE có thể trả (ACCESS_DENIED, DATA_SCOPE_DENIED, WAREHOUSE_SCOPE_DENIED).",
+      "srsRef": "§8.2 (403), §8.3 SCR-MST"
+    },
+    {
+      "id": "RT267-07",
+      "owner": "QA1 + BA",
+      "jira": "WWHN-264",
+      "type": "SCOPE_DISPOSITION",
+      "coversDefect": [],
+      "endpoints": [],
+      "steps": "Rà bộ ca regression Beta của WWHN-70: mọi ca kiểm kê vật lý / variance / sửa tồn trực tiếp.",
+      "expected": "Được đánh SUPERSEDED_BY_REQ-SRS-037 theo SOURCE_AND_BRANCH_DISPOSITION.json, KHÔNG đánh FAIL/BLOCKED. Đường sửa sai tồn được retest là đối soát + Reversal.",
+      "srsRef": "REQ-SRS-037, §1.4, §5.3"
+    }
+  ],
+  "exitCriteria": [
+    "Đủ 7 ca có kết quả PASS/FAIL kèm bằng chứng thô và build/SHA/env.",
+    "Mọi defect mới phát sinh được ghi vào DEFECT_REGISTER.json theo đúng schema, không viết văn xuôi.",
+    "Không dòng nào ở trạng thái FIXED mà thiếu lượt retest PASS tương ứng."
+  ]
+}

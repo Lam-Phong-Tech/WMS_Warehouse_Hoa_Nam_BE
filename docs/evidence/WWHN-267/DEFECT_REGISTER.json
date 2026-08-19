@@ -1,0 +1,377 @@
+{
+  "task": "WWHN-267",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "branch": "m1",
+  "schemaVersion": "1.0.0",
+  "role": "BE2 — contract / error / sample / data",
+  "purpose": "Register defect canonical của WWHN-267. Register review nêu: không tồn tại defect input nào cho WWHN-267 (DEV267-P1-01) và không truy được root cause → code → fix → bằng chứng (DEV267-P1-03). Mỗi dòng dưới đây phải đủ: defectId, testCase, module, endpoint/entity, severity, expected, actual, repro, build/SHA/env, rootCause, fix (file có thật), bằng chứng trước/sau, lệnh retest, routing, contract/data impact, owner, confirmer.",
+  "evidencePolicy": {
+    "failClosed": true,
+    "noSelfSignForIndependentRoles": true,
+    "controlledEvidenceIsNotUat": true,
+    "genericRowsRejected": true,
+    "everyFixedRowNeedsPassingRetest": true,
+    "everyRowNeedsExplicitContractDataImpact": true
+  },
+  "buildContext": {
+    "beMeasuredSha": "301899c48af13ea01171b30b280cc6f5d39d3404",
+    "feMeasuredSha": "42e6957",
+    "environment": "local-controlled · sqlite in-memory (phpunit.xml) · PHP 8.3.30 · Windows",
+    "candidateShaRule": "Xem docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json → pins.candidateShaRule",
+    "note": "Lượt chạy tại chỗ chỉ dùng để phát hiện lỗi và chứng minh fix. Bằng chứng exact-SHA trích ra ngoài phải lấy từ CI trên GITHUB_SHA."
+  },
+  "defects": [
+    {
+      "id": "BE267-D01",
+      "severity": "P1",
+      "owner": "BE2",
+      "confirmer": "QA1 (WWHN-264)",
+      "routing": "DEV core",
+      "testCase": "RT267-04",
+      "module": "api-contract / error envelope",
+      "endpointOrEntity": "Toàn bộ Annex C (248 mã lỗi trên 12 HTTP status)",
+      "environment": "local-controlled · BE 301899c",
+      "expected": "SRS §8.2 dòng Envelope: \"HTTP and business code must match Annex/API contract\" — mỗi mã nghiệp vụ ghép cố định với một HTTP status, để QA viết được kỳ vọng negative test tất định theo §13.3 FIX-16 (\"đúng error code\").",
+      "actual": "Không tồn tại hợp đồng ghép cặp nào trong repo. Catalog sinh từ source có 247 mã trải trên 12 status trong khi §8.2 chỉ có row cho 9; 3 mã được phát ở hai status khác nhau (PHYSICAL_CODE_NOT_FOUND 404|422, SKU_NOT_FOUND 404|422, PHYSICAL_CODE_NOT_ACTIVE 409|422) mà không có nơi nào giải thích tầng nào dùng status nào. Không có gì chặn một mã trôi sang status khác ở lần refactor kế tiếp.",
+      "repro": "node -e \"const c=require('./docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json'); const by={}; for(const x of c.codes) for(const s of x.http_status)(by[s]=by[s]||[]).push(x.code); console.log(Object.keys(by).sort()); console.log(c.codes.filter(x=>x.http_status.length>1).map(x=>x.code));\"",
+      "rootCause": "§8.2 tồn tại dưới dạng bảng ví dụ trong tài liệu, không có bản máy đọc được. Mọi vòng review phải đọc lại bằng mắt nên kết luận khác nhau, và không CI nào phát hiện được drift.",
+      "fix": {
+        "files": [
+          "docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json",
+          "tests/Feature/Wwhn267ContractClosureTest.php",
+          "scripts/verify-wwhn-267-closure.mjs",
+          ".github/workflows/wwhn-267-be-contract-closure.yml"
+        ],
+        "summary": "Hợp đồng ghép cặp máy đọc được: reservedPairings (18 mã §8.2 ↔ status), governedStatuses (9), statusesOutsideSrs82 (405/429/503 kèm disposition), dualStatusCodes (3 mã kèm lý do tầng và ràng buộc không mở rộng). Cổng quét 516 điểm ApiError::abort trong source, độc lập với catalog sinh sẵn, nên đổi call site mà quên regenerate vẫn bị bắt."
+      },
+      "evidenceBefore": [
+        "docs/evidence/WWHN-267/RUN_EVIDENCE.md#4-bức-tranh-mã-lỗi-toàn-hệ-thống--cơ-sở-của-be267-d01"
+      ],
+      "evidenceAfter": [
+        "docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json",
+        "docs/evidence/WWHN-267/RUN_EVIDENCE.md"
+      ],
+      "retest": {
+        "runner": "phpunit",
+        "commands": [
+          "php artisan test tests/Feature/Wwhn267ContractClosureTest.php",
+          "node scripts/verify-wwhn-267-closure.mjs"
+        ],
+        "result": "PASS"
+      },
+      "contractDataImpact": {
+        "apiContract": "NO_CHANGE — không đổi tên mã, không đổi status của bất kỳ endpoint nào; chỉ khai báo lại ràng buộc đã có trong §8.2.",
+        "openapi": "N/A — không thêm/bớt/đổi operation hay schema.",
+        "database": "N/A — không có migration.",
+        "frontend": "N/A — hợp đồng không đổi nên FE không phải sửa theo dòng này.",
+        "declaredBy": "BE2",
+        "reviewedBy": "Tech Lead"
+      },
+      "status": "FIXED"
+    },
+    {
+      "id": "BE267-D02",
+      "severity": "P2",
+      "owner": "BE2",
+      "confirmer": "QA1 (WWHN-264)",
+      "routing": "DEV core",
+      "testCase": "RT267-04",
+      "module": "http-middleware",
+      "endpointOrEntity": "app/Http/Middleware/ApiConventionMiddleware.php — nhánh fallback error code, case 400",
+      "environment": "local-controlled · BE 301899c",
+      "expected": "§8.2 xếp INSUFFICIENT_STOCK ở hàng 422 (\"Field/business validation\"). Không đường nào của backend được phát mã này kèm HTTP 400.",
+      "actual": "Fallback của middleware suy mã từ chuỗi tiếng Việt trong message: response 400 có chữ 'tồn kho' / 'stock' / 'không đủ' được gán error_code = INSUFFICIENT_STOCK. Đo thực tế: cặp (400, 'Không đủ tồn kho để xuất.') trả về INSUFFICIENT_STOCK.",
+      "repro": "Cho một JsonResponse 400 với message 'Không đủ tồn kho để xuất.' đi qua ApiConventionMiddleware::handle() và đọc error_code — xem RUN_EVIDENCE.md §3.",
+      "rootCause": "Mã lỗi nghiệp vụ được suy ra từ câu chữ hiển thị. Message không phải contract: đổi wording (hoặc i18n) là đổi mã lỗi mà không ai nhận ra. Nhánh 400 là chỗ duy nhất suy ra một mã §8.2 dành riêng cho status khác.",
+      "fix": {
+        "files": [
+          "app/Http/Middleware/ApiConventionMiddleware.php"
+        ],
+        "summary": "Bỏ suy đoán INSUFFICIENT_STOCK khỏi nhánh 400; fallback của 400 giữ đúng một mã BAD_REQUEST. Các điểm phát INSUFFICIENT_STOCK thật trong nghiệp vụ (8/8) vốn đã dùng 422 nên không endpoint nào đổi hành vi."
+      },
+      "evidenceBefore": [
+        "docs/evidence/WWHN-267/RUN_EVIDENCE.md#3-fallback-error-code-của-middleware--be267-d02"
+      ],
+      "evidenceAfter": [
+        "tests/Feature/Wwhn267ContractClosureTest.php::test_middleware_fallback_never_pairs_a_reserved_code_with_a_wrong_status"
+      ],
+      "retest": {
+        "runner": "phpunit",
+        "commands": [
+          "php artisan test tests/Feature/Wwhn267ContractClosureTest.php"
+        ],
+        "result": "PASS",
+        "mutationCheck": "Khôi phục tạm nhánh suy đoán → đúng 1 test đỏ với thông điệp chỉ ra cặp (INSUFFICIENT_STOCK, 400); khôi phục bản đã sửa → 8 passed / 120 assertions."
+      },
+      "contractDataImpact": {
+        "apiContract": "NO_CHANGE_IN_PRACTICE — không endpoint nào đang phát INSUFFICIENT_STOCK ở 400 (kiểm bằng grep 8/8 call site dùng 422), nên không client nào mất nhánh xử lý.",
+        "openapi": "N/A — không có mô tả nào khai 400 INSUFFICIENT_STOCK.",
+        "database": "N/A — thay đổi nằm trong middleware HTTP, không có migration và không chạm bảng nào.",
+        "frontend": "N/A — FE phân loại insufficient-stock theo mã (src/shared/api/post-issue-contract.ts) nên không phụ thuộc status của nhánh này.",
+        "declaredBy": "BE2",
+        "reviewedBy": "Tech Lead"
+      },
+      "status": "FIXED"
+    },
+    {
+      "id": "BE267-D03",
+      "severity": "P1",
+      "owner": "BE2",
+      "confirmer": "BA + Tech Lead",
+      "routing": "DEV core + BA",
+      "testCase": "RT267-04",
+      "module": "api-contract / error naming",
+      "endpointOrEntity": "app/Traits/ApiResponse.php:77 (bảng mã mặc định) + toàn bộ bề mặt bảo vệ",
+      "environment": "local-controlled · BE 301899c",
+      "expected": "Mọi khác biệt giữa tên mã trong §8.2 và tên mã cài đặt phải nằm trong một hồ sơ duy nhất, có chủ sở hữu disposition, để BA quyết một lần cho cả nhóm.",
+      "actual": "WWHN-268 chỉ ghi nhận khác biệt ở 403 (BE268-D02). Đo lại cho thấy khác biệt cùng loại còn ở 401 (UNAUTHENTICATED vs AUTH_REQUIRED), 422 (BUSINESS_RULE_ERROR vs BUSINESS_RULE_VIOLATION), 500 (INTERNAL_SERVER_ERROR vs INTERNAL_ERROR), cộng ba status không có row §8.2 (405/429/503). Hồ sơ khuyết khiến mỗi vòng review lại phát hiện lại một mảnh và lại mở một mục chờ BA mới.",
+      "repro": "php artisan test tests/Feature/Wwhn267ContractClosureTest.php --filter=test_divergence_register_matches_the_codes_backend_actually_returns; đối chiếu với RUN_EVIDENCE.md §1.",
+      "rootCause": "Khác biệt tên gọi được ghi nhận theo từng lần ai đó tình cờ chạm phải, không theo một lần rà soát đủ 9 status của §8.2.",
+      "fix": {
+        "files": [
+          "docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json",
+          "tests/Feature/Wwhn267ContractClosureTest.php"
+        ],
+        "summary": "Hợp nhất thành divergences[] gồm DIV-401-01 / DIV-403-01 / DIV-422-01 / DIV-500-01 (+ DIV-409-01 đã đóng bởi WWHN-234), mỗi mục có evidence, impact, owner, disposition. Test đối chiếu mã backend THỰC trả về với trường 'implemented' của register nên hồ sơ không thể mục trong khi code đã đổi.",
+        "notChanged": "Không đổi tên mã nào. Đổi tên là thay đổi contract chạm OpenAPI + FE + nhiều bộ test đã chốt — thuộc BA + Tech Lead."
+      },
+      "evidenceBefore": [
+        "docs/docs_task_jira/WWHN-268_BE_REGRESSION_RECEIPT.md#4-điểm-còn-mở-không-tự-đóng"
+      ],
+      "evidenceAfter": [
+        "docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json",
+        "docs/evidence/WWHN-267/RUN_EVIDENCE.md"
+      ],
+      "retest": {
+        "runner": "phpunit",
+        "commands": [
+          "php artisan test tests/Feature/Wwhn267ContractClosureTest.php"
+        ],
+        "result": "PASS"
+      },
+      "contractDataImpact": {
+        "apiContract": "NO_CHANGE — hồ sơ hoá, không đổi mã.",
+        "openapi": "N/A cho vòng này; nếu BA quyết đổi tên thì OpenAPI + Postman + FE + test phải đổi cùng version — đã ghi thành điều kiện trong register.",
+        "database": "N/A — hồ sơ hoá contract, không có migration.",
+        "frontend": "MITIGATED — FE nhận diện 403 theo HTTP status, và điểm phụ thuộc chuỗi mã còn lại đã sửa ở FE267-D06.",
+        "declaredBy": "BE2",
+        "reviewedBy": "BA + Tech Lead"
+      },
+      "status": "FIXED_PENDING_BA_DISPOSITION"
+    },
+    {
+      "id": "BE267-D04",
+      "severity": "P1",
+      "owner": "BE2",
+      "confirmer": "BA + Tech Lead",
+      "routing": "DEV core + BA",
+      "testCase": "RT267-02",
+      "module": "iam / role baseline (data)",
+      "endpointOrEntity": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php const ROLES",
+      "environment": "local-controlled · BE 301899c",
+      "expected": "SRS §3 định nghĩa 6 actor và ghi rõ \"Backend phải enforce permission và data scope, không chỉ ẩn nút UI\". Tập quyền của từng role phải truy được về đúng một actor và không được nới trong im lặng.",
+      "actual": "Seed 11 role nhưng không có tài liệu nào ánh xạ role ↔ actor. Hệ quả đo được: role WAREHOUSE_MANAGER có 68 quyền — nhiều hơn ADMIN (61) — và giữ iam.user.manage / iam.role.manage mà §3 đánh D cho actor Quản lý kho; LEADERSHIP giữ warranty.view + putaway.view trong khi §3 đánh D cho hai row đó (chỉ liệt kê key mức manage); tồn tại hai không gian tên song song iam.user.manage vs user.manage.",
+      "repro": "php -r reflection trên hằng ROLES để đếm quyền từng role; và ma trận RBAC đo thực tế trong RUN_EVIDENCE.md §2 (LEADERSHIP nhận 200 ở /warranty-cases và /putaway-tasks).",
+      "rootCause": "Không có nguồn nào ràng buộc seed role với bảng actor của §3, nên mỗi PR thêm quyền đều hợp lệ cục bộ và tập quyền lớn dần theo thời gian.",
+      "fix": {
+        "files": [
+          "docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json",
+          "tests/Feature/Wwhn267ContractClosureTest.php"
+        ],
+        "summary": "Pin fail-closed theo băm sha256 tập quyền (đã sort) của cả 11 role + ánh xạ role ↔ actor §3 + ba delta DELTA-01/02/03 có chủ sở hữu và kiểm soát bù. Mọi thay đổi grant làm cổng đỏ, buộc cập nhật pin và nêu lý do trong PR. Bổ sung test riêng chứng minh kiểm soát bù của DELTA-02 (LEADERSHIP không có warranty.pii.view/pii.export/manage) còn hiệu lực.",
+        "notChanged": "KHÔNG tự gỡ quyền của bất kỳ role nào: cả hai cách sửa DELTA-01 đều chạm dữ liệu role thật, FE menu và bộ test RBAC; SRS §3 lại không nói gì về mức view. Đây là quyết định của BA + Tech Lead."
+      },
+      "evidenceBefore": [
+        "docs/evidence/WWHN-267/RUN_EVIDENCE.md#2-ma-trận-rbac-đo-được--cơ-sở-của-be267-d05-và-delta-02"
+      ],
+      "evidenceAfter": [
+        "docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json"
+      ],
+      "retest": {
+        "runner": "phpunit",
+        "commands": [
+          "php artisan test tests/Feature/Wwhn267ContractClosureTest.php"
+        ],
+        "result": "PASS"
+      },
+      "contractDataImpact": {
+        "apiContract": "NO_CHANGE",
+        "openapi": "N/A — role baseline là dữ liệu seed, không xuất hiện trong đặc tả OpenAPI.",
+        "database": "NO_MIGRATION — chỉ pin dữ liệu seed hiện hành, không sửa dữ liệu. Nếu BA quyết gỡ quyền thì cần cả seed lẫn script sửa dữ liệu role đã cấp trên Beta/Prod, và phải reconcile — ghi thành điều kiện trong DELTA-01.",
+        "frontend": "N/A cho vòng này; nếu gỡ quyền, menu/route guard FE phải rà lại cùng lúc.",
+        "declaredBy": "BE2",
+        "reviewedBy": "BA + Tech Lead"
+      },
+      "status": "PARTIAL_FIXED_PENDING_BA_DISPOSITION"
+    },
+    {
+      "id": "BE267-D05",
+      "severity": "P1",
+      "owner": "BE2",
+      "confirmer": "QA1 (WWHN-264)",
+      "routing": "DEV core",
+      "testCase": "RT267-01, RT267-02",
+      "module": "test-contract / RBAC",
+      "endpointOrEntity": "tests/Feature/Wwhn268RegressionContractTest.php::test_protected_surfaces_return_403_permission_denied_for_a_role_without_the_permission",
+      "environment": "local-controlled · BE 301899c",
+      "expected": "Cổng khoá hợp đồng 403 trên sáu bề mặt phải khẳng định kết quả của TỪNG bề mặt; §8.1 Enforcement standard đòi \"exact x-permission + data scope; default deny\" ở mọi endpoint được bảo vệ.",
+      "actual": "Test duyệt sáu bề mặt nhưng `continue` khi status khác 403 và chỉ khẳng định `assertGreaterThan(0, $denied)`. Đo thực tế: vai trò LEADERSHIP chỉ bị chặn ở 2/6 bề mặt, nghĩa là bốn ô còn lại chưa từng được kiểm — và nếu permission middleware rụng khỏi năm route thì cổng vẫn xanh.",
+      "repro": "Đọc thân test WWHN-268 + ma trận đo được ở RUN_EVIDENCE.md §2 (LEADERSHIP: 403/403/200/200/200/200).",
+      "rootCause": "Cổng viết theo kiểu 'có ít nhất một bằng chứng' thay vì 'đủ mọi ô'. Kiểu khẳng định này luôn xanh nên không ai phát hiện phạm vi thật đã co lại.",
+      "fix": {
+        "files": [
+          "tests/Feature/Wwhn267ContractClosureTest.php"
+        ],
+        "summary": "Ma trận RBAC 3 role × 6 bề mặt = 18 ô, mỗi ô khẳng định đúng HTTP status kỳ vọng, kèm căn cứ §3 cho từng nhóm ô; ô 403 còn phải mang mã trong danh mục 403 sinh từ catalog và có request_id.",
+        "notChanged": "Không sửa test của WWHN-268: nó là bằng chứng đóng của ticket đó tại SHA của ticket đó. WWHN-267 bổ sung cổng mạnh hơn thay vì viết lại lịch sử."
+      },
+      "evidenceBefore": [
+        "docs/evidence/WWHN-267/RUN_EVIDENCE.md#2-ma-trận-rbac-đo-được--cơ-sở-của-be267-d05-và-delta-02"
+      ],
+      "evidenceAfter": [
+        "tests/Feature/Wwhn267ContractClosureTest.php::test_rbac_matrix_is_enforced_cell_by_cell"
+      ],
+      "retest": {
+        "runner": "phpunit",
+        "commands": [
+          "php artisan test tests/Feature/Wwhn267ContractClosureTest.php"
+        ],
+        "result": "PASS"
+      },
+      "contractDataImpact": {
+        "apiContract": "NO_CHANGE",
+        "openapi": "N/A — chỉ bổ sung test, không chạm operation nào.",
+        "database": "N/A — không có migration; test dùng seeder sẵn có.",
+        "frontend": "N/A — cổng thuần backend, FE không đọc artifact này.",
+        "declaredBy": "BE2",
+        "reviewedBy": "QA1"
+      },
+      "status": "FIXED"
+    },
+    {
+      "id": "FE267-D06",
+      "severity": "P2",
+      "owner": "BE2 (fix chéo repo) → FE1 review",
+      "confirmer": "QA2 (WWHN-265)",
+      "routing": "FE",
+      "testCase": "RT267-06",
+      "module": "master-data / warehouse config + shared api-error",
+      "endpointOrEntity": "src/modules/master-data/pages/WarehouseConfigScreen.tsx (saveErrorMessage) và src/shared/api/api-error.ts (isNoPermissionError, nhánh ApiEnvelopeError) — repo HoaNam_FE",
+      "environment": "local-controlled · FE 42e6957 · vitest",
+      "expected": "Người dùng bị từ chối vì phạm vi dữ liệu phải thấy thông điệp data-scope, với BẤT KỲ mã nào trong hạng 403 mà backend có thể trả.",
+      "actual": "saveErrorMessage chỉ so `normalized.code === \"ACCESS_DENIED\"`, nên DATA_SCOPE_DENIED / WAREHOUSE_SCOPE_DENIED / PERMISSION_DENIED rơi về thông điệp chung 'Không lưu được cấu hình kho.'. Song song đó, nhánh ApiEnvelopeError của isNoPermissionError liệt kê tay 5 mã và thiếu WAREHOUSE_SCOPE_DENIED — đúng loại lỗi mà WWHN-289 đã sửa một lần cho DATA_SCOPE_DENIED, tái diễn vì danh mục được chép tay ở từng nhánh if.",
+      "repro": "Trả về lỗi 403 với error_code = DATA_SCOPE_DENIED khi PATCH /api/v1/warehouses/{id} và quan sát thông điệp trên màn cấu hình kho; hoặc chạy bộ test hợp đồng mới ở FE.",
+      "rootCause": "Danh mục mã 403 không có nguồn duy nhất ở FE; mỗi màn tự chép một tập con. Khác biệt tên mã (DIV-403-01) còn đang mở nên tập con nào cũng sẽ sai với một phần lưu lượng.",
+      "fix": {
+        "files": [
+          "src/shared/api/api-error.ts",
+          "src/modules/master-data/pages/WarehouseConfigScreen.tsx",
+          "src/shared/api/__tests__/wwhn-267-forbidden-code-contract.test.ts"
+        ],
+        "repo": "HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE",
+        "summary": "Thêm FORBIDDEN_ERROR_CODES + isForbiddenErrorCode làm nguồn duy nhất (bổ sung WAREHOUSE_SCOPE_DENIED), dùng lại trong isNoPermissionError; màn cấu hình kho nhận diện theo HTTP 403 trước, danh mục mã chỉ là đường lui cho envelope không mang status."
+      },
+      "evidenceBefore": [
+        "docs/evidence/WWHN-267/RUN_EVIDENCE.md"
+      ],
+      "evidenceAfter": [
+        "src/shared/api/__tests__/wwhn-267-forbidden-code-contract.test.ts"
+      ],
+      "retest": {
+        "runner": "vitest",
+        "commands": [
+          "npx vitest run src/shared/api/__tests__/wwhn-267-forbidden-code-contract.test.ts"
+        ],
+        "result": "PASS",
+        "note": "7 tests passed trên repo FE tại 42e6957 + patch này."
+      },
+      "contractDataImpact": {
+        "apiContract": "NO_CHANGE — FE nới rộng khả năng đọc, backend không đổi.",
+        "openapi": "N/A — chỉ sửa cách FE đọc mã lỗi, không đổi đặc tả backend.",
+        "database": "N/A — không có migration.",
+        "frontend": "CHANGED — hai file shared/module; không đổi API surface, không đổi route.",
+        "declaredBy": "BE2",
+        "reviewedBy": "FE1 + QA2"
+      },
+      "status": "FIXED"
+    }
+  ],
+  "governanceItems": [
+    {
+      "registerItem": "DEV267-P1-02",
+      "title": "Baseline parent stale và xung đột Stocktake",
+      "artifact": "docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json → sourceDisposition",
+      "disposition": "SUPERSEDED_BY_REQ-SRS-037",
+      "owner": "BA Main + QA1",
+      "confirmer": "PM / Tech Lead"
+    },
+    {
+      "registerItem": "DEV267-P1-04",
+      "title": "Nhánh canonical m1 vs m1-be-2",
+      "artifact": "docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json → branchDisposition",
+      "disposition": "CANONICAL_BRANCH_LOCKED",
+      "owner": "PM / Tech Lead",
+      "confirmer": "QA1",
+      "proof": "origin/m1-be-2 (6081649) là ancestor thuần của m1 (c29a220); ahead 719, behind 0 — supersede không mất công việc."
+    },
+    {
+      "registerItem": "DEV267-P1-05",
+      "title": "Phạm vi retest độc lập sau fix",
+      "artifact": "docs/evidence/WWHN-267/QA_RETEST_PLAN.json",
+      "disposition": "HANDED_TO_QA",
+      "owner": "QA1 + QA2",
+      "confirmer": "BA / PM",
+      "note": "BE2 không tự đánh PASS thay QA. 7 ca RT267-01..07 là phạm vi tối thiểu."
+    },
+    {
+      "registerItem": "DEV267-P2-01",
+      "title": "Metadata vai trò/assignee trong Description",
+      "artifact": "docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json → governanceNote",
+      "disposition": "HISTORICAL_TRACE_KEPT_CURRENT_OWNER_NOTED",
+      "owner": "PM / BAS",
+      "confirmer": "PM"
+    }
+  ],
+  "externalGates": [
+    {
+      "id": "W267-EXT-01",
+      "title": "Disposition danh mục tên mã lỗi §8.2 (401/403/422/500)",
+      "owner": "BA + Tech Lead",
+      "blocks": [
+        "BE267-D03"
+      ],
+      "compensatingControl": "FE nhận diện 403/401 theo HTTP status; danh mục mã ở FE gom về một nguồn (FE267-D06)."
+    },
+    {
+      "id": "W267-EXT-02",
+      "title": "Disposition role baseline vs SRS §3 (DELTA-01/02/03)",
+      "owner": "BA + Tech Lead",
+      "blocks": [
+        "BE267-D04"
+      ],
+      "compensatingControl": "Pin fail-closed chặn nới quyền trong im lặng; PreventSelfRoleAssignment chặn tự leo quyền; PII bảo hành sau permission riêng."
+    },
+    {
+      "id": "W267-EXT-03",
+      "title": "Regression độc lập trên build đã deploy",
+      "owner": "QA1 (WWHN-264) + QA2 (WWHN-265)",
+      "blocks": [],
+      "compensatingControl": "QA_RETEST_PLAN.json giao phạm vi tối thiểu máy đọc được."
+    },
+    {
+      "id": "W267-EXT-04",
+      "title": "PR URL + exact SHA + build ID + CI log của lượt chạy chốt",
+      "owner": "DEV + DevOps",
+      "blocks": [],
+      "compensatingControl": "Workflow wwhn-267-be-contract-closure.yml chạy trên GITHUB_SHA và upload artifact."
+    },
+    {
+      "id": "W267-EXT-05",
+      "title": "Sửa tests/Feature/Wwhn310Round2ClosureTest.php để chạy lại baseline toàn Feature suite",
+      "owner": "chủ ticket WWHN-310",
+      "blocks": [],
+      "compensatingControl": "WWHN-267 chạy theo đường dẫn file cụ thể; xem RUN_EVIDENCE.md §6."
+    }
+  ]
+}

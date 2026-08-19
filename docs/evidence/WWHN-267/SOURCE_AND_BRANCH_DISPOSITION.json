@@ -1,0 +1,56 @@
+{
+  "document": "WWHN-267-DISPOSITION",
+  "task": "WWHN-267",
+  "parent": "WWHN-70",
+  "qaSource": "HN-QA-005-ST01",
+  "schemaVersion": "1.0.0",
+  "purpose": "Đóng hai mục nguồn/nhánh của register review WWHN-267: DEV267-P1-02 (baseline parent stale, xung đột Stocktake) và DEV267-P1-04 (Jira pin m1-be-2 trong khi phát triển thật ở m1).",
+  "sourceDisposition": {
+    "registerItem": "DEV267-P1-02",
+    "conflict": "Review nêu WWHN-70 mang AC Stocktake theo BRD v3.9, trong khi baseline hiện hành (BRD v3.20 / SRS v1.12) là no-Stocktake. Hai nguồn cùng được trích dẫn trong một vòng regression thì QA không biết ca kiểm kê là in-scope hay out-of-scope.",
+    "controllingSource": "HN-SRS-FRD-001 v1.12 — REQ-SRS-037: \"Không expose Stocktake/Variance, menu/API/permission/entity/report hoặc action sửa tồn trực tiếp.\"",
+    "supportingClauses": [
+      "§1.4: \"No stocktake: không có entity, API, permission, screen, report hoặc hành động sửa tồn trực tiếp trong MVP.\"",
+      "§5.3 (Camera Scan and No-Stocktake Control): \"Không có Stocktake Session/Snapshot/Count/Variance/direct stock edit. Inventory authority dựa trên movement ledger, balance projection và subledger reconciliation; sai giao dịch dùng Reversal.\"",
+      "§1.6 Supersession Register: BRD v3.9 → BRD v3.20, trạng thái HISTORICAL / SUPERSEDED."
+    ],
+    "anchorRule": "Neo vào REQ-SRS-037 (requirement), KHÔNG neo vào DEC-NO-STOCKTAKE-001. Trong §1.6 Supersession Register, DEC-NO-STOCKTAKE-001 nằm ở cột 'New controlling source/decision' với trạng thái 'SUPERSEDED 04/08/2026' của mệnh đề cũ — trích dẫn nhầm cột này là cách nhanh nhất để reviewer kết luận ngược lại. Bài học kế thừa từ WWHN-296 và WWHN-230.",
+    "decision": "Ca kiểm kê vật lý / variance / sửa tồn trực tiếp KHÔNG thuộc phạm vi regression Beta của WWHN-70. Ca nào còn trong bộ test cũ phải được đánh SUPERSEDED_BY_REQ-SRS-037 chứ không được đánh FAIL/BLOCKED — hai nhãn đó ngụ ý sản phẩm thiếu chức năng.",
+    "correctPathForStockCorrection": "Đối soát (reconciliation) + Reversal append-only. Xem WWHN-230 (de-scope kiểm kê), WWHN-233 (count/recount DEFERRED), WWHN-236 (Apply Adjustment DEFERRED), WWHN-237 (variance report DEFERRED).",
+    "ifScopeMustReturn": "Phải có Decision Record hoặc CR được PM/PO + Client duyệt, cập nhật SRS trước, rồi mới mở ca kiểm thử. WWHN-267 không có thẩm quyền đưa lại.",
+    "disposition": "SUPERSEDED_BY_REQ-SRS-037",
+    "owner": "BA Main + QA1",
+    "confirmer": "PM / Tech Lead"
+  },
+  "branchDisposition": {
+    "registerItem": "DEV267-P1-04",
+    "conflict": "Jira WWHN-267 ghi nhánh m1-be-2, nhưng toàn bộ phát triển thống nhất đang nằm ở m1. Nếu không chốt, CI/artifact có thể chạy trên nhánh không phải nhánh chứa fix.",
+    "canonicalBranch": "m1",
+    "supersededBranch": "m1-be-2",
+    "provenRelation": {
+      "command": "git merge-base --is-ancestor origin/m1-be-2 m1",
+      "result": "origin/m1-be-2 (60816499066f9f493596e326dc41116ef32f5c4b) LÀ ancestor thuần của m1 (301899c48af13ea01171b30b280cc6f5d39d3404)",
+      "aheadAtMeasurement": 738,
+      "behind": 0,
+      "meaning": "m1 chứa toàn bộ lịch sử của m1-be-2 và đi trước 738 commit tại thời điểm đo (con số này chỉ tăng); m1-be-2 không có commit nào mà m1 thiếu. Việc supersede KHÔNG mất công việc và KHÔNG cần cherry-pick."
+    },
+    "decision": "m1 là canonical source/target/release branch cho WWHN-267. m1-be-2 giữ nguyên làm dấu vết lịch sử, không nhận commit mới, không dùng để chạy CI hay xuất artifact.",
+    "artifactRule": "Mọi bằng chứng trích dẫn ra ngoài phải sinh từ lượt chạy CI trên GITHUB_SHA của m1 (.github/workflows/wwhn-267-be-contract-closure.yml). Lượt chạy tại chỗ trên Windows chỉ dùng để phát hiện lỗi, không dùng để sign-off.",
+    "disposition": "CANONICAL_BRANCH_LOCKED",
+    "owner": "PM / Tech Lead",
+    "confirmer": "QA1"
+  },
+  "governanceNote": {
+    "registerItem": "DEV267-P2-01",
+    "issue": "Description của WWHN-267 vẫn ghi vai trò BE2 — Duy Khánh / HN-BE-02, trong khi assignee đang hoạt động là Quang và title mang tiền tố [BE].",
+    "decision": "Giữ nguyên phần mô tả gốc làm dấu vết lịch sử của phân công ban đầu; bổ sung một dòng ghi chú nêu rõ quyền sở hữu hiện hành là đội DEV hợp nhất, assignee đang hoạt động chịu trách nhiệm giao nộp. Không sửa lịch sử comment.",
+    "reasonNotToRewrite": "Register review đối chiếu chéo giữa các vai trò BE1/BE2/QA1/QA2; xoá dấu vết phân công cũ sẽ làm hỏng khả năng truy vết ai đã nhận việc ở vòng nào.",
+    "disposition": "HISTORICAL_TRACE_KEPT_CURRENT_OWNER_NOTED",
+    "owner": "PM / BAS"
+  },
+  "pins": {
+    "beMeasuredSha": "301899c48af13ea01171b30b280cc6f5d39d3404",
+    "feMeasuredSha": "42e6957",
+    "candidateShaRule": "Candidate SHA của WWHN-267 là commit trên m1 chạm docs/evidence/WWHN-267/**, tests/Feature/Wwhn267ContractClosureTest.php và scripts/verify-wwhn-267-closure.mjs. Dùng bất biến này thay vì hard-pin HEAD: m1 có nhiều phiên làm việc song song nên HEAD trôi liên tục, hard-pin sẽ mục ngay ngày hôm sau (bài học WWHN-247/WWHN-233)."
+  }
+}

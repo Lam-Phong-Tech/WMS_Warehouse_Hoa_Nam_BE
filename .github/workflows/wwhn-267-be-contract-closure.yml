@@ -1,0 +1,123 @@
+name: WWHN-267 BE contract closure
+
+# Phần BE2 (contract / error / sample / data) của vòng sửa lỗi WWHN-70 / HN-QA-005-ST01.
+#
+# Register review của WWHN-267 không tìm thấy PR/commit/code/evidence nào, nên mọi
+# khẳng định của vòng này phải sinh ra từ một lượt chạy CI truy được theo exact SHA.
+# Job chạy trên PostgreSQL 16 (đúng engine production) và upload hồ sơ đóng làm
+# artifact để QA1 (WWHN-264) đối chiếu khi retest độc lập.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-267/**'
+      - 'docs/docs_task_jira/WWHN-267_BE_CONTRACT_RECEIPT.md'
+      - 'tests/Feature/Wwhn267ContractClosureTest.php'
+      - 'scripts/verify-wwhn-267-closure.mjs'
+      - 'app/Traits/ApiResponse.php'
+      - 'app/Http/Middleware/ApiConventionMiddleware.php'
+      - 'app/Support/ConflictCode.php'
+      - 'Modules/Auth/database/seeders/AuthDatabaseSeeder.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - '.github/workflows/wwhn-267-be-contract-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'docs/evidence/WWHN-267/**'
+      - 'tests/Feature/Wwhn267ContractClosureTest.php'
+      - 'scripts/verify-wwhn-267-closure.mjs'
+      - '.github/workflows/wwhn-267-be-contract-closure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-closure:
+    name: Error contract pairing + RBAC matrix + role baseline pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn267
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn267"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      CI_DEMO_PASSWORD: WWHN267-CI-Only-2026
+      JWT_SECRET: WWHN267-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn267
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Ghi nhận identity của lượt chạy
+        run: |
+          {
+            echo "### WWHN-267 BE contract closure"
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- run: \`${GITHUB_RUN_ID}\` (attempt ${GITHUB_RUN_ATTEMPT})"
+            echo "- engine: PostgreSQL 16"
+            echo ""
+            echo "Ranh giới sự thật: đây là lượt chạy in-process. Regression độc lập trên build đã deploy thuộc QA1 (WWHN-264) / QA2 (WWHN-265)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Style check trên nguồn của WWHN-267
+        run: vendor/bin/pint --test tests/Feature/Wwhn267ContractClosureTest.php app/Http/Middleware/ApiConventionMiddleware.php
+
+      - name: Cổng hồ sơ đóng (fail-closed)
+        # Chạy trên checkout sạch nên bước kiểm catalog-khớp-source ở đây là bắt buộc,
+        # khác với lượt chạy tại chỗ trên cây làm việc có WIP của ticket khác.
+        run: node scripts/verify-wwhn-267-closure.mjs
+
+      - name: Migrate + seed
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Hợp đồng contract/RBAC/role-baseline của WWHN-267
+        run: php artisan test tests/Feature/Wwhn267ContractClosureTest.php
+
+      - name: Không được tái phát regression của vòng trước (WWHN-268)
+        run: php artisan test tests/Feature/Wwhn268RegressionContractTest.php
+
+      - name: Upload bằng chứng WWHN-267
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-267-be-contract-evidence-${{ github.sha }}
+          path: |
+            docs/evidence/WWHN-267/**
+            docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json
+          if-no-files-found: warn
+          retention-days: 30

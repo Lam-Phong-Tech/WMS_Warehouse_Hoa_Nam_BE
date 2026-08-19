@@ -157,11 +157,17 @@ class ApiConventionMiddleware
 
                     switch ($statusCode) {
                         case 400:
-                            if (str_contains(strtolower($message), 'tồn kho') || str_contains(strtolower($message), 'stock') || str_contains(strtolower($message), 'không đủ')) {
-                                $defaultErrorCode = 'INSUFFICIENT_STOCK';
-                            } else {
-                                $defaultErrorCode = 'BAD_REQUEST';
-                            }
+                            // WWHN-267 (BE267-D02): nhánh này từng suy ra INSUFFICIENT_STOCK từ
+                            // chuỗi tiếng Việt trong message. §8.2 xếp INSUFFICIENT_STOCK vào
+                            // hàng 422 ("Field/business validation"), nên phát mã đó kèm HTTP 400
+                            // vi phạm đúng câu ràng buộc của dòng Envelope: "HTTP and business
+                            // code must match Annex/API contract". Mọi điểm phát
+                            // INSUFFICIENT_STOCK thật trong nghiệp vụ đều đang dùng 422
+                            // (AlignedOutboundStockService, CurrentBaselineStockService,
+                            // CurrentBaselineReversalService, WarehouseException), nên nhánh 400
+                            // chỉ còn là đường rò contract chờ một message trùng chữ. Fallback
+                            // của 400 giữ đúng một mã.
+                            $defaultErrorCode = 'BAD_REQUEST';
                             break;
                         case 401:
                             $defaultErrorCode = 'UNAUTHENTICATED';

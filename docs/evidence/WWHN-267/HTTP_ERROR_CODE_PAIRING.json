@@ -1,0 +1,146 @@
+{
+  "document": "WWHN-267-PAIRING",
+  "task": "WWHN-267",
+  "parent": "WWHN-70",
+  "branch": "m1",
+  "schemaVersion": "1.0.0",
+  "authority": "HN-SRS-FRD-001 v1.12 §8.2 (HTTP/Error Contract) — dòng Envelope: \"HTTP and business code must match Annex/API contract\".",
+  "purpose": "Hợp đồng ghép cặp HTTP ↔ business error code, máy kiểm được. Trước WWHN-267, §8.2 chỉ tồn tại dưới dạng bảng ví dụ trong tài liệu: catalog sinh từ source có 247 mã trải trên 12 HTTP status, không có gì chặn một mã trôi sang status khác giữa hai lần refactor, nên QA không viết được kỳ vọng negative test tất định (§13.3 FIX-16 đòi 'đúng error code').",
+  "scopeNote": "Register này KHÔNG đổi tên mã nào. Nó (a) khoá cặp (mã dành riêng ↔ status) của §8.2, (b) khai báo tường minh mọi khác biệt tên gọi và mọi status nằm ngoài §8.2 kèm chủ sở hữu disposition. Đổi tên mã là thay đổi contract chạm OpenAPI + FE + test — thuộc BA + Tech Lead, xem divergences[].",
+  "reservedPairings": {
+    "INVALID_JSON": 400,
+    "INVALID_QUERY": 400,
+    "INVALID_PATH": 400,
+    "AUTH_REQUIRED": 401,
+    "TOKEN_EXPIRED": 401,
+    "PERMISSION_DENIED": 403,
+    "DATA_SCOPE_DENIED": 403,
+    "RESOURCE_NOT_FOUND": 404,
+    "STATE_CONFLICT": 409,
+    "IDEMPOTENCY_CONFLICT": 409,
+    "CONCURRENCY_CONFLICT": 409,
+    "DOWNSTREAM_DEPENDENCY_EXISTS": 409,
+    "STALE_VERSION": 412,
+    "VALIDATION_ERROR": 422,
+    "BUSINESS_RULE_VIOLATION": 422,
+    "INSUFFICIENT_STOCK": 422,
+    "PRECONDITION_REQUIRED": 428,
+    "INTERNAL_ERROR": 500
+  },
+  "reservedPairingsNote": "Mã dành riêng của §8.2: nếu xuất hiện trong source thì CHỈ được phát ở đúng status trên. Đây là bất biến mà tests/Feature/Wwhn267ContractClosureTest.php quét source để canh; ngoại lệ duy nhất được phép là các mục trong dualStatusCodes[].",
+  "governedStatuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
+  "governedStatusesNote": "9 status có row trong §8.2. Mọi status khác mà backend phát ra phải nằm trong statusesOutsideSrs82[] kèm disposition — nếu không, cổng fail.",
+  "statusesOutsideSrs82": [
+    {
+      "status": 405,
+      "codes": ["METHOD_NOT_ALLOWED"],
+      "emittedBy": "app/Http/Middleware/ApiConventionMiddleware.php (fallback theo status của router Laravel)",
+      "disposition": "ACCEPTED_TRANSPORT_LEVEL",
+      "rationale": "405 do router phát trước khi tới controller, không phải trạng thái nghiệp vụ. Envelope vẫn đủ success=false / error_code / meta.request_id nên FE không rơi vào nhánh lỗi lạ.",
+      "owner": "BE2",
+      "requiresBaDecision": false
+    },
+    {
+      "status": 429,
+      "codes": ["TOO_MANY_REQUESTS"],
+      "emittedBy": "rate limit của WWHN-289 (/auth/login, nhóm PV ẩn danh)",
+      "disposition": "ACCEPTED_SECURITY_CONTROL",
+      "rationale": "Rate limit là kiểm soát bảo mật bổ sung do WWHN-289 đưa vào sau khi §8.2 được chốt; FE đã có isRateLimitedError() nhận diện theo HTTP 429.",
+      "owner": "BE1 + Tech Lead",
+      "requiresBaDecision": false
+    },
+    {
+      "status": 503,
+      "codes": ["HEALTH_CHECK_DEGRADED", "SERVICE_UNAVAILABLE"],
+      "emittedBy": "bề mặt health/readiness của WWHN-295",
+      "disposition": "ACCEPTED_OPERATIONAL_SURFACE",
+      "rationale": "Bề mặt vận hành cho probe hạ tầng, không phải API nghiệp vụ trong Annex C.",
+      "owner": "BE1 + DevOps",
+      "requiresBaDecision": false
+    }
+  ],
+  "divergences": [
+    {
+      "id": "DIV-401-01",
+      "status": 401,
+      "srs82Examples": ["AUTH_REQUIRED", "TOKEN_EXPIRED"],
+      "implemented": "UNAUTHENTICATED",
+      "evidence": "app/Traits/ApiResponse.php:77 (bảng mặc định) + đo thực tế trên 6 bề mặt bảo vệ, xem docs/evidence/WWHN-267/RUN_EVIDENCE.md §1.",
+      "impact": "Không có: FE nhận diện phiên hết hạn theo HTTP 401, không theo chuỗi mã.",
+      "disposition": "OPEN_NEEDS_BA_DECISION",
+      "owner": "BA + Tech Lead",
+      "note": "BE268-D02 chỉ ghi nhận khác biệt ở 403. Đo lại ở WWHN-267 cho thấy khác biệt cùng loại còn ở 401/422/500 — phải disposition một lần cho cả nhóm, không vá lẻ từng status."
+    },
+    {
+      "id": "DIV-403-01",
+      "status": 403,
+      "srs82Examples": ["PERMISSION_DENIED", "DATA_SCOPE_DENIED"],
+      "implemented": "ACCESS_DENIED (mặc định) + PERMISSION_DENIED + DATA_SCOPE_DENIED + WAREHOUSE_SCOPE_DENIED",
+      "evidence": "app/Traits/ApiResponse.php:77; app/Http/Middleware/ApiConventionMiddleware.php:170; Modules/Warehouse/app/Http/Controllers/ScanController.php:138.",
+      "impact": "Không có ở tầng trạng thái UI (FE isNoPermissionError() nhận diện theo HTTP 403). CÓ ở tầng thông điệp: màn nào map theo chuỗi mã sẽ mất thông điệp riêng — đã sửa ở FE267-D06.",
+      "disposition": "OPEN_NEEDS_BA_DECISION",
+      "owner": "BA + Tech Lead",
+      "note": "Kế thừa BE268-D02 của WWHN-268; WWHN-267 không tự đổi mã, chỉ hợp nhất hồ sơ và bịt đường lệ thuộc chuỗi mã ở FE."
+    },
+    {
+      "id": "DIV-422-01",
+      "status": 422,
+      "srs82Examples": ["VALIDATION_ERROR", "BUSINESS_RULE_VIOLATION", "INSUFFICIENT_STOCK"],
+      "implemented": "BUSINESS_RULE_ERROR (mặc định) + các mã miền cụ thể",
+      "evidence": "app/Traits/ApiResponse.php:77; docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json.",
+      "impact": "Không có: FE hiển thị message + field errors, không phân nhánh theo tên mã mặc định.",
+      "disposition": "OPEN_NEEDS_BA_DECISION",
+      "owner": "BA + Tech Lead"
+    },
+    {
+      "id": "DIV-500-01",
+      "status": 500,
+      "srs82Examples": ["INTERNAL_ERROR"],
+      "implemented": "INTERNAL_SERVER_ERROR + OUTBOUND_MATCH_MISSING",
+      "evidence": "app/Traits/ApiResponse.php:77; Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:395.",
+      "impact": "Không có với client. OUTBOUND_MATCH_MISSING là guard bất biến nội bộ ('scan thành công nhưng không có match'), đúng nghĩa 'Unexpected' của §8.2; giữ tên riêng để log truy được nguyên nhân.",
+      "disposition": "OPEN_NEEDS_BA_DECISION",
+      "owner": "BA + Tech Lead"
+    },
+    {
+      "id": "DIV-409-01",
+      "status": 409,
+      "srs82Examples": ["STATE_CONFLICT", "IDEMPOTENCY_CONFLICT", "CONCURRENCY_CONFLICT", "DOWNSTREAM_DEPENDENCY_EXISTS"],
+      "implemented": "4 lớp canon của App\\Support\\ConflictCode + các mã miền cụ thể (CONTAINER_CLOSED, ITEM_ALREADY_MATCHED, ...)",
+      "evidence": "app/Support/ConflictCode.php (WWHN-234 DEV234-P1-02); scripts/verify-wwhn234-closure.mjs.",
+      "impact": "Không có: WWHN-234 đã chốt rằng mã miền là biến thể chi tiết của lớp STATE_CONFLICT, còn hai lớp quyết định hành vi retry (CONCURRENCY / DOWNSTREAM_DEPENDENCY) bắt buộc dùng hằng.",
+      "disposition": "CLOSED_BY_WWHN-234",
+      "owner": "BE1",
+      "requiresBaDecision": false
+    }
+  ],
+  "dualStatusCodes": [
+    {
+      "code": "PHYSICAL_CODE_NOT_FOUND",
+      "statuses": [404, 422],
+      "reason": "404 khi định danh tài nguyên theo path (SkuAggregateService, CurrentBaselineItemIdentityController); 422 khi giá trị code_value trong body scan không tồn tại hoặc không ACTIVE.",
+      "disposition": "ACCEPTED_LAYER_SPLIT",
+      "constraint": "Không được mở rộng sang status thứ ba; cổng fail nếu xuất hiện cặp mới."
+    },
+    {
+      "code": "SKU_NOT_FOUND",
+      "statuses": [404, 422],
+      "reason": "404 khi SKU là tài nguyên được trỏ trực tiếp; 422 khi dòng reversal tham chiếu SKU không có movement gốc (validation của body).",
+      "disposition": "ACCEPTED_LAYER_SPLIT",
+      "constraint": "Không được mở rộng sang status thứ ba."
+    },
+    {
+      "code": "PHYSICAL_CODE_NOT_ACTIVE",
+      "statuses": [409, 422],
+      "reason": "409 khi deactivate một code vốn đã không ACTIVE (xung đột trạng thái); 422 khi body tham chiếu code không ACTIVE (vi phạm rule nghiệp vụ).",
+      "disposition": "ACCEPTED_LAYER_SPLIT",
+      "constraint": "Không được mở rộng sang status thứ ba."
+    }
+  ],
+  "measuredAt": {
+    "beSha": "301899c48af13ea01171b30b280cc6f5d39d3404",
+    "catalog": "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json",
+    "totalCodes": 247,
+    "statusesObserved": [400, 401, 403, 404, 405, 409, 412, 422, 428, 429, 500, 503]
+  }
+}
