@@ -118,6 +118,15 @@ Tóm tắt cực ngắn:
 - **DEV184-P1-04R3**: nội dung `DISP-IN-184-INBOUND-DOCUMENT-STATE-BASELINE.md` đã đối chiếu lại
   với `HN_SRS_FRD_v1.12_FULL.md` hiện hành (2026-08-19) — không có gì trôi kể từ khi soạn, vẫn
   **PROPOSED**, chờ BA + BAS + PM/PO duyệt chính thức (comment xác nhận soạn sẵn ngoài Jira).
+  Cập nhật cùng ngày (vòng đóng R3): erratum §3.4 của disposition đã được **áp vào chính SRS** —
+  §6 STATE MODEL thêm dòng `Inbound / Outbound Document` (4 trạng thái, full-post exactly once,
+  terminal, không Submit/Approve/Reject, thứ tự guard 428/412/409) + mục Controlled Amendment §15
+  ngày 19/08/2026 chú nguồn `DISP-IN-184`; áp **đồng thời cả hai bản** (repo BE và repo FE, SHA-256
+  hai file khớp nhau sau sửa) để đóng đúng root cause "AC cha trôi vì không có ô state model để đối
+  chiếu". Verify sau sửa: `verify-wwhn184-candidate-pin.mjs` PASS (19 artifact, HEAD `22564b4`);
+  38/38 test gate tham chiếu SRS (`Wwhn230|Wwhn233|Wwhn236|Wwhn237|Wwhn184…ParityTest`) pass.
+  Ba ô header của disposition (Trạng thái/Effective date/Approval evidence) do BA điền sau khi bộ
+  comment sign-off được đăng trên Jira — DEV không tự điền, đúng nguyên tắc mục 6.
 - **DEV184-P2-01R3**: phần repo (narrative role → DEV, giữ label Jira BE1) đã xong từ vòng trước
   (mục 0-bis); phần còn lại thuần Jira metadata, PM thực hiện trực tiếp trên Jira.
 
