@@ -1,0 +1,180 @@
+name: WWHN-188 Inbound Scan Concurrency & Idempotency Gate
+
+# Vòng review R2 rớt 62/100 vì hai lý do có thể kiểm bằng máy:
+#   1. DEV188-P1-02R2 — bằng chứng race nằm trong storage/ (bị gitignore) và không
+#      gắn được với một bản build nào, nên reviewer không đọc lại được;
+#   2. DEV188-P1-03R2 — defect double-count quantity-mode chỉ được *mô tả*.
+#
+# Gate này biến cả hai thành mệnh đề chạy lại được: hợp đồng idempotency chạy trên
+# sqlite (nhanh, chặn regression mọi PR), và race thật hai tiến trình chạy trên
+# PostgreSQL 16 y như môi trường tham chiếu. Fail-closed: sai một mệnh đề là đỏ.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'app/Support/ScanRequestFingerprint.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'app/Support/IdempotencyKeyGuard.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'tests/Feature/Wwhn188ScanIdempotencyContractTest.php'
+      - 'tests/Feature/InboundScanConcurrencyBehaviorTest.php'
+      - 'tests/Feature/InboundScanRuntimeConcurrencyTest.php'
+      - 'scripts/wwhn188-inbound-scan-*.php'
+      - 'scripts/verify-wwhn-188-closure.mjs'
+      - 'scripts/pin-wwhn-188-candidate.mjs'
+      - 'docs/evidence/WWHN-188/**'
+      - 'docs/decision-records/DEC-SCAN-IDEMP-001-*'
+      - '.github/workflows/wwhn-188-scan-concurrency-gate.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'app/Support/ScanRequestFingerprint.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'app/Support/IdempotencyKeyGuard.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'tests/Feature/Wwhn188ScanIdempotencyContractTest.php'
+      - 'tests/Feature/InboundScanConcurrencyBehaviorTest.php'
+      - 'tests/Feature/InboundScanRuntimeConcurrencyTest.php'
+      - 'scripts/wwhn188-inbound-scan-*.php'
+      - 'scripts/verify-wwhn-188-closure.mjs'
+      - 'scripts/pin-wwhn-188-candidate.mjs'
+      - 'docs/evidence/WWHN-188/**'
+      - 'docs/decision-records/DEC-SCAN-IDEMP-001-*'
+      - '.github/workflows/wwhn-188-scan-concurrency-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scan-idempotency-contract:
+    name: DEC-SCAN-IDEMP-001 contract + closure invariants (sqlite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN188-CI-JWT-Scan-Idempotency-2026
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Style check on WWHN-188 locks
+        run: |
+          vendor/bin/pint --test \
+            app/Support/ScanRequestFingerprint.php \
+            Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php \
+            tests/Feature/Wwhn188ScanIdempotencyContractTest.php \
+            tests/Feature/InboundScanConcurrencyBehaviorTest.php \
+            tests/Feature/InboundScanRuntimeConcurrencyTest.php \
+            scripts/wwhn188-inbound-scan-runtime-concurrency.php \
+            scripts/wwhn188-inbound-scan-worker.php
+
+      - name: Scan idempotency contract (lost-response / stale / re-fetch / same key-diff payload)
+        run: php vendor/bin/phpunit tests/Feature/Wwhn188ScanIdempotencyContractTest.php
+
+      - name: Scan concurrency behaviour and validation matrix stay green
+        run: |
+          php vendor/bin/phpunit \
+            tests/Feature/InboundScanConcurrencyBehaviorTest.php \
+            tests/Feature/Wwhn187InboundScanValidationTest.php \
+            tests/Feature/Wwhn199ReservationConcurrencyGuardTest.php \
+            tests/Feature/PostReceiptConcurrencyBehaviorTest.php \
+            tests/Feature/StockDocumentConcurrencyGuardTest.php
+
+      - name: Closure gate — pin, OpenAPI hash, evidence, QA matrix, fixture hygiene
+        run: node scripts/verify-wwhn-188-closure.mjs
+
+  scan-runtime-race:
+    name: DEV188-P1-02R2 real 2-process race (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wms_hoanam
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wms_hoanam"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN188-CI-JWT-Scan-Idempotency-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: wms_hoanam
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      WWHN188_RUNTIME_CONCURRENCY: '1'
+      WWHN188_EVIDENCE_DIR: docs/evidence/WWHN-188/runtime
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+          php artisan migrate --force
+
+      # Bằng chứng phải chạy được lại tại đúng commit này; GITHUB_SHA được orchestrator
+      # ghi thẳng vào summary nên evidence luôn gắn với một bản build cụ thể.
+      - name: Real multi-process race on PostgreSQL
+        run: php vendor/bin/phpunit tests/Feature/InboundScanRuntimeConcurrencyTest.php
+
+      - name: Upload WWHN-188 runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-188-runtime-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-188/runtime/
+          retention-days: 90

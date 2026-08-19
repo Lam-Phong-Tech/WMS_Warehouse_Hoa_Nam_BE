@@ -285,6 +285,151 @@ function runRace(string $scenario, array $workerPlans, string $runtimeDir, int $
     ];
 }
 
+/**
+ * COMPONENT SKU, không serial-tracked — đúng nhánh quantity-mode từng thủng ở
+ * DEV188-P1-03 (không có `item_id` nên không có guard trùng item nào che).
+ */
+function buildComponentSku(string $tag): string
+{
+    $id = (string) Str::uuid();
+    DB::table('sku')->insert([
+        'sku_id' => $id,
+        'sku_code' => 'WWHN188-CMP-'.$tag,
+        'sku_name' => 'WWHN-188 runtime concurrency component '.$tag,
+        'sku_type' => 'COMPONENT',
+        'unit' => 'cai',
+        'is_serial_tracked' => false,
+        'status' => 'ACTIVE',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $id;
+}
+
+/**
+ * Ảnh chụp trạng thái DB của một phiếu/dòng — reviewer yêu cầu "DB before/after",
+ * không chỉ verdict đã suy diễn.
+ *
+ * @param  array<int,string>  $lineIds
+ * @return array<string,mixed>
+ */
+function documentSnapshot(string $documentId, array $lineIds): array
+{
+    $document = DB::table('stock_documents')->where('id', $documentId)->first();
+    $lines = [];
+    foreach ($lineIds as $lineId) {
+        $line = DB::table('stock_document_lines')->where('id', $lineId)->first();
+        $lines[$lineId] = [
+            'scanned_qty' => $line === null ? null : (int) $line->scanned_qty,
+            'qty_planned' => $line === null ? null : (int) $line->qty_planned,
+            'scan_entries' => DB::table('inbound_scan_entries')->where('inbound_line_id', $lineId)->count(),
+            'active_scan_entries' => DB::table('inbound_scan_entries')
+                ->where('inbound_line_id', $lineId)
+                ->where('status', 'ACTIVE')
+                ->count(),
+        ];
+    }
+
+    return [
+        'captured_at' => (new DateTimeImmutable('now'))->format('Y-m-d\TH:i:s.uP'),
+        'document_id' => $documentId,
+        'document_status' => $document?->status,
+        'document_version' => $document === null ? null : (int) $document->version,
+        'lines' => $lines,
+    ];
+}
+
+/**
+ * SHA thật của candidate. Reviewer DEV188-P1-05R2 cấm dùng floating HEAD làm bằng
+ * chứng, nên summary phải mang cả SHA lẫn trạng thái sạch/bẩn của working tree và
+ * blob SHA của đúng những artifact đang được chứng minh.
+ *
+ * @return array<string,mixed>
+ */
+function gitEvidenceMeta(): array
+{
+    $run = static function (string $command): ?string {
+        $output = @shell_exec($command.' 2>'.(DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null'));
+
+        return $output === null ? null : (trim($output) === '' ? null : trim($output));
+    };
+
+    $root = dirname(__DIR__);
+    $prefix = 'git -C '.escapeshellarg($root).' ';
+    $status = $run($prefix.'status --porcelain');
+
+    $artifacts = [
+        'app/Support/ScanRequestFingerprint.php',
+        'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php',
+        'scripts/wwhn188-inbound-scan-runtime-concurrency.php',
+        'scripts/wwhn188-inbound-scan-worker.php',
+        'tests/Feature/Wwhn188ScanIdempotencyContractTest.php',
+        'tests/Feature/InboundScanConcurrencyBehaviorTest.php',
+        'tests/Feature/InboundScanRuntimeConcurrencyTest.php',
+    ];
+    $blobs = [];
+    foreach ($artifacts as $path) {
+        $blobs[$path] = $run($prefix.'hash-object '.escapeshellarg($root.'/'.$path));
+    }
+
+    return [
+        'git_sha' => getenv('GITHUB_SHA') ?: $run($prefix.'rev-parse HEAD'),
+        'git_branch' => $run($prefix.'rev-parse --abbrev-ref HEAD'),
+        'git_working_tree_clean' => $status === null,
+        'git_dirty_paths' => $status === null ? [] : preg_split('/\R/', $status),
+        'artifact_blob_sha' => $blobs,
+        'php_version' => PHP_VERSION,
+    ];
+}
+
+/**
+ * Hai worker có thật sự chồng lấn thời gian hay không, tính từ mốc thô của chính
+ * worker (không suy ra từ thời lượng khoá).
+ *
+ * @param  array<int,array<string,mixed>>  $workers
+ * @return array<string,mixed>
+ */
+function overlapEvidence(array $workers): array
+{
+    $toMicros = static function (?string $value): ?float {
+        if ($value === null) {
+            return null;
+        }
+        $parsed = DateTimeImmutable::createFromFormat('Y-m-d\TH:i:s.uP', $value);
+
+        return $parsed === false ? null : (float) $parsed->format('U.u');
+    };
+
+    $starts = [];
+    $ends = [];
+    foreach ($workers as $worker) {
+        $start = $toMicros($worker['request_started_at'] ?? null) ?? $toMicros($worker['barrier_released_at'] ?? null);
+        $end = $toMicros($worker['request_finished_at'] ?? null);
+        if ($start === null || $end === null) {
+            return ['measurable' => false, 'overlap_ms' => null, 'windows' => []];
+        }
+        $starts[] = $start;
+        $ends[] = $end;
+    }
+
+    $overlap = (min($ends) - max($starts)) * 1000;
+
+    return [
+        'measurable' => true,
+        'overlap_ms' => round($overlap, 3),
+        'workers_in_flight_simultaneously' => $overlap > 0,
+        'windows' => array_map(static fn (array $w): array => [
+            'worker_index' => $w['worker_index'] ?? null,
+            'os_pid' => $w['os_pid'] ?? null,
+            'backend_pid' => $w['backend_pid'] ?? null,
+            'barrier_released_at' => $w['barrier_released_at'] ?? null,
+            'request_started_at' => $w['request_started_at'] ?? null,
+            'request_finished_at' => $w['request_finished_at'] ?? null,
+        ], array_values($workers)),
+    ];
+}
+
 $actorId = fixtureActorId($runToken);
 $warehouseId = buildWarehouse($runToken);
 $scenarios = [];
@@ -300,6 +445,7 @@ $itemA2 = buildReceivableItem($skuA, 'S1B-'.$runToken);
 $docA = buildDraftDocument($warehouseId, $skuA, $actorId, 'S1', [['qty_planned' => 2]]);
 
 $entriesBeforeS1 = DB::table('inbound_scan_entries')->where('inbound_line_id', $docA['line_ids'][0])->count();
+$beforeS1 = documentSnapshot($docA['document_id'], [$docA['line_ids'][0]]);
 $race1 = runRace('same_document_same_line', [
     [
         'document_id' => $docA['document_id'],
@@ -341,6 +487,9 @@ $checks1 = [
     'exactly_one_scan_entry_written' => ($entriesAfterS1 - $entriesBeforeS1) === 1,
 ];
 $scenarios['same_document_same_line'] = $race1 + [
+    'db_before' => $beforeS1,
+    'db_after' => documentSnapshot($docA['document_id'], [$docA['line_ids'][0]]),
+    'timing' => overlapEvidence($race1['workers']),
     'document_id' => $docA['document_id'],
     'line_id' => $docA['line_ids'][0],
     'final_document_version' => (int) $finalDocA->version,
@@ -404,6 +553,7 @@ $docB = (function () use ($warehouseId, $skuB1, $skuB2, $actorId): array {
     return ['document_id' => $documentId, 'line_ids' => $lineIds];
 })();
 
+$beforeS2 = documentSnapshot($docB['document_id'], $docB['line_ids']);
 $race2 = runRace('same_document_different_line', [
     [
         'document_id' => $docB['document_id'],
@@ -443,6 +593,9 @@ $checks2 = [
     'losers_untouched_line_still_zero' => $loserLine2 !== null && (int) $loserLine2->scanned_qty === 0,
 ];
 $scenarios['same_document_different_line'] = $race2 + [
+    'db_before' => $beforeS2,
+    'db_after' => documentSnapshot($docB['document_id'], $docB['line_ids']),
+    'timing' => overlapEvidence($race2['workers']),
     'document_id' => $docB['document_id'],
     'line_ids' => $docB['line_ids'],
     'final_document_version' => (int) $finalDocB->version,
@@ -464,6 +617,7 @@ $sharedItem = buildReceivableItem($skuC, 'S3-'.$runToken);
 $docC1 = buildDraftDocument($warehouseId, $skuC, $actorId, 'S3A', [['qty_planned' => 1]]);
 $docC2 = buildDraftDocument($warehouseId, $skuC, $actorId, 'S3B', [['qty_planned' => 1]]);
 
+$beforeS3 = [documentSnapshot($docC1['document_id'], $docC1['line_ids']), documentSnapshot($docC2['document_id'], $docC2['line_ids'])];
 $race3 = runRace('same_item_different_document', [
     [
         'document_id' => $docC1['document_id'],
@@ -501,6 +655,9 @@ $checks3 = [
     'exactly_one_scan_entry_for_shared_item' => $scanEntryCountForItem === 1,
 ];
 $scenarios['same_item_different_document'] = $race3 + [
+    'db_before' => $beforeS3,
+    'db_after' => [documentSnapshot($docC1['document_id'], $docC1['line_ids']), documentSnapshot($docC2['document_id'], $docC2['line_ids'])],
+    'timing' => overlapEvidence($race3['workers']),
     'shared_item_id' => $sharedItem,
     'document_ids' => [$docC1['document_id'], $docC2['document_id']],
     'scan_entry_count_for_item' => $scanEntryCountForItem,
@@ -511,19 +668,102 @@ if (! $scenarios['same_item_different_document']['passed']) {
     $failures[] = 'same_item_different_document';
 }
 
+// ---------------------------------------------------------------------------
+// Scenario 4 — DEV188-P1-03R2 / DEC-SCAN-IDEMP-001 dưới race THẬT.
+//
+// Hai tiến trình gửi ĐÚNG MỘT hành động quét COMPONENT quantity-mode (không có
+// `item_id`, nhánh từng double-count) với CÙNG một Idempotency-Key. Không pre-lock,
+// không transaction bọc ngoài: điểm tranh chấp phải là chính lease
+// `idempotency_keys`, đúng như một client thật gửi lại request khi nghi mất
+// response.
+//
+// Bất biến bắt buộc: `scanned_qty` tăng đúng một lần, version tăng đúng một lần,
+// đúng một `inbound_scan_entries` — bất kể worker thua nhận replay (200,
+// replayed=true) hay 409 CONCURRENCY_CONFLICT (lease đang bận).
+// ---------------------------------------------------------------------------
+$skuD = buildComponentSku('S4-'.$runToken);
+$docD = buildDraftDocument($warehouseId, $skuD, $actorId, 'S4', [['qty_planned' => 4]]);
+$sharedScanKey = 'wwhn188-race-'.strtolower($runToken).'-'.strtolower(Str::random(8));
+
+$beforeS4 = documentSnapshot($docD['document_id'], [$docD['line_ids'][0]]);
+$race4 = runRace('same_idempotency_key_quantity_mode', [
+    [
+        'document_id' => $docD['document_id'],
+        'line_id' => $docD['line_ids'][0],
+        'quantity' => 2,
+        'if_match' => 1,
+        'actor_id' => $actorId,
+        'idempotency_key' => $sharedScanKey,
+        'mode' => 'plain',
+    ],
+    [
+        'document_id' => $docD['document_id'],
+        'line_id' => $docD['line_ids'][0],
+        'quantity' => 2,
+        'if_match' => 1,
+        'actor_id' => $actorId,
+        'idempotency_key' => $sharedScanKey,
+        'mode' => 'plain',
+    ],
+], $runtimeDir, 0);
+
+$afterS4 = documentSnapshot($docD['document_id'], [$docD['line_ids'][0]]);
+$appliedS4 = array_values(array_filter(
+    $race4['workers'],
+    static fn (array $w): bool => $w['outcome'] === 'SUCCESS' && $w['response_replayed'] === false
+));
+$replayedS4 = array_values(array_filter(
+    $race4['workers'],
+    static fn (array $w): bool => $w['outcome'] === 'SUCCESS' && $w['response_replayed'] === true
+));
+$conflictS4 = array_values(array_filter(
+    $race4['workers'],
+    static fn (array $w): bool => $w['outcome'] === 'REJECTED'
+        && in_array($w['error_code'] ?? null, ['CONCURRENCY_CONFLICT', 'IDEMPOTENCY_CONFLICT'], true)
+));
+$lineAfterS4 = $afterS4['lines'][$docD['line_ids'][0]];
+
+$checks4 = [
+    'two_distinct_backend_connections' => $race4['distinct_backend_pid_count'] === 2,
+    'exactly_one_worker_applied_the_scan' => count($appliedS4) === 1,
+    'loser_replayed_or_lease_conflict' => count($replayedS4) + count($conflictS4) === 1,
+    'no_worker_errored' => array_values(array_filter(
+        $race4['workers'],
+        static fn (array $w): bool => $w['outcome'] === 'ERROR'
+    )) === [],
+    'scanned_qty_advanced_exactly_once' => $lineAfterS4['scanned_qty'] === 2,
+    'document_version_advanced_exactly_once' => $afterS4['document_version'] === 2,
+    'exactly_one_active_scan_entry' => $lineAfterS4['active_scan_entries'] === 1,
+    'shared_key_stored_once' => (int) DB::table('idempotency_keys')->where('idem_key', $sharedScanKey)->count() === 1,
+];
+$scenarios['same_idempotency_key_quantity_mode'] = $race4 + [
+    'document_id' => $docD['document_id'],
+    'line_id' => $docD['line_ids'][0],
+    'shared_idempotency_key' => $sharedScanKey,
+    'db_before' => $beforeS4,
+    'db_after' => $afterS4,
+    'timing' => overlapEvidence($race4['workers']),
+    'checks' => $checks4,
+    'passed' => ! in_array(false, $checks4, true),
+];
+if (! $scenarios['same_idempotency_key_quantity_mode']['passed']) {
+    $failures[] = 'same_idempotency_key_quantity_mode';
+}
+
 $summary = [
     'generated_at' => now()->toIso8601String(),
     'ticket' => 'WWHN-188',
-    'reviewer_finding' => 'DEV188-P1-02',
+    'reviewer_finding' => ['DEV188-P1-02R2', 'DEV188-P1-03R2'],
     'evidence_type' => 'EXECUTED_RUNTIME_CONCURRENCY',
-    'note' => 'Each scenario spawns two real OS processes with independent PostgreSQL backends racing CurrentBaselineStockFlowController::inboundScan(); assertions cover version/scanned_qty/inbound_scan_entries state, not HTTP status alone.',
-    'git_sha' => getenv('GITHUB_SHA') ?: null,
+    'note' => 'Each scenario spawns two real OS processes with independent PostgreSQL backends racing CurrentBaselineStockFlowController::inboundScan(); assertions cover version/scanned_qty/inbound_scan_entries state before and after, not HTTP status alone.',
     'postgres_version' => (string) DB::selectOne('select version() as v')->v,
+    'database' => (string) DB::selectOne('select current_database() as d')->d,
     'lock_hold_ms' => $holdMs,
+    'run_token' => $runToken,
     'scenarios' => $scenarios,
     'failed_scenarios' => $failures,
     'status' => $failures === [] ? 'PASS' : 'FAIL',
-];
+] + gitEvidenceMeta();
 
 file_put_contents(
     $evidenceDir.'/runtime-concurrency-summary.json',
@@ -532,6 +772,9 @@ file_put_contents(
 
 echo json_encode([
     'status' => $summary['status'],
+    'git_sha' => $summary['git_sha'],
+    'git_working_tree_clean' => $summary['git_working_tree_clean'],
+    'postgres_version' => $summary['postgres_version'],
     'failed_scenarios' => $failures,
     'scenarios' => array_map(static fn (array $s): array => ['passed' => $s['passed'], 'checks' => $s['checks']], $scenarios),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";

@@ -62,7 +62,7 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
 
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'NCC WWHN-187 Race',
+            'source_name' => 'NCC WWHN-188 Race',
             'lines' => [
                 ['product_id' => $skuA->sku_id, 'qty_planned' => 1],
                 ['product_id' => $skuB->sku_id, 'qty_planned' => 1],
@@ -89,7 +89,7 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
      */
     public function test_stale_version_racer_is_rejected_after_winner_scan_commits(): void
     {
-        $ctx = $this->draftInboundWithTwoProductLines('WWHN187-SCAN-RACE-001');
+        $ctx = $this->draftInboundWithTwoProductLines('WWHN188-SCAN-RACE-001');
         $itemA = $this->seedReceivableItem($ctx['sku_a_id']);
         $itemB = $this->seedReceivableItem($ctx['sku_b_id']);
 
@@ -140,11 +140,11 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = $this->productSkuFixture('WWHN187-SCAN-STATE-001');
+        $sku = $this->productSkuFixture('WWHN188-SCAN-STATE-001');
 
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'NCC WWHN-187 State',
+            'source_name' => 'NCC WWHN-188 State',
             'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
         ], $headers)->assertCreated();
         $documentId = (string) $create->json('data.id');
@@ -160,7 +160,7 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
 
         $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
             'If-Match' => '2',
-            'Idempotency-Key' => 'wwhn187-scan-state-post-'.Str::lower(Str::random(8)),
+            'Idempotency-Key' => 'wwhn188-scan-state-post-'.Str::lower(Str::random(8)),
         ])->assertOk()->assertJsonPath('data.status', 'POSTED')->assertJsonPath('data.version', 3);
 
         $entriesAfterPost = DB::table('inbound_scan_entries')->count();
@@ -183,31 +183,33 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
     }
 
     /**
-     * BE1-SCANCONC-OP-03 (WWHN-188 open point) / reviewer finding DEV188-P1-03:
-     * "Formalize quantity-mode retry/recovery semantics. Nếu giữ If-Match-only phải
-     * test lost-response/replay/re-fetch case."
+     * BE1-SCANCONC-OP-03 (WWHN-188 open point) / reviewer finding DEV188-P1-03R2
+     * ("OPEN — VERIFIED DEFECT") — ĐÃ ĐÓNG bằng DEC-SCAN-IDEMP-001.
      *
-     * COMPONENT quantity-mode scan (no `item_id`) has no per-request dedupe — only
-     * the optimistic `If-Match` version guard. That guard rejects a *stale* replay
-     * (same old version resent after a winner already committed — see the two tests
-     * above), but it does NOT protect against a "lost response, client re-fetched,
-     * retried with the now-current version" replay: the retried request carries a
-     * fresh, valid version and looks like any other legitimate scan, so the server
-     * accepts it a second time and `scanned_qty` is incremented twice for what the
-     * operator believes was a single physical scan action. The serialized branch
-     * (`item_id` present) does not have this gap: `assertNoDuplicateItemInDocument()`
-     * rejects a repeat scan of the same item with 409 `DUPLICATE_ITEM_IN_DOCUMENT`.
+     * Bối cảnh gap: COMPONENT quantity-mode scan (không có `item_id`) chỉ được bảo
+     * vệ bởi optimistic `If-Match`. Guard đó chặn được replay *cũ* (gửi lại version
+     * đã lỗi thời — hai test phía trên), nhưng KHÔNG chặn được replay *mới*: client
+     * mất response, tải lại phiếu, thấy version đã nhảy, rồi gửi lại đúng hành động
+     * quét đó kèm version hiện hành hợp lệ. Server không phân biệt được với một lần
+     * quét mới nên cộng `scanned_qty` lần thứ hai. Nhánh serialized (`item_id`)
+     * không thủng vì `assertNoDuplicateItemInDocument()` chặn tuyệt đối.
      *
-     * This test executes that exact re-fetch-and-retry sequence against the real
-     * code path to give BA/Tech Lead concrete, reproducible evidence for the
-     * BE1-SCANCONC-OP-03 decision (add `Idempotency-Key` to scan, add a dedupe
-     * window, or accept the risk). It intentionally asserts the CURRENT behavior —
-     * this is evidence, not a fix: changing the outcome would mean adding
-     * Idempotency-Key/contract semantics to scan, a business-rule/contract change
-     * outside BE1's authority per the WWHN-188 task scope ("không tự đổi business
-     * rule/API contract ... nếu cần BA/PM/PO/Tech quyết định").
+     * Test này giữ nguyên đúng chuỗi thao tác của bằng chứng defect cũ và chốt
+     * **cả hai nhánh** của quyết định:
+     *
+     *  - CÓ `Idempotency-Key`: retry sau re-fetch được nhận diện là cùng một hành
+     *    động (fingerprint tất định, không chứa version, không dùng cửa sổ thời
+     *    gian) → replay, `scanned_qty` giữ nguyên 2. Đây là hành vi mới, đóng defect.
+     *  - KHÔNG có key: giữ nguyên hành vi cũ (cộng dồn) — server không có căn cứ nào
+     *    để phân biệt với một lần quét thật thứ hai, và scan là stock-neutral nên
+     *    Annex C không bắt buộc header. Ghi nhận tường minh ở đây để hành vi này là
+     *    lựa chọn có chủ đích chứ không phải sót.
+     *
+     * Bộ case đầy đủ theo yêu cầu reviewer (lost-response / stale / re-fetch / same
+     * key khác payload / chuỗi retry dài) nằm ở
+     * {@see Wwhn188ScanIdempotencyContractTest}.
      */
-    public function test_component_quantity_mode_rescan_after_client_refetch_can_double_count_pending_ba_decision(): void
+    public function test_component_quantity_mode_refetch_retry_is_deduped_by_idempotency_key(): void
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
@@ -234,31 +236,42 @@ class InboundScanConcurrencyBehaviorTest extends TestCase
         ], $headers)->assertCreated();
         $boxId = (string) $box->json('data.container_id');
 
+        $scanKey = 'wwhn188-qty-retry-'.Str::lower(Str::random(10));
+        $body = ['line_id' => $lineId, 'quantity' => 2, 'container_id' => $boxId];
+
         // First attempt: succeeds server-side, bumps version 1 -> 2, scanned_qty 0 -> 2.
-        $first = $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => 2,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1']);
-        $first->assertOk()->assertJsonPath('data.scanned_quantity', 2)->assertJsonPath('data.version', 2);
+        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", $body,
+            $headers + ['If-Match' => '1', 'Idempotency-Key' => $scanKey])
+            ->assertOk()
+            ->assertJsonPath('data.scanned_quantity', 2)
+            ->assertJsonPath('data.version', 2)
+            ->assertJsonPath('data.replayed', false);
 
         // Client never saw the response (network drop). It re-fetches the document,
         // observes the now-current version=2, and — believing the scan never went
-        // through — resubmits the identical logical scan (same line/qty/box).
+        // through — resubmits the identical logical scan with the SAME key.
         $refetchedVersion = (int) DB::table('stock_documents')->where('id', $documentId)->value('version');
         $this->assertSame(2, $refetchedVersion, 'Sanity check: server already applied the first scan before the retry.');
 
-        $retry = $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => 2,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => (string) $refetchedVersion]);
+        $retry = $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", $body,
+            $headers + ['If-Match' => (string) $refetchedVersion, 'Idempotency-Key' => $scanKey]);
 
-        // Current behavior: the retry is accepted like any other fresh request
-        // because the version guard only detects staleness, not "this exact action
-        // already happened". scanned_qty is double-counted (4, not 2) — the real gap
-        // BE1-SCANCONC-OP-03 flags for a BA/Tech Lead decision.
-        $retry->assertOk()->assertJsonPath('data.scanned_quantity', 4)->assertJsonPath('data.version', 3);
+        // Hành vi sau DEC-SCAN-IDEMP-001: replay đúng response cũ, không cộng dồn.
+        $retry->assertOk()
+            ->assertJsonPath('data.scanned_quantity', 2)
+            ->assertJsonPath('data.version', 2)
+            ->assertJsonPath('data.replayed', true);
+        $this->assertSame('true', $retry->headers->get('Idempotent-Replay'));
+        $this->assertDatabaseHas('stock_document_lines', ['id' => $lineId, 'scanned_qty' => 2]);
+        $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'version' => 2]);
+
+        // Nhánh không có key: hành vi cũ được giữ nguyên có chủ đích — một request
+        // không mang danh tính thì server buộc phải coi là lần quét thật thứ hai.
+        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", $body,
+            $headers + ['If-Match' => '2'])
+            ->assertOk()
+            ->assertJsonPath('data.scanned_quantity', 4)
+            ->assertJsonPath('data.replayed', false);
         $this->assertDatabaseHas('stock_document_lines', ['id' => $lineId, 'scanned_qty' => 4]);
     }
 }

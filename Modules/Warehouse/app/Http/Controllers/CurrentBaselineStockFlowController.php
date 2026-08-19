@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
+use App\Support\ScanRequestFingerprint;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,14 +26,67 @@ class CurrentBaselineStockFlowController extends Controller
         private readonly CurrentBaselineReversalService $reversal,
     ) {}
 
+    /**
+     * WWHN-188 (DEV188-P1-03R2) — DEC-SCAN-IDEMP-001: exactly-once cho một *hành
+     * động quét*, không phải chỉ chống ghi đè bằng version.
+     *
+     * `If-Match` chỉ phát hiện được replay **cũ** (client gửi lại version đã lỗi
+     * thời → 412 STALE_VERSION). Nó không phát hiện được replay **mới**: client mất
+     * response, tải lại phiếu, thấy version đã nhảy 1 → 2, tưởng lần quét trước
+     * trượt nên gửi lại đúng hành động đó với version 2 hợp lệ. Nhánh có `item_id`
+     * vẫn an toàn nhờ `assertNoDuplicateItemInDocument()`, nhưng nhánh COMPONENT
+     * quantity-mode (không có `item_id`) sẽ cộng `scanned_qty` lần thứ hai — đúng
+     * defect reviewer xác nhận ở DEV188-P1-03.
+     *
+     * Cách đóng: `Idempotency-Key` **optional** (scan là stock-neutral, Annex C
+     * không khai bắt buộc nên không được 428 khi thiếu — cùng quy ước
+     * {@see IdempotencyKeyGuard::optional()} đang dùng cho Warranty), cộng với
+     * fingerprint tất định {@see ScanRequestFingerprint} làm request hash:
+     *
+     * - cùng key + cùng nội dung scan  → replay đúng response cũ, `replayed=true`,
+     *   `scanned_qty` KHÔNG tăng lần hai (bất kể `If-Match` là version cũ hay mới);
+     * - cùng key + khác nội dung scan  → 409 IDEMPOTENCY_CONFLICT (SRS §8.2);
+     * - khác key + cùng nội dung scan  → chạy bình thường, cộng dồn đúng nghiệp vụ
+     *   (hai lần quét thật liên tiếp của cùng một SKU/lô vẫn hợp lệ);
+     * - không có key                    → giữ nguyên hành vi cũ, không phá client cũ.
+     *
+     * Fingerprint không chứa version và không chứa mốc thời gian — không dùng
+     * time-window heuristic, đúng khuyến nghị của reviewer.
+     */
     public function inboundScan(Request $request, string $id)
     {
         $payload = $this->scanPayload($request);
         $expectedVersion = $this->expectedVersion($request);
-        $result = $this->versionedScan($id, 'receipt', $payload, $expectedVersion);
+        $idempotencyKey = IdempotencyKeyGuard::optional($request);
+        $fingerprint = ScanRequestFingerprint::for('inbound_scan', $id, $payload);
 
-        return $this->respondSuccess($result, 'Inbound scan validated; stock_effect=NONE.')
-            ->header('ETag', '"'.((int) $result['version']).'"');
+        [$code, $body, $replayed] = IdempotencyStore::handle(
+            $idempotencyKey,
+            'inbound_scan_'.$id,
+            $this->actorId(),
+            $fingerprint,
+            function () use ($id, $payload, $expectedVersion): array {
+                $result = $this->versionedScan($id, 'receipt', $payload, $expectedVersion);
+
+                return [200, $this->envelope('Inbound scan validated; stock_effect=NONE.', $result)];
+            }
+        );
+
+        // Giống post-receipt: QA phải phân biệt được replay ở tầng body chứ không
+        // chỉ ở header, vì proxy có thể nuốt header tuỳ biến.
+        if (is_array($body) && array_key_exists('data', $body) && is_array($body['data'])) {
+            $body['data']['replayed'] = $replayed;
+        }
+
+        $response = response()->json($body, $code)
+            ->header('Idempotent-Replay', $replayed ? 'true' : 'false');
+
+        $version = data_get($body, 'data.version');
+        if ($version !== null) {
+            $response->header('ETag', '"'.((int) $version).'"');
+        }
+
+        return $response;
     }
 
     public function outboundScan(Request $request, string $id)

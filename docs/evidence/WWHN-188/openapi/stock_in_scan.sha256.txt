@@ -1,0 +1,1 @@
+ccc14a4da121bf9cfa9ae869193f8008d3d5122d991078149386546482bd4eef  stock_in_scan.operation.json (canonical JSON.stringify, no whitespace)

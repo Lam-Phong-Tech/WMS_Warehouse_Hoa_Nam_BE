@@ -164,12 +164,24 @@ use OpenApi\Attributes as OA;
     path: '/api/v1/inbound-documents/{id}/scan',
     operationId: 'stock_in_scan',
     summary: 'Quét hàng cho phiếu DRAFT/SCANNING (stock-neutral)',
-    description: 'Bắt buộc If-Match. Scan hợp lệ chuyển/giữ phiếu ở SCANNING, tăng scanned_qty nhưng không tạo stock movement và không đổi inventory balance. Scan vượt Expected bị từ chối.',
+    description: 'Bắt buộc If-Match. Scan hợp lệ chuyển/giữ phiếu ở SCANNING, tăng scanned_qty nhưng không tạo stock movement và không đổi inventory balance. Scan vượt Expected bị từ chối. '
+        .'Idempotency-Key là TÙY CHỌN (scan stock-neutral, Annex C không khai bắt buộc nên thiếu header KHÔNG trả 428) — xem DEC-SCAN-IDEMP-001. '
+        .'Khi client gửi Idempotency-Key: mỗi hành động quét sinh một key và mọi lần gửi lại của đúng hành động đó dùng lại đúng key. '
+        .'Cùng key + cùng nội dung scan (line_id, qty, code_value, item_id, container_id) trả lại đúng response cũ kèm data.replayed=true và header Idempotent-Replay: true, scanned_qty KHÔNG tăng lần hai kể cả khi If-Match là version mới sau khi client re-fetch. '
+        .'Cùng key + khác nội dung scan trả 409 IDEMPOTENCY_CONFLICT. Khác key + cùng nội dung là lần quét thật thứ hai và vẫn cộng dồn bình thường. '
+        .'Fingerprint dedupe là tất định trên nội dung scan, không chứa version và không dùng cửa sổ thời gian; qty và quantity là alias của cùng một trường nên không tạo xung đột payload.',
     security: [['bearerAuth' => []]],
     tags: ['09. Stock In (Inbound)'],
     parameters: [
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'integer', minimum: 0)),
+        new OA\Parameter(
+            name: 'Idempotency-Key',
+            in: 'header',
+            required: false,
+            description: 'Tùy chọn (DEC-SCAN-IDEMP-001). Độ dài 8..100 ký tự sau khi trim; sai độ dài trả 422 VALIDATION_ERROR. Thiếu header thì giữ nguyên hành vi cũ, không trả 428.',
+            schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)
+        ),
     ],
     requestBody: new OA\RequestBody(
         required: true,
@@ -185,13 +197,20 @@ use OpenApi\Attributes as OA;
         )
     ),
     responses: [
-        new OA\Response(response: 200, description: 'Scan hợp lệ; stock_effect=NONE'),
+        new OA\Response(
+            response: 200,
+            description: 'Scan hợp lệ; stock_effect=NONE. data.replayed=false là lần áp dụng thật, true là replay của một request đã chạy trước đó với cùng Idempotency-Key (header Idempotent-Replay phản chiếu cùng giá trị).',
+            headers: [
+                new OA\Header(header: 'ETag', description: 'Version hiện hành của phiếu sau khi scan.', schema: new OA\Schema(type: 'string')),
+                new OA\Header(header: 'Idempotent-Replay', description: 'true khi response là replay theo Idempotency-Key.', schema: new OA\Schema(type: 'string', enum: ['true', 'false'])),
+            ]
+        ),
         new OA\Response(response: 401, description: 'Chưa xác thực'),
         new OA\Response(response: 403, description: 'Không có permission inbound.scan'),
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ/dòng'),
-        new OA\Response(response: 409, description: 'State/version conflict'),
+        new OA\Response(response: 409, description: 'STATE_CONFLICT (phiếu không còn DRAFT/SCANNING) | DUPLICATE_ITEM_IN_DOCUMENT | ITEM_ALREADY_RECEIVING | IDEMPOTENCY_CONFLICT (cùng Idempotency-Key nhưng khác nội dung scan) | CONCURRENCY_CONFLICT (cùng key đang được xử lý)'),
         new OA\Response(response: 412, description: 'If-Match không khớp'),
-        new OA\Response(response: 422, description: 'Scan sai SKU/mã/BOX hoặc vượt Expected'),
+        new OA\Response(response: 422, description: 'Scan sai SKU/mã/BOX, vượt Expected, hoặc Idempotency-Key sai độ dài 8..100'),
         new OA\Response(response: 428, description: 'Thiếu If-Match'),
     ]
 )]

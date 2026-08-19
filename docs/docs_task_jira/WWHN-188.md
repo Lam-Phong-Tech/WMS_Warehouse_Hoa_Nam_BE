@@ -269,3 +269,112 @@ Không đổi contract (chỉ bổ sung test hành vi cho error code `PRECONDITI
 - BA/Tech Lead xác nhận thiết kế "scan không cần Idempotency-Key" là đúng baseline cho nhánh có `item_id`, và quyết định phương án cho nhánh quantity-mode (BE1-SCANCONC-OP-02, BE1-SCANCONC-OP-03 mới).
 - QA xác nhận evidence (mục 2, 7, 10) đáp ứng đúng Acceptance Criteria.
 - Không tự đánh dấu Done/Approved trên Jira chỉ dựa trên nội dung do BE1 tự ghi trong file này.
+
+---
+
+## 13. Vòng R2 — đóng P0/P1/P2 của bản đánh giá 62/100 (2026-08-19, BE1)
+
+Vòng trước bị từ chối vì ba lý do có thể kiểm bằng máy, không phải vì thiếu chữ:
+evidence race nằm trong `storage/` (bị gitignore) nên reviewer **không đọc lại được**;
+defect double-count quantity-mode chỉ được **mô tả** chứ chưa **sửa**; và candidate
+không được pin nên không ai biết "đã review bản nào". Vòng này đóng cả ba.
+
+Sổ đóng đầy đủ: `docs/evidence/WWHN-188/WWHN-188_CLOSURE_REGISTER.md`.
+Verifier: `node scripts/verify-wwhn-188-closure.mjs [--expect-sha=<candidate>]`.
+
+### 13.1 `DEV188-P1-03R2` — sửa defect, không chỉ mô tả
+
+Reviewer xác nhận **VERIFIED DEFECT**: COMPONENT quantity-mode cộng `scanned_qty`
+hai lần khi client mất response → tải lại phiếu → gửi lại với version mới hợp lệ.
+`If-Match` không thể bắt được vì version hoàn toàn đúng.
+
+Đã đóng bằng `DEC-SCAN-IDEMP-001` (`docs/decision-records/`): `Idempotency-Key`
+**tùy chọn** cho scan (đúng Annex C — scan là stock-neutral, thiếu header **không**
+trả 428), kết hợp fingerprint **tất định** `App\Support\ScanRequestFingerprint`.
+
+Fingerprint cố ý **không chứa version và không chứa mốc thời gian** — đây chính là
+điểm reviewer yêu cầu ("deterministic fingerprint thay vì time-window heuristic"):
+nếu chứa version thì retry sau re-fetch lại ra fingerprint khác và defect vẫn còn.
+
+| Tình huống | Kết quả sau fix |
+|---|---|
+| lost-response retry (cùng key, `If-Match` cũ) | 200, `data.replayed=true`, `scanned_qty` không đổi |
+| stale retry | 200 replay, không 412, `scanned_qty` không đổi |
+| re-fetch retry (`If-Match` mới) — **chính defect** | 200 replay, `scanned_qty` không đổi (trước là ×2) |
+| chuỗi 6 lần retry xen kẽ version cũ/mới | áp dụng đúng **một** lần |
+| cùng key, khác nội dung | 409 `IDEMPOTENCY_CONFLICT` |
+| khác key, cùng nội dung | lần quét thật thứ hai, vẫn cộng dồn (không nuốt oan) |
+| không gửi key | y như trước, **không** 428 |
+
+Bằng chứng: `tests/Feature/Wwhn188ScanIdempotencyContractTest.php` — **10 passed,
+100 assertions**, mọi case kiểm ở tầng DB (`scanned_qty`, `version`,
+`inbound_scan_entries`, `idempotency_keys`) chứ không chỉ HTTP status. Test cũ ghi
+nhận defect đã được chuyển thành test ghi nhận **đã sửa**
+(`InboundScanConcurrencyBehaviorTest::test_component_quantity_mode_refetch_retry_is_deduped_by_idempotency_key`),
+đồng thời vẫn khoá lại nhánh "không có key giữ nguyên hành vi cũ" để hành vi đó là
+lựa chọn có chủ đích chứ không phải sót.
+
+OpenAPI đã cập nhật (`operationId: stock_in_scan`): thêm tham số `Idempotency-Key`
+(optional, 8..100), 200 mô tả `data.replayed` + header `Idempotent-Replay`, 409 liệt
+kê `IDEMPOTENCY_CONFLICT`/`CONCURRENCY_CONFLICT`. Bản trích + SHA-256 canonical:
+`docs/evidence/WWHN-188/openapi/`.
+
+### 13.2 `DEV188-P1-02R2` — race thật, đọc lại được
+
+Evidence chuyển từ `storage/app/wwhn-188-evidence` (gitignore) sang
+`docs/evidence/WWHN-188/runtime/` (commit vào repo). Bổ sung đúng những gì reviewer
+đòi mà bản cũ thiếu: **PostgreSQL version**, **candidate SHA**, **mốc thời gian thô
+từng worker** (chứng minh hai tiến trình chồng lấn thật, không phải chạy nối tiếp),
+**snapshot DB before/after** từng kịch bản, và blob SHA của chính các artifact được
+chứng minh.
+
+Bốn kịch bản, mỗi kịch bản hai tiến trình OS = hai backend PostgreSQL phân biệt:
+
+| Kịch bản | Tranh chấp | Kết quả |
+|---|---|---|
+| `same_document_same_line` | row lock `stock_documents` | 1 winner; loser 412 `STALE_VERSION`, không side effect |
+| `same_document_different_line` | row lock `stock_documents` | loser bị 412 dù dòng của nó chưa bị đụng ⇒ khoá là **cấp document** |
+| `same_item_different_document` | row lock `item_instances` | 1 winner; loser 409 `ITEM_ALREADY_RECEIVING`; đúng 1 scan entry |
+| `same_idempotency_key_quantity_mode` *(mới)* | lease `idempotency_keys` | 1 worker áp dụng; worker kia 409 `CONCURRENCY_CONFLICT`; `scanned_qty` +2 **đúng một lần** |
+
+Kịch bản thứ tư là bằng chứng `DEC-SCAN-IDEMP-001` đứng vững dưới race thật chứ
+không chỉ trong test tuần tự — đo được **overlap 2.69s** giữa hai tiến trình.
+
+Gate: `tests/Feature/InboundScanRuntimeConcurrencyTest.php` (skip nếu không phải
+pgsql hoặc thiếu `WWHN188_RUNTIME_CONCURRENCY=1`) + workflow CI
+`.github/workflows/wwhn-188-scan-concurrency-gate.yml` (job PostgreSQL 16 riêng).
+
+### 13.3 `DEV188-P1-01R2` / `P1-04R2` / `P1-05R2` / `P1-06R2` / `P2-01`
+
+| ID | Đã làm | Nơi đọc |
+|---|---|---|
+| `P1-01R2` | Hồ sơ supersede `ATT-11852`; nói rõ **WWHN-187 = implementation, WWHN-188 = concurrency**; ánh xạ blob/commit SHA thật | `docs/evidence/WWHN-188/WWHN-188_TRACE_SUPERSESSION.md` |
+| `P1-04R2` | Candidate QA phủ đủ 401/403/409/412/422/428 + duplicate/serial/quantity/race/lost-response retry/rollback, mỗi ô trỏ **một test đang chạy được** | `docs/evidence/WWHN-188/WWHN-188_QA_TEST_MATRIX.md` |
+| `P1-05R2` | Pin **hai tầng**: commit cuối cùng *chạm artifact* (không dùng floating `m1` HEAD) + blob SHA từng file; verifier có `--expect-sha` | `docs/evidence/WWHN-188/WWHN-188_CANDIDATE_PIN.json`, `scripts/pin-wwhn-188-candidate.mjs` |
+| `P1-06R2` | Source Register cho `WWHN-42`: nguồn hiện hành + supersession `BRD v3.9 → v3.20` theo SRS v1.12 §1.6, kèm neo yêu cầu riêng của luồng scan | `docs/evidence/WWHN-188/WWHN-188_SOURCE_REGISTER.md` |
+| `P2-01` | Dọn fixture `WWHN187-*` trong test concurrency; verifier chặn tái phát | `tests/Feature/InboundScanConcurrencyBehaviorTest.php` |
+
+### 13.4 Kết quả chạy tại candidate
+
+- `Wwhn188ScanIdempotencyContractTest` → **10 passed, 100 assertions**.
+- 6 file scan/concurrency (sqlite) → **51 passed, 317 assertions, 0 failed**.
+- Runtime concurrency PostgreSQL 16.14 → **4/4 kịch bản PASS**, mỗi kịch bản 2
+  backend PID phân biệt, `pg_locks` wait quan sát được ở 3 kịch bản row-lock.
+- `vendor/bin/pint --test` trên toàn bộ file mới/sửa → pass.
+
+### 13.5 Cập nhật open point
+
+| ID | Trạng thái mới |
+|---|---|
+| `BE1-SCANCONC-OP-02` (scan không dùng Idempotency-Key) | **Đã đóng** bằng `DEC-SCAN-IDEMP-001` — optional, đúng Annex C |
+| `BE1-SCANCONC-OP-03` (double-count quantity-mode) | **Đã sửa**, có test tái lập trước/sau và race thật |
+| `BE1-SCANCONC-OP-01` (audit log riêng cho scan) | Vẫn mở, kế thừa từ `WWHN-187`, chờ BA/Tech Lead |
+| `BE1-SCANCONC-OP-05` *(mới)* | Outbound scan có cùng hình dạng gap (label dispatch không idempotent) — ngoài phạm vi WWHN-188, cần Tech Lead quyết trong Flow 03 |
+| `BE1-SCANCONC-OP-06` *(mới)* | Có siết `Idempotency-Key` thành bắt buộc sau MVP không — BA + Tech Lead, không chặn release |
+
+### 13.6 Điều BE1 KHÔNG tự nhận
+
+`DEC-SCAN-IDEMP-001` đang ở trạng thái **PROPOSED**: code đã hiện thực đúng nội dung
+đó và revert được nguyên khối (không migration, không đổi schema). Việc ký duyệt
+semantics thuộc BA + Tech Lead; việc đính kèm/superseded/đổi trường nguồn trên Jira
+thuộc BA/PM; việc nghiệm thu ma trận test thuộc QA1. BE1 không tự đánh dấu Done.
