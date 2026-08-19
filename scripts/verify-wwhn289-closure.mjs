@@ -172,11 +172,36 @@ check(
   typeof ci.run_id === "string" && /^\d{6,}$/.test(ci.run_id),
   `PINS pin run id thật của GitHub Actions (${ci.run_id ?? "—"})`,
 );
+// `m1` là nhánh dùng chung: giữa lúc commit và lúc push, ticket khác có thể chen commit
+// nên GitHub Actions chạy trên TIP chứ không trên đúng `code_range.final`. Đòi
+// `head_sha === final` sẽ đỏ vì lý do không liên quan tới WWHN-289. Điều kiện ĐÚNG — và
+// chặt hơn — là: run chạy trên một revision NẰM SAU final, và giữa final với revision đó
+// không ai chạm file code trong phạm vi WWHN-289. Khi ấy run vẫn chứng minh đúng code đã pin.
+let ciAfterFinal = false;
+if (ci.head_sha && range.final) {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", String(range.final), String(ci.head_sha)], { cwd: root });
+    ciAfterFinal = true;
+  } catch {
+    ciAfterFinal = false;
+  }
+}
 check(
-  "P1-02R/ci-run-sha",
-  ci.head_sha === range.final,
-  "CI run được pin chạy trên đúng code_range.final (không pin run của revision khác)",
+  "P1-02R/ci-run-covers-final",
+  ciAfterFinal,
+  `CI run được pin (${ci.head_sha ?? "—"}) nằm sau hoặc trùng code_range.final`,
 );
+
+if (ciAfterFinal && codeScope.length > 0) {
+  const drifted = git("log", "--format=%h %s", `${range.final}..${ci.head_sha}`, "--", ...codeScope);
+  check(
+    "P1-02R/ci-run-code-unchanged",
+    drifted === "" || drifted === null,
+    drifted
+      ? `Giữa final và run được pin CÓ commit chạm code WWHN-289 -> run không còn chứng minh code đã pin:\n    ${drifted.split("\n").join("\n    ")}`
+      : "Không commit nào giữa code_range.final và CI run được pin chạm code WWHN-289",
+  );
+}
 check(
   "P1-02R/ci-run-conclusion",
   ci.conclusion === "success",

@@ -79,7 +79,11 @@ jobs:
       QUEUE_CONNECTION: sync
       AUDIT_WRITE_POLICY: outbox_required
       CI_DEMO_PASSWORD: WWHN289-CI-Only-2026
-      JWT_SECRET: WWHN289-CI-JWT-Exact-SHA-2026
+      # HS256 đòi khoá >= 256 bit. Giá trị cũ dài 29 ký tự = 232 bit nên lcobucci ném
+      # "Key provided is shorter than 256 bits" ngay ở JWTGuard::attempt(), kéo theo toàn
+      # bộ test auth/RBAC. Lỗi này nằm im qua ba run đầu vì cả ba chết sớm hơn, ở bước
+      # migrate. Giữ >= 32 ký tự.
+      JWT_SECRET: WWHN289-CI-JWT-Exact-SHA-Closure-Gate-2026-0819
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
       DB_PORT: '5432'
