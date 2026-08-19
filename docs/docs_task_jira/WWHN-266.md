@@ -125,7 +125,21 @@ giá trị — bài học WWHN-289.
 Đối soát dùng **hai nguồn độc lập**: báo cáo `RPT-INV-01` và SQL thô
 `SUM(qty_delta)`. Reviewer không phải tin một nguồn duy nhất.
 
-## 4. Cổng máy kiểm được
+## 4. Candidate exact SHA
+
+- **Code candidate: `8c7750763c473f5ccc65a8490a6a5b5a599246fc`** (`8c77507`), nhánh `m1`, repo `WMS_Warehouse_Hoa_Nam_BE`.
+- Hồ sơ pin: `docs/evidence/WWHN-266/CANDIDATE_PIN.json`.
+- Pin theo **commit cuối chạm artifact**, không theo `HEAD` của `m1`: nhánh này có
+  nhiều phiên làm song song nên `HEAD` trôi liên tục và pin theo `HEAD` mục ngay
+  trong ngày (bài học WWHN-191/WWHN-290). `verify-wwhn-266-closure.mjs` tự kiểm
+  range invariant: pin phải là ancestor của `HEAD`, và không commit nào sau pin
+  được chạm 6 đường dẫn trong `rangeInvariantPaths` mà pin vẫn đứng yên.
+- `storage/api-docs/api-docs.json` **cố ý không** nằm trong candidate: đó là
+  artifact sinh ra, mà working tree dùng chung lúc commit còn chứa 4 route outbound
+  chưa xong của phiên khác (WWHN-195). Thay vào đó `Wwhn266IfMatchContractTruthTest`
+  tự gọi `l5-swagger:generate` rồi mới kiểm — bộ test đo **source**, không đo file tĩnh.
+
+## 5. Cổng máy kiểm được
 
 ```
 php artisan test tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php   # 9/9 PASS
@@ -145,13 +159,13 @@ phá hoại (đổi `rootCause` thành `TBD`, xoá `TC-P1-024`, đổi `mismatch
 tại `GITHUB_SHA`, **xoá artifact bằng chứng trước khi chạy** và **sinh lại OpenAPI
 trong run** — hai bước này ngăn cổng tự xác nhận bằng file tĩnh đã commit.
 
-## 5. Ranh giới sự thật
+## 6. Ranh giới sự thật
 
 Bằng chứng trong tài liệu này là lượt chạy in-process của DEV trên driver sqlite.
 Nó **không** thay thế lượt retest độc lập của QA1 (`WWHN-264`) trên build đã deploy.
 Số liệu trích dẫn ra ngoài phải lấy từ lượt CI trên PostgreSQL tại exact SHA.
 
-## 6. Việc còn lại thuộc vai trò khác
+## 7. Việc còn lại thuộc vai trò khác
 
 | Việc | Vai trò | Ticket | Register |
 |---|---|---|---|
@@ -161,7 +175,7 @@ Số liệu trích dẫn ra ngoài phải lấy từ lượt CI trên PostgreSQL
 | Disposition BE266-D04 (ai nạp subledger BOX) | BA | `WWHN-266` | — |
 | Làm rõ contingency post-sprint hay Beta-blocking (Jira due 08/09 sau Sprint 93 end 03/09) | PM | `WWHN-266` | DEV266-P2-01 |
 
-## 7. Ghi chú vận hành
+## 8. Ghi chú vận hành
 
 Trong lúc làm ticket này, một phiên khác đang sửa outbound trên cùng `m1` và đã
 thêm 4 route (`AlignedOutboundFlowController`). Việc sinh lại `storage/api-docs/api-docs.json`

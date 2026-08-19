@@ -17,12 +17,14 @@
  * exact SHA và của QA1 (WWHN-264).
  */
 
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REGISTER_PATH = join(ROOT, 'docs/evidence/WWHN-266/DEFECT_REGISTER.json')
+const PIN_PATH = join(ROOT, 'docs/evidence/WWHN-266/CANDIDATE_PIN.json')
 const TRACEABILITY_PATH = join(ROOT, 'docs/evidence/WWHN-266/TC_P1_017_024_TRACEABILITY.json')
 const RAW_EVIDENCE_PATH = join(ROOT, 'build/evidence/wwhn-266/component-issue-core-transaction.json')
 const OPENAPI_PATH = join(ROOT, 'storage/api-docs/api-docs.json')
@@ -233,6 +235,72 @@ if (openapi) {
     if (headers['Idempotency-Key'] !== true) {
       fail(`OPENAPI: ${method.toUpperCase()} ${path} phải khai Idempotency-Key bắt buộc`)
     }
+  }
+}
+
+// ── 5. Pin candidate: chống pin rot ───────────────────────────────────────
+const pin = readJson(PIN_PATH, 'CANDIDATE_PIN')
+
+if (pin) {
+  const sha = pin.codeCandidateSha
+  if (typeof sha !== 'string' || !/^[0-9a-f]{40}$/.test(sha)) {
+    fail(`CANDIDATE_PIN: codeCandidateSha phải là SHA 40 ký tự, đang là "${sha}"`)
+  } else {
+    const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim()
+    let pinnedExists = true
+    try {
+      git(['cat-file', '-e', `${sha}^{commit}`])
+    } catch {
+      pinnedExists = false
+      // Chỉ shallow clone mới được miễn. Một SHA 40 ký tự hợp lệ mà không phải
+      // commit có thật trong repo này thì chính là pin mục — hạ xuống NOTE ở đây
+      // là fail-open, đúng thứ mà cổng phải chặn.
+      let shallow = false
+      try {
+        shallow = git(['rev-parse', '--is-shallow-repository']) === 'true'
+      } catch {
+        shallow = false
+      }
+      if (shallow) {
+        notes.push(`CANDIDATE_PIN: commit ${sha.slice(0, 7)} không nằm trong shallow clone — bỏ qua kiểm range invariant (checkout với fetch-depth: 0 để kiểm đầy đủ).`)
+      } else {
+        fail(`CANDIDATE_PIN: ${sha.slice(0, 7)} không phải commit có thật trong repo — pin đã mục hoặc gõ sai.`)
+      }
+    }
+
+    if (pinnedExists) {
+      // Pin phải là ancestor của nhánh, nếu không thì nó trỏ vào một commit đã bị
+      // rebase/amend mất — đúng lớp lỗi "pin rot" của WWHN-191/WWHN-290.
+      try {
+        git(['merge-base', '--is-ancestor', sha, 'HEAD'])
+      } catch {
+        fail(`CANDIDATE_PIN: ${sha.slice(0, 7)} không phải ancestor của HEAD — pin đã mục.`)
+      }
+
+      // Không commit nào SAU pin được chạm artifact được chứng thực mà pin vẫn
+      // đứng yên. Tập này CỐ Ý không gồm chính hồ sơ chứng thực — xem
+      // rangeInvariantScopeNote trong CANDIDATE_PIN.json.
+      const files = Array.isArray(pin.rangeInvariantPaths) ? pin.rangeInvariantPaths : []
+      if (files.length === 0) {
+        fail('CANDIDATE_PIN: rangeInvariantPaths rỗng — không có gì để kiểm range invariant.')
+      } else {
+        let touchedAfter = ''
+        try {
+          touchedAfter = git(['log', '--oneline', `${sha}..HEAD`, '--', ...files])
+        } catch {
+          touchedAfter = ''
+        }
+        if (touchedAfter !== '') {
+          fail(
+            `CANDIDATE_PIN: có commit sau ${sha.slice(0, 7)} chạm artifact WWHN-266 nhưng pin chưa cập nhật:\n      ${touchedAfter.split('\n').join('\n      ')}`
+          )
+        }
+      }
+    }
+  }
+
+  if (pin.ciGate?.status && !String(pin.ciGate.status).startsWith('CHƯA CHẠY') && !pin.ciGate.runUrl) {
+    fail('CANDIDATE_PIN: ciGate khai đã chạy nhưng thiếu runUrl — không dẫn chứng được.')
   }
 }
 

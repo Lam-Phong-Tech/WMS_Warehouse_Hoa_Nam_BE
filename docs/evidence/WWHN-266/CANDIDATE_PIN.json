@@ -1,0 +1,74 @@
+{
+  "ticket": "WWHN-266",
+  "registerItems": ["DEV266-P1-02", "DEV266-P1-07"],
+  "repo": "HoaNam_BE / WMS_Warehouse_Hoa_Nam_BE",
+  "branch": "m1",
+  "codeCandidateSha": "8c7750763c473f5ccc65a8490a6a5b5a599246fc",
+  "codeCandidateShaShort": "8c77507",
+  "pinRule": "Pin theo COMMIT CUỐI CHẠM ARTIFACT của WWHN-266, không pin theo HEAD của m1. Nhánh m1 có nhiều phiên làm song song nên HEAD trôi liên tục; pin theo HEAD sẽ mục ngay trong ngày (bài học WWHN-191/WWHN-290).",
+  "rangeInvariant": "codeCandidateSha phải là ancestor của refs/heads/m1, và không commit nào sau nó được chạm bất kỳ đường dẫn nào trong rangeInvariantPaths mà không cập nhật lại file pin này.",
+  "rangeInvariantPaths": [
+    "app/Swagger/Processors/RouteSyncProcessor.php",
+    "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+    "tests/Feature/Wwhn266IfMatchContractTruthTest.php",
+    "scripts/sync-wwhn-266-postman-if-match.mjs",
+    "build/evidence/wwhn-266/component-issue-core-transaction.json",
+    "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json"
+  ],
+  "rangeInvariantScopeNote": "Tập bất biến CHỈ gồm thứ được chứng thực (mã sản phẩm, bộ test, artifact sinh ra). KHÔNG gồm chính hồ sơ chứng thực (CANDIDATE_PIN.json, DEFECT_REGISTER.json, TC_P1_017_024_TRACEABILITY.json, WWHN-266.md, verify-wwhn-266-closure.mjs) — nếu gồm thì file pin phải khai chính commit chứa nó, một tham chiếu vòng không giải được. Đổi lại, thay đổi ở nhóm hồ sơ luôn hiện trong `git log` của thư mục docs/evidence/WWHN-266 và chịu review như mọi tài liệu khác.",
+  "filesChanged": [
+    "app/Swagger/Processors/RouteSyncProcessor.php",
+    "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+    "tests/Feature/Wwhn266IfMatchContractTruthTest.php",
+    "scripts/verify-wwhn-266-closure.mjs",
+    "scripts/sync-wwhn-266-postman-if-match.mjs",
+    "docs/evidence/WWHN-266/DEFECT_REGISTER.json",
+    "docs/evidence/WWHN-266/TC_P1_017_024_TRACEABILITY.json",
+    "docs/docs_task_jira/WWHN-266.md",
+    ".github/workflows/wwhn-266-core-transaction-closure.yml",
+    "build/evidence/wwhn-266/component-issue-core-transaction.json",
+    "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json"
+  ],
+  "notCandidate": {
+    "storage/api-docs/api-docs.json": "CỐ Ý không nằm trong candidate. Đây là artifact SINH RA; tại thời điểm commit, working tree dùng chung còn chứa 4 route outbound chưa commit của WWHN-195 (phiên khác), nên bản sinh lại sẽ nuốt luôn tài liệu cho công việc chưa xong của họ. Thay vào đó `Wwhn266IfMatchContractTruthTest` tự gọi `l5-swagger:generate` rồi mới kiểm — bộ test đo SOURCE thật, không đo file tĩnh, nên không phụ thuộc artifact đã commit."
+  },
+  "verification": {
+    "coreTransaction": {
+      "command": "php artisan test tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+      "result": "9/9 PASS, 148 assertions",
+      "driver": "sqlite (DEV)"
+    },
+    "contractTruth": {
+      "command": "php artisan test tests/Feature/Wwhn266IfMatchContractTruthTest.php",
+      "result": "4/4 PASS, 29 assertions",
+      "driver": "sqlite (DEV)"
+    },
+    "postmanCheck": {
+      "command": "node scripts/sync-wwhn-266-postman-if-match.mjs --check",
+      "result": "PASS — 47 operation bắt buộc If-Match đều có header trong collection"
+    },
+    "closureVerifier": {
+      "command": "node scripts/verify-wwhn-266-closure.mjs",
+      "result": "PASS",
+      "negativeTested": "Đã kiểm ngược bằng 3 phép phá hoại (rootCause=TBD, xoá TC-P1-024, mismatch_count=2) — cả ba đều bị chặn."
+    },
+    "style": {
+      "command": "vendor/bin/pint --test <3 file WWHN-266>",
+      "result": "PASS"
+    }
+  },
+  "ciGate": {
+    "workflow": ".github/workflows/wwhn-266-core-transaction-closure.yml",
+    "database": "PostgreSQL 16",
+    "status": "CHƯA CHẠY — cần DevOps kích hoạt tại exact SHA (DEV266-P1-07)",
+    "note": "Cổng xoá build/evidence/wwhn-266/*.json TRƯỚC khi chạy test và sinh lại OpenAPI TRONG run, nên không thể tự xác nhận bằng artifact tĩnh đã commit."
+  },
+  "truthBoundary": "Mọi số ở mục verification là lượt chạy in-process của DEV trên sqlite. Không dùng thay cho retest độc lập của QA1 (WWHN-264) trên build đã deploy, và không trích ra ngoài như bằng chứng Beta.",
+  "openItems": [
+    { "id": "BE266-D03", "owner": "BA + Tech Lead", "summary": "Movement COMPONENT_ISSUE không đảo được — phiếu xuất linh kiện post nhầm không có đường sửa sai hợp lệ." },
+    { "id": "BE266-D04", "owner": "BA", "summary": "Luồng nhập kho không nạp container_items nên Component Issue quantity-mode phải khai nội dung BOX bằng thao tác quản trị riêng." },
+    { "id": "DEV266-P1-05", "owner": "QA1", "summary": "Retest độc lập trên exact final candidate (WWHN-264)." },
+    { "id": "DEV266-P1-07", "owner": "DevOps", "summary": "Chạy workflow tại exact SHA và neo CI run/artifact." },
+    { "id": "DEV266-P2-01", "owner": "PM", "summary": "Làm rõ contingency post-sprint hay Beta-blocking." }
+  ]
+}
