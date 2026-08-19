@@ -21,7 +21,7 @@
     "be-172e1de": {"sha": "172e1def62ca2ae8e50a8d06c2e185c9539d671c", "date": "2026-08-19", "subject": "docs(WWHN-268-r2): decision record BE268-D02 + pointer DISP-STK-268 (cập nhật HTTP_ERROR_CODE_PAIRING)"},
     "be-70278a0": {"sha": "70278a0ff815ee25df43fadb49f22e41f91ff94b", "date": "2026-08-19", "subject": "fix(WWHN-267): refresh ROLE_BASELINE_PIN sau khi WWHN-249 D-04 them pv.master.manage"},
     "fe-a2b555b": {"sha": "a2b555b28e3c680a1c303873c04d7e64d71bb7d2", "date": "2026-08-19", "subject": "fix(WWHN-267): FE khong con doan mot ten ma trong hang 403 (FE267-D06)", "repo": "HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE"},
-    "be-R2": {"sha": "TO_BE_FILLED_AFTER_R2_COMMIT", "date": "2026-08-19", "subject": "Vòng R2: bộ artifact DEV267-P1-01R..06R + regenerate catalog HN-BE-API-002"}
+    "be-R2": {"sha": "a9f6c19115b7ddb6f1d1d29bb2e7ae9b0c450510", "date": "2026-08-19", "subject": "fix(WWHN-267): dong register R2 (34/100) - DEV267-P1-01R..06R + P2-01R/02", "ancestryVerified": "git merge-base --is-ancestor a9f6c19 m1 → true (verify trước khi điền, đúng thủ tục BE267-D08)"}
   },
   "matrix": [
     {
