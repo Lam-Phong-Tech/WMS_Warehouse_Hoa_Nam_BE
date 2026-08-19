@@ -149,6 +149,44 @@ fix, không để lại lần hai.
 
 ---
 
+## Phát hiện ngoài register (không thuộc WWHN-193, đã sửa vì cổng chạm phải)
+
+`ERD-MIRROR-INBOUND-LINES` — lộ ra khi chạy bộ filter của cổng WWHN-193 trên **PostgreSQL**.
+
+`PATCH /inbound-documents/{id}` trả `409` sau khi đã gỡ hết mã quét: `replaceDocumentLines()`
+xoá rồi INSERT lại dòng với id mới, còn mirror `hn_erd_mirror_inbound_lines` chỉ upsert theo
+`id` và **không xoá** row đã biến mất khỏi projection → hàng cũ vẫn giữ cùng
+`(inbound_document_id, line_no)` → `23505` trên `ux_erd_inbound_lines_f891eba6` → abort
+transaction. Hậu quả thật trên DB tham chiếu: **gỡ hết mã đã quét xong thì không sửa lại được
+cấu trúc dòng phiếu nhập nữa**. Trên sqlite không lộ ra vì nhánh mirror chỉ chạy trên pgsql.
+
+Đã sửa: `Modules/Warehouse/database/migrations/2026_08_19_130000_sync_inbound_lines_mirror_deletes.php`
+(cùng khuôn với bản vá đã có cho `idempotency_records`). Bằng chứng:
+`Flow02InboundPutawayAlignmentTest` trên pgsql 16.14 từ **15/16 → 16/16**.
+
+**Bàn giao, không tự quyết:** gốc chung nằm ở `2026_08_10_000765` — generator mirror chỉ gắn
+mệnh đề cleanup cho **allowlist 4 bảng** (`user_roles`, `role_permissions`,
+`pv_product_industries`, `pv_product_tags`), mọi mirror còn lại đều insert/update-only. Rà soát
+cả lớp này (mirror nào cần DELETE-sync, mirror append-only nào phải giữ nguyên) thuộc luồng ERD
+nhóm **WWHN-31 / WWHN-310**; WWHN-193 chỉ vá đúng bảng đã chứng minh được là đang hỏng.
+
+---
+
+## Số liệu chạy tại revision này
+
+Bộ filter của cổng (5 file WWHN-193 + 5 file bị contract P1-05R chạm tới):
+
+| Driver | Kết quả |
+|---|---|
+| sqlite `:memory:` | **80 test / 79 pass / 0 fail / 0 error / 1 skip / 589 assertion** |
+| PostgreSQL 16.14 | **80 test / 80 pass / 0 fail / 0 error / 591 assertion** |
+
+Full suite **không đo được tại revision này**: `vendor/` bị một phiên song song cài lại nhiều
+lần trong ngày (mất `autoload.php`, mất cả package `l5-swagger` giữa chừng) nên mọi lần chạy
+toàn bộ đều chết ở bootstrap. Số liệu chính thức lấy từ cổng CI chạy trên môi trường sạch.
+
+---
+
 ## Bảng trạng thái
 
 | ID | Chủ sở hữu | Trạng thái sau vòng này |

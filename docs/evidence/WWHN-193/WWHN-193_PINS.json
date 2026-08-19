@@ -108,23 +108,34 @@
   },
 
   "local_runs": {
+    "gate_scope": "5 file test WWHN-193 + 5 file test bị fixture/contract của P1-05R chạm tới (Flow02InboundPutawayAlignmentTest, FoundationInboundPutawayReadinessTest, ContainerTest, Wwhn172SkuContainerTransactionTest, Wwhn204LedgerReconciliationCoverageTest) — đúng bộ filter của .github/workflows/wwhn-193-putaway-closure.yml",
     "sqlite": {
       "driver": "sqlite :memory: (phpunit.xml mặc định)",
-      "scope": "5 file test WWHN-193 + 4 file test bị fixture chạm tới",
-      "result": "0 fail / 0 error"
+      "result": "80 test / 79 pass / 0 fail / 0 error / 1 skip / 589 assertion"
     },
     "postgresql": {
       "driver": "pgsql",
       "server_version": "16.14",
       "database": "hoa_nam_audit",
-      "scope": "Wwhn193PutawayAuditFailClosedTest, Wwhn193PutawayRetryRecoveryContractTest, Wwhn193ContainerPutawayBypassRegressionTest, Wwhn193PutawayDependencyChainTest, Wwhn193PutawayLifecycleTest",
-      "result": "42 test / 42 pass / 0 fail / 0 error / 290 assertion",
-      "note": "Đây là engine đích của DEV193-P1-04R. Ba khác biệt PostgreSQL đã lộ ra và được xử lý ở tầng test: trigger mirror idempotency_records đòi request_hash NOT NULL, trigger hn_reject_posted_document_change() giữ phiếu POSTED bất biến, và app_users trên PG có hình dạng cột khác app_user."
+      "result": "80 test / 80 pass / 0 fail / 0 error / 591 assertion",
+      "note": "Engine đích của DEV193-P1-04R. Bốn khác biệt PostgreSQL đã lộ ra: trigger mirror idempotency_records đòi request_hash NOT NULL, hn_reject_posted_document_change() giữ phiếu POSTED bất biến, app_users có hình dạng cột khác app_user (ba cái đầu xử lý ở tầng test), và một defect THẬT ngoài phạm vi register — xem out_of_scope_finding."
     },
     "full_suite": {
       "status": "NOT_MEASURED_IN_THIS_REVISION",
-      "reason": "vendor/ của repo bị một phiên song song cài lại giữa chừng (composer install) nên hai lần chạy full suite đều chết ở autoload. Cổng CI wwhn-193-putaway-closure.yml chạy full-scope trên môi trường sạch và là nguồn số liệu chính thức."
+      "reason": "vendor/ của repo bị một phiên song song cài lại nhiều lần trong ngày (autoload và cả package l5-swagger biến mất giữa chừng) nên mọi lần chạy full suite đều chết ở bootstrap. Cổng CI wwhn-193-putaway-closure.yml chạy trên môi trường sạch và là nguồn số liệu chính thức."
     }
+  },
+
+  "out_of_scope_finding": {
+    "id": "ERD-MIRROR-INBOUND-LINES",
+    "found_while": "chạy bộ filter của cổng WWHN-193 trên PostgreSQL",
+    "in_register": false,
+    "symptom": "PATCH /inbound-documents/{id} trả 409 trên PostgreSQL sau khi đã gỡ hết mã quét: SQLSTATE 23505 trên ux_erd_inbound_lines_f891eba6.",
+    "root_cause": "replaceDocumentLines() xoá rồi INSERT lại dòng với id mới; mirror hn_erd_mirror_inbound_lines chỉ upsert theo id và không xoá row đã biến mất khỏi projection, nên hàng cũ vẫn giữ cùng (inbound_document_id, line_no).",
+    "class": "Cùng lớp với 2026_08_16_133000_sync_idempotency_mirror_deletes. Gốc chung ở 2026_08_10_000765: generator chỉ gắn mệnh đề cleanup cho allowlist 4 bảng, mọi mirror còn lại insert/update-only.",
+    "fix": "Modules/Warehouse/database/migrations/2026_08_19_130000_sync_inbound_lines_mirror_deletes.php",
+    "evidence": "Flow02InboundPutawayAlignmentTest trên pgsql 16.14: 15/16 -> 16/16",
+    "handover": "Rà soát toàn bộ lớp mirror (mirror nào cần DELETE-sync, mirror append-only nào phải giữ nguyên) thuộc luồng ERD nhóm WWHN-31/WWHN-310, không gộp vào WWHN-193."
   },
 
   "independent_gates": {
