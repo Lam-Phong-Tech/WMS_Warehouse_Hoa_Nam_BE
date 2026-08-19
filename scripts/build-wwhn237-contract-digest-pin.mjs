@@ -16,11 +16,25 @@
  *
  *   node scripts/build-wwhn237-contract-digest-pin.mjs
  */
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PAIR_RELATIVE_PATH, git } from "./lib/wwhn237-candidate-pair.mjs";
+import { PAIR_RELATIVE_PATH } from "./lib/wwhn237-candidate-pair.mjs";
+
+/**
+ * Đọc blob **nguyên byte**. Không dùng helper `git()` dùng chung vì nó `.trim()` output —
+ * mất đúng một ký tự newline cuối là digest lệch, và cái lệch giả đó lại được ghi thẳng
+ * vào bằng chứng dưới dạng "worktree != blob@pair".
+ */
+const gitShowRaw = (ref, cwd) => {
+  try {
+    return execFileSync("git", ["show", ref], { cwd, maxBuffer: 256 * 1024 * 1024 });
+  } catch {
+    return null;
+  }
+};
 
 const BE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FE_ROOT = resolve(BE_ROOT, "../../HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE");
@@ -118,15 +132,18 @@ const artifacts = ARTIFACTS.map((item) => {
   const abs = join(root, item.path);
   const present = existsSync(abs);
   const pinCommit = item.repo === "FE" ? feSha : beSha;
-  const blobAtPair = present ? git(["show", `${pinCommit}:${item.path}`], root) : null;
+  const blobAtPair = present ? gitShowRaw(`${pinCommit}:${item.path}`, root) : null;
+  const blobDigest = blobAtPair === null ? null : createHash("sha256").update(blobAtPair).digest("hex");
   return {
     ...item,
     present,
     sha256: sha256Of(abs),
-    blob_sha256_at_pair: blobAtPair === null ? null : createHash("sha256").update(Buffer.from(blobAtPair, "utf8")).digest("hex"),
-    blob_matches_worktree:
-      blobAtPair === null || !present ? null : createHash("sha256").update(readFileSync(abs)).digest("hex") ===
-        createHash("sha256").update(Buffer.from(blobAtPair, "utf8")).digest("hex"),
+    blob_sha256_at_pair: blobDigest,
+    blob_matches_worktree: blobDigest === null || !present ? null : sha256Of(abs) === blobDigest,
+    // Consumer ký vào **nội dung tại commit**, không phải working tree: nhiều phiên chạy
+    // song song trên cùng cây làm việc nên worktree có thể mang thay đổi chưa commit của
+    // task khác. Đây mới là giá trị ba vai trò xác nhận.
+    authoritative_digest_for_confirmation: blobDigest ?? sha256Of(abs),
     version: versionOf(item, abs),
     surface_invariant_forbidden: item.skip_surface_invariant ? [] : FORBIDDEN,
   };
@@ -139,6 +156,12 @@ const record = {
   register_item: "DEV237-P1-05R2",
   disposition: "DISP-STK-237",
   pinned_at_pair: { backend: beSha, frontend: feSha },
+  digest_field_meaning: {
+    sha256: "digest cua working tree luc chay build — quan sat duoc, co the mang thay doi chua commit cua phien song song.",
+    blob_sha256_at_pair: "digest cua noi dung TAI commit da pin (`git show <pair>:<path>`) — tai lap duoc tu git.",
+    authoritative_digest_for_confirmation:
+      "Gia tri ba consumer ky vao. Bang blob_sha256_at_pair khi co, vi confirmation phai neo vao noi dung tai commit.",
+  },
   pin_class_rule: {
     owned: "WWHN-237 so huu — digest drift = FAIL.",
     immutable: "Pack dong bang (WWHN-180/150) — digest drift = FAIL; khong ap bat bien be mat vi pack mo ta capability lich su.",

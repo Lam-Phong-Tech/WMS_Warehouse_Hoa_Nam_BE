@@ -26,7 +26,7 @@ import {
   FE_SCOPE_MANDATORY,
   PAIR_RELATIVE_PATH,
   resolveCandidate,
-} from "./build-wwhn237-candidate-pair.mjs";
+} from "./lib/wwhn237-candidate-pair.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FE_ROOT = resolve(ROOT, "../../HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE");
