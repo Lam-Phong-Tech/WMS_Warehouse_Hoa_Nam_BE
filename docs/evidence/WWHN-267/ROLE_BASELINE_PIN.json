@@ -99,8 +99,10 @@
     },
     "WAREHOUSE_MANAGER": {
       "name": "Warehouse Manager",
-      "permissionCount": 68,
-      "permissionsSha256": "25ec5fcde0213e3cd8c5abc56304f383827a8870869283ad7ad795be7a59b508"
+      "permissionCount": 69,
+      "permissionsSha256": "404e79c8ad23dec9eaa48b77caf193e610c0510ff62717f20d9e3181f2c4b3d5",
+      "refreshedAt": "2026-08-19T00:00:00Z (WWHN-268 round 2 evidence refresh, tại HEAD hien tai cua m1)",
+      "refreshReason": "howToUpdate.knownPendingChange da ap dung: WWHN-249 D-04 commit them 'pv.master.manage' cho WAREHOUSE_MANAGER (SRS §3 row PV Industry/Tag/Product Mapping/Recommendation Rule manage = A cho Quan ly kho). permissionCount 68→69, hash sinh lai theo dung buoc 2 cua howToUpdate."
     },
     "SKU_MANAGER": {
       "name": "SKU Manager Test",
@@ -124,7 +126,7 @@
       "severity": "P1",
       "role": "WAREHOUSE_MANAGER",
       "srsRow": "User/role manage — Admin A, Quản lý kho D, Permission key: iam.user.manage / iam.role.manage",
-      "observed": "Role tên 'Warehouse Manager' giữ iam.user.view/manage, iam.role.view/manage, iam.permission.view và bộ alias user.*/role.*/permission.view; tổng 68 quyền, NHIỀU HƠN role ADMIN (61).",
+      "observed": "Role tên 'Warehouse Manager' giữ iam.user.view/manage, iam.role.view/manage, iam.permission.view và bộ alias user.*/role.*/permission.view; tổng 69 quyền (68 + pv.master.manage của WWHN-249 D-04, 2026-08-19), NHIỀU HƠN role ADMIN (61).",
       "whyItMatters": "Nếu WAREHOUSE_MANAGER được coi là actor 'Quản lý kho' thì §3 đánh D cho đúng cột này. Người giữ role có thể tạo/sửa user khác và gán role bất kỳ — đường leo quyền ngang.",
       "compensatingControl": "Modules/Auth/app/Http/Middleware/PreventSelfRoleAssignment.php chặn tự đổi role của chính mình (409 SELF_ESCALATION_DENIED). Không chặn được việc thao tác trên tài khoản khác.",
       "recommendation": "BA + Tech Lead chọn 1 trong 2: (A) tuyên bố WAREHOUSE_MANAGER là biến thể của actor 'Admin hệ thống' và đổi tên/mô tả cho khớp; (B) giữ tên và gỡ nhóm iam.*/user.*/role.*/permission.view khỏi role này. WWHN-267 KHÔNG tự chọn vì cả hai đều chạm dữ liệu role thật, FE menu và bộ test RBAC.",
@@ -170,6 +172,6 @@
       "2. Sinh lại băm: php -r \"require \"vendor/autoload.php\"; =(new ReflectionClass(\"Modules\\Auth\\Database\\Seeders\\AuthDatabaseSeeder\"))->getConstant(\"ROLES\"); foreach( as =>){ =[\"permissions\"]; sort(); echo .\" \".count().\" \".hash(\"sha256\", implode(\",\", )).PHP_EOL; }\"",
       "3. Cập nhật pinnedRoles + nêu lý do trong PR. Cổng đỏ ở đây KHÔNG phải lỗi cần bỏ qua: nó là chỗ duy nhất buộc người sửa nhìn lại §3."
     ],
-    "knownPendingChange": "Tại thời điểm chốt WWHN-267, một phiên làm việc song song (WWHN-249 D-04) đang có thay đổi CHƯA COMMIT thêm pv.master.manage cho WAREHOUSE_MANAGER. Grant đó khớp §3 (row \"PV Industry/Tag/Product Mapping/Recommendation Rule manage\" = A cho Quản lý kho), nên khi commit chỉ cần làm bước 2 và 3. Pin ở đây cố ý chốt theo trạng thái ĐÃ COMMIT, không chốt theo WIP của phiên khác."
+    "knownPendingChange": "ĐÃ ÁP DỤNG 2026-08-19 (WWHN-268 round 2 evidence refresh). WWHN-249 D-04 đã commit pv.master.manage cho WAREHOUSE_MANAGER; pin đã cập nhật permissionCount 68→69 + hash theo đúng bước 2/3 dưới đây. Lịch sử: tại thời điểm chốt WWHN-267 (2026-08-19 sớm hơn cùng ngày), thay đổi này còn CHƯA COMMIT ở một phiên song song; pin lúc đó cố ý chốt theo trạng thái ĐÃ COMMIT tại SHA đo được, không chốt theo WIP của phiên khác — nay đã khớp."
   }
 }
