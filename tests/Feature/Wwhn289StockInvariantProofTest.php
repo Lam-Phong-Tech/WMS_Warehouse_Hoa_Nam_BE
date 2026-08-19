@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
@@ -16,20 +17,27 @@ use Tests\TestCase;
 /**
  * WWHN-289 / DEV289-P1-03 — "CORE hard gate: chứng minh stock invariant".
  *
- * Review 34/100 yêu cầu đúng 5 chiều trên build đã pin + đối soát movement/balance
- * với mismatch = 0. Đây là AC #3 của task cha WWHN-77 ("Stock-changing Khắc phục
- * chạy lại invariant/idempotency/concurrency/rollback suite") và ánh xạ 1-1 sang
- * NFR của SRS v1.12 §9:
+ * Register 73/100 (DEV289-P1-03R) liệt kê đúng bảy chiều QA1 phải chạy lại trên
+ * build đã pin: retry, same-key-different-payload, injected rollback, negative
+ * stock, true concurrency/race, reversal, reconcile — kèm mismatch = 0. Đây là AC #3
+ * của task cha WWHN-77 và ánh xạ 1-1 sang NFR của SRS v1.12 §9:
  *
- *   negative     → NFR-SRS-003 (concurrency prevents negative stock) + AC-GWT-OUT-001
- *   concurrent   → NFR-SRS-003 (duplicate reversal bị chặn) + BR-REV-08
- *   retry        → NFR-SRS-001 "Retry 3 times cùng key/payload = một movement"
- *   idempotency  → AC-GWT-IDEMP-001 (cùng key khác payload = 409 conflict)
- *   rollback     → NFR-SRS-002 "Injected failure rollback all"
- *   reconcile    → §7.5 Reconciliation Controls, mismatch phải = 0
+ *   retry            → NFR-SRS-001 "Retry 3 times cùng key/payload = một movement"
+ *   idempotency      → AC-GWT-IDEMP-001 (cùng key khác payload = 409 IDEMPOTENCY_CONFLICT)
+ *   rollback         → NFR-SRS-002 "Injected failure rollback all"
+ *   negative_stock   → NFR-SRS-003 nửa "prevents negative stock" + AC-GWT-OUT-001
+ *   true_concurrency → NFR-SRS-003 nửa "parallel requests: one success; others conflict"
+ *   reversal         → NFR-SRS-003 "duplicate reversal" + BR-REV-08
+ *   reconcile        → §7.5 Reconciliation Controls, mismatch phải = 0
+ *
+ * LỊCH SỬ SỬA: bản trước docblock này khai có chiều `negative` nhưng KHÔNG tồn tại
+ * test method nào chạy nó, và chiều `concurrent` chỉ bấm Reverse hai lần tuần tự —
+ * tức bằng chứng cũ tuyên bố nhiều hơn nó chứng minh. Đó chính là lỗ mà review
+ * 73/100 chỉ ra, và hai method `..._negative_stock_dimension_...` /
+ * `..._true_concurrency_dimension_...` bên dưới là phần bù.
  *
  * Test KHÔNG dựng lại những gì Wwhn201PostIssueAtomicNonNegativeStockTest /
- * Wwhn199ReservationConcurrencyGuardTest đã chứng minh; nó lái đủ 6 chiều trong
+ * Wwhn199ReservationConcurrencyGuardTest đã chứng minh; nó lái đủ bảy chiều trong
  * MỘT vòng đời nghiệp vụ thật (inbound → outbound → reversal) rồi ghi ra evidence
  * máy đọc được `build/evidence/wwhn-289/stock-invariant-proof.json` để QA1/reviewer
  * đối chiếu thay vì phải tin lời DEV.
@@ -42,21 +50,48 @@ class Wwhn289StockInvariantProofTest extends TestCase
     /** @var array<string, mixed> */
     private static array $evidence = [];
 
+    /**
+     * DEV289-P1-02R — bản trước KHÔNG bao giờ ghi được file này và sự cố bị che kín:
+     * `tearDownAfterClass()` chạy SAU khi Laravel đã set `Container::setInstance(null)`,
+     * nên `base_path()` ném Error; hai toán tử `@` phía dưới lại nuốt sạch dấu vết. Hệ
+     * quả là CI copy `build/evidence/wwhn-289/*.json` từ file ĐÃ COMMIT rồi đọc
+     * `reconcile.mismatch_count` trong đó — tức cổng tự xác nhận bằng một artifact tĩnh
+     * chứ không phải kết quả của lần chạy đang xét. Đó đúng là "evidence chain chưa sạch".
+     *
+     * Sửa: đường dẫn suy ra từ __DIR__ (không cần container) và ghi FAIL-CLOSED —
+     * không ghi được thì ném, để cổng đỏ thay vì âm thầm giữ số liệu cũ.
+     */
     public static function tearDownAfterClass(): void
     {
-        if (self::$evidence !== []) {
-            $directory = base_path('build/evidence/wwhn-289');
-            if (! is_dir($directory)) {
-                @mkdir($directory, 0777, true);
-            }
-            @file_put_contents(
-                $directory.'/stock-invariant-proof.json',
-                json_encode(self::$evidence, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-            );
-        }
+        self::flushEvidence('stock-invariant-proof.json', self::$evidence);
         self::$evidence = [];
 
         parent::tearDownAfterClass();
+    }
+
+    /**
+     * @param  array<string, mixed>  $evidence
+     */
+    private static function flushEvidence(string $filename, array $evidence): void
+    {
+        if ($evidence === []) {
+            return;
+        }
+
+        $directory = dirname(__DIR__, 2).'/build/evidence/wwhn-289';
+        if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
+            throw new RuntimeException("Không tạo được thư mục evidence: {$directory}");
+        }
+
+        $path = $directory.'/'.$filename;
+        $written = file_put_contents(
+            $path,
+            json_encode($evidence, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        );
+
+        if ($written === false) {
+            throw new RuntimeException("Không ghi được evidence: {$path}");
+        }
     }
 
     /**
@@ -319,7 +354,7 @@ class Wwhn289StockInvariantProofTest extends TestCase
             'Tồn không được âm sau reversal trùng.'
         );
 
-        self::$evidence['concurrent_duplicate_reversal'] = [
+        self::$evidence['reversal'] = [
             'nfr' => 'NFR-SRS-003',
             'first_reversal_http' => $first->getStatusCode(),
             'second_reversal_http' => $second->getStatusCode(),
@@ -404,6 +439,249 @@ class Wwhn289StockInvariantProofTest extends TestCase
             'driver' => DB::getDriverName(),
             'generated_by' => static::class,
         ];
+    }
+
+    /**
+     * NFR-SRS-003 nửa đầu: "Concurrency prevents **negative stock**". Register 73/100
+     * đòi chiều `negative stock` là một chiều RIÊNG — docblock của class trước đây khai
+     * có chiều này nhưng KHÔNG có test method nào chạy nó, nên bằng chứng cũ nói nhiều
+     * hơn nó chứng minh. Đây là chiều đó, chạy trên đúng guard thật:
+     * CurrentBaselineStockService kiểm `after < 0` NGAY TRONG lockForUpdate() rồi mới
+     * CAS + insert movement, nên nếu guard trả 422 thì không thể có movement.
+     *
+     * Ba chân độc lập, cố ý không chân nào tin chân nào:
+     *   (1) đảo nhiều hơn số đã nhập  -> bị chặn, tồn không đổi
+     *   (2) đảo hết rồi đảo thêm      -> bị chặn tại tồn = 0, không xuống âm
+     *   (3) bất biến toàn cục         -> min() của cả ba cột tồn trong DB luôn >= 0
+     */
+    public function test_negative_stock_dimension_no_path_can_drive_balance_below_zero(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $fixture = $this->postedReceipt($headers, 'WWHN289-NEG-01', 4);
+
+        $movementsAfterReceipt = DB::table('stock_movements')->count();
+        $attempts = [];
+
+        // (1) Đảo 6 trong khi chỉ nhập 4.
+        $overReversal = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
+            'reason' => 'WWHN-289 negative stock guard - dao 6 trong khi chi nhap 4',
+            'lines' => [['movement_id' => $fixture['movement_id'], 'quantity' => 6]],
+        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-neg-over-reversal-1']);
+
+        $this->assertContains($overReversal->getStatusCode(), [409, 422], 'Đảo vượt số đã nhập phải bị từ chối.');
+        $this->assertSame(4, $this->balanceQuantity($fixture), 'Yêu cầu bị từ chối không được đổi tồn.');
+        $this->assertSame(
+            $movementsAfterReceipt,
+            DB::table('stock_movements')->count(),
+            'Yêu cầu bị từ chối không được sinh movement.'
+        );
+        $attempts[] = [
+            'leg' => 'over_reversal_beyond_received',
+            'requested_qty' => 6,
+            'on_hand_before' => 4,
+            'http_status' => $overReversal->getStatusCode(),
+            'error_code' => $this->errorCode($overReversal),
+            'on_hand_after' => $this->balanceQuantity($fixture),
+        ];
+
+        // (2) Đảo đúng 4 (hợp lệ) rồi đảo thêm 1 khi tồn đã bằng 0.
+        $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
+            'reason' => 'WWHN-289 negative stock guard - dao dung 4',
+            'lines' => [['movement_id' => $fixture['movement_id'], 'quantity' => 4]],
+        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-neg-exact-reversal'])->assertOk();
+        $this->assertSame(0, $this->balanceQuantity($fixture), 'Đảo hết phải về đúng 0.');
+
+        $movementsAtZero = DB::table('stock_movements')->count();
+        $belowZero = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
+            'reason' => 'WWHN-289 negative stock guard - dao them 1 khi ton da 0',
+            'lines' => [['movement_id' => $fixture['movement_id'], 'quantity' => 1]],
+        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-neg-below-zero']);
+
+        $this->assertContains($belowZero->getStatusCode(), [409, 422], 'Đảo thêm khi tồn 0 phải bị từ chối.');
+        $this->assertSame(0, $this->balanceQuantity($fixture), 'Tồn phải đứng ở 0, không được xuống âm.');
+        $this->assertSame(
+            $movementsAtZero,
+            DB::table('stock_movements')->count(),
+            'Lần đảo bị từ chối không được sinh movement.'
+        );
+        $attempts[] = [
+            'leg' => 'reversal_at_zero_balance',
+            'requested_qty' => 1,
+            'on_hand_before' => 0,
+            'http_status' => $belowZero->getStatusCode(),
+            'error_code' => $this->errorCode($belowZero),
+            'on_hand_after' => 0,
+        ];
+
+        // (3) Bất biến toàn cục: không dòng tồn nào trong DB được âm ở bất kỳ cột nào.
+        $floor = DB::table('inventory_balances')
+            ->selectRaw('MIN(quantity) AS min_quantity, MIN(on_hand_qty) AS min_on_hand, MIN(available_qty) AS min_available')
+            ->first();
+
+        $this->assertGreaterThanOrEqual(0, (int) $floor->min_quantity, 'quantity âm là vi phạm NFR-SRS-003.');
+        $this->assertGreaterThanOrEqual(0, (int) $floor->min_on_hand, 'on_hand_qty âm là vi phạm NFR-SRS-003.');
+        $this->assertGreaterThanOrEqual(0, (int) $floor->min_available, 'available_qty âm là vi phạm NFR-SRS-003.');
+
+        self::$evidence['negative_stock'] = [
+            'nfr' => 'NFR-SRS-003 (prevents negative stock) / TC-NFR-003',
+            'guard' => 'CurrentBaselineStockService: kiem after<0 ben trong lockForUpdate() truoc CAS va truoc insert stock_movements',
+            'attempts' => $attempts,
+            'global_floor' => [
+                'min_quantity' => (int) $floor->min_quantity,
+                'min_on_hand_qty' => (int) $floor->min_on_hand,
+                'min_available_qty' => (int) $floor->min_available,
+            ],
+            'negative_observed' => false,
+            'verdict' => 'PASS',
+        ];
+    }
+
+    /**
+     * NFR-SRS-003 nửa sau: "Parallel requests: one success; others conflict/insufficient".
+     *
+     * Chiều `concurrent` cũ chỉ bấm Reverse hai lần TUẦN TỰ nên không chứng minh được
+     * điều gì về race; register 73/100 tách riêng "true concurrency/race" đúng vì vậy.
+     * Không thể fork process thật trong một test dùng RefreshDatabase (fixture nằm trong
+     * transaction chưa commit nên connection thứ hai không nhìn thấy), nên chiều này
+     * chứng minh đúng ba cơ chế mà một race THẬT phải đi qua, mỗi cơ chế bằng trạng thái
+     * thật của hệ thống chứ không bằng mock:
+     *
+     *   (A) khoá bi quan  — đường ghi tồn phát `select ... for update` trên
+     *       inventory_balances, tức hai request song song bị tuần tự hoá ở tầng DB chứ
+     *       không chỉ có soft-check lúc scan (xem WWHN-199 mục 3).
+     *   (B) lease đang bay — row idempotency ở status `processing` với lease chưa hết hạn
+     *       là ĐÚNG trạng thái mà request thua nhìn thấy; IdempotencyStore phải trả
+     *       409 CONCURRENCY_CONFLICT (không phải IDEMPOTENCY_CONFLICT: payload giống hệt).
+     *   (C) thua optimistic lock — If-Match cũ vì người thắng đã đẩy version.
+     *
+     * Cả ba nhánh đều phải kết thúc bằng "không có stock effect thứ hai".
+     */
+    public function test_true_concurrency_dimension_race_losers_are_rejected_without_stock_effect(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $fixture = $this->preparedReceipt($headers, 'WWHN289-RACE-01', 7);
+        $winnerKey = 'wwhn289-race-winner-key';
+
+        // (A) Bắt SQL của chính lần Post thắng để chứng minh có khoá dòng thật.
+        $lockStatements = [];
+        Event::listen(QueryExecuted::class, function (QueryExecuted $query) use (&$lockStatements): void {
+            $sql = strtolower($query->sql);
+            if (str_contains($sql, 'inventory_balances') && str_contains($sql, 'for update')) {
+                $lockStatements[] = $query->sql;
+            }
+        });
+
+        $winner = $this->postJson(
+            "/api/v1/inbound-documents/{$fixture['document_id']}/post-receipt",
+            [],
+            $headers + ['If-Match' => '2', 'Idempotency-Key' => $winnerKey]
+        );
+        Event::forget(QueryExecuted::class);
+        $winner->assertOk()->assertJsonPath('data.status', 'POSTED');
+
+        $driver = DB::getDriverName();
+        if ($driver === 'pgsql') {
+            $this->assertNotEmpty(
+                $lockStatements,
+                'Trên PostgreSQL đường ghi tồn phải phát select ... for update trên inventory_balances.'
+            );
+        }
+
+        $movementsAfterWinner = DB::table('stock_movements')->count();
+        $balanceAfterWinner = $this->balanceQuantity($fixture);
+        $this->assertSame(7, $balanceAfterWinner);
+
+        // (B) Ép chính row idempotency của người thắng về trạng thái "đang bay".
+        $leaseRow = DB::table('idempotency_keys')->where('idem_key', $winnerKey)->first();
+        $this->assertNotNull($leaseRow, 'Post thắng phải để lại một row idempotency để mô phỏng lease.');
+        DB::table('idempotency_keys')->where('idem_key', $winnerKey)->update([
+            'status' => 'processing',
+            'locked_until' => now()->addMinutes(5),
+        ]);
+
+        $leaseLoser = $this->postJson(
+            "/api/v1/inbound-documents/{$fixture['document_id']}/post-receipt",
+            [],
+            $headers + ['If-Match' => '2', 'Idempotency-Key' => $winnerKey]
+        );
+
+        $this->assertSame(409, $leaseLoser->getStatusCode(), 'Request gặp lease đang bay phải là 409.');
+        $this->assertSame(
+            'CONCURRENCY_CONFLICT',
+            $this->errorCode($leaseLoser),
+            'Tranh chấp lease là lớp concurrency (retry được), không phải IDEMPOTENCY_CONFLICT.'
+        );
+        $this->assertSame($movementsAfterWinner, DB::table('stock_movements')->count());
+        $this->assertSame($balanceAfterWinner, $this->balanceQuantity($fixture));
+
+        // Trả lease về trạng thái cũ để nhánh (C) không bị nhánh (B) che mất.
+        DB::table('idempotency_keys')->where('idem_key', $winnerKey)->update([
+            'status' => $leaseRow->status,
+            'locked_until' => $leaseRow->locked_until,
+        ]);
+
+        // (C) Người thua optimistic lock: If-Match đã cũ vì người thắng đã đẩy version.
+        $staleLoser = $this->postJson(
+            "/api/v1/inbound-documents/{$fixture['document_id']}/post-receipt",
+            [],
+            $headers + ['If-Match' => '2', 'Idempotency-Key' => 'wwhn289-race-stale-key']
+        );
+
+        $this->assertContains(
+            $staleLoser->getStatusCode(),
+            [409, 412],
+            'Người thua optimistic lock phải bị chặn bằng 412 STALE_VERSION hoặc 409.'
+        );
+        $this->assertSame(
+            $movementsAfterWinner,
+            DB::table('stock_movements')->count(),
+            'Người thua không được sinh stock effect thứ hai.'
+        );
+        $this->assertSame($balanceAfterWinner, $this->balanceQuantity($fixture));
+
+        self::$evidence['true_concurrency'] = [
+            'nfr' => 'NFR-SRS-003 (parallel requests: one success, others conflict) / TC-NFR-003',
+            'driver' => $driver,
+            'row_lock' => [
+                'mechanism' => 'DB::table(inventory_balances)->lockForUpdate() trong transaction ghi ton',
+                'statements_observed' => count($lockStatements),
+                'asserted_on_this_driver' => $driver === 'pgsql',
+                'note' => $driver === 'pgsql'
+                    ? 'PostgreSQL bien dich lockForUpdate thanh FOR UPDATE nen khoa dong la that.'
+                    : 'sqlite khoa toan file nen grammar khong sinh FOR UPDATE; chieu nay chi co gia tri chung minh tren PostgreSQL.',
+            ],
+            'lease_loser' => [
+                'http_status' => $leaseLoser->getStatusCode(),
+                'error_code' => $this->errorCode($leaseLoser),
+                'second_stock_effect' => false,
+            ],
+            'optimistic_lock_loser' => [
+                'http_status' => $staleLoser->getStatusCode(),
+                'error_code' => $this->errorCode($staleLoser),
+                'second_stock_effect' => false,
+            ],
+            'winner_count' => 1,
+            'balance_after_all_losers' => $balanceAfterWinner,
+            'verdict' => 'PASS',
+        ];
+    }
+
+    /** Tồn AVAILABLE hiện tại của cặp kho/SKU trong fixture. */
+    private function balanceQuantity(array $fixture): int
+    {
+        return (int) DB::table('inventory_balances')
+            ->where('warehouse_id', $fixture['warehouse_id'])
+            ->where('sku_id', $fixture['sku_id'])
+            ->value('quantity');
+    }
+
+    /**
+     * Mã lỗi nghiệp vụ đọc được ở cả hai hình dạng envelope (top-level `error_code`
+     * của ApiResponse và `error.code` do ApiConventionMiddleware chuẩn hoá).
+     */
+    private function errorCode(TestResponse $response): ?string
+    {
+        return $response->json('error.code') ?? $response->json('error_code');
     }
 
     /**

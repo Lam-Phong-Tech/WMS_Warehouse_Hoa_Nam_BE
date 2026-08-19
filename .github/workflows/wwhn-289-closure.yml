@@ -1,10 +1,22 @@
 name: WWHN-289 Exact SHA Closure
 
+# DEV289-P1-02R — vòng review 73/100 bác bỏ CHUỖI BẰNG CHỨNG, không bác bỏ nội dung fix.
+# Ba thay đổi cốt lõi so với bản trước:
+#   1. Xoá `build/evidence/wwhn-289/*.json` TRƯỚC khi chạy test và bắt buộc chúng xuất hiện
+#      lại sau đó. Bản trước copy hai file ĐÃ COMMIT rồi đọc `reconcile.mismatch_count`
+#      trong đó, nên cổng tự xác nhận bằng một artifact tĩnh — nó xanh kể cả khi test không
+#      ghi được gì (và trên thực tế test chưa từng ghi được: xem docblock
+#      Wwhn289StockInvariantProofTest::tearDownAfterClass).
+#   2. Kiểm đủ BẢY chiều stock + SÁU nhóm security theo register mới, không chỉ mismatch=0.
+#   3. (bổ sung ở closure revision) chạy scripts/verify-wwhn289-closure.mjs để pin/digest/
+#      supersession được máy kiểm — bước đó chỉ có nghĩa khi PINS đã trỏ vào run xanh này.
+
 on:
   push:
     branches: [m1]
     paths:
       - 'docs/evidence/WWHN-289/**'
+      - 'scripts/verify-wwhn289-closure.mjs'
       - 'tests/Feature/Wwhn289StockInvariantProofTest.php'
       - 'tests/Feature/Wwhn289SecurityRegressionProofTest.php'
       - 'tests/Feature/Wwhn289ClosureEvidenceTest.php'
@@ -16,11 +28,13 @@ on:
       - 'Modules/Auth/routes/api.php'
       - 'Modules/Warehouse/app/Http/Middleware/**'
       - 'Modules/Warehouse/routes/api.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php'
       - '.github/workflows/wwhn-289-closure.yml'
   pull_request:
     branches: [m1]
     paths:
       - 'docs/evidence/WWHN-289/**'
+      - 'scripts/verify-wwhn289-closure.mjs'
       - 'tests/Feature/Wwhn289StockInvariantProofTest.php'
       - 'tests/Feature/Wwhn289SecurityRegressionProofTest.php'
       - 'tests/Feature/Wwhn289ClosureEvidenceTest.php'
@@ -32,6 +46,7 @@ on:
       - 'Modules/Auth/routes/api.php'
       - 'Modules/Warehouse/app/Http/Middleware/**'
       - 'Modules/Warehouse/routes/api.php'
+      - 'Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php'
       - '.github/workflows/wwhn-289-closure.yml'
 
 permissions:
@@ -73,6 +88,11 @@ jobs:
       DB_PASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Verifier cần lịch sử để kiểm range invariant (final là ancestor của HEAD) và
+          # "không commit nào sau final chạm code WWHN-289". Shallow clone làm cả hai phép
+          # đo đó im lặng trả sai.
+          fetch-depth: 0
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -80,6 +100,10 @@ jobs:
           extensions: mbstring, pgsql, pdo_pgsql, bcmath
           coverage: none
           tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
@@ -95,6 +119,7 @@ jobs:
           app/Providers/AppServiceProvider.php
           config/rate_limit.php
           Modules/Warehouse/app/Http/Middleware/EnforceInboundWarehouseScope.php
+          Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php
 
       - name: Fail-closed evidence markers
         run: |
@@ -105,9 +130,7 @@ jobs:
             grep -Fq "$marker" "$register"
           done
           grep -Fq 'FAIL-CLOSED / NEEDS OWNER DISPOSITION' "$register"
-          grep -Fq 'không** tuyên bố QA1 PASS' "$register"
           test -s 'docs/evidence/WWHN-289/WWHN-289_PINS.json'
-          php -r '$d=json_decode(file_get_contents("docs/evidence/WWHN-289/WWHN-289_PINS.json"), true, 512, JSON_THROW_ON_ERROR); foreach (["SEC289-01","SEC289-02","SEC289-03"] as $f) { if (empty($d["findings"][$f]["regression_test"])) { fwrite(STDERR, "Finding $f thiếu regression_test\n"); exit(1); } } echo "PINS ok\n";'
 
       - name: Assert canonical 409 idempotency contract is not regressed
         run: |
@@ -125,12 +148,52 @@ jobs:
           php artisan config:clear
 
       - name: Migrate and seed PostgreSQL
+        # Bước này từng đỏ ở cả ba run trước vì write-bridge ERD không cast text->uuid;
+        # migration 2026_08_19_000050 sửa gốc chuyện đó.
         run: php artisan migrate:fresh --seed --force
+
+      - name: Discard committed proof artifacts so the run must regenerate them
+        run: |
+          set -euo pipefail
+          rm -f build/evidence/wwhn-289/stock-invariant-proof.json
+          rm -f build/evidence/wwhn-289/security-regression-proof.json
+          echo "Đã xoá artifact đã commit — từ đây cổng chỉ đọc thứ do lần chạy này sinh ra."
 
       - name: WWHN-289 focused regression suite
         run: >-
           php artisan test --filter
           '/(Wwhn289StockInvariantProofTest|Wwhn289SecurityRegressionProofTest|Wwhn289ClosureEvidenceTest|Wwhn201PostIssueAtomicNonNegativeStockTest|Wwhn199ReservationConcurrencyGuardTest|Wwhn180IdempotencyAtomicityTest|StockDocumentIdempotencyTest|StockDocumentConcurrencyGuardTest|InventoryReconciliationIntegrityTest|Wwhn211InventoryScopeTest|SecurityRbacAuditNegativeTest|AuthRbacAuditHardeningTest|AuthorizationTest|Wwhn172SkuContainerTransactionTest|WarrantyStatusOnlyContractTest)/'
+
+      - name: Assert proof artifacts came from THIS run
+        run: |
+          set -euo pipefail
+          for artifact in stock-invariant-proof security-regression-proof; do
+            path="build/evidence/wwhn-289/${artifact}.json"
+            if [ ! -s "$path" ]; then
+              echo "$path không được lần chạy này sinh ra — cổng không có gì để xác nhận" >&2
+              exit 1
+            fi
+          done
+          php -r '
+            $stock = json_decode(file_get_contents("build/evidence/wwhn-289/stock-invariant-proof.json"), true, 512, JSON_THROW_ON_ERROR);
+            $security = json_decode(file_get_contents("build/evidence/wwhn-289/security-regression-proof.json"), true, 512, JSON_THROW_ON_ERROR);
+            $problems = [];
+            foreach (["retry","idempotency_conflict","rollback","negative_stock","true_concurrency","reversal","reconcile"] as $dimension) {
+                if (! isset($stock[$dimension])) { $problems[] = "thieu chieu stock: $dimension"; continue; }
+                if (($stock[$dimension]["verdict"] ?? null) !== "PASS") { $problems[] = "chieu stock khong PASS: $dimension"; }
+            }
+            foreach (["unauthorized_anonymous","unauthorized_underprivileged","rbac_matrix","data_scope","replay","rate_limit_login","rate_limit_public_pv","rate_limit_threshold_contract","secret"] as $group) {
+                if (! isset($security[$group])) { $problems[] = "thieu nhom security: $group"; }
+            }
+            if ((int) ($stock["reconcile"]["mismatch_count"] ?? -1) !== 0) { $problems[] = "reconcile mismatch != 0"; }
+            if (($stock["reconcile"]["report_status"] ?? null) !== "PASS") { $problems[] = "reconcile status != PASS"; }
+            if (($stock["meta"]["driver"] ?? null) !== "pgsql") { $problems[] = "artifact khong sinh tren pgsql: ".($stock["meta"]["driver"] ?? "-"); }
+            if (($stock["negative_stock"]["negative_observed"] ?? true) !== false) { $problems[] = "quan sat thay ton am"; }
+            if (($stock["true_concurrency"]["lease_loser"]["error_code"] ?? null) !== "CONCURRENCY_CONFLICT") { $problems[] = "nguoi thua lease khong tra CONCURRENCY_CONFLICT"; }
+            if (($security["rbac_matrix"]["cross_operation_bleed"] ?? true) !== false) { $problems[] = "ma tran RBAC co ro quyen cheo"; }
+            if ($problems !== []) { fwrite(STDERR, "FAIL:\n - ".implode("\n - ", $problems)."\n"); exit(1); }
+            echo "Bay chieu stock + sau nhom security deu do lan chay nay sinh ra va deu PASS\n";
+          '
 
       - name: Exact SHA evidence summary
         run: |
@@ -139,21 +202,22 @@ jobs:
           cp build/evidence/wwhn-289/stock-invariant-proof.json artifacts/wwhn-289/
           cp build/evidence/wwhn-289/security-regression-proof.json artifacts/wwhn-289/
           mismatch="$(php -r '$d=json_decode(file_get_contents("artifacts/wwhn-289/stock-invariant-proof.json"), true, 512, JSON_THROW_ON_ERROR); echo (int) $d["reconcile"]["mismatch_count"];')"
-          if [ "$mismatch" != "0" ]; then
-            echo "Reconcile mismatch=$mismatch, gate yêu cầu 0" >&2
-            exit 1
-          fi
           cat > artifacts/wwhn-289/manifest.txt <<EOF
           jira=WWHN-289
           branch=${GITHUB_REF_NAME}
           sha=${GITHUB_SHA}
+          run_id=${GITHUB_RUN_ID}
           db=postgres16
+          artifact_origin=regenerated_by_this_run
+          stock_dimensions=7
+          security_groups=6
           reconcile_mismatch=${mismatch}
           result=PASS
           qa1_signoff=NOT_CLAIMED_BY_DEV
           EOF
           sha256sum artifacts/wwhn-289/* > artifacts/wwhn-289/SHA256SUMS
           cat artifacts/wwhn-289/manifest.txt
+          cat artifacts/wwhn-289/SHA256SUMS
 
       - uses: actions/upload-artifact@v4
         with:

@@ -7,20 +7,25 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
  * WWHN-289 / DEV289-P1-04 — "security finding → fix → retest trace".
  *
- * Review 34/100 đòi đúng 4 nhóm regression: unauthorized, data-scope, replay,
- * secret. File này lái cả 4 qua HTTP thật trên các endpoint có stock effect và
- * ghi evidence máy đọc được `build/evidence/wwhn-289/security-regression-proof.json`.
+ * Register 73/100 (DEV289-P1-04R) đòi đủ SÁU nhóm regression để Security/TL ký:
+ * unauthorized, **RBAC**, data-scope, replay, rate-limit, secret. Bản trước chỉ có
+ * bốn nhóm (RBAC bị gộp vào unauthorized, và ngưỡng rate-limit chưa có hợp đồng nào
+ * khoá) — đó là lỗ mà review chỉ ra. File này lái cả sáu qua HTTP thật trên các
+ * endpoint có stock effect và ghi evidence máy đọc được
+ * `build/evidence/wwhn-289/security-regression-proof.json`.
  *
  * Ba finding thật được đóng trong WWHN-289 và khoá hồi quy tại đây:
  *   SEC289-01  data scope luồng nhập kho không tồn tại (chỉ có permission chức năng)
@@ -39,21 +44,43 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     /** @var array<string, mixed> */
     private static array $evidence = [];
 
+    /**
+     * DEV289-P1-02R — xem giải thích đầy đủ ở Wwhn289StockInvariantProofTest: bản trước
+     * dùng `base_path()` trong `tearDownAfterClass()` (container đã bị huỷ) và bọc `@`,
+     * nên file evidence chưa từng được lần chạy nào ghi ra. Nay suy đường dẫn từ __DIR__
+     * và ghi fail-closed.
+     */
     public static function tearDownAfterClass(): void
     {
-        if (self::$evidence !== []) {
-            $directory = base_path('build/evidence/wwhn-289');
-            if (! is_dir($directory)) {
-                @mkdir($directory, 0777, true);
-            }
-            @file_put_contents(
-                $directory.'/security-regression-proof.json',
-                json_encode(self::$evidence, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-            );
-        }
+        self::flushEvidence('security-regression-proof.json', self::$evidence);
         self::$evidence = [];
 
         parent::tearDownAfterClass();
+    }
+
+    /**
+     * @param  array<string, mixed>  $evidence
+     */
+    private static function flushEvidence(string $filename, array $evidence): void
+    {
+        if ($evidence === []) {
+            return;
+        }
+
+        $directory = dirname(__DIR__, 2).'/build/evidence/wwhn-289';
+        if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
+            throw new RuntimeException("Không tạo được thư mục evidence: {$directory}");
+        }
+
+        $path = $directory.'/'.$filename;
+        $written = file_put_contents(
+            $path,
+            json_encode($evidence, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        );
+
+        if ($written === false) {
+            throw new RuntimeException("Không ghi được evidence: {$path}");
+        }
     }
 
     /**
@@ -338,6 +365,184 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
             'driver' => DB::getDriverName(),
             'generated_by' => static::class,
         ];
+    }
+
+    /**
+     * DEV289-P1-04R đòi chiều **RBAC** riêng, không gộp vào `unauthorized`. Hai chiều
+     * này trả lời hai câu khác nhau:
+     *   - unauthorized: "thiếu quyền thì có bị chặn không?"
+     *   - RBAC:         "CÓ quyền cho action A thì có vô tình mở luôn action B không?"
+     * Câu thứ hai mới là thứ §8.1 Enforcement standard nói ("exact x-permission"), và
+     * là thứ NFR-SRS-005 gọi là "negative endpoint tests".
+     *
+     * Ma trận chạy thật trên ba permission key mà route khai đích danh:
+     *   inbound.post              -> POST /inbound-documents/{id}/post-receipt
+     *   inventory.reversal.post   -> POST /inbound-documents/{id}/reverse
+     *   inventory.view            -> GET  /inventory/balances
+     * Mỗi role chỉ giữ ĐÚNG một permission; ô đường chéo phải cho qua, mọi ô ngoài
+     * đường chéo phải 403 và tuyệt đối không sinh stock effect.
+     */
+    public function test_rbac_dimension_permission_matrix_has_no_cross_operation_bleed(): void
+    {
+        $owner = $this->headersForRole('SUPER_ADMIN');
+
+        $roles = [
+            'inbound.post' => $this->headersForCustomRole(['inbound.post']),
+            'inventory.reversal.post' => $this->headersForCustomRole(['inventory.reversal.post']),
+            'inventory.view' => $this->headersForCustomRole(['inventory.view']),
+        ];
+
+        $matrix = [];
+        $deniedCells = 0;
+
+        foreach ($roles as $granted => $headers) {
+            // Mỗi vòng dựng phiếu riêng để một ô được phép không làm nhiễu ô kế tiếp.
+            $fixture = $this->preparedReceipt($owner, 'WWHN289-RBAC-'.Str::upper(Str::random(5)), 2);
+
+            $probes = [
+                'inbound.post' => fn (): TestResponse => $this->postJson(
+                    "/api/v1/inbound-documents/{$fixture['document_id']}/post-receipt",
+                    [],
+                    $headers + ['If-Match' => '2', 'Idempotency-Key' => 'wwhn289-rbac-'.Str::lower(Str::random(10))]
+                ),
+                'inventory.reversal.post' => fn (): TestResponse => $this->postJson(
+                    "/api/v1/inbound-documents/{$fixture['document_id']}/reverse",
+                    ['reason' => 'WWHN-289 RBAC matrix probe', 'lines' => []],
+                    $headers + ['If-Match' => '2', 'Idempotency-Key' => 'wwhn289-rbac-'.Str::lower(Str::random(10))]
+                ),
+                'inventory.view' => fn (): TestResponse => $this->getJson('/api/v1/inventory/balances', $headers),
+            ];
+
+            foreach ($probes as $required => $probe) {
+                // Đo delta của TỪNG ô: khẳng định cần chứng minh là "ô bị DENY không ghi
+                // gì", chứ không phải "cả ma trận không ghi gì" — ô trên đường chéo của
+                // inbound.post là một lần Post HỢP LỆ và nó PHẢI ghi được, nếu không thì
+                // ta đang chứng minh sai hướng (permission đúng mà vẫn bị chặn).
+                $movementsBeforeCell = DB::table('stock_movements')->count();
+                $response = $probe();
+                $movementsAfterCell = DB::table('stock_movements')->count();
+
+                $status = $response->getStatusCode();
+                $allowed = $granted === $required;
+
+                if ($allowed) {
+                    $this->assertNotSame(
+                        403,
+                        $status,
+                        "Role giữ đúng {$required} không được bị 403 trên chính action đó."
+                    );
+                } else {
+                    $this->assertSame(
+                        403,
+                        $status,
+                        "Role chỉ có {$granted} phải bị 403 khi gọi action cần {$required}."
+                    );
+                    $this->assertSame(
+                        $movementsBeforeCell,
+                        $movementsAfterCell,
+                        "Ô DENY ({$granted} gọi action cần {$required}) không được ghi stock effect."
+                    );
+                    $deniedCells++;
+                }
+
+                $matrix[] = [
+                    'granted_permission' => $granted,
+                    'required_permission' => $required,
+                    'expected' => $allowed ? 'ALLOW' : 'DENY',
+                    'http_status' => $status,
+                    'error_code' => $this->errorCode($response),
+                    'movement_delta' => $movementsAfterCell - $movementsBeforeCell,
+                ];
+            }
+        }
+
+        $this->assertSame(6, $deniedCells, 'Ma trận 3x3 phải có đúng 6 ô bị từ chối.');
+        $deniedDeltas = array_values(array_map(
+            static fn (array $cell): int => $cell['movement_delta'],
+            array_filter($matrix, static fn (array $cell): bool => $cell['expected'] === 'DENY')
+        ));
+        $this->assertSame(
+            array_fill(0, 6, 0),
+            $deniedDeltas,
+            'Mọi ô ngoài đường chéo phải có movement_delta = 0.'
+        );
+
+        self::$evidence['rbac_matrix'] = [
+            'nfr' => 'NFR-SRS-005 / §8.1 Enforcement standard (exact x-permission)',
+            'permissions_probed' => array_keys($roles),
+            'cells' => $matrix,
+            'denied_cells' => $deniedCells,
+            'cross_operation_bleed' => false,
+            'stock_effect_on_denied_cells' => false,
+            'verdict' => 'PASS',
+        ];
+    }
+
+    /**
+     * DEV289-P1-04R: "BA+DevOps chốt operational thresholds". Phần DEV có thể khoá là
+     * *hợp đồng* của ngưỡng, không phải con số nghiệp vụ: ngưỡng phải đọc từ config có
+     * env override (DevOps đổi theo môi trường mà không sửa code), phải là số nguyên,
+     * và 0 phải nghĩa là TẮT guard một cách tường minh — nếu 0 lại vô tình chặn mọi
+     * request thì một lần đặt sai env sẽ làm sập UAT.
+     *
+     * Con số cho UAT/PROD vẫn là quyết định của BA/DevOps; test này chỉ đảm bảo mọi
+     * con số họ chọn đều có hiệu lực thật và không có ngưỡng nào bị hardcode.
+     */
+    public function test_rate_limit_dimension_thresholds_are_config_driven_and_zero_disables_guard(): void
+    {
+        $keys = ['pv_public_per_minute', 'auth_login_per_minute', 'auth_refresh_per_minute'];
+        $defaults = [];
+
+        foreach ($keys as $key) {
+            $value = config("rate_limit.{$key}");
+            $this->assertIsInt($value, "rate_limit.{$key} phải là số nguyên.");
+            $this->assertGreaterThanOrEqual(0, $value, "rate_limit.{$key} không được âm.");
+            $defaults[$key] = $value;
+        }
+
+        // Không mã nguồn nào được hardcode ngưỡng: mọi limiter phải đi qua config().
+        $limiterSource = file_get_contents(dirname(__DIR__, 2).'/app/Providers/AppServiceProvider.php');
+        $this->assertStringContainsString('rate_limit.pv_public_per_minute', $limiterSource);
+        $this->assertStringContainsString('rate_limit.auth_refresh_per_minute', $limiterSource);
+
+        // 0 = tắt guard: PV công khai gọi nhiều lần vẫn 200, không 429.
+        config(['rate_limit.pv_public_per_minute' => 0]);
+        for ($i = 0; $i < 5; $i++) {
+            $this->getJson('/api/v1/pv/industries')->assertOk();
+        }
+
+        // Ngưỡng 1 = chặn ngay từ request thứ hai, chứng minh config có hiệu lực thật.
+        config(['rate_limit.pv_public_per_minute' => 1]);
+        Cache::flush();
+        $this->getJson('/api/v1/pv/industries')->assertOk();
+        $blocked = $this->getJson('/api/v1/pv/industries');
+        $blocked->assertStatus(429);
+        $this->assertSame('RATE_LIMIT_EXCEEDED', $this->errorCode($blocked));
+
+        self::$evidence['rate_limit_threshold_contract'] = [
+            'finding' => 'SEC289-02',
+            'register_item' => 'DEV289-P1-04R (operational thresholds)',
+            'config_file' => 'config/rate_limit.php',
+            'env_overrides' => [
+                'pv_public_per_minute' => 'RATE_LIMIT_PV_PUBLIC_PER_MINUTE',
+                'auth_login_per_minute' => 'RATE_LIMIT_AUTH_LOGIN_PER_MINUTE',
+                'auth_refresh_per_minute' => 'RATE_LIMIT_AUTH_REFRESH_PER_MINUTE',
+            ],
+            'code_defaults' => $defaults,
+            'zero_disables_guard' => true,
+            'threshold_takes_effect_immediately' => true,
+            'owner_of_numeric_values' => 'BA + DevOps (DEV chỉ khoá hợp đồng, không tự chốt số)',
+            'verdict' => 'PASS',
+        ];
+    }
+
+    /**
+     * Mã lỗi nghiệp vụ đọc được ở cả hai hình dạng envelope (top-level `error_code`
+     * của ApiResponse và `error.code` do ApiConventionMiddleware chuẩn hoá).
+     */
+    private function errorCode(TestResponse $response): ?string
+    {
+        return $response->json('error.code') ?? $response->json('error_code');
     }
 
     // ────────────────────────────── fixtures ──────────────────────────────

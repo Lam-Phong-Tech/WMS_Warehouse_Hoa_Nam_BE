@@ -102,4 +102,11 @@ return [
     '2026_08_18_150000_fix_posting_events_posting_action_operation_overflow' => 'down() rỗng có chủ ý — fail-forward đã dispositioned tại WWHN-300 (Tech Lead)',
     '2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view' => 'down() rỗng có chủ ý — fail-forward đã dispositioned tại WWHN-300 (Tech Lead)',
     '2026_08_18_150200_add_posting_action_to_posting_event_sqlite' => 'down() rỗng có chủ ý — fail-forward đã dispositioned tại WWHN-300 (Tech Lead)',
+    // WWHN-289 (DEV289-P1-02R): migration chỉ viết lại các write-bridge `hn_erd_mirror_*`
+    // với cast đúng type đích. Hoàn tác = dựng lại đúng lỗi SQLSTATE[42804] đang chặn
+    // `migrate:fresh` trên PostgreSQL, nên down() cố ý rỗng; định nghĩa mới là superset
+    // hành vi (cột trùng type sinh biểu thức y nguyên).
+    // TRẠNG THÁI: đề xuất tại WWHN-289, CHỜ Tech Lead phê duyệt — chưa thuộc tập đã
+    // dispositioned của WWHN-300.
+    '2026_08_19_000050_repair_erd_mirror_projection_casts' => 'down() rỗng có chủ ý — fail-forward đề xuất tại WWHN-289, chờ Tech Lead phê duyệt',
 ];
