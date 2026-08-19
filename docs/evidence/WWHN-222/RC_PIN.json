@@ -4,7 +4,8 @@
   "description": "Immutable candidate pin cho event/log catalog + PII redact audit (DEV222-P1-02R2). File WWHN-222 sở hữu: hash cả tệp. File dùng chung (AuditLogger/config audit/AuthController): hash phần trích xuất đối tượng WWHN-222 sở hữu — commit ticket khác không làm đỏ pin, đụng đúng đối tượng thì đỏ ngay. implementation_range = các commit chạm candidate; verifier bắt buộc mọi commit trong range tồn tại và là ancestor của HEAD.",
   "implementation_range": [
     "879c9704d55cf435bbb7445d87e594f7428391a6",
-    "41dfa6f7145b2eaff22eae2ef1a20dcc40f1ba4a"
+    "41dfa6f7145b2eaff22eae2ef1a20dcc40f1ba4a",
+    "0222069b3c90b1227bdf4957c9c915ef8c7db191"
   ],
   "owned_artifacts": {
     "Modules/AuditLog/app/Models/AuditLog.php": "8aeee70348c01b7a32afcce85ddd9ca4e221f8160393be3efd91aebc83fac867",

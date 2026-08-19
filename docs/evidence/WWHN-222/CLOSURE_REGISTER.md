@@ -40,7 +40,7 @@
 - **Implementation range (mọi commit chạm candidate, theo thứ tự):**
   1. `879c9704d55cf435bbb7445d87e594f7428391a6` — implementation R1 (catalog fields, PII redact, fallback request_id)
   2. `41dfa6f7145b2eaff22eae2ef1a20dcc40f1ba4a` — fix pgsql view no-op (migration `2026_08_19_000002`, phát hiện ở WWHN-184 QA1 retest)
-  3. *(điền sau commit R2)* — vocabulary ERD + PG proof + pin + evidence R2
+  3. `0222069b3c90b1227bdf4957c9c915ef8c7db191` — R2: vocabulary ERD + PG proof + pin + evidence (candidate SHA hiện hành)
 - **Bất biến dải:** `git diff 879c9704..HEAD -- <8 artifact trong RC_PIN>` chỉ được chứa
   thay đổi từ các commit liệt kê trên; đã kiểm tại HEAD `074a11ff` — ngoài 2 commit đầu,
   không commit nào khác chạm tập pin.
