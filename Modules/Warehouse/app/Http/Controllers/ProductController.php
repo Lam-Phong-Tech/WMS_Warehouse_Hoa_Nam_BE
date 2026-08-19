@@ -12,6 +12,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreProductRequest;
 use Modules\Warehouse\Http\Requests\UpdateProductRequest;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\PvRelations;
 use Modules\Warehouse\Support\SkuMasterLinkResolver;
 use OpenApi\Attributes as OA;
 
@@ -196,6 +197,19 @@ class ProductController extends Controller
      * Annex C publishPvProduct: PATCH /pv/products/{sku_id}/publish, permission
      * riêng `pv.publish` (§3 tách khỏi sku.manage) + If-Match. REQ-SRS-020:
      * SKU không ACTIVE thì không được publish; publish không phụ thuộc tồn kho.
+     *
+     * WWHN-252 · FE252-P1-08 — precondition là BẮT BUỘC: Annex C khai cột header
+     * `If-Match` cho operation này và có 428 trong error set. Token precondition
+     * là **version hồ sơ App PV**, không phải `sku.version`: bảng Field mapping
+     * (§13) khai công tắc `published` của SCR-PV-ADM-01 đọc/ghi
+     * `PV_Profile.published`, và đó cũng là con số duy nhất FE nhìn thấy trên
+     * dòng đang thao tác (`GET /pv-admin/resources/product-profiles` → `version`).
+     *
+     * Quy ước version (xem docs/decision-records/DEC-API-IFMATCH-002-pv-publish-precondition.md):
+     * - `If-Match: 0`  = SKU chưa có hồ sơ App PV (lần publish đầu tiên).
+     * - `If-Match: N`  = version hồ sơ hiện tại (N >= 1).
+     * Mỗi lần publish/unpublish thành công tăng version hồ sơ lên 1 và trả về
+     * `pv_profile_version` để client refresh mà không phải đọc lại danh sách.
      */
     public function publishPvProduct(Request $request, string $id)
     {
@@ -209,13 +223,13 @@ class ProductController extends Controller
         }
 
         $payload = $this->assertPublishRequiresActive(['published_to_app' => (bool) $validated['published']], $before);
-        $nextVersion = $this->assertVersionMatchesIfProvided($request, $before);
-        if ($nextVersion !== null) {
-            $payload['version'] = $nextVersion;
-        }
+
+        $currentProfileVersion = $this->pvProfileVersion($id);
+        $this->assertPvProfileVersionMatches($request, $currentProfileVersion);
 
         $beforeData = $before->toArray();
         $product = $this->products->update($id, $payload);
+        $nextProfileVersion = $this->bumpPvProfileVersion($id, $currentProfileVersion);
 
         AuditLogger::record(
             action: $validated['published'] ? 'PV_PUBLISH' : 'PV_UNPUBLISH',
@@ -227,7 +241,77 @@ class ProductController extends Controller
             afterData: $product->toArray(),
         );
 
-        return $this->respondSuccess($product, $validated['published'] ? 'Đã publish SKU lên App PV.' : 'Đã gỡ SKU khỏi App PV.');
+        return $this->respondSuccess(
+            $product->toArray() + ['pv_profile_version' => $nextProfileVersion],
+            $validated['published'] ? 'Đã publish SKU lên App PV.' : 'Đã gỡ SKU khỏi App PV.'
+        );
+    }
+
+    /**
+     * Version hồ sơ App PV của một SKU; 0 nghĩa là SKU chưa có hồ sơ nào.
+     *
+     * Đọc qua {@see PvRelations::profile()} chứ không dùng tên số ít, vì tên cột
+     * khoá ngoại khác nhau giữa hai driver (`product_id` trên sqlite, `sku_id`
+     * trên PostgreSQL) — xem docblock của PvRelations.
+     */
+    private function pvProfileVersion(string $skuId): int
+    {
+        $relation = PvRelations::profile();
+        $version = DB::table($relation['table'])->where($relation['sku'], $skuId)->value('version');
+
+        return $version === null ? 0 : (int) $version;
+    }
+
+    /**
+     * §8.2: thiếu header precondition = 428 PRECONDITION_REQUIRED, lệch version
+     * = 412 STALE_VERSION. Khác `assertVersionMatchesIfProvided` (dùng cho
+     * updateSku, nơi baseline đang chạy vẫn cho phép bỏ header), publish là hành
+     * động đổi trạng thái mặt CÔNG KHAI nên header là bắt buộc — không có header
+     * thì hai người bấm công tắc cùng lúc sẽ ghi đè nhau mà không ai biết.
+     */
+    private function assertPvProfileVersionMatches(Request $request, int $currentVersion): void
+    {
+        $header = trim((string) $request->header('If-Match'));
+
+        if ($header === '') {
+            ApiError::abort(
+                428,
+                'PRECONDITION_REQUIRED',
+                'Publish App PV bắt buộc header If-Match chứa version hồ sơ App PV hiện tại (0 nếu SKU chưa có hồ sơ).',
+                ['current_version' => $currentVersion]
+            );
+        }
+
+        $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
+        }
+
+        if ((int) $header !== $currentVersion) {
+            ApiError::abort(412, 'STALE_VERSION', 'Hồ sơ App PV đã được cập nhật bởi phiên khác; tải lại trước khi bật/tắt publish.', [
+                'expected_version' => (int) $header,
+                'current_version' => $currentVersion,
+            ]);
+        }
+    }
+
+    /**
+     * Ghi version mới sau khi trạng thái publish đã đổi. Hồ sơ do trigger tạo
+     * (`hn_legacy_sku_write` trên PostgreSQL, `hn_pv_profile_sync_on_sku_*` trên
+     * sqlite) ngay trong lệnh update ở trên, nên tới bước này mọi SKU đang
+     * publish đều đã có hồ sơ. Trường hợp duy nhất không có dòng nào là unpublish
+     * một SKU chưa từng publish — khi đó version giữ nguyên 0.
+     */
+    private function bumpPvProfileVersion(string $skuId, int $currentVersion): int
+    {
+        $relation = PvRelations::profile();
+        $next = $currentVersion + 1;
+
+        $affected = DB::table($relation['table'])
+            ->where($relation['sku'], $skuId)
+            ->update(['version' => $next, 'updated_at' => now()]);
+
+        return $affected > 0 ? $next : $this->pvProfileVersion($skuId);
     }
 
     /**

@@ -168,13 +168,14 @@ class MasterDataGovernanceTest extends TestCase
             'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE',
         ]);
 
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $headers)
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $headers + ['If-Match' => '0'])
             ->assertOk()
-            ->assertJsonPath('data.published_to_app', true);
+            ->assertJsonPath('data.published_to_app', true)
+            ->assertJsonPath('data.pv_profile_version', 1);
 
         // REQ-SRS-020: SKU không ACTIVE thì không được publish.
         $this->patchJson("/api/v1/products/{$sku->sku_id}", ['status' => 'INACTIVE'], $headers)->assertOk();
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $headers)
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $headers + ['If-Match' => '1'])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'SKU_PUBLISH_REQUIRES_ACTIVE');
     }

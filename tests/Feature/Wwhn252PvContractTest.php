@@ -195,11 +195,11 @@ class Wwhn252PvContractTest extends TestCase
         $sku = $this->skuFixture('SKU-PV-PERM', 'SKU kiểm quyền publish');
 
         $skuManageOnly = $this->headersForPermissions(['sku.view', 'sku.manage']);
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $skuManageOnly)
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $skuManageOnly + ['If-Match' => '0'])
             ->assertStatus(403);
 
         $pvPublisher = $this->headersForPermissions(['sku.view', 'pv.publish']);
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $pvPublisher)
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $pvPublisher + ['If-Match' => '0'])
             ->assertOk()
             ->assertJsonPath('data.published_to_app', true);
     }
@@ -211,17 +211,95 @@ class Wwhn252PvContractTest extends TestCase
 
         $this->getJson('/api/v1/pv/products')->assertOk()->assertJsonCount(0, 'data');
 
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders())
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders() + ['If-Match' => '0'])
             ->assertOk();
 
         $this->getJson('/api/v1/pv/products')->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.sku_code', 'SKU-PV-FLOW');
 
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => false], $this->superAdminHeaders())
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => false], $this->superAdminHeaders() + ['If-Match' => '1'])
             ->assertOk();
 
         $this->getJson('/api/v1/pv/products')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    // ------------------------------------------------------------------
+    // Publish precondition — FE252-P1-08 (Annex C: If-Match + 412 + 428)
+    // ------------------------------------------------------------------
+
+    /**
+     * Annex C khai cột header `If-Match` cho publishPvProduct và có 428 trong
+     * error set. Thiếu header = 428 PRECONDITION_REQUIRED và trạng thái publish
+     * KHÔNG được đổi — nếu không, hai người bấm công tắc cùng lúc sẽ ghi đè nhau.
+     */
+    public function test_publish_without_if_match_returns_428_and_changes_nothing(): void
+    {
+        $sku = $this->skuFixture('SKU-PV-428', 'SKU thiếu precondition');
+
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders())
+            ->assertStatus(428)
+            ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED')
+            ->assertJsonPath('error.details.current_version', 0);
+
+        $this->assertFalse((bool) DB::table('sku')->where('sku_id', $sku->sku_id)->value('published_to_app'));
+        $this->getJson('/api/v1/pv/products')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    /** §8.2: version lệch = 412 STALE_VERSION, kèm expected/current để FE tải lại. */
+    public function test_publish_with_stale_profile_version_returns_412(): void
+    {
+        $sku = $this->skuFixture('SKU-PV-412', 'SKU lệch version');
+
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders() + ['If-Match' => '0'])
+            ->assertOk();
+
+        // Version hồ sơ giờ là 1; gửi lại 0 chính là kịch bản màn hình mở từ trước.
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => false], $this->superAdminHeaders() + ['If-Match' => '0'])
+            ->assertStatus(412)
+            ->assertJsonPath('error.code', 'STALE_VERSION')
+            ->assertJsonPath('error.details.expected_version', 0)
+            ->assertJsonPath('error.details.current_version', 1);
+
+        $this->assertTrue((bool) DB::table('sku')->where('sku_id', $sku->sku_id)->value('published_to_app'));
+    }
+
+    /**
+     * Version hồ sơ phải TĂNG sau mỗi lần bật/tắt, nếu không optimistic lock chỉ
+     * là hình thức: hai request cũ cùng version sẽ cùng thành công. Response trả
+     * `pv_profile_version` để FE cập nhật tại chỗ.
+     */
+    public function test_publish_bumps_pv_profile_version_and_returns_it(): void
+    {
+        $sku = $this->skuFixture('SKU-PV-VER', 'SKU tăng version hồ sơ');
+        $relation = PvRelations::profile();
+
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders() + ['If-Match' => '0'])
+            ->assertOk()
+            ->assertJsonPath('data.pv_profile_version', 1);
+
+        $this->assertSame(1, (int) DB::table($relation['table'])->where($relation['sku'], $sku->sku_id)->value('version'));
+
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => false], $this->superAdminHeaders() + ['If-Match' => '1'])
+            ->assertOk()
+            ->assertJsonPath('data.pv_profile_version', 2);
+
+        $this->assertSame(2, (int) DB::table($relation['table'])->where($relation['sku'], $sku->sku_id)->value('version'));
+
+        // Version của dòng đang mở trên SCR-PV-ADM-01 chính là số FE phải gửi.
+        $this->getJson('/api/v1/pv-admin/resources/product-profiles', $this->headersForPermissions(['pv.master.manage']))
+            ->assertOk()
+            ->assertJsonPath('data.0.version', 2);
+    }
+
+    /** If-Match không phải số = 422 INVALID_VERSION (không phải 500/400 chung chung). */
+    public function test_publish_with_non_numeric_if_match_returns_422(): void
+    {
+        $sku = $this->skuFixture('SKU-PV-INV', 'SKU If-Match sai định dạng');
+
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders() + ['If-Match' => '*'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'INVALID_VERSION');
     }
 
     // ------------------------------------------------------------------
@@ -363,7 +441,7 @@ class Wwhn252PvContractTest extends TestCase
     private function publishedSkuFixture(string $code, string $name, ?string $categoryId = null): Sku
     {
         $sku = $this->skuFixture($code, $name, $categoryId);
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders())
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $this->superAdminHeaders() + ['If-Match' => '0'])
             ->assertOk();
 
         return $sku;

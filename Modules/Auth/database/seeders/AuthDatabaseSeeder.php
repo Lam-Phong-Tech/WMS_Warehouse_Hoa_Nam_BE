@@ -214,6 +214,11 @@ class AuthDatabaseSeeder extends Seeder
                 'outbound.view', 'outbound.import', 'outbound.create', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'label.print', 'label.reprint', 'pv.publish',
+                // WWHN-249 D-04 — SRS §3, dòng "PV Industry/Tag/Product Mapping/Recommendation
+                // Rule manage" cho Quản lý kho mức A. Thiếu key này thì QL kho bị 403 ở
+                // /pv-admin/resources dù ma trận quyền nói được; pv.publish KHÔNG thay thế
+                // được vì đó là hai permission key tách biệt (xem PvAdminResourceController).
+                'pv.master.manage',
                 'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
                 'scan.classify', 'report.view', 'report.export', 'audit_log.view',
                 'physical_code.view', 'physical_code.manage', 'import_batch.view', 'import_batch.manage',

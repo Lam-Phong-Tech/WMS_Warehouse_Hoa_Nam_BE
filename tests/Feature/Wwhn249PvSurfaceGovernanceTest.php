@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -138,7 +139,7 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
     {
         $this->getJson('/api/v1/pv-admin/resources/industries')->assertStatus(401);
         $this->postJson('/api/v1/pv-admin/resources/industries', [])->assertStatus(401);
-        $this->patchJson('/api/v1/pv-admin/resources/industries/'.\Illuminate\Support\Str::uuid(), [])->assertStatus(401);
+        $this->patchJson('/api/v1/pv-admin/resources/industries/'.Str::uuid(), [])->assertStatus(401);
     }
 
     /**
@@ -155,7 +156,7 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
             'code' => 'SKU-PV-249', 'name' => 'SKU governance PV', 'sku_type' => 'PRODUCT',
             'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE',
         ]);
-        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $headers)->assertOk();
+        $this->patchJson("/api/v1/pv/products/{$sku->sku_id}/publish", ['published' => true], $headers + ['If-Match' => '0'])->assertOk();
 
         $before = $this->ledgerSnapshot();
 
@@ -288,6 +289,37 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
             'available_total' => (float) DB::table('inventory_balances')->sum('available_qty'),
             'quantity_total' => (float) DB::table('inventory_balances')->sum('quantity'),
         ];
+    }
+
+    /**
+     * D-04 (register WWHN-249) — SRS §3 xếp CẢ HAI dòng App PV ở mức A cho
+     * "Quản lý kho":
+     *   | Publish PV / Reports                                       | A | A | ... | pv.publish       |
+     *   | PV Industry/Tag/Product Mapping/Recommendation Rule manage | A | A | ... | pv.master.manage |
+     *
+     * Seed baseline chỉ cấp `pv.master.manage` cho ADMIN, nên WAREHOUSE_MANAGER
+     * bị 403 ở /pv-admin/resources dù ma trận quyền nói được. Test khoá cả hai
+     * chiều: thiếu key thì đỏ, mà cấp nhầm cho vai chỉ-đọc (NV kho / lãnh đạo /
+     * viewer) cũng đỏ — ma trận có cột V/D chứ không phải A cho họ.
+     */
+    public function test_seed_grants_pv_permissions_exactly_as_srs_role_matrix(): void
+    {
+        $roles = (new \ReflectionClass(\Modules\Auth\Database\Seeders\AuthDatabaseSeeder::class))
+            ->getConstant('ROLES');
+
+        $this->assertIsArray($roles);
+
+        foreach (['pv.publish', 'pv.master.manage'] as $permission) {
+            $granted = collect($roles)
+                ->filter(fn (array $role): bool => in_array($permission, $role['permissions'], true))
+                ->keys()->sort()->values()->all();
+
+            $this->assertSame(
+                ['ADMIN', 'WAREHOUSE_MANAGER'],
+                $granted,
+                "SRS §3 cho Admin và Quản lý kho mức A với {$permission}; mọi vai khác là V/D."
+            );
+        }
     }
 
     /** @return array{paths: array<string, mixed>} */
