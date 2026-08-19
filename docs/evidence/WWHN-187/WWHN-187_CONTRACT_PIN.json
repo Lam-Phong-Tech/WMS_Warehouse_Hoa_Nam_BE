@@ -1,0 +1,16 @@
+{
+  "task": "WWHN-187",
+  "note": "Digest của riêng hai operation quét nhập trong api-docs.json (canonical JSON, sha256). Pin theo tập operation chứ không theo cả file, để thay đổi không liên quan ở nơi khác không làm hỏng gate.",
+  "openapi_scan_operations": [
+    "/api/v1/inbound-documents/{id}/scan",
+    "/api/v1/inbound-documents/{id}/scans"
+  ],
+  "openapi_scan_digest": "147d4f58282257255f0f29b46c8784574763fadcb7669a9ec7580d6f87bac67d",
+  "candidate_sha_be": "63871eb6af9a502073bcc5960d35f768fada8c18",
+  "pinned_artifacts": [
+    "docs/evidence/WWHN-187",
+    "docs/decision-records/DEC-SCAN-AUDIT-001-scan-evidence-vs-audit-log.md",
+    "docs/postman/WWHN-187 Inbound Scan Retry.postman_collection.json",
+    "scripts/verify-wwhn-187-closure.mjs"
+  ]
+}

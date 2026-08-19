@@ -1,0 +1,310 @@
+{
+  "info": {
+    "name": "WWHN-187 Inbound Scan Retry (DEV187-P1-07)",
+    "description": "Ngu nghia retry cua POST /inbound-documents/{id}/scan theo DEC-SCAN-IDEMP-001.\n\nChay tuan tu tu tren xuong trong mot lan (cac request phu thuoc bien do request truoc set).\nBien moi truong bat buoc: base_url, access_token, warehouse_id, component_sku_id.\n\nDay la artifact QA cua DEV187-P1-03R: bon kich ban ma register yeu cau (same request retry, lost response + re-fetch, concurrent retry, khong double scanned_qty) deu co assertion tuong ung.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000/api/v1" },
+    { "key": "access_token", "value": "" },
+    { "key": "warehouse_id", "value": "" },
+    { "key": "component_sku_id", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "00 - Tao phieu nhap COMPONENT (qty_planned=5)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{base_url}}/inbound-documents", "host": ["{{base_url}}"], "path": ["inbound-documents"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"dst_warehouse_id\": \"{{warehouse_id}}\",\n  \"source_name\": \"WWHN-187 retry semantics\",\n  \"lines\": [{ \"product_id\": \"{{component_sku_id}}\", \"qty_planned\": 5 }]\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const d = pm.response.json().data;",
+              "pm.collectionVariables.set('document_id', d.id);",
+              "pm.collectionVariables.set('line_id', d.lines[0].id);",
+              "pm.collectionVariables.set('scan_key', 'qa-wwhn187-' + Date.now());"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Dang ky BOX cho dong COMPONENT",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/boxes",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "boxes"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"box_code\": \"BOX-QA-WWHN187-{{$randomInt}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('BOX duoc tao/xac nhan', () => pm.expect([200, 201]).to.include(pm.response.code));",
+              "pm.collectionVariables.set('box_id', pm.response.json().data.container_id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Quet lan dau (quantity=2, co Idempotency-Key)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "If-Match", "value": "1" },
+          { "key": "Idempotency-Key", "value": "{{scan_key}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/scan",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "scan"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"quantity\": 2,\n  \"container_id\": \"{{box_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('scanned_quantity = 2', () => pm.expect(d.scanned_quantity).to.eql(2));",
+              "pm.test('version bump 1 -> 2', () => pm.expect(d.version).to.eql(2));",
+              "pm.test('khong phai replay', () => pm.expect(d.replayed).to.eql(false));",
+              "pm.test('stock-neutral', () => { pm.expect(d.stock_effect).to.eql('NONE'); pm.expect(d.movement_created).to.eql(false); });",
+              "pm.test('header Idempotent-Replay: false', () => pm.expect(pm.response.headers.get('Idempotent-Replay')).to.eql('false'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Gui lai y het (mat response, If-Match cu) -> replay",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "If-Match", "value": "1" },
+          { "key": "Idempotency-Key", "value": "{{scan_key}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/scan",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "scan"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"quantity\": 2,\n  \"container_id\": \"{{box_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK, khong phai 412', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('replayed = true', () => pm.expect(d.replayed).to.eql(true));",
+              "pm.test('KHONG double count: scanned_quantity van = 2', () => pm.expect(d.scanned_quantity).to.eql(2));",
+              "pm.test('version giu nguyen 2', () => pm.expect(d.version).to.eql(2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Client re-fetch roi gui lai (If-Match MOI) -> van replay",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "If-Match", "value": "2" },
+          { "key": "Idempotency-Key", "value": "{{scan_key}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/scan",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "scan"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"quantity\": 2,\n  \"container_id\": \"{{box_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Day chinh la kich ban defect goc: version da nhay 1 -> 2 nen If-Match=2 hop le,",
+              "// truoc DEC-SCAN-IDEMP-001 request nay duoc ghi nhan nhu mot lan quet moi (2 -> 4).",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('replayed = true', () => pm.expect(d.replayed).to.eql(true));",
+              "pm.test('KHONG double count: scanned_quantity van = 2 (khong phai 4)', () => pm.expect(d.scanned_quantity).to.eql(2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Cung key nhung doi quantity -> 409 IDEMPOTENCY_CONFLICT",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "If-Match", "value": "2" },
+          { "key": "Idempotency-Key", "value": "{{scan_key}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/scan",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "scan"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"quantity\": 3,\n  \"container_id\": \"{{box_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409', () => pm.response.to.have.status(409));",
+              "pm.test('error_code = IDEMPOTENCY_CONFLICT (SRS §8.2)', () => pm.expect(pm.response.json().error_code).to.eql('IDEMPOTENCY_CONFLICT'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Key MOI, cung noi dung -> lan quet that thu hai, cong don",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "If-Match", "value": "2" },
+          { "key": "Idempotency-Key", "value": "{{scan_key}}-lan-hai" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/scan",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "scan"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"quantity\": 2,\n  \"container_id\": \"{{box_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Rang buoc nghiep vu phai giu: hai lan quet THAT lien tiep cung noi dung van hop le.",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().data;",
+              "pm.test('scanned_quantity = 4', () => pm.expect(d.scanned_quantity).to.eql(4));",
+              "pm.test('replayed = false', () => pm.expect(d.replayed).to.eql(false));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Khong gui Idempotency-Key -> KHONG 428 (backward compatible)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "If-Match", "value": "3" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/scan",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "scan"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"quantity\": 1,\n  \"container_id\": \"{{box_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Annex C dong scanInboundDocument chi khai If-Match; scan la stock-neutral nen",
+              "// thieu Idempotency-Key khong duoc 428. Client cu phai chay duoc nhu truoc.",
+              "pm.test('200 OK, khong phai 428', () => pm.response.to.have.status(200));",
+              "pm.test('scanned_quantity = 5', () => pm.expect(pm.response.json().data.scanned_quantity).to.eql(5));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Thieu If-Match -> 428 PRECONDITION_REQUIRED (khong doi)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/inbound-documents/{{document_id}}/scan",
+          "host": ["{{base_url}}"],
+          "path": ["inbound-documents", "{{document_id}}", "scan"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"line_id\": \"{{line_id}}\",\n  \"quantity\": 1,\n  \"container_id\": \"{{box_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('428', () => pm.response.to.have.status(428));",
+              "pm.test('error_code = PRECONDITION_REQUIRED', () => pm.expect(pm.response.json().error_code).to.eql('PRECONDITION_REQUIRED'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
