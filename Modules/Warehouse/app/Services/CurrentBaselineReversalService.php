@@ -117,6 +117,12 @@ class CurrentBaselineReversalService
 
         $stagedByMovement = [];
         $stagedItemIds = [];
+        // WWHN-234 F-04: assertQuantityDependency() bên dưới lock `inventory_balances`
+        // (BR-REV-03/04, đo available_qty) — hoãn đúng lệnh khoá đó sang Pha 2 sau
+        // vòng lặp, sắp theo sku_id toàn cục, để nhất quán thứ tự khoá với
+        // mutateBalance() ở postDraft() bên dưới. Mọi validate khác (movement,
+        // qty-exceeded, item dependency) giữ nguyên thứ tự line_no ở Pha 1 này.
+        $quantityDependencyChecks = [];
         foreach ($lines as $index => $lineInput) {
             $movement = DB::table('stock_movements')
                 ->where('id', $lineInput['movement_id'])
@@ -165,7 +171,7 @@ class CurrentBaselineReversalService
                 if (! empty($itemId)) {
                     ApiError::abort(422, 'QUANTITY_MODE_ITEM_FORBIDDEN', 'SKU quantity-mode không được gán item_id tùy ý khi reversal.');
                 }
-                $this->assertQuantityDependency($movement, $documentType, $qty);
+                $quantityDependencyChecks[] = ['sku_id' => $skuId, 'movement' => $movement, 'qty' => $qty];
             }
 
             $reversalLineId = (string) Str::uuid();
@@ -189,6 +195,17 @@ class CurrentBaselineReversalService
                 'updated_at' => now(),
             ]);
             $stagedByMovement[$movement->id] = $staged + $qty;
+        }
+
+        // WWHN-234 F-04 · Pha 2: khoá inventory_balances của BR-REV-03/04 theo thứ tự
+        // sku_id toàn cục, không theo thứ tự line_no của Pha 1 — cùng lý do sắp thứ
+        // tự với hàm sortReversalLinesForBalanceLock dùng trong postDraft() bên dưới.
+        usort(
+            $quantityDependencyChecks,
+            fn (array $a, array $b): int => [$a['sku_id'], (string) $a['movement']->id] <=> [$b['sku_id'], (string) $b['movement']->id]
+        );
+        foreach ($quantityDependencyChecks as $check) {
+            $this->assertQuantityDependency($check['movement'], $documentType, $check['qty']);
         }
 
         AuditLogger::record(
@@ -274,7 +291,11 @@ class CurrentBaselineReversalService
             ApiError::abort(422, 'REVERSAL_LINES_REQUIRED', 'Reversal DRAFT không có line.');
         }
 
-        $movementIds = [];
+        // WWHN-234 F-04: pha validate giữ nguyên thứ tự line_no (đã khoá ở trên) để
+        // lỗi đầu tiên luôn xác định — tách khỏi thứ tự khoá inventory_balances ở
+        // pha mutateBalance bên dưới, cùng cách postStockDocument()/postComponentIssue()
+        // trong CurrentBaselineStockService đã làm cho hai action Post kia.
+        $originalByLine = [];
         foreach ($lines as $line) {
             $original = DB::table('stock_movements')->where('id', $line->original_movement_id)->lockForUpdate()->first();
             if ($original === null || ! in_array($original->movement_type, ['RECEIPT', 'ISSUE'], true)) {
@@ -304,6 +325,16 @@ class CurrentBaselineReversalService
                 ]);
             }
 
+            $originalByLine[$line->reversal_line_id] = $original;
+        }
+
+        $movementIds = [];
+        // WWHN-234 F-04: khoá inventory_balances theo thứ tự sku_id toàn cục của
+        // movement gốc, không theo thứ tự line_no của reversal — hai reversal chạm
+        // cùng tập SKU nhưng khai dòng ngược nhau vẫn khoá theo đúng một thứ tự.
+        foreach ($this->sortReversalLinesForBalanceLock($lines, $originalByLine) as $line) {
+            $original = $originalByLine[$line->reversal_line_id];
+            $qty = (int) ($line->quantity_to_reverse ?? $line->reversal_qty);
             $sign = $documentType === 'receipt' ? -1 : 1;
             $stockStatus = (string) ($line->stock_status ?: self::AVAILABLE);
             $movementId = $this->mutateBalance(
@@ -368,6 +399,32 @@ class CurrentBaselineReversalService
             'correction_chain_id' => (string) $reversal->correction_chain_id,
             'movement_ids' => $movementIds,
         ];
+    }
+
+    /**
+     * WWHN-234 F-04: trả lại các dòng `reversal_line` đã `lockForUpdate()` theo thứ
+     * tự `line_no`, nhưng SẮP LẠI theo sku_id/product_id của movement gốc (thứ tự
+     * chuỗi ổn định, tie-break bằng `reversal_line_id`) chỉ để quyết định thứ tự gọi
+     * `mutateBalance()`. Lock trên `reversal_line` đã lấy theo `line_no` ở trên và
+     * KHÔNG đổi — hàm này chỉ đổi thứ tự khoá `inventory_balances` phía sau, cùng
+     * nguyên lý với `CurrentBaselineStockService::sortLinesForBalanceLock()`.
+     *
+     * @param  array<string, object>  $originalByLine  keyed by reversal_line_id
+     * @return list<object>
+     */
+    private function sortReversalLinesForBalanceLock(iterable $lines, array $originalByLine): array
+    {
+        $items = $lines instanceof \Illuminate\Support\Collection ? $lines->all() : [...$lines];
+        usort($items, function (object $a, object $b) use ($originalByLine): int {
+            $originalA = $originalByLine[$a->reversal_line_id];
+            $originalB = $originalByLine[$b->reversal_line_id];
+            $skuA = (string) ($originalA->sku_id ?? $originalA->product_id);
+            $skuB = (string) ($originalB->sku_id ?? $originalB->product_id);
+
+            return [$skuA, (string) $a->reversal_line_id] <=> [$skuB, (string) $b->reversal_line_id];
+        });
+
+        return $items;
     }
 
     private function mutateBalance(

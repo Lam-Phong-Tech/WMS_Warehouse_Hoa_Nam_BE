@@ -393,16 +393,16 @@ class Wwhn234P1P2ClosureTest extends TestCase
 
         Event::forget(QueryExecuted::class);
 
-        $this->assertCount(2, $captured, 'Phải có đúng hai lượt khoá inventory_balances, một cho mỗi SKU.');
+        // Reversal receipt có HAI lượt khoá inventory_balances theo SKU cho mỗi dòng
+        // quantity-mode: assertQuantityDependency() (BR-REV-03/04, createDraft — Pha 2)
+        // rồi mutateBalance() (postDraft). Cả hai pha đều phải khoá theo cùng thứ tự
+        // sku_id toàn cục — nếu không, pha còn "quên" sửa sẽ lộ ra như một cặp
+        // [higher, lower] xen giữa dãy kỳ vọng [lower, higher, lower, higher].
+        $this->assertCount(4, $captured, 'Phải có đúng 4 lượt khoá inventory_balances: 2 SKU × (assertQuantityDependency + mutateBalance).');
         $this->assertSame(
-            [$lowerSkuId, $higherSkuId],
+            [$lowerSkuId, $higherSkuId, $lowerSkuId, $higherSkuId],
             $captured,
-            'WWHN-234 F-04: postDraft() phải khoá inventory_balances theo thứ tự sku_id toàn cục (tăng dần), không theo line_no của reversal.'
-        );
-        $this->assertNotSame(
-            [$higherSkuId, $lowerSkuId],
-            $captured,
-            'Bảo vệ chống false-positive: nếu vẫn khoá theo line_no thì thứ tự phải là [higher, lower].'
+            'WWHN-234 F-04: cả assertQuantityDependency() (createDraft) lẫn mutateBalance() (postDraft) phải khoá inventory_balances theo thứ tự sku_id toàn cục (tăng dần), không theo line_no của reversal.'
         );
     }
 
@@ -415,6 +415,11 @@ class Wwhn234P1P2ClosureTest extends TestCase
             substr_count($source, 'sortReversalLinesForBalanceLock('),
             'Phải có đúng 2 lần gọi: định nghĩa hàm + postDraft().'
         );
+        // createDraft() cũng khoá inventory_balances qua assertQuantityDependency()
+        // (BR-REV-03/04) — nếu chỉ sắp lại postDraft() mà quên pha này, thứ tự khoá
+        // ĐẦU TIÊN của giao dịch vẫn là line_no cũ vì assertQuantityDependency() chạy
+        // trước mutateBalance() trong cùng transaction (khoá lại lần hai là no-op).
+        $this->assertStringContainsString('quantityDependencyChecks', $source);
     }
 
     // ------------------------------------------------------------------
