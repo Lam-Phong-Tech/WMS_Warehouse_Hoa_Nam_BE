@@ -8,8 +8,8 @@ xanh — bao gồm ca `quantity retry` mà register gọi đích danh.
 
 | Repo | Nhánh | Candidate SHA |
 |---|---|---|
-| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `__BE_CANDIDATE__` |
-| FE `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `__FE_CANDIDATE__` |
+| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `7f919da12d777356c089ff525e4f41d2d1ebd2a8` |
+| FE `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `3f2a5c2f5416be8019e0c1d8b91d1732a103f861` |
 
 `m1` có nhiều task chạy song song nên `HEAD` sẽ khác candidate. Điều kiện hợp lệ **không
 phải** `HEAD == candidate` mà là: candidate là ancestor của `HEAD` **và** không commit

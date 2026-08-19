@@ -9,8 +9,8 @@
 
 | Repo | Nhánh | Candidate SHA | Nội dung |
 |---|---|---|---|
-| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `__BE_CANDIDATE__` | evidence pack, decision record, Postman, verifier |
-| FE `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `__FE_CANDIDATE__` | consumer gửi `Idempotency-Key` cho bước quét |
+| BE `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `7f919da12d777356c089ff525e4f41d2d1ebd2a8` | evidence pack, decision record, Postman, verifier |
+| FE `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `3f2a5c2f5416be8019e0c1d8b91d1732a103f861` | consumer gửi `Idempotency-Key` cho bước quét |
 
 ## 2. File đã chạm trong vòng đóng này
 
