@@ -1,0 +1,185 @@
+name: WWHN-382 Dashboard R4 Closure
+
+# Cổng đóng register R4 của `GET /api/v1/reports/dashboard-quick`.
+#
+# Vì sao cổng này chạy HAI driver: hai khiếm khuyết fixture của task chỉ lộ trên
+# PostgreSQL (`uk_warehouses_single_active` ở vòng R3, `chk_erd_warranty_identification_shape`
+# ở vòng R4). SQLite không tạo các ràng buộc đó nên xanh giả — chạy một driver là
+# tự bịt mắt đúng chỗ đã từng đỏ.
+#
+# Vì sao có bước kiểm bất biến hợp đồng: `m1` là nhánh chung của nhiều phiên làm
+# việc song song. Pin theo hash cả tệp sẽ rot ngay khi task khác sinh lại
+# `storage/api-docs/api-docs.json`. Bước dưới đây kiểm fingerprint MỨC ĐỐI TƯỢNG
+# nên chỉ đỏ khi ngữ nghĩa dashboard thật sự đổi.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
+      - 'tests/Feature/Wwhn328R4ClosureTest.php'
+      - 'storage/api-docs/api-docs.json'
+      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
+      - 'docs/evidence/WWHN-328/KPI_MATRIX.md'
+      - 'docs/evidence/WWHN-382/**'
+      - 'docs/docs_task_jira/WWHN-382.md'
+      - 'scripts/wwhn-328-contract-fingerprint.mjs'
+      - 'scripts/wwhn-382-pin-candidate.mjs'
+      - 'scripts/verify-wwhn-382-closure.mjs'
+      - '.github/workflows/wwhn-382-dashboard-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
+      - 'tests/Feature/Wwhn328R4ClosureTest.php'
+      - 'storage/api-docs/api-docs.json'
+      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
+      - 'docs/evidence/WWHN-328/KPI_MATRIX.md'
+      - 'docs/evidence/WWHN-382/**'
+      - 'scripts/wwhn-328-contract-fingerprint.mjs'
+      - 'scripts/verify-wwhn-382-closure.mjs'
+      - '.github/workflows/wwhn-382-dashboard-closure.yml'
+  workflow_dispatch:
+    inputs:
+      expect_sha:
+        description: 'SHA candidate mà cổng phải chạy đúng tại đó (đủ 40 ký tự)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sqlite-gate:
+    name: Closure gate + contract test (sqlite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN382-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Cần lịch sử đầy đủ: bước kiểm bất biến duyệt dải commit từ semantic anchor
+          # tới HEAD, shallow clone sẽ làm bước đó không chạy được.
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Style check
+        run: vendor/bin/pint --test tests/Feature/Wwhn328R4ClosureTest.php
+
+      - name: Contract test — vòng R3
+        run: php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328DashboardQuickContractTest.php
+
+      - name: Contract test — khoá R4
+        run: php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328R4ClosureTest.php
+
+      - name: Closure gate (register, pin, placeholder, contract drift)
+        run: |
+          if [ -n "${{ inputs.expect_sha }}" ]; then
+            node scripts/verify-wwhn-382-closure.mjs --expect-sha "${{ inputs.expect_sha }}"
+          else
+            node scripts/verify-wwhn-382-closure.mjs
+          fi
+
+      - name: Contract invariance across the branch range
+        run: |
+          ANCHOR=$(node -p "require('./docs/evidence/WWHN-382/CANDIDATE_PIN.json').semantic_anchor.commit")
+          node scripts/wwhn-328-contract-fingerprint.mjs \
+            --check docs/evidence/WWHN-382/CONTRACT_PIN.json \
+            --range "$ANCHOR..HEAD"
+
+      - name: Upload WWHN-382 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-382-evidence-${{ github.sha }}
+          path: docs/evidence/WWHN-382/
+          retention-days: 90
+
+  postgres-gate:
+    name: Contract test on the reference database (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hn_wwhn382
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hn_wwhn382"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      JWT_SECRET: WWHN382-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hn_wwhn382
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_pgsql, pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      # Ràng buộc chỉ tồn tại trên PostgreSQL (partial unique một kho ACTIVE, CHECK
+      # hình dạng warranty) là nơi hai vòng trước đã đỏ. Đây là bước bắt chúng.
+      - name: Contract test — vòng R3 trên DB tham chiếu
+        run: php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328DashboardQuickContractTest.php
+
+      - name: Contract test — khoá R4 trên DB tham chiếu
+        run: php vendor/bin/phpunit --no-coverage tests/Feature/Wwhn328R4ClosureTest.php

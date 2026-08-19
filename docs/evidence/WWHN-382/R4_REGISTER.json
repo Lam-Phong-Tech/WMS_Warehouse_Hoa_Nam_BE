@@ -1,0 +1,164 @@
+{
+  "task": "WWHN-382",
+  "register": "P0/P1/P2 EXACT FIX ACTION REGISTER — R4",
+  "previousOutcome": "Chưa đạt yêu cầu — 74/100",
+  "branch": "m1",
+  "note": "SHA candidate KHÔNG nằm trong tệp này. Chúng được sinh bằng scripts/wwhn-382-pin-candidate.mjs vào CANDIDATE_PIN.json để không có hash nào được gõ tay.",
+  "statusVocabulary": {
+    "CLOSED_IN_REPO": "Đã đóng bằng artifact trong repo và được scripts/verify-wwhn-382-closure.mjs kiểm lại.",
+    "EVIDENCE_READY_AWAITING_SIGNOFF": "Artifact đã đủ để đọc và duyệt; chỉ còn chữ ký của vai được nêu. DEV không ký thay.",
+    "AWAITING_INDEPENDENT_RUN": "Phải do vai độc lập tự chạy/tự kết luận; DEV cố tình không sinh kết quả thay."
+  },
+  "items": [
+    {
+      "id": "DEV328-P1-01R4",
+      "severity": "P1",
+      "location": "WWHN-88 AC; comment 15571; dashboardQuick hiện hành",
+      "requiredFix": "Chốt 1 versioned KPI matrix (formula, source, filter, timezone/cutoff, permission/data scope, expected totals; nói rõ WAREHOUSE_SCOPED vs warranty GLOBAL) và ra một verdict duy nhất.",
+      "whatWasDone": "KPI matrix nâng lên v1.2: sửa method đã đổi tên ở WWHN-254, thêm ánh xạ nguồn↔ERD, thay khẳng định timezone bằng số đo information_schema trên DB tham chiếu, thêm bất biến đối soát, thêm cột 'Test khoá' cho từng dòng KPI.",
+      "status": "EVIDENCE_READY_AWAITING_SIGNOFF",
+      "owner": "BA Main/BAS + Tech Lead",
+      "reviewer": "DEV/QA2",
+      "signOffRole": "BA Main",
+      "signedByDev": false,
+      "gate": "Domain/G1",
+      "evidence": [
+        "docs/evidence/WWHN-328/KPI_MATRIX.md",
+        "docs/evidence/WWHN-382/R4_CLOSURE.md",
+        "tests/Feature/Wwhn328R4ClosureTest.php"
+      ]
+    },
+    {
+      "id": "DEV328-P1-02R4",
+      "severity": "P1",
+      "location": "WWHN-88 (14300); BE m1@127c573…",
+      "requiredFix": "Chính thức supersede m1-be-2 lịch sử; pin repo/branch/full candidate SHA canonical. Không dùng moving m1 làm evidence cuối.",
+      "whatWasDone": "SOURCE_SUPERSESSION.md khai 7 nguồn bị thay thế kèm SHA đủ 40 ký tự và lý do. CANDIDATE_PIN.json pin repo URL + branch + full SHA. Chống 'moving m1' bằng semantic anchor + kiểm tra bất biến fingerprint trên toàn dải anchor..HEAD thay vì tin vào một cái tên nhánh.",
+      "status": "CLOSED_IN_REPO",
+      "owner": "DEV + PM/Tech Lead",
+      "reviewer": "QA2",
+      "signOffRole": "Tech Lead",
+      "signedByDev": false,
+      "gate": "Traceability",
+      "evidence": [
+        "docs/evidence/WWHN-382/SOURCE_SUPERSESSION.md",
+        "docs/evidence/WWHN-382/CANDIDATE_PIN.json",
+        "scripts/wwhn-382-pin-candidate.mjs"
+      ]
+    },
+    {
+      "id": "DEV328-P1-03R4",
+      "severity": "P1",
+      "location": "BE 127c573… (commit gộp 'gỡ cờ 13')",
+      "requiredFix": "Pin đúng phạm vi tệp/diff của WWHN-328 bên trong lịch sử bundled; review độc lập hoặc disposition cho direct-commit; chạy CI/test liên quan tại exact SHA.",
+      "whatWasDone": "Candidate mới là commit MANG MÃ JIRA (không còn 'gỡ cờ N'). DIFF_SCOPE_MAP.md liệt kê từng tệp thuộc task kèm blob và commit chạm cuối. Workflow .github/workflows/wwhn-382-dashboard-closure.yml chạy verifier + test khoá trên cả sqlite và PostgreSQL tại exact SHA. Log thô hai driver được lưu trong evidence.",
+      "status": "EVIDENCE_READY_AWAITING_SIGNOFF",
+      "owner": "DEV",
+      "reviewer": "Tech Lead/QA2",
+      "signOffRole": "Tech Lead",
+      "signedByDev": false,
+      "gate": "Done/Build",
+      "evidence": [
+        "docs/evidence/WWHN-382/DIFF_SCOPE_MAP.md",
+        "docs/evidence/WWHN-382/RAW_phpunit_wwhn382_pgsql.log",
+        "docs/evidence/WWHN-382/RAW_phpunit_wwhn382_sqlite.log",
+        ".github/workflows/wwhn-382-dashboard-closure.yml"
+      ]
+    },
+    {
+      "id": "DEV328-P1-04R4",
+      "severity": "P1",
+      "location": "OpenAPI blob a18b4951…; Postman collection",
+      "requiredFix": "Pin hash/version OpenAPI + Postman hiện hành; Tech duyệt cùng một contract gồm scope, timezone, warning count/sample, ngoại lệ warranty, auth/error.",
+      "whatWasDone": "Đổi cách pin từ hash-cả-tệp sang fingerprint MỨC ĐỐI TƯỢNG (operation OpenAPI, request Postman, khối mã dashboard, helper period, dòng route). Đây là sửa tận gốc của 'evidence stale': hash cả tệp rot mỗi khi task khác sinh lại api-docs.json, fingerprint đối tượng thì không. Kèm test buộc OpenAPI == field set runtime.",
+      "status": "EVIDENCE_READY_AWAITING_SIGNOFF",
+      "owner": "DEV + Tech Lead",
+      "reviewer": "BA/FE/QA",
+      "signOffRole": "Tech Lead",
+      "signedByDev": false,
+      "gate": "Contract",
+      "evidence": [
+        "docs/evidence/WWHN-382/CONTRACT_PIN.json",
+        "scripts/wwhn-328-contract-fingerprint.mjs",
+        "tests/Feature/Wwhn328R4ClosureTest.php"
+      ]
+    },
+    {
+      "id": "DEV328-P1-05R4",
+      "severity": "P1",
+      "location": "HN-STR-002-ST01; WWHN-327/328 issuelinks=[]",
+      "requiredFix": "Native link hoặc evidence index cho dependency; pin đúng output WWHN-327 được tiêu thụ + FE SHA hiện hành.",
+      "whatWasDone": "Dựng evidence index hai chiều: BE khai FE candidate SHA trong CANDIDATE_PIN.json, FE khai BE candidate + fingerprint contract trong docs/evidence/WWHN-382/FE_CONSUMER_PIN.json. Output WWHN-327 được tiêu thụ pin ở 99dff42f… kèm lý do. Native issue link trên Jira vẫn thuộc PM/BAS.",
+      "status": "EVIDENCE_READY_AWAITING_SIGNOFF",
+      "owner": "PM/BAS + DEV",
+      "reviewer": "QA2",
+      "signOffRole": "PM/BAS",
+      "signedByDev": false,
+      "gate": "G2",
+      "evidence": [
+        "docs/evidence/WWHN-382/CANDIDATE_PIN.json",
+        "docs/evidence/WWHN-382/R4_CLOSURE.md",
+        "FE:docs/evidence/WWHN-382/FE_CONSUMER_PIN.json"
+      ]
+    },
+    {
+      "id": "DEV328-P1-06R4",
+      "severity": "P1",
+      "location": "WWHN-329",
+      "requiredFix": "QA2 chạy lại đúng cặp candidate: totals, scope, cache isolation, timezone/boundaries, 401/403/422, reconciliation, warranty, tích hợp FE — và ra một verdict duy nhất trên chính WWHN-329.",
+      "whatWasDone": "DEV cố ý KHÔNG sinh kết quả thay QA2. Đã cung cấp runbook chạy được: lệnh theo từng hạng mục, hai driver, env, dữ liệu, kết quả kỳ vọng, và ánh xạ hạng mục → test khoá để QA2 đối chiếu chứ không phải suy diễn.",
+      "status": "AWAITING_INDEPENDENT_RUN",
+      "owner": "QA2",
+      "reviewer": "BA/Tech Lead",
+      "signOffRole": "QA2",
+      "signedByDev": false,
+      "gate": "QA hard gate",
+      "evidence": ["docs/evidence/WWHN-382/QA2_RERUN_RUNBOOK.md"]
+    },
+    {
+      "id": "DEV328-P1-07R4",
+      "severity": "P1",
+      "location": "WWHN-327/328/329",
+      "requiredFix": "BA và QA2 độc lập chấp nhận CÙNG một cặp candidate đã đóng băng và cùng một contract version.",
+      "whatWasDone": "Cặp candidate và contract version được phát hành ở một chỗ duy nhất (CANDIDATE_PIN.json + CONTRACT_PIN.json) để hai vai không thể vô tình ký trên hai bản khác nhau. Chữ ký là việc của BA Main và QA2.",
+      "status": "AWAITING_INDEPENDENT_RUN",
+      "owner": "BA Main + QA2",
+      "reviewer": "PM",
+      "signOffRole": "BA Main + QA2",
+      "signedByDev": false,
+      "gate": "Parent Ready",
+      "evidence": [
+        "docs/evidence/WWHN-382/CANDIDATE_PIN.json",
+        "docs/evidence/WWHN-382/CONTRACT_PIN.json"
+      ]
+    },
+    {
+      "id": "DEV328-P2-01R4",
+      "severity": "P2",
+      "location": "Description/label/14300",
+      "requiredFix": "Narrative hiện hành chuyển sang unified DEV; BE2/Duy/m1-be-2 giữ ở mục historical trace.",
+      "whatWasDone": "SOURCE_SUPERSESSION.md §3 tách 'nguồn hiện hành' khỏi 'historical trace' và nêu rõ vì sao m1-be-2 không bị xoá khỏi hồ sơ mà bị hạ cấp. Cập nhật trường Jira thuộc PM/BAS.",
+      "status": "EVIDENCE_READY_AWAITING_SIGNOFF",
+      "owner": "PM/BAS",
+      "reviewer": "Tech Lead",
+      "signOffRole": "PM/BAS",
+      "signedByDev": false,
+      "gate": "Governance",
+      "evidence": ["docs/evidence/WWHN-382/SOURCE_SUPERSESSION.md"]
+    },
+    {
+      "id": "DEV328-P2-02R4",
+      "severity": "P2",
+      "location": "Sprint vs Sprint Scope",
+      "requiredFix": "Đồng bộ Sprint Scope W4 với Sprint 93 W3 authoritative, hoặc ghi rõ trường nào là authoritative.",
+      "whatWasDone": "R4_CLOSURE.md §9 nêu đề xuất chốt: 'Sprint' là trường authoritative, 'Sprint Scope' là nhãn mô tả. Thao tác sửa trường nằm ở PM/Jira owner.",
+      "status": "EVIDENCE_READY_AWAITING_SIGNOFF",
+      "owner": "PM/Jira owner",
+      "reviewer": "BA Main",
+      "signOffRole": "PM/BAS",
+      "signedByDev": false,
+      "gate": "Governance",
+      "evidence": ["docs/evidence/WWHN-382/R4_CLOSURE.md"]
+    }
+  ]
+}
