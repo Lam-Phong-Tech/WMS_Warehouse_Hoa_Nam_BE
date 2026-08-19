@@ -15,7 +15,8 @@
  * Exit:  0 = PASS, 1 = FAIL
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -107,10 +108,64 @@ for (const file of [
   'docs/evidence/WWHN-231/BENCHMARK_RESULT.json',
   'docs/evidence/WWHN-231/CONTRACT_NO_CHANGE.json',
   'docs/evidence/WWHN-231/RECONCILIATION_RUN.json',
+  'docs/evidence/WWHN-231/RECONCILIATION_RUN_POPULATED_20260819.json',
+  'docs/evidence/WWHN-231/RECONCILIATION_RUN_POPULATED_RETRIEVABILITY_20260819.json',
+  'docs/evidence/WWHN-231/SHA256SUMS',
   'tests/Feature/Wwhn231StockNeutralLedgerTest.php',
 ]) {
   check(`Evidence có mặt: ${file}`, existsSync(join(ROOT, file)));
 }
+
+// 6b. Manifest completeness — bài học DEV231-P1-04R3: artifact có thật trên m1 nhưng
+// SHA256SUMS chưa refresh nên reviewer soi theo manifest kết luận "không tồn tại".
+// Fail-closed: mọi file trong evidence dir phải nằm trong manifest VÀ hash phải khớp.
+const EVIDENCE_DIR = join(ROOT, 'docs', 'evidence', 'WWHN-231');
+const sumsRaw = read(join(EVIDENCE_DIR, 'SHA256SUMS'));
+check('SHA256SUMS đọc được', sumsRaw !== '');
+if (sumsRaw !== '') {
+  const manifest = new Map(
+    sumsRaw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [hash, ...rest] = line.split(/\s+\*?/);
+        return [rest.join(' ').replace(/^\.\//, '').replaceAll('\\', '/'), hash.toLowerCase()];
+      })
+  );
+  const walk = (dir, prefix = '') =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory() ? walk(join(dir, entry.name), `${prefix}${entry.name}/`) : [`${prefix}${entry.name}`]
+    );
+  const actualFiles = walk(EVIDENCE_DIR).filter((file) => file !== 'SHA256SUMS');
+  const missing = actualFiles.filter((file) => !manifest.has(file));
+  check('Mọi file evidence đều nằm trong SHA256SUMS', missing.length === 0, missing.join(', '));
+  const mismatched = actualFiles
+    .filter((file) => manifest.has(file))
+    .filter((file) => createHash('sha256').update(readFileSync(join(EVIDENCE_DIR, file))).digest('hex') !== manifest.get(file));
+  check('Hash mọi file khớp SHA256SUMS', mismatched.length === 0, mismatched.join(', '));
+  const orphaned = [...manifest.keys()].filter((file) => !actualFiles.includes(file));
+  check('SHA256SUMS không trỏ file ma (đã bị xoá)', orphaned.length === 0, orphaned.join(', '));
+}
+
+// 6c. Populated reconciliation evidence — mệnh đề nghiệp vụ cốt lõi (§7.5) phải giữ nguyên.
+const populatedRaw = read(join(EVIDENCE_DIR, 'RECONCILIATION_RUN_POPULATED_20260819.json'));
+if (populatedRaw !== '') {
+  const populated = JSON.parse(populatedRaw);
+  check('Populated run: PostgreSQL 16.x', String(populated.postgres_version).startsWith('16.'));
+  check('Populated run: stock_neutral = true', populated.stock_neutral === true);
+  check('Populated run: 3 divergence → 3 incident', populated.incidents_created === 3 && populated.incident_rows?.length === 3);
+  const types = new Set((populated.incident_rows ?? []).map((row) => row.divergence_type));
+  check(
+    'Populated run: đủ 3 loại divergence §7.5',
+    ['QUANTITY_MISMATCH', 'BALANCE_MISSING_FOR_LEDGER', 'LEDGER_MISSING_FOR_BALANCE'].every((t) => types.has(t))
+  );
+}
+
+// 6d. Disposition đã effective (DEV231-P1-01R3) — nếu ai đó revert về PROPOSED thì phải FAIL.
+const disposition = read(join(ROOT, 'docs', 'decision-records', 'DISP-STK-231-ledger-rescope.md'));
+check('DISP-STK-231 status EFFECTIVE', /\|\s*Status\s*\|\s*\*\*EFFECTIVE\*\*/.test(disposition));
+check('DISP-STK-231 có effective date', /\|\s*Effective date\s*\|\s*`2026-08-19`/.test(disposition));
 
 // 7. Migration index còn nguyên.
 const migration = read(

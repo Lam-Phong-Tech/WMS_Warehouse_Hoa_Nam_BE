@@ -75,5 +75,19 @@
     "wwhn231_specific_failures": "khong co — khong workflow nao do vi thay doi cua WWHN-231",
     "note": "Day la lan push dau tien sau 27 commit cua nhieu phien lam viec song song tren m1, nen ket qua CI phan anh trang thai nhanh chung chu khong rieng task nay."
   },
-  "evidence_sha": "d52727c — commit docs/evidence, la SHA ma CI chay"
+  "evidence_sha": "d52727c — commit docs/evidence, la SHA ma CI chay",
+  "source_pointer_supersede": {
+    "register_item": "DEV231-P1-02R3",
+    "date": "2026-08-19",
+    "old_pointer": "m1-be-2 (pointer cu tren Jira 14288 — nhanh legacy con StocktakeController::applyAdjustment, mo hinh A)",
+    "new_pointer": "m1 — nguon chinh thuc DUY NHAT cho WWHN-231; candidate BE a16d1d63df7370e3fe40a2c1c846404d190324cd / FE 7968fa8d88ed1b5c85be277c23b3850bdbb0cdeb",
+    "supersede_basis": {
+      "ancestry": "git rev-list --left-right --count origin/m1-be-2...origin/m1 = '0 <N>' — m1-be-2 khong co commit nao vuot truoc m1 (so ben trai 0 la bat bien; so ben phai tang theo thoi gian vi cac phien khac tiep tuc commit len m1, khong anh huong ket luan). Chi tiet: docs/evidence/WWHN-231/SOURCE_SUPERSEDE_M1_20260819.md + docs/evidence/WWHN-240/SOURCE_SUPERSEDE_M1_20260819.md",
+      "candidate_on_origin": "git merge-base --is-ancestor a16d1d6 origin/m1 => YES",
+      "evidence_commit_on_origin": "git merge-base --is-ancestor 0a9dffd3220d6e64eab7e31d92d800b88ed0a4e7 origin/m1 => YES (commit chua populated reconciliation evidence)"
+    },
+    "pr": "N/A — repo khong dung PR cho cac task WWHN tren m1 (moi phien commit truc tiep, xem docs/evidence/WWHN-240/SOURCE_SUPERSEDE_M1_20260819.md muc 'Trang thai PR'); Tech Lead review truc tiep diff cua candidate",
+    "tech_lead_review_scope": "git show a16d1d6 --stat — diff chi gom 8 file thuoc candidate.backend.files o tren; khong file nao ngoai pham vi re-scope DISP-STK-231; ket qua review ghi bang comment Tech Lead tren WWHN-231 (2026-08-19)",
+    "jira_action_required": "Cap nhat pointer nhanh tren Jira 14288: ghi ro 'm1-be-2 SUPERSEDED by m1' + pin SHA candidate/evidence o tren (comment da soan san cho DEV/PM/TL)"
+  }
 }

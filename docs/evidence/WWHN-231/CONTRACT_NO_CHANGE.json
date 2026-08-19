@@ -75,6 +75,23 @@
     "matching_paths": [],
     "verdict": "PASS - zero path sua ton truc tiep tren be mat API"
   },
+  "reviewer_gate": {
+    "register_item": "DEV231-P1-05R3",
+    "technical_evidence_status": "DU — theo chinh register R3: 'Technical evidence du; reviewer gate thieu'. Khong sinh them evidence ky thuat moi de tranh lam mo artifact goc.",
+    "required_confirmations": [
+      {
+        "role": "Tech Lead",
+        "what": "CONFIRMED NO CONTRACT CHANGE tren exact candidate BE a16d1d63df7370e3fe40a2c1c846404d190324cd / FE 7968fa8d88ed1b5c85be277c23b3850bdbb0cdeb",
+        "where": "Comment Tech Lead tren WWHN-231 (2026-08-19) — reviewer-authored, khong phai DEV tu xac nhan"
+      },
+      {
+        "role": "QA1",
+        "what": "CONFIRMED NO CONTRACT CHANGE tren cung exact candidate, doi chieu openapi_runtime_negative_proof (183 paths, 0 match forbidden fragments) + 2 endpoint touched deu NONE",
+        "where": "Comment QA1 tren WWHN-231 (2026-08-19)"
+      }
+    ],
+    "fe_independent_review": "N/A — khong co integration change: FE candidate 7968fa8 chi sua comment mo ta trong src/shared/api/wms-contract.ts, khong doi request/response/permission nao (dung dieu kien mien cua register R3: 'Khong can FE independent neu khong co integration change')"
+  },
   "files_changed_by_this_task": [
     "Modules/Warehouse/app/Services/LedgerReconciliationService.php",
     "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php",

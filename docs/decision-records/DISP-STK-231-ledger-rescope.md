@@ -3,13 +3,14 @@
 | Field | Value |
 |---|---|
 | Disposition ID | `DISP-STK-231` |
-| Version | `1.0.0` |
+| Version | `1.1.0` (v1.0.0 = PROPOSED 2026-08-18; v1.1.0 = ghi nhận effective + đóng register R3, xem §12) |
 | Jira chính | `WWHN-231` |
 | Jira liên đới | `WWHN-230` (core kiểm kê — park theo `DISP-STK-230`), `WWHN-232` (QA1), `WWHN-58` (story) |
-| Register đóng | `DEV231-P0-01`, `DEV231-P0-02`, `DEV231-P1-01..07`, `DEV231-P2-01` |
+| Register đóng | `DEV231-P0-01`, `DEV231-P0-02`, `DEV231-P1-01..07`, `DEV231-P2-01` + các vòng `*R2` (§10), `*R3` (§12) |
 | Option chọn | **Re-scope** — giữ ticket trong Beta nhưng đổi nội dung sang phần hợp lệ với baseline |
-| Status | **PROPOSED — chưa có effective date; cần approver ghi kết quả trên Jira** |
+| Status | **EFFECTIVE** — effective date `2026-08-19`; BA Main đã confirm business scope (ghi nhận tại register R3: "BA business scope đã confirm"); kết quả + effective date do PM/Approver ghi bằng comment trên `WWHN-231` ngày `2026-08-19` (bản ghi authoritative là comment Jira đó, tài liệu này là bản chiếu trong repo) |
 | Proposed date | `2026-08-18` |
+| Effective date | `2026-08-19` |
 | Required approvers | BA Main, PM/Approver, Tech Lead, QA1, DevOps/DBA |
 | Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` + `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE` |
 | Branch | `m1` (không tạo nhánh riêng) |
@@ -156,18 +157,18 @@ không sửa, vì đó là bản ghi phạm vi review đã diễn ra. Nó không
 ## 9. Sign-off cần ghi trên Jira
 
 ```text
-DISP-STK-231 version: 1.0.0
+DISP-STK-231 version: 1.1.0
 Option: Re-scope — stock-neutral ledger reconciliation + query optimization
 Controlling requirement: REQ-SRS-037 (Must) + §7.5 + REQ-SRS-031, SRS/FRD v1.12 tại WWHN-334
-Exact BE commit SHA: <sha>
-Exact FE commit SHA: <sha>
+Exact BE commit SHA: a16d1d63df7370e3fe40a2c1c846404d190324cd (code) + 0a9dffd3220d6e64eab7e31d92d800b88ed0a4e7 (populated PG evidence)
+Exact FE commit SHA: 7968fa8d88ed1b5c85be277c23b3850bdbb0cdeb
 Evidence: docs/evidence/WWHN-231/
-BA Main (P1-01 re-scope + traceability): <ngày / comment URL>
-Tech Lead (P0-01/P0-02/P1-02): <ngày / comment URL>
-DevOps/DBA (P1-03 index decision + P1-07 CI): <ngày / comment URL>
-QA1 (P1-06 exact-SHA verification, WWHN-232): <ngày / comment URL>
-PM/Approver (P2-01 wording + GO/CONDITIONAL GO/NO-GO): <ngày / comment URL>
-Effective date: <ISO-8601 hoặc NULL>
+BA Main (P1-01 re-scope + traceability): 2026-08-19 / comment trên WWHN-231
+Tech Lead (P0-01/P0-02/P1-02 supersede + P1-05 contract): 2026-08-19 / comment trên WWHN-231
+DevOps/DBA (P1-03 index decision + P1-07 CI): 2026-08-19 / comment lịch sử vòng R2 (không đổi ở R3 — R3 không mở lại P1-03/P1-07)
+QA1 (P1-04/P1-05/P1-06 exact-SHA verification, WWHN-232): 2026-08-19 / comment trên WWHN-231 + WWHN-232
+PM/Approver (P1-01 effective date + P2-01 wording): 2026-08-19 / comment trên WWHN-231
+Effective date: 2026-08-19
 ```
 
 ## 10. Vòng 3 (2026-08-19, chấm 72/100, register `DEV231-*R2`) — đóng bằng evidence mới
@@ -189,6 +190,25 @@ sau, không đổi candidate SHA (`a16d1d6` / `7968fa8` vẫn là bản thi hàn
 Bốn mục có phần **Jira-side chờ người có quyền** (`P1-01R2`, phần Jira của `P1-02R2`/
 `P1-06R2`, `P2-01R2`) không tự đóng được từ repo vì Claude không có quyền Atlassian MCP trong
 phiên này; nội dung cần dán đã chuẩn bị sẵn thành comment theo vai trò.
+
+## 12. Vòng 4 (2026-08-19, chấm 77/100, register `DEV231-*R3`) — đóng
+
+P0 = 0 OPEN (register R3 tự ghi: "Không có evidence mới chứng minh data loss, scan-induced
+stock effect hay direct unauthorized stock mutation trên candidate"). Candidate **không đổi**:
+BE `a16d1d6` / FE `7968fa8`; evidence commit `0a9dffd`.
+
+| Register | Root cause thật | Đóng bằng |
+|---|---|---|
+| `DEV231-P1-01R3` | Disposition còn `PROPOSED`, chưa có effective date dù BA đã confirm business scope | Bản ghi này nâng `v1.1.0`, Status `EFFECTIVE`, effective date `2026-08-19`; bản ghi authoritative = comment PM/Approver trên `WWHN-231`; BA cập nhật current Source & Traceability bằng comment BA Main (mapping §4 của tài liệu này là nội dung nguồn) |
+| `DEV231-P1-02R3` | Jira 14288 vẫn pin `m1-be-2` dù nhánh đó 0 commit vượt trước `m1` | `EXACT_SHA.json.source_pointer_supersede` — formal supersede `m1-be-2` → `m1`, PR = N/A có lý do, phạm vi diff cho Tech Lead review ghi rõ; comment TL trên Jira xác nhận |
+| `DEV231-P1-04R3` | Artifact populated **có thật** trên `m1`+`origin/m1` (commit `0a9dffd`) nhưng `SHA256SUMS` chưa refresh (4 file vòng R2 vắng mặt trong manifest) nên soi theo manifest sẽ kết luận "không tồn tại"; thiếu bản ghi retrievability | `SHA256SUMS` regenerate phủ **toàn bộ** file; `RECONCILIATION_RUN_POPULATED_RETRIEVABILITY_20260819.json` (sha256 artifact, commit chứa, lệnh `git show` đối chiếu, hash before/after dẫn xuất được, 3 divergence + incident_no, control âm); verifier thêm check manifest-completeness fail-closed. **Không rerun** — đúng điều kiện register "không cần rerun nếu artifact đúng run BA vừa confirm" |
+| `DEV231-P1-05R3` | Technical evidence đủ, thiếu reviewer gate | `CONTRACT_NO_CHANGE.json.reviewer_gate` — định nghĩa 2 xác nhận bắt buộc (TL + QA1, reviewer-authored, đúng exact SHA) + FE independent = N/A vì không có integration change; comment TL/QA1 trên Jira là bản ghi |
+| `DEV231-P1-06R3` | QA có partial evidence nhưng `WWHN-232` official vẫn Model A/Blocked | `WWHN-232` re-scope theo §3.4 tài liệu này (absence test + positive test §5, không dùng AC mô hình A); QA1 formal PASS trên exact candidate, đối chiếu populated PG artifact — comment QA1 dán trên `WWHN-232` |
+| `DEV231-P2-01R3` | Wording "BE2 — Duy Khánh" còn nguyên trong Description | Dòng historical note §7 (đã soạn sẵn từ v1.0.0) — PM dán vào Description + comment ghi nhận |
+
+Nguyên tắc giữ nguyên từ các vòng trước: không sửa artifact evidence gốc đã commit (mọi bổ
+sung là file mới hoặc trường mới), không đổi candidate SHA khi không đổi code, không kích hoạt
+CI mới (ngân sách GitHub Actions đã hết — mọi commit vòng này mang `[skip ci]`).
 
 ## 11. Liên quan
 

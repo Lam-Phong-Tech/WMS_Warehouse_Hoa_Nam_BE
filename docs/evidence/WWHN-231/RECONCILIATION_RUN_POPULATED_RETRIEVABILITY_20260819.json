@@ -1,0 +1,51 @@
+{
+  "task": "WWHN-231",
+  "register_item": "DEV231-P1-04R3",
+  "purpose": "Chung minh artifact populated-PostgreSQL reconciliation TON TAI va RETRIEVABLE tren nhanh m1 (ca local lan origin), kem hash dan xuat duoc de reviewer tu doi chieu ma khong can chay lai. Artifact goc KHONG bi sua mot byte nao — file nay chi la lop chi muc/kiem chung boc ngoai.",
+  "root_cause_of_R3_finding": "Vong R3 cham 'referenced file hien khong ton tai/retrievable tren m1' vi (1) manifest SHA256SUMS cua evidence pack chua duoc refresh sau khi cac file vong R2 duoc them — 4 file moi (RECONCILIATION_RUN_POPULATED_20260819.json, NO_DRIFT_RECHECK_20260819.json, BENCHMARK_SHA_PIN_20260819.md, SOURCE_SUPERSEDE_M1_20260819.md) vang mat trong manifest nen soi theo manifest se ket luan file khong thuoc evidence set; (2) chua co ban ghi retrievability chi ro commit chua artifact. Ca hai da duoc sua trong cung commit voi file nay: SHA256SUMS regenerate phu toan bo file, verifier them check manifest-completeness fail-closed.",
+  "artifact": {
+    "path": "docs/evidence/WWHN-231/RECONCILIATION_RUN_POPULATED_20260819.json",
+    "sha256": "5b6ef9d43526b0de981ddc6e23b5a08588e062d3a4b1825f542083ea05731c09",
+    "committed_in": {
+      "sha": "0a9dffd3220d6e64eab7e31d92d800b88ed0a4e7",
+      "short_sha": "0a9dffd",
+      "subject": "fix(WWHN-231): dong register R2 (72/100) - DEV231-P1-02R2..05R2 evidence moi + populated PG reconciliation",
+      "committed_at": "2026-08-19 14:48:05 +0700",
+      "branch": "m1"
+    },
+    "retrievability_proof_20260819": {
+      "on_local_m1": "git cat-file -e HEAD:docs/evidence/WWHN-231/RECONCILIATION_RUN_POPULATED_20260819.json => exit 0",
+      "on_origin_m1": "git cat-file -e origin/m1:docs/evidence/WWHN-231/RECONCILIATION_RUN_POPULATED_20260819.json => exit 0 (da push, khong chi ton tai local)",
+      "commit_on_origin": "git merge-base --is-ancestor 0a9dffd3220d6e64eab7e31d92d800b88ed0a4e7 origin/m1 => YES",
+      "how_to_retrieve": "git show 0a9dffd3220d6e64eab7e31d92d800b88ed0a4e7:docs/evidence/WWHN-231/RECONCILIATION_RUN_POPULATED_20260819.json | sha256sum  => phai ra dung sha256 o tren"
+    },
+    "no_rerun_needed": "Dung yeu cau cua register R3: 'khong can rerun neu artifact dung run BA vua confirm' — day chinh la run do (cung noi dung, cung sha256, cung commit 0a9dffd); khong co run nao khac duoc tao them."
+  },
+  "exact_sha_context": {
+    "candidate_backend_sha": "a16d1d63df7370e3fe40a2c1c846404d190324cd",
+    "statement": "Run duoc sinh boi lenh 'php artisan wwhn231:populated-reconciliation-evidence' tren working tree ma MOI file WWHN-231 so huu (LedgerReconciliationService, OperationalReportController, ReconcileInventoryBalances, migration index, test) byte-identical voi candidate a16d1d6 — chung minh tai docs/evidence/WWHN-231/NO_DRIFT_RECHECK_20260819.json. Artifact duoc commit tai 0a9dffd.",
+    "environment": {
+      "postgres_version": "16.14",
+      "database": "hn_wwhn231_recon (DB co lap tao rieng cho run nay, DROP sau khi ghi evidence)",
+      "seed_path": "HTTP-in-process qua app(Illuminate\\Contracts\\Http\\Kernel::class)->handle() — dung nguyen luong nghiep vu that, khong insert SQL tay"
+    }
+  },
+  "derived_integrity_hashes": {
+    "note": "Hash dan xuat truc tiep tu noi dung artifact, reviewer tu tinh lai duoc bang node: sha256(JSON.stringify(doc.stock_state_before)) va sha256(JSON.stringify(doc.stock_state_after)).",
+    "stock_state_before_sha256": "6bf972340341505b14897227c806f60cc2f0d63965c9194cab523636e50a4692",
+    "stock_state_after_sha256": "6bf972340341505b14897227c806f60cc2f0d63965c9194cab523636e50a4692",
+    "before_after_identical": true,
+    "stock_neutral": true
+  },
+  "divergence_summary": {
+    "seeded_divergences": 3,
+    "incidents_created": 3,
+    "incidents": [
+      { "incident_no": "REC-20260819-KMD7L7XS", "divergence_type": "QUANTITY_MISMATCH", "seeded_sku": "WWHN231-POP-QTYMIS (ledger 50 vs balance 42)" },
+      { "incident_no": "REC-20260819-OZJKHBQY", "divergence_type": "BALANCE_MISSING_FOR_LEDGER", "seeded_sku": "WWHN231-POP-BALMISS (ledger 30, balance NULL)" },
+      { "incident_no": "REC-20260819-LRDMUHML", "divergence_type": "LEDGER_MISSING_FOR_BALANCE", "seeded_sku": "WWHN231-POP-LEDMISS (ledger 0, balance 20)" }
+    ],
+    "matching_dimension_control": "WWHN231-POP-MATCH (ledger 50 = balance 50) khong sinh incident — control am chung minh lenh khong bao loi tren du lieu khop",
+    "srs_anchor": "SRS v1.12 §7.5 Reconciliation Controls dong 'Divergence': chi tao Reconciliation_Incident, khong bao gio sua ledger/Balance truc tiep — khop voi stock_neutral=true o tren"
+  }
+}
