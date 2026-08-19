@@ -199,6 +199,38 @@
       "F-05 vẫn không khai thác được dưới MVP một kho (REQ-SRS-001); guard chỉ có ý nghĩa khi mở multi-warehouse."
     ]
   },
+  "round2_addendum": {
+    "purpose": "round2 (commit 0142b49) sửa F-04 ở postStockDocument()/postComponentIssue() nhưng bỏ sót CurrentBaselineReversalService (Reversal Post, action A3/A3'), nơi §4/§2.1 của bản review gốc đã ghi nhận là đi qua cùng mutateBalance(). Đóng nốt cùng finding F-04, không phải finding mới. Xem CONCURRENCY_STATE_REVIEW.md §16.",
+    "review_date": "2026-08-19",
+    "backend_review_sha": "d05d48080a1cf073eb689d63b528a2be5c9a071b",
+    "backend_review_sha_subject": "fix(WWHN-234): mo rong F-04 sang Reversal Post - createDraft/postDraft con khoa theo line_no",
+    "backend_review_sha_parent": "88462c6c8dc4b3a60d2aeb3c461b58762eab7844",
+    "parent_chain_note": "88462c6 là HEAD của m1 tại thời điểm commit này — SAU 0142b49 (F-04/05/06) và 9a252a0 (docs vòng 2) của cùng ticket, và sau nhiều commit không liên quan của các ticket khác (WWHN-239-R2, WWHN-240) đang chạy song song trên cùng nhánh dùng chung. Diff của commit này CHỈ gồm 2 file — xem code_changes — không mang theo thay đổi của các ticket khác (kiểm bằng `git show --stat`, đúng như DEV234-P1-04 yêu cầu tránh 'combined diff contamination').",
+    "code_changes": [
+      {
+        "path": "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php",
+        "kind": "modified",
+        "finding": "F-04",
+        "why": "sortReversalLinesForBalanceLock() mới; áp dụng ở postDraft() (mutateBalance, đã có 2-pha từ trước) và createDraft() (assertQuantityDependency — lock ĐẦU TIÊN thật sự vì cùng transaction với postDraft, trước đó vẫn theo line_no)"
+      },
+      {
+        "path": "tests/Feature/Wwhn234P1P2ClosureTest.php",
+        "kind": "modified",
+        "finding": "F-04",
+        "why": "+2 test: test_f04_reversal_locks_inventory_balances_in_global_sku_order_not_line_order (runtime, DB::listen bắt 4 lượt khoá) + source guard riêng cho reversal service. File tổng nay 12 test (commit 0142b49 ghi 10 trong message nhưng blob đã commit thực chứa 12 vì hai bên cùng sửa một file trên working tree dùng chung tại thời điểm gần nhau — không phải sai lệch dữ liệu, xem diff của d05d480 để thấy đúng phần tự thêm)."
+      }
+    ],
+    "verification": {
+      "test_command": "php artisan test --filter \"Wwhn234P1P2ClosureTest|Wwhn207InboundReversalFlowTest|Wwhn239ReversalItemLevelClosureTest|Wwhn240ReversalNetEffectContractTest|Wwhn242ReversalScopeAndProjectionTest|Wwhn234ConflictClassContractTest\"",
+      "result": "65/65 pass (Wwhn234P1P2ClosureTest riêng: 12/12, 58 assertion)",
+      "note": "Chạy LOCAL (sqlite in-memory) trên máy phát triển, không kích hoạt CI/GitHub Actions — tài khoản đã dùng hết 3000/3000 phút Actions, theo yêu cầu tường minh của người dùng."
+    },
+    "not_claimed": [
+      "Cùng ranh giới F-04 gốc: không có bằng chứng multi-process (deadlock timing thật cần hai PostgreSQL backend độc lập) — chỉ chứng minh thứ tự khoá lý thuyết đã đổi đúng đề xuất.",
+      "Không khẳng định các finding khác (F-05/F-06/F-07/F-08) có thay đổi gì so với round2 — addendum này chỉ chạm F-04/Reversal.",
+      "Không chạy lại toàn bộ suite BE (934 test); phạm vi verification giới hạn ở các file test liên quan reversal/concurrency trực tiếp — xem code_changes."
+    ]
+  },
   "frontend_code_changes": [
     {
       "path": "src/shared/api/concurrency-contract.ts",

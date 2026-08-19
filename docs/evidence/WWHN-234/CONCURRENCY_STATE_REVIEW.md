@@ -232,7 +232,7 @@ Không âm kho được chặn ở hai lớp: `422 INSUFFICIENT_STOCK` khi `on_h
 | F-01 | P1 | Mất CAS balance/container/reversal trả mã ngoài §8.2 (`VERSION_CONFLICT`, `CONTAINER_VERSION_CONFLICT`, `REVERSAL_CONCURRENT_CONFLICT`); FE không map ⇒ request thua race không được hướng dẫn reload, trái AC-GWT-CONC-001 | 6 điểm phát (BE) | **FIXED** — `ConflictCode::CONCURRENCY` |
 | F-02 | P1 | Cùng một tình huống "phải đảo dependency theo thứ tự ngược" phát 2 mã khác nhau: `DOWNSTREAM_DEPENDENCY_EXISTS` (nhánh quantity) vs `REVERSAL_DEPENDENCY_EXISTS` (nhánh item) — **trong cùng một file**. BR-REV-04/TC-REV-02 chỉ đích danh mã thứ nhất | `CurrentBaselineReversalService:535,538`; `CurrentBaselineStockService:826` | **FIXED** — `ConflictCode::DOWNSTREAM_DEPENDENCY` |
 | F-03 | P1 | FE chỉ kiểm tra version **trước** khi gửi (pre-flight). Race thật nằm giữa lần đọc detail và `lockForUpdate` của BE ⇒ `412`/`409` rơi xuống đường lỗi chung, người dùng bấm Post lại | `inboundService.postInboundReceipt`, `shippingService.postOutboundIssue` | **FIXED** — `src/shared/api/concurrency-contract.ts` |
-| F-04 | P2 | `inventory_balances` khoá theo thứ tự dòng chứng từ, không theo thứ tự toàn cục ⇒ deadlock chéo có thể xảy ra dưới tải (được retry 3 lần hấp thụ) | `CurrentBaselineStockService:147-171` | **FIXED** (vòng 2) — `sortLinesForBalanceLock()` |
+| F-04 | P2 | `inventory_balances` khoá theo thứ tự dòng chứng từ, không theo thứ tự toàn cục ⇒ deadlock chéo có thể xảy ra dưới tải (được retry 3 lần hấp thụ) | `CurrentBaselineStockService:147-171`; `CurrentBaselineReversalService::createDraft/postDraft` | **FIXED** (vòng 2 + 2b) — `sortLinesForBalanceLock()` (Receipt/Issue/Component Issue), `sortReversalLinesForBalanceLock()` (Reversal, vòng 2b) |
 | F-05 | P2 | `POST /warranty-component-issues/{id}/post` và `/component-issue-documents/{id}/post` là action **đổi tồn** nhưng route chỉ có `permission:warranty.component_issue`, **không có** data-scope middleware như inbound/outbound/reversal | `routes/api.php` (2 route) | **FIXED** (vòng 2) — `EnforceComponentIssueWarehouseScope` |
 | F-06 | P2 | `recordPrintResult` tính `version = $snapshot->version + 1` từ row đọc **ngoài** lock ⇒ lost update khi print/reprint đồng thời cùng label. Không ảnh hưởng tồn (label là stock-neutral, gate Post đọc `status` chứ không đọc `version`) | `CurrentBaselineOperationsController.php` (`dispatchLabelOnce`/`recordPrintFailure`) | **FIXED** (vòng 2) — CAS `WHERE version = $expectedVersion` |
 | F-07 | P2 | SRS §13.3 nhảy số từ `TC-P1-016` sang `TC-P1-025`: `TC-P1-017..024` không tồn tại. Nhóm action `COMPONENT_ISSUE_POST` (A4) — một action đổi tồn thật — **không có** hàng nào trong ma trận TC | SRS §13.3 | **OPEN — BA** |
@@ -262,6 +262,10 @@ Tóm tắt:
 - `Modules/Warehouse/app/Services/CurrentBaselineStockService.php` — `sortLinesForBalanceLock()` mới + áp dụng ở `postStockDocument`/`postComponentIssue` (F-04).
 - `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php` — CAS trên `label_snapshots.version` ở `dispatchLabelOnce`/`recordPrintFailure` (F-06).
 - `tests/Feature/Wwhn234P1P2ClosureTest.php` — mới, 10 test (F-04 ×2, F-05 ×5, F-06 ×3).
+
+**BE — vòng 2b (F-04 mở rộng sang Reversal Post, xem §16)**
+- `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php` — `sortReversalLinesForBalanceLock()` mới; áp dụng ở `postDraft()` (mutateBalance) và `createDraft()` (assertQuantityDependency, BR-REV-03/04).
+- `tests/Feature/Wwhn234P1P2ClosureTest.php` — +2 test (F-04 reversal runtime + source guard); tổng file nay 12 test.
 
 ## 14. Điều task này **không** khẳng định
 
@@ -339,3 +343,61 @@ gốc (`CurrentBaselineStockFlowController:456-479`) trỏ sai file — hàm
 
 Xem `REVIEW_IDENTITY_PIN.json` → `code_changes[]` (mục `round: 2`) để có danh sách
 file chính xác.
+
+## 16. Vòng 2b — F-04 mở rộng sang Reversal Post (A3/A3')
+
+§4 của bản review gốc đã ghi rằng Reversal (A3) "chèn thêm reversal_document →
+reversal_line → stock_movements gốc trước khi chạm balance" — tức là Reversal Post
+đi qua đúng cùng cơ chế `mutateBalance()` như Post Receipt/Issue. Nhưng phạm vi sửa
+F-04 ở vòng 2 (§15, commit `0142b49`) chỉ liệt kê hai điểm gọi
+(`postStockDocument`, `postComponentIssue`) trong `CurrentBaselineStockService`;
+`CurrentBaselineReversalService::postDraft()` — nơi thật sự xử lý A3/A3' — không
+nằm trong danh sách file đổi của commit đó (`git show --stat 0142b49`). Đây là một
+lỗ hổng thật, không phải diễn giải lại: nếu để nguyên, review vòng 3 sẽ tìm lại
+đúng finding này trên một action khác của cùng lớp lỗi.
+
+**Phát hiện sâu hơn khi sửa.** Chỉ sắp lại `mutateBalance()` trong `postDraft()`
+không đủ. `execute()` bọc `createDraft()` + `postDraft()` trong CÙNG MỘT
+`DB::transaction()`. `createDraft()` (nhánh `documentType === 'receipt'`, SKU
+quantity-mode) đã lock `inventory_balances` từ trước, qua
+`assertQuantityDependency()` (BR-REV-03/04, đo `available_qty` để phát hiện
+downstream dependency) — và hàm này lock theo đúng thứ tự `line_no` của payload,
+KHÔNG phải thứ tự toàn cục. Vì lock lần hai trên cùng một row trong cùng transaction
+là no-op (transaction đã giữ lock từ lần đầu), thứ tự khoá ĐẦU TIÊN — thứ tự thật sự
+quyết định deadlock chéo với transaction khác — là thứ tự của `createDraft()`, không
+phải của `postDraft()`. Sửa một mình `postDraft()` sẽ tạo cảm giác đã đóng nhưng
+không đổi hành vi runtime.
+
+**Fix.** `sortReversalLinesForBalanceLock()` (private, trong
+`CurrentBaselineReversalService`, cùng khuôn với
+`CurrentBaselineStockService::sortLinesForBalanceLock()` — không dùng chung hàm để
+tránh đụng file mà phiên khác đang sửa): sắp theo `sku_id` của movement gốc (tie-break
+`reversal_line_id`), áp dụng ở hai nơi:
+- `createDraft()`: tách lệnh gọi `assertQuantityDependency()` ra khỏi vòng lặp
+  validate chính, dồn vào một pha riêng sau vòng lặp, sắp theo thứ tự toàn cục
+  trước khi lock. Vòng lặp chính (movement lookup, `REVERSAL_QTY_EXCEEDED`, item
+  dependency, insert `reversal_line`) giữ nguyên thứ tự `line_no` — lỗi cấu trúc
+  đầu tiên vẫn xác định; chỉ lỗi liên quan tồn (`DOWNSTREAM_DEPENDENCY_EXISTS`) có
+  thể đổi thứ tự khi nhiều dòng cùng vi phạm, đúng cùng đánh đổi mà vòng 2 đã chấp
+  nhận cho `mutateBalance()`.
+- `postDraft()`: giữ nguyên cấu trúc hai pha đã có (validate theo `line_no`, mutate
+  theo thứ tự toàn cục qua `sortReversalLinesForBalanceLock()`).
+
+**Bằng chứng chạy thật.**
+`test_f04_reversal_locks_inventory_balances_in_global_sku_order_not_line_order`
+dựng một receipt 2 dòng (2 SKU, khai NGƯỢC thứ tự chuỗi), Post, rồi Reverse cả hai
+movement trong MỘT request với `lines[]` khai theo đúng thứ tự ngược đó. `DB::listen()`
+bắt toàn bộ `SELECT ... FROM inventory_balances ... WHERE warehouse_id = ?` phát
+sinh trong lời gọi `/reverse` và khẳng định dãy `[lower, higher, lower, higher]` —
+4 lượt khoá (2 từ `assertQuantityDependency` trong `createDraft`, 2 từ
+`mutateBalance` trong `postDraft`), cả hai pha đều tăng dần theo SKU. Nếu chỉ sửa
+một trong hai pha, dãy sẽ lộ ra dạng xen kẽ sai (vd `[higher, higher, lower,
+lower]`) chứ không phải `[lower, higher, lower, higher]` — test phân biệt được cả
+hai dạng thiếu sót. Test `test_f04_source_guard_reversal_service_uses_the_balance_lock_ordering_helper`
+khẳng định cả hai điểm gọi tồn tại trong source. Cùng ranh giới trung thực như F-04
+gốc: không thay thế runtime multi-process evidence (deadlock timing thật cần hai
+PostgreSQL backend độc lập); test này chứng minh thứ tự khoá — điều kiện đủ để
+tránh deadlock chéo.
+
+Candidate: BE `d05d48080a1cf073eb689d63b528a2be5c9a071b` (cha `88462c6`, sau commit
+`0142b49`/`9a252a0` của vòng 2). Xem `REVIEW_IDENTITY_PIN.json` → `round2_addendum`.
