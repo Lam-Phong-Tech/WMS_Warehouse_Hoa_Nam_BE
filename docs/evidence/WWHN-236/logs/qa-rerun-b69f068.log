@@ -1,0 +1,84 @@
+WWHN-236 / WWHN-238 — QA negative gate tại exact SHA (DEV236-P1-07R3)
+==============================================================================
+Chạy lúc (UTC)      : 2026-08-19T09:37:39.306Z
+OS                  : win32 x64
+Node                : v22.17.1
+Git                 : git version 2.44.0.windows.1
+PHP                 : 8.3.30
+DB driver (.env)    : pgsql
+PostgreSQL          : PostgreSQL 16.14 (container wms_warehouse_hoa_nam_be-postgres-1)
+Test driver mặc định: sqlite (phpunit.xml, không force ⇒ env của process thắng)
+BE repo             : C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE
+BE branch           : m1
+BE HEAD             : b69f0687807e1e9126315bd1aad3d1aa960ec304
+BE candidate (pin)  : b69f0687807e1e9126315bd1aad3d1aa960ec304
+FE repo             : C:\LAM_PHONG_TECH\HoaNam_FE\WMS_Warehouse_Hoa_Nam_FE
+FE HEAD             : 49149962487c60e734bc966b9559c1bba85e876c
+FE candidate (pin)  : 49149962487c60e734bc966b9559c1bba85e876c
+Disposition         : DISP-STK-236 v1.1.0 — DEFERRED_NO_CODE
+Approval status     : PROPOSED · effectiveDate=NULL
+==============================================================================
+
+[1] IDENTITY — governed artifact có đúng blob của SHA đã pin?
+    BE: PASS — 8 governed file khớp blob đã pin; pin là ancestor của HEAD b69f068
+    FE: PASS — 4 governed file khớp blob đã pin; pin là ancestor của HEAD 4914996
+
+$ node scripts/verify-wwhn236-adjustment-disposition.mjs    [cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE]
+WWHN-236 / DISP-STK-236 — Apply Adjustment disposition gate
+
+  PASS [DISP-CONTENT] DISP-STK-236 neo REQ-SRS-037 + DEFERRED + WWHN-238 + HN-STK-002
+  PASS [DEC-STK-001] DEC-STK-001 vẫn PROPOSED / no effective date
+  PASS [BASELINE-FRAGMENTS] forbidden_path_fragments phủ [stocktake, adjustment, variance]
+  PASS [BASELINE-TABLES] excluded_tables phủ đủ 4 bảng stocktake_*
+  PASS [BASELINE-MOVEMENT] movement_types = canonical set, không có ADJUST_*
+  PASS [OPENAPI-RUNTIME] storage/api-docs/api-docs.yaml + storage/api-docs/api-docs.json: zero path adjustment/stocktake/variance
+  PASS [PERMISSION-MATRIX] endpoint-permission matrix: zero stocktake/adjust/variance
+  PASS [ROUTE-SOURCE] 11 route file: zero URI adjustment/stocktake/variance
+  PASS [DB-CONSTRAINT] chk_stock_movement_type_current = [OPENING, RECEIPT, ISSUE, COMPONENT_ISSUE, REVERSAL], zero ADJUST_*
+  PASS [MIGRATION-TABLES] 4 bảng stocktake_* do migration lịch sử tạo đều bị drop ở migration sau (trạng thái cuối = zero)
+  PASS [SPEC-SURFACE] 25 spec contract: zero bề mặt bị cấm ngoài 3 artifact historical đã có disposition
+  PASS [APPROVAL-RECORD] approval record hợp lệ: DEFERRED_NO_CODE · disposition v1.1.0 · hash khớp · LIM-STK-236-01 tường minh
+  PASS [CHAIN-DISPOSITION] 9 ticket cùng disposition DEFERRED (4 thuộc nhánh song song, chỉ đọc); zero ticket Blocked/Pending
+  PASS [CANDIDATE-PIN] candidate BE b69f068 / FE 4914996 · 12 governed file khớp blob · PR=N/A direct-to-m1
+  PASS [PARENT-REBASELINE] WWHN-60 rebaseline sang SRS v1.12/REQ-SRS-037 (WWHN-334); 5 nhóm AC bị gỡ; v3.9 = historical
+  PASS [QA-RERUN] scripts/qa-wwhn236-exact-sha-gate.mjs + 0 raw log qa-rerun-* khớp SHA đã pin; QA1 ghi kết quả trực tiếp trên WWHN-238
+  NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-150-scan-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
+  NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.json → /api/v1/stocktake/sessions/{id}/apply-adjustment, enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
+  NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
+  NOTE [APPROVAL-SIGNOFF] còn 6/6 vai trò chưa ký (dev, baMain, pmPo, bas, techLead, qa1). Guard vẫn active bất kể trạng thái phê duyệt; chạy với --require-signoff để biến việc này thành gate cứng.
+  NOTE [QA-RERUN] chưa có raw log qa-rerun-*.log. Đó là sản phẩm của QA1: chạy `node scripts/qa-wwhn236-exact-sha-gate.mjs`. Chạy verifier với --require-qa-evidence để biến việc này thành gate cứng khi đóng closure.
+
+16/16 check PASS — bề mặt adjustment/stocktake đang sống = zero.
+--- BE verifier: exit 0 ---
+
+$ php vendor/bin/phpunit --filter Wwhn236DeferredAdjustmentGateTest    [cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE]
+{"tool":"phpunit","result":"passed","tests":10,"passed":10,"assertions":117,"duration_ms":1969}
+--- BE phpunit: exit 0 ---
+
+$ DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=hoa_nam_wwhn236 DB_USERNAME=postgres DB_PASSWORD=postgres php vendor/bin/phpunit --filter Wwhn236DeferredAdjustmentGateTest    [cwd: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE]
+{"tool":"phpunit","result":"passed","tests":10,"passed":10,"assertions":122,"duration_ms":56725}
+--- BE phpunit (PostgreSQL): exit 0 ---
+
+$ node scripts/verify-wwhn-236-closure.mjs    [cwd: C:\LAM_PHONG_TECH\HoaNam_FE\WMS_Warehouse_Hoa_Nam_FE]
+WWHN-236 / DISP-STK-236 — FE closure gate
+
+  PASS [FE-ROUTES] ROUTES: zero route stocktake/apply-adjustment
+  PASS [FE-PERMISSIONS] permission catalog: 64 code, zero stocktake/adjust/variance
+  PASS [FE-ENDPOINTS] endpoints: 161 path, zero adjustment/stocktake/variance
+  PASS [FE-SCREENS] src/modules + src/app: zero màn hình/module stocktake/adjustment
+  PASS [FE-GUARD-TESTS] access.test.ts + wms-contract-signoff-guards.test.ts còn assert no-Stocktake
+  PASS [ANTI-DANGLING] 5 artifact FE mà DISP-STK-236 cam kết đều tồn tại
+  PASS [GOVERNANCE] STOCKTAKE_GOVERNANCE_STATUS neo cùng controlling requirement REQ-SRS-037
+  PASS [GOVERNANCE-R3] approval record (PROPOSED) + chain 9 ticket: DEFERRED, zero Blocked/Pending
+  PASS [FE-IDENTITY] candidate 4914996 · 4 governed file khớp blob · PR=N/A direct-to-m1
+  NOTE [GOVERNANCE] docs/api-evidence/STOCKTAKE_GOVERNANCE_STATUS.json chưa liệt DISP-STK-236 trong deferralDispositions (WWHN-233 cập nhật).
+  NOTE [GOVERNANCE-R3] còn 6 vai trò chưa ký: dev, baMain, pmPo, bas, techLead, qa1.
+
+9/9 check PASS — bề mặt adjustment/stocktake ở FE = zero.
+--- FE verifier: exit 0 ---
+
+==============================================================================
+KẾT QUẢ QA (WWHN-238): PASS
+Negative gate xanh tại exact SHA đã pin: capability Apply Adjustment không tồn tại ở mọi tầng đang sống.
+WWHN-238 ghi DEFERRED / N/A cho MVP v1.12 (không phải Blocked) — phạm vi QA dương được bảo lưu ở QA_DISPOSITION_WWHN-238.md §3.
+==============================================================================

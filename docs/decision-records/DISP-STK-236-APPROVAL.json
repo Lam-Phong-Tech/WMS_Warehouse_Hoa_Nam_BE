@@ -61,8 +61,8 @@
   ],
   "chainDispositionPath": "docs/evidence/WWHN-236/CHAIN_DISPOSITION.json",
   "exactCommitSha": {
-    "backend": null,
-    "frontend": null,
+    "backend": "b69f0687807e1e9126315bd1aad3d1aa960ec304",
+    "frontend": "49149962487c60e734bc966b9559c1bba85e876c",
     "pullRequest": "N/A — direct-to-m1 (không tạo nhánh riêng theo yêu cầu vận hành dự án)",
     "note": "Điền bằng `node scripts/build-wwhn236-source-register.mjs --pin` sau khi commit. Verifier assert SHA này là ancestor của HEAD và mọi governed file không đổi blob kể từ đó."
   },
