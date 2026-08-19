@@ -11,12 +11,12 @@ php vendor/bin/phpunit tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Thời điểm chạy | 2026-08-19T11:17:49+07:00 |
+| Thời điểm chạy | 2026-08-19T12:54:22+07:00 |
 | PHP | 8.3.30 |
 | OS | Windows |
 | `memory_limit` | 512M |
-| DB driver | `sqlite` |
-| DB connection | `sqlite` (:memory:) |
+| DB driver | `pgsql` |
+| DB connection | `pgsql` (hn_wwhn184_retest) |
 | Hạn mức đang áp dụng | 1,000 dòng dữ liệu; upload 10,240 KB |
 | Trần quét dòng vật lý | 20,040 (bội số 20×) |
 | Hợp đồng | DEC-IMP-001 |
@@ -25,14 +25,14 @@ php vendor/bin/phpunit tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php
 
 | Case | Dòng dữ liệu | Kích thước file | Thời gian | Peak memory | HTTP |
 |---|---:|---:|---:|---:|---:|
-| dry_run/100 rows | 100 | 8.0 KB | 40 ms | 188.00 MB | 200 |
-| dry_run/500 rows | 500 | 15.7 KB | 127 ms | 188.00 MB | 200 |
-| dry_run/1000 rows | 1,000 | 25.0 KB | 206 ms | 188.00 MB | 200 |
-| reject/1001 rows (limit 1000) | 1,001 | 25.1 KB | 145 ms | 190.00 MB | 422 |
-| sparse dry_run/1000 rows (2x dòng vật lý) | 1,000 | 24.3 KB | 238 ms | 190.00 MB | 200 |
-| commit/1000 rows | 1,000 | 25.1 KB | 1,757 ms | 192.00 MB | 200 |
-| reject/20000 rows (limit 1000) | 20,000 | 379.6 KB | 703 ms | 232.00 MB | 422 |
-| reject/oversize upload (cap 11 KB) | 300 | 11.9 KB | 10 ms | 228.00 MB | 422 |
+| dry_run/100 rows | 100 | 8.0 KB | 229 ms | 186.00 MB | 200 |
+| dry_run/500 rows | 500 | 15.7 KB | 1,070 ms | 186.00 MB | 200 |
+| dry_run/1000 rows | 1,000 | 25.0 KB | 1,733 ms | 188.00 MB | 200 |
+| reject/1001 rows (limit 1000) | 1,001 | 25.1 KB | 166 ms | 188.00 MB | 422 |
+| sparse dry_run/1000 rows (2x dòng vật lý) | 1,000 | 24.3 KB | 2,376 ms | 188.00 MB | 200 |
+| commit/1000 rows | 1,000 | 25.1 KB | 11,307 ms | 190.00 MB | 200 |
+| reject/20000 rows (limit 1000) | 20,000 | 379.6 KB | 641 ms | 230.00 MB | 422 |
+| reject/oversize upload (cap 11 KB) | 300 | 11.9 KB | 26 ms | 226.00 MB | 422 |
 
 ## Ngân sách hiệu năng đã duyệt (DEC-IMP-001 §4)
 
@@ -48,7 +48,7 @@ Số đo phụ thuộc máy: cùng bộ test chạy trên CI, máy dev và máy 
 bảng khác nhau. Vì vậy bảng này dùng để so sánh TƯƠNG ĐỐI giữa các case trong CÙNG một
 lần chạy, và để phát hiện thay đổi bậc độ phức tạp — **không** phải cam kết SLA.
 
-Lần chạy này dùng driver `sqlite`. sqlite in-memory theo `phpunit.xml`: chi phí ghi DB thấp hơn PostgreSQL thật, nên case commit ở đây là cận DƯỚI.
+Lần chạy này dùng driver `pgsql`. Đây là DB tham chiếu theo docs, số commit sát thực tế hơn sqlite in-memory.
 Peak memory là đỉnh của cả tiến trình PHP (đã reset trước mỗi phép đo), nên phần nền là
 chi phí bootstrap Laravel + test, không phải chi phí của riêng import.
 

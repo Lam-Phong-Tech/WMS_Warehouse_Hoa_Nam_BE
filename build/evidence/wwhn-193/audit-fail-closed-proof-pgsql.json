@@ -3,7 +3,7 @@
     "scenario": "Injected audit write failure (fail_closed) trong POST /putaway-tasks/{id}/confirm",
     "engine": {
         "driver": "pgsql",
-        "database": "hoa_nam_audit",
+        "database": "hn_wwhn184_retest",
         "server_version": "16.14"
     },
     "audit_write_policy": "fail_closed",
@@ -12,14 +12,14 @@
     "leaks_internal_detail": false,
     "db_before": {
         "putaway_event": {
-            "id": "2804cd1c-cee6-4405-bac2-fcd7c0df7052",
+            "id": "9bb01262-ca2d-4f35-b587-25d2a9ad4b5e",
             "status": "DRAFT",
             "version": 1,
             "confirmed_at": null,
             "confirmed_by": null
         },
         "container": {
-            "container_id": "01a017d3-55a8-718d-b084-9e06e8220099",
+            "container_id": "01a01890-e3e8-7311-8417-b264ff71e0a2",
             "status": "RECEIVED_PENDING_PUTAWAY",
             "parent_container_id": null,
             "version": 1
@@ -28,14 +28,14 @@
     },
     "db_after": {
         "putaway_event": {
-            "id": "2804cd1c-cee6-4405-bac2-fcd7c0df7052",
+            "id": "9bb01262-ca2d-4f35-b587-25d2a9ad4b5e",
             "status": "DRAFT",
             "version": 1,
             "confirmed_at": null,
             "confirmed_by": null
         },
         "container": {
-            "container_id": "01a017d3-55a8-718d-b084-9e06e8220099",
+            "container_id": "01a01890-e3e8-7311-8417-b264ff71e0a2",
             "status": "RECEIVED_PENDING_PUTAWAY",
             "parent_container_id": null,
             "version": 1
@@ -54,8 +54,8 @@
             "details": []
         },
         "meta": {
-            "request_id": "99410328-fc1b-439e-86cc-e7f3ca838658",
-            "timestamp": "2026-08-19T09:22:01+07:00"
+            "request_id": "c6a6be98-acdf-4b37-a786-899ae8d292da",
+            "timestamp": "2026-08-19T12:49:03+07:00"
         }
     },
     "verdict": "PASS — rollback toàn phần, không có trạng thái \"đã xếp hàng nhưng mất dấu vết audit\""

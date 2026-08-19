@@ -6,7 +6,7 @@
     ],
     "action": "COMPONENT_ISSUE_POST",
     "matrix_slot": "TC-P1-017..TC-P1-024 (khoảng trống đánh số của SRS §13.3)",
-    "driver": "sqlite",
+    "driver": "pgsql",
     "producer": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest",
     "dimensions": {
         "TC-P1-017": {

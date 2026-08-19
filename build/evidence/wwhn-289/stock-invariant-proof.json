@@ -23,6 +23,7 @@
         ],
         "movement_count": 1,
         "balance_quantity": 5,
+        "posting_event_duplicate_groups": 0,
         "verdict": "PASS"
     },
     "idempotency_conflict": {
