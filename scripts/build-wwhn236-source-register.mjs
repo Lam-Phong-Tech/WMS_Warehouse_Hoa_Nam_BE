@@ -43,7 +43,9 @@ const digest = (abs) =>
 
 const git = (root, args) => {
   try {
-    return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+    // stderr bị nuốt có chủ đích: `git rev-parse HEAD:<path>` in "exists on disk, but
+    // not in HEAD" cho file mới, và đó là trạng thái hợp lệ chứ không phải lỗi.
+    return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   } catch {
     return null;
   }
@@ -130,7 +132,15 @@ const repoIdentity = (root, label) => {
 
   const files = GOVERNED[label].map((e) => fileIdentity(root, e));
   const governedPaths = new Set(files.map((f) => f.path));
-  const governedDirty = files.filter((f) => f.uncommitted || (f.present && !f.tracked)).map((f) => f.path);
+  // Pin carrier (register/SHA256SUMS/lock/approval) LUÔN bẩn ngay trước khi commit pin —
+  // đó là bản chất của chúng, không phải bằng chứng thiếu. Chỉ file mang nội dung mới
+  // được tính vào governed_working_tree.
+  const governedDirty = files
+    .filter((f) => !f.pin_carrier && (f.uncommitted || (f.present && !f.tracked)))
+    .map((f) => f.path);
+  const carrierDirty = files
+    .filter((f) => f.pin_carrier && (f.uncommitted || (f.present && !f.tracked)))
+    .map((f) => f.path);
   const foreignDirty = dirtyPaths.filter((p) => !governedPaths.has(p));
   const candidate = candidateFor(root, files);
 
@@ -148,6 +158,9 @@ const repoIdentity = (root, label) => {
       "Dự án yêu cầu không tạo nhánh riêng. Vì không có PR để review, Tech Lead review exact diff bằng lệnh ở tech_lead_review.diff_command và ký trên Jira.",
     governed_working_tree: governedDirty.length === 0 ? "CLEAN" : "DIRTY",
     governed_dirty_files: governedDirty,
+    pin_carrier_pending_commit: carrierDirty,
+    pin_carrier_note:
+      "File tự chứa hash/SHA của chính đợt pin. Chúng được commit ở commit thứ hai ngay sau khi pin, nên không tính vào governed_working_tree và không dùng để tính candidate.",
     foreign_dirty_files: foreignDirty,
     foreign_dirty_note:
       foreignDirty.length === 0
