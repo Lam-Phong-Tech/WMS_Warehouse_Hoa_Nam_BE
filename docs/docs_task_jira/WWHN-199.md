@@ -255,7 +255,23 @@ khác nhau, mục này thắng.**
 | `BE1-RESV-OP-02` | Unique index chưa chạy thật trên PostgreSQL | **ĐÓNG** — `pg_indexes` + duplicate probe 23505 trên DB dựng mới |
 | `BE1-RESV-OP-03` | Chưa có race đa connection thật | **ĐÓNG** — 2 process, 2 connection, 5/5 vòng chồng lấn đo được |
 
-### 11.5. BE1 KHÔNG tự nhận
+### 11.5. Phía FE — đã khớp, không cần sửa code (kèm bằng chứng, không phải khẳng định suông)
+
+`AC-GWT-CONC-001` có một clause thuộc FE: *"UI request thua hiển thị refresh/retry, **không
+tự submit lại bằng key mới**"*. `DEC-INV-RESERVED-001` §3.3 có một clause nữa: *"FE không
+được hiển thị `reserved_qty` như 'Đang giữ chỗ'"*. Cả hai đã đúng sẵn ở FE, và đều **có test
+neo lại** nên không thể trôi trong im lặng:
+
+| Ràng buộc | Trạng thái FE | Nơi neo |
+|---|---|---|
+| 409 mã miền (`ITEM_ALREADY_MATCHED`, …) ⇒ dừng, **không** tự retry bằng Idempotency-Key mới | Đúng — `classifyConcurrencyError()` xếp mọi mã 409 miền cụ thể về lớp `STATE_CONFLICT` với `action = "STOP"`, `reuseIdempotencyKey = false` | `src/shared/api/concurrency-contract.ts`; test `src/shared/api/concurrency-contract.test.ts` — *"mã 409 miền cụ thể rơi về lớp STATE_CONFLICT: dừng, không retry"* |
+| Cột khả dụng đọc `available_qty`, **không** suy ra từ `on_hand − reserved` | Đúng — `BalanceDetailModal` render `balance.available`; không màn hình nào render `reservedQty` | `src/modules/inventory/components/BalanceDetailModal.tsx`; test `src/modules/inventory/services/inventoryService.test.ts` — *"khả dụng đọc available_qty, KHÔNG suy ra từ on_hand - reserved_qty"* |
+| `reserved_qty` chỉ là pass-through | Đúng — map thẳng, giá trị lạ không ảnh hưởng cột khả dụng | cùng file test trên, case *"reserved_qty chỉ là pass-through"* |
+
+Vì vậy vòng này **không sửa một dòng FE nào**. Ghi ra đây để người review không phải đi tìm
+"phần FE ở đâu": câu trả lời là *đã đúng và đã có cổng hồi quy*, không phải *bị bỏ quên*.
+
+### 11.6. BE1 KHÔNG tự nhận
 
 - Không tự đánh dấu Done/Approved trên Jira. Sign-off là việc của BA/BAS (`DEV199-P1-06`,
   `DEV199-P1-04R`), QA1 (`DEV199-P1-05R`), Tech Lead/DBA (`DEV199-P2-01`), DevOps
