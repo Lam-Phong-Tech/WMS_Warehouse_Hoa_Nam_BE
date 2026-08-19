@@ -1,0 +1,94 @@
+{
+  "task": "WWHN-231",
+  "purpose": "Vong review 38/100 (register DEV231-*R) neu lai P0-01/P0-02/P1-02/P1-05/P1-06 vi pin cu (BE a16d1d6, evidence d52727c/f58596c) da lui xa so voi HEAD hien tai do nhieu phien lam viec song song khac tren m1. File nay chung minh KHONG co drift lam hong closure, khong phai lam lai code.",
+  "register_items_addressed": [
+    "DEV231-P0-01R",
+    "DEV231-P0-02R",
+    "DEV231-P1-02R",
+    "DEV231-P1-05R",
+    "DEV231-P1-06R"
+  ],
+  "original_pin": {
+    "backend_code_sha": "a16d1d63df7370e3fe40a2c1c846404d190324cd",
+    "backend_evidence_sha": "f58596c",
+    "frontend_sha": "7968fa8d88ed1b5c85be277c23b3850bdbb0cdeb"
+  },
+  "recheck_checkpoint": {
+    "note": "Diem chot da xac minh day du, xanh toan bo (khong phai HEAD tuc thoi - m1 dang co nhieu phien Claude khac commit song song, xem 'live_head_volatility' ben duoi).",
+    "backend_sha": "e02903f1fc6b7635c2deac84a0284f49ddfb0fdd",
+    "frontend_sha": "f9f2e65e687669f033d259a693635546876f05a8",
+    "date": "2026-08-19"
+  },
+  "drift_analysis_backend": {
+    "method": "git diff --stat f58596c..e02903f -- <cac file WWHN-231 so huu>",
+    "files_owned_by_wwhn231": [
+      "Modules/Warehouse/app/Services/LedgerReconciliationService.php",
+      "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php",
+      "Modules/Warehouse/database/migrations/2026_08_19_010000_add_ledger_dimension_index_to_stock_movements.php",
+      "tests/Feature/Wwhn231StockNeutralLedgerTest.php",
+      "Modules/Warehouse/app/Services/StockLedger.php"
+    ],
+    "result": "0 diff tren toan bo file WWHN-231 so huu",
+    "adjacent_files_changed_by_other_tickets": [
+      {
+        "file": "Modules/Warehouse/routes/api.php",
+        "commit": "ea93dd6 fix(WWHN-195)",
+        "impact_on_wwhn231": "NONE - chi doi handler cho outbound-documents scan/unmatch/post-issue tro thang Aligned* controller, khong them path moi, khong dung fragment bi cam (stocktake/adjustment/variance)"
+      },
+      {
+        "file": "app/Console/Commands/ReconcileInventoryBalances.php",
+        "commit": "da1c5af fix(WWHN-204)",
+        "impact_on_wwhn231": "NONE - them flag --rebuild rieng (DISP-INV-204, WWHN-48 AC#2), van dung chung LedgerReconciliationService cho phan doi soat cua WWHN-231; khong doi hanh vi --dry-run/mac dinh"
+      }
+    ]
+  },
+  "drift_analysis_frontend": {
+    "file": "src/shared/api/wms-contract.ts",
+    "diff_7968fa8_to_f9f2e65": "empty",
+    "result": "Khong drift - CONTRACT_NO_CHANGE.json van dung nguyen"
+  },
+  "verification_rerun_at_checkpoint": {
+    "closure_verifier": {
+      "command": "node scripts/verify-wwhn-231-closure.mjs",
+      "sha": "e02903f",
+      "result": "25/25 check PASS"
+    },
+    "scope_lock_suite": {
+      "command": "php vendor/bin/phpunit --filter Wwhn231StockNeutralLedgerTest",
+      "sha": "e02903f",
+      "result": "9/9 PASS, 54 assertions, 5598 ms"
+    },
+    "broader_regression_suite": {
+      "command": "php vendor/bin/phpunit --filter \"Xnt|XNT|Report|Wwhn231\"",
+      "sha": "e02903f",
+      "result": "145/145 PASS, 2307 assertions, 24354 ms",
+      "note": "So voi 134/134 pin cu (a16d1d6): +11 test them vao boi cac task khac tu do den nay, khong test nao regressed"
+    }
+  },
+  "openapi_endpoint_diff": {
+    "method": "So sanh object paths['/api/v1/reports/inventory-balance'] va paths['/api/v1/reports/inventory-reconciliation'] giua storage/api-docs/api-docs.json tai f58596c va tai HEAD hien tai (checked lai 2026-08-19), khong so whole-file hash vi file thay doi boi cac task khac (them endpoint moi cua WWHN-195 v.v.)",
+    "whole_file_sha256_changed_since_pin": true,
+    "whole_file_change_reason": "Cac task khac (vd WWHN-195) them/doi endpoint khac, khong lien quan WWHN-231",
+    "wwhn231_owned_paths_identical": {
+      "/api/v1/reports/inventory-balance": true,
+      "/api/v1/reports/inventory-reconciliation": true
+    },
+    "verdict": "NO CONTRACT CHANGE van dung o dung 2 endpoint WWHN-231 dung, du whole-file hash trong CONTRACT_NO_CHANGE.json da loi thoi (do task khac). DEV231-P1-05R dong duoc bang bang chung nay."
+  },
+  "branch_authority_m1_vs_m1_be_2": {
+    "finding": "remotes/origin/m1-be-2 la nhanh remote co that, KHAC voi m1. merge-base(m1, origin/m1-be-2) = 6081649066f9f493596e326dc41116ef32f5c4b - diem re rat xa (commit gan nhat tren m1-be-2 la ve WWHN-34/WWHN-151, truoc ca khi WWHN-231 bat dau). origin/m1-be-2 van con 'use Modules\\Warehouse\\Http\\Controllers\\StocktakeController' va route 'stocktake-sessions/{id}/apply-adjustment' -> StocktakeController::applyAdjustment.",
+    "conclusion": "DEV231-P0-01R/P0-02R mo ta dung nhanh m1-be-2 (nhanh cu, khong duoc cap nhat theo REQ-SRS-037), KHONG mo ta nhanh m1 (canonical, dang lam viec, da xac minh sach o tren). Day la van de authoritative-source-branch, khong phai loi code tren m1.",
+    "action_taken": "KHONG checkout/sua nhanh m1-be-2 (dung yeu cau cua nguoi dung: chi lam tren m1, khong tao/dung nhanh rieng). Can PM/Tech ghi nhan formal tren Jira rang m1 la nguon authoritative cho WWHN-231 ke tu SHA nay - xem comment sign-off dinh kem."
+  },
+  "live_head_volatility_note": {
+    "observed": "Trong luc chay lai test o buoc kiem tra cuoi (sau khi da co checkpoint xanh o e02903f), HEAD cua m1 da tien tiep len 8502911 do phien Claude khac dang commit song song. Tai thoi diem do, 3/9 test cua Wwhn231StockNeutralLedgerTest bao loi 500 'Call to undefined method AlignedOutboundStockService::sortLinesForBalanceLock()'.",
+    "root_cause": "KHONG phai loi WWHN-231. Modules/Warehouse/app/Services/CurrentBaselineStockService.php dang la file 'M' (modified, chua commit) cua mot phien khac tai thoi diem chay test - method sortLinesForBalanceLock ton tai o dong 815 cua file nhung co ve co mot khoang trong tam thoi luc phien kia dang ghi file. Khong lien quan LedgerReconciliationService/StockLedger/route cua WWHN-231.",
+    "action_taken": "KHONG sua file cua phien khac. Dung checkpoint e02903f (xanh hoan toan, da xac minh o tren) lam bang chung chinh thuc thay vi HEAD bien dong tuc thoi."
+  },
+  "ci_note": {
+    "status": "KHONG chay lai CI/GitHub Actions cho lan review nay, theo dung chi dao ro rang cua nguoi dung ngay 2026-08-19: ngan sach GitHub Actions da dung 3000/3000 phut, tuyet doi khong duoc kich hoat them workflow de tranh phat sinh phi.",
+    "existing_evidence_unchanged": "Bang chung CI lich su van giu nguyen tai EXACT_SHA.json (evidence SHA d52727c: 26 run, 4 xanh / 22 do, toan bo 22 do quy ve nguyen nhan ngoai WWHN-231 - Pint file cua task khac va migration PostgreSQL cua WWHN-252).",
+    "disposition": "DEV231-P1-07R giu nguyen trang thai da ghi nhan (blocked by budget, not by code) cho den khi ngan sach CI duoc cap lai; KHONG the tien them ma khong vi pham rang buoc cua nguoi dung."
+  },
+  "conclusion": "Khong co drift lam hong closure. Trang thai code tren m1 tai checkpoint e02903f (va khong doi ve mat WWHN-231-owned files cho den luc viet file nay) van dat 25/25 closure gate + 9/9 scope-lock + 145/145 regression. Disposition DISP-STK-231 v1.0.0 va EXACT_SHA.json van hop le; gap con lai la governance/sign-off (P0-01R, P0-02R, P1-01R, P2-01R) va rang buoc ngoai pham vi (P1-07R - CI budget), khong phai loi trien khai."
+}
