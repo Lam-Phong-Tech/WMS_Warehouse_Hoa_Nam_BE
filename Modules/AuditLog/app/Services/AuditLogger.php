@@ -2,6 +2,7 @@
 
 namespace Modules\AuditLog\Services;
 
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\AuditLog\Models\AuditLog;
@@ -35,6 +36,9 @@ class AuditLogger
         array $beforeData = [],
         array $afterData = [],
         ?string $reason = null,
+        ?string $result = null,
+        ?string $errorCode = null,
+        ?string $idempotencyKey = null,
     ): void {
         $payload = self::payload(
             $action,
@@ -45,6 +49,9 @@ class AuditLogger
             $beforeData,
             $afterData,
             $reason,
+            $result,
+            $errorCode,
+            $idempotencyKey,
         );
 
         try {
@@ -117,8 +124,11 @@ class AuditLogger
         array $beforeData = [],
         array $afterData = [],
         ?string $reason = null,
+        ?string $result = null,
+        ?string $errorCode = null,
+        ?string $idempotencyKey = null,
     ): void {
-        static::record($action, $objectType, $objectId, $actorId, $requestId, $beforeData, $afterData, $reason);
+        static::record($action, $objectType, $objectId, $actorId, $requestId, $beforeData, $afterData, $reason, $result, $errorCode, $idempotencyKey);
     }
 
     public static function sanitize(array $data): array
@@ -158,6 +168,9 @@ class AuditLogger
         array $beforeData,
         array $afterData,
         ?string $reason,
+        ?string $result = null,
+        ?string $errorCode = null,
+        ?string $idempotencyKey = null,
     ): array {
         return [
             'actor_id' => $actorId,
@@ -165,11 +178,44 @@ class AuditLogger
             'object_type' => $objectType,
             'object_id' => $objectId,
             'reason' => $reason,
-            'request_id' => $requestId,
+            'request_id' => self::resolveRequestId($requestId),
+            'idempotency_key' => $idempotencyKey,
+            'result' => $result,
+            'error_code' => $errorCode,
             'before_data' => $beforeData === [] ? null : self::sanitize($beforeData),
             'after_data' => $afterData === [] ? null : self::sanitize($afterData),
             'created_at' => now(),
         ];
+    }
+
+    /**
+     * WWHN-222 (DEV222-P1-03): trước đây caller quên truyền $requestId thì cột
+     * request_id sẽ null, phá chuỗi truy vết request→log→audit. Fallback về
+     * request hiện tại (do ApiConventionMiddleware set) rồi tới Context — cùng
+     * nguồn request_id mà middleware đã gắn vào mọi response envelope.
+     */
+    private static function resolveRequestId(?string $requestId): ?string
+    {
+        if ($requestId !== null && $requestId !== '') {
+            return $requestId;
+        }
+
+        $current = function_exists('request') ? request() : null;
+        if ($current !== null) {
+            $attribute = $current->attributes->get('request_id');
+            if (is_string($attribute) && $attribute !== '') {
+                return $attribute;
+            }
+        }
+
+        if (class_exists(Context::class) && Context::has('request_id')) {
+            $contextValue = Context::get('request_id');
+            if (is_string($contextValue) && $contextValue !== '') {
+                return $contextValue;
+            }
+        }
+
+        return $requestId;
     }
 
     private static function truncate(string $message): string

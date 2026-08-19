@@ -62,7 +62,8 @@ class AuthController extends Controller
             $this->auditLogger->log(
                 'LOGIN_THROTTLED', 'app_user', null, null,
                 $this->currentRequestId(), [], ['retry_after_seconds' => $retryAfter],
-                'Too many failed login attempts'
+                'Too many failed login attempts',
+                result: 'FAILURE', errorCode: 'RATE_LIMIT_EXCEEDED',
             );
 
             return RateLimitResponse::make(
@@ -91,7 +92,9 @@ class AuthController extends Controller
                 $this->currentRequestId(),
                 [],
                 $logData,
-                'Invalid credentials'
+                'Invalid credentials',
+                result: 'FAILURE',
+                errorCode: 'UNAUTHENTICATED',
             );
 
             return $this->respondError('Email, tài khoản hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
@@ -110,7 +113,8 @@ class AuthController extends Controller
             $this->auditLogger->log(
                 'LOGIN_DENIED', 'app_user', $user->user_id, $user->user_id,
                 $this->currentRequestId(), [], ['status' => $user->status],
-                'Inactive or locked account'
+                'Inactive or locked account',
+                result: 'FAILURE', errorCode: 'ACCESS_DENIED',
             );
 
             return $this->respondError('Tài khoản đang bị khoá hoặc ngừng hoạt động.', [], 403, 'ACCESS_DENIED');
@@ -120,7 +124,7 @@ class AuthController extends Controller
         RateLimiter::clear($throttleKey);
 
         $refreshToken = $this->refreshTokens->issue($user, $request);
-        $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
+        $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
         return $this->respondSuccess([
             'access_token' => $accessToken,
@@ -160,7 +164,8 @@ class AuthController extends Controller
             $this->auditLogger->log(
                 'TOKEN_REFRESH_FAILED', 'refresh_token', null, null,
                 $this->currentRequestId(), [], ['token_fingerprint' => substr(hash('sha256', $rawToken), 0, 12)],
-                'Invalid, expired, revoked or replayed refresh token'
+                'Invalid, expired, revoked or replayed refresh token',
+                result: 'FAILURE', errorCode: 'UNAUTHENTICATED',
             );
 
             return $this->respondError('Refresh token không hợp lệ hoặc đã hết hạn.', [], 401, 'UNAUTHENTICATED');
@@ -168,7 +173,7 @@ class AuthController extends Controller
 
         $user = $rotated['user'];
         $accessToken = JWTAuth::fromUser($user);
-        $this->auditLogger->log('TOKEN_REFRESH', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
+        $this->auditLogger->log('TOKEN_REFRESH', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
         return $this->respondSuccess([
             'access_token' => $accessToken,
@@ -210,7 +215,7 @@ class AuthController extends Controller
         }
 
         auth('api')->logout();
-        $this->auditLogger->log('LOGOUT', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
+        $this->auditLogger->log('LOGOUT', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
         return $this->respondSuccess(null, 'Đăng xuất thành công');
     }
@@ -277,7 +282,7 @@ class AuthController extends Controller
             'version' => ((int) $user->version) + 1,
         ])->save();
         $this->refreshTokens->revokeAllForUser($user->user_id);
-        $this->auditLogger->log('CHANGE_PASSWORD', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId());
+        $this->auditLogger->log('CHANGE_PASSWORD', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
         return $this->respondSuccess(null, 'Đổi mật khẩu thành công');
     }
@@ -318,7 +323,8 @@ class AuthController extends Controller
         $accessToken = JWTAuth::fromUser($user);
         $this->auditLogger->log(
             'SWITCH_CONTEXT', 'app_user', $user->user_id, $user->user_id,
-            $this->currentRequestId(), [], $request->only(['context_type', 'context_id', 'scope_ref'])
+            $this->currentRequestId(), [], $request->only(['context_type', 'context_id', 'scope_ref']),
+            result: 'SUCCESS',
         );
 
         return $this->respondSuccess([

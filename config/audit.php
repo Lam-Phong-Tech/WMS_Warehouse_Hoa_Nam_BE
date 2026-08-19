@@ -38,5 +38,21 @@ return [
         'secret',
         'api_key',
         'private_key',
+
+        // WWHN-222 (DEV222-P1-04): danh sách secret kỹ thuật ở trên không che
+        // PII cá nhân/khách hàng. Chỉ thêm key cụ thể đã xác nhận là PII thật
+        // trong schema (app_user.email/phone, defect_report.customer_*,
+        // stock_documents.recipient_*) — KHÔNG thêm key chung chung như
+        // "address"/"name" vì warehouses.address, product name... không phải
+        // PII và cần giữ nguyên trong audit để còn truy vết nghiệp vụ.
+        'email',
+        'phone',
+        'contact_phone',
+        'customer_name',
+        'customer_phone',
+        'customer_address',
+        'recipient_name',
+        'recipient_contact_phone',
+        'recipient_address',
     ],
 ];
