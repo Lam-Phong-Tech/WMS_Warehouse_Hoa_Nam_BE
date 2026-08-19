@@ -176,7 +176,7 @@ say "--- [17] Tự kiểm: log này có đủ mốc PASS mà QA1 phải đối c
 missing=0
 for marker in \
   'PostgreSQL 1' \
-  'append_only_trigger .. \[' \
+  'append_only_trigger .. [1] Ran' \
   'ERROR:  stock_movements is append-only under HN-WMS-ERD-DD-001' \
   'Rebuild hoàn tất' \
   'RESOLVED | REBUILD:'; do

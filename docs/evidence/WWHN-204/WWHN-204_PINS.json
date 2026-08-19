@@ -44,6 +44,17 @@
         "scripts/collect-wwhn204-pg-evidence.sh"
       ]
     },
+    "wwhn204_p1_closure_hardening": {
+      "sha": "114cf34d6323c85d46ecab2bfa6e03d92b9596a1",
+      "subject": "fix(WWHN-204): rebuild tinh lai tong ledger trong transaction va them cong CI hai job",
+      "contains": [
+        "Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php",
+        "scripts/verify-wwhn-204-closure.mjs",
+        "scripts/collect-wwhn204-pg-evidence.sh",
+        ".github/workflows/wwhn-204-ledger-rebuild-gate.yml"
+      ],
+      "note": "Commit code CUỐI CÙNG của ticket. Điều kiện nghiệm thu: git merge-base --is-ancestor 114cf34d… HEAD trả 0."
+    },
     "fe_head_at_signoff": {
       "sha": "6ed417e9291297a20505a45909102ed3349b2de0",
       "note": "Chỉ để tham chiếu — WWHN-204 KHÔNG có thay đổi FE nào."

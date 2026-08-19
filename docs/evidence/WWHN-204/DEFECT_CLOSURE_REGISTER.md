@@ -76,13 +76,28 @@ nay chạy đúng trên cả hai driver.
 |---|---|
 | Repo BE | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE`, nhánh `m1` |
 | Commit hiện thực gốc của WWHN-204 (BE2, 2026-08-15) | `7a78477424cc5b4e0685a0fa702dd085ee9f882e` |
-| **Commit đóng P1 của register (code + test + verifier + script)** | **`da1c5aff2993982b532d7303f840b210048226e2`** |
-| Commit evidence/docs | ghi ở dòng cuối mục này sau khi push (chỉ chạm `docs/`) |
+| Commit đóng P1 — code + test + verifier + script | `da1c5aff2993982b532d7303f840b210048226e2` |
+| **Commit code CUỐI CÙNG — siết concurrency + cổng CI 2 job** | **`114cf34d6323c85d46ecab2bfa6e03d92b9596a1`** |
+| Commit evidence/docs | chỉ chạm `docs/` — được miễn attribution vì một commit không thể chứa hash của chính nó |
 | Ancestor pin (`origin/m1-be-2` HEAD) | `60816499066f9f493596e326dc41116ef32f5c4b` |
 | FE tại thời điểm chốt | `6ed417e9291297a20505a45909102ed3349b2de0` — **không có thay đổi FE trong ticket này** |
 
 > `m1` là nhánh dùng chung nhiều phiên. Điều kiện nghiệm thu **không** phải "HEAD bằng một hằng
-> số", mà là `git merge-base --is-ancestor da1c5af… HEAD` trả `0` — xem `QA1_RUNBOOK.md` §0.
+> số", mà là `git merge-base --is-ancestor 114cf34d6323c85d46ecab2bfa6e03d92b9596a1 HEAD` trả
+> `0` — xem `QA1_RUNBOOK.md` §0.
+
+## 5.1. Lỗi đỏ ngoài phạm vi — đã quy trách nhiệm từng mục
+
+Full suite tại thời điểm đóng: **1053 test / 1006 pass / 17 fail + 1 error / 29 skip**.
+**0/18 thuộc WWHN-204** — chứng minh từng mục ở `BASELINE_FAILURE_ATTRIBUTION.md`, trong đó bằng
+chứng cứng nhất là: file test **duy nhất** trong toàn repo có `UPDATE`/`DELETE` lên
+`stock_movements` chính là test của WWHN-204 (và nó kỳ vọng bị chặn), nên trigger append-only mới
+không thể làm đỏ test của ai khác. Bất biến này nay được verifier canh giữ.
+
+Hai việc chặn người khác, đã chuyển cho chủ sở hữu: fatal error trong
+`tests/Feature/Wwhn310Round2ClosureTest.php` (untracked) làm **chết cả full suite**, và
+`2026_08_19_000050_repair_erd_mirror_projection_casts` có `down()` rỗng làm đỏ toàn bộ
+`Wwhn300BackendGoLiveCheckTest`.
 
 ## 6. Còn lại — không thuộc quyền tự ký của DEV
 

@@ -14,11 +14,11 @@ không cần DEV ngồi cạnh.
 cd /c/LAM_PHONG_TECH/HoaNam_BE/WMS_Warehouse_Hoa_Nam_BE
 git rev-parse --abbrev-ref HEAD        # phải in: m1
 git rev-parse HEAD                     # GHI LẠI — đây là exact SHA của lần chạy này
-git merge-base --is-ancestor 7a78477424cc5b4e0685a0fa702dd085ee9f882e HEAD; echo $?   # phải 0
+git merge-base --is-ancestor 114cf34d6323c85d46ecab2bfa6e03d92b9596a1 HEAD; echo $?  # phải 0
 ```
 
 > `m1` là nhánh dùng chung, HEAD trôi theo ngày. Cứ ghi SHA tại thời điểm chạy vào biên bản —
-> điều kiện nghiệm thu là **`7a78477` phải là ancestor của SHA đó** (dòng thứ 3 trả về `0`),
+> điều kiện nghiệm thu là **`114cf34d` (commit code cuối của ticket) phải là ancestor của SHA đó** (dòng thứ 3 trả `0`),
 > không phải là "HEAD bằng một hằng số nào đó".
 
 ## 1. Cổng tự động — chạy trước, hỏng thì dừng
@@ -94,7 +94,7 @@ luận khác nhau trên cùng dữ liệu.)
 
 ## 7. Biên bản QA1 cần nộp
 
-1. Exact SHA `git rev-parse HEAD` + kết quả `git merge-base --is-ancestor 7a78477… HEAD`.
+1. Exact SHA `git rev-parse HEAD` + kết quả `git merge-base --is-ancestor 114cf34d… HEAD`.
 2. Exit code + output cuối của `verify-wwhn-204-closure.mjs`.
 3. Số liệu PASS/FAIL của mục 2 và mục 3.
 4. Log thô mục 4 kèm nhận định PASS/FAIL cho **từng mốc M1..M6**.
