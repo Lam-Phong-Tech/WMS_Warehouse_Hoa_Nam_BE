@@ -34,7 +34,7 @@ commit**, thay vì pin một ảnh chụp tệp.
 | DEV328-P1-02R4 | **CLOSED** | `m1-be-2` và `b8cfcf0`/`6db0965`/`127c573` khai superseded ở `EVIDENCE_INDEX.md §2`, lý do kỹ thuật ở `DIFF_MAP.md §3`. Candidate mới: repo `WMS_Warehouse_Hoa_Nam_BE`, branch `m1`, SHA đầy đủ `b610b1ff191f8c1f2cce3c24571de850f946d690`. Không dùng HEAD đang chạy: xem §3. |
 | DEV328-P1-03R4 | **CLOSED** | `DIFF_MAP.md` — ranh giới file thuộc WWHN-328, numstat từng commit bundled (chạy lại được), disposition *approved direct-commit + post-hoc reviewable slice*, và lệnh chạy test đúng phạm vi. Gate xanh tại exact SHA: §4. |
 | DEV328-P1-04R4 | **CLOSED** | `CONTRACT_PIN.json` sinh bởi fingerprint script: pin OpenAPI operation, Postman request, khối controller, dòng route — kèm hash cả tệp ở mục `whole_file_informational` (tham chiếu lịch sử, **không** dùng làm điều kiện đạt). Scope/timezone/warning count+sample/ngoại lệ warranty/auth-error đều nằm trong operation được pin. |
-| DEV328-P1-05R4 | **CLOSED (DEV/PM-ready)** | `EVIDENCE_INDEX.md` — cụm 88/327/328/329, map `HN-STR-002-ST01`, bảng "WWHN-327 tiêu thụ đúng cái gì", pin FE `16a3eea9f5241ba3ca24e36c53c811a45f9ae45d`. Native issue link vẫn do PM/BAS tạo trên Jira. |
+| DEV328-P1-05R4 | **CLOSED (DEV/PM-ready)** | `EVIDENCE_INDEX.md` — cụm 88/327/328/329, map `HN-STR-002-ST01`, bảng "WWHN-327 tiêu thụ đúng cái gì", pin FE `5a0cfda4ccdacfa4aac324ed7c16bda513c3c8f3`. Native issue link vẫn do PM/BAS tạo trên Jira. |
 | DEV328-P1-06R4 | **READY FOR QA2** | `QA2_RERUN_PROTOCOL.md` — cặp SHA, dữ liệu/tài khoản tối thiểu, 12 hạng mục T1–T12 phủ đúng: totals, scope, cache isolation, timezone/boundaries, 401/403/422, reconciliation, warranty, FE integration; hình thức báo cáo trên WWHN-329. Đây là **việc của QA2**, hồ sơ chỉ bỏ hết lý do không chạy được. |
 | DEV328-P1-07R4 | **READY** | Cặp đóng băng và version contract đã cố định (§3); BA và QA2 ký độc lập trên cùng cặp đó. |
 | DEV328-P2-01R4 | **READY (PM/BAS)** | Narrative thống nhất về DEV/Quang; BE2/Duy/`m1-be-2` giữ ở mục historical của `EVIDENCE_INDEX.md §2`. Thao tác sửa metadata nằm trên Jira. |
@@ -46,7 +46,7 @@ commit**, thay vì pin một ảnh chụp tệp.
 |---|---|---|---|
 | Backend candidate | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `b610b1ff191f8c1f2cce3c24571de850f946d690` |
 | Backend contract origin | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `c855851b37920237d110f7dffe5dbbad509aebce` |
-| Frontend candidate | `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `16a3eea9f5241ba3ca24e36c53c811a45f9ae45d` |
+| Frontend candidate | `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `5a0cfda4ccdacfa4aac324ed7c16bda513c3c8f3` |
 | Contract version | — | — | KPI matrix **v1.2** |
 
 `m1` có nhiều phiên đẩy song song, nên bằng chứng **không** neo vào HEAD. Nó neo vào candidate,

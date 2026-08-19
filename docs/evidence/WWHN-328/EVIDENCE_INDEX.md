@@ -21,10 +21,10 @@ vẫn cần thiết sau khi có link vì Jira không pin được SHA.
 |---|---|---|---|---|
 | Backend | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `b610b1ff191f8c1f2cce3c24571de850f946d690` | candidate WWHN-328 |
 | Backend (gốc contract) | `WMS_Warehouse_Hoa_Nam_BE` | `m1` | `c855851b37920237d110f7dffe5dbbad509aebce` | commit xa nhất mà contract hiện hành đã đúng |
-| Frontend | `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `16a3eea9f5241ba3ca24e36c53c811a45f9ae45d` | candidate WWHN-327 — đây là **output của WWHN-327 mà WWHN-328 tiêu thụ** |
+| Frontend | `WMS_Warehouse_Hoa_Nam_FE` | `m1` | `5a0cfda4ccdacfa4aac324ed7c16bda513c3c8f3` | candidate WWHN-327 — đây là **output của WWHN-327 mà WWHN-328 tiêu thụ** |
 
 Superseded, **không** dùng làm nguồn đánh giá nữa: BE `m1-be-2` (mọi SHA), `b8cfcf0`,
-`6db0965`, `127c573`; FE `3ddce52`, `99dff42`. Lý do supersede ghi ở `DIFF_MAP.md §3` (BE) và
+`6db0965`, `127c573`; FE `3ddce52`, `99dff42`, `16a3eea`. Lý do supersede ghi ở `DIFF_MAP.md §3` (BE) và
 `R4_CLOSURE.md §2` (FE).
 
 ## 3. WWHN-327 tiêu thụ đúng cái gì của WWHN-328
@@ -53,3 +53,5 @@ sinh route mới. Khoá bằng `Wwhn328R4ClosureTest::test_dashboard_aggregate_i
 | Evidence pack vòng trước | `docs/evidence/WWHN-328/EVIDENCE_PACK.md` |
 | Gate chạy lại được | `scripts/verify-wwhn-328-closure.mjs`, `.github/workflows/wwhn-328-dashboard-closure.yml` |
 | Register FE | `WMS_Warehouse_Hoa_Nam_FE/docs/evidence/WWHN-327/WWHN-327_CLOSURE_REGISTER.json` |
+| Pin consumer FE ↔ BE | `WMS_Warehouse_Hoa_Nam_FE/docs/evidence/WWHN-327/WWHN-328_CONSUMER_PIN.json` |
+| Gate consumer FE | `WMS_Warehouse_Hoa_Nam_FE/scripts/verify-wwhn-328-fe-consumer.mjs`, `.github/workflows/wwhn-328-fe-consumer-pin.yml` |

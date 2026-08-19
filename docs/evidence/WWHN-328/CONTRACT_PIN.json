@@ -75,7 +75,7 @@
   "frontendCandidate": {
     "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
     "branch": "m1",
-    "commit": "16a3eea9f5241ba3ca24e36c53c811a45f9ae45d",
+    "commit": "5a0cfda4ccdacfa4aac324ed7c16bda513c3c8f3",
     "task": "WWHN-327"
   },
   "superseded": [
@@ -108,6 +108,11 @@
       "commit": "99dff42fb4272ed8930e8fb9bf4da6368f4cfd96",
       "repo": "FE",
       "reason": "Truoc khi pin fail-closed proof cua WWHN-327."
+    },
+    {
+      "commit": "16a3eea9f5241ba3ca24e36c53c811a45f9ae45d",
+      "repo": "FE",
+      "reason": "Truoc khi FE co cong consumer pin WWHN-328 va dong bo KPI matrix v1.2."
     }
   ]
 }
