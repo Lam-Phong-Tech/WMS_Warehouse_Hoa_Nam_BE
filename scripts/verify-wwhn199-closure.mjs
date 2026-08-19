@@ -287,10 +287,19 @@ if (check(manifest !== null, 'Có docs/evidence/WWHN-199/MANIFEST.json')) {
   check(dangling.length === 0, `Không có đường dẫn treo trong manifest${dangling.length ? `: ${dangling.join(', ')}` : ''}`)
 
   // Evidence runtime phải khớp hash đã pin — chống "sinh manifest rồi sửa evidence".
+  // So với BLOB tại commit đã pin, không so với working tree: trên Windows file .txt nằm
+  // ở dạng CRLF trong working tree còn blob là LF, nên so working tree sẽ đỏ oan trên CI.
   const drifted = (manifest.candidate_build?.runtime_evidence ?? []).filter((entry) => {
-    if (!exists(entry.path)) return true
-    const actual = createHash('sha256').update(readFileSync(resolve(ROOT, entry.path))).digest('hex')
-    return actual !== entry.sha256
+    try {
+      const blob = execFileSync('git', ['show', `${manifest.candidate.commit}:${entry.path}`], {
+        cwd: ROOT,
+        encoding: 'buffer',
+        maxBuffer: 64 * 1024 * 1024,
+      })
+      return createHash('sha256').update(blob).digest('hex') !== entry.sha256
+    } catch {
+      return true
+    }
   })
   check(drifted.length === 0, `Evidence runtime khớp hash đã pin${drifted.length ? `: lệch ${drifted.map((d) => d.path).join(', ')}` : ''}`)
 }
@@ -308,7 +317,10 @@ if (expectFlag !== undefined && manifest !== null) {
 
   let mismatched = 0
   let unreadable = 0
-  for (const artifact of manifest.candidate_build?.artifacts ?? []) {
+  for (const artifact of [
+    ...(manifest.candidate_build?.artifacts ?? []),
+    ...(manifest.candidate_build?.runtime_evidence ?? []),
+  ]) {
     try {
       const blob = execFileSync('git', ['show', `${expected}:${artifact.path}`], {
         cwd: ROOT,

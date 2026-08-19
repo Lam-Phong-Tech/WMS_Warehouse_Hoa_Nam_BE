@@ -46,7 +46,11 @@ const ARTIFACTS = [
   'docs/docs_task_jira/WWHN-199.md',
 ]
 
-/** Evidence runtime: sinh ra bởi lần chạy thật, pin bằng hash nội dung working tree. */
+/**
+ * Evidence runtime: sinh ra bởi lần chạy thật. Cũng hash TỪ BLOB ĐÃ COMMIT chứ không từ
+ * working tree — trên Windows các file .txt nằm trong working tree ở dạng CRLF còn blob
+ * là LF, nên hash working tree sẽ không bao giờ khớp khi verifier chạy trên CI Linux.
+ */
 const RUNTIME_EVIDENCE = [
   'build/evidence/wwhn-199/evidence-run.json',
   'build/evidence/wwhn-199/migrate-pgsql-candidate.raw.txt',
@@ -109,8 +113,19 @@ if (missing.length > 0) {
 
 const runtimeEvidence = []
 for (const path of RUNTIME_EVIDENCE) {
-  const buffer = readFileSync(resolve(ROOT, path))
-  runtimeEvidence.push({ path, sha256: sha256(buffer), bytes: buffer.length, source: 'working-tree' })
+  try {
+    const blob = gitBlob(candidate, path)
+    runtimeEvidence.push({ path, sha256: sha256(blob), bytes: blob.length, source: 'git-blob' })
+  } catch {
+    missing.push(path)
+  }
+}
+
+if (missing.length > 0) {
+  process.stderr.write(
+    `Evidence runtime chua ton tai tai commit ${candidate}:\n  ${missing.join('\n  ')}\n`,
+  )
+  process.exit(3)
 }
 
 /**
@@ -138,7 +153,12 @@ const foreignDirty = git(['status', '--porcelain'])
   .map((line) => line.trim())
   .filter((line) => line !== '')
   .map((line) => line.replace(/^\S+\s+/, ''))
-  .filter((path) => !artifactSet.has(path) && !path.startsWith('build/evidence/wwhn-199/'))
+  .filter(
+    (path) =>
+      !artifactSet.has(path) &&
+      !path.startsWith('build/evidence/wwhn-199/') &&
+      !path.startsWith('docs/evidence/WWHN-199/'),
+  )
 
 const evidenceRun = JSON.parse(readFileSync(resolve(ROOT, 'build/evidence/wwhn-199/evidence-run.json'), 'utf8'))
 const race = JSON.parse(readFileSync(resolve(ROOT, 'build/evidence/wwhn-199/race-report.json'), 'utf8'))
