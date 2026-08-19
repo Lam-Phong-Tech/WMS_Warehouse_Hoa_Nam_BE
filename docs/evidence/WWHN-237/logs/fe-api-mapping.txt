@@ -8,6 +8,12 @@ $ npm run check:api-mapping
 [api-mapping] docs/api-evidence/M1_API_MAPPING.md: 31 endpoint rows
 [api-mapping] docs/api-evidence/M2_DEPENDENCY_LIST.md: 10 endpoint rows
 [api-mapping] docs/api-evidence/M3_DEPENDENCY_LIST.md: 15 endpoint rows
-[api-mapping] PASS: 56 documented rows checked (4 explicitly fail-closed); current MVP paths and permissions are internally consistent.
+[api-mapping] WARNING: docs/api-evidence/M2_DEPENDENCY_LIST.md:10 GET /safe-stock-alerts is explicitly fail-closed/pending.
+[api-mapping] WARNING: docs/api-evidence/M2_DEPENDENCY_LIST.md:11 GET /safe-stock-alerts/history is explicitly fail-closed/pending.
+[api-mapping] WARNING: docs/api-evidence/M2_DEPENDENCY_LIST.md:35 GET /safe-stock-configs is explicitly fail-closed/pending.
+[api-mapping] ERROR: swagger-api.json không khớp BE_CONTRACT_PIN.json (BE 8326d505e5c7):
+    pinned  b86330ff5f29031303b46e1075f8d036e1fe0d19e5d610ec3cb1c38dcd12bf45
+    current 14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8
+    Chạy: npm run contract:sync -- 8326d505e5c7c2b690a02ae3a41c5c91119d5ed7  (hoặc re-pin nếu BE đã đổi contract có chủ đích)
 
-EXIT_CODE=0
+EXIT_CODE=1

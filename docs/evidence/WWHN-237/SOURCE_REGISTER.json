@@ -19,12 +19,12 @@
   "repositories": {
     "backend": {
       "branch": "m1",
-      "commit_sha": "62dcbc104290eced035e4288fe46f869238bafcd",
+      "commit_sha": "809d483981f5f323fb8b30c90bed48a73bceffbc",
       "working_tree_clean": false
     },
     "frontend": {
       "branch": "m1",
-      "commit_sha": "0eda8248ea121be10518f6e3edda0d2ca74b9c26",
+      "commit_sha": "f9f2e65e687669f033d259a693635546876f05a8",
       "working_tree_clean": false
     }
   },
@@ -92,16 +92,16 @@
       "cwd": "C:\\LAM_PHONG_TECH\\HoaNam_FE\\WMS_Warehouse_Hoa_Nam_FE",
       "command": "npm run check:api-mapping",
       "covers": "không hồi quy guard no-Stocktake của WWHN-296",
-      "status": "PASS",
-      "exit_code": 0,
+      "status": "FAIL",
+      "exit_code": 1,
       "log": "docs/evidence/WWHN-237/logs/fe-api-mapping.txt"
     }
   ],
   "summary": {
     "total": 6,
-    "passed": 6,
-    "failed": 0,
+    "passed": 5,
+    "failed": 1,
     "skipped": 0,
-    "status": "PASS"
+    "status": "FAIL"
   }
 }

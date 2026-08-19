@@ -40,8 +40,8 @@
       "warranty-defects"
     ],
     "report_controller_sha256": "f0317831c8f416033338526da42a3ed7eafd31ea9cdc5c922872eaab375b711e",
-    "route_source_sha256": "4e4e56ed0fcddb0a12d265726e0895a11c09e8ae20199baaef78547f74168df0",
-    "openapi_runtime_sha256": "f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593",
+    "route_source_sha256": "64d4a8a389d1733196b5e4110fe5b77be3c4ccb8f9a9cf480d80f57eacf18336",
+    "openapi_runtime_sha256": "14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8",
     "historical_artifact_drift": [
       "docs/postman/WWHN-180 Canonical Contract.postman_collection.json → stocktake, apply-adjustment"
     ],

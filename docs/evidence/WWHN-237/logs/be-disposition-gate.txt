@@ -12,7 +12,7 @@ WWHN-237 / DISP-STK-237 — Variance query/report disposition gate
   PASS [RECONCILIATION-ALIVE] RPT-INV-01 vẫn tính variance ledger-vs-balance và trả reconciliation_status
   PASS [ROUTE] 195 route: zero bề mặt variance/stocktake/adjustment
   PASS [OPENAPI-RUNTIME] OpenAPI runtime: 183 path, zero bề mặt variance
-  PASS [CONTRACT-SURFACE] 30 contract artifact: zero bề mặt bị cấm ngoài 1 artifact historical đã có disposition
+  PASS [CONTRACT-SURFACE] 39 contract artifact: zero bề mặt bị cấm ngoài 1 artifact historical đã có disposition
   PASS [BASELINE-CONTRACT] baseline contract vẫn khai forbidden fragment + excluded table kiểm kê
   NOTE [CONTRACT-HISTORICAL] docs/postman/WWHN-180 Canonical Contract.postman_collection.json → stocktake, apply-adjustment — historical, superseded bởi DISP-STK-236 §3 / DISP-STK-237 §4; không sửa nội dung.
 

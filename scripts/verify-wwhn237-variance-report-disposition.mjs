@@ -17,8 +17,9 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EMIT_LOCK = process.argv.includes("--emit-lock");
@@ -98,6 +99,58 @@ const HISTORICAL_ARTIFACT_ALLOWLIST = [
   "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/openapi.yaml",
   "docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/reversal.schema.json",
 ];
+
+/**
+ * WWHN-190/DISP-STK-236 §3 xác lập khuôn mẫu: release pack mới ghi lại surface đã gỡ
+ * bằng `x-removed-surfaces` (+ `x-supersedes`, `description`, `reason`, `declared_in`)
+ * — đây LÀ bằng chứng tuân thủ REQ-SRS-037, không phải capability sống, nên phải loại
+ * khỏi vùng quét trước khi so needle. Cùng danh sách khoá mà
+ * `Flow05InventoryControlAlignmentTest::stripStocktakeNarrativeFields` (PHP) đã dùng,
+ * để hai gate không lệch nhau. Path/tag/enum thật (nằm ngoài các khoá tường thuật này)
+ * vẫn bị bắt.
+ */
+const NARRATIVE_KEYS = ["description", "summary", "reason", "declared_in", "notes", "title"];
+const stripNarrativeFields = (node) => {
+  if (Array.isArray(node)) return node.map(stripNarrativeFields);
+  if (node && typeof node === "object") {
+    const out = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "x-removed-surfaces" || key === "x-supersedes") continue;
+      if (NARRATIVE_KEYS.includes(key)) continue;
+      out[key] = stripNarrativeFields(value);
+    }
+    return out;
+  }
+  return node;
+};
+
+/**
+ * `.md` dưới release pack là văn xuôi thuật lại lịch sử (CHANGELOG), không phải hợp
+ * đồng máy đọc được — bỏ qua toàn bộ thân bài, giống guard PHP. `.json`/`.yaml` được
+ * parse rồi gỡ khoá tường thuật trước khi so needle; parse lỗi thì giữ nguyên raw để
+ * không bỏ lọt (fail-closed).
+ */
+const scanTargetFor = (rel, raw) => {
+  const ext = extname(rel).toLowerCase();
+  if (ext === ".md") return "";
+  if (ext === ".json") {
+    try {
+      const decoded = JSON.parse(raw);
+      if (decoded && typeof decoded === "object") return JSON.stringify(stripNarrativeFields(decoded)).toLowerCase();
+    } catch {
+      // không parse được: giữ nguyên raw bên dưới.
+    }
+  }
+  if (ext === ".yaml" || ext === ".yml") {
+    try {
+      const decoded = yaml.load(raw);
+      if (decoded && typeof decoded === "object") return JSON.stringify(stripNarrativeFields(decoded)).toLowerCase();
+    } catch {
+      // YAML không parse được: giữ nguyên raw bên dưới.
+    }
+  }
+  return raw.toLowerCase();
+};
 
 const walkFiles = (relDir, predicate) => {
   const out = [];
@@ -304,9 +357,10 @@ const walkFiles = (relDir, predicate) => {
   const historicalDrift = [];
 
   for (const rel of artifacts) {
-    const raw = readFileSync(abs(rel), "utf8").toLowerCase();
+    const raw = readFileSync(abs(rel), "utf8");
+    const scanTarget = scanTargetFor(rel, raw);
     const nameHit = FORBIDDEN_SURFACE_FRAGMENTS.filter((fragment) => rel.toLowerCase().includes(fragment));
-    const bodyHit = FORBIDDEN_SURFACE_FRAGMENTS.filter((fragment) => raw.includes(fragment));
+    const bodyHit = FORBIDDEN_SURFACE_FRAGMENTS.filter((fragment) => scanTarget.includes(fragment));
     const hits = [...new Set([...nameHit, ...bodyHit])];
     if (hits.length === 0) continue;
 

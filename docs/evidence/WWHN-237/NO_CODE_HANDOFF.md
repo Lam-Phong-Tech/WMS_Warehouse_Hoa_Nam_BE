@@ -55,6 +55,20 @@ trước đây đều xanh trong khi hợp đồng vẫn khai capability bị c�
 Ngoài ra `Flow05InventoryControlAlignmentTest::test_published_contract_artifacts_carry_no_stocktake_capability`
 **đang đỏ sẵn trên `m1`** trước task này (2 offender). Nay xanh — xem §5.
 
+3. **Gate `verify-wwhn237-variance-report-disposition.mjs` (check `CONTRACT-SURFACE`) báo FAIL
+   giả trên pack sống `docs/api-contract/releases/WWHN-190/1.8.0/{openapi.json,openapi.yaml,
+   CHANGELOG.md}`.** Pack này (WWHN-190, `DEC-API-POSTING-002`) ghi lại việc gỡ
+   `/stocktake/sessions/{id}/apply-adjustment` đúng khuôn `x-removed-surfaces` +
+   `x-supersedes` mà `DISP-STK-236 §3` đã xác lập — tức đây là **bằng chứng tuân thủ**
+   REQ-SRS-037, không phải capability sống, nhưng gate cũ so needle trên raw string nên
+   không phân biệt được. Sửa gate để parse JSON/YAML và gỡ khối tường thuật
+   (`x-removed-surfaces`, `x-supersedes`, `description`, `summary`, `reason`,
+   `declared_in`, `notes`, `title`) trước khi so needle, và bỏ qua `.md` — **cùng đúng
+   danh sách khoá** mà `Flow05InventoryControlAlignmentTest::stripStocktakeNarrativeFields`
+   (PHP, do nhánh WWHN-190/260 thêm) đã dùng, để hai gate không lệch nhau. Đã kiểm chứng
+   gate vẫn fail đúng khi tiêm một path `stocktake` sống thật vào `paths` (không nằm
+   trong khối tường thuật) — không nới lỏng guard, chỉ hết false positive.
+
 ## 4. Ranh giới cố ý không đụng tới
 
 Theo `DISP-STK-236 §3`: một immutable handoff artifact chỉ được superseded bằng decision record
@@ -72,6 +86,7 @@ trỏ tới nó, **không bao giờ bằng cách sửa nội dung**. Các file s
 |---|---|
 | `docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/{openapi.yaml,reversal.schema.json}`: `CreateReversalRequest.original_document_type` còn enum `ADJUSTMENT`, trong khi runtime chỉ sinh `INBOUND`/`OUTBOUND`. Release là immutable `PROPOSED`, reviewer verify theo digest trong `RELEASE_MANIFEST.json` | `WWHN-26` / `WWHN-134` (DEC-REV-001) |
 | `docs/evidence/WWHN-180/REPOSITORY_SHA256SUMS`: 3 mismatch có sẵn trước WWHN-237 (`StockDocumentService.php`, `verify-wwhn180-evidence.mjs`, `StockDocumentConcurrencyGuardTest.php`) | `WWHN-180` |
+| FE `npm run check:api-mapping` (`fe-api-mapping`, xem `docs/evidence/WWHN-237/logs/fe-api-mapping.txt`) FAIL vì `docs/api-evidence/BE_CONTRACT_PIN.json` lệch với `swagger-api.json` hiện hành (pinned `8326d505e5c7` vs current) — bề mặt lệch không chứa `stocktake`/`variance`, chỉ là contract pin đã cũ do BE tiến thêm (vd. WWHN-190 v1.8.0). Không phải hồi quy no-Stocktake của WWHN-237/WWHN-296; cần `npm run contract:sync` chạy bởi chủ artifact | `WWHN-309` (BE contract handover/pin) |
 
 ## 5. Cách tái lập
 
