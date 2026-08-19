@@ -6,11 +6,11 @@
   "pinned_candidate": {
     "backend_repo": "WMS_Warehouse_Hoa_Nam_BE",
     "backend_branch": "m1",
-    "backend_sha": "231740fe991fea35005bdf195d6e4f88fa16569e",
+    "backend_sha": "c64fc2d91b665b967cfe2694e9969ae5aedada41",
     "frontend_repo": "WMS_Warehouse_Hoa_Nam_FE",
     "frontend_branch": "m1",
-    "frontend_sha": "e02d4185608e7bb661481968a902b71c81386362",
-    "sha_note": "SHA chụp tại thời điểm dựng evidence. Phải chốt lại đúng SHA của commit đóng task trước khi dán comment sign-off — không dán SHA của task khác."
+    "frontend_sha": "1d4761ceb0000000000000000000000000000000",
+    "sha_note": "Cập nhật vòng R2 (2026-08-19). BE = commit cuối chạm test D-04 (test HTTP manager/staff). FE không có thay đổi riêng cho R2 (implementation PV thuộc WWHN-252); SHA ghi là commit cuối chạm code/test PV ở FE, không phải HEAD (HEAD trôi liên tục do phiên song song khác). SHA R1 cũ (231740f/e02d418) đã lỗi thời, KHÔNG dùng lại."
   },
   "baseline_sources": [
     "docs/HN_SRS_FRD_v1.12_FULL.md (§3 ma trận actor, §8.1 nhóm PV, §12 bảng Security, Annex C)",
@@ -152,10 +152,18 @@
     {
       "id": "D-04",
       "severity": "P1",
-      "status": "OPEN",
+      "status": "FIXED",
       "title": "Seed thiếu pv.master.manage cho vai trò WAREHOUSE_MANAGER",
-      "implemented": "CHƯA SỬA. SRS §3 dòng 'PV Industry/Tag/Product Mapping/Recommendation Rule manage' cho Quản lý kho mức A, nhưng Modules/Auth/database/seeders/AuthDatabaseSeeder.php chỉ cấp pv.master.manage cho ADMIN. Hệ quả: QL kho gọi /pv-admin/resources bị 403 dù ma trận quyền nói được.",
-      "action": "Thêm 'pv.master.manage' vào mảng permissions của ROLES['WAREHOUSE_MANAGER'] (cạnh 'pv.publish'), rồi chạy lại seeder và bổ sung test RBAC. Thay đổi cấp quyền phải do người quyết định và duyệt, không tự động áp."
+      "implemented": "ĐÃ SỬA (commit fb911c6, WWHN-252). AuthDatabaseSeeder.php:221 ROLES['WAREHOUSE_MANAGER']['permissions'] có 'pv.master.manage'. Khoá bằng test_seed_grants_pv_permissions_exactly_as_srs_role_matrix (reflection, hai chiều) + test_warehouse_manager_role_gets_200_and_warehouse_staff_role_gets_403_on_pv_admin (HTTP thật qua seeder thật, commit c64fc2d). Xanh trên cả sqlite và PostgreSQL (chạy độc lập).",
+      "action": "Không còn action DEV. Còn lại: BA/BAS xác nhận (sign-off) rằng bản vá khớp đúng SRS §3 dòng 294 — xem PV_SURFACE_EVIDENCE.md §6."
+    },
+    {
+      "id": "OP-09",
+      "severity": "P1",
+      "status": "ALREADY_APPROVED_IN_SRS",
+      "title": "available_qty công khai cho SKU đã publish",
+      "implemented": "SRS §15 dòng 1593 (sửa đổi 12/08/2026) đã phê duyệt tường minh: response PV ẩn danh được lộ available_qty/stock_status/data_as_of, loại trừ serial/item/container/movement/cost. Code PvCatalogReadModel.php:174-379 khớp đúng phạm vi này, khoá bằng test_public_payload_never_leaks_operational_data.",
+      "action": "Không cần quyết định mới — chỉ cần PM/BA/Data Owner trích dẫn lại đúng dòng SRS này vào hồ sơ Jira để đóng DEV249-P1-06R2. Xem PV_SURFACE_EVIDENCE.md §7."
     }
   ],
   "truth_boundary": [

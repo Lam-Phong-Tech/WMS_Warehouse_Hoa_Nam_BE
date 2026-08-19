@@ -6,8 +6,10 @@ Verifier fail-closed: `node scripts/verify-wwhn-249-closure.mjs`.
 | Hạng mục | Giá trị |
 | --- | --- |
 | Canonical branch | `m1` (không có nhánh riêng cho task này) |
-| BE SHA khi dựng evidence | `231740fe991fea35005bdf195d6e4f88fa16569e` |
-| FE SHA khi dựng evidence | `e02d4185608e7bb661481968a902b71c81386362` |
+| BE SHA đóng R2 (chạm D-04 + test HTTP) | `c64fc2d91b665b967cfe2694e9969ae5aedada41` |
+| FE SHA đối chiếu (commit cuối chạm code/test PV) | `1d4761ceb...` (`chore(format): chay prettier cho 17 file drift`) — không có thay đổi FE riêng cho vòng R2 vì implementation PV nằm ở WWHN-252 |
+| BE SHA R1 (đã lỗi thời, KHÔNG dùng để sign-off) | ~~`231740fe991fea35005bdf195d6e4f88fa16569e`~~ |
+| FE SHA R1 (đã lỗi thời, KHÔNG dùng để sign-off) | ~~`e02d4185608e7bb661481968a902b71c81386362`~~ |
 | OpenAPI runtime | `storage/api-docs/api-docs.json` — 231 operation, SHA-256 `f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593` |
 | Ma trận endpoint×permission | `docs/api-contract/HN-BE-API-003_ENDPOINT_PERMISSION_MATRIX.md` (231 operation) |
 
@@ -57,22 +59,26 @@ Nguồn: SRS §3 (ma trận vai trò) + Annex C (permission theo operation) + se
 | Role | `sku.manage` | `pv.publish` | `pv.master.manage` | Khớp §3? |
 | --- | --- | --- | --- | --- |
 | ADMIN | có | có | có | ✔ |
-| WAREHOUSE_MANAGER (QL kho) | có | có | **KHÔNG** | ✘ — xem **D-04** |
+| WAREHOUSE_MANAGER (QL kho) | có | có | **có** (từ commit `fb911c6`) | ✔ — **D-04 đã đóng**, xem §6 |
 | WAREHOUSE_STAFF / APPROVER / KEEPER | không | không | không | ✔ (mức V*, chưa được gán) |
 | WARRANTY_STAFF | không | không | không | ✔ (D) |
 | LEADERSHIP | không | không | không | xem **D-01** |
 
-**Hai điểm BA phải xử lý trước khi ký:**
+**Một điểm BA còn phải quyết trước khi ký (D-04 và OP-09 đã đóng, xem §6/§7):**
 
 - **D-01** — §3 cho NV kho `V*` và Lãnh đạo `V` trên dòng PV master, nhưng Annex C
-  chỉ khai **một** key `pv.master.manage` cho cả ba operation. Hiện enforce theo
-  Annex C (fail-closed); nhu cầu chỉ-xem được phục vụ bằng nhóm PV public. Muốn
-  có mức xem thật trên dữ liệu **chưa** publish thì phải thêm `pv.master.view`
-  vào Annex C — đó là đổi contract, không phải sửa code.
-- **D-04** — seed thiếu `pv.master.manage` cho `WAREHOUSE_MANAGER` trong khi §3
-  ghi mức `A`. Hệ quả: QL kho gọi `/pv-admin/resources` bị `403` dù ma trận nói
-  được. Bản vá đúng một dòng, nằm ở §6 dưới đây; **chưa áp** vì đây là thay đổi
-  cấp quyền, phải có người duyệt.
+  chỉ khai **một** key `pv.master.manage` cho cả ba operation (không có biến thể
+  `.view`, khác với các dòng khác trong cùng bảng §3 — vd. `warehouse.view` /
+  `warehouse.manage` — vốn luôn tách hai key). Hiện enforce theo Annex C
+  (fail-closed): NV kho/Lãnh đạo không có quyền GET `/pv-admin/resources` dù bảng
+  ghi V*/V; nhu cầu chỉ-xem dữ liệu **đã** publish được phục vụ bằng nhóm PV
+  public (ẩn danh, không cần quyền). **Còn thiếu** là quyền xem dữ liệu **chưa**
+  publish (bản nháp chưa publish trong `/pv-admin/resources`). Hai lựa chọn cho
+  BA, không lựa chọn nào cần code ngay: (a) xác nhận hiện trạng đã đủ — vai trò
+  "V*/V" được thoả mãn gián tiếp qua kênh public cho dữ liệu published, không cần
+  xem riêng dữ liệu draft; hoặc (b) yêu cầu thêm key `pv.master.view` vào Annex C
+  cho NV kho (khi được gán)/Lãnh đạo xem cả draft — đây là thay đổi contract,
+  DEV sẽ làm sau khi có quyết định bằng văn bản.
 
 ---
 
@@ -135,12 +141,18 @@ Lệnh (SQLite in-memory, driver mặc định của `phpunit.xml`):
 php vendor/bin/phpunit --filter "Wwhn249PvSurfaceGovernanceTest|Wwhn252PvContractTest|DocumentationBaselineContractTest|SwaggerRouteSyncTest|MasterDataGovernanceTest"
 ```
 
-Kết quả tại SHA pin: **47 test — 45 PASS, 0 FAIL, 2 SKIP**, 2.827 assertion.
-Hai test skip là cổng chỉ chạy trên PostgreSQL; **không** được đọc là PASS.
+Kết quả tại SHA `c64fc2d` (cập nhật R2, thay số liệu R1 phía trên):
+`Wwhn249PvSurfaceGovernanceTest` + `Wwhn252PvContractTest` gộp — **sqlite 30/30
+PASS**; PostgreSQL 29/30 PASS (1 lỗi driver-only ngoài phạm vi, xem §6).
+`node scripts/verify-wwhn-249-closure.mjs` PASS tại đúng SHA này (9 route công
+khai đã chốt, 8 operation Annex C khớp route table/OpenAPI/baseline contract).
 
-Full suite BE cùng thời điểm: 922 test / 891 pass / 28 skip / 3 fail — cả 3 fail
-đều **ngoài** phạm vi WWHN-249 (2 thuộc WWHN-236 + pin read model WWHN-252, 1 đã
-được đóng trong phiên này là `SwaggerRouteSyncTest`).
+FE (`WMS_Warehouse_Hoa_Nam_FE`, vitest): `src/test/wwhn-252-pv-contract.test.ts`
++ toàn bộ `src/modules/pv/**` — **4 file / 39 test PASS**. E2E QA2 responsive
+(`e2e/wwhn-253-pv-qa2-responsive.spec.ts`, 28 test / 32 ô) đã PASS ở lần đóng
+WWHN-252 vòng 2 (19/08); không chạy lại trong phiên này (không có thay đổi UI
+PV kể từ đó, chưa re-run để tiết kiệm thời gian — nếu QA1 cần bằng chứng mới
+nhất, chạy lại `npx playwright test wwhn-253-pv-qa2-responsive.spec.ts`).
 
 Điểm QA1 vẫn phải tự chứng minh trên build thật tại exact SHA: auth, assignment,
 positive/negative filter, field của detail, `403`, `409`, pagination và
@@ -156,21 +168,64 @@ no-stock-side-effect.
 | Header `If-Match` của `updatePvAdminResource` | **Đã sửa**: `RouteSyncProcessor` trước đây chỉ quét helper 1 tầng nên bỏ sót header bắt buộc; nay quét đệ quy → contract khai đúng |
 | Ma trận endpoint×permission | Sinh lại, 231 operation |
 | Baseline contract | Đăng ký thêm 5 operation PV mới (`docs/contracts/HoaNam_Current_Baseline_Contract.json`) — nếu không, cổng `DocumentationBaselineContractTest` đỏ vì surface phình mà không ai review |
-| PR/commit + build ID trên Jira | **Còn thiếu** — thao tác của người |
+| PR/commit + build ID trên Jira | **Còn thiếu** — thao tác của người; không có build/CI ID vì theo chỉ đạo hiện tại KHÔNG chạy GitHub Actions (ngân sách phút CI đã hết). Disposition thay thế: commit trực tiếp trên `m1` (không PR) tại SHA `c64fc2d`, cổng chạy **local** — xem §4. |
+| `docs/api-evidence/BE_CONTRACT_PIN.json` (FE, pin OpenAPI toàn cục) | **Lệch** so với BE HEAD hiện tại (`npm run sync-be-openapi` báo hash mismatch) — đây là hạ tầng pin dùng CHUNG cho nhiều ticket (thấy cả ở WWHN-309), không riêng WWHN-249. Không re-pin trong phiên này để tránh đụng bằng chứng của ticket khác đang treo trên cùng file; không chặn sign-off WWHN-249 vì bằng chứng đặc thù PV (route table + OpenAPI runtime + test) đã tự chứng minh nhất quán ở §4. |
 
 ---
 
-## 6. Bản vá còn treo cho D-04 (chưa áp)
+## 6. D-04 — ĐÃ ÁP (đóng)
 
-`Modules/Auth/database/seeders/AuthDatabaseSeeder.php`, mảng
-`ROLES['WAREHOUSE_MANAGER']['permissions']`, ngay sau `'pv.publish',`:
+`Modules/Auth/database/seeders/AuthDatabaseSeeder.php:221`, mảng
+`ROLES['WAREHOUSE_MANAGER']['permissions']`, đã có `'pv.master.manage'` (commit
+`fb911c6`, WWHN-252). Khoá bằng hai lớp test độc lập trong
+`Wwhn249PvSurfaceGovernanceTest.php` (commit `c64fc2d`):
 
-```php
-// SRS §3 dòng "PV Industry/Tag/Product Mapping/Recommendation Rule manage" cho
-// Quản lý kho mức A; seed hiện chỉ cấp pv.master.manage cho ADMIN nên QL kho bị
-// 403 dù ma trận quyền nói được.
-'pv.master.manage',
-```
+1. `test_seed_grants_pv_permissions_exactly_as_srs_role_matrix` — reflection trên
+   `AuthDatabaseSeeder::ROLES`, khẳng định **đúng và chỉ đúng** `{ADMIN,
+   WAREHOUSE_MANAGER}` có cả `pv.publish` lẫn `pv.master.manage`; vai khác (kể cả
+   `WAREHOUSE_STAFF`, `LEADERSHIP`) có key thì đỏ ngay (không phải chỉ thiếu key
+   mới đỏ).
+2. `test_warehouse_manager_role_gets_200_and_warehouse_staff_role_gets_403_on_pv_admin`
+   — bằng chứng HTTP thật qua `AuthDatabaseSeeder` thật (không phải permission rời
+   rạc): đăng nhập vai `WAREHOUSE_MANAGER` → `GET /pv-admin/resources/industries`
+   trả `200`; đăng nhập vai `WAREHOUSE_STAFF` → cùng route trả `403`.
 
-Sau khi áp: chạy lại seeder và bổ sung một test RBAC khẳng định role
-`WAREHOUSE_MANAGER` gọi `GET /api/v1/pv-admin/resources/industries` trả `200`.
+Kết quả `Wwhn249PvSurfaceGovernanceTest` (9 test) tại SHA `c64fc2d`:
+- sqlite: **9/9 PASS**.
+- PostgreSQL (`hoa_nam_audit`, chạy độc lập tránh race với phiên khác): **9/9
+  PASS**.
+
+`Wwhn252PvContractTest` (21 test, cùng ngày): sqlite **21/21 PASS**; PostgreSQL
+**20/21 PASS** — 1 lỗi `test_public_list_returns_only_active_published_sku_with_available_qty`
+do trigger `hn_erd_guard_pv_publish_active_sku` chặn UPDATE `sku.status` sau khi
+đã publish, tái hiện được khi chạy riêng lẻ (không phải race). Đây là hành vi
+**chỉ có trên PostgreSQL**, thuộc code/test của WWHN-252 (không phải register
+WWHN-249), **chưa sửa trong phiên này** — ngoài phạm vi 7 hạng mục P0/P1/P2 của
+R2.
+
+---
+
+## 7. OP-09 — chính sách `available_qty` công khai (đã có phê duyệt)
+
+SRS §15 (sửa đổi 12/08/2026, dòng 1593) — trích nguyên văn: *"REQ/BR/AC/TC – App
+PV (OP-09). Anonymous public PV responses expose published SKU available_qty,
+stock_status and data_as_of only; they exclude serial/item/container/movement/
+cost and internal operational data."* Cùng nội dung tại REQ-SRS-018 (dòng 319):
+*"PV hiển thị available_qty kho tổng, read-only"*, AC *"không lộ
+item/container/movement/cost; không stock effect"*.
+
+Implementation khớp đúng phạm vi này:
+`Modules/Warehouse/app/Services/PvCatalogReadModel.php:174-192` tính
+`available_qty` bằng `SUM(inventory_balances.available_qty) WHERE stock_status =
+'AVAILABLE'` theo SKU (tổng kho, không phải theo từng kho/item), dòng 360 ép
+`int` + `round()`, dòng 377-379 chỉ xuất `available_qty` / `stock_status` /
+`stock_label` — không có field vận hành khác. `test_public_payload_never_leaks_operational_data`
+(`Wwhn252PvContractTest.php:66`) khoá bằng test: response không được chứa
+`warehouse_id/item_id/container_id/serial_number/movement/cost/reserved_qty/
+on_hand_qty`.
+
+**Kết luận**: đây không phải một quyết định còn treo — SRS đã phê duyệt tường
+minh việc lộ `available_qty` chính xác cho SKU đã publish, và code hiện tại
+khớp đúng phạm vi đó. Phần "chưa duyệt" mà R2 nêu chỉ là **chưa có ai trích dẫn
+lại đúng dòng SRS này** trong hồ sơ Jira/PR — không phải thiếu quyết định
+nghiệp vụ.
