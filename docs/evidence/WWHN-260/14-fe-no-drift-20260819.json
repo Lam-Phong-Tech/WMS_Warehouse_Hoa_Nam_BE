@@ -1,0 +1,35 @@
+{
+  "check": "FE_SHA_PIN_NO_DRIFT",
+  "ticket": "WWHN-260",
+  "register_item": "DEV260-P1-07R2",
+  "date": "2026-08-19",
+  "reason": "R2 register yeu cau pin exact implementation SHA, khong chap nhan generic HEAD. Ban dau chi kiem no-drift ben BE (07-source-and-build-disposition.md #7.6); FE chua duoc doi chieu.",
+  "pinned_fe_sha": "e02d4185608e7bb661481968a902b71c81386362",
+  "fe_head_checked_at": "f9f2e65e687669f033d259a693635546876f05a8",
+  "commits_touching_pinned_deliverable_after_pin": [
+    {
+      "sha": "1d4761c2161bc13621a4c3d4fa2ff60504839eb3",
+      "message": "chore(format): chay prettier cho 17 file drift dang chan gate format cua ca nhanh",
+      "file": "src/test/wwhn-260-migration-operational-only.test.ts",
+      "diff_kind": "formatting_only",
+      "diff_summary": "Line-wrap lai loi goi path.resolve(...) tu 1 dong thanh 3 dong (prettier). Khong doi assertion, khong doi import, khong doi logic test.",
+      "verification_command": "git diff e02d4185608e7bb661481968a902b71c81386362 f9f2e65e687669f033d259a693635546876f05a8 -- src/test/wwhn-260-migration-operational-only.test.ts"
+    }
+  ],
+  "other_commits_since_pin": {
+    "count_total": 46,
+    "count_touching_wwhn260_paths": 1,
+    "note": "45 commit con lai khong dung den src/test/wwhn-260-migration-operational-only.test.ts (kiem bang git log e02d4185..HEAD -- <file>)."
+  },
+  "test_result_at_fe_head": {
+    "command": "npx vitest run src/test/wwhn-260-migration-operational-only.test.ts",
+    "result": "4 passed (4)",
+    "run_at": "2026-08-19"
+  },
+  "test_result_at_be_head": {
+    "be_head_checked_at": "c64fc2d",
+    "command": "php vendor/bin/phpunit tests/Feature/Wwhn260MigrationPackClosureTest.php",
+    "result": "10 passed (10), 54 assertions"
+  },
+  "conclusion": "Khong co drift chuc nang o ca hai repo tinh den thoi diem kiem. FE: pin e02d4185... van la commit CHUC NANG cuoi cung cham deliverable; 1d4761c la commit format-only da doi chieu va khong doi noi dung kiem. BE: khong commit nao sau 59e82b7 (toi c64fc2d) dung toi pham vi migration pack. implementation_sha giu nguyen b90d5ef67c6577db166fdac00f1323741ccfd888 (BE) / e02d4185608e7bb661481968a902b71c81386362 (FE, commit chuc nang cuoi)."
+}
