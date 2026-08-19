@@ -28,8 +28,14 @@ class AlignedWarrantyReportController extends Controller
 
     private const ALL_STATUSES = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'];
 
-    /** §13.8: lý do xuất PII phải đủ dài để làm evidence audit, không nhận "x". */
-    private const PII_REASON_MIN_LENGTH = 5;
+    /**
+     * §13.8: lý do xuất PII phải đủ dài để làm evidence audit, không nhận "x".
+     *
+     * Public vì `OperationalReportController::createExport()` phải từ chối sớm
+     * theo ĐÚNG ngưỡng này (WWHN-258 / FE258-P1-04); hai bản sao rời nhau sẽ trôi
+     * khỏi nhau và tạo ra hai endpoint cùng nghiệp vụ nhưng khác hợp đồng.
+     */
+    public const PII_REASON_MIN_LENGTH = 5;
 
     #[OA\Get(path: '/api/v1/reports/warranty-defects', operationId: 'getWarrantyDefectReport', summary: 'Annex C getWarrantyDefectReport — RPT-WAR-01/RPT-WAR-COMP-01', description: '§13.10 RPT-WAR-01 + RPT-WAR-COMP-01: case, SKU/model hoặc UNKNOWN_MODEL, defect, status, received/returned, turnaround, linh kiện đã xuất (chỉ purpose=WARRANTY, case active lúc Post). §13.8: customer_name/phone/address luôn trả ở dạng mask trên API (pii_masked=true); TEMP_ONLY được đếm riêng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'])), new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'model', in: 'query', description: 'SKU code/name hoặc mô tả thủ công của case TEMP_ONLY', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'identification_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['IDENTIFIED', 'TEMP_ONLY'])), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'WarrantyDefectReportPage — không chứa PII thô')])]
     public function index(Request $request)

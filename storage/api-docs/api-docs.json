@@ -21411,7 +21411,7 @@
                     "12. Dashboard / Report"
                 ],
                 "summary": "Annex C createReportExport — tạo job xuất báo cáo",
-                "description": "REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp.",
+                "description": "REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp. §13.8: với report_code=warranty-defects, filters.reason kèm quyền thiếu warranty.pii.export → 403 PERMISSION_DENIED và filters.reason ngắn hơn 5 ký tự → 422 PII_EXPORT_REASON_INVALID, kiểm ngay khi tạo job nên không sinh ExportJob lẫn audit; bỏ trống reason thì file vẫn xuất ở dạng đã mask.",
                 "operationId": "createReportExport",
                 "parameters": [
                     {

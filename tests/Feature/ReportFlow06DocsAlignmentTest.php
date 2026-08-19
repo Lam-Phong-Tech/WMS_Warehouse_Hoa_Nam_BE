@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Agency;
@@ -192,6 +193,64 @@ class ReportFlow06DocsAlignmentTest extends TestCase
             ->assertJsonPath('error.code', 'PII_EXPORT_REASON_INVALID');
     }
 
+    // ── WWHN-258 · FE258-P1-04: job export cùng hợp đồng PII với file ────────
+
+    /**
+     * `POST /reports/export` chỉ gác `report.export`, còn quyền PII được kiểm ở
+     * bước tải file. Nếu job vẫn được tạo cho một request chắc chắn 403 thì hệ
+     * thống để lại `REPORT_EXPORT_REQUESTED` cho một lần export không bao giờ xảy
+     * ra được — người đọc audit không phân biệt nổi với export hợp lệ. Gate phải
+     * chạy TRƯỚC khi job và audit ra đời.
+     */
+    public function test_export_job_rejects_pii_reason_without_the_pii_permission(): void
+    {
+        $exporterToken = $this->createReportExporterWithoutPii();
+
+        $this->postJson('/api/v1/reports/export', [
+            'report_code' => 'warranty-defects',
+            'format' => 'xlsx',
+            'filters' => ['reason' => 'Doi soat khieu nai 8891'],
+        ], [
+            'Authorization' => "Bearer {$exporterToken}",
+            'Idempotency-Key' => 'wwhn258-denied-key-01',
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'PERMISSION_DENIED');
+
+        $this->assertDatabaseMissing('audit_log', ['action' => 'REPORT_EXPORT_REQUESTED']);
+    }
+
+    public function test_export_job_rejects_a_reason_shorter_than_the_documented_minimum(): void
+    {
+        $this->postJson('/api/v1/reports/export', [
+            'report_code' => 'warranty-defects',
+            'filters' => ['reason' => 'abc'],
+        ], [
+            'Authorization' => "Bearer {$this->token}",
+            'Idempotency-Key' => 'wwhn258-short-reason-01',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'PII_EXPORT_REASON_INVALID');
+
+        $this->assertDatabaseMissing('audit_log', ['action' => 'REPORT_EXPORT_REQUESTED']);
+    }
+
+    /** Không gửi reason vẫn hợp lệ với mọi actor: file xuất ra ở dạng đã mask. */
+    public function test_export_job_without_reason_is_allowed_for_an_actor_without_pii_permission(): void
+    {
+        $exporterToken = $this->createReportExporterWithoutPii();
+
+        $this->postJson('/api/v1/reports/export', [
+            'report_code' => 'warranty-defects',
+            'format' => 'xlsx',
+        ], [
+            'Authorization' => "Bearer {$exporterToken}",
+            'Idempotency-Key' => 'wwhn258-masked-key-01',
+        ])
+            ->assertStatus(201)
+            ->assertJsonPath('data.report_code', 'warranty-defects');
+    }
+
     // ── §5.6 BR-EXP-03 ───────────────────────────────────────
 
     /** Tên file phải mang dấu thời gian để hai lần xuất không ghi đè nhau. */
@@ -373,6 +432,40 @@ class ReportFlow06DocsAlignmentTest extends TestCase
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
 
         return [$user, JWTAuth::fromUser($user)];
+    }
+
+    /**
+     * Actor có `report.view` + `report.export` nhưng KHÔNG có `warranty.pii.export`
+     * — đúng hình dạng của WAREHOUSE_STAFF/LEADERSHIP trong AuthDatabaseSeeder.
+     * Role không mang scope_type SUPER_ADMIN nên CheckPermission không bypass.
+     */
+    private function createReportExporterWithoutPii(): string
+    {
+        $role = Role::create([
+            'role_code' => 'REPORT_EXPORTER_NO_PII', 'role_name' => 'Xuất báo cáo, không PII',
+            'scope_type' => 'SYSTEM', 'status' => 'ACTIVE',
+        ]);
+        $user = User::create([
+            'username' => 'exporter-no-pii', 'display_name' => 'Exporter',
+            'email' => 'exporter-no-pii@wms.test', 'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE', 'version' => 1,
+        ]);
+        $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
+
+        // `RefreshDatabase` không chạy AuthDatabaseSeeder nên bảng `permission`
+        // rỗng; thiếu bước này thì actor bị `permission:report.export` chặn bằng
+        // ACCESS_DENIED và gate PII bên dưới không bao giờ được kiểm.
+        foreach (['report.view', 'report.export'] as $key) {
+            $permission = Permission::query()->firstOrCreate(
+                ['permission_key' => $key],
+                ['permission_name' => $key, 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
+            );
+            $role->permissions()->attach($permission->permission_id, [
+                'role_permission_id' => (string) Str::uuid(),
+            ]);
+        }
+
+        return JWTAuth::fromUser($user);
     }
 
     private function createMovement(string $type, float $qty, ?string $date = null): void

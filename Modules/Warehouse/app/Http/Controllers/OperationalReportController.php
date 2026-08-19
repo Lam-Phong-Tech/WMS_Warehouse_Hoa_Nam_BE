@@ -207,7 +207,7 @@ class OperationalReportController extends Controller
      * Idempotency-Key, trả ExportJob. BR-EXP-01: export dùng đúng filter/scope của
      * màn hình nên job giữ nguyên filter đã gửi; BR-EXP-02: mọi export đều audit.
      */
-    #[OA\Post(path: '/api/v1/reports/export', operationId: 'createReportExport', summary: 'Annex C createReportExport — tạo job xuất báo cáo', description: 'REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 200))], requestBody: new OA\RequestBody(required: true, description: 'ReportExportRequest', content: new OA\JsonContent(required: ['report_code'], properties: [new OA\Property(property: 'report_code', type: 'string', enum: ['inventory-balance', 'inventory-ledger', 'inventory-xnt', 'document-history', 'movement-trace', 'import-match', 'label-log', 'warranty-defects', 'outbound-by-agency']), new OA\Property(property: 'format', type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx'), new OA\Property(property: 'filters', type: 'object', description: 'Bộ lọc y hệt màn hình đang xem', additionalProperties: true)])), responses: [new OA\Response(response: 201, description: 'ExportJob', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'message', type: 'string'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'export_job_id', type: 'string', format: 'uuid'), new OA\Property(property: 'report_code', type: 'string'), new OA\Property(property: 'format', type: 'string'), new OA\Property(property: 'status', type: 'string', enum: ['READY']), new OA\Property(property: 'row_count', type: 'integer'), new OA\Property(property: 'download_url', type: 'string'), new OA\Property(property: 'requested_at', type: 'string', format: 'date-time')], type: 'object')]))])]
+    #[OA\Post(path: '/api/v1/reports/export', operationId: 'createReportExport', summary: 'Annex C createReportExport — tạo job xuất báo cáo', description: 'REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp. §13.8: với report_code=warranty-defects, filters.reason kèm quyền thiếu warranty.pii.export → 403 PERMISSION_DENIED và filters.reason ngắn hơn 5 ký tự → 422 PII_EXPORT_REASON_INVALID, kiểm ngay khi tạo job nên không sinh ExportJob lẫn audit; bỏ trống reason thì file vẫn xuất ở dạng đã mask.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 200))], requestBody: new OA\RequestBody(required: true, description: 'ReportExportRequest', content: new OA\JsonContent(required: ['report_code'], properties: [new OA\Property(property: 'report_code', type: 'string', enum: ['inventory-balance', 'inventory-ledger', 'inventory-xnt', 'document-history', 'movement-trace', 'import-match', 'label-log', 'warranty-defects', 'outbound-by-agency']), new OA\Property(property: 'format', type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx'), new OA\Property(property: 'filters', type: 'object', description: 'Bộ lọc y hệt màn hình đang xem', additionalProperties: true)])), responses: [new OA\Response(response: 201, description: 'ExportJob', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'message', type: 'string'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'export_job_id', type: 'string', format: 'uuid'), new OA\Property(property: 'report_code', type: 'string'), new OA\Property(property: 'format', type: 'string'), new OA\Property(property: 'status', type: 'string', enum: ['READY']), new OA\Property(property: 'row_count', type: 'integer'), new OA\Property(property: 'download_url', type: 'string'), new OA\Property(property: 'requested_at', type: 'string', format: 'date-time')], type: 'object')]))])]
     public function createExport(Request $request)
     {
         $validated = $request->validate([
@@ -222,6 +222,7 @@ class OperationalReportController extends Controller
         // body nên phải merge vào input trước khi builder chạy, nếu không job đếm
         // dòng trên TOÀN bộ dữ liệu (và báo cáo yêu cầu from_date sẽ 422 oan).
         $filters = $this->exportFilters($validated['filters'] ?? []);
+        $this->assertPiiExportAllowed($request, $reportCode, $filters);
         $request->merge($filters);
         $downloadUrl = self::EXPORT_DOWNLOAD_PATHS[$reportCode].'?'.http_build_query($filters + ['format' => $format]);
 
@@ -272,6 +273,45 @@ class OperationalReportController extends Controller
         $id = auth('api')->id();
 
         return $id === null ? null : (string) $id;
+    }
+
+    /**
+     * §13.8 Privacy Contract: "PII export requires warranty.pii.export + reason".
+     *
+     * WWHN-258 / FE258-P1-04. Cửa cấp PII thô vẫn chỉ có một là
+     * `AlignedWarrantyReportController::export()`; hàm này không nới thêm quyền gì,
+     * nó chỉ từ chối SỚM đúng những request mà cửa đó chắc chắn sẽ chặn. Không có
+     * nó thì một actor thiếu `warranty.pii.export` vẫn nhận 201 + `download_url`
+     * và để lại một bản audit `REPORT_EXPORT_REQUESTED` cho lần export không bao
+     * giờ xảy ra được — người đọc audit không phân biệt nổi với export hợp lệ.
+     *
+     * @param  array<string, string>  $filters
+     */
+    private function assertPiiExportAllowed(Request $request, string $reportCode, array $filters): void
+    {
+        if ($reportCode !== 'warranty-defects') {
+            return;
+        }
+
+        $reason = trim((string) ($filters['reason'] ?? ''));
+        if ($reason === '') {
+            // Không gửi reason là hợp lệ: file vẫn xuất nhưng đã mask.
+            return;
+        }
+
+        if (! $request->user()?->hasPermission('warranty.pii.export')) {
+            ApiError::abort(403, 'PERMISSION_DENIED', 'Xuất PII bảo hành cần quyền warranty.pii.export.', [
+                'required_permission' => 'warranty.pii.export',
+            ]);
+        }
+
+        $minLength = AlignedWarrantyReportController::PII_REASON_MIN_LENGTH;
+        if (mb_strlen($reason) < $minLength) {
+            ApiError::abort(422, 'PII_EXPORT_REASON_INVALID', 'Lý do xuất PII phải có ít nhất '.$minLength.' ký tự.', [
+                'field' => 'reason',
+                'min_length' => $minLength,
+            ]);
+        }
     }
 
     /**
