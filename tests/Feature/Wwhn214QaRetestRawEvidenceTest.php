@@ -524,9 +524,15 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         $movementId = $rowsBefore[0]['id'];
 
         // Tấn công trực tiếp tầng DB — đi vòng qua mọi guard Eloquent/service.
+        // Mỗi đòn bọc trong DB::transaction() lồng (savepoint): trên PostgreSQL,
+        // statement lỗi làm abort cả transaction bao ngoài của RefreshDatabase
+        // (SQLSTATE 25P02) — savepoint giữ transaction ngoài sống để đòn thứ hai
+        // và các truy vấn kiểm chứng phía sau vẫn đọc được message trigger thật.
         $updateError = null;
         try {
-            DB::table('stock_movements')->where('id', $movementId)->update(['qty_delta' => 999]);
+            DB::transaction(static function () use ($movementId): void {
+                DB::table('stock_movements')->where('id', $movementId)->update(['qty_delta' => 999]);
+            });
         } catch (QueryException $exception) {
             $updateError = $exception->getMessage();
         }
@@ -535,7 +541,9 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
 
         $deleteError = null;
         try {
-            DB::table('stock_movements')->where('id', $movementId)->delete();
+            DB::transaction(static function () use ($movementId): void {
+                DB::table('stock_movements')->where('id', $movementId)->delete();
+            });
         } catch (QueryException $exception) {
             $deleteError = $exception->getMessage();
         }
