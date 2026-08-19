@@ -83,6 +83,26 @@
     "scripts/wwhn184-post-receipt-worker.php": "ceba5523950dacf58b1a7b4625a6668c82f9cb25a2328e41d247ebf4015eac51",
     "tests/Feature/Wwhn184InboundContractParityTest.php": "c565bf798725afeab07a46eeb5b23b93f271f38871776c567f5e58d1022f0377",
     "tests/Feature/Wwhn184PostReceiptRuntimeConcurrencyTest.php": "b910292bd5b2a380aa5e483bca4a699f0905e59d123ed2c4c919ff309a3dd6ec",
-    ".github/workflows/wwhn-184-inbound-contract.yml": "8a5e411f0a98b8b962fe2888cda31b30b78aefd9a98568e62d7d14c23ead345f"
+    ".github/workflows/wwhn-184-inbound-contract.yml": "8a5e411f0a98b8b962fe2888cda31b30b78aefd9a98568e62d7d14c23ead345f",
+    "Modules/AuditLog/database/migrations/2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields.php": "8b6aa2ac69563c0ed3a72cf047cb53bfa1232b47d7a8a2fb91d37af5f3a4fce3",
+    "scripts/verify-wwhn184-candidate-pin.mjs": "f45ee3dce01a97925867828914c16a6dab2e848336bc24f0cbfd72ed130c3c8c"
+  },
+  "critical_dependencies": {
+    "Modules/AuditLog/database/migrations/2026_08_19_000001_add_event_catalog_fields_to_audit_log.php": "6cd89a20ad1fc92a474932f50a712a636f2740130fc4899425d7aaba9f21de99",
+    "Modules/AuditLog/database/migrations/2026_08_19_150000_align_audit_result_vocabulary_with_erd.php": "ba1350e3a5027daaf928a244270f9faa6032ade4362aa2749aef400d240de847",
+    "database/golive/fail_forward_allowlist.php": {
+      "extractor": "golive-allowlist-wwhn184-entries",
+      "sha256": "e834f38aa24b0a911704ba8d865634d25803ccf744f452770239c210920fe200",
+      "note": "DEV184-P1-05R4: file dùng chung nhiều ticket — hash chỉ tính trên 2 entry WWHN-184 khai (2026_08_19_000002 + 2026_08_19_130000); entry của ticket khác trong cùng file không làm đỏ pin. Đây là điều kiện để wms:golive-check WARN thay vì FAIL."
+    },
+    "note": "Các file KHÔNG thuộc sở hữu WWHN-184 nhưng candidate PASS phụ thuộc trực tiếp nội dung của chúng (chuỗi audit-fix: 000001 của WWHN-222 tạo cột catalog trên bảng vật lý, 000002 của WWHN-184 vá view pgsql, 150000 của WWHN-222 R2 chuẩn hoá vocabulary trên cùng view/trigger). Đổi bất kỳ dependency nào → pin đỏ → candidate phải retest."
+  },
+  "post_fix_candidate": {
+    "why": "DEV184-P1-05R4: QA report R3 ghi exact SHA đầu lượt test (dae5ff108a80330922b94cc0d439f474b58bbec5) trong khi PASS cuối cùng phát sinh SAU các fix trong lượt (pin extractor, audit view pgsql, golive allowlist). Ô này resolve MỘT candidate hậu-fix duy nhất để QA/TL/DevOps cùng tham chiếu.",
+    "sha_resolution": "post_fix_candidate.sha = git log -1 --format=%H -- <owned_artifacts ∪ critical_dependencies>. Verifier resolve động và FAIL nếu giá trị khai ở đây lệch kết quả resolve — chống rot khi có commit mới chạm tập pin sau khi QA ký.",
+    "sha": null,
+    "pre_fix_sha_in_r3_report": "dae5ff108a80330922b94cc0d439f474b58bbec5",
+    "range_invariant": null,
+    "qa_report_at_candidate": null
   }
 }

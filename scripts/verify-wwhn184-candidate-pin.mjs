@@ -58,66 +58,88 @@ const git = (...a) => {
   }
 };
 
-/* ---- File dùng chung cần pin theo khối route sở hữu, không hash cả tệp ---- */
+/* ---- File dùng chung cần pin theo khối sở hữu, không hash cả tệp ---- */
 const ROUTE_BLOCK_PATTERN = /Route::(?:get|post|patch)\(\s*'inbound-documents[^']*'[\s\S]*?;/g;
+// DEV184-P1-05R4: 2 entry fail-forward mà WWHN-184 khai trong allowlist dùng chung —
+// hash đúng 2 dòng khai báo đó, sửa entry của ticket khác không làm đỏ pin.
+const ALLOWLIST_ENTRY_PATTERN =
+  /'2026_08_19_(?:000002_fix_audit_log_pgsql_view_missing_event_catalog_fields|130000_sync_inbound_lines_mirror_deletes)'\s*=>\s*'[^']*'/g;
 const EXTRACTORS = {
   'inbound-route-block': content => {
     const matches = content.match(ROUTE_BLOCK_PATTERN) ?? [];
 
     return [...matches].sort().join('\n---\n');
   },
+  'golive-allowlist-wwhn184-entries': content => {
+    const matches = content.match(ALLOWLIST_ENTRY_PATTERN) ?? [];
+
+    return [...matches].sort().join('\n---\n');
+  },
 };
 
-/* ---- 1. Nội dung file thuộc sở hữu của WWHN-184 ---- */
+/* ---- 1. Nội dung file thuộc tập pin: sở hữu + critical dependency (P1-05R4) ---- */
 const owned = pin.owned_artifacts ?? {};
-const computed = {};
-for (const [relative, expected] of Object.entries(owned)) {
-  const absolute = path.resolve(relative);
-  if (!fs.existsSync(absolute)) {
-    failures.push(`Artifact bắt buộc bị thiếu: ${relative}`);
-    continue;
-  }
-  const extractorId = expected && typeof expected === 'object' ? expected.extractor : null;
-  if (extractorId) {
-    const extractor = EXTRACTORS[extractorId];
-    if (!extractor) {
-      failures.push(`${relative}: không rõ extractor "${extractorId}" khai trong pin.`);
+const dependencies = pin.critical_dependencies ?? {};
+const sections = [
+  ['owned_artifacts', owned],
+  ['critical_dependencies', dependencies],
+];
+const computedBySection = {owned_artifacts: {}, critical_dependencies: {}};
+for (const [sectionName, entries] of sections) {
+  const computed = computedBySection[sectionName];
+  for (const [relative, expected] of Object.entries(entries)) {
+    if (relative === 'note') continue; // metadata, không phải artifact
+    const absolute = path.resolve(relative);
+    if (!fs.existsSync(absolute)) {
+      failures.push(`Artifact bắt buộc bị thiếu (${sectionName}): ${relative}`);
       continue;
     }
-    computed[relative] = {extractor: extractorId, sha256: sha256text(extractor(fs.readFileSync(absolute, 'utf8')))};
-  } else {
-    computed[relative] = sha256(absolute);
+    const extractorId = expected && typeof expected === 'object' ? expected.extractor : null;
+    if (extractorId) {
+      const extractor = EXTRACTORS[extractorId];
+      if (!extractor) {
+        failures.push(`${relative}: không rõ extractor "${extractorId}" khai trong pin.`);
+        continue;
+      }
+      computed[relative] = {extractor: extractorId, sha256: sha256text(extractor(fs.readFileSync(absolute, 'utf8')))};
+    } else {
+      computed[relative] = sha256(absolute);
+    }
   }
 }
 
 if (write) {
-  pin.owned_artifacts = computed;
+  pin.owned_artifacts = computedBySection.owned_artifacts;
+  if (Object.keys(dependencies).length > 0) pin.critical_dependencies = computedBySection.critical_dependencies;
   pin.pinned_at_head = git('rev-parse', 'HEAD');
   pin.pinned_at_branch = git('rev-parse', '--abbrev-ref', 'HEAD');
   fs.writeFileSync(PIN_PATH, `${JSON.stringify(pin, null, 2)}\n`);
-  console.log(`WWHN-184 pin đã ghi lại ${Object.keys(computed).length} artifact tại HEAD ${pin.pinned_at_head}.`);
+  console.log(`WWHN-184 pin đã ghi lại ${Object.keys(computedBySection.owned_artifacts).length} artifact tại HEAD ${pin.pinned_at_head}.`);
   process.exit(failures.length === 0 ? 0 : 1);
 }
 
-for (const [relative, expected] of Object.entries(owned)) {
-  if (computed[relative] === undefined) continue;
-  if (expected === null) {
-    failures.push(`Pin chưa ghi hash cho ${relative} — chạy --write kèm review trước khi dùng làm evidence.`);
-    continue;
-  }
-  const isBlock = expected && typeof expected === 'object';
-  const expectedHash = isBlock ? expected.sha256 : expected;
-  const computedHash = isBlock ? computed[relative]?.sha256 : computed[relative];
-  if (computedHash !== expectedHash) {
-    failures.push(
-      isBlock
-        ? `Khối route sở hữu bởi WWHN-184 trong ${relative} đã đổi so với candidate đã pin (extractor "${expected.extractor}").\n` +
-          `        pinned  : ${expectedHash}\n` +
-          `        current : ${computedHash}`
-        : `Nội dung ${relative} đã đổi so với candidate đã pin.\n` +
-          `        pinned  : ${expectedHash}\n` +
-          `        current : ${computedHash}`,
-    );
+for (const [sectionName, entries] of sections) {
+  const computed = computedBySection[sectionName];
+  for (const [relative, expected] of Object.entries(entries)) {
+    if (computed[relative] === undefined) continue;
+    if (expected === null) {
+      failures.push(`Pin chưa ghi hash cho ${relative} — chạy --write kèm review trước khi dùng làm evidence.`);
+      continue;
+    }
+    const isBlock = expected && typeof expected === 'object';
+    const expectedHash = isBlock ? expected.sha256 : expected;
+    const computedHash = isBlock ? computed[relative]?.sha256 : computed[relative];
+    if (computedHash !== expectedHash) {
+      failures.push(
+        isBlock
+          ? `Khối sở hữu bởi WWHN-184 trong ${relative} (${sectionName}) đã đổi so với candidate đã pin (extractor "${expected.extractor}").\n` +
+            `        pinned  : ${expectedHash}\n` +
+            `        current : ${computedHash}`
+          : `Nội dung ${relative} (${sectionName}) đã đổi so với candidate đã pin.\n` +
+            `        pinned  : ${expectedHash}\n` +
+            `        current : ${computedHash}`,
+      );
+    }
   }
 }
 
@@ -159,6 +181,27 @@ if (pinnedHead !== null) {
   }
 }
 
+/* ---- 4. Post-fix exact candidate SHA (DEV184-P1-05R4) ----
+ * QA report R3 ghi SHA đầu lượt test (dae5ff1) trong khi PASS cuối cùng phát sinh SAU
+ * khi sửa defect — reviewer yêu cầu resolve MỘT candidate SHA hậu-fix duy nhất. Theo
+ * đúng sha_resolution của pin: candidate = commit cuối cùng chạm vào tập pin (owned ∪
+ * critical_dependencies). Nếu pin đã tuyên bố post_fix_candidate.sha thì giá trị đó
+ * phải khớp với kết quả resolve động — lệch nghĩa là có commit mới chạm tập pin sau
+ * khi QA ký, candidate phải được review lại. */
+const pinPaths = [...Object.keys(owned), ...Object.keys(dependencies)].filter(p => p !== 'note');
+const resolvedCandidate = pinPaths.length > 0 ? git('log', '-1', '--format=%H', '--', ...pinPaths) : null;
+const declaredCandidate = pin.post_fix_candidate?.sha ?? null;
+if (declaredCandidate !== null) {
+  if (!/^[0-9a-f]{40}$/.test(declaredCandidate)) {
+    failures.push(`post_fix_candidate.sha không phải SHA hợp lệ: ${declaredCandidate}`);
+  } else if (resolvedCandidate !== null && declaredCandidate !== resolvedCandidate) {
+    failures.push(
+      `post_fix_candidate.sha (${declaredCandidate}) khác commit cuối chạm tập pin (${resolvedCandidate}). ` +
+      'Có thay đổi trên tập pin sau khi QA ký — phải resolve lại candidate và retest.',
+    );
+  }
+}
+
 const report = {
   pin_id: pin.pin_id,
   jira: pin.jira,
@@ -166,6 +209,9 @@ const report = {
   pinned_at_head: pinnedHead,
   expect_sha: expectSha,
   artifact_count: Object.keys(owned).length,
+  dependency_count: Object.keys(dependencies).filter(k => k !== 'note').length,
+  declared_post_fix_candidate: declaredCandidate,
+  resolved_post_fix_candidate: resolvedCandidate,
   failures,
   status: failures.length === 0 ? 'PASS' : 'FAIL',
 };
@@ -181,4 +227,7 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`  - ${failure}`);
   process.exit(1);
 }
-console.log(`WWHN-184 candidate pin: PASS (${report.artifact_count} artifact, HEAD ${head})`);
+console.log(
+  `WWHN-184 candidate pin: PASS (${report.artifact_count} artifact + ${report.dependency_count} dependency, ` +
+  `candidate ${resolvedCandidate ? resolvedCandidate.slice(0, 8) : 'n/a'}, HEAD ${head})`,
+);
