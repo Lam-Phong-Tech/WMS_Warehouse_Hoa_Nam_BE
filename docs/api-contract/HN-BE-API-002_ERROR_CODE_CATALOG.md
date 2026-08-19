@@ -38,7 +38,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | 500 | `INTERNAL_SERVER_ERROR` | lỗi ngoài dự kiến, giao dịch đã rollback |
 | 503 | `SERVICE_UNAVAILABLE` | dependency bắt buộc không sẵn sàng |
 
-## 3. Danh mục error code (247 mã)
+## 3. Danh mục error code (248 mã)
 
 ### HTTP 400
 
@@ -46,7 +46,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | --- | --- | --- |
 | `BAD_REQUEST` | 1 | `app/Traits/ApiResponse.php (default map)` |
 | `INVALID_EXCEL_FILE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:579` |
-| `INVALID_HEADER` | 2 | `Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:206` |
+| `INVALID_HEADER` | 2 | `Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:208` |
 | `INVALID_PATH` | 1 | `Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php:99` |
 | `INVALID_QUERY` | 7 | `Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php:25` |
 | `MALFORMED_JSON` | 1 | `app/Http/Middleware/ApiConventionMiddleware.php:34` |
@@ -71,15 +71,15 @@ Không client nào được coi một trong hai là optional. `message` không b
 | Error code | Số lần dùng | Vị trí đầu tiên |
 | --- | --- | --- |
 | `COMPONENT_LINE_NOT_FOUND` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:135` |
-| `CONTAINER_ITEM_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:285` |
+| `CONTAINER_ITEM_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:330` |
 | `CONTAINER_NOT_FOUND` | 4 | `Modules/Warehouse/app/Services/ContainerService.php:75` |
 | `DOCUMENT_LINE_NOT_FOUND` | 4 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:51` |
-| `INBOUND_SCAN_ENTRY_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:82` |
-| `LABEL_NOT_FOUND` | 3 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:333` |
-| `MOVEMENT_NOT_FOUND` | 1 | `Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:372` |
-| `OUTBOUND_MATCH_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:170` |
+| `INBOUND_SCAN_ENTRY_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:135` |
+| `LABEL_NOT_FOUND` | 3 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:337` |
+| `MOVEMENT_NOT_FOUND` | 1 | `Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:374` |
+| `OUTBOUND_MATCH_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:223` |
 | `PHYSICAL_CODE_NOT_FOUND` | 5 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:344` |
-| `PUTAWAY_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/PutawayController.php:203` |
+| `PUTAWAY_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/PutawayController.php:246` |
 | `RESOURCE_NOT_FOUND` | 43 | `app/Traits/ApiResponse.php:104` |
 | `REVERSAL_NOT_FOUND` | 2 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:227` |
 | `SCAN_CODE_NOT_FOUND` | 3 | `Modules/Warehouse/app/Services/ScanClassificationService.php:66` |
@@ -100,38 +100,39 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `AGENCY_CODE_IMMUTABLE_AFTER_USE` | 1 | `Modules/Warehouse/app/Http/Controllers/AgencyController.php:211` |
 | `ALREADY_FULLY_REVERSED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:340` |
 | `BOX_IN_OTHER_ACTIVE_RECEIPT` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:130` |
-| `BOX_NOT_PUTAWAY_ELIGIBLE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:115` |
+| `BOX_NOT_PUTAWAY_ELIGIBLE` | 4 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:115` |
 | `BOX_NOT_RECEIVABLE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php:112` |
-| `CONCURRENCY_CONFLICT` | 8 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:74` |
-| `CONTAINER_CLOSED` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:142` |
+| `CONCURRENCY_CONFLICT` | 15 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:74` |
+| `CONTAINER_CLOSED` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:167` |
 | `CONTAINER_CODE_DUPLICATE` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:554` |
 | `CONTAINER_IMMUTABLE` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:80` |
-| `CONTAINER_NOT_EDITABLE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:196` |
+| `CONTAINER_NOT_EDITABLE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:241` |
 | `CONTAINER_STATE_CONFLICT` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:158` |
 | `CONTAINER_SUBLEDGER_CHANGED` | 1 | `Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:131` |
 | `DEFECT_CODE_IMMUTABLE_AFTER_USE` | 1 | `Modules/Warehouse/app/Http/Controllers/DefectCatalogController.php:202` |
-| `DOWNSTREAM_DEPENDENCY_EXISTS` | 4 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:518` |
+| `DOWNSTREAM_DEPENDENCY_EXISTS` | 7 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:535` |
 | `DUPLICATE_CODE_VALUE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:144` |
 | `DUPLICATE_COMPONENT_ITEM` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:167` |
 | `DUPLICATE_HARDWARE_UID` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:134` |
-| `DUPLICATE_ITEM_IN_DOCUMENT` | 2 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:671` |
+| `DUPLICATE_ITEM_IN_DOCUMENT` | 2 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:709` |
 | `DUPLICATE_ITEM_MATCH` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:628` |
 | `DUPLICATE_OUTBOUND_REQUEST_NO` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:270` |
 | `DUPLICATE_STOCK_EFFECT` | 2 | `Modules/Warehouse/app/Services/AlignedOutboundStockService.php:159` |
+| `IDEMPOTENCY_CONFLICT` | 1 | `app/Http/Middleware/ApiConventionMiddleware.php:192` |
 | `IMPORT_HAS_BLOCKING_ERRORS` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:213` |
 | `INVALID_WARRANTY_TRANSITION` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:320` |
-| `ITEM_ALREADY_IN_CONTAINER` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:214` |
+| `ITEM_ALREADY_IN_CONTAINER` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:259` |
 | `ITEM_ALREADY_MATCHED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:544` |
 | `ITEM_ALREADY_RECEIVING` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:573` |
-| `LABEL_SNAPSHOT_STALE` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:485` |
-| `LABEL_STATE_CONFLICT` | 2 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:344` |
-| `LEGACY_ITEM_LABEL_NOT_APPLICABLE` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:415` |
+| `LABEL_SNAPSHOT_STALE` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:489` |
+| `LABEL_STATE_CONFLICT` | 2 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:348` |
+| `LEGACY_ITEM_LABEL_NOT_APPLICABLE` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:419` |
 | `MASTER_CODE_IMMUTABLE_AFTER_USE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:248` |
-| `MATCH_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:181` |
+| `MATCH_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:234` |
 | `OUTBOUND_REQUEST_ALREADY_USED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:465` |
-| `PACKING_LABEL_ALREADY_CREATED` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:119` |
+| `PACKING_LABEL_ALREADY_CREATED` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:123` |
 | `PARENT_CONTAINER_NOT_AVAILABLE` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:399` |
-| `PHYSICAL_CODE_ALREADY_ASSIGNED` | 4 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:64` |
+| `PHYSICAL_CODE_ALREADY_ASSIGNED` | 4 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:92` |
 | `PHYSICAL_CODE_IN_OPEN_OUTBOUND` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:228` |
 | `PHYSICAL_CODE_NOT_ACTIVE` | 4 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:52` |
 | `PHYSICAL_RETURN_REQUIRED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:269` |
@@ -147,8 +148,8 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `SCAN_CODE_UNASSIGNED` | 1 | `Modules/Warehouse/app/Services/ScanResolver.php:50` |
 | `SCAN_CONTAINER_INACTIVE` | 2 | `Modules/Warehouse/app/Services/ScanClassificationService.php:276` |
 | `SCAN_CONTEXT_CONFLICT` | 1 | `Modules/Warehouse/app/Services/ScanClassificationService.php:414` |
-| `SCAN_ENTRY_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:93` |
-| `SCAN_ITEM_ALREADY_RECEIVED` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:333` |
+| `SCAN_ENTRY_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:146` |
+| `SCAN_ITEM_ALREADY_RECEIVED` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:332` |
 | `SCAN_LOCATION_UNKNOWN` | 1 | `Modules/Warehouse/app/Services/ScanClassificationService.php:369` |
 | `SCAN_SKU_INACTIVE` | 1 | `Modules/Warehouse/app/Services/CanonicalScanClassificationService.php:42` |
 | `SCAN_WAREHOUSE_MISMATCH` | 1 | `Modules/Warehouse/app/Services/ScanClassificationService.php:392` |
@@ -162,7 +163,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `SKU_VERSION_CONFLICT` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:465` |
 | `SOURCE_KEY_CONFLICT` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:106` |
 | `SOURCE_REQUEST_IMMUTABLE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:263` |
-| `STATE_CONFLICT` | 41 | `Modules/Warehouse/app/Exceptions/WarehouseException.php:18` |
+| `STATE_CONFLICT` | 40 | `Modules/Warehouse/app/Exceptions/WarehouseException.php:18` |
 | `SYSTEM_ROLE_IMMUTABLE` | 1 | `Modules/Auth/app/Http/Middleware/EnsureMutableRole.php:28` |
 | `UNIQUE_CONSTRAINT_CONFLICT` | 1 | `bootstrap/app.php:123` |
 | `WAREHOUSE_INACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/ScanController.php:148` |
@@ -171,7 +172,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 
 | Error code | Số lần dùng | Vị trí đầu tiên |
 | --- | --- | --- |
-| `STALE_VERSION` | 22 | `Modules/Auth/app/Http/Controllers/UserController.php:214` |
+| `STALE_VERSION` | 23 | `Modules/Auth/app/Http/Controllers/UserController.php:214` |
 
 ### HTTP 422
 
@@ -205,10 +206,12 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `COMPONENT_TARGET_XOR` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:144` |
 | `CONTAINER_CYCLE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:140` |
 | `CONTAINER_ITEM_TARGET_REQUIRED` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:254` |
-| `CONTAINER_ITEM_XOR` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:202` |
+| `CONTAINER_ITEM_XOR` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:247` |
 | `CONTAINER_PARENT_CYCLE` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:412` |
-| `CONTAINER_PRIMARY_SKU_MISMATCH` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:224` |
+| `CONTAINER_PRIMARY_SKU_MISMATCH` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:269` |
 | `CONTAINER_SELF_PARENT` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:387` |
+| `CONTAINER_STATUS_LIFECYCLE_MANAGED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:189` |
+| `CONTAINER_STATUS_NOT_CREATABLE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:408` |
 | `CONTAINER_WAREHOUSE_MISMATCH` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:404` |
 | `DEACTIVATION_REASON_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:212` |
 | `DOCUMENT_HAS_NO_LINES` | 4 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:183` |
@@ -219,8 +222,8 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `EMPTY_EXCEL_FILE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:583` |
 | `EMPTY_UPDATE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:235` |
 | `EXPECTED_QTY_BELOW_SCANNED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:380` |
-| `FULL_POST_REQUIRED` | 6 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:469` |
-| `FULL_SCAN_REQUIRED_FOR_LABEL` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:171` |
+| `FULL_POST_REQUIRED` | 6 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:473` |
+| `FULL_SCAN_REQUIRED_FOR_LABEL` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:175` |
 | `IMPORT_HAS_NO_VALID_ROWS` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:231` |
 | `INBOUND_WAREHOUSE_NOT_CANONICAL` | 1 | `Modules/Warehouse/app/Http/Middleware/EnsureCanonicalInboundWarehouse.php:47` |
 | `INSUFFICIENT_AVAILABLE_STOCK` | 3 | `Modules/Warehouse/app/Services/AlignedOutboundStockService.php:179` |
@@ -241,20 +244,20 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `INVALID_SKU_CODE` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:397` |
 | `INVALID_SKU_NAME` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:407` |
 | `INVALID_UUID` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:578` |
-| `INVALID_VERSION` | 21 | `Modules/Auth/app/Http/Controllers/UserController.php:211` |
+| `INVALID_VERSION` | 22 | `Modules/Auth/app/Http/Controllers/UserController.php:211` |
 | `INVENTORY_SERIAL_NOT_FOUND` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:260` |
 | `ITEM_NOT_AVAILABLE` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:530` |
-| `ITEM_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:210` |
+| `ITEM_NOT_FOUND` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:255` |
 | `ITEM_NOT_IN_ORIGINAL_TRANSACTION` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:483` |
 | `ITEM_NOT_MATCHED_IN_DOCUMENT` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php:123` |
 | `ITEM_NOT_RECEIVABLE` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:561` |
 | `ITEM_REQUIRED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:59` |
 | `ITEM_SKU_MISMATCH` | 3 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineItemIdentityController.php:48` |
-| `LABEL_NOT_PRINTED` | 3 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:418` |
+| `LABEL_NOT_PRINTED` | 3 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:422` |
 | `LABEL_PII_FORBIDDEN` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:377` |
 | `MASTER_NOT_ACTIVE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:149` |
 | `NO_REVERSIBLE_MOVEMENT` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:247` |
-| `NO_STOCK_DOCUMENT` | 1 | `Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:395` |
+| `NO_STOCK_DOCUMENT` | 1 | `Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php:397` |
 | `NO_UPDATABLE_FIELDS` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:439` |
 | `ORIGINAL_MOVEMENT_INVALID` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:128` |
 | `OUTBOUND_RECIPIENT_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php:252` |
@@ -263,8 +266,8 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `OUTBOUND_REQUEST_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php:462` |
 | `OUTBOUND_REQUEST_REQUIRED` | 4 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:43` |
 | `PACKAGE_VARIANT_NOT_ACTIVE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:122` |
-| `PACKING_LABEL_NOT_APPLIED` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:480` |
-| `PACKING_LABEL_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:474` |
+| `PACKING_LABEL_NOT_APPLIED` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:484` |
+| `PACKING_LABEL_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:478` |
 | `PARENT_CONTAINER_NOT_FOUND` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:396` |
 | `PHYSICAL_CODE_ITEM_MISMATCH` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineStockService.php:510` |
 | `PHYSICAL_CODE_TARGET_MISMATCH` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:350` |
@@ -278,11 +281,10 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `PRODUCT_NOT_ACTIVE` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:520` |
 | `PRODUCT_REQUIRED` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:514` |
 | `PRODUCT_SKU_REQUIRED` | 4 | `Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php:55` |
-| `PUTAWAY_BOX_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:50` |
-| `PUTAWAY_MUST_USE_TASK_FLOW` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:61` |
+| `PUTAWAY_MUST_USE_TASK_FLOW` | 3 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerController.php:61` |
 | `QUANTITY_MODE_ITEM_FORBIDDEN` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:166` |
-| `QUANTITY_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:218` |
-| `REPORT_EXPORT_ROW_LIMIT_EXCEEDED` | 5 | `Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php:514` |
+| `QUANTITY_REQUIRED` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:263` |
+| `REPORT_EXPORT_ROW_LIMIT_EXCEEDED` | 5 | `Modules/Warehouse/app/Http/Controllers/AlignedImportMatchReportController.php:515` |
 | `RETURN_CONDITION_REQUIRED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:603` |
 | `REVERSAL_ITEM_DUPLICATED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:562` |
 | `REVERSAL_ITEM_REQUIRED` | 1 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:158` |
@@ -290,13 +292,13 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `REVERSAL_QTY_EXCEEDED` | 2 | `Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:143` |
 | `RFID_HARDWARE_UID_REQUIRED` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineItemIdentityController.php:31` |
 | `SCAN_EXCEEDS_REQUIRED` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:150` |
-| `SCAN_ITEM_MISMATCH` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:327` |
-| `SCAN_SKU_MISMATCH` | 2 | `Modules/Warehouse/app/Services/StockDocumentService.php:330` |
+| `SCAN_ITEM_MISMATCH` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:326` |
+| `SCAN_SKU_MISMATCH` | 2 | `Modules/Warehouse/app/Services/StockDocumentService.php:329` |
 | `SERIAL_COMPONENT_REQUIRES_ITEM` | 1 | `Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php:29` |
 | `SERIAL_PRODUCT_MISMATCH` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:282` |
 | `SERIAL_QUANTITY_MUST_BE_ONE` | 4 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php:155` |
-| `SERIAL_SCAN_QUANTITY_INVALID` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:322` |
-| `SERIAL_SCAN_REQUIRED` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:319` |
+| `SERIAL_SCAN_QUANTITY_INVALID` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:321` |
+| `SERIAL_SCAN_REQUIRED` | 1 | `Modules/Warehouse/app/Services/StockDocumentService.php:318` |
 | `SERIAL_WAREHOUSE_MISMATCH` | 1 | `Modules/Warehouse/app/Services/ContainerService.php:274` |
 | `SKU_CODE_REQUIRED` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:401` |
 | `SKU_COMPONENT_CYCLE` | 1 | `Modules/Warehouse/app/Services/SkuAggregateService.php:266` |
@@ -308,7 +310,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 | `SKU_PUBLISH_REQUIRES_ACTIVE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php:203` |
 | `TEMP_ONLY_EVIDENCE_REQUIRED` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php:246` |
 | `TRAY_NOT_USABLE` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:130` |
-| `TRAY_REQUIRED` | 3 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php:352` |
+| `TRAY_REQUIRED` | 2 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php:126` |
 | `UNKNOWN_MASTER_TYPE` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php:195` |
 | `VALIDATION_ERROR` | 9 | `app/Repositories/BaseRepository.php:367` |
 | `VALIDATION_FAILED` | 10 | `Modules/Warehouse/app/Http/Controllers/StockRequestController.php:286` |
@@ -327,7 +329,7 @@ Không client nào được coi một trong hai là optional. `message` không b
 
 | Error code | Số lần dùng | Vị trí đầu tiên |
 | --- | --- | --- |
-| `PRECONDITION_REQUIRED` | 21 | `app/Support/IdempotencyKeyGuard.php:25` |
+| `PRECONDITION_REQUIRED` | 22 | `app/Support/IdempotencyKeyGuard.php:25` |
 
 ### HTTP 429
 
@@ -340,7 +342,6 @@ Không client nào được coi một trong hai là optional. `message` không b
 | Error code | Số lần dùng | Vị trí đầu tiên |
 | --- | --- | --- |
 | `INTERNAL_SERVER_ERROR` | 2 | `bootstrap/app.php:144` |
-| `OUTBOUND_MATCH_MISSING` | 1 | `Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:395` |
 
 ### HTTP 503
 

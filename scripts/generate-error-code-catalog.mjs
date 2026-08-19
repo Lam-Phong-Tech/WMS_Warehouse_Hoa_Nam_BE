@@ -93,10 +93,78 @@ function lineOf(source, index) {
   return source.slice(0, index).split("\n").length;
 }
 
+/**
+ * WWHN-217 (FE217-P1-05): `IDEMPOTENCY_CONFLICT` — một trong bốn lớp 409 bắt buộc của
+ * SRS §8.2 — bị THIẾU khỏi catalog dù runtime phát nó thật (đo bằng
+ * `tests/Feature/Wwhn217RuntimeErrorContractTest.php`). Nguyên nhân: mã đó không xuất
+ * hiện dưới dạng literal cạnh HTTP status mà đi qua HAI lớp gián tiếp —
+ * `IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS = ConflictCode::IDEMPOTENCY`, rồi được gán
+ * vào biến bên trong `switch ($status) { case 409: ... }` của ApiConventionMiddleware.
+ * Cả hai regex cũ đều không nhìn thấy, nên hợp đồng công bố cho FE im lặng thiếu đúng
+ * nhánh "phải sinh Idempotency-Key mới" — nhánh quyết định của luồng duplicate/retry.
+ *
+ * Bảng dưới đây phân giải mọi hằng lớp trỏ (trực tiếp hoặc bắc cầu) về một mã lỗi, để
+ * pass quét chính nhận ra chúng ở bất kỳ vị trí nào, kể cả trong nhánh `case`.
+ *
+ * @type {Record<string, string>}
+ */
+const ALIASED_CODE_CONSTANTS = (() => {
+  /** @type {Record<string, string>} */
+  const map = {};
+  for (const dir of scanRoots) {
+    for (const file of phpFiles(dir)) {
+      const className = file
+        .replaceAll("\\", "/")
+        .split("/")
+        .pop()
+        .replace(/\.php$/, "");
+      const source = readFileSync(file, "utf8");
+
+      for (const m of source.matchAll(
+        /public const ([A-Z][A-Z0-9_]*)\s*=\s*ConflictCode::([A-Z][A-Z0-9_]*)\s*;/g,
+      )) {
+        const resolved = CONFLICT_CODE_CONSTANTS[m[2]];
+        if (resolved) map[`${className}::${m[1]}`] = resolved;
+      }
+    }
+  }
+  for (const [constant, value] of Object.entries(CONFLICT_CODE_CONSTANTS)) {
+    map[`ConflictCode::${constant}`] = value;
+  }
+  return map;
+})();
+
+/**
+ * HTTP status của một tham chiếu hằng nằm trong thân `switch ($status)`: lấy nhãn
+ * `case <status>:` gần nhất phía trước. Không tìm thấy thì trả undefined và mã sẽ bị
+ * loại ở bước lọc `http_status.length > 0` — thà thiếu còn hơn gán bừa một hạng sai.
+ */
+function statusFromNearestCase(source, index) {
+  const before = source.slice(0, index);
+  const matches = [...before.matchAll(/case\s+(\d{3})\s*:/g)];
+  if (matches.length === 0) return undefined;
+  const status = Number(matches[matches.length - 1][1]);
+  return status in STATUS_MEANING ? status : undefined;
+}
+
 for (const dir of scanRoots) {
   for (const file of phpFiles(dir)) {
     const source = readFileSync(file, "utf8");
     const rel = relative(root, file).replaceAll("\\", "/");
+
+    // Hằng lỗi dùng gián tiếp: `$defaultErrorCode = IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS;`
+    for (const m of source.matchAll(/\b([A-Z][A-Za-z0-9_]*)::([A-Z][A-Z0-9_]*)\b/g)) {
+      const resolved = ALIASED_CODE_CONSTANTS[`${m[1]}::${m[2]}`];
+      if (!resolved) continue;
+      const inlineStatus = source
+        .slice(Math.max(0, m.index - 12), m.index)
+        .match(/(\d{3})\s*,\s*$/);
+      const status = inlineStatus
+        ? Number(inlineStatus[1])
+        : statusFromNearestCase(source, m.index);
+      if (status === undefined || !(status in STATUS_MEANING)) continue;
+      record(resolved, status, rel + ":" + lineOf(source, m.index));
+    }
 
     // ApiError::abort(409, 'CODE', ...) và respondError(..., 409, 'CODE')
     for (const m of source.matchAll(/(\d{3})\s*,\s*'([A-Z][A-Z0-9_]{2,60})'/g)) {

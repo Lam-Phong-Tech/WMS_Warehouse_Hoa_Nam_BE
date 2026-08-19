@@ -1,0 +1,141 @@
+{
+    "ticket": "WWHN-217",
+    "register_item": "FE217-P1-05",
+    "source": "backend runtime (HTTP kernel + middleware thật, không mock)",
+    "srs": "SRS §8.2 HTTP/Error Contract; §8.4 WWHN-40 \"UI hiding is not authorization\"; NFR-SRS-005",
+    "backend_branch": "m1",
+    "backend_sha": "8efd25f92ec016d89fa5e8c8d39f37125e35385c",
+    "generated_by": "tests/Feature/Wwhn217RuntimeErrorContractTest.php",
+    "http_classes_covered": [
+        401,
+        403,
+        409,
+        422
+    ],
+    "probes": {
+        "TC-217-API-401-IN": {
+            "flow": "Inbound",
+            "method": "POST",
+            "path": "/api/v1/inbound-documents/{id}/post-receipt",
+            "http": 401,
+            "error_code": "UNAUTHENTICATED",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": false,
+            "rule": "Không token → 401 trước khi chạm dữ liệu; không stock effect.",
+            "verdict": "PASS",
+            "stock_effect_written": false
+        },
+        "TC-217-API-401-INV": {
+            "flow": "Inventory",
+            "method": "GET",
+            "path": "/api/v1/inventory/balances",
+            "http": 401,
+            "error_code": "UNAUTHENTICATED",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": false,
+            "rule": "Không token → 401 cho cả endpoint chỉ đọc.",
+            "verdict": "PASS",
+            "stock_effect_written": false
+        },
+        "TC-217-API-401-OUT": {
+            "flow": "Outbound",
+            "method": "POST",
+            "path": "/api/v1/outbound-documents/{id}/post-issue",
+            "http": 401,
+            "error_code": "UNAUTHENTICATED",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": false,
+            "rule": "Không token → 401; không stock effect.",
+            "verdict": "PASS",
+            "stock_effect_written": false
+        },
+        "TC-217-API-403-IN": {
+            "flow": "Inbound",
+            "method": "POST",
+            "path": "/api/v1/inbound-documents/{id}/post-receipt",
+            "http": 403,
+            "error_code": "ACCESS_DENIED",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": false,
+            "rule": "Token chỉ có inbound.view gọi hành động đòi inbound.post → 403; phiếu vẫn SCANNING.",
+            "verdict": "PASS",
+            "granted_permissions": [
+                "inbound.view"
+            ],
+            "required_permission": "inbound.post",
+            "document_status_after": "SCANNING",
+            "stock_effect_written": false
+        },
+        "TC-217-API-403-INV": {
+            "flow": "Inventory",
+            "method": "GET",
+            "path": "/api/v1/inventory/balances",
+            "http": 403,
+            "error_code": "ACCESS_DENIED",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": false,
+            "rule": "Token không có inventory.view → 403 cho endpoint đọc tồn.",
+            "verdict": "PASS",
+            "granted_permissions": [
+                "inbound.view"
+            ],
+            "required_permission": "inventory.view",
+            "stock_effect_written": false
+        },
+        "TC-217-API-403-OUT": {
+            "flow": "Outbound",
+            "method": "POST",
+            "path": "/api/v1/outbound-documents/{id}/post-issue",
+            "http": 403,
+            "error_code": "ACCESS_DENIED",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": false,
+            "rule": "Token chỉ có outbound.view gọi hành động đòi outbound.post → 403 ở tầng middleware.",
+            "verdict": "PASS",
+            "granted_permissions": [
+                "outbound.view"
+            ],
+            "required_permission": "outbound.post",
+            "stock_effect_written": false
+        },
+        "TC-217-API-409-IDEMPOTENCY": {
+            "flow": "Inbound",
+            "method": "POST",
+            "path": "/api/v1/inbound-documents/{id}/scan",
+            "http": 409,
+            "error_code": "IDEMPOTENCY_CONFLICT",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": true,
+            "rule": "Cùng Idempotency-Key nhưng payload khác → 409; không cộng dồn lần hai.",
+            "verdict": "PASS",
+            "scenario": "same Idempotency-Key, quantity 1 → 2"
+        },
+        "TC-217-API-409-STATE": {
+            "flow": "Inbound",
+            "method": "POST",
+            "path": "/api/v1/inbound-documents/{id}/post-receipt",
+            "http": 409,
+            "error_code": "STATE_CONFLICT",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": true,
+            "rule": "Post lại phiếu POSTED bằng Idempotency-Key mới → xung đột; số movement không đổi.",
+            "verdict": "PASS",
+            "movements_after_first_post": 1,
+            "movements_after_second_post": 1
+        },
+        "TC-217-API-422-IN": {
+            "flow": "Inbound",
+            "method": "POST",
+            "path": "/api/v1/inbound-documents/{id}/scan",
+            "http": 422,
+            "error_code": "SCAN_EXCEEDS_REQUIRED",
+            "error_code_in_contract_catalog": true,
+            "listed_in_srs_82_examples": false,
+            "rule": "Quét vượt Expected → 422; phiếu và tồn không đổi.",
+            "verdict": "PASS",
+            "scenario": "scan quantity 999 vượt Expected 2",
+            "document_status_after": "SCANNING",
+            "stock_effect_written": false
+        }
+    }
+}
