@@ -86,13 +86,14 @@ rule R3/R4 khoá cứng — không quan sát thấy đảo ngược.
 `php vendor/bin/phpunit --filter=Wwhn184InboundContractParityTest` (đại diện runtime = Postman =
 route table = OpenAPI) — **PASS trên cả sqlite lẫn PostgreSQL** (256 assertions).
 
-## 3. RBAC (mục 3) — PASS (3.1–3.3 trực tiếp; 3.4 gián tiếp qua full suite)
+## 3. RBAC (mục 3) — PASS, đủ cả 4 mục
 
 `Wwhn184InboundContractParityTest` khoá D01 (`WAREHOUSE_STAFF` chỉ có `inbound.create` vẫn Cancel
-200) và VIEWER 403 cho `post-receipt`. Data-scope (`EnforceInboundWarehouseScope`, mục 3.4) không
-nằm trong bộ filter retest lần này mà nằm trong `SecurityRbacAuditNegativeTest`/`PermissionAndValidationTest`
-— hai test này chạy trong full-suite regression ở mục 6 dưới, PASS cùng driver PostgreSQL, không
-tách riêng vì không đụng file sở hữu WWHN-184.
+200) và VIEWER 403 cho `post-receipt` (3.1–3.3). Data-scope (`EnforceInboundWarehouseScope`, mục
+3.4) chạy riêng trên PostgreSQL (`hn_wwhn184_race`):
+`php vendor/bin/phpunit --filter="SecurityRbacAuditNegativeTest|PermissionAndValidationTest|FoundationInboundPutawayReadinessTest"`
+→ **30/30 pass, 224 assertions** — chạy sau khi vá defect audit_log ở mục 1.2 nên còn xác nhận thêm
+rằng fix đó không có regression trên nhóm test RBAC/audit này.
 
 ## 4. Idempotency + no-stock-effect (mục 4) — PASS
 
@@ -124,9 +125,10 @@ Chạy lại **từ đầu** `scripts/wwhn184-post-receipt-runtime-concurrency.p
 `status: "PASS"`, `failed_scenarios: []`. **Ghi chú quy trình:** lần chạy đầu trên `hn_wwhn184_retest`
 báo lỗi `record "new" has no field "type"` ở trigger `hn_erd_normalize_runtime_containers` khi tạo
 BOX — điều tra bằng `pg_trigger` cho thấy hàm này **không hề gắn** vào bảng `containers` tại thời
-điểm kiểm tra ngay sau đó. Nguyên nhân: tôi tự đá nhau với chính mình — full-suite regression (mục
-7) đang chạy nền trên **cùng** DB `hn_wwhn184_retest` cùng lúc. Tách sang DB `hn_wwhn184_race` riêng
-thì pass sạch cả 3 kịch bản — không phải defect thật, ghi nhận lại để phiên sau không hiểu nhầm.
+điểm kiểm tra ngay sau đó. Nguyên nhân: tôi tự đá nhau với chính mình — một lần chạy
+`php vendor/bin/phpunit` full suite tôi khởi ở nền (để kiểm tra fix mục 1.2 không gây regression)
+đang chạy trên **cùng** DB `hn_wwhn184_retest` cùng lúc. Tách sang DB `hn_wwhn184_race` riêng thì
+pass sạch cả 3 kịch bản — không phải defect thật, ghi nhận lại để phiên sau không hiểu nhầm.
 
 ## 7. Rollback + reconciliation (mục 7) — PASS
 
