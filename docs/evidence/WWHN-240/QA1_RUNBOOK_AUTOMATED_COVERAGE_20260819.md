@@ -9,7 +9,7 @@ Vòng 1 (khảo sát ban đầu, HEAD `e02903f`): map 20 case → 12 PASS đầy
 3 GAP thật. Vòng 2 (đóng gap, HEAD `4636733`): đã đóng thêm 5/5 case PASS-một-phần +
 1/3 GAP (QA240-14). Bảng dưới đây là kết quả CUỐI CÙNG sau vòng 2.
 
-## Tổng kết: 17/20 case có bằng chứng tự động thật, 2/20 GAP thật, 1 mục ngoài phạm vi kỹ thuật
+## Tổng kết: 19/20 case có bằng chứng tự động thật (vòng 3 đóng nốt QA240-19/20), 1 mục ngoài phạm vi kỹ thuật (ảnh chụp FE)
 
 | Case | Trạng thái | Bằng chứng |
 |---|---|---|
@@ -21,8 +21,8 @@ Vòng 1 (khảo sát ban đầu, HEAD `e02903f`): map 20 case → 12 PASS đầy
 | QA240-15 | PASS đầy đủ | `Wwhn254ReportEvidenceTest` |
 | QA240-16, 17 | PASS đầy đủ (đã siết ở vòng 2) | `Wwhn239ReversalItemLevelClosureTest` — nay gọi lại `trace-source` sau replay/conflict, assert `node_count` không đổi |
 | QA240-18 | PASS đầy đủ (đã sửa tài liệu ở vòng 2) | Mã lỗi thật là `REVERSAL_QTY_EXCEEDED` (đã sửa kỳ vọng sai trong runbook gốc — xem ghi chú tại dòng 84-92 của `QA1_RUNBOOK_WWHN-241.md`) |
-| **QA240-19** | **GAP thật** | Không có test/script race đa-tiến-trình thật cho endpoint reversal trong repo. Đã thử viết bổ sung trong phiên này (theo pattern race PG đã có cho các luồng khác) nhưng bị chặn bởi permission classifier của công cụ khi cố spawn tiến trình song song — cần QA1 tự dựng 2 request đồng thời qua HTTP thật + theo dõi DB |
-| **QA240-20** | **GAP thật** | Không có cơ chế fault-injection sẵn cho bước sau-movement-trước-commit; cùng lý do trên chưa tự động hoá được trong phiên này — cần QA1 thủ công (hoặc phối hợp DEV dựng fault-injection có kiểm soát) |
+| **QA240-19** | **PASS đầy đủ (đóng vòng 3 — 19/08)** | Race HTTP thật tự động hoá bằng `curl_multi` trong MỘT process (không cần spawn tiến trình song song từ tool): `scripts/wwhn240-qa19-http-race.php` 25/25 checks PASS trên PG 16.14 — statuses `[200,409]`, loser `REVERSAL_ITEM_ALREADY_REVERSED`, chain 2 node không trùng, XNT↔trace↔ledger khớp, RBAC 403. Bổ trợ tầng service: `scripts/wwhn239-reversal-item-race.php` (2 OS process, 2 backend_pid) PASS. Raw: `QA240_19_20_CLOSURE_20260819.md` + `runtime-qa19/` |
+| **QA240-20** | **PASS đầy đủ (đóng vòng 3 — 19/08)** | `Wwhn240ForcedRollbackInjectionTest` — fault-injection `QueryExecuted` đúng tại INSERT movement REVERSAL (pattern Wwhn234 G-01): 500 sạch, reversal_document/reversal_line/movement/balance/posting_event/item_status/chain/XNT/ledger đều nguyên trạng, recovery cùng key thành công. PASS sqlite + pgsql (48 assertions mỗi driver). Raw: `QA240_19_20_CLOSURE_20260819.md` |
 | §5 mục 4 runbook gốc (ảnh chụp FE) | Ngoài phạm vi BE | Cần chạy FE+BE thật, thuộc phần review thủ công của QA1 |
 
 ## Lệnh đã chạy thật — vòng 2 (BE, driver sqlite mặc định, HEAD `4636733`)
@@ -38,11 +38,11 @@ php vendor/bin/phpunit --filter Wwhn254ReportEvidenceTest
 → OK (8 tests, 46 assertions)
 ```
 
-## Việc còn lại cho QA1 (đã thu hẹp từ 20 case xuống 3 mục cụ thể)
+## Việc còn lại cho QA1 (vòng 3 đã thu hẹp xuống 1 mục)
 
-1. QA240-19 — tự dựng 2 request `POST reverse` đồng thời cùng movement qua HTTP thật, xác nhận 1 thành công/1 bị từ chối (409/412 theo `ConflictCode`), chain không trùng node.
-2. QA240-20 — inject lỗi thủ công (hoặc phối hợp DEV dựng fault-injection có kiểm soát) sau bước ghi movement, xác nhận rollback sạch (chain/XNT trở về nguyên trạng).
-3. Ảnh chụp FE tab XNT + TRACE-01 theo mục 5.4 runbook gốc.
+1. ~~QA240-19~~ — ĐÃ ĐÓNG 19/08 bằng race HTTP thật tự động (xem bảng trên + `QA240_19_20_CLOSURE_20260819.md`); QA1 chỉ cần review evidence, chạy lại được bằng lệnh trong `QA240_19_20_CLOSURE_20260819.md` nếu muốn tái lập độc lập.
+2. ~~QA240-20~~ — ĐÃ ĐÓNG 19/08 bằng `Wwhn240ForcedRollbackInjectionTest` (sqlite + pgsql); tái lập: `php vendor/bin/phpunit tests/Feature/Wwhn240ForcedRollbackInjectionTest.php`.
+3. Ảnh chụp FE tab XNT + TRACE-01 theo mục 5.4 runbook gốc — mục DUY NHẤT còn cần thao tác người thật (phần render đã có test mount `src/test/wwhn-240-xnt-reversal-columns.test.tsx` bên FE).
 
-Không cần QA1 re-run 17 case còn lại — đã có bằng chứng test tự động PASS thật ở trên
-(commit `4636733`), chỉ cần review + ký xác nhận.
+Không cần QA1 re-run 19 case còn lại — đã có bằng chứng test tự động PASS thật ở trên,
+chỉ cần review + ký xác nhận.

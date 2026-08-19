@@ -1,0 +1,251 @@
+{
+    "generated_at": "2026-08-19T18:48:49+07:00",
+    "base_url": "http://127.0.0.1:8240",
+    "concurrent_reverse": {
+        "winner": "a",
+        "request_a": {
+            "status": 200,
+            "error_code": null,
+            "total_time_ms": 2707
+        },
+        "request_b": {
+            "status": 409,
+            "error_code": "REVERSAL_ITEM_ALREADY_REVERSED",
+            "total_time_ms": 5910.7
+        },
+        "race_wall_ms": 5912.1
+    },
+    "trace_source": {
+        "correction_chain": {
+            "correction_chain_id": "a6f9339b-c142-4ed6-a66e-b82a03d4ce41",
+            "root_movement_id": "52640a48-16f4-482a-890c-d5409008b109",
+            "node_count": 2,
+            "reversal_count": 1,
+            "max_depth": 1,
+            "truncated": false,
+            "nodes": [
+                {
+                    "id": "52640a48-16f4-482a-890c-d5409008b109",
+                    "movement_no": "MV-20260819-IUEBD13K",
+                    "movement_type": "RECEIPT",
+                    "role": "ORIGINAL",
+                    "depth": 0,
+                    "is_subject": true,
+                    "occurred_at": "2026-08-19T18:49:22+07:00",
+                    "warehouse_id": "41e05968-b257-4fdf-8581-dc61e8436d43",
+                    "warehouse_code": "KHO-TONG-HN",
+                    "product_id": "007d91ba-e2fd-4ab6-a9b9-65eec44345d5",
+                    "product_code": "PRD-QA19-899149",
+                    "stock_status": "AVAILABLE",
+                    "item_id": null,
+                    "quantity": 2,
+                    "qty_delta": 2,
+                    "qty_before": 0,
+                    "qty_after": 2,
+                    "source_type": "STOCK_DOCUMENT",
+                    "source_id": "c990054d-a2b2-4f75-b1f7-e35fa6642cb7",
+                    "stock_document_id": "c990054d-a2b2-4f75-b1f7-e35fa6642cb7",
+                    "original_movement_id": null,
+                    "correction_chain_id": null,
+                    "actor": "Warehouse Manager 01",
+                    "reversal_document_no": null,
+                    "reversal_status": null,
+                    "reason_code": null,
+                    "reason_text": null
+                },
+                {
+                    "id": "1b27677e-b2bc-472d-9f88-7350ef187e32",
+                    "movement_no": "MV-20260819-T85BOO3J",
+                    "movement_type": "REVERSAL",
+                    "role": "REVERSAL",
+                    "depth": 1,
+                    "is_subject": false,
+                    "occurred_at": "2026-08-19T18:49:26+07:00",
+                    "warehouse_id": "41e05968-b257-4fdf-8581-dc61e8436d43",
+                    "warehouse_code": "KHO-TONG-HN",
+                    "product_id": "007d91ba-e2fd-4ab6-a9b9-65eec44345d5",
+                    "product_code": "PRD-QA19-899149",
+                    "stock_status": "AVAILABLE",
+                    "item_id": "0e25a95b-f2a9-4358-94b2-4bb6d826345e",
+                    "quantity": 1,
+                    "qty_delta": -1,
+                    "qty_before": 2,
+                    "qty_after": 1,
+                    "source_type": "REVERSAL_DOCUMENT",
+                    "source_id": "47ae2a6a-8581-4a6d-8bf0-a19259c8548d",
+                    "stock_document_id": null,
+                    "original_movement_id": "52640a48-16f4-482a-890c-d5409008b109",
+                    "correction_chain_id": "a6f9339b-c142-4ed6-a66e-b82a03d4ce41",
+                    "actor": "Warehouse Keeper 01",
+                    "reversal_document_no": "REV-20260819184925-BZFKZM",
+                    "reversal_status": "POSTED",
+                    "reason_code": "CORRECTION",
+                    "reason_text": "WWHN-240 QA240-19 concurrent HTTP race"
+                }
+            ]
+        },
+        "net_effect": {
+            "basis": "LEDGER",
+            "original_movement_id": "52640a48-16f4-482a-890c-d5409008b109",
+            "original_movement_type": "RECEIPT",
+            "original_qty": 2,
+            "original_qty_delta": 2,
+            "reversed_qty": 1,
+            "remaining_reversible_qty": 1,
+            "net_qty_delta": 1,
+            "fully_reversed": false,
+            "reversal_count": 1,
+            "subject_reversed_qty": 1
+        }
+    },
+    "xnt": {
+        "warehouse_code": "KHO-TONG-HN",
+        "product_code": "PRD-QA19-899149",
+        "stock_status": "AVAILABLE",
+        "opening": 0,
+        "receipt_gross": 2,
+        "issue_gross": 0,
+        "component_issue_gross": 0,
+        "receipt_reversal": 1,
+        "issue_reversal": 0,
+        "component_issue_reversal": 0,
+        "reversal_unlinked_net": 0,
+        "reversal_net": -1,
+        "receipt_net": 1,
+        "issue_net": 0,
+        "component_issue_net": 0,
+        "closing": 1
+    },
+    "ledger": {
+        "sum_qty_delta": 1,
+        "inventory_balance": 1
+    },
+    "rbac": {
+        "staff_reverse": {
+            "status": 403,
+            "error_code": "ACCESS_DENIED"
+        },
+        "staff_trace": {
+            "status": 403,
+            "error_code": "ACCESS_DENIED"
+        }
+    },
+    "env": {
+        "db": {
+            "driver": "pgsql",
+            "database": "hn_wwhn240_qa19",
+            "server_version": "16.14"
+        },
+        "php": "8.3.30",
+        "cli_server_workers_hint": "(client env — xem lệnh khởi động server trong evidence doc)"
+    },
+    "fixture": {
+        "document_id": "c990054d-a2b2-4f75-b1f7-e35fa6642cb7",
+        "movement_id": "52640a48-16f4-482a-890c-d5409008b109",
+        "raced_item_id": "0e25a95b-f2a9-4358-94b2-4bb6d826345e",
+        "sku_code": "PRD-QA19-899149",
+        "warehouse_id": "41e05968-b257-4fdf-8581-dc61e8436d43"
+    },
+    "checks": {
+        "fixture_create_201": {
+            "pass": true,
+            "detail": "status=201 null"
+        },
+        "fixture_scan_0_200": {
+            "pass": true,
+            "detail": "status=200"
+        },
+        "fixture_scan_1_200": {
+            "pass": true,
+            "detail": "status=200"
+        },
+        "fixture_post_receipt_200": {
+            "pass": true,
+            "detail": "status=200 null"
+        },
+        "fixture_receipt_movement_exists": {
+            "pass": true,
+            "detail": ""
+        },
+        "race_exactly_one_success": {
+            "pass": true,
+            "detail": "statuses=[200,409]"
+        },
+        "race_loser_rejected_with_conflict_code": {
+            "pass": true,
+            "detail": "loser status=409 code=\"REVERSAL_ITEM_ALREADY_REVERSED\""
+        },
+        "race_requests_overlapped_in_flight": {
+            "pass": true,
+            "detail": "wall=5912.1ms < sequential-sum=8617.7ms (a=2707.0ms, b=5910.7ms)"
+        },
+        "db_exactly_one_reversal_movement_for_item": {
+            "pass": true,
+            "detail": "count=1"
+        },
+        "db_exactly_one_extra_movement_total": {
+            "pass": true,
+            "detail": ""
+        },
+        "db_balance_decreased_exactly_once": {
+            "pass": true,
+            "detail": "balance=1"
+        },
+        "trace_source_200": {
+            "pass": true,
+            "detail": "status=200"
+        },
+        "trace_chain_node_count_2": {
+            "pass": true,
+            "detail": "node_count=2"
+        },
+        "trace_chain_nodes_unique": {
+            "pass": true,
+            "detail": ""
+        },
+        "trace_chain_not_truncated": {
+            "pass": true,
+            "detail": ""
+        },
+        "trace_net_effect_reversed_qty_1": {
+            "pass": true,
+            "detail": "{\"basis\":\"LEDGER\",\"original_movement_id\":\"52640a48-16f4-482a-890c-d5409008b109\",\"original_movement_type\":\"RECEIPT\",\"original_qty\":2,\"original_qty_delta\":2,\"reversed_qty\":1,\"remaining_reversible_qty\":1,\"net_qty_delta\":1,\"fully_reversed\":false,\"reversal_count\":1,\"subject_reversed_qty\":1}"
+        },
+        "trace_net_effect_reversal_count_1": {
+            "pass": true,
+            "detail": ""
+        },
+        "xnt_report_200": {
+            "pass": true,
+            "detail": "status=200"
+        },
+        "xnt_line_found": {
+            "pass": true,
+            "detail": "sku=PRD-QA19-899149"
+        },
+        "xnt_gross_reversal_net_correct": {
+            "pass": true,
+            "detail": "{\"receipt_gross\":2,\"receipt_reversal\":1,\"reversal_net\":-1,\"receipt_net\":1,\"closing\":1}"
+        },
+        "xnt_closing_equals_ledger_sum_qty_delta": {
+            "pass": true,
+            "detail": "closing=1 ledger=1"
+        },
+        "ledger_equals_balance": {
+            "pass": true,
+            "detail": "ledger=1 balance=1"
+        },
+        "rbac_staff_reverse_403": {
+            "pass": true,
+            "detail": "status=403 code=\"ACCESS_DENIED\""
+        },
+        "rbac_staff_trace_403": {
+            "pass": true,
+            "detail": "status=403"
+        },
+        "rbac_denied_wrote_nothing": {
+            "pass": true,
+            "detail": ""
+        }
+    }
+}

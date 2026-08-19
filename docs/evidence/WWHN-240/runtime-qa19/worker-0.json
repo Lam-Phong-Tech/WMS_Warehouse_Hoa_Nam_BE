@@ -1,0 +1,19 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn219-worker-0",
+    "scenario": "case8-true-competing-reversal-same-item",
+    "operation": "reversal_execute",
+    "backend_pid": 7467,
+    "outcome": "REJECTED",
+    "http_status": 409,
+    "error_code": "REVERSAL_ITEM_ALREADY_REVERSED",
+    "error_message": "Item này đã được đảo trong một reversal POSTED; append-only không cho đảo lại cùng một item (BR-REV-08).",
+    "lock_wait_ms": 2156,
+    "timeline": {
+        "booted_at": 1787139329.825762,
+        "released_at": 1787139329.892018,
+        "lock_acquired_at": 1787139332.079565,
+        "hold_released_at": 1787139333.290885,
+        "finished_at": 1787139333.679945
+    }
+}

@@ -1,0 +1,30 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn219-worker-1",
+    "scenario": "case8-true-competing-reversal-same-item",
+    "operation": "reversal_execute",
+    "backend_pid": 7466,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "error_message": null,
+    "lock_wait_ms": 30,
+    "timeline": {
+        "booted_at": 1787139329.854344,
+        "released_at": 1787139329.892045,
+        "lock_acquired_at": 1787139329.953135,
+        "hold_released_at": 1787139331.166033,
+        "finished_at": 1787139332.078026
+    },
+    "payload": {
+        "original_document_id": "62490ccc-787f-4a9b-810b-0709b8fc2354",
+        "original_document_status": "POSTED",
+        "reversal_document_id": "5da0c852-7589-4806-b7f6-0a0e07c111f9",
+        "reversal_status": "POSTED",
+        "physical_return_status": null,
+        "correction_chain_id": "484a346f-cebc-4308-bb33-bc712db0a1d2",
+        "movement_ids": [
+            "afe8fdc5-0691-4146-a0f3-ce1db8e5bdc9"
+        ]
+    }
+}

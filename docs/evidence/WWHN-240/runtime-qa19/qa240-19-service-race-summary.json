@@ -1,0 +1,134 @@
+{
+    "schema_version": "1.0.0",
+    "generated_at": "2026-08-19T18:35:35+07:00",
+    "ticket": "WWHN-239",
+    "sibling_ticket": "WWHN-241",
+    "answers_review_findings": [
+        "DEV239-P1-03R2",
+        "DEV239-P1-04R2 case #8"
+    ],
+    "evidence_type": "EXECUTED_RUNTIME_CONCURRENCY_REVERSAL_SAME_ITEM",
+    "note": "Muc dich: chung minh guard 3 lop (draft-time, lockForUpdate re-check, DB partial unique index) giu dung mot movement REVERSAL cho mot serial du hai request that cung tranh mot row trong PostgreSQL. Doi tuong goi la CurrentBaselineReversalService::execute() - dung code path ma controller CurrentBaselineStockFlowController::reverse() goi qua $this->reversal, KHONG PHAI CurrentBaselineStockService::reverseStockDocument (khong con route nao tro toi).",
+    "git_sha": "958ef1d1ce9d21841aa66645842b2f6b6572126e",
+    "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "database": "hn_wwhn240_r3",
+    "lock_hold_ms": 1200,
+    "run_token": "FAEDDB5B",
+    "scenario": {
+        "workers": [
+            {
+                "worker_index": 0,
+                "application_name": "wwhn219-worker-0",
+                "scenario": "case8-true-competing-reversal-same-item",
+                "operation": "reversal_execute",
+                "backend_pid": 7467,
+                "outcome": "REJECTED",
+                "http_status": 409,
+                "error_code": "REVERSAL_ITEM_ALREADY_REVERSED",
+                "error_message": "Item này đã được đảo trong một reversal POSTED; append-only không cho đảo lại cùng một item (BR-REV-08).",
+                "lock_wait_ms": 2156,
+                "timeline": {
+                    "booted_at": 1787139329.825762,
+                    "released_at": 1787139329.892018,
+                    "lock_acquired_at": 1787139332.079565,
+                    "hold_released_at": 1787139333.290885,
+                    "finished_at": 1787139333.679945
+                }
+            },
+            {
+                "worker_index": 1,
+                "application_name": "wwhn219-worker-1",
+                "scenario": "case8-true-competing-reversal-same-item",
+                "operation": "reversal_execute",
+                "backend_pid": 7466,
+                "outcome": "SUCCESS",
+                "http_status": 200,
+                "error_code": null,
+                "error_message": null,
+                "lock_wait_ms": 30,
+                "timeline": {
+                    "booted_at": 1787139329.854344,
+                    "released_at": 1787139329.892045,
+                    "lock_acquired_at": 1787139329.953135,
+                    "hold_released_at": 1787139331.166033,
+                    "finished_at": 1787139332.078026
+                },
+                "payload": {
+                    "original_document_id": "62490ccc-787f-4a9b-810b-0709b8fc2354",
+                    "original_document_status": "POSTED",
+                    "reversal_document_id": "5da0c852-7589-4806-b7f6-0a0e07c111f9",
+                    "reversal_status": "POSTED",
+                    "physical_return_status": null,
+                    "correction_chain_id": "484a346f-cebc-4308-bb33-bc712db0a1d2",
+                    "movement_ids": [
+                        "afe8fdc5-0691-4146-a0f3-ce1db8e5bdc9"
+                    ]
+                }
+            }
+        ],
+        "worker_count": 2,
+        "distinct_backend_pids": [
+            7467,
+            7466
+        ],
+        "distinct_backend_pid_count": 2,
+        "observed_pg_lock_wait": true,
+        "overlapping_critical_sections": true,
+        "max_worker_lock_wait_ms": 2156,
+        "lock_hold_ms": 1200,
+        "barrier_released_at": 1787139329.885851,
+        "real_contention_proven": true,
+        "lock_sample_count": 37,
+        "intent": "Hai process that (2 pg_backend_pid rieng) cung goi CurrentBaselineReversalService::execute() cho CUNG item_id tren CUNG movement goc, khac Idempotency-Key.",
+        "fixture": {
+            "document_id": "62490ccc-787f-4a9b-810b-0709b8fc2354",
+            "line_id": "1666180e-3ecf-4a66-9d82-a4349461bbc2",
+            "movement_id": "428a1a2d-5d8d-4c89-a7fa-39fb6cfbf221",
+            "warehouse_id": "6d0eb93f-e4a4-48cc-a8de-88d162cf53ac",
+            "sku_id": "505178c4-3b1b-417a-b9b3-c8cece070416",
+            "item_ids": [
+                "41e94ba1-2663-4f42-882a-ee090b0575ba",
+                "25ff7b2f-c354-404d-977a-11d86a9dff9c"
+            ],
+            "actor_id": "01a019cd-b4cb-7380-a660-4727e3dd16e1",
+            "version": 1,
+            "post_result": {
+                "document_id": "62490ccc-787f-4a9b-810b-0709b8fc2354",
+                "status": "POSTED",
+                "movement_ids": [
+                    "428a1a2d-5d8d-4c89-a7fa-39fb6cfbf221"
+                ],
+                "stock_effect": "INCREASE"
+            }
+        },
+        "target_item_id": "41e94ba1-2663-4f42-882a-ee090b0575ba",
+        "balance_before": {
+            "exists": true,
+            "quantity": 2,
+            "available_qty": 2,
+            "version": 2
+        },
+        "balance_after": {
+            "exists": true,
+            "quantity": 1,
+            "available_qty": 1,
+            "version": 3
+        },
+        "reversal_movements_for_item": 1,
+        "posted_reversal_lines_for_item": 1,
+        "checks": {
+            "two_distinct_backend_connections": true,
+            "real_contention_proven": true,
+            "exactly_one_success": true,
+            "loser_rejected_with_expected_error": true,
+            "exactly_one_reversal_movement_for_item": true,
+            "exactly_one_posted_reversal_line_for_item": true,
+            "db_level_unique_index_present": true,
+            "balance_decreased_by_exactly_one": true,
+            "balance_never_negative": true
+        },
+        "passed": true
+    },
+    "failed_scenarios": [],
+    "status": "PASS"
+}
