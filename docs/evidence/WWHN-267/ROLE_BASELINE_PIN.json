@@ -10,28 +10,113 @@
   "actorMapping": [
     {
       "srsActor": "Admin hệ thống",
-      "seededRoles": ["ADMIN", "WAREHOUSE_MANAGER"],
+      "seededRoles": [
+        "ADMIN",
+        "WAREHOUSE_MANAGER"
+      ],
       "note": "Hai role cùng ánh xạ về một actor là bất thường — xem conformanceDeltas DELTA-01."
     },
-    { "srsActor": "Quản lý kho", "seededRoles": ["WAREHOUSE_KEEPER", "WAREHOUSE_APPROVER"], "note": "Tách theo thao tác duyệt/đăng chứng từ." },
-    { "srsActor": "Nhân viên kho", "seededRoles": ["WAREHOUSE_STAFF"], "note": "" },
-    { "srsActor": "Nhân viên bảo hành", "seededRoles": ["WARRANTY_STAFF"], "note": "" },
-    { "srsActor": "Ban lãnh đạo", "seededRoles": ["LEADERSHIP", "VIEWER"], "note": "VIEWER là biến thể chỉ-đọc rộng hơn LEADERSHIP." },
-    { "srsActor": "Người xem App PV", "seededRoles": [], "note": "Ẩn danh, không có role — bề mặt /api/v1/pv/* không đi qua auth (SRS §3/§8.4)." },
-    { "srsActor": "(không thuộc §3) role phục vụ kiểm thử", "seededRoles": ["SKU_MANAGER", "MASTER_MANAGER", "NO_PERMISSION"], "note": "Tên 'name' đã chứa hậu tố Test; không được cấp cho tài khoản thật ở môi trường Beta/Prod." }
+    {
+      "srsActor": "Quản lý kho",
+      "seededRoles": [
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_APPROVER"
+      ],
+      "note": "Tách theo thao tác duyệt/đăng chứng từ."
+    },
+    {
+      "srsActor": "Nhân viên kho",
+      "seededRoles": [
+        "WAREHOUSE_STAFF"
+      ],
+      "note": ""
+    },
+    {
+      "srsActor": "Nhân viên bảo hành",
+      "seededRoles": [
+        "WARRANTY_STAFF"
+      ],
+      "note": ""
+    },
+    {
+      "srsActor": "Ban lãnh đạo",
+      "seededRoles": [
+        "LEADERSHIP",
+        "VIEWER"
+      ],
+      "note": "VIEWER là biến thể chỉ-đọc rộng hơn LEADERSHIP."
+    },
+    {
+      "srsActor": "Người xem App PV",
+      "seededRoles": [],
+      "note": "Ẩn danh, không có role — bề mặt /api/v1/pv/* không đi qua auth (SRS §3/§8.4)."
+    },
+    {
+      "srsActor": "(không thuộc §3) role phục vụ kiểm thử",
+      "seededRoles": [
+        "SKU_MANAGER",
+        "MASTER_MANAGER",
+        "NO_PERMISSION"
+      ],
+      "note": "Tên 'name' đã chứa hậu tố Test; không được cấp cho tài khoản thật ở môi trường Beta/Prod."
+    }
   ],
   "pinnedRoles": {
-    "ADMIN": { "name": "Administrator", "permissionCount": 61, "permissionsSha256": "e73d9b10d04eb6d6348cf66baa7242b492c053345bff7c2e0036355afeb7f937" },
-    "WAREHOUSE_STAFF": { "name": "Warehouse Staff", "permissionCount": 31, "permissionsSha256": "6ce452be91ff2a84ab2c37c0dddd078918fd9ca612354cb565fdd993081f4bfb" },
-    "WAREHOUSE_APPROVER": { "name": "Warehouse Approver", "permissionCount": 22, "permissionsSha256": "719c8bd3da46c0fafd684dee8f7c63f98cd32489497ac9cc24a6299286f15151" },
-    "WAREHOUSE_KEEPER": { "name": "Warehouse Keeper", "permissionCount": 46, "permissionsSha256": "28d753d22aad1d27eb30e1b14aec3d1f115ade48745e1294c11bd8cbc639b487" },
-    "WARRANTY_STAFF": { "name": "Warranty Staff", "permissionCount": 12, "permissionsSha256": "8c051e2b718da90f62d2b73ced3adead183f9d6a1af563af46cd7861fdf905ec" },
-    "LEADERSHIP": { "name": "Leadership", "permissionCount": 11, "permissionsSha256": "f45c4171df6d45d43f2747064c28d6de1f593c976cf8f42ed1960bc051bac8bc" },
-    "VIEWER": { "name": "Viewer", "permissionCount": 17, "permissionsSha256": "d9ffbd8fda978d3152fc371cd3f3b3e57038461e4eb422e05d427a2706e0f7e2" },
-    "WAREHOUSE_MANAGER": { "name": "Warehouse Manager", "permissionCount": 68, "permissionsSha256": "25ec5fcde0213e3cd8c5abc56304f383827a8870869283ad7ad795be7a59b508" },
-    "SKU_MANAGER": { "name": "SKU Manager Test", "permissionCount": 5, "permissionsSha256": "5079ad8971dd6e540f02de282a0bda89a05f9b916842b6a6639146f27cbbb822" },
-    "MASTER_MANAGER": { "name": "Master Data Manager Test", "permissionCount": 5, "permissionsSha256": "6abfebc26b7242aa92391dc3f3cab42a9b58883a85e5332f61d2fbe5bb5c51d0" },
-    "NO_PERMISSION": { "name": "No Permission Test", "permissionCount": 0, "permissionsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }
+    "ADMIN": {
+      "name": "Administrator",
+      "permissionCount": 61,
+      "permissionsSha256": "e73d9b10d04eb6d6348cf66baa7242b492c053345bff7c2e0036355afeb7f937"
+    },
+    "WAREHOUSE_STAFF": {
+      "name": "Warehouse Staff",
+      "permissionCount": 31,
+      "permissionsSha256": "6ce452be91ff2a84ab2c37c0dddd078918fd9ca612354cb565fdd993081f4bfb"
+    },
+    "WAREHOUSE_APPROVER": {
+      "name": "Warehouse Approver",
+      "permissionCount": 22,
+      "permissionsSha256": "719c8bd3da46c0fafd684dee8f7c63f98cd32489497ac9cc24a6299286f15151"
+    },
+    "WAREHOUSE_KEEPER": {
+      "name": "Warehouse Keeper",
+      "permissionCount": 46,
+      "permissionsSha256": "28d753d22aad1d27eb30e1b14aec3d1f115ade48745e1294c11bd8cbc639b487"
+    },
+    "WARRANTY_STAFF": {
+      "name": "Warranty Staff",
+      "permissionCount": 12,
+      "permissionsSha256": "8c051e2b718da90f62d2b73ced3adead183f9d6a1af563af46cd7861fdf905ec"
+    },
+    "LEADERSHIP": {
+      "name": "Leadership",
+      "permissionCount": 11,
+      "permissionsSha256": "f45c4171df6d45d43f2747064c28d6de1f593c976cf8f42ed1960bc051bac8bc"
+    },
+    "VIEWER": {
+      "name": "Viewer",
+      "permissionCount": 17,
+      "permissionsSha256": "d9ffbd8fda978d3152fc371cd3f3b3e57038461e4eb422e05d427a2706e0f7e2"
+    },
+    "WAREHOUSE_MANAGER": {
+      "name": "Warehouse Manager",
+      "permissionCount": 68,
+      "permissionsSha256": "25ec5fcde0213e3cd8c5abc56304f383827a8870869283ad7ad795be7a59b508"
+    },
+    "SKU_MANAGER": {
+      "name": "SKU Manager Test",
+      "permissionCount": 5,
+      "permissionsSha256": "5079ad8971dd6e540f02de282a0bda89a05f9b916842b6a6639146f27cbbb822"
+    },
+    "MASTER_MANAGER": {
+      "name": "Master Data Manager Test",
+      "permissionCount": 5,
+      "permissionsSha256": "6abfebc26b7242aa92391dc3f3cab42a9b58883a85e5332f61d2fbe5bb5c51d0"
+    },
+    "NO_PERMISSION": {
+      "name": "No Permission Test",
+      "permissionCount": 0,
+      "permissionsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
   },
   "conformanceDeltas": [
     {
@@ -77,5 +162,14 @@
   "measuredAt": {
     "beSha": "301899c48af13ea01171b30b280cc6f5d39d3404",
     "source": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php const ROLES"
+  },
+  "howToUpdate": {
+    "when": "Bất cứ khi nào sửa hằng ROLES của AuthDatabaseSeeder (thêm/bớt role hoặc permission).",
+    "steps": [
+      "1. Đối chiếu grant mới với bảng actor × action của SRS §3; nếu §3 không nói tới mức quyền đó thì mở một mục trong conformanceDeltas thay vì im lặng cập nhật.",
+      "2. Sinh lại băm: php -r \"require \"vendor/autoload.php\"; =(new ReflectionClass(\"Modules\\Auth\\Database\\Seeders\\AuthDatabaseSeeder\"))->getConstant(\"ROLES\"); foreach( as =>){ =[\"permissions\"]; sort(); echo .\" \".count().\" \".hash(\"sha256\", implode(\",\", )).PHP_EOL; }\"",
+      "3. Cập nhật pinnedRoles + nêu lý do trong PR. Cổng đỏ ở đây KHÔNG phải lỗi cần bỏ qua: nó là chỗ duy nhất buộc người sửa nhìn lại §3."
+    ],
+    "knownPendingChange": "Tại thời điểm chốt WWHN-267, một phiên làm việc song song (WWHN-249 D-04) đang có thay đổi CHƯA COMMIT thêm pv.master.manage cho WAREHOUSE_MANAGER. Grant đó khớp §3 (row \"PV Industry/Tag/Product Mapping/Recommendation Rule manage\" = A cho Quản lý kho), nên khi commit chỉ cần làm bước 2 và 3. Pin ở đây cố ý chốt theo trạng thái ĐÃ COMMIT, không chốt theo WIP của phiên khác."
   }
 }

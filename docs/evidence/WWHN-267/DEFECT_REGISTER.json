@@ -374,6 +374,13 @@
       "owner": "chủ ticket WWHN-310",
       "blocks": [],
       "compensatingControl": "WWHN-267 chạy theo đường dẫn file cụ thể; xem RUN_EVIDENCE.md §6."
+    },
+    {
+      "id": "W267-EXT-06",
+      "title": "Cap nhat ROLE_BASELINE_PIN khi WWHN-249 D-04 commit grant pv.master.manage cho WAREHOUSE_MANAGER",
+      "owner": "chủ ticket WWHN-249",
+      "blocks": [],
+      "compensatingControl": "Pin chốt theo trạng thái ĐÃ COMMIT nên không nuốt WIP của phiên khác; ROLE_BASELINE_PIN.json.howToUpdate nêu đúng 3 bước và lệnh sinh lại băm. Grant đó khớp SRS §3 row PV master manage = A cho Quản lý kho."
     }
   ]
 }

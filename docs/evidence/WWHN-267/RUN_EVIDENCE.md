@@ -127,3 +127,22 @@ việc khác trên cùng `m1`) khai `json()` ở mức protected trong khi lớp
 và làm hỏng cả suite. WWHN-267 **không sửa file của ticket khác**; các lượt chạy ở
 trên dùng đường dẫn file cụ thể để tránh nạp lớp đó. Baseline toàn suite phải chạy lại
 sau khi `WWHN-310` đóng.
+
+## 7. Hai bẫy đo lường đã sập, ghi lại để lần sau không mất thời gian
+
+**Bẫy 1 — junction `vendor` làm lượt chạy exact-SHA đọc nhầm source.** Cách kiểm
+chứng tại exact SHA thường dùng là `git worktree add --detach` rồi trỏ `vendor` bằng
+junction sang repo chính. Nhưng `vendor/composer/autoload_psr4.php` chứa **đường dẫn
+tuyệt đối tới repo chính**, nên `Modules...` được nạp từ cây làm việc chính chứ không
+phải từ worktree. Hệ quả quan sát được: test pin role trong worktree tại `215cf0b` báo
+`WAREHOUSE_MANAGER` có **69** quyền, trong khi bản đã commit chỉ có **68** — chênh lệch
+đúng bằng một thay đổi CHƯA COMMIT của phiên làm việc song song. Kết luận: lượt chạy
+PHP tại exact SHA phải do CI làm trên checkout sạch có `composer install` riêng; junction
+chỉ dùng được cho script không đi qua autoloader (ví dụ verifier thuần Node — đã chạy
+PASS trong worktree sạch).
+
+**Bẫy 2 — baseline dùng chung trôi giữa phiên.** Trong lúc làm WWHN-267, `m1` nhận
+thêm commit của các phiên khác (HEAD đi từ `c29a220` tới `301899c` rồi tiếp tục), và
+catalog mã lỗi bị sinh lại. Vì vậy mọi con số trong hồ sơ này đều ghi kèm SHA mà nó
+được đo, và cổng thì tính lại từ source lúc chạy thay vì đọc số đã chép — số chép tay
+sẽ mục, bất biến tính lại thì không.
