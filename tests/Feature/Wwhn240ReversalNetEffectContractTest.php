@@ -317,8 +317,14 @@ class Wwhn240ReversalNetEffectContractTest extends TestCase
 
     public function test_trace_source_movement_khong_ton_tai_tra_404(): void
     {
-        $this->api('/api/v1/stock-movements/'.self::FOREIGN_WAREHOUSE_ID.'/trace-source')
-            ->assertStatus(404);
+        $response = $this->api('/api/v1/stock-movements/'.self::FOREIGN_WAREHOUSE_ID.'/trace-source')
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'RESOURCE_NOT_FOUND')
+            ->assertJsonStructure(['error' => ['code', 'details'], 'meta' => ['request_id', 'timestamp']]);
+
+        // QA240-10 (§8.2): envelope lỗi chuẩn — error.message không rỗng, meta.request_id thật.
+        $this->assertNotEmpty($response->json('message'), 'Envelope lỗi chuẩn phải có message.');
+        $this->assertNotNull($response->json('meta.request_id'), 'Envelope lỗi chuẩn phải có meta.request_id.');
     }
 
     // ══════════════════════════════════════════════════════════
@@ -334,9 +340,16 @@ class Wwhn240ReversalNetEffectContractTest extends TestCase
 
         $foreign = $this->scopedHeaders(self::FOREIGN_WAREHOUSE_ID, ['inventory.view', 'inventory.trace']);
 
-        $this->getJson("/api/v1/stock-movements/{$receipt}/trace-source", $foreign)
+        $response = $this->getJson("/api/v1/stock-movements/{$receipt}/trace-source", $foreign)
             ->assertStatus(403)
             ->assertJsonPath('error.code', 'ACCESS_DENIED');
+
+        // QA240-11: từ chối ngoài scope không được rò rỉ bất kỳ node nào của chain.
+        $this->assertArrayNotHasKey('data', $response->json(), 'Response 403 không được có khối data chứa chain.');
+        $body = $response->getContent();
+        $this->assertStringNotContainsString('correction_chain', $body);
+        $this->assertStringNotContainsString('"nodes"', $body);
+        $this->assertStringNotContainsString('net_effect', $body);
     }
 
     public function test_trace_source_thieu_inventory_view_bi_tu_choi_403(): void
@@ -367,6 +380,27 @@ class Wwhn240ReversalNetEffectContractTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.correction_chain.node_count', 2)
             ->assertJsonPath('data.net_effect.reversed_qty', 2);
+    }
+
+    /**
+     * QA240-14 — thiếu `report.view` gọi `GET /api/v1/reports/inventory-xnt` phải bị
+     * từ chối 403. Trước bản vá này chưa có Feature test nào gửi HTTP thật tới đúng
+     * route `inventory-xnt` với actor thiếu permission (chỉ có test lân cận cho
+     * `dashboard-quick` và test đăng ký route không gửi request thật).
+     */
+    public function test_inventory_xnt_report_requires_report_view_permission(): void
+    {
+        $sku = $this->sku('WWHN240-RBAC-REPORT');
+        $today = now()->toDateString();
+        $this->movement('RECEIPT', $sku, 5, $today);
+
+        // Đủ inventory.view nhưng KHÔNG có report.view — permission gate của route
+        // (Modules/Warehouse/routes/api.php:186) phải chặn trước khi tới controller.
+        $withoutReportView = $this->scopedHeaders((string) $this->warehouse->id, ['inventory.view']);
+
+        $this->getJson("/api/v1/reports/inventory-xnt?from_date={$today}&to_date={$today}", $withoutReportView)
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
 
     // ══════════════════════════════════════════════════════════

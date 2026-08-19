@@ -254,6 +254,9 @@ class Wwhn239ReversalItemLevelClosureTest extends TestCase
 
         $movementsAfterFirst = DB::table('stock_movements')->count();
         $balanceAfterFirst = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
+        $nodeCountAfterFirst = $this->getJson("/api/v1/stock-movements/{$fixture['movement_id']}/trace-source", $headers)
+            ->assertOk()
+            ->json('data.correction_chain.node_count');
 
         $replay = $this->reverseItem($headers, $fixture, $fixture['item_ids'][0], $key);
         $replay->assertOk()
@@ -262,6 +265,13 @@ class Wwhn239ReversalItemLevelClosureTest extends TestCase
 
         $this->assertSame($movementsAfterFirst, DB::table('stock_movements')->count());
         $this->assertSame($balanceAfterFirst, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']));
+
+        // QA240-16: replay không được sinh thêm node trong correction chain — chain
+        // đứng nguyên ở 2 node (ORIGINAL RECEIPT + REVERSAL POSTED).
+        $this->getJson("/api/v1/stock-movements/{$fixture['movement_id']}/trace-source", $headers)
+            ->assertOk()
+            ->assertJsonPath('data.correction_chain.node_count', $nodeCountAfterFirst)
+            ->assertJsonPath('data.correction_chain.node_count', 2);
     }
 
     /** DEV239-P1-04 · same key + payload khác → 409 IDEMPOTENCY_CONFLICT (§8.2). */
@@ -274,6 +284,9 @@ class Wwhn239ReversalItemLevelClosureTest extends TestCase
         $this->reverseItem($headers, $fixture, $fixture['item_ids'][0], $key)->assertOk();
         $movementsAfterFirst = DB::table('stock_movements')->count();
         $balanceAfterFirst = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
+        $nodeCountAfterFirst = $this->getJson("/api/v1/stock-movements/{$fixture['movement_id']}/trace-source", $headers)
+            ->assertOk()
+            ->json('data.correction_chain.node_count');
 
         $this->reverseItem($headers, $fixture, $fixture['item_ids'][1], $key, 'Payload khác cùng key')
             ->assertStatus(409)
@@ -281,6 +294,12 @@ class Wwhn239ReversalItemLevelClosureTest extends TestCase
 
         $this->assertSame($movementsAfterFirst, DB::table('stock_movements')->count());
         $this->assertSame($balanceAfterFirst, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']));
+
+        // QA240-17: 409 idempotency conflict không được ghi thêm reversal — chain
+        // quanh movement gốc phải đứng nguyên so với trước request xung đột.
+        $this->getJson("/api/v1/stock-movements/{$fixture['movement_id']}/trace-source", $headers)
+            ->assertOk()
+            ->assertJsonPath('data.correction_chain.node_count', $nodeCountAfterFirst);
     }
 
     /** DEV239-P1-04 · RBAC 401/403; state/stock/movement không đổi. */

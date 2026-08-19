@@ -81,7 +81,15 @@ Chạy qua HTTP thật, không INSERT thẳng:
 |---|---|---|
 | QA240-16 | Post Reversal 2 lần **cùng** `Idempotency-Key` + cùng payload | Lần 2 replay; **chain vẫn 2 node**; tồn không đổi lần hai |
 | QA240-17 | Cùng key, payload khác | 409 `IDEMPOTENCY_CONFLICT`; chain không đổi |
-| QA240-18 | Đảo 3/10 rồi xin đảo thêm 8 | 422 `REVERSAL_QTY_EXCEEDS_REVERSIBLE`; `remaining_reversible_qty` trong trace vẫn = 7 |
+| QA240-18 | Đảo 3/10 rồi xin đảo thêm 8 | 422 `REVERSAL_QTY_EXCEEDED`; `remaining_reversible_qty` trong trace vẫn = 7 |
+
+> Ghi chú (2026-08-19): mã lỗi đã sửa từ `REVERSAL_QTY_EXCEEDS_REVERSIBLE` (copy nguyên văn
+> mô tả TC-REV-03, `docs/HN_SRS_FRD_v1.12_FULL.md:414`) thành `REVERSAL_QTY_EXCEEDED` — mã
+> THẬT trong code (`Modules/Warehouse/app/Services/CurrentBaselineReversalService.php:143`,
+> `CurrentBaselineStockService.php:297`) và trong catalog chính thức
+> `docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md:292`. SRS dòng 536 tự ghi tiêu đề
+> cột là "Error code **examples**" — chỉ minh hoạ, không phải hợp đồng cứng; theo tiền lệ
+> WWHN-267, catalog `HN-BE-API-002` mới là nguồn thật.
 | QA240-19 | Hai request reversal đồng thời cùng movement | Một thành công, một 409/412; **không** sinh node trùng trong chain |
 | QA240-20 | Inject lỗi sau bước movement/balance | 500 + rollback; chain và XNT trở về nguyên trạng trước request |
 
