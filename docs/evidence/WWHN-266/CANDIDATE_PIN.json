@@ -3,8 +3,17 @@
   "registerItems": ["DEV266-P1-02", "DEV266-P1-07"],
   "repo": "HoaNam_BE / WMS_Warehouse_Hoa_Nam_BE",
   "branch": "m1",
-  "codeCandidateSha": "8c7750763c473f5ccc65a8490a6a5b5a599246fc",
-  "codeCandidateShaShort": "8c77507",
+  "codeCandidateSha": "6cfb642e7e78b46a012af54a47aac21420502443",
+  "codeCandidateShaShort": "6cfb642",
+  "pinRefreshHistory": [
+    {
+      "from": "8c7750763c473f5ccc65a8490a6a5b5a599246fc",
+      "to": "6cfb642e7e78b46a012af54a47aac21420502443",
+      "reason": "Commit 6cfb642 ('gỡ cờ 15') chạm build/evidence/wwhn-266/component-issue-core-transaction.json (driver pgsql→sqlite, khớp truthBoundary local sqlite đã khai ở dưới). Đây là commit cuối cùng chạm rangeInvariantPaths tính đến thời điểm refresh; không file mã nguồn/test nào trong tập bất biến bị đổi ngoài artifact sinh ra này.",
+      "refreshedBy": "WWHN-268 round 2 evidence refresh (FE268-R2-P1-03/04), local, không dùng CI",
+      "refreshedAt": "2026-08-19"
+    }
+  ],
   "pinRule": "Pin theo COMMIT CUỐI CHẠM ARTIFACT của WWHN-266, không pin theo HEAD của m1. Nhánh m1 có nhiều phiên làm song song nên HEAD trôi liên tục; pin theo HEAD sẽ mục ngay trong ngày (bài học WWHN-191/WWHN-290).",
   "rangeInvariant": "codeCandidateSha phải là ancestor của refs/heads/m1, và không commit nào sau nó được chạm bất kỳ đường dẫn nào trong rangeInvariantPaths mà không cập nhật lại file pin này.",
   "rangeInvariantPaths": [
