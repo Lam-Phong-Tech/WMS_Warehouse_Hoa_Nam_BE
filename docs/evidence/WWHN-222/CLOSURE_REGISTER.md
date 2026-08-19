@@ -47,6 +47,13 @@
 - **Pin nội dung (không rot theo HEAD):** `RC_PIN.json` — verify:
   `node scripts/verify-wwhn222-candidate-pin.mjs` (thêm `--expect-sha=<sha>` ở cổng deploy).
 - **Migrations trong candidate:** `2026_08_19_000001`, `2026_08_19_000002`, `2026_08_19_150000`.
+- **Re-verify 19/08/2026 (phiên soạn sign-off comments):** pin verifier **PASS 8/8 artifact**
+  tại HEAD `4a6965b5d432947c497a2c3370a62a17907251a3`;
+  `php vendor/bin/phpunit tests/Feature/Wwhn222AuditEventCatalogTest.php` → **5/5 passed
+  (23 assertions)** tại cùng HEAD; chạy lại pin verifier lần nữa sau khi các phiên song song
+  commit tiếp → **PASS 8/8 tại HEAD `63941526a144806f0e0245f54dd265f07591334f`** — candidate
+  không rot. (Đối chiếu chéo: phiên QA1 độc lập cũng re-verify tại `5db3cb0` —
+  `TEST_EVIDENCE.md` mục R2-5.)
 
 ## Affected files (tập pin — xem hash trong RC_PIN.json)
 

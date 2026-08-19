@@ -77,6 +77,15 @@ Lint (Pint) + `php artisan route:list` (runtime route tồn tại) + OpenAPI rou
 vẫn đang giữa chừng cài đặt bởi một phiên song song khác tại thời điểm ghi mục này — không tự
 `npm install` đè lên để tránh phá tiến trình của họ; bổ sung log này ngay khi sẵn sàng.
 
+> **Bổ sung 19/08/2026 (sau khi node_modules sẵn sàng — phiên đóng WWHN-247 R2):**
+> `npx vitest run src/modules/warranty src/test/wwhn-247-warranty-closure.test.ts src/test/warranty-v17-fail-closed.test.ts`
+> → **8 test files / 59 tests — PASS toàn bộ** tại FE HEAD `ebdb061098bea9426c2949e5c50b53ba8a09289f`
+> (candidate warranty-scope FE `c9f52df44638558cc3c2e08807e05a9d05f689c8`; range invariant
+> `git diff --stat c9f52df..ebdb061 -- src/modules/warranty src/test/wwhn-247-warranty-closure.test.ts` = rỗng).
+> Mảnh FE còn treo của P1-03/P1-04 đến đây đã có log chạy thật — các gate QA/CI/data của
+> WWHN-244 không còn hạng mục kỹ thuật nào thiếu bằng chứng; phần còn lại thuần quy trình
+> (BA/Tech Lead sign-off §2, PM Jira metadata §7).
+
 **Vì sao không phải qua `.github/workflows/warranty-readiness.yml`:** tài khoản GitHub Actions
 đã dùng hết 3000/3000 phút — theo đúng yêu cầu, phiên này không trigger, không sửa, không chạm
 bất kỳ file `.github/workflows/*` nào. Bằng chứng trên hoàn toàn chạy local.
