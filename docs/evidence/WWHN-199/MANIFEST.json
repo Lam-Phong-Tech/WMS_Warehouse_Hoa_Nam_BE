@@ -1,0 +1,309 @@
+{
+  "schema_version": "1.0.0",
+  "task": "WWHN-199",
+  "register_item": "DEV199-P1-03R",
+  "supersedes_attachment": "ATT-11849",
+  "generated_at": "2026-08-19T02:03:22.006Z",
+  "candidate": {
+    "repository": "HoaNam_BE",
+    "branch": "m1",
+    "commit": "3d2da21afa61f58a370f62991f7e12982bd1b7c6",
+    "commit_date": "2026-08-19 09:03:13 +0700",
+    "commit_subject": "fix(WWHN-199): hash evidence runtime tu blob da commit de verifier chay duoc tren CI Linux",
+    "pin_rule": "commit CUOI CUNG cham vao tap artifact WWHN-199 — KHONG pin theo HEAD, vi nhanh m1 co nhieu task chay song song nen HEAD co the khong chua thay doi nao cua task nay."
+  },
+  "later_modification": {
+    "commits_touching_artifacts_after_candidate": [],
+    "expectation": "Phai rong. Khac rong ⇒ manifest het han, phai sinh lai va pin SHA moi.",
+    "working_tree_files_outside_scope_at_evidence_time": [
+      ".github/workflows/wwhn-199-reservation-gate.yml",
+      "Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php",
+      "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php",
+      "Modules/Warehouse/app/Http/Controllers/OutboundDocumentController.php",
+      "Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php",
+      "Modules/Warehouse/app/Services/CurrentBaselineStockService.php",
+      "Modules/Warehouse/database/migrations/2026_08_19_130000_sync_inbound_lines_mirror_deletes.php",
+      "Modules/Warehouse/routes/api.php",
+      "app/Swagger/Processors/RouteSyncProcessor.php",
+      "build/evidence/wwhn-193/audit-fail-closed-proof-pgsql.json",
+      "build/evidence/wwhn-193/audit-fail-closed-proof-sqlite.json",
+      "build/evidence/wwhn-193/dependency-chain-proof.json",
+      "build/evidence/wwhn-193/retry-recovery-proof.json",
+      "build/evidence/wwhn-289/security-regression-proof.json",
+      "build/evidence/wwhn-299/01-dry-run.json",
+      "build/evidence/wwhn-299/02-commit.json",
+      "build/evidence/wwhn-299/03-rollback.json",
+      "build/evidence/wwhn-299/MANIFEST.json",
+      "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.json",
+      "docs/api-contract/HN-BE-API-002_ERROR_CODE_CATALOG.md",
+      "docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.json",
+      "docs/api-contract/HN-BE-API-004_CONTRACT_METRICS.md",
+      "docs/api-contract/WWHN-195-outbound-openapi.yaml",
+      "docs/api-contract/WWHN-198-reserved-qty-contract.json",
+      "docs/decision-records/DEC-INV-RESERVED-001-reserved-qty-semantics.md",
+      "docs/docs_task_jira/WWHN-184.md",
+      "docs/docs_task_jira/WWHN-198.md",
+      "docs/evidence/WWHN-184/EVIDENCE_PACK.md",
+      "docs/evidence/WWHN-204/DEFECT_CLOSURE_REGISTER.md",
+      "docs/evidence/WWHN-204/PG_APPEND_ONLY_EVIDENCE.md",
+      "docs/evidence/WWHN-204/logs/pg-append-only.log",
+      "docs/evidence/WWHN-330/BENCHMARK_RAW.json",
+      "docs/evidence/WWHN-330/BENCHMARK_RESULT.md",
+      "\"docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json\"",
+      "\"docs/postman/WWHN-184 Inbound Contract.postman_collection.json\"",
+      "\"docs/postman/WWHN-195 Outbound Contract.postman_collection.json\"",
+      "docs/testing/WWHN-195-outbound-test-cases.json",
+      "scripts/collect-wwhn204-pg-evidence.sh",
+      "scripts/generate-error-code-catalog.mjs",
+      "storage/api-docs/api-docs.json",
+      "storage/api-docs/api-docs.yaml",
+      "tests/Feature/Wwhn249PvSurfaceGovernanceTest.php",
+      ".github/workflows/wwhn-184-inbound-contract.yml",
+      ".github/workflows/wwhn-199-reservation-gate.yml",
+      ".github/workflows/wwhn-205-invariant-gate.yml",
+      ".github/workflows/wwhn-266-core-transaction-closure.yml",
+      "Modules/Warehouse/database/migrations/2026_08_19_000300_expose_scan_source_on_sqlite_scan_evidence.php",
+      "build/evidence/wwhn-217/",
+      "build/evidence/wwhn-266/",
+      "build/pintcheck/",
+      "build/wwhn190/",
+      "docs/decision-records/DISP-IN-184-INBOUND-DOCUMENT-STATE-BASELINE.md",
+      "docs/decision-records/DR-HN-20260819-WWHN195-SCAN-MODE.md",
+      "docs/docs_task_jira/WWHN-266.md",
+      "docs/evidence/WWHN-184/DEPLOY_RUNBOOK.md",
+      "docs/evidence/WWHN-184/QA1_RETEST_CHECKLIST.md",
+      "docs/evidence/WWHN-184/RC_PIN.json",
+      "docs/evidence/WWHN-195/",
+      "docs/evidence/WWHN-198/WWHN-198_QA1_TEST_PACK.md",
+      "docs/evidence/WWHN-205/",
+      "docs/evidence/WWHN-266/",
+      "\"docs/postman/WWHN-184 Inbound CI.postman_environment.json\"",
+      "grep.exe.stackdump",
+      "routes.tmp.json",
+      "scripts/collect-wwhn184-evidence.sh",
+      "scripts/sync-wwhn-266-postman-if-match.mjs",
+      "scripts/verify-wwhn-195-outbound-contract.mjs",
+      "scripts/verify-wwhn-266-closure.mjs",
+      "scripts/verify-wwhn184-candidate-pin.mjs",
+      "scripts/verify-wwhn184-postman-contract.mjs",
+      "scripts/verify-wwhn205-closure.mjs",
+      "scripts/wwhn184-post-receipt-runtime-concurrency.php",
+      "scripts/wwhn184-post-receipt-worker.php",
+      "scripts/wwhn205-receipt-issue-race.php",
+      "scripts/wwhn206-ledger-reconciliation.php",
+      "scripts/wwhn206-ledger-reconciliation.sql",
+      "tests/Feature/Wwhn184InboundContractParityTest.php",
+      "tests/Feature/Wwhn184PostReceiptRuntimeConcurrencyTest.php",
+      "tests/Feature/Wwhn195OutboundContractAlignmentTest.php",
+      "tests/Feature/Wwhn205InvariantClosureContractTest.php",
+      "tests/Feature/Wwhn217RuntimeErrorContractTest.php",
+      "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+      "tests/Feature/Wwhn266IfMatchContractTruthTest.php"
+    ],
+    "note": "Evidence runtime chay tren working tree dung chung tren nhanh m1. Danh sach tren la cac file KHONG thuoc WWHN-199 dang duoc phien khac sua tai thoi diem sinh evidence. Chung duoc liet ke tuong minh de nguoi review tu danh gia, thay vi bi giau di."
+  },
+  "candidate_build": {
+    "artifacts": [
+      {
+        "path": "Modules/Warehouse/database/migrations/2026_08_19_120000_consolidate_outbound_active_item_unique_index.php",
+        "sha256": "92420ed7dcadacab3de5d41d6c660bc0643d27c6346405a5ba2ddfe34c7d4e08",
+        "bytes": 7587,
+        "source": "git-blob"
+      },
+      {
+        "path": "tests/Feature/Wwhn199ReservationConcurrencyGuardTest.php",
+        "sha256": "13a8ce90e1c2a86cd0d8045e5570959d12d239b9280621d7cce16236d2996a62",
+        "bytes": 13322,
+        "source": "git-blob"
+      },
+      {
+        "path": "tests/Feature/Wwhn199ReservationIndexContractTest.php",
+        "sha256": "2f0b48946b91d72aa7800de3e0bb176f4442ce1c66f33a0535477b50bf9c2f18",
+        "bytes": 4962,
+        "source": "git-blob"
+      },
+      {
+        "path": "scripts/run-wwhn199-evidence.mjs",
+        "sha256": "73be6cfeba5d51ae3eb0dcaade49a2ba76fbe280ad0935e316dd8843bfff1e96",
+        "bytes": 11494,
+        "source": "git-blob"
+      },
+      {
+        "path": "scripts/run-wwhn199-reservation-race.mjs",
+        "sha256": "b4db000c70ba525f8bdd40b260d9f6310ebe3d8446c26c0ccf778503fcdf7523",
+        "bytes": 10839,
+        "source": "git-blob"
+      },
+      {
+        "path": "scripts/wwhn199-race-fixture.php",
+        "sha256": "c9aafd21681cc2820495430d7e82cde9cc568648f5b4e20b4712e6a626bfc032",
+        "bytes": 13162,
+        "source": "git-blob"
+      },
+      {
+        "path": "scripts/wwhn199-recreate-candidate-database.php",
+        "sha256": "187048a669a6fd781c4a3c3806810732f641ad309047042a8db212870ea6f0a1",
+        "bytes": 2955,
+        "source": "git-blob"
+      },
+      {
+        "path": "scripts/verify-wwhn199-reservation-invariants.php",
+        "sha256": "9d55a004bbf33f2ab4d2d85e931ea8bea13307459b212703a4d1f327570392db",
+        "bytes": 9423,
+        "source": "git-blob"
+      },
+      {
+        "path": "scripts/verify-wwhn199-closure.mjs",
+        "sha256": "3695b062d25b6e0f628d8d2e520dfe80b5a9a845dc7d686c6f90086d4467157a",
+        "bytes": 15416,
+        "source": "git-blob"
+      },
+      {
+        "path": "scripts/build-wwhn199-manifest.mjs",
+        "sha256": "37867d3f0206393394552dd38484c6f98b12fa8e0c92c001d689199f20c2176f",
+        "bytes": 9886,
+        "source": "git-blob"
+      },
+      {
+        "path": "docs/decision-records/DISP-OUT-199-RESERVATION-INDEX.md",
+        "sha256": "9ad1f9f09e60a86419ce5a3a18a63e1f4c5f232ada655a09922f58a95cdf16d3",
+        "bytes": 9751,
+        "source": "git-blob"
+      },
+      {
+        "path": "docs/evidence/WWHN-199/PG_MIGRATION_AND_INDEX_EVIDENCE.md",
+        "sha256": "697f7dddf5b93464ff1358855695b72d09ae1dbc6e75b2966af382c199aab428",
+        "bytes": 11113,
+        "source": "git-blob"
+      },
+      {
+        "path": "docs/evidence/WWHN-199/RACE_EVIDENCE.md",
+        "sha256": "a0045e819fd89c9d6f29337a146835f67139bf236fa128974ab1713faf0b561f",
+        "bytes": 7539,
+        "source": "git-blob"
+      },
+      {
+        "path": "docs/evidence/WWHN-199/SOURCE_BASELINE_PIN.md",
+        "sha256": "4e59ac2e9c9d5474c718d835ac6ccfd2e2bd107bcb01f835d3d2bf8416caed79",
+        "bytes": 9300,
+        "source": "git-blob"
+      },
+      {
+        "path": "docs/evidence/WWHN-199/WWHN-199_QA1_RETEST_PACK.md",
+        "sha256": "56b30ba260eb41da7c6faf77515b5bff4b27ed754b4cd07d04b679182686d6a6",
+        "bytes": 10716,
+        "source": "git-blob"
+      },
+      {
+        "path": "docs/docs_task_jira/WWHN-199.md",
+        "sha256": "95cf02c114ffa6e62828bf6c629bc5ec4ec7b6f539951796441a42006e4ea82f",
+        "bytes": 33522,
+        "source": "git-blob"
+      }
+    ],
+    "runtime_evidence": [
+      {
+        "path": "build/evidence/wwhn-199/evidence-run.json",
+        "sha256": "4ec579de71d2d492e93c01192d90f1a0763b1bff9b8203177c15c38066704d33",
+        "bytes": 1376,
+        "source": "git-blob"
+      },
+      {
+        "path": "build/evidence/wwhn-199/migrate-pgsql-candidate.raw.txt",
+        "sha256": "4892c847f838a39beb8f73f059cb93c364564de2a2a95a7858c14f6836c4188d",
+        "bytes": 11438,
+        "source": "git-blob"
+      },
+      {
+        "path": "build/evidence/wwhn-199/race-fixture.json",
+        "sha256": "18d57dbc5392bb3c25e990eb66118641c532644a2154d601783276bd753fbfb2",
+        "bytes": 4616,
+        "source": "git-blob"
+      },
+      {
+        "path": "build/evidence/wwhn-199/race-report.json",
+        "sha256": "bb9c6c648eaa37e8618e5b8de24b230e0718b9f6d33624363c4294579cc54a6e",
+        "bytes": 11149,
+        "source": "git-blob"
+      },
+      {
+        "path": "build/evidence/wwhn-199/race-report.raw.txt",
+        "sha256": "e537e3351a85dcd5e52ff5a22b820af385cf336c883a62e25e34ca033c10c873",
+        "bytes": 2592,
+        "source": "git-blob"
+      },
+      {
+        "path": "build/evidence/wwhn-199/db-invariants.json",
+        "sha256": "b92524c0e34e19c52c84f94f9e0e5ef08278be8b4700a9fc1e2fefe2455dbdbe",
+        "bytes": 7949,
+        "source": "git-blob"
+      }
+    ]
+  },
+  "test_result": {
+    "environment": {
+      "php": null,
+      "node": "v22.17.1",
+      "postgres_server_version": "16.14",
+      "candidate_database": "hn_wwhn199"
+    },
+    "evidence_chain": {
+      "command": "node scripts/run-wwhn199-evidence.mjs --database=hn_wwhn199 --port-a=8199 --port-b=8299",
+      "result": "PASS",
+      "steps": [
+        {
+          "name": "1. Dựng lại DB candidate \"hn_wwhn199\" từ số 0",
+          "ok": true
+        },
+        {
+          "name": "2. php artisan migrate --force trên PostgreSQL",
+          "ok": true
+        },
+        {
+          "name": "3. Dựng fixture race",
+          "ok": true
+        },
+        {
+          "name": "4. Bật hai server process (8199, 8299)",
+          "ok": true
+        },
+        {
+          "name": "5. Race thật (item-level + toa-level)",
+          "ok": true
+        },
+        {
+          "name": "6. DB after-state + pg_indexes + duplicate probe",
+          "ok": true
+        }
+      ]
+    },
+    "race": {
+      "item_level_rounds": 5,
+      "item_level_overlapped_rounds": 5,
+      "item_level_passed_rounds": 5,
+      "request_level_executed": true,
+      "request_level_passed": true
+    },
+    "database_invariants": {
+      "result": "PASS",
+      "outbound_active_item_index_count": 1,
+      "inbound_active_item_index_count": 1,
+      "duplicate_probe_blocked": true,
+      "duplicate_probe_sqlstate": "23505"
+    },
+    "phpunit": [
+      {
+        "command": "php artisan test --filter=Wwhn199ReservationConcurrencyGuardTest",
+        "driver": "sqlite"
+      },
+      {
+        "command": "php artisan test --filter=Wwhn199ReservationIndexContractTest",
+        "driver": "sqlite (skip) / pgsql (assert)"
+      }
+    ]
+  },
+  "verification": {
+    "command": "node scripts/verify-wwhn199-closure.mjs --expect-sha=3d2da21afa61f58a370f62991f7e12982bd1b7c6",
+    "what_it_proves": "Moi artifact van co dung SHA-256 tai commit da pin; moi bat bien race/DB van PASS; khong con cau \"HEAD luc bat dau\" trong ho so; khong co file evidence bi tro toi ma thieu."
+  }
+}
