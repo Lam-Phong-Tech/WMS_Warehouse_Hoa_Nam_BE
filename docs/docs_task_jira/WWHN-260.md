@@ -13,11 +13,24 @@
 ## 1. Đọc gì trước khi sửa
 
 `docs/HN_SRS_FRD_v1.12_FULL.md` §13.12 (template/sample/error file/tiêu chí dry-run và
-reconciliation), §13.13 (DoD của ticket migration/cutover), §13.14 (nội dung waiver), §14 Data
-Dictionary; `REQ-SRS-021`, `REQ-SRS-034`, `NFR-SRS-017`, `AC-SRS-021`, `AC-GWT-MIG-001`,
-`DEC-MIG-API-001`. `docs/HoaNam_ERD_Moi_Nhat.md` bảng 58/59 + 19/20/22 + 43/44.
-`docs/HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html` — không có màn hình migration.
-`docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md` — console job, transaction, audit.
+reconciliation, dòng 1056-1083 — bất biến `valid+invalid+duplicate=input row count` dòng 1079,
+"container mapping creates no extra stock" dòng 1081), §13.13 (DoD của ticket migration/cutover,
+dòng 1085-1095), §13.14 (nội dung waiver, dòng 1097-1108), §14 Data Dictionary; `REQ-SRS-021`
+(dòng 322), `REQ-SRS-034` (dòng 335), `NFR-SRS-017` (dòng 603 — dry-run ≥10.000 dòng/file),
+`AC-SRS-021` (dòng 322/1340), `AC-GWT-MIG-001` (dòng 902), `DEC-MIG-API-001` (dòng 218).
+`docs/HoaNam_ERD_Moi_Nhat.md` bảng 58 `migration_runs` (dòng 2685, có `duplicate_rows`) + 59
+`migration_errors` (2742) + 19 `import_batches`/20 `item_instances`/22 `containers` (đều có FK
+`migration_run_id`). **Đính chính (19/08, soát lại lần 2):** bảng 43 `printer_configs` (2062) và
+44 `label_print_events` (2111) **không liên quan** migration/opening balance — bản trước liệt kê
+nhầm, đã gỡ khỏi danh sách đọc.
+`docs/HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html` — grep "migration" toàn file: 0 kết
+quả, xác nhận không có màn hình migration (đây là tool vận hành, không phải UI).
+**Đính chính (19/08):** `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md` là tài liệu kiến
+trúc **FE** (React/Vite/TS SPA) — không chứa Artisan/console command/`DB::transaction`/audit-log
+backend pattern nào (chỉ có route `/audit-logs` và module UI cùng tên); bản trước trích dẫn sai.
+Quy ước console job/transaction/audit thật sự áp dụng cho migration lấy từ chính codebase BE
+(`app/Console/Commands/MigrationFinalDataLoad.php`, `MigrationVerifyRun.php`), không phải từ tài
+liệu Techstack này.
 
 ## 2. Khoảng trống thật đã tìm ra (không phải suy đoán)
 
