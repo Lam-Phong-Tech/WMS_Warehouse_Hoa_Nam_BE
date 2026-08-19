@@ -43,6 +43,7 @@ use Modules\Warehouse\Http\Controllers\ScanController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
 use Modules\Warehouse\Http\Controllers\WmsContractController;
+use Modules\Warehouse\Http\Middleware\EnforceComponentIssueWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
@@ -289,12 +290,16 @@ Route::prefix('v1')->group(function (): void {
         Route::post('printer-configs', [CurrentBaselineOperationsController::class, 'storePrinterConfig'])->middleware('permission:label.print');
         Route::patch('printer-configs/{id}', [CurrentBaselineOperationsController::class, 'updatePrinterConfig'])->middleware('permission:label.print');
 
+        // WWHN-234 F-05: component_issue_documents (ERD bảng 48) có warehouse_id
+        // riêng; Post là action đổi tồn (COMPONENT DECREASE) nên toàn bộ endpoint
+        // ghi + show phải chịu cùng "Enforcement standard" §8.1 như inbound/outbound/
+        // reversal, không chỉ permission chức năng.
         Route::get('component-issue-documents', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
-        Route::post('component-issue-documents', [CurrentBaselineComponentFlowController::class, 'store'])->middleware('permission:warranty.component_issue');
-        Route::get('component-issue-documents/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware('permission:warranty.component_issue');
-        Route::post('component-issue-documents/{id}/scan', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware('permission:warranty.component_issue');
-        Route::post('component-issue-documents/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware('permission:warranty.component_issue');
-        Route::post('component-issue-documents/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware('permission:warranty.component_issue');
+        Route::post('component-issue-documents', [CurrentBaselineComponentFlowController::class, 'store'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::get('component-issue-documents/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('component-issue-documents/{id}/scan', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('component-issue-documents/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('component-issue-documents/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
 
         // Annex C listWarrantyCases dùng `warranty.view`; các GET còn lại của SCR-WAR-01
         // là cùng một bề mặt đọc nên nhận `warranty.view|warranty.manage` để role chỉ
@@ -336,12 +341,14 @@ Route::prefix('v1')->group(function (): void {
         Route::post('warranty-cases/{id}/status', [CurrentBaselineWarrantyController::class, 'updateWarrantyCase'])
             ->middleware('permission:warranty.manage');
 
+        // WWHN-234 F-05: bí danh Annex C của cùng bề mặt — cùng guard, không lệch
+        // với nhóm component-issue-documents ở trên.
         Route::get('warranty-component-issues', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
-        Route::post('warranty-component-issues', [CurrentBaselineComponentFlowController::class, 'store'])->middleware('permission:warranty.component_issue');
-        Route::get('warranty-component-issues/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware('permission:warranty.component_issue');
-        Route::post('warranty-component-issues/{id}/scans', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware('permission:warranty.component_issue');
-        Route::post('warranty-component-issues/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware('permission:warranty.component_issue');
-        Route::post('warranty-component-issues/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware('permission:warranty.component_issue');
+        Route::post('warranty-component-issues', [CurrentBaselineComponentFlowController::class, 'store'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::get('warranty-component-issues/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('warranty-component-issues/{id}/scans', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('warranty-component-issues/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('warranty-component-issues/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
 
         Route::post('outbound-request-imports/{id}/confirm', [CurrentBaselineImportController::class, 'consumeOutboundRequestImport'])
             ->middleware('permission:outbound.request.confirm|outbound.import');

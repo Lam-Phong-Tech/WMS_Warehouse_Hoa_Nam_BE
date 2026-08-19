@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\ConflictCode;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
@@ -822,8 +823,17 @@ class CurrentBaselineOperationsController extends Controller
             $error = $e->getMessage();
         }
 
-        $version = ((int) ($snapshot->version ?? 0)) + 1;
-        DB::transaction(function () use ($eventId, $id, $validated, $status, $error, $version): void {
+        // WWHN-234 F-06: $snapshot được đọc ở đầu hàm, NGOÀI lock (còn phải gọi
+        // printer agent qua HTTP ở giữa — không thể giữ FOR UPDATE xuyên suốt một
+        // lời gọi mạng ra ngoài). $expectedVersion neo đúng giá trị đã qua
+        // assertLabelPrintable() ở trên; UPDATE dưới đây phải là CAS
+        // (WHERE version = $expectedVersion), không phải ghi đè vô điều kiện —
+        // nếu không, hai lệnh print/reprint đồng thời cùng nhãn sẽ mất update:
+        // request thắng ghi version N+1, request thua ghi đè lại cũng N+1 (không
+        // phải N+2) và ai chạy sau cùng quyết định status cuối, không cảnh báo gì.
+        $expectedVersion = (int) ($snapshot->version ?? 0);
+        $version = $expectedVersion + 1;
+        DB::transaction(function () use ($eventId, $id, $validated, $status, $error, $version, $expectedVersion): void {
             DB::table('label_print_events')->insert([
                 'id' => $eventId,
                 'label_snapshot_id' => $id,
@@ -837,11 +847,17 @@ class CurrentBaselineOperationsController extends Controller
                 'updated_by' => $this->actorId(),
                 'version' => 0,
             ]);
-            DB::table('label_snapshots')->where('id', $id)->update([
-                'status' => $status,
-                'version' => $version,
-                'updated_at' => now(),
-            ]);
+            $updated = DB::table('label_snapshots')
+                ->where('id', $id)
+                ->where('version', $expectedVersion)
+                ->update([
+                    'status' => $status,
+                    'version' => $version,
+                    'updated_at' => now(),
+                ]);
+            if ($updated !== 1) {
+                ApiError::abort(409, ConflictCode::CONCURRENCY, 'Label snapshot đã bị thay đổi bởi lệnh in khác; tải lại rồi thử lại.');
+            }
         });
 
         if ($status !== 'PRINTED') {
@@ -906,24 +922,35 @@ class CurrentBaselineOperationsController extends Controller
     private function recordPrintFailure(object $snapshot, string $printerId, string $message, bool $reprint)
     {
         $eventId = (string) Str::uuid();
-        $version = ((int) ($snapshot->version ?? 0)) + 1;
-        DB::table('label_print_events')->insert([
-            'id' => $eventId,
-            'label_snapshot_id' => $snapshot->id,
-            'printer_config_id' => $printerId,
-            'status' => 'PRINT_FAILED',
-            'error_message' => $message,
-            'created_at' => now(),
-            'created_by' => $this->actorId(),
-            'updated_at' => now(),
-            'updated_by' => $this->actorId(),
-            'version' => 0,
-        ]);
-        DB::table('label_snapshots')->where('id', $snapshot->id)->update([
-            'status' => 'PRINT_FAILED',
-            'version' => $version,
-            'updated_at' => now(),
-        ]);
+        // WWHN-234 F-06: cùng CAS như nhánh thành công trong dispatchLabelOnce() —
+        // xem chú thích ở đó.
+        $expectedVersion = (int) ($snapshot->version ?? 0);
+        $version = $expectedVersion + 1;
+        DB::transaction(function () use ($eventId, $snapshot, $printerId, $message, $version, $expectedVersion): void {
+            DB::table('label_print_events')->insert([
+                'id' => $eventId,
+                'label_snapshot_id' => $snapshot->id,
+                'printer_config_id' => $printerId,
+                'status' => 'PRINT_FAILED',
+                'error_message' => $message,
+                'created_at' => now(),
+                'created_by' => $this->actorId(),
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+                'version' => 0,
+            ]);
+            $updated = DB::table('label_snapshots')
+                ->where('id', $snapshot->id)
+                ->where('version', $expectedVersion)
+                ->update([
+                    'status' => 'PRINT_FAILED',
+                    'version' => $version,
+                    'updated_at' => now(),
+                ]);
+            if ($updated !== 1) {
+                ApiError::abort(409, ConflictCode::CONCURRENCY, 'Label snapshot đã bị thay đổi bởi lệnh in khác; tải lại rồi thử lại.');
+            }
+        });
         ApiError::abort(409, 'PRINT_FAILED', $message, [
             'label_print_event_id' => $eventId,
             'label_status' => 'PRINT_FAILED',

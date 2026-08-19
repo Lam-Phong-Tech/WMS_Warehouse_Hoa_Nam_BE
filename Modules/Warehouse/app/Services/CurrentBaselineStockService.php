@@ -146,7 +146,12 @@ class CurrentBaselineStockService
             }
 
             $movementIds = [];
-            foreach ($lines as $line) {
+            // WWHN-234 F-04: khoá inventory_balances theo thứ tự product_id toàn
+            // cục, không theo thứ tự line_no của chứng từ (đã khoá ở trên, giữ
+            // nguyên cho stock_document_lines). Hai chứng từ chạm cùng tập SKU
+            // nhưng khai dòng theo thứ tự ngược nhau vẫn khoá balance theo đúng
+            // một thứ tự — điều kiện đủ để tránh deadlock chéo dưới tải cao.
+            foreach ($this->sortLinesForBalanceLock($lines, 'product_id') as $line) {
                 $warehouseId = $documentType === 'receipt' ? $document->dst_warehouse_id : $document->src_warehouse_id;
                 if ($warehouseId === null) {
                     ApiError::abort(422, 'WAREHOUSE_REQUIRED', 'Chứng từ thiếu warehouse stock-effect.');
@@ -413,7 +418,9 @@ class CurrentBaselineStockService
                 ApiError::abort(422, 'DOCUMENT_HAS_NO_LINES', 'Component Issue phải có ít nhất một dòng.');
             }
 
-            $movementIds = [];
+            // Pha validate giữ nguyên thứ tự line_no (đã khoá ở trên) để lỗi đầu
+            // tiên luôn xác định — không phụ thuộc thứ tự khoá balance bên dưới.
+            $lineItemIds = [];
             foreach ($lines as $line) {
                 $sku = DB::table('sku')->where('sku_id', $line->sku_id)->first();
                 if ($sku === null || strtoupper((string) $sku->sku_type) !== 'COMPONENT') {
@@ -423,7 +430,15 @@ class CurrentBaselineStockService
                     ApiError::abort(422, 'FULL_POST_REQUIRED', 'Component Issue chỉ Post khi scanned_qty = required_qty.');
                 }
 
-                $itemIds = DB::table('component_issue_items')->where('component_issue_line_id', $line->id)->whereNotNull('item_id')->pluck('item_id');
+                $lineItemIds[$line->id] = DB::table('component_issue_items')->where('component_issue_line_id', $line->id)->whereNotNull('item_id')->pluck('item_id');
+            }
+
+            $movementIds = [];
+            // WWHN-234 F-04: pha mutateBalance khoá inventory_balances theo
+            // product_id toàn cục, tách khỏi thứ tự line_no dùng cho validate ở
+            // trên — cùng lý do như postStockDocument().
+            foreach ($this->sortLinesForBalanceLock($lines, 'sku_id') as $line) {
+                $itemIds = $lineItemIds[$line->id];
 
                 $movement = $this->mutateBalance(
                     (string) $document->warehouse_id,
@@ -784,6 +799,25 @@ class CurrentBaselineStockService
             // không phải Post Issue gate — Barcode/QR là định danh hợp lệ. Guard
             // ITEM_RFID_REQUIRED cũ (theo ERD proposal v1.6) đã bị gỡ theo baseline.
         }
+    }
+
+    /**
+     * WWHN-234 F-04: trả lại các dòng đã lockForUpdate() theo thứ tự line_no,
+     * nhưng SẮP LẠI theo `$skuColumn` (thứ tự chuỗi ổn định, tie-break bằng id)
+     * chỉ để quyết định thứ tự gọi mutateBalance(). Lock trên
+     * stock_document_lines/component_issue_lines đã lấy theo line_no ở trên và
+     * KHÔNG đổi — hàm này chỉ đổi thứ tự khoá inventory_balances phía sau, để
+     * hai chứng từ chạm cùng tập SKU nhưng khai dòng ngược nhau luôn khoá theo
+     * đúng một thứ tự toàn cục thay vì thứ tự dòng riêng của từng chứng từ.
+     *
+     * @return list<object>
+     */
+    private function sortLinesForBalanceLock(iterable $lines, string $skuColumn): array
+    {
+        $items = $lines instanceof \Illuminate\Support\Collection ? $lines->all() : [...$lines];
+        usort($items, fn (object $a, object $b): int => [(string) $a->{$skuColumn}, (string) $a->id] <=> [(string) $b->{$skuColumn}, (string) $b->id]);
+
+        return $items;
     }
 
     private function applyReceiptSubledger(string $documentId): void
