@@ -1,5 +1,5 @@
 {
-    "migration_run_id": "96a57c3e-c08a-4766-9a5f-35449831dc14",
+    "migration_run_id": "10748da6-de8a-491e-a911-08d80fa1d03b",
     "migration_run_code": "REHEARSAL-WWHN-299#ROLLBACK",
     "mode": "ROLLBACK",
     "status": "ROLLED_BACK",
@@ -14,7 +14,7 @@
             "disposed_rows": [
                 {
                     "table": "sku",
-                    "id": "01a015ac-c3d0-71dd-bfad-708634bb7213",
+                    "id": "01a017d4-e717-712b-8b89-f9aa92e2da57",
                     "reason": "LEDGER_PINNED",
                     "status_column": "status",
                     "status_value": "INACTIVE"

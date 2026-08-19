@@ -271,7 +271,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -1124,7 +1124,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -1384,7 +1384,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -1737,8 +1737,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -1839,8 +1839,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -1932,8 +1932,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -2286,8 +2286,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -2379,8 +2379,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -2478,8 +2478,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -2810,7 +2810,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -3128,7 +3128,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -4427,8 +4427,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -4609,7 +4609,7 @@ paths:
       tags:
         - '09. Stock In (Inbound)'
       summary: 'Quét hàng cho phiếu DRAFT/SCANNING (stock-neutral)'
-      description: 'Bắt buộc If-Match. Scan hợp lệ chuyển/giữ phiếu ở SCANNING, tăng scanned_qty nhưng không tạo stock movement và không đổi inventory balance. Scan vượt Expected bị từ chối.'
+      description: 'Bắt buộc If-Match. Scan hợp lệ chuyển/giữ phiếu ở SCANNING, tăng scanned_qty nhưng không tạo stock movement và không đổi inventory balance. Scan vượt Expected bị từ chối. Idempotency-Key là TÙY CHỌN (scan stock-neutral, Annex C không khai bắt buộc nên thiếu header KHÔNG trả 428) — xem DEC-SCAN-IDEMP-001. Khi client gửi Idempotency-Key: mỗi hành động quét sinh một key và mọi lần gửi lại của đúng hành động đó dùng lại đúng key. Cùng key + cùng nội dung scan (line_id, qty, code_value, item_id, container_id) trả lại đúng response cũ kèm data.replayed=true và header Idempotent-Replay: true, scanned_qty KHÔNG tăng lần hai kể cả khi If-Match là version mới sau khi client re-fetch. Cùng key + khác nội dung scan trả 409 IDEMPOTENCY_CONFLICT. Khác key + cùng nội dung là lần quét thật thứ hai và vẫn cộng dồn bình thường. Fingerprint dedupe là tất định trên nội dung scan, không chứa version và không dùng cửa sổ thời gian; qty và quantity là alias của cùng một trường nên không tạo xung đột payload.'
       operationId: stock_in_scan
       parameters:
         -
@@ -4626,6 +4626,15 @@ paths:
           schema:
             type: integer
             minimum: 0
+        -
+          name: Idempotency-Key
+          in: header
+          description: 'Tùy chọn (DEC-SCAN-IDEMP-001). Độ dài 8..100 ký tự sau khi trim; sai độ dài trả 422 VALIDATION_ERROR. Thiếu header thì giữ nguyên hành vi cũ, không trả 428.'
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
       requestBody:
         required: true
         content:
@@ -4656,7 +4665,19 @@ paths:
               type: object
       responses:
         200:
-          description: 'Scan hợp lệ; stock_effect=NONE'
+          description: 'Scan hợp lệ; stock_effect=NONE. data.replayed=false là lần áp dụng thật, true là replay của một request đã chạy trước đó với cùng Idempotency-Key (header Idempotent-Replay phản chiếu cùng giá trị).'
+          headers:
+            ETag:
+              description: 'Version hiện hành của phiếu sau khi scan.'
+              schema:
+                type: string
+            Idempotent-Replay:
+              description: 'true khi response là replay theo Idempotency-Key.'
+              schema:
+                type: string
+                enum:
+                  - 'true'
+                  - 'false'
           content:
             application/json:
               schema:
@@ -4680,7 +4701,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         409:
-          description: 'State/version conflict'
+          description: 'STATE_CONFLICT (phiếu không còn DRAFT/SCANNING) | DUPLICATE_ITEM_IN_DOCUMENT | ITEM_ALREADY_RECEIVING | IDEMPOTENCY_CONFLICT (cùng Idempotency-Key nhưng khác nội dung scan) | CONCURRENCY_CONFLICT (cùng key đang được xử lý)'
           content:
             application/json:
               schema:
@@ -4692,7 +4713,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         422:
-          description: 'Scan sai SKU/mã/BOX hoặc vượt Expected'
+          description: 'Scan sai SKU/mã/BOX, vượt Expected, hoặc Idempotency-Key sai độ dài 8..100'
           content:
             application/json:
               schema:
@@ -4809,10 +4830,19 @@ paths:
           schema:
             type: string
         -
+          name: Idempotency-Key
+          in: header
+          description: 'Tuỳ chọn. Nếu gửi thì vẫn được kiểm độ dài 8-100 và đi qua cơ chế replay/conflict.'
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+        -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -6071,8 +6101,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -6173,8 +6203,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -6275,8 +6305,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -6538,8 +6568,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -6728,8 +6758,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -6836,8 +6866,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -6944,8 +6974,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -7052,8 +7082,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -7154,8 +7184,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -7256,8 +7286,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -7358,8 +7388,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -7451,8 +7481,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -7544,8 +7574,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -8107,8 +8137,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -8209,8 +8239,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -8797,7 +8827,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -9313,8 +9343,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -9577,7 +9607,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -10097,7 +10127,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -10704,7 +10734,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -11052,7 +11082,7 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          description: 'Tuỳ chọn. Nếu gửi thì được kiểm optimistic locking theo cột version của resource; sai version: 412 STALE_VERSION.'
           required: false
           schema:
             type: integer
@@ -11462,10 +11492,19 @@ paths:
           schema:
             type: string
         -
+          name: Idempotency-Key
+          in: header
+          description: 'Tuỳ chọn. Nếu gửi thì vẫn được kiểm độ dài 8-100 và đi qua cơ chế replay/conflict.'
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+        -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -11555,10 +11594,19 @@ paths:
           schema:
             type: string
         -
+          name: Idempotency-Key
+          in: header
+          description: 'Tuỳ chọn. Nếu gửi thì vẫn được kiểm độ dài 8-100 và đi qua cơ chế replay/conflict.'
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+        -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -11878,10 +11926,19 @@ paths:
           schema:
             type: string
         -
+          name: Idempotency-Key
+          in: header
+          description: 'Tuỳ chọn. Nếu gửi thì vẫn được kiểm độ dài 8-100 và đi qua cơ chế replay/conflict.'
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+        -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -11971,10 +12028,19 @@ paths:
           schema:
             type: string
         -
+          name: Idempotency-Key
+          in: header
+          description: 'Tuỳ chọn. Nếu gửi thì vẫn được kiểm độ dài 8-100 và đi qua cơ chế replay/conflict.'
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+        -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -12257,8 +12323,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -12622,8 +12688,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -15995,8 +16061,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -16172,8 +16238,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -16265,8 +16331,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -16445,8 +16511,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -18222,8 +18288,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -18424,8 +18490,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -20318,8 +20384,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -20659,8 +20725,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -21124,8 +21190,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -21226,8 +21292,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0
@@ -21319,8 +21385,8 @@ paths:
         -
           name: If-Match
           in: header
-          description: 'Optimistic locking theo cột version của resource. Thiếu header khi endpoint bắt buộc: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
-          required: false
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
           schema:
             type: integer
             minimum: 0

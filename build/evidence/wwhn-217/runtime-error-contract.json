@@ -4,7 +4,7 @@
     "source": "backend runtime (HTTP kernel + middleware thật, không mock)",
     "srs": "SRS §8.2 HTTP/Error Contract; §8.4 WWHN-40 \"UI hiding is not authorization\"; NFR-SRS-005",
     "backend_branch": "m1",
-    "backend_sha": "8efd25f92ec016d89fa5e8c8d39f37125e35385c",
+    "backend_sha": "78c2a5dc733f949ffd751fcaf5ed660a35f4cbe4",
     "generated_by": "tests/Feature/Wwhn217RuntimeErrorContractTest.php",
     "http_classes_covered": [
         401,

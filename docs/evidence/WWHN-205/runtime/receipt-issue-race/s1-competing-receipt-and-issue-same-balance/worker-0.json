@@ -1,0 +1,27 @@
+{
+    "worker_index": 0,
+    "application_name": "wwhn219-worker-0",
+    "scenario": "s1-competing-receipt-and-issue-same-balance",
+    "operation": "post_receipt",
+    "backend_pid": 4526,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "error_message": null,
+    "lock_wait_ms": 10,
+    "timeline": {
+        "booted_at": 1787104766.668243,
+        "released_at": 1787104766.688801,
+        "lock_acquired_at": 1787104766.700669,
+        "hold_released_at": 1787104768.206473,
+        "finished_at": 1787104768.340647
+    },
+    "payload": {
+        "document_id": "5a0fbdb8-995e-476f-9e86-c11bfdecb9a3",
+        "status": "POSTED",
+        "movement_ids": [
+            "f3928417-168b-46bc-a914-9c34e4cb2ef9"
+        ],
+        "stock_effect": "INCREASE"
+    }
+}

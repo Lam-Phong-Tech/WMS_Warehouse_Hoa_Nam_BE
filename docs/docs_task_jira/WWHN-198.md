@@ -226,3 +226,39 @@ Kết quả chạy full suite (xác nhận không regression toàn cục, bao g�
 - DevOps/QA xác nhận unique index Postgres-level và race-condition test đa connection thật (BE2-PICK-OP-04, kế thừa từ WWHN-199/205/218).
 - QA xác nhận evidence (mục 6-10) đáp ứng đúng Acceptance Criteria.
 - Không tự đánh dấu Done/Approved trên Jira chỉ dựa trên nội dung do BE2 tự ghi trong file này.
+
+---
+
+## Vòng 2 — Đóng register P0/P1/P2 (2026-08-19, BE2)
+
+Đánh giá vòng 1 đạt 60/100 với 6 hạng mục P1 + 1 P2. Vòng này đóng toàn bộ. Chi tiết
+máy đọc được: `docs/evidence/WWHN-198/WWHN-198_CLOSURE_REGISTER.json`; cổng kiểm tra
+lại: `node scripts/verify-wwhn-198-closure.mjs --expect-sha=<candidate>`.
+
+| ID | Kết quả | Neo bằng chứng |
+|---|---|---|
+| DEV198-P1-01R | `m1` là canonical (`m1-be-2` là ancestor thuần: 0 commit đi trước, m1 đi trước 719). Task inbound bị nhầm số thật ra là **WWHN-187**; artifact test đã mang tên task cha thật `Wwhn46OutboundPickScanDedupTest` | `DISP-OUT-198-CANONICAL-BRANCH.md` |
+| DEV198-P1-02R | Race PostgreSQL 16.14 đa process **đã chạy thật**, 3 scenario PASS | `reservation-race-summary.json`, `Wwhn198OutboundReservationRuntimeRaceTest` |
+| DEV198-P1-03R | Không cần standalone availability API; soft-check tại scan + hard-check tại Post là controlling rule. Đính chính ghi chú sai ở vòng 1 về filter `warehouse_id` | `DEC-OUT-AVAILABILITY-001-scan-soft-check.md` |
+| DEV198-P1-04R | `reserved_qty` = compatibility field hằng 0; giữ chỗ là **identity-level** qua `outbound_item_matches` ACTIVE | `DEC-INV-RESERVED-001`, `WWHN-198-reserved-qty-contract.json`, `Wwhn198ReservedQtySemanticsTest` |
+| DEV198-P1-05R | Test pack chạy lại được tại exact SHA, phủ đủ 8 nhóm QA yêu cầu | `WWHN-198_QA1_TEST_PACK.md` |
+| DEV198-P1-06 | Một controlling behavior nhãn (cấp lô, DRAFT khi full match, không auto-print) + **sửa 5 chỗ khai mã lỗi ma** trong hợp đồng | `Wwhn198PackingLabelContractAlignmentTest`, OpenAPI 2.0.0-R2 |
+| DEV198-P2-01 | **KEEP** `DUPLICATE_ITEM_MATCH` — race chứng minh nó reachable thật, không phải dead code | `DISP-OUT-198-DUPLICATE-ITEM-MATCH.md` |
+
+### Phát hiện mới của vòng 2 (không có trong register)
+
+Hợp đồng outbound khai **3 mã lỗi không tồn tại trong code**:
+`OUTBOUND_MATCH_NOT_ACTIVE` (thật: `MATCH_NOT_ACTIVE`), `PACKING_LABEL_FROZEN`
+(thật: `PACKING_LABEL_ALREADY_CREATED`), `IDEMPOTENCY_KEY_REUSED`
+(thật: `IDEMPOTENCY_CONFLICT`) — tổng 5 chỗ. FE bắt lỗi theo tên mã sẽ không bao giờ
+khớp. Đã sửa và thêm guard quét **mọi** mã lỗi trong hợp đồng phải tồn tại trong source
+PHP, nên lỗi loại này không thể tái phát mà CI vẫn xanh.
+
+### Kết quả chạy
+
+- sqlite: `Wwhn46OutboundPickScanDedupTest` + `Wwhn198*` + bộ outbound sẵn có →
+  **42 passed, 271 assertions**; `pint --test` xanh.
+- PostgreSQL 16.14: `Wwhn198OutboundReservationRuntimeRaceTest` → **1 passed, 22 assertions**,
+  summary `status = PASS`, 0 failed scenario.
+- `verify-wwhn-201-contract.mjs` → PASS tại `2.0.0-R2` (JSON/YAML/Postman cùng hash).
+- `verify-wwhn-198-closure.mjs` → PASS.

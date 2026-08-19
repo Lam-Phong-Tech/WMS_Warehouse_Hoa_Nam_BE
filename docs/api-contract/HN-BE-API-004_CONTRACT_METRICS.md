@@ -15,8 +15,8 @@ spec thật đã sang giá trị thứ ba. Từ nay chỉ có **một** nguồn 
 | Response trong OpenAPI | 2315 |
 | Response có schema envelope | 2315/2315 |
 | Schema trong components.schemas | 21 |
-| Operation khai `Idempotency-Key` | 27 |
-| Trong đó bắt buộc / tuỳ chọn | 23 / 4 |
+| Operation khai `Idempotency-Key` | 33 |
+| Trong đó bắt buộc / tuỳ chọn | 23 / 10 |
 | Operation khai `If-Match` | 58 |
 | Error code trong catalog | 247 |
 | Operation trong ma trận endpoint | 231 |

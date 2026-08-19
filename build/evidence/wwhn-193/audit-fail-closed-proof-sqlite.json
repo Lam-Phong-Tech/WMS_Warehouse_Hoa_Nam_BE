@@ -12,14 +12,14 @@
     "leaks_internal_detail": false,
     "db_before": {
         "putaway_event": {
-            "id": "109ef7b0-63c8-4dd5-a975-91c555279061",
+            "id": "25e9685f-680e-4ded-becb-68589f23c68d",
             "status": "DRAFT",
             "version": 1,
             "confirmed_at": null,
             "confirmed_by": null
         },
         "container": {
-            "container_id": "01a0160c-63c7-73b4-99b0-429345e5696b",
+            "container_id": "01a017d4-4623-7301-8aa1-aca234b6a7aa",
             "status": "RECEIVED_PENDING_PUTAWAY",
             "parent_container_id": null,
             "version": 1
@@ -28,14 +28,14 @@
     },
     "db_after": {
         "putaway_event": {
-            "id": "109ef7b0-63c8-4dd5-a975-91c555279061",
+            "id": "25e9685f-680e-4ded-becb-68589f23c68d",
             "status": "DRAFT",
             "version": 1,
             "confirmed_at": null,
             "confirmed_by": null
         },
         "container": {
-            "container_id": "01a0160c-63c7-73b4-99b0-429345e5696b",
+            "container_id": "01a017d4-4623-7301-8aa1-aca234b6a7aa",
             "status": "RECEIVED_PENDING_PUTAWAY",
             "parent_container_id": null,
             "version": 1
@@ -54,8 +54,8 @@
             "details": []
         },
         "meta": {
-            "request_id": "7d6b39e0-8f92-4de0-abeb-e8b72b5ccfd5",
-            "timestamp": "2026-08-19T01:05:07+07:00"
+            "request_id": "8f86db98-f62f-4258-9f00-7ae98930a9a3",
+            "timestamp": "2026-08-19T09:23:02+07:00"
         }
     },
     "verdict": "PASS — rollback toàn phần, không có trạng thái \"đã xếp hàng nhưng mất dấu vết audit\""

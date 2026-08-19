@@ -18303,20 +18303,20 @@
                             {
                                 "disabled": false,
                                 "description": {
-                                    "content": "(Required) Version hien hanh cua phieu. Thieu -> 428 PRECONDITION_REQUIRED; khong khop -> 412 STALE_VERSION.",
-                                    "type": "text/plain"
-                                },
-                                "key": "If-Match",
-                                "value": "<integer>"
-                            },
-                            {
-                                "disabled": false,
-                                "description": {
                                     "content": "(Optional) DEC-SCAN-IDEMP-001: scan la stock-neutral nen Annex C KHONG khai bat buoc — thieu header thi hanh vi giu nguyen, khong tra 428. Khi gui: 8..100 ky tu; moi hanh dong quet mot key, retry cua dung hanh dong do dung lai dung key cu -> 200 kem data.replayed=true va scanned_qty khong tang lan hai. Cung key khac noi dung scan -> 409 IDEMPOTENCY_CONFLICT.",
                                     "type": "text/plain"
                                 },
                                 "key": "Idempotency-Key",
                                 "value": "<string>"
+                            },
+                            {
+                                "disabled": false,
+                                "description": {
+                                    "content": "(Required)",
+                                    "type": "text/plain"
+                                },
+                                "key": "If-Match",
+                                "value": "<integer>"
                             },
                             {
                                 "key": "Content-Type",

@@ -1,0 +1,19 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn219-worker-1",
+    "scenario": "s3-same-receipt-document-double-post",
+    "operation": "post_receipt",
+    "backend_pid": 4570,
+    "outcome": "REJECTED",
+    "http_status": 409,
+    "error_code": "STATE_CONFLICT",
+    "error_message": "Chỉ chứng từ SCANNING mới được Post.",
+    "lock_wait_ms": 1715,
+    "timeline": {
+        "booted_at": 1787104783.149774,
+        "released_at": 1787104783.169614,
+        "lock_acquired_at": 1787104784.886441,
+        "hold_released_at": 1787104786.392653,
+        "finished_at": 1787104787.579755
+    }
+}
