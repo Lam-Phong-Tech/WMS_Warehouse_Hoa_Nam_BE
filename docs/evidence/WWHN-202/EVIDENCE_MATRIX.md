@@ -75,8 +75,8 @@ node scripts/verify-wwhn-202-closure.mjs --expect-sha <candidate>
 
 | Repo | Candidate SHA (ảnh chụp lúc lập hồ sơ) | Ghi chú |
 |---|---|---|
-| BE `WMS_Warehouse_Hoa_Nam_BE` | `__BE_CANDIDATE__` | commit `fix(WWHN-202)…` |
-| FE `WMS_Warehouse_Hoa_Nam_FE` | `__FE_CANDIDATE__` | commit `feat(WWHN-202)…` |
+| BE `WMS_Warehouse_Hoa_Nam_BE` | `8e82dd6ad26e36e0096c3cf1987260a6782012ab` | commit `fix(WWHN-202)…` |
+| FE `WMS_Warehouse_Hoa_Nam_FE` | `5b8e53a10563ef1e3199189fd7bd13eae9b63a30` | commit `feat(WWHN-202)…` |
 
 > Hai giá trị trên chỉ là ảnh chụp. **Nguồn sự thật là lệnh `git log -1` ở trên**, không
 > phải hai ô này — đó là toàn bộ mục đích của quy tắc suy-từ-artifact. Nếu có commit bổ
@@ -97,10 +97,11 @@ hai task mô tả **cùng một** output "Balance hỗ trợ" của HN-OUT-003.
 
 | Evidence | Thuộc WWHN-202 qua | Chạy bằng |
 |---|---|---|
-| `tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php` (8 case, giữ tên lịch sử) | annotation `@group wwhn-202` + docblock traceability ở đầu class | `phpunit --group wwhn-202` |
-| `tests/Feature/Wwhn202OutboundBalanceEvidenceTest.php` (11 case, **mới**, mang đúng tên task) | `@group wwhn-202` | `phpunit --group wwhn-202` |
+| `tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php` (8 case, giữ tên lịch sử) | attribute `#[Group('wwhn-202')]` + docblock traceability ở đầu class | `phpunit --group wwhn-202` |
+| `tests/Feature/Wwhn202OutboundBalanceEvidenceTest.php` (11 case, **mới**, mang đúng tên task) | attribute `#[Group('wwhn-202')]` | `phpunit --group wwhn-202` |
 
-Verifier check **C6** bắt buộc cả hai class phải còn `@group wwhn-202` — nên ánh xạ không
+Verifier check **C6** bắt buộc cả hai class phải còn attribute `#[Group('wwhn-202')]` **và** dòng
+import tương ứng — nên ánh xạ không
 thể bị gỡ âm thầm.
 
 ---
@@ -112,7 +113,7 @@ thể bị gỡ âm thầm.
 | Đường dẫn | Loại | Vai trò |
 |---|---|---|
 | `tests/Feature/Wwhn202OutboundBalanceEvidenceTest.php` | test (mới) | 11 case: ma trận QA1 + DB before/after + 401/403/404/422 + phân lớp 409/422 + quy tắc item_id |
-| `tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php` | test (sửa) | thêm `@group wwhn-202` + docblock ánh xạ; gỡ 2 helper trùng (đưa lên trait) |
+| `tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php` | test (sửa) | thêm attribute `#[Group('wwhn-202')]` + docblock ánh xạ; gỡ 2 helper trùng (đưa lên trait) |
 | `tests/Feature/Concerns/PreparesOutboundFixtures.php` | test helper (sửa) | thêm `seedLedgerBackedBalance()` + `readyToPostIssueDocumentLedgerBacked()` — dùng chung, không nhân bản |
 | `docs/decision-records/DEC-STK-202-….md` | decision (mới) | D-1 phân lớp 409/422 của Post Issue; D-2 quy tắc `stock_movements.item_id` |
 | `docs/evidence/WWHN-202/CONTRACT_PIN.json` | pin (mới) | pin slice OpenAPI + phủ Postman + bảng permission + taxonomy |
@@ -197,8 +198,11 @@ Hai ô in đậm là chỗ dễ giả định sai nhất (`reversible` **không*
 ## 5. Cách chạy lại toàn bộ bằng chứng
 
 ```bash
-# BE — sqlite (nhanh)
-php vendor/bin/phpunit --group wwhn-202
+# BE — sqlite (nhanh). PHPUnit 12 bỏ metadata docblock nên ràng buộc là attribute
+# #[Group(.wwhn-202.)]; truyền kèm đường dẫn file để không nạp cả thư mục tests/.
+php vendor/bin/phpunit --group wwhn-202 \
+  tests/Feature/Wwhn202OutboundBalanceEvidenceTest.php \
+  tests/Feature/Wwhn207OutboundBalanceReconciliationTest.php
 
 # BE — PostgreSQL 16 (DB tham chiếu theo Techstack/Dev Guide)
 docker exec wms_warehouse_hoa_nam_be-postgres-1 psql -U postgres -c "CREATE DATABASE hn_wwhn202;"
@@ -227,3 +231,22 @@ npx tsc --noEmit
 > file test hỏng, PHPUnit nạp toàn bộ thư mục `tests/` và chết trước khi lọc. Truyền **đường
 > dẫn file cụ thể** (như lệnh PostgreSQL ở trên) để cô lập. Hiện tượng này đã gặp thật trong
 > phiên lập hồ sơ với `tests/Feature/Wwhn310Round2ClosureTest.php`.
+
+---
+
+## 6. Ghi nhận thực tế về nhánh dùng chung (không phải defect của WWHN-202)
+
+Ghi lại vì nó ảnh hưởng tới cách đọc `git log` khi truy vết candidate SHA, không phải để
+quy trách nhiệm. Trên `m1` có nhiều phiên làm việc cùng lúc trên **cùng một working tree**;
+hai lần trong phiên này, file của WWHN-202 đã bị commit của phiên khác cuốn theo:
+
+| File WWHN-202 | Bị cuốn vào commit | Hệ quả |
+|---|---|---|
+| toàn bộ đợt BE đầu tiên (evidence pack, decision record, test, verifier, Postman) | `3209da8 test(WWHN-289)` | nội dung nguyên vẹn, chỉ sai quy thuộc |
+| `src/modules/inventory/services/inventoryService.ts` (FE) | `0dfbe98 docs(WWHN-198)` | nội dung nguyên vẹn |
+| `src/shared/api/wwhn-202-balance-contract-pin.ts`, `src/test/wwhn-202-balance-contract-pin.test.ts` | `5b8e53a fix(WWHN-274)` | nội dung nguyên vẹn |
+
+**Không viết lại lịch sử** để "trả lại" các file này: rebase/amend trên nhánh chung sẽ phá
+commit của phiên khác. Đây chính là lý do quy tắc candidate SHA ở §1.3 phải suy từ
+**đường dẫn artifact** chứ không từ *commit message* — tên commit không đáng tin trên nhánh
+dùng chung, còn đường dẫn thì có.
