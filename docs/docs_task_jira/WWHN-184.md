@@ -99,6 +99,30 @@ Narrative role đổi về **DEV** ở tiêu đề và dòng vai trò; label/his
 
 ---
 
+## 0-ter. Review R3 (75/100) — DEV184-P1-03R3 đóng bằng bằng chứng chạy thật, 2026-08-19
+
+Register R3 chấm `P1-01R3` **CLOSED**, `P1-02R3` **DEFERRED** (CI/CD — chuyển sang project-final
+release review, không đụng tới trong vòng này), `P1-03R3`/`P1-04R3` **P1 OPEN**, `P2-01R3` **P2
+non-blocking**. Chi tiết đầy đủ + 2 defect mới phát hiện (không chỉ sign-off): xem
+**`docs/evidence/WWHN-184/QA1_RETEST_REPORT_20260819.md`**.
+
+Tóm tắt cực ngắn:
+
+- **DEV184-P1-03R3**: chạy độc lập toàn bộ `QA1_RETEST_CHECKLIST.md` trên PostgreSQL thật (không
+  phải CI). Phát hiện + sửa 2 defect: (1) `RC_PIN.json` hash cả file `routes/api.php` dùng chung
+  nên bị đỏ oan bởi commit của WWHN-195/WWHN-234 — đổi sang pin mức khối route (pattern HN-PIN-328);
+  (2) `audit_log` trên PostgreSQL là VIEW, migration WWHN-222 (`2026_08_19_000001`) dùng
+  `Schema::hasTable('audit_log')` nên no-op trên pgsql → **audit_log rỗng toàn hệ thống trên
+  PostgreSQL** kể từ hôm nay — vá bằng `2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields.php`.
+  Sau vá: contract/RBAC/idempotency/audit/race 2-backend/reconciliation đều PASS.
+- **DEV184-P1-04R3**: nội dung `DISP-IN-184-INBOUND-DOCUMENT-STATE-BASELINE.md` đã đối chiếu lại
+  với `HN_SRS_FRD_v1.12_FULL.md` hiện hành (2026-08-19) — không có gì trôi kể từ khi soạn, vẫn
+  **PROPOSED**, chờ BA + BAS + PM/PO duyệt chính thức (comment xác nhận soạn sẵn ngoài Jira).
+- **DEV184-P2-01R3**: phần repo (narrative role → DEV, giữ label Jira BE1) đã xong từ vòng trước
+  (mục 0-bis); phần còn lại thuần Jira metadata, PM thực hiện trực tiếp trên Jira.
+
+---
+
 ## 0. Sửa lỗi mapping ticket (nguồn gốc DEV184-P1-01R)
 
 File này **trước đây bị ghi sai nội dung**: bản cũ (commit `97bafcd`) chép lại
