@@ -72,7 +72,7 @@ Nhánh `m1` của dự án không dùng PR — nhiều phiên làm việc commit
 |---|---|
 | Có người thứ hai đọc diff | `DIFF_SCOPE_MAP.md` §3 khoanh đúng phần cần đọc; Tech Lead ký ở DEV328-P1-03R4 |
 | CI xanh trước khi merge | `.github/workflows/wwhn-382-dashboard-closure.yml` chạy verifier + test khoá trên **sqlite và PostgreSQL** |
-| Không merge nhầm commit | `verify-wwhn-382-closure.mjs --expect-sha <SHA>` đỏ nếu cổng chạy lệch commit |
+| Không merge nhầm commit | `verify-wwhn-382-closure.mjs --expect-sha` (truyền `candidate.backend.sha` từ `CANDIDATE_PIN.json`) đỏ nếu cổng chạy lệch commit |
 | Không có thay đổi lén sau khi duyệt | Kiểm tra bất biến fingerprint trên dải `semantic_anchor..HEAD` |
 
 ## 6. Kết quả chạy tại candidate

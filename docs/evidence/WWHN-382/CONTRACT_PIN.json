@@ -1,0 +1,62 @@
+{
+  "endpoint": "/api/v1/reports/dashboard-quick",
+  "ref": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+  "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+  "fingerprints": {
+    "openapi_operation": "03445d7afebcfc44f3a83f57f44a1a554f2b4a7b09a7f6f96924d1889f5f1742",
+    "postman_requests": "9e8091b404c37b7e813e885f43eea904e675149c54f57d37c3628371b09f0ea9",
+    "controller_dashboard_block": "44197a149f397dc8940ef3b4150ae04799bb78d5f10b97c0be8d72461daa67de",
+    "controller_period_helper": "c8d46bd886f004ee9fc8eaa54d3d92bbea5250f9a69d7d62000d697cfcd803c5",
+    "route_permission_line": "4c3430071504e4d454d377060a8a3743909d66fdade81f1a53f2163e2053a206"
+  },
+  "declared": {
+    "route_permission_line": "Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');",
+    "kpi_matrix_version": "v1.2",
+    "openapi_response_fields": [
+      "available_qty",
+      "component_issue_qty",
+      "data_scope",
+      "issue_qty",
+      "period",
+      "receipt_qty",
+      "reconciliation_warning_count",
+      "reconciliation_warnings",
+      "reversal_net",
+      "scope_warehouse_ids",
+      "warranty_cases_by_status"
+    ],
+    "openapi_parameters": [
+      "from_date",
+      "to_date",
+      "warehouse_id"
+    ],
+    "openapi_responses": [
+      "200",
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "412",
+      "422",
+      "428",
+      "500"
+    ],
+    "postman_request_count": 1,
+    "contract_test_case_count": 17
+  },
+  "whole_file_informational": {
+    "storage/api-docs/api-docs.json": {
+      "git_blob": "245857ba19038e67c9644ecb61282ec806a77192",
+      "sha256": "b86330ff5f29031303b46e1075f8d036e1fe0d19e5d610ec3cb1c38dcd12bf45"
+    },
+    "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json": {
+      "git_blob": "328d31dabe5d67400968119c9c00b576c3d07ebc",
+      "sha256": "a2759f8179d5edb7e6ba93b87cb56f15b0d3b69b0566ebdc0fa65d4d8c591b07"
+    },
+    "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php": {
+      "git_blob": "23cc56b4148438e6f8c948a9d7641f985874c14b",
+      "sha256": "f0317831c8f416033338526da42a3ed7eafd31ea9cdc5c922872eaab375b711e"
+    }
+  }
+}

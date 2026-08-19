@@ -1,0 +1,235 @@
+{
+  "task": "WWHN-382",
+  "register": "P0/P1/P2 EXACT FIX ACTION REGISTER — R4",
+  "generated_by": "scripts/wwhn-382-pin-candidate.mjs",
+  "candidate": {
+    "backend": {
+      "repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE.git",
+      "branch": "m1",
+      "sha": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+      "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+    },
+    "frontend": {
+      "repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE.git",
+      "branch": "m1",
+      "sha": "54bd44fd1133c30dd69c796d439235732749c482"
+    }
+  },
+  "semantic_anchor": {
+    "commit": "c855851b37920237d110f7dffe5dbbad509aebce",
+    "date": "2026-08-18",
+    "subject": "fix(WWHN-254): data-scope kho cho moi bao cao + gate Flow06 chay lai duoc tai exact SHA"
+  },
+  "scope_files": [
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php",
+      "git_blob": "23cc56b4148438e6f8c948a9d7641f985874c14b",
+      "last_touched": {
+        "commit": "a16d1d63df7370e3fe40a2c1c846404d190324cd",
+        "date": "2026-08-18",
+        "subject": "fix(WWHN-231): dong bo aggregate ledger stock-neutral va index doi soat"
+      }
+    },
+    {
+      "path": "Modules/Warehouse/routes/api.php",
+      "git_blob": "71a3a0c7cc7b774fc8b79cd3d4c47632a76da0ee",
+      "last_touched": {
+        "commit": "b90d5ef67c6577db166fdac00f1323741ccfd888",
+        "date": "2026-08-18",
+        "subject": "feat(WWHN-252): dung mat cong khai App PV va PV Admin theo Annex C"
+      }
+    },
+    {
+      "path": "tests/Feature/Wwhn328DashboardQuickContractTest.php",
+      "git_blob": "01efc7cc5d457bbd57ae17b80e110ace86fdc220",
+      "last_touched": {
+        "commit": "127c573a7236ad1c25829eb92011a4914360b840",
+        "date": "2026-08-18",
+        "subject": "gỡ cờ 13"
+      }
+    },
+    {
+      "path": "tests/Feature/Wwhn328R4ClosureTest.php",
+      "git_blob": "9c2d2fbca5bcc5385fc47faeb037c8986e37bf57",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "storage/api-docs/api-docs.json",
+      "git_blob": "245857ba19038e67c9644ecb61282ec806a77192",
+      "last_touched": {
+        "commit": "bd5b5d677fe8f528e872988ff843a1e69f593683",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-295): khai tuong minh contract health va buoc bang chung vao exact candidate"
+      }
+    },
+    {
+      "path": "storage/api-docs/api-docs.yaml",
+      "git_blob": "32b60f02cae31e4602284c806cd2a5188c22ea3a",
+      "last_touched": {
+        "commit": "bd5b5d677fe8f528e872988ff843a1e69f593683",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-295): khai tuong minh contract health va buoc bang chung vao exact candidate"
+      }
+    },
+    {
+      "path": "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json",
+      "git_blob": "328d31dabe5d67400968119c9c00b576c3d07ebc",
+      "last_touched": {
+        "commit": "bd5b5d677fe8f528e872988ff843a1e69f593683",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-295): khai tuong minh contract health va buoc bang chung vao exact candidate"
+      }
+    },
+    {
+      "path": "docs/evidence/WWHN-328/KPI_MATRIX.md",
+      "git_blob": "332950f639fd20e4d70af94b5fa5f3d0e5715e57",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "docs/evidence/WWHN-328/EVIDENCE_PACK.md",
+      "git_blob": "38f841863b1ba674f847438c01b6d1d66c034890",
+      "last_touched": {
+        "commit": "127c573a7236ad1c25829eb92011a4914360b840",
+        "date": "2026-08-18",
+        "subject": "gỡ cờ 13"
+      }
+    },
+    {
+      "path": "docs/evidence/WWHN-382/R4_CLOSURE.md",
+      "git_blob": "205163b7094cd14f632531c2155affe3d6f3b061",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "docs/evidence/WWHN-382/R4_REGISTER.json",
+      "git_blob": "09fc2dbd97785223435d32a5cb214184c17b1969",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "docs/evidence/WWHN-382/SOURCE_SUPERSESSION.md",
+      "git_blob": "c919ed4ba3c81d8037397d64a7081066810df531",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "docs/evidence/WWHN-382/DIFF_SCOPE_MAP.md",
+      "git_blob": "69aaa879ce86516839f567c43cb47fedab35ff5e",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "docs/evidence/WWHN-382/QA2_RERUN_RUNBOOK.md",
+      "git_blob": "eccddb4cf707494641c4043fa320b43562b7076e",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "docs/docs_task_jira/WWHN-382.md",
+      "git_blob": "9baa4237e1cc1fab7efdbc7ba110063d513bb042",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "scripts/wwhn-328-contract-fingerprint.mjs",
+      "git_blob": "050d9fb267f33d2b0405595bfc2779a5796c7a60",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "scripts/wwhn-382-pin-candidate.mjs",
+      "git_blob": "c2d74da5be09c199c758b4c94e5bbf458ad584e8",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": "scripts/verify-wwhn-382-closure.mjs",
+      "git_blob": "87e622cb61ae8c1cd7038b80a26d150403e6777e",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    },
+    {
+      "path": ".github/workflows/wwhn-382-dashboard-closure.yml",
+      "git_blob": "805260bc4408597dbc49e02af52a66c2ec0e9f7e",
+      "last_touched": {
+        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "date": "2026-08-19",
+        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      }
+    }
+  ],
+  "superseded": [
+    {
+      "scope": "backend-branch",
+      "ref": "refs/heads/m1-be-2",
+      "sha": "60816499066f9f493596e326dc41116ef32f5c4b",
+      "reason": "Nhánh lịch sử của luồng BE2. Không chứa data-scope dashboard, không chứa KPI matrix. Không dùng làm nguồn đánh giá WWHN-382."
+    },
+    {
+      "scope": "backend-commit",
+      "sha": "b8cfcf01eb0ef01661bb58a7c1bb08825e35e8f3",
+      "reason": "Sau SHA này dashboard runtime đổi hai lần (Valkey caching 0b32578, rồi data-scope + cache key). Mọi kết quả test gắn với nó phải chạy lại."
+    },
+    {
+      "scope": "backend-commit",
+      "sha": "6db0965940a6ae8b22a591d50705f258326b172d",
+      "reason": "Candidate vòng R3. Bị thay bởi 127c573 (sửa fixture đỏ trên PostgreSQL)."
+    },
+    {
+      "scope": "backend-commit",
+      "sha": "127c573a7236ad1c25829eb92011a4914360b840",
+      "reason": "Candidate vòng R4 đầu vòng. Bị thay vì (a) là commit gộp không mang mã Jira, (b) WWHN-254 đã đổi reportWarehouseScope sau đó, (c) chưa có test khoá ngoại lệ warranty GLOBAL và bất biến đối soát."
+    },
+    {
+      "scope": "frontend-commit",
+      "sha": "3ddce525e2e3b3af29723d1ec97e3fc9eff175b3",
+      "reason": "Candidate FE vòng R3, trước khi UI khai ngoại lệ warranty GLOBAL."
+    },
+    {
+      "scope": "frontend-commit",
+      "sha": "99dff42fb4272ed8930e8fb9bf4da6368f4cfd96",
+      "reason": "Output WWHN-327 được tiêu thụ (ngoại lệ warranty + gate closure FE). Là NGUỒN ĐẦU VÀO đã hợp nhất, không phải candidate cuối."
+    },
+    {
+      "scope": "frontend-commit",
+      "sha": "4d11989a1b9499dd388ca1e75f408bfc27b183cc",
+      "reason": "Candidate FE vòng R4 đầu vòng, commit gộp không mang mã Jira."
+    }
+  ],
+  "invariance_check": "node scripts/wwhn-328-contract-fingerprint.mjs --check docs/evidence/WWHN-382/CONTRACT_PIN.json --range c855851b37920237d110f7dffe5dbbad509aebce..HEAD"
+}
