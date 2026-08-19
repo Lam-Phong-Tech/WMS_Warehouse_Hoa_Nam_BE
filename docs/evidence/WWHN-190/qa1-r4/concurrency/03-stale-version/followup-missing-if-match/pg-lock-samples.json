@@ -1,0 +1,44 @@
+[
+    {
+        "at": 1787121906.900626,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36996,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787121906.963732,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36996,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787121907.026276,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36996,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000006"
+            }
+        ]
+    }
+]

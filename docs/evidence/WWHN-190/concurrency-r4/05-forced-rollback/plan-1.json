@@ -1,0 +1,16 @@
+{
+    "worker_index": 1,
+    "scenario": "05-forced-rollback",
+    "barrier_dir": "docs/evidence/WWHN-190/concurrency-r4/05-forced-rollback/barrier",
+    "out_file": "docs/evidence/WWHN-190/concurrency-r4/05-forced-rollback/worker-1.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/4c343be1-6bde-4b3c-ab9b-cdcd7f5ffb55/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s5b-354CE120",
+        "body": {
+            "note": "rollback-B"
+        }
+    }
+}

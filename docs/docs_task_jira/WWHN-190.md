@@ -343,3 +343,16 @@ bộ evidence (contract-parity, 52 test PHPUnit sqlite, 5 kịch bản true-conc
 cô lập mới, reconciliation) tại RC SHA mới `9b18443` — tất cả PASS, không cần sửa code. Chi
 tiết đầy đủ: `EVIDENCE_PACK.md §9`, pin mới: `RC_PIN.json` (giữ lịch sử round R2 làm tham
 chiếu). Không chạy/động CI theo yêu cầu người dùng (Actions hết quota).
+
+## §R4 — Đóng 4 P1 của re-review 62/100 lần 2 (2026-08-19)
+
+Acceptance SHA = **`22564b46898f616c0df2880f797fcc0f1fcf9507`** = đúng SHA chạy lại toàn bộ
+PostgreSQL evidence (hết khoảng hở "SHA nghiệm thu ≠ SHA evidence" của DEV190-P1-01R2). Lý do
+re-run dù path runtime không đổi: commit `41dfa6f` (WWHN-184) sửa VIEW `audit_log` pgsql — thuộc
+schema-surface mà bất biến audit của WWHN-190 assert; đã chạy thêm 20/20 test trực tiếp trên
+PostgreSQL để chứng minh không phá bất biến. QA1 chạy độc lập cùng ma trận tại đúng SHA này
+(DB/output riêng `qa1-r4`). FE độc lập: repo FE commit `cf0fe8d`, vitest 22/22 PASS. Business
+authority: `DEC-INV-FULLPOST-PIN-190.md` (đính chính: artifact "Handoff v3.9" không tồn tại —
+chỉ có `Handoff v3.10 reference → REMOVED / NO ARTIFACT` ở §1.6 SRS; formal gate của
+DEC-FULL-POST-001 là WWHN-27). Chi tiết: `docs/evidence/WWHN-190/EVIDENCE_PACK.md §10`,
+`RC_PIN.json` (round R4). Không động CI/GitHub Actions.

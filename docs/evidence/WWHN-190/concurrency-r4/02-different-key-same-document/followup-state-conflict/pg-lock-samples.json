@@ -1,0 +1,187 @@
+[
+    {
+        "at": 1787121695.932973,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787121695.996545,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787121696.060609,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000006"
+            }
+        ]
+    },
+    {
+        "at": 1787121696.12289,
+        "locks": [
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36545,
+                "application_name": "wwhn190-w0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_0000000a"
+            }
+        ]
+    }
+]

@@ -1,0 +1,16 @@
+{
+    "worker_index": 0,
+    "scenario": "03-stale-version/followup-bad-if-match",
+    "barrier_dir": "docs/evidence/WWHN-190/concurrency-r4/03-stale-version/followup-bad-if-match/barrier",
+    "out_file": "docs/evidence/WWHN-190/concurrency-r4/03-stale-version/followup-bad-if-match/worker-0.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/580245ef-26c7-46ef-81f3-00810356ffa3/post-receipt",
+        "if_match": "not-a-number",
+        "idempotency_key": "wwhn190-s3bad-354CE120",
+        "body": {
+            "note": "bad-if-match"
+        }
+    }
+}

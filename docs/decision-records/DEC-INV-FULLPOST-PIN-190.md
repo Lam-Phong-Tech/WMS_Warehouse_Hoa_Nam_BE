@@ -79,8 +79,14 @@ sha256sum docs/HN_SRS_FRD_v1.12_FULL.md && git rev-parse HEAD:docs/HN_SRS_FRD_v1
 2. Chốt trạng thái formal của **DEC-FULL-POST-001**: hoặc đóng WWHN-27 thành APPROVED, hoặc ghi rõ
    "content adopted in SRS v1.12, formal record WWHN-27 pending" — **không để hai cách hiểu song song**.
 3. Cập nhật **WWHN-43** (task cha): Source & Traceability đang trích `BRD_HoaNam_v3_9` /
-   `HoaNam_Handoff_v3_9` — cả hai đã **HISTORICAL / SUPERSEDED** theo §1.6 của chính SRS v1.12.
+   `HoaNam_Handoff_v3_9`. Đính chính theo nguyên văn Supersession Register §1.6 (rà lại 2026-08-19):
+   - `BRD v3.9` → có dòng supersession tường minh: **BRD v3.20, HISTORICAL / SUPERSEDED**.
+   - `Handoff v3.9` → **không tồn tại** như một artifact trong registry (grep toàn bộ SRS v1.12
+     không có "Handoff v3.9"); §1.6 chỉ có dòng `Handoff v3.10 reference → REMOVED / NO ARTIFACT`
+     (thay bằng `BRD v3.20 + WWHN-333 and SRS v1.12 + WWHN-334`). Vậy trích dẫn "HoaNam_Handoff_v3_9"
+     phải **xoá hẳn**, không có nguồn thay thế 1-1.
    Thay bằng **BRD v3.20 (WWHN-333) + SRS/FRD v1.12 (WWHN-334)**, và bỏ mọi câu chữ còn để ngỏ
-   khả năng "đăng một phần / partial post".
+   khả năng "đăng một phần / partial post" (căn cứ thêm: §0.3 P0-03 CLOSED — "Source Registry dùng
+   BRD v3.20 và SRS/FRD v1.12; các revision cũ chỉ dùng truy vết lịch sử").
 4. Ghi lại pin ở §2 (version + hash + date) vào chính decision record trên Jira để lần review sau
    không phải tra lại.

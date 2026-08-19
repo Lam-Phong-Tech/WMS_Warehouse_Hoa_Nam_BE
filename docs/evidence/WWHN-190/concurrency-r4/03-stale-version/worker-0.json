@@ -1,0 +1,49 @@
+{
+    "worker_index": 0,
+    "scenario": "03-stale-version",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 36555,
+    "http_status": 200,
+    "error_code": null,
+    "message": "Post Receipt thành công.",
+    "idempotent_replay_header": "false",
+    "etag": "\"2\"",
+    "body_replayed_flag": false,
+    "movement_ids": [
+        "2ab615bf-dd65-4f17-a15e-daa87820e01c"
+    ],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/580245ef-26c7-46ef-81f3-00810356ffa3/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s3ok-354CE120",
+        "body": {
+            "note": "fresh-version"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787121697.607735,
+        "released_at": 1787121697.639642,
+        "request_started_at": 1787121697.639741,
+        "request_finished_at": 1787121698.410865,
+        "finished_at": 1787121698.411457
+    },
+    "body": {
+        "success": true,
+        "message": "Post Receipt thành công.",
+        "data": {
+            "document_id": "580245ef-26c7-46ef-81f3-00810356ffa3",
+            "status": "POSTED",
+            "movement_ids": [
+                "2ab615bf-dd65-4f17-a15e-daa87820e01c"
+            ],
+            "stock_effect": "INCREASE",
+            "version": 2,
+            "replayed": false
+        },
+        "meta": {
+            "request_id": "5b12f03c-0bb7-4e64-96f8-a9d451343ea3",
+            "timestamp": "2026-08-19T13:41:38+07:00"
+        }
+    }
+}

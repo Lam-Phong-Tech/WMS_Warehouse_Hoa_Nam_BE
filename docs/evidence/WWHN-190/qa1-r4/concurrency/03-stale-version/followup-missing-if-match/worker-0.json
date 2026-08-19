@@ -1,0 +1,43 @@
+{
+    "worker_index": 0,
+    "scenario": "03-stale-version/followup-missing-if-match",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 36996,
+    "http_status": 428,
+    "error_code": "PRECONDITION_REQUIRED",
+    "message": "If-Match là bắt buộc cho scan/post/reversal mutation.",
+    "idempotent_replay_header": null,
+    "etag": null,
+    "body_replayed_flag": null,
+    "movement_ids": [],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/15f85cbc-7c05-4bb5-9be8-096d1450e60d/post-receipt",
+        "if_match": null,
+        "idempotency_key": "wwhn190-s3nomatch-413CE807",
+        "body": {
+            "note": "no-if-match"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787121906.868898,
+        "released_at": 1787121906.899114,
+        "request_started_at": 1787121906.899175,
+        "request_finished_at": 1787121907.075789,
+        "finished_at": 1787121907.076349
+    },
+    "body": {
+        "success": false,
+        "message": "If-Match là bắt buộc cho scan/post/reversal mutation.",
+        "error_code": "PRECONDITION_REQUIRED",
+        "errors": [],
+        "error": {
+            "code": "PRECONDITION_REQUIRED",
+            "details": []
+        },
+        "meta": {
+            "request_id": "1da2fd3a-412c-46d1-ae01-eaf594733b45",
+            "timestamp": "2026-08-19T13:45:07+07:00"
+        }
+    }
+}

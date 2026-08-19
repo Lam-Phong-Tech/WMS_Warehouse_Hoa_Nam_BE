@@ -1,0 +1,58 @@
+[
+    {
+        "at": 1787121700.448074,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36559,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787121700.512097,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36559,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787121700.576349,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36559,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": null,
+                "wait_event": null,
+                "query": "select \"role\".*, \"user_role\".\"user_id\" as \"pivot_user_id\", \"user_role\".\"role_id\" as \"pivot_role_id\", \"user_role\".\"scope_"
+            }
+        ]
+    },
+    {
+        "at": 1787121700.641586,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36559,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000006"
+            }
+        ]
+    }
+]

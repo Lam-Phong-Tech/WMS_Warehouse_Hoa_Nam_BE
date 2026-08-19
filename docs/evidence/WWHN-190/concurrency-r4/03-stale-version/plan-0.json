@@ -1,0 +1,16 @@
+{
+    "worker_index": 0,
+    "scenario": "03-stale-version",
+    "barrier_dir": "docs/evidence/WWHN-190/concurrency-r4/03-stale-version/barrier",
+    "out_file": "docs/evidence/WWHN-190/concurrency-r4/03-stale-version/worker-0.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/580245ef-26c7-46ef-81f3-00810356ffa3/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s3ok-354CE120",
+        "body": {
+            "note": "fresh-version"
+        }
+    }
+}

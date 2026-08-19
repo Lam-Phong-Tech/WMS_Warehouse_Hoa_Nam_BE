@@ -1,0 +1,64 @@
+{
+    "report": "WWHN-190 / WWHN-191 receipt reconciliation",
+    "report_version": "1.0.0",
+    "jira_key": "WWHN-190",
+    "register_item": "DEV190-P1-03R2",
+    "related": [
+        "WWHN-191"
+    ],
+    "authority": "DEC-INV-001 (SRS v1.12 §7.1) + DEC-FULL-POST-001",
+    "status": "PASS",
+    "commit_sha": "unknown",
+    "driver": "pgsql",
+    "database": "hn_wwhn190_r4",
+    "generated_at": "2026-08-19T13:41:47+07:00",
+    "identity_checked": "accepted_receipt_qty (stock_document_lines.qty_planned) = SUM(stock_movements.qty_delta WHERE movement_type=RECEIPT) = đóng góp vào inventory_balances.on_hand_qty",
+    "totals": {
+        "posted_receipt_lines": 5,
+        "accepted_receipt_qty_total": 20,
+        "signed_receipt_movement_total": 20,
+        "balance_buckets": 5,
+        "balance_on_hand_total": 20,
+        "ledger_sum_total": 20
+    },
+    "counters": {
+        "line_level_mismatch_count": 0,
+        "full_post_invariant_violation_count": 0,
+        "balance_projection_mismatch_count": 0,
+        "orphan_movement_count": 0,
+        "movement_on_unposted_document_count": 0,
+        "posted_line_without_movement_count": 0,
+        "balance_without_ledger_count": 0,
+        "duplicate_business_key_count": 0,
+        "duplicate_line_effect_count": 0,
+        "duplicate_posting_event_count": 0
+    },
+    "aggregate": {
+        "mismatch": 0,
+        "orphan": 0,
+        "duplicate_business_effect": 0
+    },
+    "findings": {
+        "line_level_mismatch": [],
+        "full_post_invariant_violation": [],
+        "balance_projection_mismatch": [],
+        "orphan_movements": [],
+        "movements_on_unposted_documents": [],
+        "posted_lines_without_movement": [],
+        "balances_without_ledger": [],
+        "duplicate_business_keys": [],
+        "duplicate_line_effects": [],
+        "duplicate_posting_events": []
+    },
+    "sql": {
+        "l1_line_level": "select d.id           as document_id,\n       d.doc_no       as doc_no,\n       l.id           as line_id,\n       l.qty_planned  as accepted_receipt_qty,\n       l.scanned_qty  as scanned_qty,\n       coalesce(sum(m.qty_delta), 0) as signed_receipt_movement\nfrom stock_documents d\njoin stock_document_lines l on l.stock_document_id = d.id\nleft join stock_movements m\n       on m.stock_document_line_id = l.id\n      and m.movement_type = 'RECEIPT'\nwhere d.doc_type = 'receipt'\n  and d.status = 'POSTED'\ngroup by d.id, d.doc_no, l.id, l.qty_planned, l.scanned_qty\norder by d.doc_no, l.id",
+        "l2_projection": "select b.warehouse_id,\n       coalesce(b.sku_id, b.product_id) as sku_id,\n       b.stock_status,\n       b.on_hand_qty,\n       b.quantity,\n       coalesce((\n         select sum(m.qty_delta) from stock_movements m\n         where m.warehouse_id = b.warehouse_id\n           and coalesce(m.sku_id, m.product_id) = coalesce(b.sku_id, b.product_id)\n           and m.stock_status = b.stock_status\n       ), 0) as ledger_sum\nfrom inventory_balances b\norder by b.warehouse_id, sku_id, b.stock_status",
+        "l3a_orphan_movement": "select m.id, m.movement_type, m.stock_document_id, m.stock_document_line_id, m.qty_delta\nfrom stock_movements m\nwhere m.stock_document_id is not null\n  and not exists (select 1 from stock_documents d where d.id = m.stock_document_id)",
+        "l3b_movement_on_unposted": "select m.id, m.movement_type, d.doc_no, d.status, m.qty_delta\nfrom stock_movements m\njoin stock_documents d on d.id = m.stock_document_id\nwhere m.movement_type in ('RECEIPT', 'ISSUE')\n  and d.status <> 'POSTED'",
+        "l3c_posted_line_without_movement": "select d.doc_no, d.id as document_id, l.id as line_id, l.qty_planned\nfrom stock_documents d\njoin stock_document_lines l on l.stock_document_id = d.id\nwhere d.doc_type = 'receipt'\n  and d.status = 'POSTED'\n  and not exists (\n    select 1 from stock_movements m\n    where m.stock_document_line_id = l.id and m.movement_type = 'RECEIPT'\n  )",
+        "l3d_balance_without_ledger": "select b.warehouse_id, coalesce(b.sku_id, b.product_id) as sku_id, b.stock_status, b.on_hand_qty\nfrom inventory_balances b\nwhere b.on_hand_qty <> 0\n  and not exists (\n    select 1 from stock_movements m\n    where m.warehouse_id = b.warehouse_id\n      and coalesce(m.sku_id, m.product_id) = coalesce(b.sku_id, b.product_id)\n      and m.stock_status = b.stock_status\n  )",
+        "l4a_duplicate_business_key": "select business_key, count(*) as occurrences\nfrom stock_movements\nwhere business_key is not null\ngroup by business_key\nhaving count(*) > 1",
+        "l4b_duplicate_line_effect": "select stock_document_line_id, movement_type, count(*) as occurrences\nfrom stock_movements\nwhere stock_document_line_id is not null\n  and movement_type in ('RECEIPT', 'ISSUE')\ngroup by stock_document_line_id, movement_type\nhaving count(*) > 1",
+        "l4c_duplicate_posting_event": "select idempotency_key as key_value, count(*) as occurrences from posting_events where idempotency_key is not null group by idempotency_key having count(*) > 1"
+    }
+}

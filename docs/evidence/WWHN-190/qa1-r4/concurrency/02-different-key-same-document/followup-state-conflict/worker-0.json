@@ -1,0 +1,43 @@
+{
+    "worker_index": 0,
+    "scenario": "02-different-key-same-document/followup-state-conflict",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 36984,
+    "http_status": 409,
+    "error_code": "STATE_CONFLICT",
+    "message": "Chỉ SCANNING mới được Post.",
+    "idempotent_replay_header": null,
+    "etag": null,
+    "body_replayed_flag": null,
+    "movement_ids": [],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/99c331bd-1c66-4d3a-875b-253eeb65be02/post-receipt",
+        "if_match": "2",
+        "idempotency_key": "wwhn190-s2c-413CE807",
+        "body": {
+            "note": "C"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787121903.526059,
+        "released_at": 1787121903.554692,
+        "request_started_at": 1787121903.554752,
+        "request_finished_at": 1787121903.774271,
+        "finished_at": 1787121903.77496
+    },
+    "body": {
+        "success": false,
+        "message": "Chỉ SCANNING mới được Post.",
+        "error_code": "STATE_CONFLICT",
+        "errors": [],
+        "error": {
+            "code": "STATE_CONFLICT",
+            "details": []
+        },
+        "meta": {
+            "request_id": "6fa7bc76-e3b0-4898-8ca3-2a754c67a43d",
+            "timestamp": "2026-08-19T13:45:03+07:00"
+        }
+    }
+}

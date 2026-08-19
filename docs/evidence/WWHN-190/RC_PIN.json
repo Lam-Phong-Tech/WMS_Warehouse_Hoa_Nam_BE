@@ -1,54 +1,70 @@
 {
   "jira_key": "WWHN-190",
-  "register_round": "R3 (re-review 62/100, DEV190-P1-01R2 drift closure, 2026-08-19)",
+  "register_round": "R4 (re-review 62/100 lần 2, đóng DEV190-P1-01R2/-01C/-04R2/-05R2, 2026-08-19)",
   "branch": "m1",
-  "rc_sha": "9b184439a7f25dbaed4b6c19af638d143b7b2061",
-  "rc_sha_short": "9b18443",
-  "rc_rule": "commit cuối cùng chạm ARTIFACT có thể chạy được của WWHN-190 (hợp đồng 1.8.0, scripts, test, workflow). File bằng chứng/pin trong docs/evidence/WWHN-190 là metadata, commit chúng KHÔNG dời rc_sha. Không pin theo HEAD của m1 vì nhiều phiên khác cùng commit lên m1.",
-  "previous_round": {
-    "register_round": "R2",
-    "rc_sha": "10a2c6ed08d4823cdbdd3a3ea09631855925c162",
-    "file": "RC_PIN.json (git history)"
-  },
-  "why_repinned": "Review 62/100 (vòng mới) chỉ ra: 'Nếu chọn SHA khác SHA đã chạy PostgreSQL evidence thì cần chạy lại evidence trên SHA đó.' Từ rc_sha R2 (10a2c6e) tới rc_sha R3 (9b18443) có 57 commit trên m1 (nhiều phiên Claude khác đang làm song song các ticket khác). Đã grep đúng danh sách path runtime của WWHN-190 (CurrentBaselineStockFlowController.php, CurrentBaselineStockService.php, IdempotencyStore.php, CurrentBaselineIfMatch.php, scripts/wwhn190-*, tests/Feature/Wwhn190PostingContractParityTest.php, docs/api-contract/releases/WWHN-190) trong range 10a2c6e..9b18443 — CHỈ 2/57 commit chạm runtime path này:",
-  "drift_commits_reviewed": [
+  "rc_sha": "22564b46898f616c0df2880f797fcc0f1fcf9507",
+  "rc_sha_short": "22564b4",
+  "rc_rule": "Từ R4, acceptance SHA = ĐÚNG commit mà toàn bộ PostgreSQL evidence được chạy lại (đáp ứng nguyên văn yêu cầu review: 'Nếu chọn SHA khác SHA đã chạy PostgreSQL evidence thì cần chạy lại evidence trên SHA đó' — ở đây hai SHA là MỘT, không còn khoảng hở suy diễn). Commit evidence/docs sau SHA này là metadata, không dời acceptance SHA.",
+  "previous_rounds": [
     {
-      "sha": "0142b49ed11ac410136ca96993b3fb6ca2ac2971",
-      "subject": "fix(WWHN-234): dong 3 finding P2 con OPEN vong 2 - F-04/F-05/F-06",
-      "touches": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php (+37/-3)",
-      "change": "F-04: sortLinesForBalanceLock khoá inventory_balances theo product_id toàn cục thay vì line_no của chứng từ, áp dụng cho cả postStockDocument (route post-receipt của WWHN-190) và postComponentIssue — tránh deadlock chéo giữa hai chứng từ chạm cùng SKU nhưng khai dòng ngược nhau.",
-      "risk_to_wwhn190": "Đổi trực tiếp thứ tự khoá dùng trong scenario 'shared_balance_lost_update' và 'concurrent_post_receipt' của bằng chứng WWHN-190 R2 — bằng chứng cũ (chụp tại 10a2c6e) không còn phản ánh đúng runtime hiện tại.",
-      "disposition": "Đã chạy lại 5/5 kịch bản PostgreSQL true-concurrency tại rc_sha R3 (bên dưới) — PASS toàn bộ, thứ tự khoá mới không phá bất biến balance/movement/audit của WWHN-190."
+      "register_round": "R2",
+      "rc_sha": "10a2c6ed08d4823cdbdd3a3ea09631855925c162",
+      "file": "RC_PIN.json (git history)"
     },
     {
-      "sha": "ea93dd6e391bad3e2fe1e9da064e9ced8db9f1c1",
-      "subject": "fix(WWHN-195): dong register R2 luong xuat - bo shadow route, chot scan_source tuong minh",
-      "touches": "CurrentBaselineStockFlowController.php (+? / -150), CurrentBaselineStockService.php (+60)",
-      "change": "Gỡ outboundScan/postIssue/createAndDispatchLabel/recordPrintResult (luồng OUTBOUND) khỏi CurrentBaselineStockFlowController; không đổi method postReceipt()/postDocument() dùng bởi WWHN-190 (đã đọc diff xác nhận các hunk nằm ngoài đường post-receipt).",
-      "risk_to_wwhn190": "Thấp — cùng file nhưng khác method (outbound, không phải inbound post-receipt). Vẫn đưa vào bộ test regression để loại trừ.",
-      "disposition": "tests/Feature/Wwhn195OutboundContractAlignmentTest.php + toàn bộ suite WWHN-190 chạy lại tại rc_sha R3 — PASS, không regression."
+      "register_round": "R3",
+      "rc_sha": "9b184439a7f25dbaed4b6c19af638d143b7b2061",
+      "note": "QA1 vòng 1 (docs/evidence/WWHN-190/qa1/) chạy tại 71c069f, runtime identical 9b18443 — giữ làm tham chiếu lịch sử"
     }
   ],
-  "other_55_commits": "Không chạm bất kỳ path runtime/script/test/contract nào của WWHN-190 (chỉ chạm ticket khác: WWHN-199/202/204/205/222/230/233/234(phần khác)/239/240/244/289/295/309/310/328/382/…) — xác nhận bằng git log --oneline <path-list> không liệt kê thêm commit nào ngoài 2 cái trên.",
+  "why_repinned_r4": "Sau pin R3 (9b18443) có 9 commit mới trên m1. git log 9b18443..22564b4 trên toàn bộ path runtime/script/test/contract của WWHN-190 → RỖNG (không commit nào chạm). Tuy nhiên commit 41dfa6f (WWHN-184) thêm migration sửa VIEW audit_log trên PostgreSQL (database/migrations/*audit_log_pgsql_view_missing_event_catalog_fields.php) — audit_log nằm trong tập bất biến mà evidence WWHN-190 assert (PostReceiptAuditLogTest, single_audit_entry của concurrency), nên schema-surface của evidence đã đổi. Để không còn bất kỳ khe hở 'evidence chạy trước schema' nào, chạy lại TOÀN BỘ evidence tại 22564b4 và pin acceptance SHA = 22564b4.",
+  "drift_commits_reviewed_9b18443_to_22564b4": [
+    {
+      "sha": "41dfa6f",
+      "subject": "fix(WWHN-184): dong DEV184-P1-03R3 - QA1 retest doc lap PostgreSQL + fix pin drift + audit_log view thieu cot",
+      "touches_wwhn190_runtime_code": false,
+      "touches_wwhn190_evidence_surface": "CÓ — migration bổ sung cột thiếu cho VIEW audit_log trên pgsql (schema mà PostReceiptAuditLogTest và check single_audit_entry đọc)",
+      "disposition": "Chạy lại PostReceiptAuditLogTest + PostReceiptConcurrencyBehaviorTest + Wwhn190PostingContractParityTest trực tiếp trên PostgreSQL 16 (DB cô lập hn_wwhn190_r4t, migrate fresh gồm cả migration này) → 20/20 PASS, 190 assertions. Bất biến audit (1 row POST_RECEIPT, replay không tạo row 2) giữ nguyên."
+    },
+    {
+      "sha": "dae5ff1 / 92c38e6 / 178970e / 73df270 / 22564b4 / 71c069f",
+      "disposition": "Chỉ docs/evidence của WWHN-190(QA1 vòng 1)/WWHN-215/WWHN-184 — không chạm runtime."
+    },
+    {
+      "sha": "29ed487",
+      "disposition": "Commit file route-list sinh sẵn (untracked → tracked) + evidence build của ticket khác — không đổi nội dung runtime."
+    },
+    {
+      "sha": "ea3bdc4",
+      "disposition": "Chỉ database/golive/fail_forward_allowlist.php (tooling golive, không nằm trong code path post-receipt)."
+    }
+  ],
   "range_invariant": {
     "check": "git merge-base --is-ancestor <sha> refs/heads/m1",
-    "r2_rc_is_ancestor_of_r3_rc": "true (10a2c6e..9b18443 là fast-forward, không có commit nào bị revert/orphan)",
-    "rc_is_ancestor_of_m1_head_at_pin_time": "true"
+    "r3_rc_is_ancestor_of_r4_rc": true,
+    "note": "10a2c6e → 9b18443 → 22564b4 là chuỗi fast-forward liên tục, không revert/orphan"
   },
-  "local_verification_r3": {
-    "environment": "Docker Desktop 29.6.2, container wms_warehouse_hoa_nam_be-backend-1 bind-mount trực tiếp working tree (không lệch code so với host HEAD, không có git binary trong container nên xác minh SHA từ host)",
-    "contract_generator_check": "PASS — node scripts/build-wwhn190-posting-contract.mjs --check --routes build/wwhn190/route-list-r3.json (route-list sinh bằng php artisan route:list --json trong container tại đúng rc_sha) → status PASS, errors: [], note REMOVED-SURFACE-ABSENT giữ nguyên",
-    "phpunit_regression_sqlite": "PASS 52/52 tests, 345 assertions — Wwhn190PostingContractParityTest + PostReceiptAuditLogTest + PostReceiptConcurrencyBehaviorTest + StockDocumentConcurrencyGuardTest + Wwhn180IdempotencyAtomicityTest + Wwhn234P1P2ClosureTest (test mới của 1 trong 2 commit trôi) + Wwhn195OutboundContractAlignmentTest (test mới của commit trôi còn lại) — chạy với DB_CONNECTION=sqlite ép tường minh qua docker exec -e (xem ghi chú an toàn bên dưới)",
-    "postgres_concurrency": "PASS 5/5 scenarios — database cô lập mới hn_wwhn190_r3 (KHÔNG dùng lại hn_wwhn190 của R2, KHÔNG đụng wms_hoanam/wms_hoanam_testing dùng chung với phiên khác), migrate --force sạch từ đầu tại rc_sha R3, WWHN190_LOCK_HOLD_MS=1200. Log: docs/evidence/WWHN-190/concurrency-r3/concurrency-run.txt, chi tiết: docs/evidence/WWHN-190/concurrency-r3/CONCURRENCY_EVIDENCE.json",
-    "reconciliation": "PASS — mismatch 0, orphan 0, duplicate 0, accepted_receipt_qty_total(20) = signed_receipt_movement_total(20) = balance_on_hand_total(20) = ledger_sum_total(20). File: docs/evidence/WWHN-190/reconciliation-r3/RECONCILIATION_REPORT.json"
+  "local_verification_r4": {
+    "run_at_head": "22564b46898f616c0df2880f797fcc0f1fcf9507 (xác nhận HEAD không đổi trước và sau khi chạy; working tree sạch trên Modules/ app/ scripts/ tests/)",
+    "environment": "Docker Desktop, container wms_warehouse_hoa_nam_be-backend-1 (PHP 8.3.33) + wms_warehouse_hoa_nam_be-postgres-1 (PostgreSQL 16), bind-mount working tree",
+    "contract_generator_check": "PASS — node scripts/build-wwhn190-posting-contract.mjs --check --routes build/wwhn190/route-list-r4.json (route-list sinh mới tại 22564b4) → status PASS, errors: [], note REMOVED-SURFACE-ABSENT: /api/v1/stocktake/sessions/{id}/apply-adjustment",
+    "phpunit_regression_sqlite": "PASS 55/55 tests, 378 assertions — Wwhn190PostingContractParityTest + PostReceiptAuditLogTest + PostReceiptConcurrencyBehaviorTest + StockDocumentConcurrencyGuardTest + StockDocumentIdempotencyTest + Wwhn180IdempotencyAtomicityTest + Wwhn234P1P2ClosureTest + Wwhn195OutboundContractAlignmentTest (ép -e DB_CONNECTION=sqlite -e DB_DATABASE=:memory: tường minh theo safety note R3)",
+    "postgres_concurrency": "PASS 5/5 scenarios — DB cô lập mới hn_wwhn190_r4 (không dùng lại DB vòng trước, không đụng wms_hoanam/wms_hoanam_testing), migrate --force sạch từ đầu tại 22564b4, WWHN190_LOCK_HOLD_MS=1200. Evidence: docs/evidence/WWHN-190/concurrency-r4/",
+    "reconciliation": "PASS — mismatch 0, orphan 0, duplicate 0, accepted_receipt_qty_total(20) = signed_receipt_movement_total(20) = balance_on_hand_total(20) = ledger_sum_total(20). Evidence: docs/evidence/WWHN-190/reconciliation-r4/",
+    "postgres_phpunit_audit_after_view_migration": "PASS 20 tests/190 assertions — PostReceiptAuditLogTest + PostReceiptConcurrencyBehaviorTest + Wwhn190PostingContractParityTest chạy trên PostgreSQL 16 DB cô lập hn_wwhn190_r4t, env truyền qua `docker exec -e DB_CONNECTION=pgsql -e DB_DATABASE=hn_wwhn190_r4t …` (cơ chế duy nhất được chứng minh trỏ đúng DB — xem safety_note_phpunit_env_trap). Kết nối xác minh trong cùng lần chạy bằng test probe in `PROBE DRIVER=pgsql DB=hn_wwhn190_r4t` (tổng output 21 tests/191 assertions gồm 1 probe; probe là file tạm, xoá sau run, không commit); sau run DB có đủ 81 bảng schema. Chứng minh trực tiếp migration audit_log view 41dfa6f không phá bất biến audit của WWHN-190."
   },
-  "safety_note_shared_db": "Container backend mặc định DB_CONNECTION=pgsql/DB_DATABASE=wms_hoanam (DB dev dùng chung). Lần chạy phpunit đầu tiên KHÔNG override env nên vô tình chạy nhắm vào wms_hoanam qua Postgres thật — 3 test lỗi (Wwhn234P1P2ClosureTest do dữ liệu/behaviour khác biệt trên nhánh Postgres đó). Đã xác minh KHÔNG có dữ liệu rác nào persist lại (SELECT count(*) FROM printer_configs WHERE printer_code LIKE 'PRT-234%' → 0, do RefreshDatabase rollback transaction khi test fail). Đã chạy lại đúng cách với `docker exec -e DB_CONNECTION=sqlite -e DB_DATABASE=:memory:` ép tường minh, kết quả 52/52 PASS — ghi lại đây để phiên sau không lặp lại: LUÔN truyền -e DB_CONNECTION=sqlite tường minh khi chạy test qua container này, không dựa vào phpunit.xml default vì env thật của container override nó.",
-  "artifacts_new_this_round": [
-    {"path": "docs/evidence/WWHN-190/concurrency-r3/CONCURRENCY_EVIDENCE.json", "sha256": "5c2eba044fd194b14c495e4550edf821f7cd360d8c57406d188bd78f551fc218"},
-    {"path": "docs/evidence/WWHN-190/reconciliation-r3/RECONCILIATION_REPORT.json", "sha256": "e9c69048c20c8030be71e12001923071ba25a36740ecf20a9fb20513f8339d99"},
-    {"path": "docs/evidence/WWHN-190/reconciliation-r3/reconciliation-raw-sql.txt", "sha256": "543633b150e32b4d2348c3c4eea07c0cccac48b41f0e82100e5164920c6eaa0b"}
-  ],
-  "contract_release_unchanged": "Không phát sinh contract release mới ở vòng này — 1.8.0 (docs/api-contract/releases/WWHN-190/1.8.0/) vẫn là bản hiện hành, không có điểm lệch mới nào phát sinh từ 2 commit trôi (cả hai đều không đổi request/response shape của post-receipt).",
-  "ci_note": "KHÔNG chạy/động tới bất kỳ GitHub Actions workflow nào ở vòng này theo yêu cầu người dùng (Actions quota đã hết 3000/3000 phút, tránh phát sinh phí). Toàn bộ verification ở trên chạy 100% local qua docker exec vào container sẵn có + Postgres 16 container sẵn có. .github/workflows/wwhn-190-posting-evidence-gate.yml không bị sửa/kích hoạt.",
-  "note_pin_metadata_only": "File này là metadata; commit chứa nó KHÔNG đổi artifact runtime nào, nên rc_sha vẫn là commit cuối chạm code/script/test/contract (9b18443), không phải SHA của commit ghi pin."
+  "safety_note_phpunit_env_trap": "PHÁT HIỆN MỚI R4 (thay thế cách hiểu cũ): chạy phpunit qua `--configuration=phpunit.pgsql.xml` (hoặc bản sao đổi DB_DATABASE) TRONG container backend KHÔNG trỏ test vào DB khai trong file — `<env force=\"true\">` của PHPUnit thua env thật của container (Laravel resolve từ $_SERVER trước), test âm thầm chạy vào wms_hoanam (DB dev dùng chung, đã bị các lần chạy kiểu này wipe rỗng từ trước — xác nhận 0 row ở role/app_users/skus/warehouses/inventory_movements ngay trước R4). Bằng chứng: test probe in DRIVER/DB thật cho thấy config tạm → wms_hoanam, còn `docker exec -e` → đúng DB cô lập. Hệ quả: (1) mọi claim 'chạy trên wms_hoanam_testing qua phpunit.pgsql.xml' của các vòng/ticket trước trong container này thực chất chạy trên wms_hoanam — driver vẫn là pgsql thật nên kết luận về driver không đổi, nhưng KHÔNG cô lập; (2) từ nay bắt buộc truyền env bằng `docker exec -e`, không dựa vào file phpunit; (3) lần chạy pgsql đầu của R4 dính bẫy này đã bị loại bỏ và chạy lại đúng cách — số liệu trong local_verification_r4 là lần chạy sạch.",
+  "working_tree_purity_during_runs": "Concurrency + reconciliation (cả DEV r4 lẫn QA1 qa1-r4) chạy xong trước 13:50, working tree xác nhận sạch trên Modules/ app/ scripts/ tests/ (git status trong log run lúc 13:43 rỗng). Từ 13:52 phiên song song bắt đầu sửa dở 4 file luồng reversal/movement-report (ReversalDocumentController, StockMovementController, EnforceReversalWarehouseScope, CurrentBaselineReversalService) — chồng lấn thời gian với 2 leg phpunit-pgsql chạy lại, NHƯNG không file nào trong 4 file đó được load bởi 3 test file post-receipt (grep 0 tham chiếu reversal trong cả 3 test; PHP autoload lazy, không route nào của test đi qua các class đó) và không thuộc tập path runtime post-receipt của WWHN-190. Sau run, HEAD trôi thêm commit docs-only 007aa79 (WWHN-184 erratum SRS) — không chạm runtime, không dời acceptance SHA.",
+  "qa1_independent_r4": {
+    "requirement": "DEV190-P1-04R2 — QA1 chạy độc lập trên EXACT candidate",
+    "run": "Cùng ma trận QA1_INDEPENDENT_TEST_PACK.md §2 chạy lại tại đúng 22564b4, DB riêng hn_wwhn190_qa1r4 (+hn_wwhn190_qa1r4t cho audit pgsql), output riêng docs/evidence/WWHN-190/qa1-r4/ — không dùng lại file/DB của DEV lẫn của QA1 vòng 1",
+    "report": "docs/evidence/WWHN-190/qa1/QA1_EXECUTION_REPORT.md (mục R4)"
+  },
+  "contract_release_unchanged": "1.8.0 (docs/api-contract/releases/WWHN-190/1.8.0/) vẫn là bản hiện hành — openapi.json sha256 288a8cf2e4d5c2cf577058fb20c3699dcb6b3b7621a4d5f29f5b946b321642d7. Không có điểm lệch mới: 9 commit sau R3 không đổi request/response shape.",
+  "fe_independent_acceptance": {
+    "requirement": "DEV190-P1-01C — FE/reviewer độc lập xác nhận contract",
+    "evidence": "Repo FE commit cf0fe8d 'test(WWHN-190): them test phan loai loi post-receipt 412/409/428 va xac nhan 422 khong bi bop' — review độc lập contract 1.8.0, thêm 5 test khoá hành vi classifyConcurrencyError cho postInboundReceipt (412 STALE_VERSION→RELOAD_THEN_RETRY, 409 CONCURRENCY_CONFLICT→RELOAD_THEN_RETRY, 409 IDEMPOTENCY_CONFLICT→NEW_KEY_REQUIRED, 428 PRECONDITION_REQUIRED→STOP, 422 FULL_POST_REQUIRED giữ nguyên lỗi gốc). Chạy lại tại FE HEAD cf0fe8d ngày 2026-08-19: vitest 22/22 PASS (src/modules/inbound/services/inboundService.test.ts)."
+  },
+  "ci_note": "KHÔNG chạy/động tới bất kỳ GitHub Actions workflow nào (quota 3000/3000 đã hết). Toàn bộ verification R4 + QA1-R4 chạy 100% local qua docker exec. .github/workflows/wwhn-190-posting-evidence-gate.yml không bị sửa/kích hoạt — theo yêu cầu hiện tại của review, CI/CD KHÔNG phải điều kiện đóng DEV190-P1-01R2 (chỉ cần SHA + diff/review Tech Lead).",
+  "note_pin_metadata_only": "File này là metadata; commit chứa nó (và mọi commit docs/evidence sau 22564b4) KHÔNG dời acceptance SHA."
 }

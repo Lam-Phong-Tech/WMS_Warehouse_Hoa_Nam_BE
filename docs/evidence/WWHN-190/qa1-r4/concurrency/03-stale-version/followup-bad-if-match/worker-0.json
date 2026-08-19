@@ -1,0 +1,43 @@
+{
+    "worker_index": 0,
+    "scenario": "03-stale-version/followup-bad-if-match",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 36998,
+    "http_status": 422,
+    "error_code": "INVALID_VERSION",
+    "message": "If-Match phải là version số nguyên không âm.",
+    "idempotent_replay_header": null,
+    "etag": null,
+    "body_replayed_flag": null,
+    "movement_ids": [],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/15f85cbc-7c05-4bb5-9be8-096d1450e60d/post-receipt",
+        "if_match": "not-a-number",
+        "idempotency_key": "wwhn190-s3bad-413CE807",
+        "body": {
+            "note": "bad-if-match"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787121907.868808,
+        "released_at": 1787121907.891911,
+        "request_started_at": 1787121907.891973,
+        "request_finished_at": 1787121908.070193,
+        "finished_at": 1787121908.070742
+    },
+    "body": {
+        "success": false,
+        "message": "If-Match phải là version số nguyên không âm.",
+        "error_code": "INVALID_VERSION",
+        "errors": [],
+        "error": {
+            "code": "INVALID_VERSION",
+            "details": []
+        },
+        "meta": {
+            "request_id": "9cc11916-0517-4934-96b1-92f448115274",
+            "timestamp": "2026-08-19T13:45:08+07:00"
+        }
+    }
+}

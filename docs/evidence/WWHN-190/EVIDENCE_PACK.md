@@ -138,6 +138,62 @@ PASS. Ghi lại trong `RC_PIN.json.safety_note_shared_db` để vòng sau không
 **Không đụng CI/GitHub Actions** ở vòng này theo yêu cầu người dùng (Actions đã hết quota
 3000/3000 phút) — toàn bộ chạy local qua container Docker sẵn có.
 
+## 10. §R4 — Acceptance SHA = SHA chạy PostgreSQL evidence (2026-08-19, re-review 62/100 lần 2) [đọc sau mục 9]
+
+Re-review giữ nguyên 62/100 với 4 P1: `DEV190-P1-01R2` (pin exact candidate), `DEV190-P1-01C`
+(độc lập FE cho contract), `DEV190-P1-04R2` (QA1 chạy độc lập trên exact candidate),
+`DEV190-P1-05R2` (formalize business authority). Vòng R4 đóng phần kỹ thuật của cả bốn:
+
+**a) DEV190-P1-01R2** — loại bỏ hoàn toàn khoảng hở "SHA nghiệm thu ≠ SHA chạy evidence":
+acceptance SHA mới = `22564b46898f616c0df2880f797fcc0f1fcf9507` = ĐÚNG commit mà toàn bộ evidence
+PostgreSQL được chạy lại (bảng dưới). Lý do phải chạy lại dù `git log 9b18443..22564b4` trên path
+runtime WWHN-190 rỗng: commit `41dfa6f` (WWHN-184) thêm migration sửa VIEW `audit_log` pgsql —
+`audit_log` thuộc tập bất biến evidence WWHN-190 assert, tức schema-surface đã đổi sau pin R3.
+
+| Bằng chứng tại `22564b4` | Kết quả |
+|---|---|
+| Contract-vs-runtime (`build-wwhn190-posting-contract.mjs --check`, route-list mới `build/wwhn190/route-list-r4.json`) | PASS, `errors: []`, note `REMOVED-SURFACE-ABSENT` |
+| PHPUnit regression sqlite (8 file test, ép `DB_CONNECTION=sqlite` tường minh) | **55/55 PASS**, 378 assertions |
+| True concurrency PostgreSQL 16 — 5 kịch bản, 2 OS process/2 backend, DB cô lập mới `hn_wwhn190_r4` | **5/5 PASS** — `docs/evidence/WWHN-190/concurrency-r4/` |
+| Reconciliation 4 lớp | **PASS**, mismatch/orphan/duplicate = 0, `20 = 20 = 20 = 20` — `docs/evidence/WWHN-190/reconciliation-r4/` |
+| PHPUnit **trên PostgreSQL** sau migration audit-view `41dfa6f` (`PostReceiptAuditLogTest` + `PostReceiptConcurrencyBehaviorTest` + `Wwhn190PostingContractParityTest`, DB cô lập `hn_wwhn190_r4t`, env qua `docker exec -e`) | **20 tests PASS**, 190 assertions — bất biến audit giữ nguyên; kết nối xác minh bằng probe in `PROBE DRIVER=pgsql DB=hn_wwhn190_r4t` trong cùng run |
+
+HEAD xác nhận không đổi trước/sau run; working tree sạch trên `Modules/ app/ scripts/ tests/`
+tại thời điểm chạy concurrency/reconciliation (chi tiết mốc thời gian + 4 file reversal phiên
+song song sửa dở sau đó: `RC_PIN.json.working_tree_purity_during_runs`).
+
+**Bẫy môi trường mới phát hiện ở R4 (ghi để không tái phạm):** trong container backend,
+`phpunit --configuration=phpunit.pgsql.xml` (kể cả bản sao đổi `DB_DATABASE`) **không** trỏ test
+vào DB khai trong file — `<env force="true">` của PHPUnit thua env thật của container (Laravel
+đọc `$_SERVER` trước), test âm thầm nhắm vào `wms_hoanam`. Đã chứng minh bằng test probe in
+driver/database thật. Cách đúng duy nhất: truyền env qua `docker exec -e DB_CONNECTION=pgsql
+-e DB_DATABASE=<db riêng> …`. Lần chạy pgsql đầu của R4 dính bẫy, đã loại bỏ và chạy lại đúng
+cách trên DB cô lập (số liệu bảng trên là lần chạy sạch). Chi tiết:
+`RC_PIN.json.safety_note_phpunit_env_trap`.
+
+**b) DEV190-P1-04R2** — QA1 chạy độc lập cùng ma trận `QA1_INDEPENDENT_TEST_PACK.md` tại **đúng**
+`22564b4`, DB riêng `hn_wwhn190_qa1r4`/`hn_wwhn190_qa1r4t`, output riêng
+`docs/evidence/WWHN-190/qa1-r4/` — kết quả ghi ở mục R4 của
+`docs/evidence/WWHN-190/qa1/QA1_EXECUTION_REPORT.md`.
+
+**c) DEV190-P1-01C** — bằng chứng độc lập phía FE đã tồn tại trong repo FE: commit `cf0fe8d`
+(review độc lập contract 1.8.0, 5 test khoá phân loại 412/409/409/428/422 cho
+`postInboundReceipt`); vitest chạy lại tại FE HEAD `cf0fe8d`: **22/22 PASS**. Phần còn thiếu duy
+nhất là comment sign-off trên Jira của người giữ vai trò FE/reviewer độc lập (không phải BE1).
+
+**d) DEV190-P1-05R2** — hồ sơ formalize đã soạn sẵn tại
+`docs/decision-records/DEC-INV-FULLPOST-PIN-190.md` (pin SRS v1.12: sha256 `02cd010c…`, blob
+`7943a9f`, xác minh lại còn đúng ngày 2026-08-19). Đính chính quan trọng theo rà soát nguyên văn
+SRS: **không tồn tại artifact "Handoff v3.9"** — Supersession Register §1.6 chỉ có dòng
+`BRD v3.9 → BRD v3.20 (HISTORICAL/SUPERSEDED)` và `Handoff v3.10 reference → REMOVED / NO ARTIFACT`;
+mọi trích dẫn "HoaNam_Handoff_v3_9" trong WWHN-43 vì vậy phải **xoá hẳn** (không có nguồn thay thế
+1-1), nguồn điều khiển hiện hành = `BRD v3.20 + WWHN-333` và `SRS/FRD v1.12 + WWHN-334`.
+Formal gate của `DEC-FULL-POST-001` là **WWHN-27** (SRS §0.3 P0-04: "WWHN-25/26/27 vẫn FORMAL
+APPROVAL PENDING; SRS adoption không thay formal decision gates").
+
+Không chạy/động CI (GitHub Actions quota 3000/3000 đã hết) — toàn bộ local qua Docker; theo yêu
+cầu review hiện tại, CI/CD không phải điều kiện của DEV190-P1-01R2.
+
 ## 8. Trạng thái CI tại thời điểm đóng gói (2026-08-19 ~02:00 UTC)
 
 | Sự kiện | Kết quả |

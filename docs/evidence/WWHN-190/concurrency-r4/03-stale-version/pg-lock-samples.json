@@ -1,0 +1,5157 @@
+[
+    {
+        "at": 1787121697.641947,
+        "locks": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            }
+        ]
+    },
+    {
+        "at": 1787121697.708485,
+        "locks": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000006"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000006"
+            }
+        ]
+    },
+    {
+        "at": 1787121697.772259,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": false
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ShareLock",
+                "granted": false
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "tuple",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            }
+        ]
+    },
+    {
+        "at": 1787121697.836284,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": false
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ShareLock",
+                "granted": false
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "tuple",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            }
+        ]
+    },
+    {
+        "at": 1787121697.899895,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": false
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ShareLock",
+                "granted": false
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "tuple",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            }
+        ]
+    },
+    {
+        "at": 1787121697.966149,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": false
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ShareLock",
+                "granted": false
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "tuple",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            }
+        ]
+    },
+    {
+        "at": 1787121698.035911,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": false
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ShareLock",
+                "granted": false
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "tuple",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            }
+        ]
+    },
+    {
+        "at": 1787121698.100329,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": false
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ShareLock",
+                "granted": false
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "tuple",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            }
+        ]
+    },
+    {
+        "at": 1787121698.16616,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": false
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ShareLock",
+                "granted": false
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "tuple",
+                "relation": "stock_documents",
+                "mode": "AccessExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36547,
+                "application_name": "wwhn190-blocker",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_00000004"
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "tuple",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "active",
+                "wait_event_type": "Lock",
+                "wait_event": "transactionid",
+                "query": "select * from \"stock_documents\" where \"id\" = $1 and \"doc_type\" = $2 limit 1 for update"
+            }
+        ]
+    },
+    {
+        "at": 1787121698.232189,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_documents__legacy_projection",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inbound_documents_5f2789c3ed",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_documents_posted_at",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_inbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_inbound_documents_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_documents_warehouse_id_status_document_date",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inbound_documents_inbound_no",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "AccessShareLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "active",
+                "wait_event_type": null,
+                "wait_event": null,
+                "query": "update \"stock_documents\" set \"version\" = $1, \"updated_by\" = $2, \"updated_at\" = $3 where \"id\" = $4"
+            },
+            {
+                "pid": 36556,
+                "application_name": "wwhn190-w1",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_0000000b"
+            }
+        ]
+    },
+    {
+        "at": 1787121698.299565,
+        "locks": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_documents__legacy_projection",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_locked_until",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_idem_operation_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_idem_keys_key_op_user",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_business_key_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inbound_documents_5f2789c3ed",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inbound_documents_5f2789c3ed",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_app_users_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "containers",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "containers",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_inventory_balances_wh_sku_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_inventory_balances_wh_sku_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "permissions",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pv_product_industry",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_outbound_lines_sku_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_namespace_oid_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_skus_sku_type_status",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_skus_sku_type_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_app_users_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "reconciliation_incidents",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_outbound_lines",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "audit_logs",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_scan_entries",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "defect_catalogs",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inbound_scan_entries",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_stock_documents_doc_type_create_idem",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_balances_sku_id_stock_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_balances_sku_id_stock_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_warehouse_id_sku_id_occurred_at",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_containers_container_type_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_balances_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_balances_pkey",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_namespace",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_app_users",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_views",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_containers_parent_container_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_rewrite_rel_rulename_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inbound_lines_f891eba6e3",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inbound_lines_f891eba6e3",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_inventory_movements_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "sku_aliases",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_documents_posted_at",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_documents_posted_at",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_type_status",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "role_permissions",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_lines_import_batch_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_lines_import_batch_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "warranty_events",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_scan_entries_pkey",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_movements__legacy_projection",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_inbound_lines_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_inbound_lines_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_outbound_lines",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_document_lines_request_line",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_document_lines_request_line",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_app_users_username",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "posting_event",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_outbound_lines_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_inbound_scan_line_item",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_containers_primary_sku",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_scan_entries_container_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "posting_events",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "posting_events",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_containers_type",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_outbound_documents_outbound_request_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_warehouses_warehouse_code",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_doc_no_unique",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_warehouses_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "app_users",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "app_users",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_skus_6dc6eab679",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_skus_6dc6eab679",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "warehouses_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_containers_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_correction_chain_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_item_id_occurred_at",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_containers_c72f8028c6",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_inbound_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_inbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_movements_source",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_outbound_documents_warehouse_id_status_document_date",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_balances",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_balances",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inventory_balances_a7d7fe67bf",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inventory_balances_a7d7fe67bf",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inbound_lines_f891eba6",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inbound_lines_f891eba6",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_outbound_documents_agency_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pv_recommendation_rules",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_original_movement_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_containers_parent",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "containers_physical_code_id_unique",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sm_wh_product_time",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inventory_movements",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_movements_pkey",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sm_ledger_dimension",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_containers",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_class_relname_nsp_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_movements_original",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_lines",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_lines",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_sdl_document_line_no",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_sdl_document_line_no",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_balances_stock_status_index",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_balances_stock_status_index",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_outbound_lines_outbound_request_line_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_posting_events",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_inbound_documents_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_inbound_documents_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_skus_sku_code",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_skus_sku_code",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "outbound_lines__legacy_projection",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "skus",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "skus",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_posting_events_476ddf6306",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_posting_events_status_started_at",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_outbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_skus_brand_id_category_id_power_source_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_skus_brand_id_category_id_power_source_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "reversal_documents",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "user_roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_outbound_lines_1d5f06b69a",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_warehouses_7f67cdc373",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_containers_type_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_document_lines",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_document_lines",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_movements_movement_no_unique",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_balances_updated_at",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_balances_updated_at",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_outbound_documents_073a5a7fe4",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inventory_balances",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inventory_balances",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_outbound_request",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_outbound_documents_posted_at",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_documents_warehouse_id_status_document_date",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_documents_warehouse_id_status_document_date",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_outbound_documents_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_skus",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_skus",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_document_lines_import_batch",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_document_lines_import_batch",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inbound_lines__legacy_projection",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "outbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_inbound_lines",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_inbound_lines",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "transactionid",
+                "relation": null,
+                "mode": "ExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_movements_stock_status_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_posting_events",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inbound_lines",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inbound_lines",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_class",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_outbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sm_document",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_app_users",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inventory_balances_a7d7fe67",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inventory_balances_a7d7fe67",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_inbound_scan_line_container",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "document_status_history",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "roles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_document_lines_pkey",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_document_lines_pkey",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_namespace_nspname_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "scan_events",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_posting_events_476ddf63",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_app_users_14c4b06b82",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_inventory_balances_wh_product_status",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_inventory_balances_wh_product_status",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "physical_codes",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pv_filter_tag",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pv_product_tags",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_app_users_email",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "warehouses",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_containers",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_scan_entries_inbound_line_id_status",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_warehouses",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idempotency_keys",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inbound_documents",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_canonical_key_inbound_documents",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_class_tblspc_relfilenode_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_posting_events_57e69f292c",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_warehouses_one_active",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_movements_correction_chain",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inventory_movements_movement_key",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inbound_active_item",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_containers_primary_sku_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "warranty_cases",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_stock_documents_agency",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_lines_sku_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inbound_lines_sku_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_app_users_email",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "inventory_movements",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_documents_pkey",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_doc_inventory_movements_ba2766322e",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inbound_documents_inbound_no",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inbound_documents_inbound_no",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_legacy_runtime_key_containers",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sd_doc_date",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_movements",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_movements",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "warehouses_code_unique",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "uk_warehouses_single_active",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_posting_events_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_erd_inventory_movements_source_type_source_id",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_inventory_movements",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "outbound_documents__legacy_projection",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "sku",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_class_oid_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_inbound_scan_line_status",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_skus",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pk_erd_skus",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sdl_item_instance",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "idx_sdl_item_instance",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "reversal_lines",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inventory_balance_bucket",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_inventory_balance_bucket",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "containers_container_code_unique",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_rewrite_oid_index",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "outbound_lines",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pg_rewrite",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "stock_movements_business_key_unique",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_skus_id",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_mirror_skus_id",
+                "mode": "RowShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pv_product_profiles",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_outbound_documents_outbound_no",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "container_items",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "pv_industry",
+                "mode": "AccessShareLock",
+                "granted": true
+            },
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "locktype": "relation",
+                "relation": "ux_erd_containers_container_code",
+                "mode": "RowExclusiveLock",
+                "granted": true
+            }
+        ],
+        "activity": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "idle in transaction",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "DEALLOCATE pdo_stmt_0000001b"
+            }
+        ]
+    },
+    {
+        "at": 1787121698.36498,
+        "locks": [],
+        "activity": [
+            {
+                "pid": 36555,
+                "application_name": "wwhn190-w0",
+                "state": "idle",
+                "wait_event_type": "Client",
+                "wait_event": "ClientRead",
+                "query": "COMMIT"
+            }
+        ]
+    }
+]

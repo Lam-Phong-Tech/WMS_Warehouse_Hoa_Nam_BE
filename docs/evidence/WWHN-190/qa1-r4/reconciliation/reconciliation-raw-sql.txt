@@ -1,0 +1,126 @@
+WWHN-190 / DEV190-P1-03R2 reconciliation raw SQL evidence
+report_version=1.0.0 commit=unknown driver=pgsql db=hn_wwhn190_qa1r4
+generated_at=2026-08-19T13:45:14+07:00
+status=PASS mismatch=0 orphan=0 duplicate=0
+
+===== L1 accepted_receipt_qty vs signed receipt movements =====
+SQL:
+select d.id           as document_id,
+       d.doc_no       as doc_no,
+       l.id           as line_id,
+       l.qty_planned  as accepted_receipt_qty,
+       l.scanned_qty  as scanned_qty,
+       coalesce(sum(m.qty_delta), 0) as signed_receipt_movement
+from stock_documents d
+join stock_document_lines l on l.stock_document_id = d.id
+left join stock_movements m
+       on m.stock_document_line_id = l.id
+      and m.movement_type = 'RECEIPT'
+where d.doc_type = 'receipt'
+  and d.status = 'POSTED'
+group by d.id, d.doc_no, l.id, l.qty_planned, l.scanned_qty
+order by d.doc_no, l.id
+
+ROWS (5):
+{"document_id":"1d139536-0d39-48c9-8b38-ee715448ba6f","doc_no":"WWHN190-S1-413CE807-MYYBP9","line_id":"f26254dc-57fc-47d1-a1a3-bed7c5440eae","accepted_receipt_qty":5,"scanned_qty":5,"signed_receipt_movement":"5"}
+{"document_id":"99c331bd-1c66-4d3a-875b-253eeb65be02","doc_no":"WWHN190-S2-413CE807-JRAJ5A","line_id":"cb944df0-3858-4c75-bff9-35808179150a","accepted_receipt_qty":3,"scanned_qty":3,"signed_receipt_movement":"3"}
+{"document_id":"15f85cbc-7c05-4bb5-9be8-096d1450e60d","doc_no":"WWHN190-S3-413CE807-SHSRXV","line_id":"cec3db31-af43-4ee1-8776-0a26582ec391","accepted_receipt_qty":4,"scanned_qty":4,"signed_receipt_movement":"4"}
+{"document_id":"d2df0f21-bdf8-4dbf-9d43-47cdc1bc1119","doc_no":"WWHN190-S4-413CE807-GGBBI3","line_id":"0a221a7b-f0ff-4a45-bee8-3672ac3241b0","accepted_receipt_qty":2,"scanned_qty":2,"signed_receipt_movement":"2"}
+{"document_id":"a1736eb8-e8a6-4c60-95de-831975cffbda","doc_no":"WWHN190-S5-413CE807-HS1P2W","line_id":"559c424a-9fac-4254-b164-d42d126c5ad7","accepted_receipt_qty":6,"scanned_qty":6,"signed_receipt_movement":"6"}
+
+===== L2 balance projection vs signed ledger =====
+SQL:
+select b.warehouse_id,
+       coalesce(b.sku_id, b.product_id) as sku_id,
+       b.stock_status,
+       b.on_hand_qty,
+       b.quantity,
+       coalesce((
+         select sum(m.qty_delta) from stock_movements m
+         where m.warehouse_id = b.warehouse_id
+           and coalesce(m.sku_id, m.product_id) = coalesce(b.sku_id, b.product_id)
+           and m.stock_status = b.stock_status
+       ), 0) as ledger_sum
+from inventory_balances b
+order by b.warehouse_id, sku_id, b.stock_status
+
+ROWS (5):
+{"warehouse_id":"280aebb9-73c7-4d12-b09b-78ee549c2bb8","sku_id":"24d7fc94-566f-4557-9734-6318cd19cc46","stock_status":"AVAILABLE","on_hand_qty":5,"quantity":5,"ledger_sum":"5"}
+{"warehouse_id":"280aebb9-73c7-4d12-b09b-78ee549c2bb8","sku_id":"4f4a9d9d-6314-47e9-ac1f-f3a5f063ec99","stock_status":"AVAILABLE","on_hand_qty":4,"quantity":4,"ledger_sum":"4"}
+{"warehouse_id":"280aebb9-73c7-4d12-b09b-78ee549c2bb8","sku_id":"853cb29a-9f37-4156-aad1-460b69bc4440","stock_status":"AVAILABLE","on_hand_qty":2,"quantity":2,"ledger_sum":"2"}
+{"warehouse_id":"280aebb9-73c7-4d12-b09b-78ee549c2bb8","sku_id":"b986d293-3cec-44e7-8a07-63a1e9892639","stock_status":"AVAILABLE","on_hand_qty":6,"quantity":6,"ledger_sum":"6"}
+{"warehouse_id":"280aebb9-73c7-4d12-b09b-78ee549c2bb8","sku_id":"f264d44f-7094-4362-89f2-766b2cce1de4","stock_status":"AVAILABLE","on_hand_qty":3,"quantity":3,"ledger_sum":"3"}
+
+===== L3a movement mồ côi (không có chứng từ gốc) =====
+SQL:
+select m.id, m.movement_type, m.stock_document_id, m.stock_document_line_id, m.qty_delta
+from stock_movements m
+where m.stock_document_id is not null
+  and not exists (select 1 from stock_documents d where d.id = m.stock_document_id)
+
+ROWS (0):
+
+===== L3b movement RECEIPT/ISSUE trên chứng từ chưa POSTED =====
+SQL:
+select m.id, m.movement_type, d.doc_no, d.status, m.qty_delta
+from stock_movements m
+join stock_documents d on d.id = m.stock_document_id
+where m.movement_type in ('RECEIPT', 'ISSUE')
+  and d.status <> 'POSTED'
+
+ROWS (0):
+
+===== L3c dòng POSTED không sinh movement =====
+SQL:
+select d.doc_no, d.id as document_id, l.id as line_id, l.qty_planned
+from stock_documents d
+join stock_document_lines l on l.stock_document_id = d.id
+where d.doc_type = 'receipt'
+  and d.status = 'POSTED'
+  and not exists (
+    select 1 from stock_movements m
+    where m.stock_document_line_id = l.id and m.movement_type = 'RECEIPT'
+  )
+
+ROWS (0):
+
+===== L3d balance khác 0 nhưng không có ledger =====
+SQL:
+select b.warehouse_id, coalesce(b.sku_id, b.product_id) as sku_id, b.stock_status, b.on_hand_qty
+from inventory_balances b
+where b.on_hand_qty <> 0
+  and not exists (
+    select 1 from stock_movements m
+    where m.warehouse_id = b.warehouse_id
+      and coalesce(m.sku_id, m.product_id) = coalesce(b.sku_id, b.product_id)
+      and m.stock_status = b.stock_status
+  )
+
+ROWS (0):
+
+===== L4a business_key trùng =====
+SQL:
+select business_key, count(*) as occurrences
+from stock_movements
+where business_key is not null
+group by business_key
+having count(*) > 1
+
+ROWS (0):
+
+===== L4b movement RECEIPT/ISSUE trùng trên cùng một dòng =====
+SQL:
+select stock_document_line_id, movement_type, count(*) as occurrences
+from stock_movements
+where stock_document_line_id is not null
+  and movement_type in ('RECEIPT', 'ISSUE')
+group by stock_document_line_id, movement_type
+having count(*) > 1
+
+ROWS (0):
+
+===== L4c posting_event trùng =====
+SQL:
+select idempotency_key as key_value, count(*) as occurrences from posting_events where idempotency_key is not null group by idempotency_key having count(*) > 1
+
+ROWS (0):

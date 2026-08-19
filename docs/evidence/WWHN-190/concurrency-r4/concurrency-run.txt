@@ -1,0 +1,9 @@
+[2026-08-19 13:41:30] Actor: wwhn190-runner; run token 354CE120; hold 1200ms
+[2026-08-19 13:41:30] DB: hn_wwhn190_r4 @ postgres
+[2026-08-19 13:41:32] S1 same key/same payload: statuses=409,200 -> PASS
+[2026-08-19 13:41:36] S2 different key/same doc: statuses=412,200 -> PASS
+[2026-08-19 13:41:40] S3 stale version: statuses=200,412 -> PASS
+[2026-08-19 13:41:42] S4 same key/different payload: statuses=409,200 -> PASS
+[2026-08-19 13:41:42] S5: đã gắn trigger fault injection wwhn190_force_rollback_trg
+[2026-08-19 13:41:44] S5: đã gỡ trigger fault injection
+[2026-08-19 13:41:46] S5 forced rollback: statuses=500,500 -> PASS

@@ -1,0 +1,49 @@
+{
+    "worker_index": 0,
+    "scenario": "02-different-key-same-document",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 36543,
+    "http_status": 412,
+    "error_code": "STALE_VERSION",
+    "message": "Document version mismatch.",
+    "idempotent_replay_header": null,
+    "etag": null,
+    "body_replayed_flag": null,
+    "movement_ids": [],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/afb22b68-2d0e-49c9-8005-52854ec2ed4e/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s2a-354CE120",
+        "body": {
+            "note": "A"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787121694.286773,
+        "released_at": 1787121694.325007,
+        "request_started_at": 1787121694.325138,
+        "request_finished_at": 1787121694.813049,
+        "finished_at": 1787121694.813748
+    },
+    "body": {
+        "success": false,
+        "message": "Document version mismatch.",
+        "error_code": "STALE_VERSION",
+        "errors": {
+            "expected_version": 1,
+            "current_version": 2
+        },
+        "error": {
+            "code": "STALE_VERSION",
+            "details": {
+                "expected_version": 1,
+                "current_version": 2
+            }
+        },
+        "meta": {
+            "request_id": "61515fa6-d7b1-496c-8b9e-2fcce0f260bd",
+            "timestamp": "2026-08-19T13:41:34+07:00"
+        }
+    }
+}
