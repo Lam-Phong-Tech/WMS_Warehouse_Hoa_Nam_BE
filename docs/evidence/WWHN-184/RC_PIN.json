@@ -1,0 +1,84 @@
+{
+  "pin_id": "HN-PIN-184",
+  "jira": "WWHN-184",
+  "parent": "WWHN-41",
+  "output": "Inbound Document API — chứng từ/trạng thái nhập kho",
+  "pinned_by": "DEV",
+  "pinned_date": "2026-08-19",
+  "task_doc": "docs/docs_task_jira/WWHN-184.md",
+  "disposition": "docs/decision-records/DISP-IN-184-INBOUND-DOCUMENT-STATE-BASELINE.md",
+  "verifier": "node scripts/verify-wwhn184-candidate-pin.mjs",
+  "deploy_gate": "node scripts/verify-wwhn184-candidate-pin.mjs --expect-sha=<sha đã deploy>",
+  "pin_model": {
+    "kind": "content-hash range invariant",
+    "why": "Register ghi 'branch đã trôi 2 commits' và chấm P1-02R OPEN. Nguyên nhân gốc không phải quên deploy mà là m1 dùng chung cho nhiều phiên/ticket, nên pin theo HEAD rot gần như tức thì. Pin theo sha256 nội dung của đúng tập file WWHN-184 sở hữu: commit của ticket khác không làm đỏ pin, còn ai sửa đúng file của WWHN-184 thì đỏ ngay.",
+    "rot_guard": "pinned_at_head phải luôn là ancestor của HEAD hiện tại; nếu nhánh bị rewrite thì verifier báo đỏ."
+  },
+  "candidate": {
+    "repo": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "sha_resolution": "Exact SHA của candidate = commit cuối cùng chạm vào tập owned_artifacts dưới đây, KHÔNG phải HEAD của m1 tại thời điểm đọc. Dùng: git log -1 --format=%H -- <danh sách owned_artifacts>.",
+    "frontend": {
+      "repo": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+      "branch": "m1",
+      "note": "FE của luồng nhập đã khớp baseline (InboundStatus = DRAFT|SCANNING|POSTED|CANCELLED, cancel nhận inbound.cancel|inbound.create). Gate FE là gate riêng; BE không ký thay."
+    }
+  },
+  "gate": {
+    "workflow": ".github/workflows/wwhn-184-inbound-contract.yml",
+    "workflow_name": "WWHN-184 Inbound Contract Evidence Gate",
+    "jobs": [
+      "postman-contract-invariants",
+      "contract-evidence",
+      "postgres-post-receipt-race"
+    ],
+    "artifact_name_pattern": "wwhn-184-inbound-evidence-<github.sha>",
+    "artifact_retention_days": 30,
+    "required_artifact_files": [
+      "build-metadata.json",
+      "postman-contract-verification.json",
+      "newman.raw.log",
+      "newman.result.json",
+      "wwhn184-parity-phpunit.raw.log",
+      "migrate-status.raw.log",
+      "health-response.json",
+      "db-before.json",
+      "db-after.json",
+      "reconciliation-report.json",
+      "SHA256SUMS"
+    ],
+    "status_at_pin": "NOT_YET_RUN",
+    "green_at_sha": null
+  },
+  "deployment": {
+    "status": "NOT_DEPLOYED",
+    "environment": null,
+    "deployed_sha": null,
+    "deployed_at": null,
+    "runbook": "docs/evidence/WWHN-184/DEPLOY_RUNBOOK.md",
+    "note": "DEV không có quyền deploy. Ô này do DevOps điền sau khi chạy runbook; verifier có --expect-sha để chứng minh bản đang chạy đúng bằng SHA được tuyên bố."
+  },
+  "pinned_at_head": "8e82dd6ad26e36e0096c3cf1987260a6782012ab",
+  "pinned_at_branch": "m1",
+  "owned_artifacts": {
+    "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php": "d7e0ef2bbc1ce72f9bb7d50625c49bf220e06e8f8d83161d9607434fb59fd460",
+    "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php": "3709771f87d343339514d4367812687ec9120c0a317275ed65e46df3b2a203e5",
+    "Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php": "b117c143f58c5a713892b04be57d3005472b189ea64d6c6c2e4efbb5de97abf5",
+    "Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php": "5e9521bc93f2fe7f970c0eeb23fef47490ea275067b9132134a8f8f6f777c9b8",
+    "Modules/Warehouse/routes/api.php": "88dde3a72402750df15fca970d1d5830450cb567c07169977dc180da434a66b9",
+    "app/Support/IdempotencyStore.php": "917cf9f89180d16a7e62858f8e044fd78cea02308eded991b494df2ddfa017f0",
+    "app/Support/IdempotencyKeyGuard.php": "81c73c4bdcad38524ffc6e6b92dbe30ec7eced0ceb8eeac1d260ddcce697d3a9",
+    "app/Support/ConflictCode.php": "9b66ff66372ee0a048a6a5f202b7879dd6df78056b9ed629a4d6b0e335883d5d",
+    "docs/postman/WWHN-184 Inbound Contract.postman_collection.json": "b6245db74946859ecf6373d47cd237b481dcb24795b296c26c2e9e57787fb542",
+    "docs/postman/WWHN-184 Inbound CI.postman_environment.json": "d3c0e043a6f835963faafdc56b1fcc92e05249179e81d6c596b7f1bc234acbbf",
+    "docs/api-contract/WWHN-184-inbound-openapi.json": "8f4f08cb2315e491ace1ad65e52af2a5ca06d01bdb0e349c0d999d07b573e8d0",
+    "docs/api-contract/WWHN-184-inbound-openapi.yaml": "a970c523294b76480f0d60c337d57306ce1ffe5a12fcc31213ab22ffc76bb775",
+    "scripts/verify-wwhn184-postman-contract.mjs": "128844b1c798ef3855f43fac4c2e79ae249bb52e927a6a292a16c228427abdd8",
+    "scripts/collect-wwhn184-evidence.sh": "f72702be85a0823cd9dc2b62668ad386a8c29de9691ec6c7afd167e9f5885d9e",
+    "scripts/wwhn184-post-receipt-runtime-concurrency.php": "9a6936a36a0d4ce0fddfc3d802f462b1e418dbb258d66ddc2c84c59a897fdd37",
+    "scripts/wwhn184-post-receipt-worker.php": "ceba5523950dacf58b1a7b4625a6668c82f9cb25a2328e41d247ebf4015eac51",
+    "tests/Feature/Wwhn184InboundContractParityTest.php": "c565bf798725afeab07a46eeb5b23b93f271f38871776c567f5e58d1022f0377",
+    "tests/Feature/Wwhn184PostReceiptRuntimeConcurrencyTest.php": "b910292bd5b2a380aa5e483bca4a699f0905e59d123ed2c4c919ff309a3dd6ec",
+    ".github/workflows/wwhn-184-inbound-contract.yml": "8a5e411f0a98b8b962fe2888cda31b30b78aefd9a98568e62d7d14c23ead345f"
+  }
+}

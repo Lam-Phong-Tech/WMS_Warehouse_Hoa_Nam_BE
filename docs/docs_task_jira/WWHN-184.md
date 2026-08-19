@@ -1,14 +1,103 @@
-# WWHN-184 — [BE1] Triển khai API chứng từ/trạng thái nhập kho
+# WWHN-184 — [DEV] Triển khai API chứng từ/trạng thái nhập kho
 
-> Vai trò: **BE1** (Quang Nguyễn Thanh — placeholder `HN-BE-01`)
+> Vai trò narrative: **DEV** (vai trò hợp nhất). Nhãn và history trên Jira giữ nguyên
+> **BE1** (Quang Nguyễn Thanh — placeholder `HN-BE-01`) để không đứt mạch trace — đây
+> đúng là disposition của `DEV184-P2-01R`: đổi cách gọi vai trò trong phần mô tả, không
+> đổi label/lịch sử.
 > Task cha: **WWHN-41 / HN-IN-001** — [INBOUND] Tạo/chỉnh/duyệt chứng từ nhập
+> (tiêu đề cha còn chữ "duyệt" — luồng nhập không có bước duyệt; xem `DISP-IN-184` §3.3)
 > Dependency: **HN-PIN-05; HN-FND-001; HN-MC-001**
-> Nhánh triển khai: `m1`
-> Exact commit SHA (fix lần rà soát này): `157968b7e6a863b626d5090eef051d80b363012d` — BE
+> Nhánh triển khai: `m1` (không tạo nhánh riêng)
+> Candidate pin: `docs/evidence/WWHN-184/RC_PIN.json` (`HN-PIN-184`) —
+> `node scripts/verify-wwhn184-candidate-pin.mjs`
+> Exact commit SHA vòng rà soát trước: `157968b7e6a863b626d5090eef051d80b363012d`
 > `[fix(WWHN-184): reconcile inbound.cancel|inbound.create contract, close Swagger scan gap]`
 > FE đồng hành: `09e0dd376f04610505669c79009478030c3a9223` (repo
-> `WMS_Warehouse_Hoa_Nam_FE`, branch `fix/wwhn-184-p1-cancel-permission`) —
+> `WMS_Warehouse_Hoa_Nam_FE`) —
 > `[fix(WWHN-184): let inbound.create satisfy Cancel like the BE route does]`
+
+---
+
+## 0-bis. Vòng đóng register 2026-08-19 — P1-01R/P1-02R/P1-03R/P1-04R/P2-01R
+
+Mục này ghi những gì đã sửa **ở vòng này**; các mục 0-6 phía dưới là hồ sơ của vòng
+trước, giữ nguyên để bảo toàn tính xác thực.
+
+### DEV184-P1-01R (PARTIAL → đã xử lý tận gốc)
+
+Reviewer: *"Postman mutation version chaining còn sai/không chứng minh pass"*.
+
+**Nguyên nhân gốc — không phải lỗi soạn ẩu, mà là hiểu sai thứ tự guard.**
+`cancelDocument()` và `postDocument()` gọi `assertVersion()` **trước** khi kiểm tra
+status. Cancel và Post đều bump `version`, nhưng bản collection cũ không bắt lại version
+sau hai mutation đó. Hệ quả: mọi state probe phía sau gửi `If-Match` cũ nên dừng ở
+`412 STALE_VERSION` và **không bao giờ chạm state guard** — assertion `409 STATE_CONFLICT`
+của chúng không thể pass, bất kể server chạy đúng hay sai.
+
+Đã sửa:
+
+| Defect trong collection cũ | Sửa |
+|---|---|
+| Cancel (#11) không lưu version mới → double-cancel (#12) nhận 412 chứ không 409 | Mọi mutation 2xx bắt lại `data.version` **và** đối chiếu header `ETag` |
+| Post (#15) không lưu version mới → #18, #19 nhận 412 chứ không 409 | Như trên, cộng refetch `GET` sau mỗi mutation trước khi probe |
+| #17 assert `IDEMPOTENCY_ERROR` | Mã đúng là **`IDEMPOTENCY_CONFLICT`** (SRS §8.2 / `ConflictCode::IDEMPOTENCY`); `IDEMPOTENCY_ERROR` là mã của luồng SKU |
+| `03/04` lấy `data[0]` tuỳ ý | Resolve tất định: kho `KHO-TONG-HN` ACTIVE (`EnsureCanonicalInboundWarehouse`), SKU `COMPONENT` không serial-tracked |
+| Scan dòng PRODUCT theo số lượng | PRODUCT/serial-tracked bắt buộc scan từng item (`422 ITEM_REQUIRED`); đã chuyển sang đúng luồng COMPONENT + đăng ký BOX |
+| Không có file environment | Thêm `docs/postman/WWHN-184 Inbound CI.postman_environment.json` (không commit secret) |
+
+Chống tái diễn:
+
+- `scripts/verify-wwhn184-postman-contract.mjs` — verifier **tĩnh**, 7 rule. Chạy trong CI
+  trước cả khi dựng server. Nó đã bắt được 4 lỗi trong chính bản viết lại đầu tiên.
+- `tests/Feature/Wwhn184InboundContractParityTest.php` — chứng minh **assertion của
+  Postman đúng bằng hành vi runtime**, chạy được trên cả sqlite và PostgreSQL.
+- Probe `D03`/`D04`: cùng một request Cancel, khác đúng giá trị `If-Match` → `409` vs `412`.
+  Thứ tự guard giờ là hợp đồng được kiểm chứng, không còn là kiến thức ngầm.
+
+### DEV184-P1-02R (OPEN → có hồ sơ pin bất biến, chờ DevOps deploy)
+
+Vấn đề gốc: `m1` dùng chung nhiều phiên nên pin theo `HEAD` rot gần như tức thì — đó là
+lý do "branch đã trôi 2 commits" trở thành finding. Đã chuyển sang **content-hash range
+invariant** (`RC_PIN.json`, 19 artifact) + cổng `--expect-sha` lúc deploy + guard chống
+rewrite nhánh. Runbook đầy đủ (env/build/migration/health/smoke/config/rollback):
+`docs/evidence/WWHN-184/DEPLOY_RUNBOOK.md`. **DEV không deploy được — ô `deployment` do
+DevOps điền.**
+
+### DEV184-P1-03R (OPEN → nửa DEV đã đóng, chờ QA1)
+
+Reviewer: *"DEV race chỉ SQLite stale replay"* — đúng. WWHN-188 đã dựng race thật cho
+`inboundScan()` (stock-neutral) nhưng `postReceipt()` — luồng **duy nhất** ghi
+`stock_movements`/`inventory_balances` — thì chưa có. Đã bổ sung
+`scripts/wwhn184-post-receipt-runtime-concurrency.php` + worker: tiến trình OS thật, mỗi
+tiến trình một PostgreSQL backend, lấy mẫu `pg_locks`, timestamp thô chứng minh chồng lấn,
+assert DB đã commit trước/sau. Ba kịch bản: double-post 2 key, chia sẻ Idempotency-Key,
+Post đua Cancel. Checklist bàn giao QA1: `docs/evidence/WWHN-184/QA1_RETEST_CHECKLIST.md`.
+
+### DEV184-P1-04R (OPEN → artifact chờ BA duyệt)
+
+`docs/decision-records/DISP-IN-184-INBOUND-DOCUMENT-STATE-BASELINE.md` — chốt baseline
+`DRAFT/SCANNING/POSTED/CANCELLED`, full-post exactly once, POSTED/CANCELLED terminal,
+**không có Submit/Approve/Reject**, neo vào đúng điều khoản SRS v1.12 (§2 phạm vi, §5.1,
+`REQ-SRS-006/007/008`, Annex C, Annex D `SCR-IN-01`). Phát hiện thêm: **§6 STATE MODEL của
+SRS thiếu hẳn dòng Inbound/Outbound Document** trong khi mọi object khác đều có — đó là
+nguyên nhân cấu trúc khiến AC của task cha trôi về wording BRD v3.9 mà không ai bắt được.
+Dòng đề nghị bổ sung đã soạn sẵn trong disposition §3.4 để BA duyệt.
+
+### DEV184-P2-01R
+
+Narrative role đổi về **DEV** ở tiêu đề và dòng vai trò; label/history Jira giữ **BE1**.
+
+### Bằng chứng chạy lại vòng này
+
+| Lệnh | Kết quả |
+|---|---|
+| `node scripts/verify-wwhn184-postman-contract.mjs …` | **PASS** — 33 request, 14 mutation, 9 refetch, 3 probe STATE_CONFLICT, 2 probe STALE_VERSION |
+| `php vendor/bin/phpunit --filter=Wwhn184InboundContractParityTest` | **3/3 pass, 256 assertions** |
+| `php vendor/bin/phpunit --filter="Wwhn184…\|Flow02InboundPutawayAlignmentTest\|PostReceiptConcurrencyBehaviorTest\|InboundScanConcurrencyBehaviorTest\|SwaggerRouteSyncTest\|Wwhn207InboundReversalFlowTest\|PostReceiptAuditLogTest"` | **36 test, 35 pass, 1 skip** (skip = gate PostgreSQL, đúng thiết kế trên sqlite) |
+| `./vendor/bin/pint --test` (file mới) | **pass** |
+| `node scripts/verify-wwhn184-candidate-pin.mjs` | **PASS** — 19 artifact |
+
+---
 
 ## 0. Sửa lỗi mapping ticket (nguồn gốc DEV184-P1-01R)
 

@@ -1,1 +1,1209 @@
-{"info":{"name":"WWHN-184 Inbound Contract","description":"Executable contract cho Inbound Document API (WWHN-184/WWHN-41, BE1): create/update/scan/unscan/cancel/post-receipt/reverse. Baseline hiện hành KHÔNG có submit/approve — state machine chỉ DRAFT -> SCANNING -> POSTED/CANCELLED, Full Post duy nhất. Cover cả trường hợp WAREHOUSE_STAFF (chỉ có inbound.create) vẫn cancel được vì route nhận inbound.cancel|inbound.create (DEV184-P1-01R). Credentials chỉ inject lúc chạy.","schema":"https://schema.getpostman.com/json/collection/v2.1.0/collection.json","version":{"major":1,"minor":0,"patch":0}},"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{access_token}}","type":"string"}]},"variable":[{"key":"base_url","value":"http://127.0.0.1:8000"},{"key":"access_token","value":""},{"key":"staff_only_create_token","value":""},{"key":"warehouse_id","value":""},{"key":"product_id","value":""},{"key":"inbound_id","value":""},{"key":"inbound_line_id","value":""},{"key":"inbound_version","value":""},{"key":"scan_entry_id","value":""},{"key":"run_id","value":""}],"event":[{"listen":"prerequest","script":{"type":"text/javascript","exec":["if (!pm.collectionVariables.get('run_id')) pm.collectionVariables.set('run_id', Date.now().toString());"]}}],"item":[{"name":"01 Login manager (inbound.create + inbound.cancel + inbound.scan + inbound.post)","request":{"method":"POST","url":"{{base_url}}/api/v1/auth/login","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"email\":\"{{email}}\",\"password\":\"{{password}}\"}"}},"auth":{"type":"noauth"},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('manager login 200', () => pm.response.to.have.status(200));","pm.collectionVariables.set('access_token', pm.response.json().data.access_token);"]}}]},{"name":"02 Login WAREHOUSE_STAFF (chỉ inbound.create, không có inbound.cancel)","request":{"method":"POST","url":"{{base_url}}/api/v1/auth/login","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"email\":\"{{staffEmail}}\",\"password\":\"{{staffPassword}}\"}"}},"auth":{"type":"noauth"},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('staff login 200', () => pm.response.to.have.status(200));","pm.collectionVariables.set('staff_only_create_token', pm.response.json().data.access_token);"]}}]},{"name":"03 Resolve warehouse","request":{"method":"GET","url":"{{base_url}}/api/v1/warehouses"},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('warehouse list 200', () => pm.response.to.have.status(200));","pm.collectionVariables.set('warehouse_id', pm.response.json().data[0].id);"]}}]},{"name":"04 Resolve product","request":{"method":"GET","url":"{{base_url}}/api/v1/skus?per_page=1"},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('sku list 200', () => pm.response.to.have.status(200));","pm.collectionVariables.set('product_id', pm.response.json().data[0].sku_id ?? pm.response.json().data[0].id);"]}}]},{"name":"05 Create inbound DRAFT (Idempotency-Key optional)","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"doc_no\":\"PN-WWHN184-{{run_id}}\",\"dst_warehouse_id\":\"{{warehouse_id}}\",\"lines\":[{\"product_id\":\"{{product_id}}\",\"qty_planned\":5}]}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('create inbound 201', () => pm.response.to.have.status(201));","pm.test('status DRAFT', () => pm.expect(pm.response.json().data.status).to.eql('DRAFT'));","pm.collectionVariables.set('inbound_id', pm.response.json().data.id);","pm.collectionVariables.set('inbound_line_id', pm.response.json().data.lines[0].id);","pm.collectionVariables.set('inbound_version', pm.response.json().data.version);"]}}]},{"name":"06 Update without If-Match -> 428","request":{"method":"PATCH","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"note\":\"missing if-match\"}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('missing If-Match 428', () => pm.response.to.have.status(428));"]}}]},{"name":"07 Update with stale If-Match -> 412 STALE_VERSION","request":{"method":"PATCH","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}","header":[{"key":"Content-Type","value":"application/json"},{"key":"If-Match","value":"9999"}],"body":{"mode":"raw","raw":"{\"note\":\"stale version\"}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('stale version 412', () => pm.response.to.have.status(412));","pm.test('error code STALE_VERSION', () => pm.expect(pm.response.json().error.code).to.eql('STALE_VERSION'));"]}}]},{"name":"08 Scan full expected qty","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/scan","header":[{"key":"Content-Type","value":"application/json"},{"key":"If-Match","value":"{{inbound_version}}"}],"body":{"mode":"raw","raw":"{\"line_id\":\"{{inbound_line_id}}\",\"qty\":5}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('scan 200', () => pm.response.to.have.status(200));","pm.test('stock_effect NONE (stock-neutral)', () => pm.expect(pm.response.json().data.stock_effect).to.eql('NONE'));","pm.collectionVariables.set('inbound_version', pm.response.json().data.version);"]}}]},{"name":"09 List scan entries (audit trail)","request":{"method":"GET","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/scan-entries?status=ACTIVE"},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('scan entries 200', () => pm.response.to.have.status(200));","pm.test('at least one ACTIVE entry', () => pm.expect(pm.response.json().data.length).to.be.above(0));","pm.collectionVariables.set('scan_entry_id', pm.response.json().data[0].id);"]}}]},{"name":"10 Post receipt without full scan (already full here, negative-case template)","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt","header":[{"key":"If-Match","value":"{{inbound_version}}"}]},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('missing Idempotency-Key 428', () => pm.response.to.have.status(428));"]}}]},{"name":"11 Cancel with WAREHOUSE_STAFF token (inbound.create only) -> phải 200, KHÔNG 403","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/cancel","header":[{"key":"Content-Type","value":"application/json"},{"key":"If-Match","value":"{{inbound_version}}"}],"body":{"mode":"raw","raw":"{\"reason\":\"DEV184-P1-01R regression: inbound.create phải đủ để cancel, khớp route inbound.cancel|inbound.create\"}"}},"auth":{"type":"bearer","bearer":[{"key":"token","value":"{{staff_only_create_token}}","type":"string"}]},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('staff (inbound.create only) can cancel: 200', () => pm.response.to.have.status(200));","pm.test('status CANCELLED', () => pm.expect(pm.response.json().data.status).to.eql('CANCELLED'));"]}}]},{"name":"12 Cancel lần 2 (đã CANCELLED) -> 409 STATE_CONFLICT","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/cancel","header":[{"key":"Content-Type","value":"application/json"},{"key":"If-Match","value":"{{inbound_version}}"}],"body":{"mode":"raw","raw":"{\"reason\":\"double cancel probe\"}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('double cancel 409', () => pm.response.to.have.status(409));","pm.test('error code STATE_CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('STATE_CONFLICT'));"]}}]},{"name":"13 Create second inbound for full Post Receipt path","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\"doc_no\":\"PN-WWHN184-POST-{{run_id}}\",\"dst_warehouse_id\":\"{{warehouse_id}}\",\"lines\":[{\"product_id\":\"{{product_id}}\",\"qty_planned\":3}]}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('create inbound 201', () => pm.response.to.have.status(201));","pm.collectionVariables.set('inbound_id', pm.response.json().data.id);","pm.collectionVariables.set('inbound_line_id', pm.response.json().data.lines[0].id);","pm.collectionVariables.set('inbound_version', pm.response.json().data.version);"]}}]},{"name":"14 Scan full qty for second inbound","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/scan","header":[{"key":"Content-Type","value":"application/json"},{"key":"If-Match","value":"{{inbound_version}}"}],"body":{"mode":"raw","raw":"{\"line_id\":\"{{inbound_line_id}}\",\"qty\":3}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('scan 200', () => pm.response.to.have.status(200));","pm.collectionVariables.set('inbound_version', pm.response.json().data.version);"]}}]},{"name":"15 Post receipt (Idempotency-Key + If-Match, tăng tồn đúng 1 lần)","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt","header":[{"key":"If-Match","value":"{{inbound_version}}"},{"key":"Idempotency-Key","value":"wwhn184-post-{{run_id}}"}]},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('post receipt 200', () => pm.response.to.have.status(200));","pm.test('status POSTED', () => pm.expect(pm.response.json().data.status).to.eql('POSTED'));"]}}]},{"name":"16 Replay cùng Idempotency-Key -> trả lại đúng response cũ, KHÔNG tăng tồn lần 2","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt","header":[{"key":"If-Match","value":"{{inbound_version}}"},{"key":"Idempotency-Key","value":"wwhn184-post-{{run_id}}"}]},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('replay 200', () => pm.response.to.have.status(200));","pm.test('replayed=true', () => pm.expect(pm.response.json().data.replayed).to.eql(true));"]}}]},{"name":"17 Cùng key, payload khác -> 409 IDEMPOTENCY_ERROR","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt","header":[{"key":"Content-Type","value":"application/json"},{"key":"If-Match","value":"{{inbound_version}}"},{"key":"Idempotency-Key","value":"wwhn184-post-{{run_id}}"}],"body":{"mode":"raw","raw":"{\"probe\":\"different-payload\"}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('payload conflict 409', () => pm.response.to.have.status(409));","pm.test('error code IDEMPOTENCY_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('IDEMPOTENCY_ERROR'));"]}}]},{"name":"18 Post lại với key khác trên chứng từ đã POSTED -> 409 STATE_CONFLICT","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt","header":[{"key":"If-Match","value":"{{inbound_version}}"},{"key":"Idempotency-Key","value":"wwhn184-post-second-{{run_id}}"}]},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('double post different key 409', () => pm.response.to.have.status(409));","pm.test('error code STATE_CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('STATE_CONFLICT'));"]}}]},{"name":"19 Cancel chứng từ đã POSTED -> 409 (Cancel chỉ áp dụng DRAFT/SCANNING)","request":{"method":"POST","url":"{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/cancel","header":[{"key":"Content-Type","value":"application/json"},{"key":"If-Match","value":"{{inbound_version}}"}],"body":{"mode":"raw","raw":"{\"reason\":\"cancel posted probe\"}"}},"event":[{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('cancel after POSTED 409', () => pm.response.to.have.status(409));","pm.test('error code STATE_CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('STATE_CONFLICT'));"]}}]}]}
+{
+  "info": {
+    "_postman_id": "wwhn-184-inbound-contract",
+    "name": "WWHN-184 Inbound Contract",
+    "description": "Contract chay duoc cho toan bo Inbound Document API (WWHN-184 / task cha WWHN-41).\n\nBAT BIEN BAT BUOC (DEV184-P1-01R): moi request doi trang thai phai bat lai version tu data.version va doi chieu ETag; moi state probe sau mutation phai dung sau mot refetch GET.\nLy do: cancelDocument()/postDocument() goi assertVersion() TRUOC khi kiem tra status. Neu probe gui version cu, no bi chan o 412 STALE_VERSION va khong bao gio cham state guard, nen assertion 409 se fail.\n\nVerifier tinh: scripts/verify-wwhn184-postman-contract.mjs (chay trong CI, chan regression bat bien nay).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('run_id')) {",
+          "  pm.collectionVariables.set('run_id', String(Date.now()) + '-' + Math.floor(Math.random() * 100000));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "staff_only_create_token",
+      "value": ""
+    },
+    {
+      "key": "viewer_token",
+      "value": ""
+    },
+    {
+      "key": "warehouse_id",
+      "value": ""
+    },
+    {
+      "key": "product_id",
+      "value": ""
+    },
+    {
+      "key": "inbound_id",
+      "value": ""
+    },
+    {
+      "key": "inbound_line_id",
+      "value": ""
+    },
+    {
+      "key": "box_id_a",
+      "value": ""
+    },
+    {
+      "key": "box_id_b",
+      "value": ""
+    },
+    {
+      "key": "inbound_version",
+      "value": ""
+    },
+    {
+      "key": "inbound_stale_version",
+      "value": ""
+    },
+    {
+      "key": "run_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Setup - dang nhap & resolve tat dinh",
+      "item": [
+        {
+          "name": "S01 Login WAREHOUSE_MANAGER (inbound.create+scan+post+cancel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/login",
+            "description": "AuthDatabaseSeeder: manager01@gmail.com = WAREHOUSE_MANAGER, co du inbound.view/create/scan/post/cancel.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('manager login 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('access_token', pm.response.json().data.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S02 Login WAREHOUSE_STAFF (inbound.create+scan, KHONG co inbound.cancel)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/login",
+            "description": "staff01@gmail.com = WAREHOUSE_STAFF. Dung cho probe DEV184-P1-01R: inbound.create phai du de Cancel.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{staffEmail}}\",\n  \"password\": \"{{staffPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('staff login 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('staff_only_create_token', pm.response.json().data.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S03 Login VIEWER (chi inbound.view)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/login",
+            "description": "viewer01@gmail.com = VIEWER. Dung cho probe RBAC am tren post-receipt.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{viewerEmail}}\",\n  \"password\": \"{{viewerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('viewer login 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('viewer_token', pm.response.json().data.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S04 Resolve kho canonical KHO-TONG-HN",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/warehouses?per_page=100",
+            "description": "EnsureCanonicalInboundWarehouse chi nhan dung warehouse code KHO-TONG-HN dang ACTIVE. Khong duoc lay data[0] tuy y."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('warehouse list 200', () => pm.response.to.have.status(200));",
+                  "const w = pm.response.json().data.find(x => String(x.code).toUpperCase() === 'KHO-TONG-HN' && String(x.status).toUpperCase() === 'ACTIVE');",
+                  "pm.test('ton tai kho canonical KHO-TONG-HN ACTIVE', () => pm.expect(w).to.not.be.undefined);",
+                  "pm.collectionVariables.set('warehouse_id', w.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S05 Resolve SKU COMPONENT khong serial-tracked, ACTIVE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/skus?per_page=100",
+            "description": "Chon tat dinh sku_type=COMPONENT + is_serial_tracked=false. Ly do: CurrentBaselineStockService bat buoc PRODUCT/serial-tracked phai scan tung item cu the (422 ITEM_REQUIRED, quantity=1), nen chi dong COMPONENT theo so luong moi kiem chung duoc bat bien version/full-post cua contract nay. Dong COMPONENT bat buoc gan BOX truoc khi scan (EnsureInboundComponentBox)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sku list 200', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json().data.find(x => String(x.sku_type).toUpperCase() === 'COMPONENT' && String(x.status).toUpperCase() === 'ACTIVE' && !x.is_serial_tracked);",
+                  "pm.test('ton tai SKU COMPONENT ACTIVE khong serial-tracked', () => pm.expect(s).to.not.be.undefined);",
+                  "pm.collectionVariables.set('product_id', s.sku_id || s.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Create DRAFT & optimistic lock",
+      "item": [
+        {
+          "name": "A01 Create inbound DRAFT -> 201 DRAFT version=1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents",
+            "description": "REQ-SRS-006: tao inbound DRAFT, chua tang ton.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doc_no\": \"PN-WWHN184-A-{{run_id}}\",\n  \"dst_warehouse_id\": \"{{warehouse_id}}\",\n  \"source_reference\": \"WWHN-184 contract run {{run_id}}\",\n  \"lines\": [\n    {\n      \"product_id\": \"{{product_id}}\",\n      \"qty_planned\": 5\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('status DRAFT', () => pm.expect(d.status).to.eql('DRAFT'));",
+                  "pm.test('version khoi tao = 1', () => pm.expect(d.version).to.eql(1));",
+                  "pm.test('ETag khop data.version', () => pm.expect(pm.response.headers.get('ETag')).to.eql('\"' + d.version + '\"'));",
+                  "pm.collectionVariables.set('inbound_id', d.id);",
+                  "pm.collectionVariables.set('inbound_line_id', d.lines[0].id);",
+                  "pm.collectionVariables.set('inbound_version', String(d.version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A01b Dang ky BOX cho dong COMPONENT (stock-neutral, khong doi version)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/boxes",
+            "description": "EnsureInboundComponentBox: dong nhap COMPONENT bat buoc container_id tro toi BOX EMPTY dung SKU. Dang ky BOX chi ghi bang containers nen KHONG bump version cua stock_documents.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"line_id\": \"{{inbound_line_id}}\",\n  \"box_code\": \"BOX-WWHN184-A-{{run_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('box 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('box_id_a', d.container_id);",
+                  "pm.test('BOX EMPTY va dung SKU cua line', () => { pm.expect(String(d.status).toUpperCase()).to.eql('EMPTY'); pm.expect(d.primary_sku_id).to.eql(pm.collectionVariables.get('product_id')); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A01c Refetch - dang ky BOX khong lam doi version phieu",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json().data;",
+                  "pm.test('van DRAFT', () => pm.expect(d.status).to.eql('DRAFT'));",
+                  "pm.test('version khong doi sau khi dang ky BOX', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A02 PATCH thieu If-Match -> 428 PRECONDITION_REQUIRED",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"missing if-match\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('428', () => pm.response.to.have.status(428));",
+                  "pm.test('error.code = PRECONDITION_REQUIRED', () => pm.expect(pm.response.json().error.code).to.eql('PRECONDITION_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A03 PATCH If-Match cu -> 412 STALE_VERSION",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "9999",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"stale version\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('412', () => pm.response.to.have.status(412));",
+                  "pm.test('error.code = STALE_VERSION', () => pm.expect(pm.response.json().error.code).to.eql('STALE_VERSION'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A04 Refetch - 2 request loi KHONG doi version/status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}",
+            "description": "Chung minh 428/412 la fail-closed: khong ghi du lieu, version giu nguyen."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('van DRAFT', () => pm.expect(d.status).to.eql('DRAFT'));",
+                  "pm.test('version khong doi sau 428/412', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Scan (stock-neutral) & bang chung quet",
+      "item": [
+        {
+          "name": "B01 Scan du expected qty -> 200 stock-neutral, version+1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/scan",
+            "description": "AC-SRS-006: scan khong sinh movement.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"line_id\": \"{{inbound_line_id}}\",\n  \"qty\": 5,\n  \"container_id\": \"{{box_id_a}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('scan 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('body mang version moi', () => pm.expect(d.version).to.be.a('number'));",
+                  "pm.test('ETag khop data.version', () => pm.expect(pm.response.headers.get('ETag')).to.eql('\"' + d.version + '\"'));",
+                  "pm.collectionVariables.set('inbound_version', String(d.version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B02 Refetch sau Scan -> SCANNING + version khop",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('status SCANNING', () => pm.expect(d.status).to.eql('SCANNING'));",
+                  "pm.test('version refetch khop version da bat sau Scan', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B03 GET scan-entries - bang chung quet ACTIVE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/scan-entries?status=ACTIVE",
+            "description": "Annex D SCR-IN-01. Audit trail cua scan nam o inbound_scan_entries (DEC-SCAN-AUDIT-001), khong o AuditLogger generic."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('co it nhat 1 entry ACTIVE', () => pm.expect(pm.response.json().data.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Precondition cua Post Receipt",
+      "item": [
+        {
+          "name": "C01 Post Receipt thieu Idempotency-Key -> 428",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt",
+            "description": "Annex C postReceipt khai bat buoc ca Idempotency-Key va If-Match."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('428', () => pm.response.to.have.status(428));",
+                  "pm.test('error.code = PRECONDITION_REQUIRED', () => pm.expect(pm.response.json().error.code).to.eql('PRECONDITION_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C02 Refetch - 428 khong doi version/status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json().data;",
+                  "pm.test('van SCANNING', () => pm.expect(d.status).to.eql('SCANNING'));",
+                  "pm.test('version khong doi', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Cancel - RBAC OR-permission & state",
+      "item": [
+        {
+          "name": "D01 Cancel bang token WAREHOUSE_STAFF (chi inbound.create) -> 200, KHONG 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/cancel",
+            "description": "Annex C dong 1443 cancelInboundDocument = inbound.cancel|inbound.create.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"DEV184-P1-01R regression: route khai inbound.cancel|inbound.create nen inbound.create phai du de Cancel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staff_only_create_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('staff (chi inbound.create) cancel duoc: 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('status CANCELLED', () => pm.expect(d.status).to.eql('CANCELLED'));",
+                  "pm.test('ETag khop data.version', () => pm.expect(pm.response.headers.get('ETag')).to.eql('\"' + d.version + '\"'));",
+                  "pm.collectionVariables.set('inbound_stale_version', String(d.version - 1));",
+                  "pm.collectionVariables.set('inbound_version', String(d.version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "D02 Refetch sau Cancel -> CANCELLED + version khop",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}",
+            "description": "DEV184-P1-01R: state probe chi hop le khi da refresh version sau mutation."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json().data;",
+                  "pm.test('status CANCELLED', () => pm.expect(d.status).to.eql('CANCELLED'));",
+                  "pm.test('version refetch khop version da bat sau Cancel', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "D03 Cancel lan 2 voi version MOI -> 409 STATE_CONFLICT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/cancel",
+            "description": "Chi khi If-Match la version hien hanh thi request moi di qua assertVersion va cham duoc state guard (CANCELLED la terminal).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"double cancel probe - version da refresh nen phai cham state guard\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "pm.test('error.code = STATE_CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('STATE_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "D04 Cancel lan 2 voi version CU -> 412 STALE_VERSION (thu tu guard)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{inbound_stale_version}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/cancel",
+            "description": "cancelDocument() goi assertVersion() truoc khi kiem tra status, nen If-Match cu tra 412 chu KHONG phai 409. Day la nguyen nhan ban collection cu fail.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"stale-version probe - chung minh version guard chay TRUOC state guard\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('412 (khong phai 409)', () => pm.response.to.have.status(412));",
+                  "pm.test('error.code = STALE_VERSION', () => pm.expect(pm.response.json().error.code).to.eql('STALE_VERSION'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Post Receipt - full-post once & idempotency",
+      "item": [
+        {
+          "name": "E01 Create phieu #2 cho luong Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doc_no\": \"PN-WWHN184-B-{{run_id}}\",\n  \"dst_warehouse_id\": \"{{warehouse_id}}\",\n  \"source_reference\": \"WWHN-184 post path {{run_id}}\",\n  \"lines\": [\n    {\n      \"product_id\": \"{{product_id}}\",\n      \"qty_planned\": 3\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('create 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('status DRAFT', () => pm.expect(d.status).to.eql('DRAFT'));",
+                  "pm.test('ETag khop data.version', () => pm.expect(pm.response.headers.get('ETag')).to.eql('\"' + d.version + '\"'));",
+                  "pm.collectionVariables.set('inbound_id', d.id);",
+                  "pm.collectionVariables.set('inbound_line_id', d.lines[0].id);",
+                  "pm.collectionVariables.set('inbound_version', String(d.version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E01b Dang ky BOX rieng cho phieu #2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/boxes",
+            "description": "Moi phieu phai dung BOX rieng: assertBoxNotUsedByOtherActiveReceipt chan tai su dung BOX dang gan phieu nhap khac.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"line_id\": \"{{inbound_line_id}}\",\n  \"box_code\": \"BOX-WWHN184-B-{{run_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('box 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('box_id_b', pm.response.json().data.container_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E02 Scan du qty phieu #2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/scan",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"line_id\": \"{{inbound_line_id}}\",\n  \"qty\": 3,\n  \"container_id\": \"{{box_id_b}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('scan 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('body mang version moi', () => pm.expect(d.version).to.be.a('number'));",
+                  "pm.test('ETag khop data.version', () => pm.expect(pm.response.headers.get('ETag')).to.eql('\"' + d.version + '\"'));",
+                  "pm.collectionVariables.set('inbound_version', String(d.version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E02b Refetch sau Scan phieu #2 -> SCANNING + version khop",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}",
+            "description": "Bat buoc theo bat bien R5: refetch truoc khi Post de chung minh version/status da dong bo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json().data;",
+                  "pm.test('status SCANNING', () => pm.expect(d.status).to.eql('SCANNING'));",
+                  "pm.test('version refetch khop version da bat sau Scan', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E03 Post Receipt -> 200 POSTED, tang ton dung 1 lan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "wwhn184-post-{{run_id}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt",
+            "description": "REQ-SRS-007 full-post; REQ-SRS-008 idempotent/atomic."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('post 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('status POSTED', () => pm.expect(d.status).to.eql('POSTED'));",
+                  "pm.test('replayed=false o lan post dau', () => pm.expect(d.replayed).to.eql(false));",
+                  "pm.test('header Idempotent-Replay=false', () => pm.expect(pm.response.headers.get('Idempotent-Replay')).to.eql('false'));",
+                  "pm.test('ETag khop data.version', () => pm.expect(pm.response.headers.get('ETag')).to.eql('\"' + d.version + '\"'));",
+                  "pm.collectionVariables.set('inbound_stale_version', String(d.version - 1));",
+                  "pm.collectionVariables.set('inbound_version', String(d.version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E04 Refetch sau Post -> POSTED + version khop",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json().data;",
+                  "pm.test('status POSTED', () => pm.expect(d.status).to.eql('POSTED'));",
+                  "pm.test('version refetch khop version da bat sau Post', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E05 Replay cung Idempotency-Key -> 200 replayed=true, KHONG tang ton lan 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "wwhn184-post-{{run_id}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt",
+            "description": "AC-GWT-IN-001 / TC-P1-005. Replay tra lai body da luu, nen data.version van la version tai thoi diem Post goc = version hien hanh; ETag va bien inbound_version vi vay van dong bo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('replay 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('data.replayed = true', () => pm.expect(d.replayed).to.eql(true));",
+                  "pm.test('header Idempotent-Replay = true', () => pm.expect(pm.response.headers.get('Idempotent-Replay')).to.eql('true'));",
+                  "pm.test('replay khong dich chuyen version', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));",
+                  "pm.test('ETag khop data.version', () => pm.expect(pm.response.headers.get('ETag')).to.eql('\"' + d.version + '\"'));",
+                  "pm.collectionVariables.set('inbound_version', String(d.version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E05b Refetch sau Replay -> replay khong doi state/version",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}",
+            "description": "REQ-SRS-008: retry khong double stock/movement. Refetch chung minh replay la no-op o tang du lieu chu khong chi o tang response."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json().data;",
+                  "pm.test('status van POSTED', () => pm.expect(d.status).to.eql('POSTED'));",
+                  "pm.test('version khong doi sau replay', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E06 Cung key, khac payload -> 409 IDEMPOTENCY_CONFLICT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "wwhn184-post-{{run_id}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt",
+            "description": "SRS 8.2 + App\\Support\\ConflictCode::IDEMPOTENCY = IDEMPOTENCY_CONFLICT. Ban collection cu khai nham IDEMPOTENCY_ERROR (ma cua luong SKU, khong phai luong posting).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"probe\": \"different-payload\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "pm.test('error.code = IDEMPOTENCY_CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('IDEMPOTENCY_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E07 Post key khac tren phieu da POSTED (version MOI) -> 409 STATE_CONFLICT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "wwhn184-post-second-{{run_id}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt",
+            "description": "REQ-SRS-007 \"khong Post lan hai\": POSTED la terminal. Dung version hien hanh de cham dung state guard chu khong dung o 412."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "pm.test('error.code = STATE_CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('STATE_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E08 Cancel phieu da POSTED (version MOI) -> 409 STATE_CONFLICT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/cancel",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"cancel-after-post probe - POSTED la terminal, chi DRAFT/SCANNING moi Cancel duoc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "pm.test('error.code = STATE_CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('STATE_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E09 Refetch cuoi - POSTED terminal, 3 probe loi khong doi version",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json().data;",
+                  "pm.test('status van POSTED', () => pm.expect(d.status).to.eql('POSTED'));",
+                  "pm.test('version khong doi sau E06/E07/E08', () => pm.expect(String(d.version)).to.eql(pm.collectionVariables.get('inbound_version')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 RBAC am",
+      "item": [
+        {
+          "name": "F01 VIEWER (khong co inbound.post) post-receipt -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "If-Match",
+                "value": "{{inbound_version}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "wwhn184-rbac-{{run_id}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/inbound-documents/{{inbound_id}}/post-receipt",
+            "description": "SRS 8.1 enforcement standard: exact permission tren moi endpoint duoc bao ve.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));",
+                  "pm.test('khong lo stack trace', () => pm.expect(pm.response.text()).to.not.include('#0 /'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

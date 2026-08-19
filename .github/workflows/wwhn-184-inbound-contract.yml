@@ -1,0 +1,304 @@
+name: WWHN-184 Inbound Contract Evidence Gate
+
+# Đóng ba hạng mục của register WWHN-184 bằng bằng chứng chạy thật, gắn exact SHA:
+#   DEV184-P1-01R — full Newman + raw output + verifier bất biến version-chaining
+#                   + parity scoped OpenAPI / Postman / runtime.
+#   DEV184-P1-02R — build/migration/health/smoke metadata để DevOps deploy đúng
+#                   candidate. Workflow này KHÔNG deploy; nó tạo hồ sơ pin bất biến.
+#   DEV184-P1-03R — race ≥2 connection thật trên PostgreSQL cho Post Receipt.
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'app/Support/IdempotencyStore.php'
+      - 'app/Support/IdempotencyKeyGuard.php'
+      - 'app/Support/ConflictCode.php'
+      - 'docs/postman/WWHN-184 Inbound Contract.postman_collection.json'
+      - 'docs/postman/WWHN-184 Inbound CI.postman_environment.json'
+      - 'docs/api-contract/WWHN-184-inbound-openapi.*'
+      - 'scripts/verify-wwhn184-postman-contract.mjs'
+      - 'scripts/collect-wwhn184-evidence.sh'
+      - 'scripts/wwhn184-post-receipt-*.php'
+      - 'tests/Feature/Wwhn184*.php'
+      - '.github/workflows/wwhn-184-inbound-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wwhn-184-inbound-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Cổng nhanh: bất biến version-chaining của Postman là lỗi tĩnh, phải chặn ngay
+  # chứ không đợi tới lúc dựng server. Đây là lớp phòng thủ mà lần review trước
+  # không có, nên collection sai vẫn được nộp làm evidence.
+  # ---------------------------------------------------------------------------
+  postman-contract-invariants:
+    name: Postman contract invariants (DEV184-P1-01R)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify version-chaining invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence/wwhn-184
+          node scripts/verify-wwhn184-postman-contract.mjs \
+            "docs/postman/WWHN-184 Inbound Contract.postman_collection.json" \
+            "docs/postman/WWHN-184 Inbound CI.postman_environment.json" \
+            build/evidence/wwhn-184/postman-contract-verification.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-184-postman-invariants-${{ github.sha }}
+          path: build/evidence/wwhn-184/postman-contract-verification.json
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Bằng chứng contract đầy đủ: PHPUnit parity + full Newman trên server thật.
+  # ---------------------------------------------------------------------------
+  contract-evidence:
+    name: Contract + Newman evidence (DEV184-P1-01R / P1-02R)
+    needs: postman-contract-invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts
+
+      - name: Prepare isolated runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="W184-$(openssl rand -hex 24)"
+          jwt="W184-JWT-$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
+          printf 'CI_DEMO_PASSWORD=%s\nJWT_SECRET=%s\n' "$password" "$jwt" >> "$GITHUB_ENV"
+          cp .env.example .env
+          php artisan key:generate
+          rm -f /tmp/wms-wwhn184.sqlite
+          touch /tmp/wms-wwhn184.sqlite
+          printf 'JWT_SECRET=%s\nDB_CONNECTION=sqlite\nDB_DATABASE=/tmp/wms-wwhn184.sqlite\nCACHE_STORE=array\nSESSION_DRIVER=array\nQUEUE_CONNECTION=sync\n' \
+            "$jwt" >> .env
+
+      - name: Static gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l scripts/wwhn184-post-receipt-runtime-concurrency.php
+          php -l scripts/wwhn184-post-receipt-worker.php
+          ./vendor/bin/pint --test \
+            tests/Feature/Wwhn184InboundContractParityTest.php \
+            tests/Feature/Wwhn184PostReceiptRuntimeConcurrencyTest.php \
+            scripts/wwhn184-post-receipt-runtime-concurrency.php \
+            scripts/wwhn184-post-receipt-worker.php
+
+      - name: Collect exact-SHA evidence
+        env:
+          EVIDENCE_DIR: build/evidence/wwhn-184
+          WWHN184_MANAGER_EMAIL: manager01@gmail.com
+          WWHN184_STAFF_EMAIL: staff01@gmail.com
+          WWHN184_VIEWER_EMAIL: viewer01@gmail.com
+          DB_CONNECTION: sqlite
+        shell: bash
+        run: bash scripts/collect-wwhn184-evidence.sh
+
+      - name: Verify evidence completeness
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=build/evidence/wwhn-184
+          node - "$root" "$GITHUB_SHA" <<'NODE'
+          const fs = require('fs');
+          const [root, sha] = process.argv.slice(2);
+          const read = name => JSON.parse(fs.readFileSync(`${root}/${name}`, 'utf8'));
+
+          const metadata = read('build-metadata.json');
+          if (metadata.commit_sha !== sha) throw new Error('metadata không pin đúng commit đang chạy');
+          if (metadata.approval_status !== 'PENDING_INDEPENDENT_SIGN_OFF') throw new Error('approval_status phải chờ sign-off độc lập');
+          if (metadata.newman_failure_count !== 0) throw new Error('Newman còn failure');
+
+          const verification = read('postman-contract-verification.json');
+          if (verification.summary.status !== 'PASS') throw new Error('verifier bất biến Postman FAIL');
+          if (verification.state_conflict_probe_count < 3) throw new Error('thiếu probe STATE_CONFLICT');
+          if (verification.stale_version_probe_count < 2) throw new Error('thiếu probe STALE_VERSION');
+
+          const newman = read('newman.result.json');
+          const failures = newman.run?.failures ?? [];
+          if (failures.length) throw new Error(`Newman ${failures.length} failure`);
+          if ((newman.run?.stats?.requests?.total ?? 0) !== metadata.postman_request_count) {
+            throw new Error('Newman chạy thiếu request so với metadata');
+          }
+
+          const reconciliation = read('reconciliation-report.json');
+          if (reconciliation.summary?.status !== 'PASS') throw new Error('reconciliation FAIL');
+          console.log('WWHN-184 evidence gate PASS tại', sha);
+          NODE
+
+          required=(
+            build-metadata.json source-tree.sha256 SHA256SUMS SHA256SUMS.sha256
+            postman-contract-verification.json postman-contract-verification.raw.log
+            wwhn184.postman.collection.json wwhn184.postman.environment.json
+            wwhn184-openapi.json wwhn184-openapi.yaml openapi.json
+            inbound-route-list.raw.json migrate-status.raw.log
+            wwhn184-parity-phpunit.raw.log flow02-alignment-phpunit.raw.log
+            post-receipt-concurrency-phpunit.raw.log swagger-route-sync-phpunit.raw.log
+            phpunit-full.raw.log newman.raw.log newman.result.json
+            db-before.json db-after.json reconciliation-report.json
+            health-response.json health-http-status.txt
+          )
+          for file in "${required[@]}"; do test -s "$root/$file"; done
+          (cd "$root" && sha256sum --check SHA256SUMS && sha256sum --check SHA256SUMS.sha256)
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        id: upload_passing
+        with:
+          name: wwhn-184-inbound-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-184
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish evidence summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## WWHN-184 exact-SHA inbound contract evidence'
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Artifact: \`wwhn-184-inbound-evidence-${GITHUB_SHA}\`"
+            echo "- Artifact digest: \`${{ steps.upload_passing.outputs.artifact-digest }}\`"
+            echo '- Postman version-chaining invariants: PASS'
+            echo '- Full Newman run (raw output pinned): PASS, 0 failure'
+            echo '- Governance status: PENDING_INDEPENDENT_SIGN_OFF'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: wwhn-184-diagnostics-${{ github.sha }}
+          path: build/evidence/wwhn-184
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # DEV184-P1-03R — race thật ≥2 connection trên PostgreSQL cho luồng Post Receipt.
+  # Reviewer từ chối bằng chứng cũ vì nó chỉ là replay tuần tự trên sqlite.
+  # ---------------------------------------------------------------------------
+  postgres-post-receipt-race:
+    name: PostgreSQL post-receipt race (DEV184-P1-03R)
+    needs: postman-contract-invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wms
+          POSTGRES_PASSWORD: wms
+          POSTGRES_DB: wms_wwhn184
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_pgsql, pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare PostgreSQL runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          jwt="W184-PG-JWT-$(openssl rand -hex 32)"
+          echo "::add-mask::$jwt"
+          cp .env.example .env
+          php artisan key:generate
+          printf 'JWT_SECRET=%s\nDB_CONNECTION=pgsql\nDB_HOST=127.0.0.1\nDB_PORT=5432\nDB_DATABASE=wms_wwhn184\nDB_USERNAME=wms\nDB_PASSWORD=wms\nCACHE_STORE=array\nSESSION_DRIVER=array\nQUEUE_CONNECTION=sync\n' \
+            "$jwt" >> .env
+          php artisan migrate:fresh --force
+          php artisan db:seed --force
+
+      - name: Run multi-connection post-receipt race
+        env:
+          DB_CONNECTION: pgsql
+          WWHN184_RUNTIME_CONCURRENCY: '1'
+          WWHN184_EVIDENCE_DIR: build/evidence/wwhn-184-pg
+          WWHN184_LOCK_HOLD_MS: '1200'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence/wwhn-184-pg
+          php vendor/bin/phpunit --filter=Wwhn184PostReceiptRuntimeConcurrencyTest \
+            2>&1 | tee build/evidence/wwhn-184-pg/race-phpunit.raw.log
+
+      - name: Assert race evidence is genuine
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - build/evidence/wwhn-184-pg/post-receipt-concurrency-summary.json "$GITHUB_SHA" <<'NODE'
+          const fs = require('fs');
+          const [path, sha] = process.argv.slice(2);
+          const summary = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (summary.status !== 'PASS') throw new Error('race summary FAIL: ' + summary.failed_scenarios.join(','));
+          if (summary.git_sha !== sha) throw new Error('race evidence không pin đúng commit đang chạy');
+          for (const [name, scenario] of Object.entries(summary.scenarios)) {
+            if (scenario.distinct_backend_pid_count !== 2) throw new Error(`${name}: không có 2 backend PostgreSQL riêng biệt`);
+            if (!scenario.timing?.workers_in_flight_simultaneously) throw new Error(`${name}: hai worker không chồng lấn thời gian`);
+          }
+          console.log('WWHN-184 PostgreSQL race gate PASS:', Object.keys(summary.scenarios).join(', '));
+          NODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wwhn-184-pg-race-evidence-${{ github.sha }}
+          path: build/evidence/wwhn-184-pg
+          if-no-files-found: warn
+          retention-days: 30

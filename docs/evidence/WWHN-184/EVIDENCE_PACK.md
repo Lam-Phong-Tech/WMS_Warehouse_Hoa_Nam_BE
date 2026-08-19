@@ -1,5 +1,12 @@
 # WWHN-184 — Evidence Pack (DEV184-P1-01R)
 
+> **Cập nhật 2026-08-19** — Đây là hồ sơ của vòng rà soát trước (SHA `157968b`/`94abebe`),
+> giữ nguyên để bảo toàn tính xác thực. Hồ sơ đóng register vòng sau (P1-01R version
+> chaining, P1-02R candidate pin, P1-03R race PostgreSQL, P1-04R baseline) nằm ở:
+> `docs/docs_task_jira/WWHN-184.md` mục 0-bis, `docs/evidence/WWHN-184/RC_PIN.json`,
+> `DEPLOY_RUNBOOK.md`, `QA1_RETEST_CHECKLIST.md` và
+> `docs/decision-records/DISP-IN-184-INBOUND-DOCUMENT-STATE-BASELINE.md`.
+
 Ngày: 2026-08-18. Nhánh: `m1` (không tạo nhánh riêng, theo yêu cầu). Không
 push lên remote — chờ xác nhận trước khi push/PR.
 
