@@ -6,7 +6,7 @@ của review 62/100. Mọi con số dưới đây sinh ra từ **chạy thật**
 | Trường | Giá trị |
 |---|---|
 | Nhánh | `m1` (không tạo nhánh riêng) |
-| RC SHA | xem `RC_PIN.json` |
+| RC SHA | `10a2c6ed08d4823cdbdd3a3ea09631855925c162` (xem `RC_PIN.json`) |
 | DB dùng cho bằng chứng local | PostgreSQL 16.14, database riêng `hn_wwhn190` (clone từ `wms_hoanam`, không đụng DB dev) |
 | DB dùng cho bằng chứng CI | service `postgres:16` trong `.github/workflows/wwhn-190-posting-evidence-gate.yml` |
 | PHP / Laravel | PHP ^8.3 / Laravel v13.23.0 |
@@ -104,3 +104,29 @@ php scripts/wwhn190-receipt-reconciliation.php docs/evidence/WWHN-190/reconcilia
 | `DEV190-P1-04R2` | QA1 | `QA1_INDEPENDENT_TEST_PACK.md` |
 | `DEV190-P1-05R2` | BA/PM | `docs/decision-records/DEC-INV-FULLPOST-PIN-190.md` |
 | `DEV190-P2-01R2` (phần tạo Jira key) | BA/PM | `LEGACY_CLEANUP_TASK.md` |
+
+## 8. Trạng thái CI tại thời điểm đóng gói (2026-08-19 ~02:00 UTC)
+
+| Sự kiện | Kết quả |
+|---|---|
+| `WWHN-190 Posting Contract & True Concurrency Gate` — run **32206567091** tại `8e82dd6a` (chứa commit `d9f1769`) | ✅ **success**, cả 2 job: `contract vs runtime (sqlite)` và `executed evidence (PostgreSQL 16)` |
+| Cùng gate tại `0461d354` — run 32206872066 (kể cả rerun attempt 2) | ❌ **failure hạ tầng**: job kết thúc sau ~3 giây với **0 step**, không có log |
+| Mọi workflow khác của repo tại `0461d354` (WWHN-180, 164, 172, 204, 219, 233, 273, 309, DEVOPS…) | ❌ cùng kiểu: 0 step, ~3 giây |
+
+Kết luận: từ ~01:58 UTC runner của repo không khởi tạo được job — đây là sự cố hạ tầng/quota
+Actions ở mức repo, **không phải** lỗi của thay đổi WWHN-190. Bằng chứng: cùng workflow, cùng code,
+đã **xanh** ở run 32206567091 vài phút trước đó, và mọi gate của mọi ticket khác cũng đỏ y hệt.
+
+Việc cần làm khi runner hoạt động lại: chạy lại gate tại RC SHA trong `RC_PIN.json`
+(`gh run rerun` hoặc `workflow_dispatch`) rồi cập nhật `ci.run_at_rc` trong file pin.
+
+### WWHN-180 evidence gate — tiến độ thực tế
+
+| Lần chạy | Kết quả bước `Static gates` |
+|---|---|
+| Trước vòng này (run 32163575328) | ❌ `pint --test`: **23 file** lệch format |
+| Sau commit `d9f1769` (run 32206567130) | ❌ `pint --test`: **2 file** lệch format (`Wwhn202OutboundBalanceEvidenceTest`, `Wwhn310ErdDocumentPinTest` — do nhánh khác vừa commit) |
+| Sau commit `10a2c6e` | 2 file trên đã được format; chưa có kết quả vì runner đang lỗi |
+
+Nghĩa là nợ format chặn `Static gates` đã đi từ 23 → 2 → 0 file; các bước evidence phía sau của
+gate WWHN-180 chỉ có thể xác nhận sau khi runner hoạt động trở lại.

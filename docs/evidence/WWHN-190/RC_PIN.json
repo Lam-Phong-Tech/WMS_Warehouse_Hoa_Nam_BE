@@ -1,0 +1,151 @@
+{
+  "jira_key": "WWHN-190",
+  "register_round": "R2 (review 62/100, 2026-08-19)",
+  "branch": "m1",
+  "rc_sha": "10a2c6ed08d4823cdbdd3a3ea09631855925c162",
+  "rc_sha_short": "10a2c6ed",
+  "rc_rule": "commit cuối cùng chạm ARTIFACT có thể chạy được của WWHN-190 (hợp đồng 1.8.0, scripts, test, workflow). File bằng chứng/pin trong docs/evidence/WWHN-190 là metadata, commit chúng KHÔNG dời rc_sha. Không pin theo HEAD của m1 vì nhiều phiên khác cùng commit lên m1.",
+  "commits_in_scope": [
+    {
+      "sha": "d9f17695bb515dc43aa0451e13deddda433c185a",
+      "subject": "feat(WWHN-190): dong bang chung P1/P2 vong R2 cho Post Receipt"
+    },
+    {
+      "sha": "10a2c6ed08d4823cdbdd3a3ea09631855925c162",
+      "subject": "feat(WWHN-190): bo sung requestBody that vao hop dong posting v1.8.0"
+    }
+  ],
+  "range_invariant": {
+    "check": "git merge-base --is-ancestor <sha> refs/heads/m1",
+    "main_is_ancestor_of_m1": "true",
+    "rc_is_ancestor_of_m1": "true"
+  },
+  "contract_release": {
+    "version": "1.8.0",
+    "supersedes": {
+      "artifact": "docs/api-contract/WWHN-180-posting-openapi.json",
+      "version": "1.7.0",
+      "sha256": "8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b",
+      "immutability_rule": "DISP-STK-236 §3",
+      "decision_record": "docs/decision-records/DEC-API-POSTING-002-WWHN190-RUNTIME-PARITY.md"
+    },
+    "files": [
+      {
+        "file": "openapi.json",
+        "bytes": 58399,
+        "sha256": "288a8cf2e4d5c2cf577058fb20c3699dcb6b3b7621a4d5f29f5b946b321642d7"
+      },
+      {
+        "file": "openapi.yaml",
+        "bytes": 44101,
+        "sha256": "bd4c97454d1c1a1c5007e16bc09513a2cad75454374152d2b7cf57485d42892a"
+      },
+      {
+        "file": "postman_collection.json",
+        "bytes": 14532,
+        "sha256": "782a13ce4aaa2c66d3f799d8b77d59107c206702e6532821b47c6559f958da35"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/api-contract/releases/WWHN-190/1.8.0/openapi.json",
+      "git_blob_sha1": "6b9a8d4a46f69ccb58595b85c98468b2a08e99bb",
+      "sha256": "288a8cf2e4d5c2cf577058fb20c3699dcb6b3b7621a4d5f29f5b946b321642d7",
+      "last_commit_touching": "10a2c6ed08d4823cdbdd3a3ea09631855925c162"
+    },
+    {
+      "path": "docs/api-contract/releases/WWHN-190/1.8.0/openapi.yaml",
+      "git_blob_sha1": "b79b1f4cfc75a8b2a750f06c9305408315ec60c0",
+      "sha256": "bd4c97454d1c1a1c5007e16bc09513a2cad75454374152d2b7cf57485d42892a",
+      "last_commit_touching": "10a2c6ed08d4823cdbdd3a3ea09631855925c162"
+    },
+    {
+      "path": "docs/api-contract/releases/WWHN-190/1.8.0/postman_collection.json",
+      "git_blob_sha1": "87dcc482b530c8dc504ab8a2d08831039e0a59e5",
+      "sha256": "782a13ce4aaa2c66d3f799d8b77d59107c206702e6532821b47c6559f958da35",
+      "last_commit_touching": "10a2c6ed08d4823cdbdd3a3ea09631855925c162"
+    },
+    {
+      "path": "docs/api-contract/releases/WWHN-190/1.8.0/RELEASE_MANIFEST.json",
+      "git_blob_sha1": "b04b154d23d83b962c1bfb9405fe03fe852df7ed",
+      "sha256": "2a560b6d0b04b539afe946d45d84f45f42586802c560438658cfa350879cfbe3",
+      "last_commit_touching": "10a2c6ed08d4823cdbdd3a3ea09631855925c162"
+    },
+    {
+      "path": "docs/decision-records/DEC-API-POSTING-002-WWHN190-RUNTIME-PARITY.md",
+      "git_blob_sha1": "1117e6792ba6e2b0ea96420767955495c381211a",
+      "sha256": "020658e7d1ffdd9508cf0a5da50c588f7b7e0fb67d922ee07f71110659caab6a",
+      "last_commit_touching": "d9f17695bb515dc43aa0451e13deddda433c185a"
+    },
+    {
+      "path": "docs/decision-records/DEC-INV-FULLPOST-PIN-190.md",
+      "git_blob_sha1": "d74421779b24d1bb4fb03a65b44e0adf68c2613d",
+      "sha256": "fd9471cbb3f3862b98229ca920d81cf33bacd790950bb40e27d056933c3c6a18",
+      "last_commit_touching": "d9f17695bb515dc43aa0451e13deddda433c185a"
+    },
+    {
+      "path": "scripts/build-wwhn190-posting-contract.mjs",
+      "git_blob_sha1": "cddf1172088c341c455fb06740669f6118522b00",
+      "sha256": "ba3d75fab1c1361991908e22613cbca4c615d2b58cd1e46cdd2e01a137b29cfb",
+      "last_commit_touching": "10a2c6ed08d4823cdbdd3a3ea09631855925c162"
+    },
+    {
+      "path": "scripts/wwhn190-postgres-concurrency.php",
+      "git_blob_sha1": "843cb3269a763c778d477eb478021c6b538ab7e7",
+      "sha256": "41af0f02adfca57765a01d857efd8cc48aa8db5e8fb3e5f1cd1ed7d269dec1b6",
+      "last_commit_touching": "d9f17695bb515dc43aa0451e13deddda433c185a"
+    },
+    {
+      "path": "scripts/wwhn190-concurrency-worker.php",
+      "git_blob_sha1": "ce56532aa3d6239e25b2cc9a5079e907741a98fc",
+      "sha256": "272289de5240b6b4980082218cc4f3fe5ec366aba710161013059fe277e23df5",
+      "last_commit_touching": "d9f17695bb515dc43aa0451e13deddda433c185a"
+    },
+    {
+      "path": "scripts/wwhn190-receipt-reconciliation.php",
+      "git_blob_sha1": "ea5ad414dd78f18f572adcd009847246b87f70ca",
+      "sha256": "3987f77c46b9b4c5ef8401c03cec9b84501ed64a9d2cdaaf50a23815fa9f1b5e",
+      "last_commit_touching": "d9f17695bb515dc43aa0451e13deddda433c185a"
+    },
+    {
+      "path": "tests/Feature/Wwhn190PostingContractParityTest.php",
+      "git_blob_sha1": "f18e96671884487ceddbf4d198827c6dc36d6958",
+      "sha256": "a985bc3784ca13ffa7b87ad5d96cc66964ab2d282ea0cbd3360f14288b4246a3",
+      "last_commit_touching": "d9f17695bb515dc43aa0451e13deddda433c185a"
+    },
+    {
+      "path": ".github/workflows/wwhn-190-posting-evidence-gate.yml",
+      "git_blob_sha1": "2cc3bf880414814a8c1e8ba02939dcbc9cda0696",
+      "sha256": "c4f72cf81c6d6a9650a3b91856930caf29ae3e5712dceb12112e162f6574256c",
+      "last_commit_touching": "d9f17695bb515dc43aa0451e13deddda433c185a"
+    }
+  ],
+  "ci": {
+    "workflow": ".github/workflows/wwhn-190-posting-evidence-gate.yml",
+    "last_green_run": {
+      "run_id": 32206567091,
+      "head_sha": "8e82dd6ad26e36e0096c3cf1987260a6782012ab",
+      "conclusion": "success",
+      "contains_commit": "d9f17695bb515dc43aa0451e13deddda433c185a",
+      "jobs": [
+        "DEV190-P1-01C contract vs runtime (sqlite)",
+        "DEV190-P1-02R2 + P1-03R2 executed evidence (PostgreSQL 16)"
+      ],
+      "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32206567091"
+    },
+    "run_at_rc": {
+      "run_id": 32206872066,
+      "head_sha": "0461d354",
+      "conclusion": "failure",
+      "failure_class": "INFRASTRUCTURE — job kết thúc sau ~3s với 0 step; MỌI workflow của repo tại commit này đều đỏ như vậy (kể cả rerun attempt 2), không riêng WWHN-190. Cần chạy lại khi runner của repo hoạt động trở lại."
+    }
+  },
+  "local_verification": {
+    "contract_generator_check": "PASS (node scripts/build-wwhn190-posting-contract.mjs --check)",
+    "phpunit_parity": "PASS 16 tests / 153 assertions (sqlite)",
+    "postgres_concurrency": "PASS 5/5 scenarios (PostgreSQL 16.14, database hn_wwhn190)",
+    "reconciliation": "PASS — mismatch 0, orphan 0, duplicate 0"
+  },
+  "note_pin_metadata_only": "File này là metadata; commit chứa nó KHÔNG đổi artifact nào ở trên, nên rc_sha vẫn là commit cuối chạm artifact."
+}
