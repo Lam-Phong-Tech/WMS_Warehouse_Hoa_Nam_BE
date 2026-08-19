@@ -1,0 +1,27 @@
+### psql -d hn_wwhn202 -f RECONCILIATION.sql  (sau migrate:fresh --seed, PostgreSQL 16)
+### Quy uoc: MOI truy van phai tra ve 0 dong.
+
+ warehouse_id | sku_id | stock_status | on_hand_qty | ledger_total | variance 
+--------------+--------+--------------+-------------+--------------+----------
+(0 rows)
+
+ id | warehouse_id | sku_id | stock_status | on_hand_qty | available_qty | quantity 
+----+--------------+--------+--------------+-------------+---------------+----------
+(0 rows)
+
+ business_key | movements 
+--------------+-----------
+(0 rows)
+
+ stock_document_id | stock_document_line_id | movement_type | movements 
+-------------------+------------------------+---------------+-----------
+(0 rows)
+
+ movement_id | stock_document_line_id | item_id | matched_items 
+-------------+------------------------+---------+---------------
+(0 rows)
+
+ warehouse_id | sku_id | available_qty | in_stock_items 
+--------------+--------+---------------+----------------
+(0 rows)
+

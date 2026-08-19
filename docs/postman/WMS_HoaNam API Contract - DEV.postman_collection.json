@@ -13185,6 +13185,263 @@
                     "protocolProfileBehavior": {
                         "disableBodyPruning": true
                     }
+                },
+                {
+                    "id": "f61e02a6-4edd-495c-aba2-b7a3d224d415",
+                    "name": "Chi tiết subledger item và container của một số dư tồn",
+                    "request": {
+                        "name": "Chi tiết subledger item và container của một số dư tồn",
+                        "description": {
+                            "content": "WWHN-202 (DEV202-P1-05R2): bổ sung để QA1 retest đủ 8 bề mặt đọc của output \"Balance hỗ trợ\". Sinh từ OpenAPI operationId=flow06_inventory_balance_subledger; xem docs/evidence/WWHN-202/CONTRACT_PIN.json.",
+                            "type": "text/plain"
+                        },
+                        "url": {
+                            "path": [
+                                "api",
+                                "v1",
+                                "inventory",
+                                "balances",
+                                ":id",
+                                "subledger"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [],
+                            "variable": [
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "id",
+                                    "value": "<uuid>"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "body": {},
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{bearerToken}}"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "id": "c6c67428-dcf5-4544-abf3-cedab293e61e",
+                    "name": "Truy vết từ mã vật lý (physical code) → item/container/SKU → movement chain",
+                    "request": {
+                        "name": "Truy vết từ mã vật lý (physical code) → item/container/SKU → movement chain",
+                        "description": {
+                            "content": "WWHN-202 (DEV202-P1-05R2): bổ sung để QA1 retest đủ 8 bề mặt đọc của output \"Balance hỗ trợ\". Sinh từ OpenAPI operationId=stock_movement_trace_by_physical_code; xem docs/evidence/WWHN-202/CONTRACT_PIN.json.",
+                            "type": "text/plain"
+                        },
+                        "url": {
+                            "path": [
+                                "api",
+                                "v1",
+                                "stock-movements",
+                                "trace-by-code"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "code",
+                                    "value": "<string>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "page",
+                                    "value": "<integer>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "per_page",
+                                    "value": "<integer>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "keyword",
+                                    "value": "<string>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "warehouse_id",
+                                    "value": "<uuid>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "product_id",
+                                    "value": "<uuid>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "movement_type",
+                                    "value": "<string>"
+                                }
+                            ],
+                            "variable": []
+                        },
+                        "method": "GET",
+                        "body": {},
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{bearerToken}}"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "id": "4a03e314-91b7-4fa8-aad1-0500cb9c01f0",
+                    "name": "Lookup posted movements that can still be reversed, with dependency guard preflight",
+                    "request": {
+                        "name": "Lookup posted movements that can still be reversed, with dependency guard preflight",
+                        "description": {
+                            "content": "WWHN-202 (DEV202-P1-05R2): bổ sung để QA1 retest đủ 8 bề mặt đọc của output \"Balance hỗ trợ\". Sinh từ OpenAPI operationId=stock_movement_reversible; xem docs/evidence/WWHN-202/CONTRACT_PIN.json.",
+                            "type": "text/plain"
+                        },
+                        "url": {
+                            "path": [
+                                "api",
+                                "v1",
+                                "stock-movements",
+                                "reversible"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "search",
+                                    "value": "<string>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "reversible_only",
+                                    "value": "<boolean>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "per_page",
+                                    "value": "<integer>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "page",
+                                    "value": "<integer>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "keyword",
+                                    "value": "<string>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "warehouse_id",
+                                    "value": "<uuid>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "product_id",
+                                    "value": "<uuid>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "movement_type",
+                                    "value": "<string>"
+                                }
+                            ],
+                            "variable": []
+                        },
+                        "method": "GET",
+                        "body": {},
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{bearerToken}}"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
                 }
             ]
         },
@@ -24769,6 +25026,70 @@
                     "protocolProfileBehavior": {
                         "disableBodyPruning": true
                     }
+                },
+                {
+                    "id": "d71c017a-77e4-4aeb-9019-f2a4c4dfc47e",
+                    "name": "Đối soát tồn kho với sổ giao dịch",
+                    "request": {
+                        "name": "Đối soát tồn kho với sổ giao dịch",
+                        "description": {
+                            "content": "WWHN-202 (DEV202-P1-05R2): bổ sung để QA1 retest đủ 8 bề mặt đọc của output \"Balance hỗ trợ\". Sinh từ OpenAPI operationId=report_inventory_reconciliation; xem docs/evidence/WWHN-202/CONTRACT_PIN.json.",
+                            "type": "text/plain"
+                        },
+                        "url": {
+                            "path": [
+                                "api",
+                                "v1",
+                                "reports",
+                                "inventory-reconciliation"
+                            ],
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "query": [
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "warehouse_id",
+                                    "value": "<uuid>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "product_id",
+                                    "value": "<uuid>"
+                                },
+                                {
+                                    "disabled": false,
+                                    "description": {
+                                        "content": "",
+                                        "type": "text/plain"
+                                    },
+                                    "key": "only_mismatch",
+                                    "value": "<boolean>"
+                                }
+                            ],
+                            "variable": []
+                        },
+                        "method": "GET",
+                        "body": {},
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{bearerToken}}"
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
                 }
             ]
         },

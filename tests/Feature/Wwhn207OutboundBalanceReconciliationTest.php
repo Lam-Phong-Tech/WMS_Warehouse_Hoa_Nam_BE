@@ -24,76 +24,25 @@ use Tests\TestCase;
  * "some stock exists", but it makes the row permanently ledger-unbacked, so
  * `reconciliation_status` will legitimately read MISMATCH for that dimension (the ledger sum
  * is short exactly the un-ledgered opening balance). Tests that assert MATCH use
- * `seedLedgerBackedBalance()` below instead, which inserts a RECEIPT movement alongside the
- * balance so on_hand_qty and SUM(qty_delta) agree, matching how production balances are
- * always created (via post-receipt, never a raw insert).
+ * `PreparesOutboundFixtures::seedLedgerBackedBalance()` instead, which inserts a RECEIPT
+ * movement alongside the balance so on_hand_qty and SUM(qty_delta) agree, matching how
+ * production balances are always created (via post-receipt, never a raw insert).
+ *
+ * TRACEABILITY (WWHN-202 / DEV202-P1-01R2). This class carries the historical file name from
+ * the branch `m1-be-2` era, but the canonical Jira task that owns output "Balance hỗ trợ"
+ * (HN-OUT-003 / HN-OUT-003-ST01) is **WWHN-202**. The name is deliberately NOT changed: eight
+ * frozen evidence packs and task files (WWHN-190/191/198/199/201/205, WWHN-231, WWHN-239) pin
+ * this exact path, and renaming would break already-approved evidence. The binding is
+ * mechanical instead of prose-only — the `@group wwhn-202` below makes the whole class
+ * runnable as `--group wwhn-202` together with `Wwhn202OutboundBalanceEvidenceTest`.
+ * Mapping of record: `docs/evidence/WWHN-202/EVIDENCE_MATRIX.md` §2.
+ *
+ * @group wwhn-202
  */
 class Wwhn207OutboundBalanceReconciliationTest extends TestCase
 {
     use PreparesOutboundFixtures;
     use RefreshDatabase;
-
-    private function seedLedgerBackedBalance(string $warehouseId, string $skuId, int $qty, string $actorId): void
-    {
-        DB::table('inventory_balances')->insert([
-            'id' => (string) Str::uuid(),
-            'warehouse_id' => $warehouseId,
-            'product_id' => $skuId,
-            'sku_id' => $skuId,
-            'stock_status' => 'AVAILABLE',
-            'quantity' => $qty,
-            'on_hand_qty' => $qty,
-            'available_qty' => $qty,
-            'reserved_qty' => 0,
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-        DB::table('stock_movements')->insert([
-            'id' => (string) Str::uuid(),
-            'movement_no' => 'MV-SEED-'.Str::upper(Str::random(8)),
-            'business_key' => 'seed-opening-'.Str::uuid(),
-            'movement_type' => 'RECEIPT',
-            'warehouse_id' => $warehouseId,
-            'product_id' => $skuId,
-            'sku_id' => $skuId,
-            'stock_status' => 'AVAILABLE',
-            'quantity' => $qty,
-            'qty_before' => 0,
-            'qty_delta' => $qty,
-            'qty_after' => $qty,
-            'source_type' => 'OPENING_BALANCE_SEED',
-            'source_id' => (string) Str::uuid(),
-            'created_by' => $actorId,
-            'occurred_at' => now(),
-            'created_at' => now(),
-        ]);
-    }
-
-    /** Same setup as PreparesOutboundFixtures::readyToPostIssueDocument(), but ledger-backed. */
-    private function readyToPostIssueDocumentLedgerBacked(array $headers, string $skuCode): array
-    {
-        $warehouse = $this->warehouseFixture();
-        $sku = $this->productSkuFixture($skuCode);
-        $this->seedLedgerBackedBalance($warehouse->id, $sku->sku_id, 1, $headers['__user_id']);
-        $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-'.Str::upper(Str::random(6)));
-
-        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
-        $documentId = $created['document_id'];
-        $lineId = $created['line_ids'][0];
-        $itemId = $this->seedItemInStock($sku->sku_id);
-        $this->seedRfidCode($itemId);
-
-        $this->postJson("/api/v1/outbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => 1,
-            'item_id' => $itemId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
-
-        $this->markLabelsPrinted($documentId);
-
-        return ['document_id' => $documentId, 'sku_id' => $sku->sku_id, 'item_id' => $itemId, 'warehouse_id' => $warehouse->id];
-    }
 
     public function test_inventory_balances_list_reflects_ledger_after_post_issue_and_matches(): void
     {

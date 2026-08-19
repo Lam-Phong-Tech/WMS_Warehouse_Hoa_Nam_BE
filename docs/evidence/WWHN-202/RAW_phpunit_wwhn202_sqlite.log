@@ -1,0 +1,22 @@
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.30
+Configuration: C:\LAM_PHONG_TECH\HoaNam_BE\WMS_Warehouse_Hoa_Nam_BE\phpunit.xml
+
+Time: 00:06.720, Memory: 76.00 MB
+
+[4mWwhn202Outbound Balance Evidence (Tests\Feature\Wwhn202OutboundBalanceEvidence)[0m
+[32m ✔ [0mPost issue moves balance ledger and subledger together with db before after
+[32m ✔ [0mAll movement read surfaces agree with the ledger after post issue
+[32m ✔ [0mReconciliation report passes all four checks and command creates no incident
+[32m ✔ [0mReverse restores stock and every read surface reflects the net effect
+[32m ✔ [0mEvery read surface rejects anonymous access with 401
+[32m ✔ [0mEvery read surface rejects missing permission with 403 and changes nothing
+[32m ✔ [0mRead surfaces return 404 and 422 without leaking internals
+[32m ✔ [0mPost issue error taxonomy matches srs 8 2
+[32m ✔ [0mMovement item attribution follows dec stk 202
+[32m ✔ [0mAggregate line leaves item id null and trace by code falls back to the line
+[32m ✔ [0mRead surface permission matrix matches the registered routes
+
+[30;42mOK (11 tests, 220 assertions)[0m
+{"tool":"phpunit","result":"passed","tests":11,"passed":11,"assertions":220,"duration_ms":6720}

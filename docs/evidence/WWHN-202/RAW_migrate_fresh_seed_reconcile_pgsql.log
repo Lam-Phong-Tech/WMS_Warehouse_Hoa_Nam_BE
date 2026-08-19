@@ -1,0 +1,29 @@
+### php artisan migrate:fresh --seed  (PostgreSQL 16, db=hn_wwhn202)
+
+
+ INFO Seeding database. 
+
+ Modules\Auth\Database\Seeders\AuthDatabaseSeeder .. RUNNING 
+ Modules\Auth\Database\Seeders\WmsPermissionCompatibilitySeeder .. RUNNING 
+ Modules\Auth\Database\Seeders\WmsPermissionCompatibilitySeeder .. 225 ms DONE 
+
+ Modules\Auth\Database\Seeders\AuthDatabaseSeeder .. 5,638 ms DONE 
+
+ Modules\Warehouse\Database\Seeders\WarehouseDatabaseSeeder .. RUNNING 
+ Modules\Warehouse\Database\Seeders\WarehouseDatabaseSeeder .. 371 ms DONE 
+
+ Modules\Warehouse\Database\Seeders\WarehouseBusinessDataSeeder .. RUNNING 
+WarehouseBusinessDataSeeder: đã tạo dữ liệu nghiệp vụ inbound/outbound/putaway/warranty.
+ Modules\Warehouse\Database\Seeders\WarehouseBusinessDataSeeder .. 3,143 ms DONE 
+
+ Modules\AuditLog\Database\Seeders\AuditLogDatabaseSeeder .. RUNNING 
+ Modules\AuditLog\Database\Seeders\AuditLogDatabaseSeeder .. 97 ms DONE 
+
+
+### php artisan inventory:reconcile --dry-run
++--------------+------------+--------------+-------------+------------+----------+-----------------+
+| warehouse_id | product_id | stock_status | on_hand_qty | ledger_qty | variance | divergence_type |
++--------------+------------+--------------+-------------+------------+----------+-----------------+
+Đối soát hoàn tất: 2 dimension kiểm tra, 0 lệch phát hiện, 0 incident sẽ được tạo nếu chạy thật (dry-run, không ghi incident)
+
+### exit=0

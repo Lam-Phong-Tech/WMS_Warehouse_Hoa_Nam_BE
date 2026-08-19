@@ -168,3 +168,88 @@ Kết quả chạy full suite (xác nhận không có regression toàn cục t�
 - BA xác nhận có cần task riêng để bổ sung `item_id` trực tiếp vào `stock_movements` ở tầng write (BE1 scope) hay giữ nguyên fallback read-side hiện tại là đủ.
 - FE1 xác nhận response shape của `inventory/balances`, `subledger`, `stock-movements*` đủ để tích hợp UI đối soát/reverse phía outbound.
 - Không tự đánh dấu Done/Approved trên Jira chỉ dựa trên nội dung do BE2 tự ghi trong file này.
+
+---
+
+## 7. AMENDMENT — vòng re-review 2026-08-19 (đóng DEV202-P1-01R2 … P2-01R2)
+
+> **Đọc mục này trước mục 1-6.** Ba tuyên bố trong phần evidence 2026-08-15 ở trên đã
+> **lỗi thời** so với code hiện tại. Chúng được giữ nguyên làm dấu vết lịch sử, không bị
+> xoá; mục 7 là nguồn đúng khi hai bên mâu thuẫn.
+
+### 7.1. Đính chính nội dung (DEV202-P1-04R2 — "Evidence contradicts current code")
+
+| Tuyên bố ở mục 1-6 | Trạng thái | Sự thật tại thời điểm re-review |
+|---|---|---|
+| "`stock_movements.item_id` **luôn** là NULL cho mọi movement do Post Receipt/Post Issue tạo ra" (mục 1, Bug 2) | **SUPERSEDED** | Sai kể từ `WWHN-205`. `CurrentBaselineStockService::resolveLineItemId()` **có** gán `item_id` khi line được back bởi **đúng một** item — là trường hợp phổ biến nhất (PRODUCT serial-tracked, `qty_planned = 1`). |
+| "Không sửa `mutateBalance()`/`postStockDocument()` — thuộc phạm vi BE1, ngoài phạm vi BE2" (mục 2 và mục 5) | **ĐÃ THỰC HIỆN Ở TASK KHÁC** | Phần write-side đã được BE1 đóng tại `WWHN-205` (`Wwhn205StockMovementItemIdInvariantTest`, 4 ca). Điểm mở mà mục 5 nêu ("BA xác nhận có cần task riêng…") **đã được trả lời bằng code**, không còn treo. |
+| "Fix ở đây là read-side fallback… nếu tương lai write-side được cập nhật thì nhánh trực tiếp sẽ tự động ưu tiên" (mục 2) | **VẪN ĐÚNG** | Đúng và **đã xảy ra**. Cả hai nhánh của `traceByPhysicalCode()` đều còn sống và cần thiết: nhánh trực tiếp cho line 1 item, nhánh fallback cho line gộp nhiều item. Verifier check C4 canh không cho gỡ nhánh nào. |
+
+**Quy tắc chính thức thay cho mô tả cũ** — `DEC-STK-202` §D-2
+(`docs/decision-records/DEC-STK-202-post-issue-error-taxonomy-and-item-attribution.md`):
+
+> Line có **đúng một** item → `movement.item_id` = item đó.
+> Line gộp **nhiều** item (`qty_planned > 1`, serial-tracked) hoặc **không** item nào
+> (COMPONENT / SKU quantity-mode) → `item_id` **null hợp lệ**, và `trace-by-code` phải
+> fallback theo `stock_document_line_id`.
+
+Lý do quy tắc phải là "null hợp lệ" chứ không phải "khiếm khuyết cần vá": một dòng ledger
+không thể trung thực quy về nhiều hơn một serial vật lý. Ngoài ra `stock_movements` có
+trigger append-only (`HN-WMS-ERD-DD-001`) chặn mọi `UPDATE`, nên **không tồn tại** phương án
+"backfill `item_id` sau khi post" — điều này được xác nhận bằng cách thử thật và nhận
+`SQLSTATE[23000] … stock_movements is append-only` trong lúc viết test.
+
+Hồi quy khoá hai vế:
+
+| Vế | Test |
+|---|---|
+| write, 1 item / >= 2 item / quantity-mode | `Wwhn205StockMovementItemIdInvariantTest` (4 ca, BE1) |
+| read, line 1 item dùng nhánh trực tiếp | `Wwhn202OutboundBalanceEvidenceTest::test_movement_item_attribution_follows_dec_stk_202` |
+| read, line gộp 2 item → `item_id` null **và** trace-by-code vẫn resolve | `Wwhn202OutboundBalanceEvidenceTest::test_aggregate_line_leaves_item_id_null_and_trace_by_code_falls_back_to_the_line` |
+
+`ATT-11845` phải được đọc kèm mục 7.1 này; phần mô tả "item_id luôn NULL" trong attachment
+đó là ảnh chụp trạng thái **trước** `WWHN-205`, không phải mô tả hệ thống hiện tại.
+
+### 7.2. Nhánh và evidence (DEV202-P1-01R2)
+
+- `m1` là nhánh canonical; `m1-be-2` là **ancestor thuần** của `m1` (đo: behind 0 / ahead 765).
+  Supersede comment 14283 không mất commit nào. Chi tiết + lệnh đo:
+  `docs/evidence/WWHN-202/EVIDENCE_MATRIX.md` §1.1.
+- Evidence được ánh xạ về WWHN-202 bằng annotation `@group wwhn-202` (ràng buộc cơ học),
+  **không** đổi tên `Wwhn207OutboundBalanceReconciliationTest.php` — 8 evidence pack đã đóng
+  băng đang pin đúng đường dẫn đó. Lý do đầy đủ: `EVIDENCE_MATRIX.md` §1.4.
+- PR = N/A vì `m1` là nhánh chung có nhiều phiên song song; thay bằng verifier chạy lại được
+  + log thô hai driver. Xem `EVIDENCE_MATRIX.md` §1.2.
+
+### 7.3. Phân lớp 409 vs 422 (DEV202-P1-03R2)
+
+Chính thức hoá tại `DEC-STK-202` §D-1, khớp `docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json`.
+Điểm cần nhớ: **hết tồn là 422 `INSUFFICIENT_STOCK`**, không phải 409. Khoá bằng
+`Wwhn202OutboundBalanceEvidenceTest::test_post_issue_error_taxonomy_matches_srs_8_2`
+(kiểm 412 / 200-replay / 409 / 422 trong một lượt).
+
+Bằng chứng PostgreSQL (không chỉ sqlite): 43 test pass / 457 assertion trên PostgreSQL 16,
+`migrate:fresh --seed` + `inventory:reconcile --dry-run` cho **0 lệch**, và 6 truy vấn
+`RECONCILIATION.sql` đều trả 0 dòng. Log thô trong `docs/evidence/WWHN-202/`.
+
+### 7.4. Hợp đồng FE/QA (DEV202-P1-05R2)
+
+Pin tại `docs/evidence/WWHN-202/CONTRACT_PIN.json` theo **slice 8 operation** (không pin cả
+file `api-docs.json` vì file đó sinh tự động cho toàn hệ thống và sẽ mục hằng ngày).
+Phát hiện thật: bộ Postman DEV chỉ có **4/8** bề mặt — QA1 không thể retest `subledger`,
+`trace-by-code`, `reversible`, `inventory-reconciliation`. Đã bổ sung 4 request sinh từ
+chính OpenAPI. Nửa FE: `src/shared/api/wwhn-202-balance-contract-pin.ts` +
+`src/test/wwhn-202-balance-contract-pin.test.ts` (22 assertion).
+
+### 7.5. Ghi chú governance (DEV202-P2-01R2)
+
+Phần "Vai trò và phối hợp" ở đầu file ghi *BE2 — Duy Khánh Nguyễn / HN-BE-02*. Giữ nguyên
+làm dấu vết phân công ban đầu (register review đối chiếu chéo BE1/BE2/QA1/QA2, xoá đi sẽ
+làm hỏng truy vết). Quyền sở hữu hiện hành: **đội DEV hợp nhất**, assignee đang hoạt động
+chịu trách nhiệm giao nộp. Không sửa lịch sử comment.
+
+### 7.6. Vẫn không tự đánh Done
+
+Phần DEV đã đóng và chạy lại được. Ba xác nhận còn thiếu, đúng như mục 6 cũ đã nêu:
+BA (quy tắc `DEC-STK-202`), Tech Lead (candidate SHA + contract pin), QA1 (`WWHN-203`
+retest theo `docs/evidence/WWHN-202/QA1_RETEST_PACK_WWHN-203.md`).

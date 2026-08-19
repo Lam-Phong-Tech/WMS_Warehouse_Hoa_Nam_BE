@@ -112,9 +112,18 @@ class Wwhn289ErdMirrorTypeSafetyTest extends TestCase
                     continue;
                 }
 
+                // Cột để self-assign lấy từ catalog chứ không đoán tên: `pv_product_industry`
+                // là bảng nối, không có `updated_at` — đoán tên cột làm bài test đỏ vì lý do
+                // không liên quan tới thứ nó đang chứng minh.
+                $column = $this->writableColumn($source);
+
+                if ($column === null) {
+                    continue;
+                }
+
                 // FOR EACH STATEMENT nên trigger chạy kể cả khi không có dòng nào khớp:
                 // đủ để bắt lỗi type, không phụ thuộc dữ liệu seed.
-                DB::statement('UPDATE '.$source.' SET updated_at = updated_at');
+                DB::statement('UPDATE '.$source.' SET "'.$column.'" = "'.$column.'"');
                 $exercised++;
             }
         } finally {
@@ -150,6 +159,27 @@ class Wwhn289ErdMirrorTypeSafetyTest extends TestCase
         }
 
         return $types;
+    }
+
+    /** Một cột ghi lại được của bảng (bỏ identity/generated) để self-assign kích hoạt trigger. */
+    private function writableColumn(string $relation): ?string
+    {
+        $row = DB::selectOne(<<<'SQL'
+            SELECT a.attname AS column_name
+              FROM pg_attribute a
+              JOIN pg_class c ON c.oid = a.attrelid
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = current_schema()
+               AND c.relname = ?
+               AND a.attnum > 0
+               AND NOT a.attisdropped
+               AND a.attidentity = ''
+               AND a.attgenerated = ''
+             ORDER BY a.attnum
+             LIMIT 1
+        SQL, [$relation]);
+
+        return $row->column_name ?? null;
     }
 
     private function relationExists(string $relation): bool

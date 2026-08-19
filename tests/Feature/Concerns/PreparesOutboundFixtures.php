@@ -356,4 +356,83 @@ trait PreparesOutboundFixtures
 
         return ['document_id' => $documentId, 'sku_id' => $sku->sku_id, 'item_id' => $itemId, 'warehouse_id' => $warehouse->id];
     }
+
+    /**
+     * WWHN-202: `seedAvailableBalance()` chèn thẳng một dòng `inventory_balances` mà không
+     * kèm `stock_movements` tương ứng, nên dòng đó vĩnh viễn không có gốc ledger và
+     * `reconciliation_status` luôn đọc MISMATCH một cách chính đáng (ledger thiếu đúng phần
+     * opening balance). Helper này chèn kèm 1 movement RECEIPT cho phần seed, khớp cách
+     * balance thật luôn được tạo trong production (qua Post Receipt, không bao giờ insert
+     * thẳng) — dùng cho mọi test cần khẳng định MATCH.
+     *
+     * Trước đây hai helper này nằm private trong `Wwhn207OutboundBalanceReconciliationTest`;
+     * đưa lên trait để bộ evidence WWHN-202 dùng đúng một fixture, không nhân bản logic.
+     */
+    private function seedLedgerBackedBalance(string $warehouseId, string $skuId, int $qty, string $actorId): void
+    {
+        DB::table('inventory_balances')->insert([
+            'id' => (string) Str::uuid(),
+            'warehouse_id' => $warehouseId,
+            'product_id' => $skuId,
+            'sku_id' => $skuId,
+            'stock_status' => 'AVAILABLE',
+            'quantity' => $qty,
+            'on_hand_qty' => $qty,
+            'available_qty' => $qty,
+            'reserved_qty' => 0,
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('stock_movements')->insert([
+            'id' => (string) Str::uuid(),
+            'movement_no' => 'MV-SEED-'.Str::upper(Str::random(8)),
+            'business_key' => 'seed-opening-'.Str::uuid(),
+            'movement_type' => 'RECEIPT',
+            'warehouse_id' => $warehouseId,
+            'product_id' => $skuId,
+            'sku_id' => $skuId,
+            'stock_status' => 'AVAILABLE',
+            'quantity' => $qty,
+            'qty_before' => 0,
+            'qty_delta' => $qty,
+            'qty_after' => $qty,
+            'source_type' => 'OPENING_BALANCE_SEED',
+            'source_id' => (string) Str::uuid(),
+            'created_by' => $actorId,
+            'occurred_at' => now(),
+            'created_at' => now(),
+        ]);
+    }
+
+    /** Giống readyToPostIssueDocument() nhưng opening balance có gốc ledger (khẳng định MATCH được). */
+    private function readyToPostIssueDocumentLedgerBacked(array $headers, string $skuCode): array
+    {
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->productSkuFixture($skuCode);
+        $this->seedLedgerBackedBalance($warehouse->id, $sku->sku_id, 1, $headers['__user_id']);
+        $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'TOA-'.Str::upper(Str::random(6)));
+
+        $created = $this->outboundDocumentFixture((string) $warehouse->id, $requestId);
+        $documentId = $created['document_id'];
+        $lineId = $created['line_ids'][0];
+        $itemId = $this->seedItemInStock($sku->sku_id);
+        $this->seedRfidCode($itemId);
+
+        $this->postJson("/api/v1/outbound-documents/{$documentId}/scan", [
+            'line_id' => $lineId,
+            'quantity' => 1,
+            'item_id' => $itemId,
+        ], $headers + ['If-Match' => '1'])->assertOk();
+
+        $this->markLabelsPrinted($documentId);
+
+        return [
+            'document_id' => $documentId,
+            'line_id' => $lineId,
+            'sku_id' => $sku->sku_id,
+            'item_id' => $itemId,
+            'warehouse_id' => $warehouse->id,
+        ];
+    }
 }

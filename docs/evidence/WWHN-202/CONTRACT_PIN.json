@@ -1,0 +1,133 @@
+{
+  "document": "WWHN-202-CONTRACT-PIN",
+  "task": "WWHN-202",
+  "parentTask": "WWHN-47",
+  "qaTask": "WWHN-203",
+  "registerItem": "DEV202-P1-05R2",
+  "schemaVersion": "2.0.0",
+  "branch": "m1",
+  "pinnedAt": "2026-08-19",
+  "purpose": "Ghim đúng revision hợp đồng mà FE và QA1 xác nhận cho output \"Balance hỗ trợ\" (HN-OUT-003). Register review trượt vì artifact có tồn tại trong repo nhưng không ràng buộc với WWHN-202: không ai chứng minh được FE và QA đang đọc cùng một bản.",
+  "pinUnit": "SLICE",
+  "pinUnitRationale": "Pin theo slice 8 operation, KHÔNG theo sha256 của cả file api-docs.json. Lý do đo được: file đó sinh tự động từ annotation của toàn hệ thống nên mọi task khác cũng làm đổi hash — pin cả file sẽ đỏ hằng ngày vì lý do không liên quan tới WWHN-202, và một cổng đỏ vì nhiễu là cổng bị bỏ qua. Slice chỉ đỏ khi chính hợp đồng của 8 bề mặt này đổi, tức đúng lúc FE/QA phải xác nhận lại.",
+  "openApiVersion": "2.0.0",
+  "openApiPath": "storage/api-docs/api-docs.json",
+  "openApiSlicePath": "docs/evidence/WWHN-202/openapi-wwhn202-slice.json",
+  "openApiSliceSha256": "b9821645638fdac8b3104c6a24bd59926a1bb3f88e35a86deb604c43ff54920a",
+  "postmanPath": "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json",
+  "postmanSurfaceCount": 8,
+  "postmanNote": "Tại thời điểm lập hồ sơ, collection chỉ có 4/8 bề mặt (thiếu subledger, trace-by-code, reversible, inventory-reconciliation) — QA1 không thể retest 4 bề mặt không tồn tại trong collection. Đã bổ sung bằng scripts/sync-wwhn-202-postman-surfaces.mjs (sinh từ chính OpenAPI, id tất định, diff chỉ-thêm). Verifier check C2 canh không cho tụt lại.",
+  "verifiedBy": [
+    "node scripts/verify-wwhn-202-closure.mjs — C2 băm lại slice và đếm bề mặt Postman, C3 đối chiếu pin phía FE",
+    "node scripts/sync-wwhn-202-postman-surfaces.mjs --check"
+  ],
+  "readSurfaces": [
+    {
+      "surface": "balance",
+      "method": "GET",
+      "path": "/api/v1/inventory/balances",
+      "operationId": "get_api_v1_inventory_balances",
+      "permission": "inventory.view",
+      "dataScope": "EnforceInventoryWarehouseScope",
+      "feService": "fetchInventoryBalances (src/modules/inventory/services/inventoryService.ts)",
+      "keyResponseFields": ["on_hand_qty", "available_qty", "ledger_total", "variance", "reconciliation_status", "mismatch_reason", "incident_id"]
+    },
+    {
+      "surface": "subledger",
+      "method": "GET",
+      "path": "/api/v1/inventory/balances/{id}/subledger",
+      "operationId": "flow06_inventory_balance_subledger",
+      "permission": "inventory.view",
+      "dataScope": "EnforceInventoryWarehouseScope",
+      "feService": "fetchBalanceSubledger",
+      "keyResponseFields": ["items[].id", "items[].item_status"]
+    },
+    {
+      "surface": "movement-list",
+      "method": "GET",
+      "path": "/api/v1/stock-movements",
+      "operationId": "stock_movement_list",
+      "permission": "inventory.view",
+      "dataScope": "EnforceInventoryWarehouseScope",
+      "feService": "fetchStockMovements",
+      "keyResponseFields": ["id", "movement_type", "qty_delta", "occurred_at"]
+    },
+    {
+      "surface": "movement-detail",
+      "method": "GET",
+      "path": "/api/v1/stock-movements/{id}",
+      "operationId": "stock_movement_detail",
+      "permission": "inventory.view",
+      "dataScope": "EnforceInventoryWarehouseScope",
+      "feService": "fetchStockMovement",
+      "keyResponseFields": ["id", "movement_type", "qty_before", "qty_delta", "qty_after"]
+    },
+    {
+      "surface": "movement-trace-source",
+      "method": "GET",
+      "path": "/api/v1/stock-movements/{id}/trace-source",
+      "operationId": "stock_movement_trace_source",
+      "permission": "inventory.trace",
+      "dataScope": "EnforceInventoryWarehouseScope",
+      "feService": "traceStockMovementSource",
+      "keyResponseFields": ["movement", "document", "original_movement", "reversal_movement", "correction_chain", "net_effect"]
+    },
+    {
+      "surface": "movement-trace-by-code",
+      "method": "GET",
+      "path": "/api/v1/stock-movements/trace-by-code",
+      "operationId": "stock_movement_trace_by_physical_code",
+      "permission": "inventory.trace",
+      "dataScope": "EnforceInventoryWarehouseScope",
+      "feService": "traceByPhysicalCode",
+      "keyResponseFields": ["resolved_type", "resolved_id", "resolved_by", "movements", "container_items"]
+    },
+    {
+      "surface": "reversible",
+      "method": "GET",
+      "path": "/api/v1/stock-movements/reversible",
+      "operationId": "stock_movement_reversible",
+      "permission": "inventory.reversal.post",
+      "dataScope": "EnforceInventoryWarehouseScope",
+      "feService": "fetchReversibleMovements (src/modules/reverse/services/reversalService.ts)",
+      "keyResponseFields": ["id", "can_reverse", "guard_reason", "dependency_guard", "lines[].reversible_qty"]
+    },
+    {
+      "surface": "reconcile",
+      "method": "GET",
+      "path": "/api/v1/reports/inventory-reconciliation",
+      "operationId": "report_inventory_reconciliation",
+      "permission": "report.view",
+      "dataScope": "report.view",
+      "feService": "fetchInventoryReconciliation",
+      "keyResponseFields": ["formula", "dimension", "checks", "summary.overall_status", "rows", "mismatches"]
+    }
+  ],
+  "errorTaxonomy": {
+    "authority": "docs/decision-records/DEC-STK-202-post-issue-error-taxonomy-and-item-attribution.md §D-1",
+    "pairingAuthority": "docs/evidence/WWHN-267/HTTP_ERROR_CODE_PAIRING.json (cặp mã ↔ status, toàn hệ thống)",
+    "postIssue": {
+      "missing-if-match": { "http": 428, "error_code": "PRECONDITION_REQUIRED" },
+      "stale-if-match": { "http": 412, "error_code": "STALE_VERSION" },
+      "idempotent-replay": { "http": 200, "error_code": null },
+      "idempotency-payload-differs": { "http": 409, "error_code": "IDEMPOTENCY_CONFLICT" },
+      "idempotency-lease-busy": { "http": 409, "error_code": "CONCURRENCY_CONFLICT" },
+      "duplicate-business-key": { "http": 409, "error_code": "DUPLICATE_STOCK_EFFECT" },
+      "insufficient-stock": { "http": 422, "error_code": "INSUFFICIENT_STOCK" },
+      "invalid-quantity": { "http": 422, "error_code": "INVALID_QUANTITY" },
+      "permission-or-scope": { "http": 403, "error_code": "ACCESS_DENIED" }
+    },
+    "readSurfaces": {
+      "anonymous": { "http": 401, "error_code": "UNAUTHENTICATED" },
+      "missing-permission": { "http": 403, "error_code": "ACCESS_DENIED" },
+      "unknown-id-or-code": { "http": 404, "error_code": "RESOURCE_NOT_FOUND" },
+      "missing-required-query-param": { "http": 422, "error_code": "BUSINESS_RULE_ERROR" }
+    }
+  },
+  "counterparts": {
+    "backendTest": "tests/Feature/Wwhn202OutboundBalanceEvidenceTest.php::test_read_surface_permission_matrix_matches_the_registered_routes",
+    "frontendPin": "HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE/src/shared/api/wwhn-202-balance-contract-pin.ts",
+    "frontendTest": "HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE/src/test/wwhn-202-balance-contract-pin.test.ts"
+  },
+  "rotPolicy": "Nếu slice đổi nội dung, verifier FAIL ở check C2 với thông điệp PIN ROT. Khi đó phải phát hành slice mới VÀ xin lại xác nhận của FE + QA1 — không được sửa hash tại chỗ, vì làm vậy là xoá dấu vết rằng hai bên đã xác nhận một bản khác."
+}
