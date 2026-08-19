@@ -1,0 +1,16 @@
+{
+    "worker_index": 0,
+    "scenario": "02-different-key-same-document/followup-state-conflict",
+    "barrier_dir": "docs/evidence/WWHN-190/qa1/concurrency/02-different-key-same-document/followup-state-conflict/barrier",
+    "out_file": "docs/evidence/WWHN-190/qa1/concurrency/02-different-key-same-document/followup-state-conflict/worker-0.json",
+    "actor_username": "wwhn190-runner",
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b/post-receipt",
+        "if_match": "2",
+        "idempotency_key": "wwhn190-s2c-6E6E1FE2",
+        "body": {
+            "note": "C"
+        }
+    }
+}

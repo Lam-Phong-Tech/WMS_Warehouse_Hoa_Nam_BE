@@ -1,0 +1,43 @@
+{
+    "worker_index": 0,
+    "scenario": "04-same-key-different-payload",
+    "application_name": "wwhn190-w0",
+    "backend_pid": 28551,
+    "http_status": 409,
+    "error_code": "IDEMPOTENCY_CONFLICT",
+    "message": "Khóa Idempotency đã được dùng cho một yêu cầu khác với dữ liệu khác. Vui lòng tạo khóa mới.",
+    "idempotent_replay_header": "false",
+    "etag": null,
+    "body_replayed_flag": null,
+    "movement_ids": [],
+    "request": {
+        "method": "POST",
+        "uri": "/api/v1/inbound-documents/74a4668f-c6e0-43dc-b300-5ff34ad763f7/post-receipt",
+        "if_match": "1",
+        "idempotency_key": "wwhn190-s4-6E6E1FE2",
+        "body": {
+            "note": "payload-A"
+        }
+    },
+    "timeline": {
+        "booted_at": 1787117831.65771,
+        "released_at": 1787117831.687463,
+        "request_started_at": 1787117831.687509,
+        "request_finished_at": 1787117831.805589,
+        "finished_at": 1787117831.806292
+    },
+    "body": {
+        "success": false,
+        "message": "Khóa Idempotency đã được dùng cho một yêu cầu khác với dữ liệu khác. Vui lòng tạo khóa mới.",
+        "error_code": "IDEMPOTENCY_CONFLICT",
+        "errors": [],
+        "error": {
+            "code": "IDEMPOTENCY_CONFLICT",
+            "details": []
+        },
+        "meta": {
+            "request_id": "128c4a3e-b1f7-46c2-974c-7be86141ef74",
+            "timestamp": "2026-08-19T12:37:11+07:00"
+        }
+    }
+}

@@ -1,0 +1,1281 @@
+{
+    "jira_key": "WWHN-190",
+    "register_item": "DEV190-P1-02R2",
+    "status": "PASS",
+    "commit_sha": "unknown",
+    "run_token": "6E6E1FE2",
+    "database": "hn_wwhn190_qa1",
+    "driver": "pgsql",
+    "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "php_version": "8.3.33",
+    "lock_hold_ms": 1200,
+    "scenario_count": 5,
+    "failed_checks": [],
+    "scenarios": {
+        "01-same-key-same-payload": {
+            "checks": {
+                "two_distinct_backend_pids": true,
+                "real_contention_observed": true,
+                "exactly_one_fresh_success": true,
+                "loser_is_replay_or_conflict": true,
+                "movement_count_is_one": true,
+                "balance_delta_equals_qty": true,
+                "posting_event_count_is_one": true,
+                "document_posted_version_2": true,
+                "single_idempotency_row_done": true,
+                "sequential_retry_replays_200": true,
+                "no_extra_movement_after_retry": true
+            },
+            "statuses": [
+                409,
+                200
+            ],
+            "before": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'e73b3e77-bd58-4f5a-aa1d-a2121cceb8e0' or product_id = 'e73b3e77-bd58-4f5a-aa1d-a2121cceb8e0')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd' or reference_id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s1-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "SCANNING",
+                    "version": 1,
+                    "posted_at": null
+                },
+                "movement_count": 0,
+                "movement_business_keys": [],
+                "movement_qty_delta_sum": 0,
+                "balance": [],
+                "balance_on_hand_total": 0,
+                "posting_event_count": 0,
+                "idempotency_rows": []
+            },
+            "after": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'e73b3e77-bd58-4f5a-aa1d-a2121cceb8e0' or product_id = 'e73b3e77-bd58-4f5a-aa1d-a2121cceb8e0')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd' or reference_id = '6d892300-96c1-4949-89e0-d09aa5c2a2cd'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s1-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "POSTED",
+                    "version": 2,
+                    "posted_at": "2026-08-19 12:36:59"
+                },
+                "movement_count": 1,
+                "movement_business_keys": [
+                    "7af67d5ed6d43a3d684cbda8f587c0dcfd6d46fd"
+                ],
+                "movement_qty_delta_sum": 5,
+                "balance": [
+                    {
+                        "stock_status": "AVAILABLE",
+                        "quantity": 5,
+                        "on_hand_qty": 5,
+                        "available_qty": 5,
+                        "version": 2
+                    }
+                ],
+                "balance_on_hand_total": 5,
+                "posting_event_count": 1,
+                "idempotency_rows": [
+                    {
+                        "idem_key": "wwhn190-s1-6E6E1FE2",
+                        "status": "done",
+                        "request_hash": "v2:c0b74fcf7d112dbb9fc79..."
+                    }
+                ]
+            },
+            "race": {
+                "results": [
+                    {
+                        "worker_index": 0,
+                        "scenario": "01-same-key-same-payload",
+                        "application_name": "wwhn190-w0",
+                        "backend_pid": 28522,
+                        "http_status": 409,
+                        "error_code": "CONCURRENCY_CONFLICT",
+                        "message": "Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.",
+                        "idempotent_replay_header": "false",
+                        "etag": null,
+                        "body_replayed_flag": null,
+                        "movement_ids": [],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/6d892300-96c1-4949-89e0-d09aa5c2a2cd/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s1-6E6E1FE2",
+                            "body": {
+                                "note": "same-payload"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117819.678488,
+                            "released_at": 1787117819.710452,
+                            "request_started_at": 1787117819.710497,
+                            "request_finished_at": 1787117819.849654,
+                            "finished_at": 1787117819.850546
+                        },
+                        "body": {
+                            "success": false,
+                            "message": "Yêu cầu đang được xử lý, vui lòng không gửi trùng lặp.",
+                            "error_code": "CONCURRENCY_CONFLICT",
+                            "errors": [],
+                            "error": {
+                                "code": "CONCURRENCY_CONFLICT",
+                                "details": []
+                            },
+                            "meta": {
+                                "request_id": "bafb3769-06a6-4eb6-978b-d565b0e2a37c",
+                                "timestamp": "2026-08-19T12:36:59+07:00"
+                            }
+                        }
+                    },
+                    {
+                        "worker_index": 1,
+                        "scenario": "01-same-key-same-payload",
+                        "application_name": "wwhn190-w1",
+                        "backend_pid": 28521,
+                        "http_status": 200,
+                        "error_code": null,
+                        "message": "Post Receipt thành công.",
+                        "idempotent_replay_header": "false",
+                        "etag": "\"2\"",
+                        "body_replayed_flag": false,
+                        "movement_ids": [
+                            "21dab5fc-f0d8-4126-b528-11b0810e7b36"
+                        ],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/6d892300-96c1-4949-89e0-d09aa5c2a2cd/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s1-6E6E1FE2",
+                            "body": {
+                                "note": "same-payload"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117819.679917,
+                            "released_at": 1787117819.710342,
+                            "request_started_at": 1787117819.710396,
+                            "request_finished_at": 1787117819.984288,
+                            "finished_at": 1787117819.984847
+                        },
+                        "body": {
+                            "success": true,
+                            "message": "Post Receipt thành công.",
+                            "data": {
+                                "document_id": "6d892300-96c1-4949-89e0-d09aa5c2a2cd",
+                                "status": "POSTED",
+                                "movement_ids": [
+                                    "21dab5fc-f0d8-4126-b528-11b0810e7b36"
+                                ],
+                                "stock_effect": "INCREASE",
+                                "version": 2,
+                                "replayed": false
+                            },
+                            "meta": {
+                                "request_id": "783e7192-62bc-47f4-bdcf-ce4e6187cf3a",
+                                "timestamp": "2026-08-19T12:36:59+07:00"
+                            }
+                        }
+                    }
+                ],
+                "distinct_backend_pids": [
+                    28522,
+                    28521
+                ],
+                "ready_pids": [
+                    28522,
+                    28521
+                ],
+                "released_at": 1787117819.711355,
+                "overlapping_request_windows": true,
+                "observed_lock_wait": false,
+                "blocker_used": false,
+                "lock_sample_count": 5
+            },
+            "followup": {
+                "worker_index": 0,
+                "scenario": "01-same-key-same-payload/followup-replay",
+                "application_name": "wwhn190-w0",
+                "backend_pid": 28523,
+                "http_status": 200,
+                "error_code": null,
+                "message": "Post Receipt thành công.",
+                "idempotent_replay_header": "true",
+                "etag": "\"2\"",
+                "body_replayed_flag": true,
+                "movement_ids": [
+                    "21dab5fc-f0d8-4126-b528-11b0810e7b36"
+                ],
+                "request": {
+                    "method": "POST",
+                    "uri": "/api/v1/inbound-documents/6d892300-96c1-4949-89e0-d09aa5c2a2cd/post-receipt",
+                    "if_match": "1",
+                    "idempotency_key": "wwhn190-s1-6E6E1FE2",
+                    "body": {
+                        "note": "same-payload"
+                    }
+                },
+                "timeline": {
+                    "booted_at": 1787117820.946403,
+                    "released_at": 1787117820.974026,
+                    "request_started_at": 1787117820.974085,
+                    "request_finished_at": 1787117821.217337,
+                    "finished_at": 1787117821.217916
+                },
+                "body": {
+                    "success": true,
+                    "message": "Post Receipt thành công.",
+                    "data": {
+                        "document_id": "6d892300-96c1-4949-89e0-d09aa5c2a2cd",
+                        "status": "POSTED",
+                        "movement_ids": [
+                            "21dab5fc-f0d8-4126-b528-11b0810e7b36"
+                        ],
+                        "stock_effect": "INCREASE",
+                        "version": 2,
+                        "replayed": true
+                    },
+                    "meta": {
+                        "request_id": "783e7192-62bc-47f4-bdcf-ce4e6187cf3a",
+                        "timestamp": "2026-08-19T12:36:59+07:00"
+                    }
+                }
+            },
+            "fixture": {
+                "document_id": "6d892300-96c1-4949-89e0-d09aa5c2a2cd",
+                "line_id": "debee09d-1a1b-4c7a-80b9-36b7eed8d506",
+                "warehouse_id": "92799832-af16-480c-99f4-91501f8ec9fe",
+                "sku_id": "e73b3e77-bd58-4f5a-aa1d-a2121cceb8e0",
+                "qty": 5,
+                "actor_id": "bb943ed1-aaa1-4c82-88e5-cb178dd85ca7"
+            }
+        },
+        "02-different-key-same-document": {
+            "checks": {
+                "two_distinct_backend_pids": true,
+                "real_contention_observed": true,
+                "exactly_one_success": true,
+                "loser_rejected_with_412_or_409": true,
+                "movement_count_is_one": true,
+                "balance_delta_equals_qty": true,
+                "posting_event_count_is_one": true,
+                "loser_key_left_no_done_row": true,
+                "followup_new_key_correct_version_is_state_conflict": true,
+                "no_extra_movement_after_followup": true
+            },
+            "statuses": [
+                412,
+                200
+            ],
+            "before": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'd5c218a5-2194-4a86-a468-b2a7bc4aee49' or product_id = 'd5c218a5-2194-4a86-a468-b2a7bc4aee49')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b' or reference_id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s2a-6E6E1FE2','wwhn190-s2b-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "SCANNING",
+                    "version": 1,
+                    "posted_at": null
+                },
+                "movement_count": 0,
+                "movement_business_keys": [],
+                "movement_qty_delta_sum": 0,
+                "balance": [],
+                "balance_on_hand_total": 0,
+                "posting_event_count": 0,
+                "idempotency_rows": []
+            },
+            "after": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'd5c218a5-2194-4a86-a468-b2a7bc4aee49' or product_id = 'd5c218a5-2194-4a86-a468-b2a7bc4aee49')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b' or reference_id = '8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s2a-6E6E1FE2','wwhn190-s2b-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "POSTED",
+                    "version": 2,
+                    "posted_at": "2026-08-19 12:37:03"
+                },
+                "movement_count": 1,
+                "movement_business_keys": [
+                    "2b185ec03f394c93b0ec02c082b6c328b9307e94"
+                ],
+                "movement_qty_delta_sum": 3,
+                "balance": [
+                    {
+                        "stock_status": "AVAILABLE",
+                        "quantity": 3,
+                        "on_hand_qty": 3,
+                        "available_qty": 3,
+                        "version": 2
+                    }
+                ],
+                "balance_on_hand_total": 3,
+                "posting_event_count": 1,
+                "idempotency_rows": [
+                    {
+                        "idem_key": "wwhn190-s2b-6E6E1FE2",
+                        "status": "done",
+                        "request_hash": "v2:0bac25496fac593c6d3e9..."
+                    }
+                ]
+            },
+            "race": {
+                "results": [
+                    {
+                        "worker_index": 0,
+                        "scenario": "02-different-key-same-document",
+                        "application_name": "wwhn190-w0",
+                        "backend_pid": 28526,
+                        "http_status": 412,
+                        "error_code": "STALE_VERSION",
+                        "message": "Document version mismatch.",
+                        "idempotent_replay_header": null,
+                        "etag": null,
+                        "body_replayed_flag": null,
+                        "movement_ids": [],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s2a-6E6E1FE2",
+                            "body": {
+                                "note": "A"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117823.055994,
+                            "released_at": 1787117823.086017,
+                            "request_started_at": 1787117823.086064,
+                            "request_finished_at": 1787117823.983357,
+                            "finished_at": 1787117823.984036
+                        },
+                        "body": {
+                            "success": false,
+                            "message": "Document version mismatch.",
+                            "error_code": "STALE_VERSION",
+                            "errors": {
+                                "expected_version": 1,
+                                "current_version": 2
+                            },
+                            "error": {
+                                "code": "STALE_VERSION",
+                                "details": {
+                                    "expected_version": 1,
+                                    "current_version": 2
+                                }
+                            },
+                            "meta": {
+                                "request_id": "7ef533a9-10f6-4650-868e-ffb8baeddc50",
+                                "timestamp": "2026-08-19T12:37:03+07:00"
+                            }
+                        }
+                    },
+                    {
+                        "worker_index": 1,
+                        "scenario": "02-different-key-same-document",
+                        "application_name": "wwhn190-w1",
+                        "backend_pid": 28527,
+                        "http_status": 200,
+                        "error_code": null,
+                        "message": "Post Receipt thành công.",
+                        "idempotent_replay_header": "false",
+                        "etag": "\"2\"",
+                        "body_replayed_flag": false,
+                        "movement_ids": [
+                            "ed1df59d-0876-4c23-afef-c8b5cdc7f081"
+                        ],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s2b-6E6E1FE2",
+                            "body": {
+                                "note": "B"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117823.061804,
+                            "released_at": 1787117823.085966,
+                            "request_started_at": 1787117823.086026,
+                            "request_finished_at": 1787117824.025936,
+                            "finished_at": 1787117824.026453
+                        },
+                        "body": {
+                            "success": true,
+                            "message": "Post Receipt thành công.",
+                            "data": {
+                                "document_id": "8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b",
+                                "status": "POSTED",
+                                "movement_ids": [
+                                    "ed1df59d-0876-4c23-afef-c8b5cdc7f081"
+                                ],
+                                "stock_effect": "INCREASE",
+                                "version": 2,
+                                "replayed": false
+                            },
+                            "meta": {
+                                "request_id": "cf6e7af1-d913-4729-827b-505ab097fef2",
+                                "timestamp": "2026-08-19T12:37:03+07:00"
+                            }
+                        }
+                    }
+                ],
+                "distinct_backend_pids": [
+                    28526,
+                    28527
+                ],
+                "ready_pids": [
+                    28526,
+                    28527
+                ],
+                "released_at": 1787117823.087104,
+                "overlapping_request_windows": true,
+                "observed_lock_wait": true,
+                "blocker_used": true,
+                "lock_sample_count": 15
+            },
+            "followup": {
+                "worker_index": 0,
+                "scenario": "02-different-key-same-document/followup-state-conflict",
+                "application_name": "wwhn190-w0",
+                "backend_pid": 28536,
+                "http_status": 409,
+                "error_code": "STATE_CONFLICT",
+                "message": "Chỉ SCANNING mới được Post.",
+                "idempotent_replay_header": null,
+                "etag": null,
+                "body_replayed_flag": null,
+                "movement_ids": [],
+                "request": {
+                    "method": "POST",
+                    "uri": "/api/v1/inbound-documents/8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b/post-receipt",
+                    "if_match": "2",
+                    "idempotency_key": "wwhn190-s2c-6E6E1FE2",
+                    "body": {
+                        "note": "C"
+                    }
+                },
+                "timeline": {
+                    "booted_at": 1787117825.0643,
+                    "released_at": 1787117825.088636,
+                    "request_started_at": 1787117825.088702,
+                    "request_finished_at": 1787117825.607818,
+                    "finished_at": 1787117825.608427
+                },
+                "body": {
+                    "success": false,
+                    "message": "Chỉ SCANNING mới được Post.",
+                    "error_code": "STATE_CONFLICT",
+                    "errors": [],
+                    "error": {
+                        "code": "STATE_CONFLICT",
+                        "details": []
+                    },
+                    "meta": {
+                        "request_id": "499d7efb-5be9-4cf0-8977-6dd7027cd184",
+                        "timestamp": "2026-08-19T12:37:05+07:00"
+                    }
+                }
+            },
+            "fixture": {
+                "document_id": "8e5bd46d-9a9c-4cf6-81f6-ad05fa36164b",
+                "line_id": "87bc6cf0-93a7-4771-99ac-a7529e3f63b7",
+                "warehouse_id": "92799832-af16-480c-99f4-91501f8ec9fe",
+                "sku_id": "d5c218a5-2194-4a86-a468-b2a7bc4aee49",
+                "qty": 3,
+                "actor_id": "bb943ed1-aaa1-4c82-88e5-cb178dd85ca7"
+            }
+        },
+        "03-stale-version": {
+            "checks": {
+                "two_distinct_backend_pids": true,
+                "real_contention_observed": true,
+                "stale_worker_rejected_412_stale_version": true,
+                "fresh_worker_succeeded": true,
+                "movement_count_is_one": true,
+                "balance_delta_equals_qty": true,
+                "stale_key_left_no_row": true,
+                "missing_if_match_is_428": true,
+                "bad_if_match_is_422_invalid_version": true,
+                "no_extra_movement_after_followups": true
+            },
+            "statuses": [
+                200,
+                412
+            ],
+            "before": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'c5f11b60-1112-419b-b310-482742ec23ce' or product_id = 'c5f11b60-1112-419b-b310-482742ec23ce')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d' or reference_id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s3ok-6E6E1FE2','wwhn190-s3stale-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "SCANNING",
+                    "version": 1,
+                    "posted_at": null
+                },
+                "movement_count": 0,
+                "movement_business_keys": [],
+                "movement_qty_delta_sum": 0,
+                "balance": [],
+                "balance_on_hand_total": 0,
+                "posting_event_count": 0,
+                "idempotency_rows": []
+            },
+            "after": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'c5f11b60-1112-419b-b310-482742ec23ce' or product_id = 'c5f11b60-1112-419b-b310-482742ec23ce')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d' or reference_id = 'f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s3ok-6E6E1FE2','wwhn190-s3stale-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "POSTED",
+                    "version": 2,
+                    "posted_at": "2026-08-19 12:37:07"
+                },
+                "movement_count": 1,
+                "movement_business_keys": [
+                    "7a2be316e721720018a2a97039d86f5cfb4fe8bb"
+                ],
+                "movement_qty_delta_sum": 4,
+                "balance": [
+                    {
+                        "stock_status": "AVAILABLE",
+                        "quantity": 4,
+                        "on_hand_qty": 4,
+                        "available_qty": 4,
+                        "version": 2
+                    }
+                ],
+                "balance_on_hand_total": 4,
+                "posting_event_count": 1,
+                "idempotency_rows": [
+                    {
+                        "idem_key": "wwhn190-s3ok-6E6E1FE2",
+                        "status": "done",
+                        "request_hash": "v2:b1884dd032c999231ce26..."
+                    }
+                ]
+            },
+            "race": {
+                "results": [
+                    {
+                        "worker_index": 0,
+                        "scenario": "03-stale-version",
+                        "application_name": "wwhn190-w0",
+                        "backend_pid": 28540,
+                        "http_status": 200,
+                        "error_code": null,
+                        "message": "Post Receipt thành công.",
+                        "idempotent_replay_header": "false",
+                        "etag": "\"2\"",
+                        "body_replayed_flag": false,
+                        "movement_ids": [
+                            "920496ca-6732-4dce-bd04-fb5a7dfd903c"
+                        ],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s3ok-6E6E1FE2",
+                            "body": {
+                                "note": "fresh-version"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117827.161756,
+                            "released_at": 1787117827.183344,
+                            "request_started_at": 1787117827.183393,
+                            "request_finished_at": 1787117828.016248,
+                            "finished_at": 1787117828.016778
+                        },
+                        "body": {
+                            "success": true,
+                            "message": "Post Receipt thành công.",
+                            "data": {
+                                "document_id": "f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d",
+                                "status": "POSTED",
+                                "movement_ids": [
+                                    "920496ca-6732-4dce-bd04-fb5a7dfd903c"
+                                ],
+                                "stock_effect": "INCREASE",
+                                "version": 2,
+                                "replayed": false
+                            },
+                            "meta": {
+                                "request_id": "bf1346ca-b0aa-455e-a0e5-0c0121a3e035",
+                                "timestamp": "2026-08-19T12:37:07+07:00"
+                            }
+                        }
+                    },
+                    {
+                        "worker_index": 1,
+                        "scenario": "03-stale-version",
+                        "application_name": "wwhn190-w1",
+                        "backend_pid": 28539,
+                        "http_status": 412,
+                        "error_code": "STALE_VERSION",
+                        "message": "Document version mismatch.",
+                        "idempotent_replay_header": null,
+                        "etag": null,
+                        "body_replayed_flag": null,
+                        "movement_ids": [],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d/post-receipt",
+                            "if_match": "99",
+                            "idempotency_key": "wwhn190-s3stale-6E6E1FE2",
+                            "body": {
+                                "note": "stale-version"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117827.159503,
+                            "released_at": 1787117827.183262,
+                            "request_started_at": 1787117827.183317,
+                            "request_finished_at": 1787117827.98017,
+                            "finished_at": 1787117827.980787
+                        },
+                        "body": {
+                            "success": false,
+                            "message": "Document version mismatch.",
+                            "error_code": "STALE_VERSION",
+                            "errors": {
+                                "expected_version": 99,
+                                "current_version": 2
+                            },
+                            "error": {
+                                "code": "STALE_VERSION",
+                                "details": {
+                                    "expected_version": 99,
+                                    "current_version": 2
+                                }
+                            },
+                            "meta": {
+                                "request_id": "7465e9aa-3026-4209-890a-01182a55ece8",
+                                "timestamp": "2026-08-19T12:37:07+07:00"
+                            }
+                        }
+                    }
+                ],
+                "distinct_backend_pids": [
+                    28540,
+                    28539
+                ],
+                "ready_pids": [
+                    28540,
+                    28539
+                ],
+                "released_at": 1787117827.184514,
+                "overlapping_request_windows": true,
+                "observed_lock_wait": true,
+                "blocker_used": true,
+                "lock_sample_count": 13
+            },
+            "followups": {
+                "missing_if_match": {
+                    "worker_index": 0,
+                    "scenario": "03-stale-version/followup-missing-if-match",
+                    "application_name": "wwhn190-w0",
+                    "backend_pid": 28541,
+                    "http_status": 428,
+                    "error_code": "PRECONDITION_REQUIRED",
+                    "message": "If-Match là bắt buộc cho scan/post/reversal mutation.",
+                    "idempotent_replay_header": null,
+                    "etag": null,
+                    "body_replayed_flag": null,
+                    "movement_ids": [],
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d/post-receipt",
+                        "if_match": null,
+                        "idempotency_key": "wwhn190-s3nomatch-6E6E1FE2",
+                        "body": {
+                            "note": "no-if-match"
+                        }
+                    },
+                    "timeline": {
+                        "booted_at": 1787117828.996471,
+                        "released_at": 1787117829.020141,
+                        "request_started_at": 1787117829.020223,
+                        "request_finished_at": 1787117829.237983,
+                        "finished_at": 1787117829.238569
+                    },
+                    "body": {
+                        "success": false,
+                        "message": "If-Match là bắt buộc cho scan/post/reversal mutation.",
+                        "error_code": "PRECONDITION_REQUIRED",
+                        "errors": [],
+                        "error": {
+                            "code": "PRECONDITION_REQUIRED",
+                            "details": []
+                        },
+                        "meta": {
+                            "request_id": "0a962471-a814-42ff-960c-5782a880d21f",
+                            "timestamp": "2026-08-19T12:37:09+07:00"
+                        }
+                    }
+                },
+                "bad_if_match": {
+                    "worker_index": 0,
+                    "scenario": "03-stale-version/followup-bad-if-match",
+                    "application_name": "wwhn190-w0",
+                    "backend_pid": 28550,
+                    "http_status": 422,
+                    "error_code": "INVALID_VERSION",
+                    "message": "If-Match phải là version số nguyên không âm.",
+                    "idempotent_replay_header": null,
+                    "etag": null,
+                    "body_replayed_flag": null,
+                    "movement_ids": [],
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d/post-receipt",
+                        "if_match": "not-a-number",
+                        "idempotency_key": "wwhn190-s3bad-6E6E1FE2",
+                        "body": {
+                            "note": "bad-if-match"
+                        }
+                    },
+                    "timeline": {
+                        "booted_at": 1787117830.075811,
+                        "released_at": 1787117830.09856,
+                        "request_started_at": 1787117830.098622,
+                        "request_finished_at": 1787117830.695542,
+                        "finished_at": 1787117830.696331
+                    },
+                    "body": {
+                        "success": false,
+                        "message": "If-Match phải là version số nguyên không âm.",
+                        "error_code": "INVALID_VERSION",
+                        "errors": [],
+                        "error": {
+                            "code": "INVALID_VERSION",
+                            "details": []
+                        },
+                        "meta": {
+                            "request_id": "04af514a-8efa-4187-9a17-68eaeed6fcc1",
+                            "timestamp": "2026-08-19T12:37:10+07:00"
+                        }
+                    }
+                }
+            },
+            "fixture": {
+                "document_id": "f1d25032-5ca3-45ad-8c5c-3a85c7dd1a7d",
+                "line_id": "a50227cb-9450-4719-a10b-2e2b1e9cb7ff",
+                "warehouse_id": "92799832-af16-480c-99f4-91501f8ec9fe",
+                "sku_id": "c5f11b60-1112-419b-b310-482742ec23ce",
+                "qty": 4,
+                "actor_id": "bb943ed1-aaa1-4c82-88e5-cb178dd85ca7"
+            }
+        },
+        "04-same-key-different-payload": {
+            "checks": {
+                "two_distinct_backend_pids": true,
+                "real_contention_observed": true,
+                "exactly_one_success": true,
+                "loser_is_409_idempotency_or_concurrency": true,
+                "sequential_payload_conflict_is_409_idempotency_conflict": true,
+                "movement_count_is_one": true,
+                "balance_delta_equals_qty": true,
+                "posting_event_count_is_one": true,
+                "no_extra_movement_after_conflict": true
+            },
+            "statuses": [
+                409,
+                200
+            ],
+            "before": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = '781b9846-d726-4735-b7cd-04e70ced2c3a' or product_id = '781b9846-d726-4735-b7cd-04e70ced2c3a')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7' or reference_id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s4-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "SCANNING",
+                    "version": 1,
+                    "posted_at": null
+                },
+                "movement_count": 0,
+                "movement_business_keys": [],
+                "movement_qty_delta_sum": 0,
+                "balance": [],
+                "balance_on_hand_total": 0,
+                "posting_event_count": 0,
+                "idempotency_rows": []
+            },
+            "after": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = '781b9846-d726-4735-b7cd-04e70ced2c3a' or product_id = '781b9846-d726-4735-b7cd-04e70ced2c3a')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7' or reference_id = '74a4668f-c6e0-43dc-b300-5ff34ad763f7'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s4-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "POSTED",
+                    "version": 2,
+                    "posted_at": "2026-08-19 12:37:11"
+                },
+                "movement_count": 1,
+                "movement_business_keys": [
+                    "4684c47db7c7545f5683ae600262b31ffb0ed4e2"
+                ],
+                "movement_qty_delta_sum": 2,
+                "balance": [
+                    {
+                        "stock_status": "AVAILABLE",
+                        "quantity": 2,
+                        "on_hand_qty": 2,
+                        "available_qty": 2,
+                        "version": 2
+                    }
+                ],
+                "balance_on_hand_total": 2,
+                "posting_event_count": 1,
+                "idempotency_rows": [
+                    {
+                        "idem_key": "wwhn190-s4-6E6E1FE2",
+                        "status": "done",
+                        "request_hash": "v2:59519d58afa656c9c9e4a..."
+                    }
+                ]
+            },
+            "race": {
+                "results": [
+                    {
+                        "worker_index": 0,
+                        "scenario": "04-same-key-different-payload",
+                        "application_name": "wwhn190-w0",
+                        "backend_pid": 28551,
+                        "http_status": 409,
+                        "error_code": "IDEMPOTENCY_CONFLICT",
+                        "message": "Khóa Idempotency đã được dùng cho một yêu cầu khác với dữ liệu khác. Vui lòng tạo khóa mới.",
+                        "idempotent_replay_header": "false",
+                        "etag": null,
+                        "body_replayed_flag": null,
+                        "movement_ids": [],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/74a4668f-c6e0-43dc-b300-5ff34ad763f7/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s4-6E6E1FE2",
+                            "body": {
+                                "note": "payload-A"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117831.65771,
+                            "released_at": 1787117831.687463,
+                            "request_started_at": 1787117831.687509,
+                            "request_finished_at": 1787117831.805589,
+                            "finished_at": 1787117831.806292
+                        },
+                        "body": {
+                            "success": false,
+                            "message": "Khóa Idempotency đã được dùng cho một yêu cầu khác với dữ liệu khác. Vui lòng tạo khóa mới.",
+                            "error_code": "IDEMPOTENCY_CONFLICT",
+                            "errors": [],
+                            "error": {
+                                "code": "IDEMPOTENCY_CONFLICT",
+                                "details": []
+                            },
+                            "meta": {
+                                "request_id": "128c4a3e-b1f7-46c2-974c-7be86141ef74",
+                                "timestamp": "2026-08-19T12:37:11+07:00"
+                            }
+                        }
+                    },
+                    {
+                        "worker_index": 1,
+                        "scenario": "04-same-key-different-payload",
+                        "application_name": "wwhn190-w1",
+                        "backend_pid": 28552,
+                        "http_status": 200,
+                        "error_code": null,
+                        "message": "Post Receipt thành công.",
+                        "idempotent_replay_header": "false",
+                        "etag": "\"2\"",
+                        "body_replayed_flag": false,
+                        "movement_ids": [
+                            "5fa6d7ed-19ab-4006-9d6d-9eee48747053"
+                        ],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/74a4668f-c6e0-43dc-b300-5ff34ad763f7/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s4-6E6E1FE2",
+                            "body": {
+                                "note": "payload-B-different"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117831.657598,
+                            "released_at": 1787117831.687342,
+                            "request_started_at": 1787117831.687401,
+                            "request_finished_at": 1787117831.951166,
+                            "finished_at": 1787117831.951892
+                        },
+                        "body": {
+                            "success": true,
+                            "message": "Post Receipt thành công.",
+                            "data": {
+                                "document_id": "74a4668f-c6e0-43dc-b300-5ff34ad763f7",
+                                "status": "POSTED",
+                                "movement_ids": [
+                                    "5fa6d7ed-19ab-4006-9d6d-9eee48747053"
+                                ],
+                                "stock_effect": "INCREASE",
+                                "version": 2,
+                                "replayed": false
+                            },
+                            "meta": {
+                                "request_id": "1a5cf29f-52b6-4dfb-897b-ebb59715e5af",
+                                "timestamp": "2026-08-19T12:37:11+07:00"
+                            }
+                        }
+                    }
+                ],
+                "distinct_backend_pids": [
+                    28551,
+                    28552
+                ],
+                "ready_pids": [
+                    28551,
+                    28552
+                ],
+                "released_at": 1787117831.688482,
+                "overlapping_request_windows": true,
+                "observed_lock_wait": false,
+                "blocker_used": false,
+                "lock_sample_count": 5
+            },
+            "followup": {
+                "worker_index": 0,
+                "scenario": "04-same-key-different-payload/followup-payload-conflict",
+                "application_name": "wwhn190-w0",
+                "backend_pid": 28554,
+                "http_status": 409,
+                "error_code": "IDEMPOTENCY_CONFLICT",
+                "message": "Khóa Idempotency đã được dùng cho một yêu cầu khác với dữ liệu khác. Vui lòng tạo khóa mới.",
+                "idempotent_replay_header": "false",
+                "etag": null,
+                "body_replayed_flag": null,
+                "movement_ids": [],
+                "request": {
+                    "method": "POST",
+                    "uri": "/api/v1/inbound-documents/74a4668f-c6e0-43dc-b300-5ff34ad763f7/post-receipt",
+                    "if_match": "1",
+                    "idempotency_key": "wwhn190-s4-6E6E1FE2",
+                    "body": {
+                        "note": "payload-C-different-again"
+                    }
+                },
+                "timeline": {
+                    "booted_at": 1787117832.89672,
+                    "released_at": 1787117832.915192,
+                    "request_started_at": 1787117832.915254,
+                    "request_finished_at": 1787117833.203004,
+                    "finished_at": 1787117833.203923
+                },
+                "body": {
+                    "success": false,
+                    "message": "Khóa Idempotency đã được dùng cho một yêu cầu khác với dữ liệu khác. Vui lòng tạo khóa mới.",
+                    "error_code": "IDEMPOTENCY_CONFLICT",
+                    "errors": [],
+                    "error": {
+                        "code": "IDEMPOTENCY_CONFLICT",
+                        "details": []
+                    },
+                    "meta": {
+                        "request_id": "c0d623ff-a318-4dd3-849b-388a4cb03ffd",
+                        "timestamp": "2026-08-19T12:37:13+07:00"
+                    }
+                }
+            },
+            "fixture": {
+                "document_id": "74a4668f-c6e0-43dc-b300-5ff34ad763f7",
+                "line_id": "370c189e-bffb-4098-8501-73eba5c5437d",
+                "warehouse_id": "92799832-af16-480c-99f4-91501f8ec9fe",
+                "sku_id": "781b9846-d726-4735-b7cd-04e70ced2c3a",
+                "qty": 2,
+                "actor_id": "bb943ed1-aaa1-4c82-88e5-cb178dd85ca7"
+            }
+        },
+        "05-forced-rollback": {
+            "checks": {
+                "two_distinct_backend_pids": true,
+                "no_worker_succeeded_during_fault": true,
+                "no_movement_written_during_fault": true,
+                "balance_unchanged_during_fault": true,
+                "document_still_scanning_version_1": true,
+                "no_posting_event_during_fault": true,
+                "lease_released_no_processing_row": true,
+                "retry_after_fault_cleared_succeeds": true,
+                "exactly_one_movement_after_retry": true,
+                "balance_delta_equals_qty_after_retry": true
+            },
+            "statuses": [
+                500,
+                500
+            ],
+            "before": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '8b23c60f-e185-4958-844b-5c95e30107cc'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '8b23c60f-e185-4958-844b-5c95e30107cc' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'bbad8fee-a7ee-42a6-b712-6a726e90a466' or product_id = 'bbad8fee-a7ee-42a6-b712-6a726e90a466')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '8b23c60f-e185-4958-844b-5c95e30107cc' or reference_id = '8b23c60f-e185-4958-844b-5c95e30107cc'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s5a-6E6E1FE2','wwhn190-s5b-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "SCANNING",
+                    "version": 1,
+                    "posted_at": null
+                },
+                "movement_count": 0,
+                "movement_business_keys": [],
+                "movement_qty_delta_sum": 0,
+                "balance": [],
+                "balance_on_hand_total": 0,
+                "posting_event_count": 0,
+                "idempotency_rows": []
+            },
+            "during_fault": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '8b23c60f-e185-4958-844b-5c95e30107cc'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '8b23c60f-e185-4958-844b-5c95e30107cc' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'bbad8fee-a7ee-42a6-b712-6a726e90a466' or product_id = 'bbad8fee-a7ee-42a6-b712-6a726e90a466')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '8b23c60f-e185-4958-844b-5c95e30107cc' or reference_id = '8b23c60f-e185-4958-844b-5c95e30107cc'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s5a-6E6E1FE2','wwhn190-s5b-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "SCANNING",
+                    "version": 1,
+                    "posted_at": null
+                },
+                "movement_count": 0,
+                "movement_business_keys": [],
+                "movement_qty_delta_sum": 0,
+                "balance": [],
+                "balance_on_hand_total": 0,
+                "posting_event_count": 0,
+                "idempotency_rows": []
+            },
+            "after": {
+                "sql": {
+                    "document": "select id, status, version, posted_at from stock_documents where id = '8b23c60f-e185-4958-844b-5c95e30107cc'",
+                    "movements": "select id, movement_type, business_key, qty_delta, qty_before, qty_after from stock_movements where stock_document_id = '8b23c60f-e185-4958-844b-5c95e30107cc' order by created_at",
+                    "balance": "select warehouse_id, sku_id, stock_status, quantity, on_hand_qty, available_qty, version from inventory_balances where warehouse_id = '92799832-af16-480c-99f4-91501f8ec9fe' and (sku_id = 'bbad8fee-a7ee-42a6-b712-6a726e90a466' or product_id = 'bbad8fee-a7ee-42a6-b712-6a726e90a466')",
+                    "posting_events": "select count(*) as c from posting_events where source_id = '8b23c60f-e185-4958-844b-5c95e30107cc' or reference_id = '8b23c60f-e185-4958-844b-5c95e30107cc'",
+                    "idempotency": "select idem_key, status, request_hash from idempotency_keys where idem_key in ('wwhn190-s5a-6E6E1FE2','wwhn190-s5b-6E6E1FE2')"
+                },
+                "document": {
+                    "status": "POSTED",
+                    "version": 2,
+                    "posted_at": "2026-08-19 12:37:16"
+                },
+                "movement_count": 1,
+                "movement_business_keys": [
+                    "e8fa569982195bf0aa8109ef96e7afa572eabc98"
+                ],
+                "movement_qty_delta_sum": 6,
+                "balance": [
+                    {
+                        "stock_status": "AVAILABLE",
+                        "quantity": 6,
+                        "on_hand_qty": 6,
+                        "available_qty": 6,
+                        "version": 2
+                    }
+                ],
+                "balance_on_hand_total": 6,
+                "posting_event_count": 1,
+                "idempotency_rows": [
+                    {
+                        "idem_key": "wwhn190-s5a-6E6E1FE2",
+                        "status": "done",
+                        "request_hash": "v2:25f9b03d094308bc4ea8e..."
+                    }
+                ]
+            },
+            "race": {
+                "results": [
+                    {
+                        "worker_index": 0,
+                        "scenario": "05-forced-rollback",
+                        "application_name": "wwhn190-w0",
+                        "backend_pid": 28563,
+                        "http_status": 500,
+                        "error_code": "INTERNAL_SERVER_ERROR",
+                        "message": "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
+                        "idempotent_replay_header": null,
+                        "etag": null,
+                        "body_replayed_flag": null,
+                        "movement_ids": [],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/8b23c60f-e185-4958-844b-5c95e30107cc/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s5a-6E6E1FE2",
+                            "body": {
+                                "note": "rollback-A"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117834.602126,
+                            "released_at": 1787117834.63378,
+                            "request_started_at": 1787117834.633842,
+                            "request_finished_at": 1787117835.402684,
+                            "finished_at": 1787117835.403481
+                        },
+                        "body": {
+                            "success": false,
+                            "message": "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
+                            "error_code": "INTERNAL_SERVER_ERROR",
+                            "errors": [],
+                            "error": {
+                                "code": "INTERNAL_SERVER_ERROR",
+                                "details": []
+                            },
+                            "meta": {
+                                "request_id": "8b876bc9-eacc-4f5a-bc20-1870509f75f6",
+                                "timestamp": "2026-08-19T12:37:15+07:00"
+                            }
+                        }
+                    },
+                    {
+                        "worker_index": 1,
+                        "scenario": "05-forced-rollback",
+                        "application_name": "wwhn190-w1",
+                        "backend_pid": 28564,
+                        "http_status": 500,
+                        "error_code": "INTERNAL_SERVER_ERROR",
+                        "message": "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
+                        "idempotent_replay_header": null,
+                        "etag": null,
+                        "body_replayed_flag": null,
+                        "movement_ids": [],
+                        "request": {
+                            "method": "POST",
+                            "uri": "/api/v1/inbound-documents/8b23c60f-e185-4958-844b-5c95e30107cc/post-receipt",
+                            "if_match": "1",
+                            "idempotency_key": "wwhn190-s5b-6E6E1FE2",
+                            "body": {
+                                "note": "rollback-B"
+                            }
+                        },
+                        "timeline": {
+                            "booted_at": 1787117834.602741,
+                            "released_at": 1787117834.633845,
+                            "request_started_at": 1787117834.633892,
+                            "request_finished_at": 1787117835.331605,
+                            "finished_at": 1787117835.332196
+                        },
+                        "body": {
+                            "success": false,
+                            "message": "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.",
+                            "error_code": "INTERNAL_SERVER_ERROR",
+                            "errors": [],
+                            "error": {
+                                "code": "INTERNAL_SERVER_ERROR",
+                                "details": []
+                            },
+                            "meta": {
+                                "request_id": "37b51c76-7889-46b7-9055-6dcfd56a2f58",
+                                "timestamp": "2026-08-19T12:37:15+07:00"
+                            }
+                        }
+                    }
+                ],
+                "distinct_backend_pids": [
+                    28563,
+                    28564
+                ],
+                "ready_pids": [
+                    28563,
+                    28564
+                ],
+                "released_at": 1787117834.635182,
+                "overlapping_request_windows": true,
+                "observed_lock_wait": true,
+                "blocker_used": true,
+                "lock_sample_count": 12
+            },
+            "retry": {
+                "worker_index": 0,
+                "scenario": "05-forced-rollback/followup-retry-after-fault-cleared",
+                "application_name": "wwhn190-w0",
+                "backend_pid": 28566,
+                "http_status": 200,
+                "error_code": null,
+                "message": "Post Receipt thành công.",
+                "idempotent_replay_header": "false",
+                "etag": "\"2\"",
+                "body_replayed_flag": false,
+                "movement_ids": [
+                    "8c3c61e6-e7e2-4e7d-87ca-31a39dcf8d6c"
+                ],
+                "request": {
+                    "method": "POST",
+                    "uri": "/api/v1/inbound-documents/8b23c60f-e185-4958-844b-5c95e30107cc/post-receipt",
+                    "if_match": "1",
+                    "idempotency_key": "wwhn190-s5a-6E6E1FE2",
+                    "body": {
+                        "note": "rollback-A"
+                    }
+                },
+                "timeline": {
+                    "booted_at": 1787117836.324295,
+                    "released_at": 1787117836.349739,
+                    "request_started_at": 1787117836.349812,
+                    "request_finished_at": 1787117836.784535,
+                    "finished_at": 1787117836.785067
+                },
+                "body": {
+                    "success": true,
+                    "message": "Post Receipt thành công.",
+                    "data": {
+                        "document_id": "8b23c60f-e185-4958-844b-5c95e30107cc",
+                        "status": "POSTED",
+                        "movement_ids": [
+                            "8c3c61e6-e7e2-4e7d-87ca-31a39dcf8d6c"
+                        ],
+                        "stock_effect": "INCREASE",
+                        "version": 2,
+                        "replayed": false
+                    },
+                    "meta": {
+                        "request_id": "51a4e81e-560c-45f5-9ea0-758140b4e644",
+                        "timestamp": "2026-08-19T12:37:16+07:00"
+                    }
+                }
+            },
+            "fixture": {
+                "document_id": "8b23c60f-e185-4958-844b-5c95e30107cc",
+                "line_id": "93fd3d2c-4500-49b1-89e2-565f463f527f",
+                "warehouse_id": "92799832-af16-480c-99f4-91501f8ec9fe",
+                "sku_id": "bbad8fee-a7ee-42a6-b712-6a726e90a466",
+                "qty": 6,
+                "actor_id": "bb943ed1-aaa1-4c82-88e5-cb178dd85ca7"
+            }
+        }
+    },
+    "generated_at": "2026-08-19T12:37:16+07:00"
+}
