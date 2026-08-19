@@ -401,23 +401,35 @@ function overlapEvidence(array $workers): array
         return $parsed === false ? null : (float) $parsed->format('U.u');
     };
 
-    $starts = [];
-    $ends = [];
+    // Cửa sổ "đang chạy" phải tính từ lúc barrier nhả, KHÔNG phải từ lúc gọi
+    // controller. Ở mode `locked`, kẻ thua nằm chờ ngay trong `lockForUpdate()` —
+    // tức là trước `request_started_at`. Nếu đo bằng cửa sổ request thì đúng cái
+    // tranh chấp cần chứng minh lại rơi ra ngoài phép đo và hai tiến trình trông
+    // như chạy nối tiếp, dù thực tế chúng chồng lấn suốt thời gian giữ khoá.
+    $activityStarts = [];
+    $activityEnds = [];
+    $requestStarts = [];
     foreach ($workers as $worker) {
-        $start = $toMicros($worker['request_started_at'] ?? null) ?? $toMicros($worker['barrier_released_at'] ?? null);
+        $start = $toMicros($worker['barrier_released_at'] ?? null) ?? $toMicros($worker['request_started_at'] ?? null);
         $end = $toMicros($worker['request_finished_at'] ?? null);
         if ($start === null || $end === null) {
             return ['measurable' => false, 'overlap_ms' => null, 'windows' => []];
         }
-        $starts[] = $start;
-        $ends[] = $end;
+        $activityStarts[] = $start;
+        $activityEnds[] = $end;
+        $requestStarts[] = $toMicros($worker['request_started_at'] ?? null) ?? $start;
     }
 
-    $overlap = (min($ends) - max($starts)) * 1000;
+    $overlap = (min($activityEnds) - max($activityStarts)) * 1000;
+    $requestOverlap = (min($activityEnds) - max($requestStarts)) * 1000;
 
     return [
         'measurable' => true,
         'overlap_ms' => round($overlap, 3),
+        // Chỉ số phụ: hai lời gọi controller có chồng nhau không. Ở mode `locked`
+        // giá trị này âm là ĐÚNG — kẻ thua chỉ vào được controller sau khi kẻ thắng
+        // nhả khoá, và đó chính là bằng chứng khoá hàng đã chặn nó.
+        'request_call_overlap_ms' => round($requestOverlap, 3),
         'workers_in_flight_simultaneously' => $overlap > 0,
         'windows' => array_map(static fn (array $w): array => [
             'worker_index' => $w['worker_index'] ?? null,
