@@ -14,9 +14,16 @@ map $http_x_forwarded_host $wms_forwarded_host {
     ""      $host;
 }
 
+# WWHN-295 follow-up: $server_port is nginx's internal listen port (80), not
+# the host-mapped port the browser actually used (NGINX_DOCKER_PORT, default
+# 8080). Falling back to $server_port made every self-referential URL Laravel
+# generates (L5-Swagger docs.json, asset links) drop the port when no client
+# sent X-Forwarded-Port — the case for plain local Docker access with no
+# external TLS terminator in front. Fall back to the real external port
+# instead, substituted at container start from NGINX_DOCKER_PORT.
 map $http_x_forwarded_port $wms_forwarded_port {
     default $http_x_forwarded_port;
-    ""      $server_port;
+    ""      "${WMS_NGINX_EXTERNAL_PORT}";
 }
 
 server {
