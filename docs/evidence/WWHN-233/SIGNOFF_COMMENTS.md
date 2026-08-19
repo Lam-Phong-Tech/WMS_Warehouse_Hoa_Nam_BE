@@ -7,7 +7,7 @@ chỉ đọc artifact được trỏ tới và xác nhận.
 
 ```text
 BE commit SHA: bf06fea0bf228f7fe0b119525eeb6e099bb94c9d
-FE commit SHA: 194b0076f53417e9a9d0258e12d3f8d3b3bae3d7
+FE commit SHA: 3bad47deb266b2cc276fa9844b1cf00e9b50348c
 Branch: m1
 Evidence: BE docs/evidence/WWHN-233/SHA256SUMS
 Disposition: DISP-STK-233 v1.0.0 — DEFERRED / NO CODE (PROPOSED, no effective date)

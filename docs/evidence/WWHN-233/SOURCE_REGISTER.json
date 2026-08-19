@@ -33,7 +33,7 @@
       "id": "OPENAPI-RUNTIME",
       "path": "storage/api-docs/api-docs.yaml",
       "role": "RUNTIME-SURFACE",
-      "sha256": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
+      "sha256": "01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec",
       "anchors_present": true
     }
   ],
@@ -87,6 +87,6 @@
     "branch": "m1",
     "be_commit_sha": "bf06fea0bf228f7fe0b119525eeb6e099bb94c9d",
     "be_commit_sha_meaning": "Commit cuối cùng chạm artifact của WWHN-233, không phải HEAD của nhánh dùng chung — nhiều nhánh Stocktake commit song song vào m1.",
-    "fe_commit_sha": "194b0076f53417e9a9d0258e12d3f8d3b3bae3d7"
+    "fe_commit_sha": "3bad47deb266b2cc276fa9844b1cf00e9b50348c"
   }
 }

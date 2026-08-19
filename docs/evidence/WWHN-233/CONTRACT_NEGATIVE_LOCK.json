@@ -41,7 +41,7 @@
   },
   "checks_passed": [
     "[DISP-CONTENT] DISP-STK-233 neo REQ-SRS-037 + DEFERRED + WWHN-59 + WWHN-235 + DISP-STK-236",
-    "[ANTI-DANGLING] docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md: toàn bộ 15 artifact được cam kết đều tồn tại.",
+    "[ANTI-DANGLING] docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md: toàn bộ 16 artifact được cam kết đều tồn tại.",
     "[ANTI-DANGLING] docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md: toàn bộ 10 artifact được cam kết đều tồn tại.",
     "[BASELINE-FRAGMENTS] forbidden_path_fragments phủ đủ recount, cycle-count, physical-count",
     "[BASELINE-OPERATIONS] 56 operation được khai, zero thuộc bề mặt bị cấm.",
