@@ -151,6 +151,54 @@
       "why": "scope disposition, bản review, TC traceability, QA1 handoff, pin này"
     }
   ],
+  "round2": {
+    "purpose": "Đóng ba finding P2 còn OPEN sau vòng review 67/100: F-04 (thứ tự khoá inventory_balances), F-05 (data scope Component Issue Post), F-06 (lost update label_snapshots.version). Xem CONCURRENCY_STATE_REVIEW.md §15 để có lập luận đầy đủ.",
+    "review_date": "2026-08-19",
+    "backend_review_sha": "0142b49ed11ac410136ca96993b3fb6ca2ac2971",
+    "backend_review_sha_subject": "fix(WWHN-234): dong 3 finding P2 con OPEN vong 2 - F-04/F-05/F-06",
+    "backend_review_sha_parent": "4fad4475802047109362bfaf31082321fb6e3d92",
+    "code_changes": [
+      {
+        "path": "Modules/Warehouse/app/Http/Middleware/EnforceComponentIssueWarehouseScope.php",
+        "kind": "added",
+        "finding": "F-05",
+        "why": "component_issue_documents.warehouse_id chưa từng được đối chiếu với scope_ref của actor"
+      },
+      {
+        "path": "Modules/Warehouse/routes/api.php",
+        "kind": "modified",
+        "finding": "F-05",
+        "why": "wire EnforceComponentIssueWarehouseScope trên store/show/scan/cancel/post của cả hai bí danh (10 điểm áp dụng)"
+      },
+      {
+        "path": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php",
+        "kind": "modified",
+        "finding": "F-04",
+        "why": "sortLinesForBalanceLock() mới; áp dụng ở postStockDocument() và postComponentIssue() (tách pha validate khỏi pha mutate cho hàm sau)"
+      },
+      {
+        "path": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php",
+        "kind": "modified",
+        "finding": "F-06",
+        "why": "CAS WHERE version=$expectedVersion thay cho UPDATE vô điều kiện, ở cả dispatchLabelOnce() và recordPrintFailure()"
+      },
+      {
+        "path": "tests/Feature/Wwhn234P1P2ClosureTest.php",
+        "kind": "added",
+        "finding": "F-04/F-05/F-06",
+        "why": "10 test: 2 cho F-04 (functional lock-order + source guard), 5 cho F-05 (403 cross-scope × 4 route + control in-scope), 3 cho F-06 (CAS mechanism + control success + source guard)"
+      }
+    ],
+    "verification": {
+      "test_command": "php artisan test --filter Wwhn234P1P2ClosureTest",
+      "note": "Chạy LOCAL (sqlite in-memory), không kích hoạt CI/GitHub Actions — theo yêu cầu tường minh của người dùng vì tài khoản đã dùng hết 3000/3000 phút Actions."
+    },
+    "not_claimed": [
+      "F-04 không có bằng chứng multi-process (deadlock timing thật) — chỉ chứng minh thứ tự khoá đã đổi đúng đề xuất, xem CONCURRENCY_STATE_REVIEW.md §15.",
+      "F-06 không dựng được race qua tầng HTTP thật trong tiến trình đơn (transaction của IdempotencyStore::run bọc cả lời gọi printer agent) — test đi thẳng vào cơ chế CAS ở tầng SQL.",
+      "F-05 vẫn không khai thác được dưới MVP một kho (REQ-SRS-001); guard chỉ có ý nghĩa khi mở multi-warehouse."
+    ]
+  },
   "frontend_code_changes": [
     {
       "path": "src/shared/api/concurrency-contract.ts",

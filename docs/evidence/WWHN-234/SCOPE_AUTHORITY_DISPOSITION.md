@@ -59,8 +59,9 @@ Họ disposition anh em, để reviewer không phải đi tìm:
 Concurrency & State review của **các action đổi tồn thật sự tồn tại**. Đóng góp của
 `WWHN-234` vào nhánh `WWHN-59` gồm đúng ba thứ:
 
-1. **Ghi `WWHN-234` vào impacted list của `DISP-STK-233`.** Hiện `DISP-STK-233` liệt kê
-   `WWHN-59 / 233 / 235`; thiếu `234`. Đây là hành động của BA khi ký — xem §5.
+1. **Ghi `WWHN-234` vào impacted list của `DISP-STK-233`.** Đã bổ sung ở vòng 2
+   (`DISP-STK-233` §4, dòng `WWHN-234`) — impacted list nay là `WWHN-59, WWHN-233, WWHN-234,
+   WWHN-235`. Phần còn lại thuộc BA/PM/PO khi ký hiệu lực — xem §5.
 2. **Bản review thật cho phạm vi in-scope** (`CONCURRENCY_STATE_REVIEW.md`), thứ mà
    disposition kiểm kê theo định nghĩa không thể cung cấp.
 3. **Phần `235-A` của QA gate** (`QA1_HANDOFF_WWHN-235.md`): `DISP-STK-233` §8 đã dispose

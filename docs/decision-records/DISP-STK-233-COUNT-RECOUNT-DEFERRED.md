@@ -175,7 +175,8 @@ Cả ba endpoint ghi đều yêu cầu `Idempotency-Key` + `If-Match`, ghi movem
 | `WWHN-233` | **DEFERRED — NO CODE** | Tài liệu này |
 | `WWHN-235` | **DEFERRED / N/A** — xem §8 | QA gate của một capability không build |
 | `WWHN-25` / `DEC-STK-001` | **PROPOSED — giữ nguyên** | Gate re-enable, không tự đóng từ repo |
-| `WWHN-60/234/236/238`, `HN-STK-002` | Theo `DISP-STK-236` | Cùng một điều kiện re-open ở §2 |
+| `WWHN-234` | **Kế thừa nguyên văn — không phát hành disposition riêng** | `[DEV] Concurrency & State review` (con của `WWHN-59`, cùng QA gate `WWHN-235`); phần Stocktake trong phạm vi review nằm §2.2 của `docs/evidence/WWHN-234/CONCURRENCY_STATE_REVIEW.md` và trỏ về đúng văn bản này thay vì viết `DISP-STK-234` |
+| `WWHN-60/236/238`, `HN-STK-002` | Theo `DISP-STK-236` | Cùng một điều kiện re-open ở §2 |
 
 Không ticket nào ở trên được để trạng thái `Blocked` hay `Pending` mơ hồ: chúng chia sẻ **một** điều
 kiện re-open duy nhất — bộ 4 điều kiện ở §2.

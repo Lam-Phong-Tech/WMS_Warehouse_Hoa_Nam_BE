@@ -232,9 +232,9 @@ Không âm kho được chặn ở hai lớp: `422 INSUFFICIENT_STOCK` khi `on_h
 | F-01 | P1 | Mất CAS balance/container/reversal trả mã ngoài §8.2 (`VERSION_CONFLICT`, `CONTAINER_VERSION_CONFLICT`, `REVERSAL_CONCURRENT_CONFLICT`); FE không map ⇒ request thua race không được hướng dẫn reload, trái AC-GWT-CONC-001 | 6 điểm phát (BE) | **FIXED** — `ConflictCode::CONCURRENCY` |
 | F-02 | P1 | Cùng một tình huống "phải đảo dependency theo thứ tự ngược" phát 2 mã khác nhau: `DOWNSTREAM_DEPENDENCY_EXISTS` (nhánh quantity) vs `REVERSAL_DEPENDENCY_EXISTS` (nhánh item) — **trong cùng một file**. BR-REV-04/TC-REV-02 chỉ đích danh mã thứ nhất | `CurrentBaselineReversalService:535,538`; `CurrentBaselineStockService:826` | **FIXED** — `ConflictCode::DOWNSTREAM_DEPENDENCY` |
 | F-03 | P1 | FE chỉ kiểm tra version **trước** khi gửi (pre-flight). Race thật nằm giữa lần đọc detail và `lockForUpdate` của BE ⇒ `412`/`409` rơi xuống đường lỗi chung, người dùng bấm Post lại | `inboundService.postInboundReceipt`, `shippingService.postOutboundIssue` | **FIXED** — `src/shared/api/concurrency-contract.ts` |
-| F-04 | P2 | `inventory_balances` khoá theo thứ tự dòng chứng từ, không theo thứ tự toàn cục ⇒ deadlock chéo có thể xảy ra dưới tải (được retry 3 lần hấp thụ) | `CurrentBaselineStockService:147-171` | **OPEN** — đề xuất sort theo `product_id` ở pha `mutateBalance` |
-| F-05 | P2 | `POST /warranty-component-issues/{id}/post` và `/component-issue-documents/{id}/post` là action **đổi tồn** nhưng route chỉ có `permission:warranty.component_issue`, **không có** data-scope middleware như inbound/outbound/reversal | `routes/api.php` (2 route) | **OPEN** — không khai thác được dưới MVP một kho (`REQ-SRS-001`), nhưng lệch "Enforcement standard" §8.1 |
-| F-06 | P2 | `recordPrintResult` tính `version = $snapshot->version + 1` từ row đọc **ngoài** lock ⇒ lost update khi print/reprint đồng thời cùng label. Không ảnh hưởng tồn (label là stock-neutral, gate Post đọc `status` chứ không đọc `version`) | `CurrentBaselineStockFlowController:456-479` | **OPEN** |
+| F-04 | P2 | `inventory_balances` khoá theo thứ tự dòng chứng từ, không theo thứ tự toàn cục ⇒ deadlock chéo có thể xảy ra dưới tải (được retry 3 lần hấp thụ) | `CurrentBaselineStockService:147-171` | **FIXED** (vòng 2) — `sortLinesForBalanceLock()` |
+| F-05 | P2 | `POST /warranty-component-issues/{id}/post` và `/component-issue-documents/{id}/post` là action **đổi tồn** nhưng route chỉ có `permission:warranty.component_issue`, **không có** data-scope middleware như inbound/outbound/reversal | `routes/api.php` (2 route) | **FIXED** (vòng 2) — `EnforceComponentIssueWarehouseScope` |
+| F-06 | P2 | `recordPrintResult` tính `version = $snapshot->version + 1` từ row đọc **ngoài** lock ⇒ lost update khi print/reprint đồng thời cùng label. Không ảnh hưởng tồn (label là stock-neutral, gate Post đọc `status` chứ không đọc `version`) | `CurrentBaselineOperationsController.php` (`dispatchLabelOnce`/`recordPrintFailure`) | **FIXED** (vòng 2) — CAS `WHERE version = $expectedVersion` |
 | F-07 | P2 | SRS §13.3 nhảy số từ `TC-P1-016` sang `TC-P1-025`: `TC-P1-017..024` không tồn tại. Nhóm action `COMPONENT_ISSUE_POST` (A4) — một action đổi tồn thật — **không có** hàng nào trong ma trận TC | SRS §13.3 | **OPEN — BA** |
 | F-08 | P2 | 31/32 TC của §13.3 không được test nào gọi tên ⇒ không thể trả lời "test nào chứng minh TC này" mà không đọc tay 120 file | repo test BE | **FIXED** — `TC_P1_TRACEABILITY.json` + verifier |
 
@@ -256,9 +256,86 @@ Tóm tắt:
 - `src/shared/api/concurrency-contract.test.ts` — mới, 13 test.
 - `inboundService.ts`, `shippingService.ts` — bọc Post bằng `withConcurrencyContract`.
 
+**BE — vòng 2 (F-04/F-05/F-06, xem §15 để có lập luận đầy đủ)**
+- `Modules/Warehouse/app/Http/Middleware/EnforceComponentIssueWarehouseScope.php` — mới (F-05).
+- `Modules/Warehouse/routes/api.php` — wire middleware trên 10 route/alias (F-05).
+- `Modules/Warehouse/app/Services/CurrentBaselineStockService.php` — `sortLinesForBalanceLock()` mới + áp dụng ở `postStockDocument`/`postComponentIssue` (F-04).
+- `Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php` — CAS trên `label_snapshots.version` ở `dispatchLabelOnce`/`recordPrintFailure` (F-06).
+- `tests/Feature/Wwhn234P1P2ClosureTest.php` — mới, 10 test (F-04 ×2, F-05 ×5, F-06 ×3).
+
 ## 14. Điều task này **không** khẳng định
 
 - Không khẳng định Stocktake đã được review — không có runtime để review (§2.2).
 - Không khẳng định `DEC-STK-001` đã được phê duyệt hay bị bác; đó là `WWHN-25`.
-- Không khẳng định F-04/F-05/F-06/F-07 đã được xử lý; chúng OPEN kèm owner đề xuất.
+- Không khẳng định F-07 đã được xử lý — cần BA (xem §15).
 - Không khẳng định QA1 đã chạy độc lập — đó là `WWHN-235`, xem `QA1_HANDOFF_WWHN-235.md`.
+
+## 15. Vòng 2 (đánh giá 67/100) — đóng F-04/F-05/F-06
+
+Review vòng 1 để lại ba finding P2 OPEN. Vòng này sửa tận gốc cả ba, không chỉ
+disposition N/A, vì cả ba đều là lệch "Enforcement standard" §8.1 hoặc lỗ hổng
+concurrency thật — không phải rủi ro lý thuyết đã được hấp thụ hoàn toàn.
+
+**F-04 — thứ tự khoá `inventory_balances`.** Thêm
+`CurrentBaselineStockService::sortLinesForBalanceLock()`: nhận danh sách dòng đã
+`lockForUpdate()` theo `line_no` (giữ nguyên, không đổi lock đó), trả lại đã sắp
+theo `product_id`/`sku_id` (tie-break bằng `id`) — CHỈ dùng để quyết định thứ tự
+gọi `mutateBalance()`. Áp dụng ở hai nơi gọi `mutateBalance()` theo vòng lặp:
+`postStockDocument()` (Post Receipt/Issue) và `postComponentIssue()` — vì
+`postComponentIssue()` trước đây gộp validate + mutate trong cùng một loop, phải
+tách pha validate (giữ thứ tự `line_no` để lỗi đầu tiên vẫn xác định) khỏi pha
+mutate (đổi thứ tự). Bằng chứng chạy thật:
+`test_f04_receipt_locks_inventory_balances_in_global_sku_order_not_line_order`
+(`tests/Feature/Wwhn234P1P2ClosureTest.php`) dựng phiếu nhập 2 dòng khai NGƯỢC thứ
+tự chuỗi SKU, bắt `DB::listen()` trên câu `SELECT ... FROM inventory_balances ...
+WHERE warehouse_id = ?` và khẳng định thứ tự khoá thực tế là tăng dần theo SKU chứ
+không theo `line_no` — có assertion chống false-positive (thứ tự line_no thật đã bị
+đảo). Không thay thế runtime multi-process evidence kiểu
+`Wwhn219RuntimeConcurrencyTest` (deadlock timing thật cần hai PostgreSQL backend
+độc lập); test này chứng minh trực tiếp *thứ tự khoá đã đổi đúng như đề xuất*, đó
+là điều kiện đủ để tránh deadlock chéo theo lập luận ở §4.
+
+**F-05 — data scope Component Issue.** Middleware mới
+`Modules\Warehouse\Http\Middleware\EnforceComponentIssueWarehouseScope` (cùng khuôn
+với `EnforceReversalWarehouseScope`): đọc `warehouse_id` từ body (route `store`)
+hoặc từ `component_issue_documents.warehouse_id` qua route `id` (route `show`/
+`scan`/`cancel`/`post`), so với `User::warehouseScopeIds()`, `403
+DATA_SCOPE_DENIED` khi lệch. Áp cho cả hai bí danh route
+(`component-issue-documents/*` và `warranty-component-issues/*`), 5 route/alias =
+10 điểm áp dụng. Bằng chứng: 5 test `test_f05_*` trong
+`Wwhn234P1P2ClosureTest.php` — 403 cho post/scan/cancel/show ở cả hai bí danh +
+store với `warehouse_id` ngoài scope, cộng một ca đối chứng (actor đúng scope
+không bị chặn nhầm). Vẫn **không khai thác được dưới MVP một kho** (mọi role gắn
+`scope_ref` hiện trỏ đúng một kho ACTIVE — `REQ-SRS-001`), nhưng route giờ khớp
+"Enforcement standard" §8.1 giống inbound/outbound/reversal, sẵn sàng cho
+multi-warehouse.
+
+**F-06 — lost update `label_snapshots.version`.** `dispatchLabelOnce()` và
+`recordPrintFailure()` (`CurrentBaselineOperationsController.php`) đổi UPDATE vô
+điều kiện thành CAS: `WHERE id = ? AND version = $expectedVersion` (giá trị đã qua
+`assertLabelPrintable()`); `$updated !== 1` ⇒ `409 ConflictCode::CONCURRENCY` thay
+vì âm thầm ghi đè. `label_print_events` vẫn insert trong cùng transaction nên khi
+CAS thua, cả hai đều rollback cùng nhau (nhất quán, không để lại audit event mồ
+côi). Bằng chứng: `test_f06_cas_update_rejects_a_stale_expected_version_instead_of_overwriting`
+kiểm đúng câu UPDATE CAS ở tầng SQL (request thắng ghi version 1→2 thành công,
+request thua với cùng expected=1 khớp 0 dòng và KHÔNG ghi đè); ca đối chứng
+`test_f06_print_without_a_racing_writer_still_succeeds_and_bumps_version_once` xác
+nhận đường không-race vẫn hoạt động bình thường. **Ranh giới trung thực:** không
+dựng được test bắt race qua tầng HTTP thật trong tiến trình đơn — toàn bộ
+`dispatchLabelOnce()` chạy trong `DB::transaction()` của `IdempotencyStore::run()`
+(bọc quanh cả lời gọi HTTP ra printer agent), nên một write "giả lập request thắng
+race" chèn giữa chừng qua `Http::fake()` bị rollback cùng request thua khi request
+đó abort — đã kiểm chứng thực nghiệm (version quay lại giá trị cũ). Vì vậy test
+đi thẳng vào cơ chế CAS ở tầng SQL, giống cách `StockDocumentConcurrencyGuardTest`
+tách "architecture guard" khỏi "runtime evidence" cho các finding concurrency khác.
+
+**Nguồn xác nhận vị trí thật:** trích dẫn `file:line` của F-06 trong bản review
+gốc (`CurrentBaselineStockFlowController:456-479`) trỏ sai file — hàm
+`recordPrintResult` không tồn tại trong đó; logic thật (`dispatchLabelOnce`,
+`recordPrintFailure`) nằm ở `CurrentBaselineOperationsController.php`, đúng route
+`label-snapshots/{id}/print` khai trong `routes/api.php`. Đã đối chiếu lại bằng
+`php artisan route:list` trước khi sửa (bài học từ `[[project-wwhn234]]`: luôn xác
+định controller thật thay vì tin tên gợi ý).
+
+Xem `REVIEW_IDENTITY_PIN.json` → `code_changes[]` (mục `round: 2`) để có danh sách
+file chính xác.
