@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0.0",
+  "document": "DISP-STK-236-APPROVAL",
+  "registerItem": "DEV236-P1-01R3",
+  "dispositionId": "DISP-STK-236",
+  "dispositionVersion": "1.1.0",
+  "dispositionPath": "docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md",
+  "dispositionSha256": "b03a8967463506fff727f32fdf748d356529d70f91da1a0edb73cf0ea605ea09",
+  "dispositionSha256Note": "Sinh lại bằng `node scripts/build-wwhn236-source-register.mjs`. Không chép tay: hash chép tay mục ngay trong phiên khi tài liệu còn được sửa.",
+  "decision": "DEFERRED_NO_CODE",
+  "decisionStatement": "Apply Adjustment (WWHN-60 → WWHN-236, QA gate WWHN-238) không được implement ở MVP v1.12. Không route, controller, service, migration, permission, màn hình hay report mang ngữ nghĩa stocktake/variance/adjustment. Đường sửa sai duy nhất là Reversal append-only.",
+  "controllingRequirement": "REQ-SRS-037",
+  "controllingBaseline": {
+    "documentId": "HN-SRS-FRD-001",
+    "path": "docs/HN_SRS_FRD_v1.12_FULL.md",
+    "repo": "FE",
+    "version": "1.12",
+    "adoptionIssue": "WWHN-334",
+    "requirementAnchor": "REQ-SRS-037 (Must) — dòng 338; AC-SRS-037; TC-SRS-037; BR-NOSTK-01..03; traceability dòng 1357",
+    "priority": "Must",
+    "note": "Hiệu lực đến từ adoption của SRS/FRD v1.12 tại WWHN-334, không đến từ một Decision ID độc lập. DEC-NO-STOCKTAKE-001 chỉ là ô Source của REQ-SRS-037, không phải decision record tồn tại trong repo."
+  },
+  "status": "PROPOSED",
+  "statusNote": "Chỉ chuyển APPROVED khi đủ 5 chữ ký ở signOff và có effectiveDate. DEV không được tự flip trạng thái này; verifier `--require-signoff` fail closed khi còn null.",
+  "effectiveDate": null,
+  "effectiveDateSource": "Jira comment do approver tự viết trên WWHN-236 + WWHN-25 (DEV236-P1-01R3 gate G1)",
+  "limitationAccepted": {
+    "id": "LIM-STK-236-01",
+    "title": "Physical mismatch không có source transaction chỉ tạo incident",
+    "statement": "MVP v1.12 không có nghiệp vụ kiểm kê vật lý. Khi tồn sổ lệch tồn thực vì nguyên nhân KHÔNG gắn với một chứng từ sai (mất, hỏng, trộm, đếm sai lúc nhận, hao hụt), hệ thống chỉ có thể GHI NHẬN sự lệch — không có đường đưa số tồn về khớp thực tế. PM/PO chấp nhận hệ quả vận hành này.",
+    "whatTheSystemDoes": [
+      "`php artisan inventory:reconcile` (cron, routes/console.php) đối soát ledger ↔ balance ↔ subledger và ghi `reconciliation_incidents` cho divergence mới phát hiện.",
+      "`GET /api/v1/reports/inventory-reconciliation` báo cáo on-demand, không lưu vết.",
+      "`GET /api/v1/reports/inventory-balance` (RPT-INV-01) trả `reconciliation_status=MISMATCH` + `reconciliation_warning_count`."
+    ],
+    "whatTheSystemCannotDo": [
+      "Không có API/màn hình đóng hay resolve `reconciliation_incidents` ở v1.12 — bảng chỉ được ghi bởi lệnh cron.",
+      "Không có đường ghi tồn thứ hai: `chk_stock_movement_type_current` chỉ nhận OPENING/RECEIPT/ISSUE/COMPONENT_ISSUE/REVERSAL, nên `ADJUST_IN`/`ADJUST_OUT` bị PostgreSQL từ chối.",
+      "Reversal chỉ đảo được một chứng từ gốc đã tồn tại. Không có chứng từ gốc thì không có gì để đảo, incident ở lại OPEN/INVESTIGATING và tồn sổ vẫn lệch."
+    ],
+    "operationalConsequence": "SRS §7 dòng 510: divergence tạo Reconciliation_Incident và **block readiness/sign-off**; chỉ được resolve bằng audited reversal theo WWHN-26, không bao giờ bằng sửa thẳng ledger/Balance. Nghĩa là một lệch vật lý không có chứng từ gốc sẽ treo readiness cho tới khi có CR mở lại Apply Adjustment, hoặc tới khi nghiệp vụ chấp nhận xử lý ngoài hệ thống (biên bản giấy) và ghi lý do vào incident.",
+    "evidenceAnchors": [
+      "FE docs/HN_SRS_FRD_v1.12_FULL.md:338 — AC-SRS-037 \"reconciliation chỉ tạo incident, sửa sai dùng reversal theo WWHN-26\"",
+      "FE docs/HN_SRS_FRD_v1.12_FULL.md:510 — \"Create Reconciliation_Incident and block readiness/sign-off\"",
+      "FE docs/HoaNam_ERD_Moi_Nhat.md:1551 — bảng 32 reconciliation_incidents; dòng 1604 \"Không auto-edit ledger. Resolution phải có evidence/audit\"",
+      "BE app/Console/Commands/ReconcileInventoryBalances.php — nguồn ghi incident duy nhất",
+      "BE routes/console.php:16 — \"Không tự sửa tồn: lệnh chỉ ghi incident, sửa sai vẫn phải qua Reversal (WWHN-26)\""
+    ],
+    "acceptedBy": [
+      "pmPo",
+      "processOwner"
+    ],
+    "acceptanceRecorded": false
+  },
+  "impactedIssues": [
+    "WWHN-25",
+    "WWHN-60",
+    "WWHN-236",
+    "WWHN-238",
+    "HN-STK-002"
+  ],
+  "chainDispositionPath": "docs/evidence/WWHN-236/CHAIN_DISPOSITION.json",
+  "exactCommitSha": {
+    "backend": null,
+    "frontend": null,
+    "pullRequest": "N/A — direct-to-m1 (không tạo nhánh riêng theo yêu cầu vận hành dự án)",
+    "note": "Điền bằng `node scripts/build-wwhn236-source-register.mjs --pin` sau khi commit. Verifier assert SHA này là ancestor của HEAD và mọi governed file không đổi blob kể từ đó."
+  },
+  "signOff": {
+    "dev": {
+      "role": "DEV — assignee",
+      "scope": [
+        "closure NO-CODE"
+      ],
+      "decision": null,
+      "date": null,
+      "commentUrl": null
+    },
+    "baMain": {
+      "role": "BA Main / BA1",
+      "scope": [
+        "DEV236-P1-01R3",
+        "DEV236-P1-02R3",
+        "DEV236-P1-03R3"
+      ],
+      "decision": null,
+      "date": null,
+      "commentUrl": null
+    },
+    "pmPo": {
+      "role": "PM/PO + Process Owner",
+      "scope": [
+        "DEV236-P1-01R3",
+        "LIM-STK-236-01",
+        "DEV236-P1-03R3"
+      ],
+      "decision": null,
+      "date": null,
+      "commentUrl": null
+    },
+    "bas": {
+      "role": "BAS",
+      "scope": [
+        "DEV236-P1-02R3"
+      ],
+      "decision": null,
+      "date": null,
+      "commentUrl": null
+    },
+    "techLead": {
+      "role": "Tech Lead",
+      "scope": [
+        "DEV236-P1-04R3",
+        "DEV236-P1-05",
+        "DEV236-P1-06"
+      ],
+      "decision": null,
+      "date": null,
+      "commentUrl": null
+    },
+    "qa1": {
+      "role": "QA1",
+      "scope": [
+        "DEV236-P1-07R3",
+        "WWHN-238"
+      ],
+      "decision": null,
+      "date": null,
+      "commentUrl": null
+    }
+  },
+  "signOffRecordCommand": "node scripts/build-wwhn236-source-register.mjs --record-signoff role=pmPo decision=APPROVED date=2026-08-19 url=<jira-comment-url>",
+  "reopenGate": "Chỉ mở lại khi đủ CẢ BỐN: (1) approved Change Request nâng phạm vi MVP; (2) WWHN-25 ghi GO hoặc CONDITIONAL GO kèm effective date cụ thể; (3) SRS rebaseline — REQ-SRS-037 được sửa/gỡ ở một version SRS mới có số hiệu và ngày; (4) chỉ khi đủ 1–3 mới mở DEV, và DEV236-P1-05/06/07 là gate của lần re-enable đó. Khi re-enable phải phát hành DISP-STK-236 v2.0.0, không sửa bản 1.x.",
+  "machineGates": [
+    "node scripts/verify-wwhn236-adjustment-disposition.mjs",
+    "node scripts/verify-wwhn236-adjustment-disposition.mjs --require-signoff",
+    "node scripts/qa-wwhn236-exact-sha-gate.mjs",
+    "php vendor/bin/phpunit --filter Wwhn236DeferredAdjustmentGateTest",
+    "npm run wwhn-236:verify (FE)"
+  ]
+}

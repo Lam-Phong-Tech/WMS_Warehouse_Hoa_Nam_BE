@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "1.0.0",
+  "document": "CHAIN_DISPOSITION",
+  "task": "WWHN-236",
+  "registerItem": "DEV236-P1-03R3",
+  "statement": "Cùng MỘT disposition hình thức (DEFERRED, không phải Blocked/Pending) được áp cho toàn bộ chuỗi ticket bị REQ-SRS-037 loại khỏi MVP v1.12. Mục tiêu: không ticket nào — nhất là QA task — bị treo Blocked vô thời hạn, vì Blocked nghĩa là \"sẽ làm, đang chờ\", trong khi ở đây không có gì để chờ ngoài một Change Request chưa tồn tại.",
+  "controllingRequirement": "REQ-SRS-037",
+  "sharedReopenGate": "DISP-STK-236 §2 — bộ 4 điều kiện (CR + WWHN-25 GO + SRS rebaseline + mở DEV). Cả hai nhánh adjustment và count/recount dùng CHUNG bộ điều kiện này; khi thoả thì rebaseline cả chuỗi cùng lúc.",
+  "forbiddenStatuses": ["Blocked", "Pending", "In Progress", "Failed", "Won't Do (không lý do)"],
+  "forbiddenStatusesReason": "Blocked/Pending làm mọi vòng rà soát phải mở lại cùng một câu hỏi và không bao giờ đóng được. DEFERRED có ngữ nghĩa chính xác: không thực hiện trong scope này, điều kiện mở lại đã viết ra và kiểm chứng được.",
+  "tickets": [
+    {
+      "ticket": "WWHN-25",
+      "title": "DEC-STK-001 — mô hình kiểm kê A",
+      "role": "Governance decision (nguồn của bề mặt bị cấm)",
+      "targetStatus": "DEFERRED — decision giữ PROPOSED, effective date NULL",
+      "disposition": "DEFERRED_NO_CODE",
+      "authority": "DISP-STK-236",
+      "ownerBranch": "WWHN-236",
+      "ownerDoc": "docs/decision-records/DEC-STK-001.md",
+      "note": "Không huỷ DEC-STK-001 — nó vẫn là bản nháp hợp lệ cho release sau. Nó chỉ KHÔNG có hiệu lực ở v1.12 vì chưa có effective date. Verifier assert file này vẫn ở trạng thái PROPOSED."
+    },
+    {
+      "ticket": "WWHN-60",
+      "title": "Parent — Stocktake/Adjustment capability",
+      "role": "Parent của WWHN-236",
+      "targetStatus": "DEFERRED (out of MVP v1.12)",
+      "disposition": "DEFERRED_NO_CODE",
+      "authority": "DISP-STK-236",
+      "ownerBranch": "WWHN-236",
+      "ownerDoc": "docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md",
+      "note": "AC Apply Adjustment phải được BA rebaseline theo DEV236-P1-02R3 — xem parent_rebaseline trong SOURCE_REGISTER.json."
+    },
+    {
+      "ticket": "WWHN-236",
+      "title": "Apply Adjustment",
+      "role": "Task đang đóng",
+      "targetStatus": "DEFERRED / NO-CODE (không phải Done-implementation)",
+      "disposition": "DEFERRED_NO_CODE",
+      "authority": "DISP-STK-236",
+      "ownerBranch": "WWHN-236",
+      "ownerDoc": "docs/evidence/WWHN-236/NO_CODE_HANDOFF.md",
+      "note": "Capability delta = ZERO. Delta code chỉ là hàng rào (verifier + test + forbidden fragments)."
+    },
+    {
+      "ticket": "WWHN-238",
+      "title": "QA1 independent exact-build test cho Apply Adjustment",
+      "role": "QA gate của nhánh adjustment",
+      "targetStatus": "DEFERRED / N/A cho MVP v1.12",
+      "disposition": "DEFERRED_NA",
+      "authority": "DISP-STK-236",
+      "ownerBranch": "WWHN-236",
+      "ownerDoc": "docs/evidence/WWHN-236/QA_DISPOSITION_WWHN-238.md",
+      "note": "Phạm vi QA thực tế = negative gate chạy tại exact SHA (DEV236-P1-07R3). Kết quả PASS/FAIL/DEFERRED-N/A do QA1 tự ghi trên Jira."
+    },
+    {
+      "ticket": "HN-STK-002",
+      "title": "Dependency của stocktake capability",
+      "role": "Dependency",
+      "targetStatus": "DEFERRED — không mở scope trong MVP",
+      "disposition": "DEFERRED_NO_CODE",
+      "authority": "DISP-STK-236",
+      "ownerBranch": "WWHN-236",
+      "ownerDoc": "docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md",
+      "note": "Không thể cấp scope authority cho dependency của một feature không tồn tại. BA phải đối chiếu lại trên Jira: nếu HN-STK-002 thực chất thuộc nhánh count/recount thì chuyển owner sang DISP-STK-233, kết luận DEFERRED không đổi."
+    },
+    {
+      "ticket": "WWHN-59",
+      "title": "Parent — Count/Recount capability",
+      "role": "Nhánh song song (nửa còn lại của REQ-SRS-037)",
+      "targetStatus": "DEFERRED (out of MVP v1.12)",
+      "disposition": "DEFERRED_NO_CODE",
+      "authority": "DISP-STK-233",
+      "ownerBranch": "WWHN-233",
+      "ownerDoc": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+      "crossBranch": true,
+      "note": "Ghi ở đây để chuỗi ticket đầy đủ cho BA/PM ký một lần. WWHN-236 CHỈ ĐỌC, không sửa artifact của nhánh 233."
+    },
+    {
+      "ticket": "WWHN-233",
+      "title": "Count/Recount",
+      "role": "Nhánh song song",
+      "targetStatus": "DEFERRED / NO-CODE",
+      "disposition": "DEFERRED_NO_CODE",
+      "authority": "DISP-STK-233",
+      "ownerBranch": "WWHN-233",
+      "ownerDoc": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+      "crossBranch": true,
+      "note": "Cùng controlling requirement, cùng reopen gate."
+    },
+    {
+      "ticket": "WWHN-234",
+      "title": "Concurrency/transaction cho stocktake",
+      "role": "Nhánh song song",
+      "targetStatus": "DEFERRED (phần thuộc stocktake) — phần concurrency chung đã đóng ở review riêng của WWHN-234",
+      "disposition": "DEFERRED_NO_CODE",
+      "authority": "DISP-STK-233",
+      "ownerBranch": "WWHN-233",
+      "ownerDoc": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+      "crossBranch": true,
+      "note": "Chỉ nêu để BA/PM thấy đủ chuỗi; WWHN-236 không phát biểu thay cho ticket này."
+    },
+    {
+      "ticket": "WWHN-235",
+      "title": "QA gate của nhánh count/recount",
+      "role": "QA gate nhánh song song",
+      "targetStatus": "DEFERRED / N/A cho MVP v1.12",
+      "disposition": "DEFERRED_NA",
+      "authority": "DISP-STK-233",
+      "ownerBranch": "WWHN-233",
+      "ownerDoc": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+      "crossBranch": true,
+      "note": "Không để Blocked — cùng lý do với WWHN-238."
+    }
+  ],
+  "qaTasksMustNotBeBlocked": ["WWHN-238", "WWHN-235"],
+  "verification": [
+    "node scripts/verify-wwhn236-adjustment-disposition.mjs — check CHAIN-DISPOSITION: mọi ticket nêu trong DISP-STK-236 §4 phải có mặt ở đây; targetStatus không được rơi vào forbiddenStatuses; ownerDoc phải tồn tại (anti-dangling).",
+    "php vendor/bin/phpunit --filter Wwhn236DeferredAdjustmentGateTest"
+  ]
+}

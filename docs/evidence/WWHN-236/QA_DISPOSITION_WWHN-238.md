@@ -71,3 +71,49 @@ Chỉ đọc + duyệt:
 - [ ] Danh sách test case dương ở §3 được bảo lưu nguyên vẹn cho lần re-enable, không bị coi là đã đóng.
 - [ ] Điều kiện mở lại là bộ 4 điều kiện ở `DISP-STK-236` §2 — chung cho cả chuỗi
       `WWHN-60/233/234/235/236/238` và `HN-STK-002`.
+
+---
+
+## 5. QA1 chạy lại tại exact SHA (`DEV236-P1-07R3`)
+
+Register R3 đòi QA1 **soi độc lập**: checkout đúng exact SHA đã pin, chạy negative gate, rồi ghi
+`PASS` / `FAIL` / `DEFERRED-N/A` **trực tiếp trên Jira** kèm SHA / env / PostgreSQL version / command /
+raw log. Để QA không phải tự ghép lệnh và tự nhớ ghi env, dùng đúng một lệnh:
+
+```bash
+node scripts/qa-wwhn236-exact-sha-gate.mjs
+```
+
+Khi QA đã checkout sạch đúng SHA thì thêm `--strict-head` để khoá luôn cả HEAD:
+
+```bash
+node scripts/qa-wwhn236-exact-sha-gate.mjs --strict-head
+```
+
+Lệnh này tự ghi vào raw log: OS, Node, Git, PHP, `DB_CONNECTION`, PostgreSQL version, branch, HEAD của
+cả hai repo, candidate SHA đã pin, trạng thái approval — rồi chạy tuần tự:
+
+| # | Bước | Nội dung |
+|---|---|---|
+| 1 | `IDENTITY` | Candidate SHA là ancestor của HEAD; **blob** của từng governed file khớp bản đã pin; bản trên đĩa khớp bản đã commit |
+| 2 | `BE verifier` | `node scripts/verify-wwhn236-adjustment-disposition.mjs` |
+| 3 | `BE phpunit` | `php vendor/bin/phpunit --filter Wwhn236DeferredAdjustmentGateTest` |
+| 4 | `FE verifier` | `node scripts/verify-wwhn-236-closure.mjs` |
+
+Raw log: `docs/evidence/WWHN-236/logs/qa-rerun-<be-sha7>.log`.
+
+> **Vì sao mặc định không bắt `HEAD == SHA đã pin`.** `m1` có nhiều phiên làm việc song song nên HEAD
+> chạy tiếp ngay sau khi task này commit. Mệnh đề QA cần chứng minh không phải "HEAD đứng yên" mà là
+> "tập artifact của WWHN-236 không đổi kể từ SHA đã pin" — bước 1 kiểm đúng mệnh đề đó bằng blob sha,
+> nên bằng chứng không mục khi phiên khác commit. `--strict-head` dành cho lần QA checkout sạch.
+
+### Ô QA1 phải điền trên `WWHN-238`
+
+| Trường | Lấy từ đâu |
+|---|---|
+| Kết quả | Dòng `KẾT QUẢ QA (WWHN-238):` cuối raw log |
+| Exact SHA (BE / FE) | Dòng `BE candidate (pin)` / `FE candidate (pin)` |
+| Env | Các dòng `OS` / `Node` / `PHP` / `PostgreSQL` / `DB driver (.env)` |
+| Command | Các dòng bắt đầu bằng `$` trong raw log |
+| Raw log | `docs/evidence/WWHN-236/logs/qa-rerun-<sha>.log` |
+| Trạng thái ticket | `DEFERRED / N/A cho MVP v1.12` — **không** `Blocked`, **không** `Pending` |

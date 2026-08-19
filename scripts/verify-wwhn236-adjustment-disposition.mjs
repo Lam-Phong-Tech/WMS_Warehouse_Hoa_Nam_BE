@@ -410,6 +410,335 @@ const extractPaths = (rel, raw) => {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// R3 — check 9..13: governance của chính đợt đóng (không phải bề mặt code).
+// Vòng R2 trượt vì bề mặt code sạch nhưng disposition chưa có approver, chuỗi
+// ticket chưa đồng bộ, và register pin một SHA của working tree bẩn. Bốn check
+// dưới đây biến đúng bốn thiếu sót đó thành ràng buộc chạy được.
+// ═══════════════════════════════════════════════════════════════════════════
+const { execFileSync: _exec } = await import("node:child_process");
+const REQUIRE_SIGNOFF = process.argv.includes("--require-signoff");
+const FE_ROOT_R3 = resolve(ROOT, "../../HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE");
+
+const gitAt = (root, args) => {
+  try {
+    return _exec("git", args, { cwd: root, encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+};
+const gitOk = (root, args) => {
+  try {
+    _exec("git", args, { cwd: root, stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const readJsonIfExists = (root, rel) => {
+  const abs = join(root, rel);
+  if (!existsSync(abs)) return null;
+  try {
+    return JSON.parse(readFileSync(abs, "utf8"));
+  } catch (e) {
+    return { __parseError: String(e) };
+  }
+};
+
+// ── Check 9: approval record — decision / version / hash / effective date ─────
+{
+  const rel = "docs/decision-records/DISP-STK-236-APPROVAL.json";
+  const approval = readJsonIfExists(ROOT, rel);
+  const dispRel = "docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md";
+  const dispDoc = readIfExists(dispRel);
+
+  if (approval === null) {
+    fail(
+      "APPROVAL-RECORD",
+      `${rel} không tồn tại. DEV236-P1-01R3 đòi bản ghi phê duyệt có Decision/version/hash/effective date; ` +
+        "một disposition không có nơi ghi chữ ký thì vòng rà soát sau lại hỏi 'ai duyệt?'.",
+    );
+  } else if (approval.__parseError) {
+    fail("APPROVAL-RECORD", `${rel} không parse được: ${approval.__parseError}`);
+  } else {
+    const problems = [];
+    if (approval.decision !== "DEFERRED_NO_CODE") problems.push(`decision=[${approval.decision}] != DEFERRED_NO_CODE`);
+    if (approval.controllingRequirement !== "REQ-SRS-037")
+      problems.push(`controllingRequirement=[${approval.controllingRequirement}] != REQ-SRS-037`);
+    if (approval.controllingBaseline?.version !== "1.12")
+      problems.push(`controllingBaseline.version=[${approval.controllingBaseline?.version}] != 1.12`);
+    if (approval.controllingBaseline?.adoptionIssue !== "WWHN-334")
+      problems.push(`adoptionIssue=[${approval.controllingBaseline?.adoptionIssue}] != WWHN-334`);
+
+    // Hash của disposition phải đo lại được, không chép tay.
+    const actual = sha256(dispRel);
+    if (!approval.dispositionSha256) {
+      problems.push("dispositionSha256=null — chạy `node scripts/build-wwhn236-source-register.mjs`");
+    } else if (approval.dispositionSha256 !== actual) {
+      problems.push(
+        `dispositionSha256 lệch nội dung hiện tại (${approval.dispositionSha256.slice(0, 12)}… vs ${String(actual).slice(0, 12)}…) — chạy lại builder`,
+      );
+    }
+
+    // Version trong approval phải khớp version ghi ở document control của disposition.
+    const declared = dispDoc?.match(/\|\s*Version\s*\|\s*`([^`]+)`\s*\|/)?.[1] ?? null;
+    if (declared && approval.dispositionVersion !== declared)
+      problems.push(`dispositionVersion=[${approval.dispositionVersion}] != version của disposition [${declared}]`);
+
+    // Limitation mà PM/PO phải chấp nhận tường minh — không được rút gọn thành một dòng chung chung.
+    const lim = approval.limitationAccepted;
+    if (!lim || lim.id !== "LIM-STK-236-01") problems.push("thiếu limitationAccepted.id = LIM-STK-236-01");
+    else {
+      const text = JSON.stringify(lim);
+      for (const needle of ["reconciliation_incidents", "Reversal", "source transaction", "incident"]) {
+        if (!text.includes(needle)) problems.push(`limitationAccepted không nhắc [${needle}]`);
+      }
+      if (!Array.isArray(lim.whatTheSystemCannotDo) || lim.whatTheSystemCannotDo.length === 0)
+        problems.push("limitationAccepted.whatTheSystemCannotDo rỗng — chấp nhận giới hạn mà không liệt kê giới hạn");
+    }
+
+    // Không cho tự tuyên bố APPROVED.
+    const roles = Object.entries(approval.signOff ?? {});
+    const undecided = roles.filter(([, s]) => !s.decision).map(([k]) => k);
+    if (approval.status === "APPROVED") {
+      if (!approval.effectiveDate) problems.push("status=APPROVED nhưng effectiveDate=null");
+      if (undecided.length > 0) problems.push(`status=APPROVED nhưng còn ${undecided.length} vai trò chưa ký: ${undecided.join(", ")}`);
+      if (!approval.exactCommitSha?.backend) problems.push("status=APPROVED nhưng chưa pin exact BE SHA");
+    }
+
+    if (problems.length > 0) {
+      fail("APPROVAL-RECORD", `${rel}:\n    ${problems.join("\n    ")}`);
+    } else {
+      pass(
+        "APPROVAL-RECORD",
+        `approval record hợp lệ: ${approval.decision} · disposition v${approval.dispositionVersion} · hash khớp · LIM-STK-236-01 tường minh`,
+      );
+    }
+
+    if (REQUIRE_SIGNOFF) {
+      const blockers = [];
+      if (undecided.length > 0) blockers.push(`chưa ký: ${undecided.join(", ")}`);
+      if (!approval.effectiveDate) blockers.push("effectiveDate=null");
+      if (approval.status !== "APPROVED") blockers.push(`status=${approval.status}`);
+      if (!approval.exactCommitSha?.backend) blockers.push("exactCommitSha.backend=null");
+      if (!approval.exactCommitSha?.frontend) blockers.push("exactCommitSha.frontend=null");
+      if (lim && lim.acceptanceRecorded !== true) blockers.push("PM/PO chưa ghi nhận chấp nhận LIM-STK-236-01");
+      if (blockers.length > 0) fail("APPROVAL-SIGNOFF", `--require-signoff: ${blockers.join("; ")}`);
+      else pass("APPROVAL-SIGNOFF", `đủ ${roles.length} chữ ký · effectiveDate=${approval.effectiveDate}`);
+    } else if (undecided.length > 0) {
+      warn(
+        "APPROVAL-SIGNOFF",
+        `còn ${undecided.length}/${roles.length} vai trò chưa ký (${undecided.join(", ")}). ` +
+          "Guard vẫn active bất kể trạng thái phê duyệt; chạy với --require-signoff để biến việc này thành gate cứng.",
+      );
+    }
+    lock.checks.approval_status = approval.status;
+    lock.checks.approval_effective_date = approval.effectiveDate;
+  }
+}
+
+// ── Check 10: chuỗi ticket — cùng một disposition, không ticket nào Blocked ───
+{
+  const rel = "docs/evidence/WWHN-236/CHAIN_DISPOSITION.json";
+  const chain = readJsonIfExists(ROOT, rel);
+  const dispDoc = readIfExists("docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md");
+
+  if (chain === null || chain.__parseError) {
+    fail(
+      "CHAIN-DISPOSITION",
+      `${rel} không đọc được. DEV236-P1-03R3 đòi cùng MỘT disposition hình thức trên cả chuỗi ticket, ` +
+        "và không để QA task Blocked vô thời hạn.",
+    );
+  } else {
+    const problems = [];
+    const listed = new Map((chain.tickets ?? []).map((t) => [t.ticket, t]));
+
+    // Mọi ticket mà disposition nhắc tới ở §4 phải có disposition tường minh ở đây.
+    const mentioned = new Set(
+      [...(dispDoc ?? "").matchAll(/`(WWHN-\d+|HN-STK-\d+)`/g)].map((m) => m[1]),
+    );
+    // WWHN-25/26/48… chỉ được nhắc như tham chiếu; chỉ đòi đúng chuỗi bị DEFERRED.
+    const REQUIRED_TICKETS = ["WWHN-25", "WWHN-60", "WWHN-236", "WWHN-238", "HN-STK-002", "WWHN-233", "WWHN-235"];
+    for (const t of REQUIRED_TICKETS) {
+      if (!listed.has(t)) problems.push(`thiếu ticket ${t}`);
+    }
+
+    const forbidden = chain.forbiddenStatuses ?? ["Blocked", "Pending"];
+    for (const [ticket, t] of listed) {
+      const status = String(t.targetStatus ?? "");
+      const hit = forbidden.find((f) => status.toLowerCase().includes(f.toLowerCase()));
+      if (hit) problems.push(`${ticket}: targetStatus [${status}] rơi vào trạng thái bị cấm [${hit}]`);
+      if (!/DEFERRED/i.test(String(t.disposition ?? ""))) problems.push(`${ticket}: disposition [${t.disposition}] không phải DEFERRED*`);
+      // Anti-dangling: disposition owner phải là file có thật.
+      if (t.ownerDoc && !existsSync(join(ROOT, t.ownerDoc))) {
+        if (t.crossBranch) warn("CHAIN-DISPOSITION", `${ticket}: ownerDoc ${t.ownerDoc} (nhánh khác) chưa có mặt trên checkout này.`);
+        else problems.push(`${ticket}: ownerDoc ${t.ownerDoc} không tồn tại`);
+      }
+    }
+
+    for (const qa of chain.qaTasksMustNotBeBlocked ?? []) {
+      const t = listed.get(qa);
+      if (!t) problems.push(`QA task ${qa} không có trong danh sách ticket`);
+      else if (!/N\/A|DEFERRED/i.test(String(t.targetStatus)))
+        problems.push(`QA task ${qa}: targetStatus [${t.targetStatus}] không phải DEFERRED / N/A`);
+    }
+
+    if (problems.length > 0) {
+      fail("CHAIN-DISPOSITION", `${rel}:\n    ${problems.join("\n    ")}`);
+    } else {
+      const cross = [...listed.values()].filter((t) => t.crossBranch).length;
+      pass(
+        "CHAIN-DISPOSITION",
+        `${listed.size} ticket cùng disposition DEFERRED (${cross} thuộc nhánh song song, chỉ đọc); zero ticket Blocked/Pending`,
+      );
+      const unmentioned = [...mentioned].filter((t) => /^(WWHN-(59|60|233|234|235|236|238)|HN-STK-002)$/.test(t) && !listed.has(t));
+      for (const t of unmentioned) warn("CHAIN-DISPOSITION", `${t} được nhắc trong disposition nhưng chưa có dòng riêng ở chain.`);
+    }
+    lock.checks.chain_tickets = (chain.tickets ?? []).map((t) => `${t.ticket}=${t.disposition}`);
+  }
+}
+
+// ── Check 11: candidate pin — SHA sạch, bất biến, đúng tập file ───────────────
+{
+  const rel = "docs/evidence/WWHN-236/SOURCE_REGISTER.json";
+  const register = readJsonIfExists(ROOT, rel);
+
+  if (register === null || register.__parseError) {
+    fail("CANDIDATE-PIN", `${rel} không đọc được — chạy \`node scripts/build-wwhn236-source-register.mjs\`.`);
+  } else {
+    const problems = [];
+    let checkedFiles = 0;
+
+    for (const repo of register.candidate_identity ?? []) {
+      const root = repo.repo === "BE" ? ROOT : FE_ROOT_R3;
+      const label = repo.repo;
+
+      if (!existsSync(root)) {
+        warn("CANDIDATE-PIN", `${label}: repo không có mặt ở checkout này — bỏ qua đối chiếu.`);
+        continue;
+      }
+      if (!repo.candidate_sha) {
+        problems.push(`${label}: candidate_sha=null (register sinh khi artifact còn chưa commit)`);
+        continue;
+      }
+      if (repo.governed_working_tree !== "CLEAN") {
+        problems.push(
+          `${label}: governed_working_tree=${repo.governed_working_tree} — [${(repo.governed_dirty_files ?? []).join(", ")}] chưa commit`,
+        );
+      }
+      if (repo.pull_request !== "N/A — direct-to-m1") {
+        problems.push(`${label}: pull_request=[${repo.pull_request}] — đi thẳng m1 thì phải ghi N/A tường minh`);
+      }
+      if (!gitOk(root, ["merge-base", "--is-ancestor", repo.candidate_sha, "HEAD"])) {
+        problems.push(`${label}: candidate ${repo.candidate_sha.slice(0, 7)} không phải ancestor của HEAD (pin mục hoặc sai nhánh)`);
+        continue;
+      }
+
+      for (const f of repo.governed_files ?? []) {
+        if (!f.present) {
+          problems.push(`${label}: governed file thiếu — ${f.path}`);
+          continue;
+        }
+        if (f.pin_carrier || f.shared || !f.tracked) continue;
+        const nowBlob = gitAt(root, ["rev-parse", `HEAD:${f.path}`]);
+        if (nowBlob !== f.blob_sha) {
+          problems.push(`${label}: ${f.path} đổi blob sau khi pin (${String(f.blob_sha).slice(0, 7)} → ${String(nowBlob).slice(0, 7)})`);
+        }
+        const diskBlob = gitAt(root, ["hash-object", f.path]);
+        if (diskBlob !== nowBlob) {
+          problems.push(`${label}: ${f.path} trên đĩa khác bản đã commit — evidence không tái lập được`);
+        }
+        checkedFiles += 1;
+      }
+    }
+
+    if (problems.length > 0) {
+      fail(
+        "CANDIDATE-PIN",
+        `${rel}:\n    ${problems.join("\n    ")}\n` +
+          "    Pin phải trỏ tới commit CHỨA guard/evidence và tập file phải bất biến kể từ đó.",
+      );
+    } else {
+      const be = (register.candidate_identity ?? []).find((r) => r.repo === "BE");
+      const fe = (register.candidate_identity ?? []).find((r) => r.repo === "FE");
+      pass(
+        "CANDIDATE-PIN",
+        `candidate BE ${be?.candidate_sha?.slice(0, 7)} / FE ${fe?.candidate_sha?.slice(0, 7)} · ${checkedFiles} governed file khớp blob · PR=N/A direct-to-m1`,
+      );
+      lock.checks.candidate_sha_be = be?.candidate_sha ?? null;
+      lock.checks.candidate_sha_fe = fe?.candidate_sha ?? null;
+    }
+  }
+}
+
+// ── Check 12: rebaseline AC của parent WWHN-60 ────────────────────────────────
+{
+  const rel = "docs/evidence/WWHN-236/SOURCE_REGISTER.json";
+  const register = readJsonIfExists(ROOT, rel);
+  const rb = register?.parent_rebaseline;
+
+  if (!rb) {
+    fail(
+      "PARENT-REBASELINE",
+      `${rel} thiếu parent_rebaseline. DEV236-P1-02R3 đòi ghi rõ current source/version thay cho BRD v3.9 ` +
+        "và liệt AC nào bị gỡ khỏi MVP hiện tại.",
+    );
+  } else {
+    const problems = [];
+    if (rb.ticket !== "WWHN-60") problems.push(`ticket=[${rb.ticket}] != WWHN-60`);
+    if (rb.current_source?.version !== "1.12") problems.push(`current_source.version=[${rb.current_source?.version}] != 1.12`);
+    if (rb.current_source?.requirement !== "REQ-SRS-037")
+      problems.push(`current_source.requirement=[${rb.current_source?.requirement}] != REQ-SRS-037`);
+    if (rb.current_source?.adoption_issue !== "WWHN-334") problems.push("current_source.adoption_issue != WWHN-334");
+    if (!/v3\.9/.test(String(rb.superseded_source?.label))) problems.push("superseded_source không nêu BRD/Handoff v3.9");
+    if (!/HISTORICAL/i.test(String(rb.superseded_source?.status))) problems.push("superseded_source.status không đánh dấu HISTORICAL");
+    if (!Array.isArray(rb.ac_to_remove_from_current_mvp) || rb.ac_to_remove_from_current_mvp.length === 0)
+      problems.push("ac_to_remove_from_current_mvp rỗng");
+    if (!rb.ac_replacement) problems.push("thiếu ac_replacement — gỡ AC mà không nói AC mới là gì");
+
+    // Nguồn hiện hành phải thật sự tồn tại và thật sự chứa requirement được viện dẫn.
+    const srsAbs = join(FE_ROOT_R3, rb.current_source?.path ?? "");
+    if (!existsSync(srsAbs)) {
+      warn("PARENT-REBASELINE", `Không đọc được ${rb.current_source?.path} ở repo FE — bỏ qua đối chiếu nội dung.`);
+    } else if (!readFileSync(srsAbs, "utf8").includes("REQ-SRS-037")) {
+      problems.push(`${rb.current_source?.path} không chứa REQ-SRS-037 — nguồn viện dẫn sai`);
+    }
+
+    if (problems.length > 0) fail("PARENT-REBASELINE", `${rel}.parent_rebaseline:\n    ${problems.join("\n    ")}`);
+    else
+      pass(
+        "PARENT-REBASELINE",
+        `WWHN-60 rebaseline sang SRS v1.12/REQ-SRS-037 (WWHN-334); ${rb.ac_to_remove_from_current_mvp.length} nhóm AC bị gỡ; v3.9 = historical`,
+      );
+  }
+}
+
+// ── Check 13: QA rerun tại exact SHA có thật (DEV236-P1-07R3) ─────────────────
+{
+  const runner = "scripts/qa-wwhn236-exact-sha-gate.mjs";
+  const qaDoc = readIfExists("docs/evidence/WWHN-236/QA_DISPOSITION_WWHN-238.md");
+  const problems = [];
+
+  if (!existsSync(join(ROOT, runner))) problems.push(`${runner} không tồn tại — QA không có lệnh chuẩn để chạy lại`);
+  if (qaDoc === null) problems.push("QA_DISPOSITION_WWHN-238.md không tồn tại");
+  else {
+    if (!qaDoc.includes(runner)) problems.push(`QA_DISPOSITION_WWHN-238.md không chỉ tới ${runner}`);
+    if (!/exact SHA/i.test(qaDoc)) problems.push("QA_DISPOSITION_WWHN-238.md không nêu yêu cầu chạy tại exact SHA");
+    if (!/PASS \/ FAIL \/ DEFERRED/i.test(qaDoc) && !/PASS\/FAIL\/DEFERRED/i.test(qaDoc))
+      problems.push("QA_DISPOSITION_WWHN-238.md không nêu QA1 phải ghi PASS / FAIL / DEFERRED-N/A");
+  }
+
+  const logDir = join(ROOT, "docs/evidence/WWHN-236/logs");
+  const rawLogs = existsSync(logDir) ? readdirSync(logDir).filter((f) => /^qa-rerun-.*\.log$/.test(f)) : [];
+  if (rawLogs.length === 0) problems.push("chưa có raw log docs/evidence/WWHN-236/logs/qa-rerun-*.log");
+
+  if (problems.length > 0) fail("QA-RERUN", problems.join("\n    "));
+  else pass("QA-RERUN", `${runner} + ${rawLogs.length} raw log qa-rerun-*; QA1 ghi kết quả trực tiếp trên WWHN-238`);
+  lock.checks.qa_rerun_logs = rawLogs;
+}
+
+
 // ── Kết quả ──────────────────────────────────────────────────────────────────
 console.log("WWHN-236 / DISP-STK-236 — Apply Adjustment disposition gate\n");
 for (const c of checks) console.log(`  PASS ${c}`);

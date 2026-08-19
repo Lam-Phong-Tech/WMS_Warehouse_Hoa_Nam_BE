@@ -6,12 +6,12 @@
 |---|---|
 | Disposition ID | `DISP-STK-236` |
 | Jira task | `WWHN-236` (child of `WWHN-60`; QA gate `WWHN-238`) |
-| Register closed | `DEV236-P1-01` … `DEV236-P1-07` |
-| Version | `1.0.0` |
+| Register closed | `DEV236-P1-01` … `DEV236-P1-07`; vòng R3: `DEV236-P1-01R3`, `-02R3`, `-03R3`, `-04R3`, `-07R3` |
+| Version | `1.1.0` |
 | Status | **PROPOSED — chờ approver-authored disposition trên Jira** |
 | Proposed by | DEV — WWHN-236 |
 | Required approvers | BA Main + PM/PO (P1-01), BA+BAS (P1-02), BA+DEV+QA (P1-03), Tech Lead/QA1 (P1-04), QA1 + BA/PM (P1-07) |
-| Effective date | `NULL — chỉ có sau formal sign-off` |
+| Effective date | `NULL — chỉ có sau formal sign-off`; bản ghi máy đọc: `docs/decision-records/DISP-STK-236-APPROVAL.json` |
 | Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` + `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE` |
 | Canonical branch | `m1` |
 | Quan hệ với `DISP-ADJ-001` | Mở rộng phạm vi từ WWHN-219 sang chuỗi WWHN-60/233/234/235/236/238; không thay thế |
@@ -320,3 +320,84 @@ Effective date: <ISO-8601 or NULL>
 
 Guard ở §5 **active bất kể trạng thái phê duyệt**: kể cả khi disposition còn `PROPOSED`, CI vẫn chặn
 việc tái xuất hiện bề mặt adjustment / stocktake.
+
+---
+
+## 10. Vòng R3 — biến phần "chờ người ký" thành ràng buộc chạy được
+
+Vòng R2 đóng 76/100 với bề mặt code đã sạch. Năm mục còn lại **không phải lỗi code**: chúng là
+phần governance mà tài liệu có mô tả nhưng repo không có chỗ nào ghi lại được, nên không ai kiểm
+chứng được là đã làm hay chưa. R3 tạo đúng bốn chỗ ghi đó, cộng một lệnh cho QA.
+
+| Register R3 | Thiếu ở R2 | Artifact R3 | Gate |
+|---|---|---|---|
+| `DEV236-P1-01R3` | Không có nơi ghi Decision/version/hash/effective date, và không có chỗ để PM/PO chấp nhận **limitation** | `docs/decision-records/DISP-STK-236-APPROVAL.json` | check `APPROVAL-RECORD` + `--require-signoff` |
+| `DEV236-P1-02R3` | Register nói "AC hết hiệu lực" nhưng không liệt AC nào bị gỡ và nguồn thay thế là gì | `parent_rebaseline` trong `docs/evidence/WWHN-236/SOURCE_REGISTER.json` | check `PARENT-REBASELINE` |
+| `DEV236-P1-03R3` | Chuỗi ticket nằm trong bảng markdown, máy không đọc được, QA task có thể bị để `Blocked` | `docs/evidence/WWHN-236/CHAIN_DISPOSITION.json` | check `CHAIN-DISPOSITION` |
+| `DEV236-P1-04R3` | Register pin `head_sha` của một working tree `DIRTY`, không phải commit chứa guard | `candidate_identity[].candidate_sha` + `governed_files[]` (path + blob + commit) | check `CANDIDATE-PIN` |
+| `DEV236-P1-07R3` | QA phải tự ghép 4 lệnh và tự nhớ ghi env/PG version | `scripts/qa-wwhn236-exact-sha-gate.mjs` → `docs/evidence/WWHN-236/logs/qa-rerun-<sha>.log` | check `QA-RERUN` |
+
+### 10.1 Bản ghi phê duyệt — vì sao là JSON chứ không phải một dòng trong tài liệu
+
+Một dòng "đã được duyệt" viết trong markdown không nói được *ai* duyệt, *bản nào*, *ngày nào*, và
+không chặn được việc chính DEV tự viết dòng đó. `DISP-STK-236-APPROVAL.json` tách bạch:
+
+- `decision`, `dispositionVersion`, `dispositionSha256` (đo lại mỗi lần chạy builder, không chép tay),
+  `effectiveDate`;
+- `signOff` sáu vai trò, mỗi vai trò có `decision` / `date` / `commentUrl` trỏ tới comment **do chính
+  approver viết** trên Jira;
+- verifier **cấm** trạng thái `APPROVED` khi còn thiếu chữ ký, thiếu effective date hoặc chưa pin SHA.
+  DEV không thể tự flip trạng thái này, kể cả bằng cách sửa file: check `APPROVAL-RECORD` sẽ đỏ.
+
+Ghi chữ ký bằng lệnh, không sửa tay:
+
+```bash
+node scripts/build-wwhn236-source-register.mjs --record-signoff role=pmPo decision=APPROVED date=2026-08-19 url=<jira-comment-url>
+```
+
+### 10.2 `LIM-STK-236-01` — giới hạn mà PM/PO phải chấp nhận tường minh
+
+Đây là nội dung thực chất của `DEV236-P1-01R3`, không phải thủ tục. Phát biểu chính xác:
+
+> Khi tồn sổ lệch tồn thực vì nguyên nhân **không gắn với một chứng từ sai** — mất, hỏng, trộm, đếm
+> sai lúc nhận, hao hụt — hệ thống chỉ **ghi nhận** sự lệch. Không có đường đưa số tồn về khớp thực tế.
+
+Cụ thể ở MVP v1.12:
+
+| Hệ thống làm được | Hệ thống **không** làm được |
+|---|---|
+| `php artisan inventory:reconcile` (cron) ghi `reconciliation_incidents` cho divergence mới | Không có API/màn hình resolve hay đóng `reconciliation_incidents` — bảng chỉ được lệnh cron ghi |
+| `GET /api/v1/reports/inventory-reconciliation` báo cáo on-demand (không lưu vết) | Không có đường ghi tồn thứ hai: `chk_stock_movement_type_current` từ chối `ADJUST_IN`/`ADJUST_OUT` |
+| `GET /api/v1/reports/inventory-balance` trả `reconciliation_status=MISMATCH` | Reversal chỉ đảo được chứng từ **đã tồn tại**; không có chứng từ gốc thì không có gì để đảo |
+
+Hệ quả vận hành: SRS dòng 510 — divergence tạo `Reconciliation_Incident` và **block readiness/sign-off**,
+chỉ được resolve bằng audited reversal theo `WWHN-26`. Nghĩa là một lệch vật lý không có chứng từ gốc
+sẽ **treo readiness** cho tới khi có CR mở lại Apply Adjustment, hoặc tới khi nghiệp vụ chấp nhận xử lý
+ngoài hệ thống (biên bản giấy) và ghi lý do vào incident. Đây là chi phí có chủ đích của `REQ-SRS-037`,
+và là điều PM/PO ký chấp nhận chứ không phải điều DEV tự quyết.
+
+### 10.3 Candidate pin — vì sao không pin HEAD
+
+`m1` có nhiều phiên làm việc song song. Pin `head_sha` như bản R2 nghĩa là pin một commit của người
+khác, và pin đó sai ngay hôm sau. R3 pin **commit cuối cùng chạm vào artifact do WWHN-236 sở hữu**,
+bỏ qua các file tự chứa hash (`SOURCE_REGISTER.json`, `SHA256SUMS`, `CONTRACT_NEGATIVE_LOCK.json`,
+`DISP-STK-236-APPROVAL.json`) vì chúng không thể tự tham chiếu, và bỏ qua file dùng chung với nhánh
+khác (`docs/contracts/HoaNam_Current_Baseline_Contract.json` — nhánh `WWHN-233` cũng ghi vào đó) vì
+pin blob của file dùng chung sẽ đỏ oan khi nhánh kia commit; file đó được kiểm theo **nội dung nghiệp
+vụ** ở check `BASELINE-FRAGMENTS` thay vì theo blob.
+
+Vì dự án đi thẳng `m1`, không có PR: `pull_request` ghi `N/A — direct-to-m1` tường minh, và Tech Lead
+review đúng diff bằng lệnh ở `tech_lead_review.diff_command`. Tập file chính xác không nằm trong lời
+văn mà ở `candidate_identity[].governed_files[]` — mỗi dòng đối chiếu được bằng
+`git rev-parse <sha>:<path>`.
+
+### 10.4 Một lệnh cho QA
+
+```bash
+node scripts/qa-wwhn236-exact-sha-gate.mjs            # trên checkout hiện tại
+node scripts/qa-wwhn236-exact-sha-gate.mjs --strict-head   # khi QA checkout sạch đúng SHA
+```
+
+Lệnh ghi sẵn OS / Node / PHP / PostgreSQL / branch / HEAD / candidate SHA, đối chiếu blob của từng
+governed file với SHA đã pin, rồi chạy verifier BE + phpunit + verifier FE và kết luận `PASS`/`FAIL`.
+Raw log nằm ở `docs/evidence/WWHN-236/logs/qa-rerun-<sha>.log` để QA1 dán thẳng lên `WWHN-238`.
