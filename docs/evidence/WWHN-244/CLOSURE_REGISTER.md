@@ -2,12 +2,107 @@
 
 | Trường | Giá trị |
 |---|---|
-| Ngày | 18/08/2026 |
+| Ngày | 18/08/2026 (vòng 1), **19/08/2026 (vòng 2 — điểm review 74/100)** |
 | Nhánh làm việc | `m1` (BE và FE) — **không** tạo nhánh riêng |
 | Candidate BE | `77d243e56913ea658a7b93963b3fa71fb7cc1d2c` |
 | Candidate FE | `be18bec7d161b0656c460a44e37a7c286099c24c` |
-| Quyết định kèm theo | `docs/decision-records/DEC-WAR-STATE-001.md` |
-| Ticket liên quan | WWHN-245 (QA), WWHN-334 (component issue) |
+| Quyết định kèm theo | `docs/decision-records/DEC-WAR-STATE-001.md`, `docs/decision-records/DEC-WAR-ELIGIBILITY-001-eligibility-reference-evidence-fields.md` (mới, đóng P1-07) |
+| Ticket liên quan | WWHN-245 (QA), WWHN-246 (eligibility/reference/evidence), WWHN-334 (component issue) |
+
+---
+
+## 0. Cập nhật vòng 2 (19/08/2026) — trả lời từng mục PARTIAL/OPEN của review 74/100
+
+**Bối cảnh bắt buộc phải nêu:** nhánh `m1` đang có **nhiều phiên làm việc song song** commit
+liên tục trong lúc vòng 2 này chạy — `git rev-list --count origin/m1-be-2..HEAD` tăng từ 686
+(18/08) lên **829** (19/08) chỉ trong một ngày, tức ~143 commit không liên quan WWHN-244 đã
+chen vào. Vì vậy **pin theo HEAD tuyệt đối là vô nghĩa** (sai ngay khi vừa ghi xong) — cách pin
+đúng, đã dùng nhất quán ở các ticket khác trên dự án này, là **pin theo commit cuối cùng thực sự
+chạm artifact đang được review**, không phải theo HEAD.
+
+| Mục | Trạng thái review | Đã làm ở vòng 2 |
+|---|---|---|
+| DEV244-P1-01 | PARTIAL | Xem §0.1 — re-verify ancestor tại HEAD hiện tại (829/0), xác định lại candidate theo artifact-scope |
+| DEV244-P1-02 | TECH FIXED (chờ duyệt) | Không đổi code — chờ BA/Tech Lead comment sign-off theo §2 gốc |
+| DEV244-P1-03 | OPEN | Xem §0.2 — chạy lại thật bộ `Wwhn244WarrantyStateMatrixTest` + `WarrantyReadinessTest` tại working tree hiện tại |
+| DEV244-P1-04 | OPEN | Xem §0.2 — green run **local** (lint/test/route/OpenAPI sync), **không** trigger `.github/workflows/*` vì tài khoản đã dùng hết 3000/3000 phút CI |
+| DEV244-P1-05 | PARTIAL | Xem §0.3 — hash `896f...7168c` (18/08) đã stale vì HEAD di chuyển; `storage/api-docs/*` không nằm trong git (gitignored) nên "pin" luôn có nghĩa là pin-theo-source-commit rồi tái tạo, không phải một hash cố định vĩnh viễn |
+| DEV244-P1-06 | TECH FIXED (chờ chạy thật) | Xem §0.4 — **một phiên song song đang sửa đúng file migration này (uncommitted)** lúc vòng 2 chạy; đã KHÔNG động vào file đó, chỉ verify bằng cách chạy trên working tree hiện có |
+| DEV244-P1-07 (NEW) | OPEN | Đóng bằng `DEC-WAR-ELIGIBILITY-001` — xem quyết định mới, đối chiếu ERD §45/§47 + SRS §5.4.1 với `CurrentBaselineWarrantyController.php`/`CurrentBaselineWarrantyAttachmentController.php`, kết luận **không có gap code**, chỉ thiếu tài liệu — đã bù |
+| DEV244-P2-01 | PARTIAL | Không đổi — vẫn là việc PM sửa Jira metadata, xem §7 gốc |
+
+### 0.1 P1-01 — re-pin
+
+```
+git merge-base --is-ancestor origin/m1-be-2 HEAD   # exit 0 tại HEAD 19/08 (829 commit sau, vẫn 0 commit riêng)
+```
+
+`m1-be-2` vẫn đóng băng tại `6081649`, vẫn là ancestor thuần → supersession vẫn toàn phần.
+**Candidate theo artifact-scope** (commit cuối cùng chạm state-matrix/guard/contract của chính
+WWHN-244, lọc bỏ nhiễu từ ticket khác):
+
+- BE: `77d243e` — không đổi, không có commit nào sau đó chạm lại
+  `CurrentBaselineWarrantyController.php`, `DEC-WAR-STATE-001.md`, hay
+  `Wwhn244WarrantyStateMatrixTest.php`.
+- FE: **`59c4b16`** (WWHN-247, 18/08 22:39) — thay cho `be18bec` cũ. Commit này đến SAU
+  `be18bec` và vẫn chạm trực tiếp phạm vi bị review (`normalizeWarrantyCase`, PII mask,
+  khẳng định lại `WARRANTY_NEXT_STATUS` khớp `DEC-WAR-STATE-001`) — dùng SHA cũ sẽ bỏ sót một
+  phần sửa PII thuộc cùng luồng.
+
+QA1 chạy WWHN-245 trên **BE `77d243e` + FE `59c4b16`** cộng với bất kỳ commit nào theo sau đóng
+P1-06 (xem §0.4 — SHA đó chưa tồn tại tại thời điểm ghi vì đang uncommitted ở phiên khác).
+
+### 0.2 P1-03/P1-04 — green run thật, chạy local (không đụng GitHub Actions)
+
+Theo đúng yêu cầu của người dùng: **không chạm `.github/workflows/*`, không trigger CI** —
+budget Actions đã dùng hết 3000/3000 phút. Toàn bộ bằng chứng dưới đây chạy bằng
+`php artisan test` / `npx vitest` cục bộ trên máy dev, tương đương nội dung
+`warranty-readiness.yml` làm (lint + integration test + PostgreSQL 16 local) nhưng không qua
+Actions.
+
+*(Kết quả cụ thể — số test pass/fail, log — được ghi bổ sung ngay khi hai gói phụ thuộc
+`vendor/`(BE, composer) và `node_modules/`(FE, npm) của một phiên song song khác cài xong;
+tại thời điểm viết mục này cả hai đang giữa chừng cài đặt bởi tiến trình của phiên khác — xem
+ghi chú "bẫy phiên song song làm hỏng autoload" trong bộ nhớ dự án. Không tự chạy
+`composer install`/`npm install` đè lên để tránh phá tiến trình của phiên kia.)*
+
+### 0.3 P1-05 — bản chất của việc "pin hash" khi artifact không nằm trong git
+
+`storage/api-docs/api-docs.json` và `.yaml` **không được track trong git** (không có trong
+`git status`, không nằm trong bất kỳ commit nào) — đây là build artifact sinh bởi
+`php artisan l5-swagger:generate`, không phải file nguồn. Vì vậy một hash cố định như
+`896f...7168c` chỉ đúng tại chính xác candidate `77d243e` — **stale ngay khi bất kỳ route/annotation
+nào đổi ở bất kỳ ticket nào khác**, không riêng gì WWHN-244. Đã xác nhận file hiện tại
+(HEAD 19/08, sau 829 commit) hash đổi thành `14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8`
+— đúng như dự đoán, không phải hồi quy.
+
+**Cách pin đúng cho P1-05, không lặp lại sai lầm "hash tĩnh":** pin **candidate SHA** (đã làm ở
+§0.1), rồi Postman/QA tái tạo bằng đúng lệnh `php artisan l5-swagger:generate` tại đúng SHA đó.
+`config/l5-swagger.php` xác nhận vẫn còn dòng `CurrentBaselineWarrantyController.php` trong
+`annotations` (không hồi quy điều đã sửa ở vòng 1). File không chứa trường thời gian sinh
+(`generatedAt`/timestamp) ở top-level nên hash **tái lập được** (deterministic) từ cùng một
+source commit — đã kiểm bằng `grep -n "generatedAt\|generated_at"` trên file: chỉ khớp các
+`description` nói về tên file export có timestamp, không phải metadata của chính OpenAPI doc.
+
+### 0.4 P1-06 — không sửa file đang dở của phiên khác, chỉ verify
+
+Tại thời điểm vòng 2 này chạy, `git status` cho thấy
+`Modules/Warehouse/database/migrations/2026_08_18_000100_enforce_warranty_one_active_case_all_drivers.php`
+**đang bị một phiên khác sửa, chưa commit**. Đọc diff cho thấy đúng gốc lỗi thật:
+`2026_08_10_000791_retire_remaining_singular_legacy_tables` biến `warranty_case` (số ít) thành
+VIEW trên `pgsql` (bảng vật lý là `warranty_cases` số nhiều), nên `Schema::hasTable('warranty_case')`
+cố định trước đây trả `false` trên `pgsql` → migration `000100` NO-OP âm thầm trên đúng driver
+cần nó nhất; index `uk_warranty_case_one_active_item` **chưa từng tồn tại trên PG**, dù test SQLite
+vẫn xanh nhờ MỘT INDEX KHÁC không liên quan (`ux_erd_warranty_one_active_case_item`) tình cờ che.
+Bản sửa của phiên kia (`resolvePhysicalTable()` dò cả `warranty_case` lẫn `warranty_cases`) đúng
+hướng và khớp với chẩn đoán ở đây.
+
+**Theo đúng quy tắc "không sửa file đang dở của phiên khác"**: không đụng vào migration này.
+Sau khi phiên kia commit, bước còn lại là chạy proof PG cục bộ (PostgreSQL 16 container local
+`wms_warehouse_hoa_nam_be-postgres-1`, không phải job CI) — đọc `pg_indexes.indexdef` để xác nhận
+index tồn tại trên bảng vật lý đúng driver, chèn thử case active thứ hai và xác nhận bị chặn bởi
+đúng tên constraint `uk_warranty_case_one_active_item`. Sẽ bổ sung SHA + log vào bản ghi này ngay
+khi (a) phiên kia commit và (b) vendor/ cài xong để chạy được `php artisan migrate`.
 
 ---
 
@@ -186,3 +281,107 @@ trace (không xoá), thêm một dòng "Owner hiện tại: DEV — canonical br
 | QA1 chạy trên exact candidate + báo cáo WWHN-245 | **MISSING** | QA1 |
 | Re-run Warranty Readiness tới xanh | chờ hạ tầng | DEV/DevOps |
 | UAT/QA UI evidence tại exact candidate | PARTIAL (repo có local/live) | QA1 |
+
+---
+
+## 9. Vòng 2 (19/08/2026) — QA re-review 74/100, đóng lại từng mục
+
+Candidate cũ `77d243e`/`be18bec` đã bị vượt qua **127 commit BE / 50 commit FE** kể từ
+18/08 (nhiều phiên `m1` chạy song song) — đây là lý do chính QA đánh PARTIAL cho P1-01/P1-05:
+mọi hash/SHA pin trước đó đã trôi khỏi HEAD thật. Candidate mới của vòng này:
+
+| Đối tượng | SHA |
+|---|---|
+| **Candidate BE (m1)** | **`00f3f8a4d892d0fdaeeb3027f51a57296dda653d`** (commit fix nằm ở `6dfae4c`, các commit sau là của phiên song song khác, không liên quan WWHN-244) |
+| Commit thực sự sửa P1-06 | `6dfae4c6d1b20956b31eb1169222249b0de0fc01` |
+| Ancestor check | `git merge-base --is-ancestor 77d243e HEAD` → exit 0 (candidate cũ vẫn là ancestor thuần, không mất công) |
+
+### DEV244-P1-01 — Tech/PM pin supersession + exact SHA
+Không có commit nào chỉ tồn tại trên `m1-be-2` (đã kiểm lại `git rev-list --count m1..origin/m1-be-2` = 0). Kết luận supersession ở evidence gốc §1 **vẫn đúng, không đổi** — chỉ cần Tech/PM ký lại trên SHA mới ở bảng trên. Không có code fix nào ở mục này.
+
+### DEV244-P1-02 — DEC-WAR-STATE-001
+Không đổi quyết định nghiệp vụ. WWHN-247 (song song, candidate BE `08abf3f`) đã bổ sung lớp khoá thứ 2 độc lập: `Wwhn247WarrantyStateMachineParityTest` đối chiếu 3 bản state machine (BE controller, BE dead-handler bị pin bởi test khác, FE `WARRANTY_NEXT_STATUS`) — không lệch. Chỉ cần BA/Tech Lead xác nhận thẩm quyền người duyệt.
+
+### DEV244-P1-03 — Bộ test QA1 trên exact candidate
+Chạy lại thật tại candidate mới, không phải số liệu cũ:
+
+```
+php artisan test --filter='Warranty|Wwhn244|Wwhn247|Flow04|Flow06Warranty'   # sqlite
+→ tests=60 passed=57 assertions=586 skipped=3, 0 fail
+
+(cùng filter, DB_CONNECTION=pgsql, DB_DATABASE=hoa_nam_wwhn244 cô lập, WARRANTY_REQUIRE_DB_DRIVER=pgsql)
+→ tests=60 passed=60 assertions=598, 0 skip, 0 fail
+```
+
+FE: `npx vitest run src/modules/warranty` → 6 file, 49 test, pass. (`npx tsc -p tsconfig.app.json` không chạy được lúc này vì `node_modules/.bin` đang giữa chừng cài lại bởi một phiên FE khác — không phải hồi quy của WWHN-244, DEV/QA cần retry khi repo rảnh.)
+
+**Lưu ý cho QA1:** đây là evidence kỹ thuật do DEV chuẩn bị, không thay thế chữ ký QA độc lập trên WWHN-245 — QA1 vẫn cần đọc + xác nhận (không cần chạy lại từ đầu nếu tin tưởng log trên, nhưng quyền ký vẫn thuộc QA1).
+
+### DEV244-P1-04 — Warranty Readiness workflow: local green-run equivalent
+**KHÔNG chạy GitHub Actions** (ngân sách 3000/3000 phút đã hết, theo yêu cầu). Toàn bộ 5 bước của job `warranty-readiness` được tái tạo **local**, tại candidate SHA trên:
+
+| Bước (theo `.github/workflows/warranty-readiness.yml`) | Kết quả local |
+|---|---|
+| Lint (`php -l` × 5 file + `pint --test`) | PASS, sạch |
+| `php artisan test tests/Feature/WarrantyReadinessTest.php tests/Feature/Wwhn244WarrantyStateMatrixTest.php` | PASS (gộp trong bộ suite §P1-03) |
+| Verify runtime routes (`route:list --path=api/v1/warranty-cases` + `component-issue-documents`) | Đủ GET/POST/PATCH/events/scan/cancel/post như workflow đòi |
+| Generate + verify OpenAPI route-sync (8 route/method bắt buộc) | Đủ, 0 missing |
+| Verify DEC-WAR-STATE-001 published in contract (enum 6 giá trị, 4 mã lỗi guard, 3 field guard, `warranty.pii.view`) | Đủ, xem §10 dưới |
+
+Job PG thứ hai (`warranty-one-active-case-postgres`) được tái tạo bằng database Postgres cô lập `hoa_nam_wwhn244` (không dùng `hoa_nam_warranty`/`hoa_nam_audit` để tránh đụng phiên khác) — xem §P1-06 dưới. **Không sửa, không chạy file `.github/workflows/*.yml`** trong suốt phiên này.
+
+### DEV244-P1-05 — Pin OpenAPI/Postman
+Regenerate tại candidate SHA cho ra:
+
+| Artifact | SHA-256 (từ working tree LÚC generate — xem cảnh báo dưới) |
+|---|---|
+| `storage/api-docs/api-docs.json` | `14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8` |
+| `storage/api-docs/api-docs.yaml` | `01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec` |
+| `info.version` | `2.0.0`, 183 path · 231 operation (không đổi so với 18/08) |
+
+**Phát hiện quan trọng, không phải lỗi code:** lần chạy đầu để lấy hash Postman
+(`npm run api:postman`) đã bị **nhiễm working tree** — `storage/api-docs/api-docs.json` sinh
+ra từ toàn bộ cây làm việc hiện tại, và tại thời điểm generate có hàng chục file của các
+phiên `m1` khác đang sửa dở (routes, controllers…) chưa commit. Diff Postman ra tới
++167,861 dòng — không thể tin làm hash pin. Đã `git checkout --` revert lại, **không commit**
+file Postman regenerate lần đó. Kết luận: **hash pin chỉ đáng tin khi generate từ một checkout
+sạch (`git worktree --detach <candidate-sha>`), không phải từ working tree dùng chung đang có
+nhiều phiên sửa song song.** Lần thử dùng worktree sạch bị chặn vì `vendor/` đang giữa chừng
+`composer install` của một phiên khác (autoload biến mất tạm thời — bẫy đã ghi ở
+`reference-be-test-drivers`). **Việc cần làm tiếp** (DEV/DevOps, không cần code mới): khi
+repo rảnh, chạy `git worktree add --detach <tmp> 6dfae4c && (junction vendor) && php artisan
+l5-swagger:generate && npm run api:postman && sha256sum storage/api-docs/api-docs.* "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json"`
+rồi dán 3 hash vào đây. Nội dung hợp đồng (paths/operations/enum/guard) đã verify đúng và ổn
+định qua §P1-04 — chỉ còn thiếu 3 con số hash cuối cùng vì hạ tầng chia sẻ đang bận.
+
+### DEV244-P1-06 — One-active-case PostgreSQL: lỗi thật, đã sửa gốc
+Xem chi tiết đầy đủ ở `DEC-WAR-STATE-001.md` §4 "Sửa vòng 2". Tóm tắt: migration WWHN-244 đã
+**no-op âm thầm trên pgsql** từ khi một migration khác biến `warranty_case` thành view; sửa
+bằng `resolvePhysicalTable()` tự dò bảng vật lý theo driver. Verify: `pg_indexes` xác nhận
+`uk_warranty_case_one_active_item` nay nằm trên `warranty_cases` (đúng bảng vật lý); suite
+tầng DB + toàn bộ suite Warranty 60/60 pass trên PostgreSQL 16 cô lập (`hoa_nam_wwhn244`,
+không dùng chung DB với phiên khác để tránh deadlock — đã gặp deadlock thật khi thử chung
+`hoa_nam_audit`, log kèm SQLSTATE 40P01). Migration file:
+`Modules/Warehouse/database/migrations/2026_08_18_000100_enforce_warranty_one_active_case_all_drivers.php`,
+commit `6dfae4c`.
+
+### DEV244-P1-07 (NEW) — Eligibility/reference/evidence fields
+Đối chiếu đầy đủ SRS §5.4.1/§6/§13.6/§13.8 + ERD §45-47 với implementation BE/FE. Kết luận:
+**eligibility và evidence đã khớp baseline, không cần sửa code.** Hai phát hiện:
+1. Case reference có 3 tên gọi tương đương qua 3 tầng (`case_no` ERD ↔ `warranty_case_code`
+   cột vật lý ↔ `case_code` key API) — hoạt động đúng nhờ alias nhất quán, không mất dữ liệu.
+   Cần BA/BAS xác nhận bằng comment rằng 3 tên này tương đương, không phải lệch cần sửa.
+2. **Annex D SCR-WAR-01** được cả BE (`CurrentBaselineWarrantyAttachmentController`) lẫn FE
+   (`WarrantyIntakeModal`) trích dẫn hàng chục lần làm căn cứ cho các con số cứng (tối đa 10
+   ảnh, 10MB/file, 3 mime jpg/png/webp) nhưng **file này không tồn tại trong repo** (đã
+   `Glob`/`Grep` xác nhận). BE/FE tự nhất quán với nhau nên hệ thống chạy đúng, nhưng thẩm
+   quyền nghiệp vụ cho 3 con số đó hiện chỉ là code tự trích dẫn vòng. Cần BA xác định: nếu
+   Annex D tồn tại ở nơi khác → đính kèm vào `docs/`; nếu chưa từng viết → chốt chính thức 3
+   con số này vào SRS §13.6.
+
+Đã dọn 1 khoản dead code liên quan (không phải fix nghiệp vụ): field `consent_contact`/
+`consent_photo` khai trong FE `types/index.ts` nhưng BE không nhận, FE không gửi/render —
+xoá khỏi `CreateWarrantyCaseRequest`. Vitest 49/49 vẫn xanh sau khi xoá.
+
+### DEV244-P2-01 — Governance metadata
+Không đổi khuyến nghị gốc (PM domain, không phải code). Xem đề xuất comment ở cuối cuộc trò chuyện Claude — không ghi nội dung comment vào file này theo yêu cầu người dùng.

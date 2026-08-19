@@ -88,6 +88,37 @@ trợ partial index từ 3.8.0). Trước đó index chỉ tồn tại trong nh�
 Điều kiện "active" chốt theo ERD: `item_id IS NOT NULL AND status NOT IN ('RETURNED','CANCELLED')`.
 Bản này **không** đổi định nghĩa active — `COMPLETED` vẫn là active (máy còn ở kho, chưa trả khách).
 
+**Sửa vòng 2 (19/08/2026, DEV244-P1-06 re-verify).** Giữa 18/08 và 19/08,
+`2026_08_10_000791_retire_remaining_singular_legacy_tables.php` được mở rộng thêm
+`warranty_case`/`warranty_event` vào danh sách "số ít → view, số nhiều → bảng vật lý" trên
+pgsql (bảng vật lý pgsql thật sự là `warranty_cases`, `warranty_case` chỉ còn là view có
+`INSTEAD OF` trigger). Vì migration `000791` chạy **trước** `000100` theo thứ tự timestamp,
+`Schema::hasTable('warranty_case')` trong `000100` bắt đầu trả về `false` trên pgsql (đúng —
+đó là view) và migration WWHN-244 **no-op âm thầm trên pgsql** từ thời điểm đó: index
+`uk_warranty_case_one_active_item` không hề tồn tại trên production Postgres. Test tầng DB
+vẫn xanh chỉ vì một index **khác, không liên quan tới WWHN-244**
+(`ux_erd_warranty_one_active_case_item`, sinh từ `2026_08_10_000770_enforce_erd_1_0_keys_
+relationships_and_constraints.php`) tình cờ enforce cùng bất biến trên bảng vật lý
+`warranty_cases`. Đây là **false-positive test**: nó xanh nhưng không chứng minh điều nó
+tuyên bố.
+
+Sửa bằng cách tự dò bảng vật lý theo driver (`resolvePhysicalTable()`: thử `warranty_case`
+rồi `warranty_cases`, dùng `Schema::hasTable()` — luôn loại trừ view) thay vì cố định tên số
+ít. Đã verify lại bằng `pg_indexes` (index nay nằm đúng trên `warranty_cases`) và bằng suite
+`Wwhn244WarrantyStateMatrixTest`/`WarrantyReadinessTest` trên PostgreSQL 16 cô lập (database
+riêng `hoa_nam_wwhn244`, không dùng chung `hoa_nam_audit` để tránh deadlock với phiên khác):
+60/60 pass, 0 fail. Trên SQLite không đổi hành vi (ở đó `warranty_case` số ít luôn là bảng
+vật lý, không bị ảnh hưởng bởi `000791`).
+
+Rủi ro còn lại (không tự đóng ở đây, không đụng CI theo yêu cầu hiện tại): job
+`warranty-one-active-case-postgres` trong `.github/workflows/warranty-readiness.yml` bước
+"Prove the partial unique index exists" hard-code `tablename='warranty_case'` khi query
+`pg_indexes` — với schema hiện tại điều kiện này **sẽ luôn rỗng** vì bảng vật lý thật là
+`warranty_cases`. Job này sẽ fail nếu ai chạy cho tới khi 2 dòng `tablename=`/câu SQL trong
+workflow được sửa theo tên bảng vật lý đúng. Không sửa trong phiên này vì ngân sách GitHub
+Actions đã hết — DEV/DevOps cần một phiên riêng khi có ngân sách để chỉnh 2 dòng đó (không
+phải sửa code nghiệp vụ).
+
 ## 5. Công bố contract (DEV244-P1-05)
 
 `transitionWarrantyStatus` nay được annotate trực tiếp trên
