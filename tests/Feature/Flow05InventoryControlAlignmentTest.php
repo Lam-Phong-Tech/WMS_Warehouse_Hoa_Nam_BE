@@ -27,7 +27,8 @@ use Tests\TestCase;
  *
  * - §8.1 Enforcement standard + NFR-SRS-005: alias canonical phải chịu cùng data scope.
  * - REQ-SRS-030 / BR-TRACE-01..06: trace theo SKU/item/carton/box/tray/code.
- * - REQ-SRS-037 / DEC-NO-STOCKTAKE-001: zero Stocktake ở mọi lớp.
+ * - REQ-SRS-037 (Must; nhãn DEC-NO-STOCKTAKE-001 CHƯA có formal approval, Decision
+ *   Record WWHN-25 vẫn pending): zero Stocktake ở mọi lớp.
  * - REQ-SRS-013 / BR-REV-03..05: dependency guard + reversible_qty.
  * - §7.5: số đếm subledger phải khớp danh sách drill-down.
  */
@@ -155,7 +156,7 @@ class Flow05InventoryControlAlignmentTest extends TestCase
         }
     }
 
-    // ── REQ-SRS-037 / DEC-NO-STOCKTAKE-001 ────────────────────────────────────
+    // ── REQ-SRS-037 (nhãn DEC-NO-STOCKTAKE-001 CHƯA có formal approval) ───────
 
     public function test_no_stocktake_capability_remains_in_route_openapi_permission_or_schema(): void
     {

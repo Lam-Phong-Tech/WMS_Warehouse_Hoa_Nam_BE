@@ -212,7 +212,9 @@ class WmsContractController extends Controller
         ]);
     }
 
-    // REQ-SRS-037 / DEC-NO-STOCKTAKE-001: không expose Stocktake/Variance ở bất kỳ
+    // REQ-SRS-037 (Must, SRS/FRD v1.12 adopt tại WWHN-334; nhãn DEC-NO-STOCKTAKE-001
+    // CHƯA có formal approval — Decision Record WWHN-25 vẫn pending, nên không trích
+    // như Decision ID standalone đã duyệt): không expose Stocktake/Variance ở bất kỳ
     // lớp nào, kể cả OpenAPI document. Handler + OA path đã được gỡ khỏi baseline.
 
     #[OA\Get(
