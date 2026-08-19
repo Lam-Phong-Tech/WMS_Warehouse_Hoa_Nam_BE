@@ -610,8 +610,24 @@ const walkFiles = (relDir, predicate) => {
       }
     }
 
-    const failed = rows.filter((r) => r.status === "FAIL");
+    /**
+     * `N7` **là chính gate này**. Khẳng định "N7 không được FAIL" ngay bên trong N7 là một
+     * vòng tự tham chiếu: một lần đỏ được ghi vào ma trận sẽ khiến gate đỏ vĩnh viễn, kể cả
+     * sau khi nguyên nhân gốc đã sửa. Trạng thái thật của N7 là **exit code của chính lần
+     * chạy này**, nên nó bị loại khỏi mệnh đề dưới đây; mọi ràng buộc còn lại (có mặt, có
+     * driver, có raw log không rỗng) vẫn áp cho N7 như mọi dòng khác.
+     */
+    const SELF_ROW = "N7";
+    const failed = rows.filter((r) => r.status === "FAIL" && r.id !== SELF_ROW);
     if (failed.length > 0) problems.push(`còn dòng FAIL: ${failed.map((r) => r.id).join(", ")}`);
+    const selfRow = byId.get(SELF_ROW);
+    if (selfRow) {
+      warn(
+        "QA-MATRIX",
+        `${SELF_ROW} là chính gate này — trạng thái ghi trong ma trận (${selfRow.status}) là của lần chạy trước; ` +
+          "kết quả có hiệu lực là exit code của lần chạy hiện tại.",
+      );
+    }
 
     // Ma trận phải chạy trên đúng cặp đã pin, không phải một HEAD nào khác.
     const pinnedRaw = readIfExists(PAIR_RELATIVE_PATH);
