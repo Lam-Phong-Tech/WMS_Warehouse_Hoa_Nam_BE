@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Support\Migration\FinalDataLoadService;
+use App\Support\Migration\ImportPackage;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -10,6 +13,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Agency;
 use Modules\Warehouse\Models\Sku;
+use ReflectionMethod;
 use Tests\TestCase;
 
 /**
@@ -204,6 +208,120 @@ class MigrationFinalDataLoadTest extends TestCase
         $this->assertSame(1, DB::table('migration_runs')->where('mode', 'COMMIT')->count());
         $this->assertSame(2, DB::table('stock_movements')->where('movement_type', 'OPENING')->count());
         $this->assertSame(3, (int) DB::table('inventory_balances')->where('stock_status', 'AVAILABLE')->sum('on_hand_qty'));
+    }
+
+    /**
+     * WWHN-234/235 G-02 (`TC-P1-039`, SRS §13.3 MIGRATION_COMMIT × CONCURRENCY):
+     * "Two parallel requests on same ... session scope → one 200; other
+     * 409/412/422 ... Tối đa một request commit; request thua trả lỗi rõ ràng;
+     * request thua không đổi state/stock/movement."
+     *
+     * `commit()` (app/Support/Migration/FinalDataLoadService.php) tự bảo vệ bằng
+     * `findRun($runCode, 'COMMIT')` (SELECT, không khoá) TRƯỚC KHI `startRun()`
+     * (INSERT) — đây là cửa sổ TOCTOU thật: nếu hai request chạm `findRun()` gần
+     * như cùng lúc, CẢ HAI đều thấy null và cả hai đều tiến tới `startRun()`.
+     * Không thể tái tạo thời điểm "cùng lúc" thật bằng một tiến trình PHP đơn
+     * luồng (driver test mặc định là sqlite `:memory:`, mỗi tiến trình một DB
+     * riêng nên không dùng được hạ tầng đa tiến trình kiểu
+     * Wwhn219RuntimeConcurrencyTest — xem docblock lớp đó). Test này gọi thẳng
+     * `startRun()` (private, qua Reflection — cùng kỹ thuật với
+     * Wwhn266IfMatchContractTruthTest) hai lần liên tiếp cho CÙNG run_code để
+     * dựng đúng cái mà race đó tạo ra ở tầng DB: hai INSERT cạnh tranh trên cùng
+     * `migration_run_code`. Đây là code SẢN XUẤT thật (không phải SQL viết tay
+     * mô phỏng lại), nên nó chứng minh đúng cơ chế chặn thật sự tồn tại: chỉ
+     * mục UNIQUE `migration_runs.migration_run_code` (migration
+     * 2026_08_09_000400_align_latest_erd_baseline.php dòng 360).
+     */
+    public function test_g02_two_commits_racing_on_the_same_run_code_before_either_row_exists_allow_only_one_winner(): void
+    {
+        $this->dryRun('CUTOVER-RACE-INSERT');
+        $package = ImportPackage::load($this->packagePath);
+        $service = app(FinalDataLoadService::class);
+
+        $this->assertTrue(
+            DB::table('migration_runs')->where('migration_run_code', 'CUTOVER-RACE-INSERT#COMMIT')->doesntExist(),
+            'Tiền đề của race: chưa racer nào insert run COMMIT — cả hai findRun() đều phải thấy null.'
+        );
+
+        $reflection = new ReflectionMethod(FinalDataLoadService::class, 'startRun');
+        $reflection->setAccessible(true);
+
+        // Racer A: findRun() của nó đã thấy null (đúng tiền đề ở trên) và tiến
+        // tới startRun() trước.
+        $winnerRunId = $reflection->invoke(
+            $service, 'CUTOVER-RACE-INSERT', 'COMMIT', $package, 'cutover-operator', null, 'data-owner'
+        );
+        $this->assertIsString($winnerRunId);
+
+        // Racer B: findRun() của NÓ cũng chạy trong đúng cửa sổ đó (trước khi
+        // insert của A kịp hiện diện) nên cũng thấy null và cũng tiến tới
+        // startRun() — đúng cái một race thật sẽ tạo ra. Phải bị DB chặn.
+        $threw = false;
+        try {
+            $reflection->invoke(
+                $service, 'CUTOVER-RACE-INSERT', 'COMMIT', $package, 'cutover-operator', null, 'data-owner'
+            );
+        } catch (QueryException $exception) {
+            $threw = true;
+        }
+        $this->assertTrue($threw, 'Racer thua phải bị chặn bằng lỗi UNIQUE constraint của migration_run_code, không được insert thành công lần hai.');
+
+        $this->assertSame(
+            1,
+            DB::table('migration_runs')->where('migration_run_code', 'CUTOVER-RACE-INSERT#COMMIT')->count(),
+            'Tối đa một run COMMIT cho cùng run_code — đúng "one 200; other 409/412/422" của TC-P1-039.'
+        );
+        // startRun() của racer thua ném exception TRƯỚC writeMasters()/writeOpeningBalance()
+        // (những bước đó chỉ chạy sau khi commit() có được $run id) — nên nó
+        // không thể đã ghi bất kỳ movement/balance nào.
+        $this->assertSame(0, DB::table('stock_movements')->count(), 'Request thua không được ghi movement.');
+        $this->assertSame(0, DB::table('inventory_balances')->count(), 'Request thua không được đổi tồn.');
+    }
+
+    /**
+     * WWHN-234/235 G-02 phần bù — nhánh còn lại của cùng race: racer B tới NGAY
+     * SAU khi racer A đã insert xong migration_runs (RUNNING) nhưng transaction
+     * ghi tồn của A CHƯA chạy (`writeMasters`/`writeOpeningBalance` nằm sau
+     * `startRun()` trong `commit()`). Đây là nhánh mà `findRun()` của B THẤY được
+     * row RUNNING của A — code sản xuất đã có sẵn guard sạch cho ca này
+     * (`replayGuard()` → `RUN_IN_PROGRESS`), khác nhánh test phía trên (B không
+     * thấy gì, phải rơi xuống UNIQUE constraint). Cả hai nhánh cộng lại mới phủ
+     * hết "hai request chạm cùng run_code, timing khác nhau" của TC-P1-039.
+     */
+    public function test_g02_second_commit_arriving_while_the_first_is_still_running_is_blocked_without_writing_stock(): void
+    {
+        $this->dryRun('CUTOVER-RACE-INFLIGHT');
+        $package = ImportPackage::load($this->packagePath);
+        $service = app(FinalDataLoadService::class);
+
+        $reflection = new ReflectionMethod(FinalDataLoadService::class, 'startRun');
+        $reflection->setAccessible(true);
+        // Racer A: đã qua findRun()/startRun() (row RUNNING tồn tại) nhưng chưa
+        // chạy tới DB::transaction() ghi movement/balance của chính commit().
+        $reflection->invoke(
+            $service, 'CUTOVER-RACE-INFLIGHT', 'COMMIT', $package, 'cutover-operator', null, 'data-owner'
+        );
+
+        $this->assertDatabaseHas('migration_runs', [
+            'migration_run_code' => 'CUTOVER-RACE-INFLIGHT#COMMIT',
+            'status' => 'RUNNING',
+        ]);
+
+        // Racer B: tới ngay sau, cùng run_code, qua đúng đường console command thật.
+        $this->commit('CUTOVER-RACE-INFLIGHT')->assertExitCode(1);
+
+        $this->assertSame(
+            1,
+            DB::table('migration_runs')->where('migration_run_code', 'CUTOVER-RACE-INFLIGHT#COMMIT')->count(),
+            'Racer thua không được tạo thêm run COMMIT nào.'
+        );
+        $this->assertSame(
+            'RUNNING',
+            DB::table('migration_runs')->where('migration_run_code', 'CUTOVER-RACE-INFLIGHT#COMMIT')->value('status'),
+            'State của racer A không được racer B đổi.'
+        );
+        $this->assertSame(0, DB::table('stock_movements')->count(), 'Racer thua không được ghi movement.');
+        $this->assertSame(0, DB::table('inventory_balances')->count(), 'Racer thua không được đổi tồn.');
     }
 
     public function test_changed_package_after_dry_run_blocks_commit(): void

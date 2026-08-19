@@ -135,11 +135,41 @@ class Wwhn289StockInvariantProofTest extends TestCase
         $this->assertSame(5, (int) $balance->quantity, 'Balance chỉ được cộng đúng 1 lần cho 3 retry.');
         $this->assertSame(5, (int) $balance->available_qty);
 
+        // QA1_HANDOFF_WWHN-235.md §2.4 Query #4: bất biến "mỗi (operation,
+        // idempotency_key) chỉ có đúng MỘT posting_event thành công" — trước đây
+        // không có test nào assert trực tiếp câu này (chỉ suy diễn gián tiếp từ số
+        // movement). uk_posting_event_operation_idem (migration
+        // 2026_01_01_000044_create_hoanam_erd_extension_tables.php) là hàng rào ở
+        // tầng schema; test này khoá lại đúng câu SQL của QA1 để chứng minh
+        // recordPostingEvent() (CurrentBaselineStockService) thật sự chỉ chạy một
+        // lần cho 3 lần retry cùng key, không dựa vào việc DB đơn thuần không cho
+        // insert trùng.
+        $duplicatePostingEvents = DB::table('posting_event')
+            ->select('operation', 'idempotency_key')
+            ->selectRaw('COUNT(*) as cnt')
+            ->groupBy('operation', 'idempotency_key')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+        $this->assertCount(
+            0,
+            $duplicatePostingEvents,
+            'Bất biến QA1 §2.4 Query #4 vi phạm: có (operation, idempotency_key) với nhiều hơn 1 posting_event.'
+        );
+        $this->assertSame(
+            1,
+            DB::table('posting_event')
+                ->where('operation', 'post_receipt_'.$fixture['document_id'])
+                ->where('idempotency_key', 'wwhn289-retry-key-001')
+                ->count(),
+            'Retry 3 lần cùng key/payload chỉ được sinh đúng 1 posting_event.'
+        );
+
         self::$evidence['retry'] = [
             'nfr' => 'NFR-SRS-001 / TC-NFR-001',
             'attempts' => $responses,
             'movement_count' => $movements->count(),
             'balance_quantity' => (int) $balance->quantity,
+            'posting_event_duplicate_groups' => $duplicatePostingEvents->count(),
             'verdict' => 'PASS',
         ];
     }
