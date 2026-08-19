@@ -7,7 +7,7 @@
   `WWHN-261` (UAT/ops), `WWHN-262` (QA độc lập), `WWHN-263` (cleansing log), `WWHN-333` (package).
 - Output: **Migration Pack** — `docs/output/BE-HN-MIG-001-migration-pack/` (v1.0).
 - Repo/branch: `WMS_Warehouse_Hoa_Nam_BE` + `WMS_Warehouse_Hoa_Nam_FE` @ `m1`. Không tạo nhánh riêng.
-- Ngày: 18/08/2026.
+- Ngày: 18/08/2026. Vòng đánh giá lại (register R2): 19/08/2026, 34/100 — xem §8.
 - Status: `IMPLEMENTED / EVIDENCE READY — PENDING SIGN-OFF`. BE không tự chuyển `Done`.
 
 ## 1. Đọc gì trước khi sửa
@@ -103,3 +103,29 @@ có `down()` thật).
 | 5 | Chạy UAT + backup/restore/rollback trước lần nạp cuối | DevOps (`WWHN-261`) |
 | 6 | Xác minh độc lập trên đúng SHA + checksum production | QA2 (`WWHN-262`) |
 | 7 | Điền cleansing log cho dòng bị loại | BAS / Data Owner (`WWHN-263`) |
+
+## 8. Vòng đánh giá register R2 (19/08/2026, 34/100)
+
+Register R2 lặp lại đúng 11 mục P1 (đổi tên `DEV260-P1-01R2`..`11R2`) + 2 mục P2 (`P2-01R2`,
+`P2-02R2` mới) của cùng ticket. Đối chiếu từng mục với trạng thái đã ghi ở §3:
+
+| Mục R2 | Tương ứng | Kết luận sau khi rà lại (19/08) |
+|---|---|---|
+| P1-01R2 | P1-01 | Nội dung không đổi, đã ĐÓNG từ 18/08. Điểm mới R2 nêu (pin SHA) xử lý ở P1-07R2 bên dưới. |
+| P1-02R2 | P1-02 | Không đổi — vẫn **chờ BAS/Data Owner ký** `DATA_MAPPING_v1.0.md`. Không phải việc code. |
+| P1-03R2 | P1-03 | Register tiếp tục nêu sai tên file (`ImportService.php`). Đã ghi rõ lại ở `07-source-and-build-disposition.md` §7.6 để không bị nhầm lần sau; nội dung kỹ thuật không đổi, vẫn ĐÓNG. |
+| P1-04R2 | P1-04 | Không đổi — bằng chứng là **diễn tập** (rehearsal), không phải production. Đúng phạm vi `WWHN-260`; lần nạp thật thuộc `WWHN-261`/`WWHN-298`. |
+| P1-05R2 | P1-05 | Không đổi, ĐÓNG. |
+| P1-06R2 | P1-06 | Không đổi, ĐÓNG. |
+| **P1-07R2** | P1-07 | **Có khoảng trống thật**: 3 commit chạm phạm vi pack sau `b90d5ef` (`4626ce6`, `ee9e334`, `cbe7058`) chưa từng được đối chiếu tường minh là có đổi code chức năng hay không. Đã đóng bằng no-drift accounting mới ở `07-source-and-build-disposition.md` §7.6 + evidence build local `docs/evidence/WWHN-260/13-local-test-run-20260819.json` (3 bộ test xanh, chạy 19/08 tại HEAD `6cfb642`). Kết luận: `implementation_sha` không đổi, vẫn `b90d5ef67c6577db166fdac00f1323741ccfd888`. |
+| P1-08R2 | P1-08 | Không đổi — vẫn **chờ PM/Tech Lead duyệt** `DEC-MIG-SRC-001` (trạng thái `PROPOSED`). Không phải việc code. |
+| P1-09R2 | P1-09 | Không đổi — runbook đã sẵn (`CUTOVER_BACKUP_RESTORE_ROLLBACK.md`), **chờ DevOps thực thi thật** trên môi trường UAT (`WWHN-261`). Không thực thi ở đây vì cần hạ tầng thật, ngoài phạm vi code local. |
+| P1-10R2 | P1-10 | Không đổi — công cụ `migration:verify-run` đã sẵn, **chờ QA2 chạy trên package production thật** (`WWHN-262`). |
+| P1-11R2 | P1-11 | Không đổi — mẫu cleansing log + 3 trạng thái kết thúc đã sẵn, **chờ Data Owner điền** khi có dòng bị loại thật (`WWHN-263`). |
+| P2-01R2 | P2-01 | Không đổi về nội dung — đây là sửa **field mô tả/assignee trên Jira**, không phải code; PM/BAS thao tác trực tiếp trên Jira. |
+| **P2-02R2** | — (mới) | Sprint field trên Jira ghi "W3 Beta Completion" nhưng Sprint Scope ghi "W4 UAT & GoLive 2". Đây là dữ liệu Jira, không có trong repo để đối chiếu; PM/Jira owner cần đồng bộ trực tiếp trên Jira (chọn field nào là nguồn đúng) hoặc ghi rõ field nào là authoritative. |
+
+**Tổng kết:** 1 khoảng trống thật thuộc vai trò DEV (`P1-07R2`) đã được sửa tận gốc trong vòng
+này. 9 mục còn lại của register R2 không phải lỗi code — là các sign-off/thao tác Jira đang chờ
+đúng vai trò (BAS/Data Owner, PM/Tech Lead, DevOps, QA2) thực hiện, đã có đủ tài liệu/công cụ để
+họ làm mà không cần chờ DEV thêm.

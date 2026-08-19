@@ -1,0 +1,39 @@
+{
+  "purpose": "Build gate evidence cho DEV260-P1-07R2 (register R2, 19/08/2026) — chứng minh implementation_sha=b90d5ef vẫn xanh sau 3 commit no-drift (4626ce6, ee9e334, cbe7058).",
+  "run_at": "2026-08-19",
+  "env": "local (KHÔNG phải GitHub Actions — CI tạm dừng theo yêu cầu chủ dự án để tránh phát sinh phí)",
+  "head_at_run_time": "6cfb642e7e78b46a012af54a47aac21420502443",
+  "driver": "sqlite (mặc định phpunit.xml, xem reference-be-test-drivers)",
+  "results": [
+    {
+      "filter": "Wwhn260MigrationPackClosureTest",
+      "tool": "phpunit",
+      "result": "passed",
+      "tests": 10,
+      "passed": 10,
+      "assertions": 54,
+      "duration_ms": 2647
+    },
+    {
+      "filter": "MigrationFinalDataLoadTest",
+      "tool": "phpunit",
+      "result": "passed",
+      "tests": 20,
+      "passed": 20,
+      "assertions": 120,
+      "duration_ms": 3979
+    },
+    {
+      "filter": "ErdPhysicalSchemaParityTest",
+      "tool": "phpunit",
+      "result": "passed",
+      "tests": 4,
+      "passed": 0,
+      "assertions": 0,
+      "duration_ms": 2678,
+      "skipped": 4,
+      "skip_reason": "Test chỉ có ý nghĩa trên driver pgsql (trigger đồng bộ product_masters + cột duplicate_rows chỉ được migration cài khi DB::getDriverName()=pgsql). Bằng chứng PostgreSQL thật nằm ở docs/evidence/WWHN-260/12-postgres-column-check.txt (cbe7058), không skip trên driver đó."
+    }
+  ],
+  "note": "Xem docs/output/BE-HN-MIG-001-migration-pack/07-source-and-build-disposition.md §7.6 để biết bảng no-drift đầy đủ."
+}
