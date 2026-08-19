@@ -1,15 +1,15 @@
 {
     "schema_version": "1.2.0",
-    "generated_at_utc": "2026-08-18T15:41:52+00:00",
+    "generated_at_utc": "2026-08-19T07:40:22+00:00",
     "approval_status": "PENDING_FE_BA_REVIEW",
     "source_hashes": {
         "permission_seed": {
             "path": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php",
-            "sha256": "a9688b0cf59760f8c3ab5137da20744e805ca623032f1ccde81470f3c41cdcc6"
+            "sha256": "dbf62d70df17e9e87b75d0ed639e6bf5f2c746887f876fdf25f2f6f6d628a3af"
         },
         "warehouse_routes": {
             "path": "Modules/Warehouse/routes/api.php",
-            "sha256": "4e4e56ed0fcddb0a12d265726e0895a11c09e8ae20199baaef78547f74168df0"
+            "sha256": "64d4a8a389d1733196b5e4110fe5b77be3c4ccb8f9a9cf480d80f57eacf18336"
         },
         "auth_routes": {
             "path": "Modules/Auth/routes/api.php",
@@ -829,6 +829,7 @@
                 "product.view",
                 "product_master.manage",
                 "product_master.view",
+                "pv.master.manage",
                 "pv.publish",
                 "report.export",
                 "report.view",
@@ -1188,7 +1189,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -1204,7 +1206,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -1220,7 +1223,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -1236,7 +1240,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -1268,7 +1273,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -4579,7 +4585,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -4595,7 +4602,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -4611,7 +4619,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -4627,7 +4636,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -4659,7 +4669,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.component_issue"
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         }
     ],
@@ -7179,7 +7190,8 @@
             ],
             "roles": [
                 "ADMIN",
-                "SUPER_ADMIN"
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
             ],
             "backend_enforced": true
         },
@@ -7194,7 +7206,8 @@
             ],
             "roles": [
                 "ADMIN",
-                "SUPER_ADMIN"
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
             ],
             "backend_enforced": true
         },
@@ -7209,7 +7222,8 @@
             ],
             "roles": [
                 "ADMIN",
-                "SUPER_ADMIN"
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
             ],
             "backend_enforced": true
         },
