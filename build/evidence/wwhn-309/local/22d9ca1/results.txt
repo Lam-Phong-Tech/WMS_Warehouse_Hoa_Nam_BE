@@ -1,0 +1,6 @@
+error-code-catalog=PASS
+endpoint-permission-matrix=PASS
+contract-metrics=PASS
+handover-contract=PASS
+candidate-pin=PASS
+schedule-list=PASS

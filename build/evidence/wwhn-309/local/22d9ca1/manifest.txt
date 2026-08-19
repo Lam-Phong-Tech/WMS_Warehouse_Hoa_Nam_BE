@@ -1,0 +1,10 @@
+task=WWHN-309
+scope=backend-handover-architecture-api-operations
+evidence_source=LOCAL (khong phai run CI)
+source_sha=22d9ca1aa0700d724376e9e89554981b94c4cf5a
+branch=HEAD
+worktree=clean
+artisan=docker exec wms_warehouse_hoa_nam_be-backend-1 php artisan
+node=v22.17.1
+collected_at=2026-08-19T01:25:21Z
+result=PASS
