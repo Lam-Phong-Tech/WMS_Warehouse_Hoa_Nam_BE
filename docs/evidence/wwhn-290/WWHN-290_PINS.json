@@ -197,6 +197,13 @@
             "diagnostic_job_conclusion": "failure",
             "focused_suite": "103 passed / 851 assertions / 0 failed (sqlite)",
             "evidence": "docs/evidence/wwhn-290/runs/ci-run.txt"
+        },
+        "run_after_branch_moved": {
+            "run_id": "32205102322",
+            "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32205102322",
+            "head_sha": "4fcaef006c7f8874e9351585fd6f9f5e08c0a871",
+            "run_conclusion": "success",
+            "meaning": "m1 moved on with another ticket commit and the gate stayed green: the frozen-candidate digest is re-derived from the frozen commit objects, so it cannot rot."
         }
     },
     "defect_input": {

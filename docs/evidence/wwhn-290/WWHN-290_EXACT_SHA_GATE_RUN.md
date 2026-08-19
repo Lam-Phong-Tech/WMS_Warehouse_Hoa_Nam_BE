@@ -80,6 +80,14 @@ Run `32204932596`: **workflow run = success**.
 Đây chính là hình dạng mà `DEV290-P1-05R` yêu cầu: **một closure run xanh tại đúng frozen candidate**, đồng thời
 vẫn phơi bày và quy trách nhiệm chỗ hỏng của ticket khác thay vì giấu đi.
 
+### 2.4 Bằng chứng chống pin rot: cổng vẫn xanh sau khi `m1` tiến tiếp
+
+Run [`32205102322`](https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32205102322)
+chạy tại `4fcaef006c7f8874e9351585fd6f9f5e08c0a871` — một commit của **ticket khác**, nằm sau frozen candidate:
+workflow **success**, job chặn `closure` **success**. Verifier lúc này tính lại `package_digest` **từ object
+của commit đã đóng băng** chứ không từ working tree, và vẫn khớp. Đây đúng là thứ vòng 1 không có: bằng
+chứng không mục khi nhánh dùng chung chạy tiếp.
+
 ## 3. DISPOSITION — toàn bộ project check tại commit `c29a220e5ebc070012d4ff0715a2f42ef0e4324c`
 
 Tại commit ngay trước frozen candidate, GitHub Actions chạy 23 workflow: **3 xanh, 20 đỏ**. Bảng dưới quy

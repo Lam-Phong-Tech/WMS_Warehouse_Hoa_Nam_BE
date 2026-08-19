@@ -10,3 +10,11 @@ job_postgres_diagnostic=failure   # NON-BLOCKING - migrate_seed_outcome=failure,
 closure_verifier=RESULT=PASS
 focused_suite=103 passed (851 assertions), 0 failed, driver sqlite
 artifacts=wwhn-290-exact-sha-440459509dae9a66b54c798e377c98190052821c, wwhn-290-postgres-diagnostic-440459509dae9a66b54c798e377c98190052821c
+
+# Lượt chạy lại sau khi m1 đã tiến thêm commit của ticket khác (chứng minh pin không mục)
+url=https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/32205102322
+run_id=32205102322
+head_sha=4fcaef006c7f8874e9351585fd6f9f5e08c0a871   # commit cua ticket khac, sau frozen candidate
+run_conclusion=success
+job_closure=success   # verifier tinh lai digest TAI frozen candidate 4404595 va van khop
+job_postgres_diagnostic=failure   # van do dung su that, khong chan
