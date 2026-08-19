@@ -12,6 +12,8 @@
 						"description": {},
 						"url": {
 							"path": [
+								"api",
+								"v1",
 								"auth",
 								"login"
 							],
@@ -19,8 +21,7 @@
 								"{{baseUrl}}"
 							],
 							"query": [],
-							"variable": [],
-							"raw": "{{baseUrl}}/auth/login"
+							"variable": []
 						},
 						"header": [
 							{
