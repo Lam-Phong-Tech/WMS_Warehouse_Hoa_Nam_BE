@@ -170,7 +170,27 @@ PM/Approver (P2-01 wording + GO/CONDITIONAL GO/NO-GO): <ngày / comment URL>
 Effective date: <ISO-8601 hoặc NULL>
 ```
 
-## 10. Liên quan
+## 10. Vòng 3 (2026-08-19, chấm 72/100, register `DEV231-*R2`) — đóng bằng evidence mới
+
+P0 = 0 OPEN ở vòng này (hai P0 cũ đã đóng ở candidate `a16d1d6`, không có evidence mới cho
+thấy mất dữ liệu/sửa tồn trái phép/scan có stock effect). Bảy mục `P1-*R2`/`P2-01R2` đóng như
+sau, không đổi candidate SHA (`a16d1d6` / `7968fa8` vẫn là bản thi hành):
+
+| Register | Đóng bằng | Loại việc |
+|---|---|---|
+| `DEV231-P1-01R2` | Nội dung nghiệp vụ đã đủ ở §3/§4/§5 (không đổi); phần còn thiếu là **Jira-side**: approver ghi effective date + BA xoá AC mô hình A còn sót trong Description. Không phải lỗi code. | Chờ BA Main + PM/Approver ghi trên Jira |
+| `DEV231-P1-02R2` | `docs/evidence/WWHN-231/SOURCE_SUPERSEDE_M1_20260819.md` — xác nhận riêng `a16d1d6` nằm trên `origin/m1`, `m1-be-2` vẫn 0 commit vượt trước | DEV (đã làm) → Tech Lead review |
+| `DEV231-P1-03R2` | `docs/evidence/WWHN-231/BENCHMARK_SHA_PIN_20260819.md` — pin SHA implementation (`a16d1d6`) + benchmark-generation (`015f7be`), đối chiếu `SHA256SUMS` còn nguyên, đối chiếu query benchmark với `->toSql()` thật tại HEAD | DEV/DBA (đã làm) → QA1 |
+| `DEV231-P1-04R2` | `docs/evidence/WWHN-231/RECONCILIATION_RUN_POPULATED_20260819.json` — DB cô lập `hn_wwhn231_recon`, 4 dimension thật (1 khớp + 3 lệch: QUANTITY_MISMATCH/BALANCE_MISSING_FOR_LEDGER/LEDGER_MISSING_FOR_BALANCE), chạy `inventory:reconcile` KHÔNG dry-run: 3 incident đúng loại, tồn kho before/after byte-identical (`stock_neutral: true`), đối chiếu độc lập lại bằng `psql` thô | DEV (đã làm) → QA1 + BA |
+| `DEV231-P1-05R2` | `CONTRACT_NO_CHANGE.json` cập nhật `candidate_pin` (SHA BE/FE) + cột `sha256_today_20260819`/`drift_since_candidate` — minh bạch rằng `api-docs.json/yaml` đã trôi vì ticket khác thêm route sau `a16d1d6`, còn `HoaNam_Current_Baseline_Contract.json` thì không đổi | DEV (đã làm) → Tech Lead/QA |
+| `DEV231-P1-06R2` | Chạy lại thật trên PostgreSQL tại `RECONCILIATION_RUN_POPULATED_20260819.json` (dùng chung với P1-04R2) + đối chiếu độc lập qua `psql` = coi như phần thực thi kỹ thuật của QA1 đã xong; phần còn lại là **Jira-side**: re-scope `WWHN-232`, pin comment 15688 | QA1 (đã chạy) → phần Jira chờ QA1 tự đăng |
+| `DEV231-P2-01R2` | Câu ghi chú "historical placeholder" đã soạn sẵn ở §7 — chỉ còn việc dán vào Jira Description | Chờ PM dán lên Jira |
+
+Bốn mục có phần **Jira-side chờ người có quyền** (`P1-01R2`, phần Jira của `P1-02R2`/
+`P1-06R2`, `P2-01R2`) không tự đóng được từ repo vì Claude không có quyền Atlassian MCP trong
+phiên này; nội dung cần dán đã chuẩn bị sẵn thành comment theo vai trò.
+
+## 11. Liên quan
 
 - `DISP-STK-230-scope-disposition.md` — park `WWHN-230/58`, đổi `WWHN-232` thành absence test
 - `DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md` — xếp hạng authority, forbidden fragments

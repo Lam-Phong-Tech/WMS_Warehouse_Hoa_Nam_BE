@@ -1,0 +1,127 @@
+{
+    "task": "WWHN-231",
+    "register_item": "DEV231-P1-04R2",
+    "generated_by": "php artisan wwhn231:populated-reconciliation-evidence",
+    "database": "hn_wwhn231_recon",
+    "postgres_version": "16.14",
+    "warehouse_id": "01a018f9-3c70-7099-9835-bb89de1a718a",
+    "seeded_dimensions": {
+        "matching": {
+            "sku_id": "01a018f9-3c7c-711d-977a-0be852d4b2b6",
+            "sku_code": "WWHN231-POP-MATCH",
+            "ledger_qty": 50,
+            "balance_qty": 50,
+            "expected_divergence": null
+        },
+        "quantity_mismatch": {
+            "sku_id": "01a018f9-3e2c-7169-8b8f-2378f24105c8",
+            "sku_code": "WWHN231-POP-QTYMIS",
+            "ledger_qty": 50,
+            "balance_qty": 42,
+            "expected_divergence": "QUANTITY_MISMATCH"
+        },
+        "balance_missing_for_ledger": {
+            "sku_id": "01a018f9-3e80-737e-bbfc-4355f382324f",
+            "sku_code": "WWHN231-POP-BALMISS",
+            "ledger_qty": 30,
+            "balance_qty": null,
+            "expected_divergence": "BALANCE_MISSING_FOR_LEDGER"
+        },
+        "ledger_missing_for_balance": {
+            "sku_id": "01a018f9-3ee1-73c6-8212-2ce58d87f4fb",
+            "sku_code": "WWHN231-POP-LEDMISS",
+            "ledger_qty": 0,
+            "balance_qty": 20,
+            "expected_divergence": "LEDGER_MISSING_FOR_BALANCE"
+        }
+    },
+    "reconcile_command_exit_code": 0,
+    "reconcile_command_output": "+--------------------------------------+--------------------------------------+--------------+-------------+------------+----------+----------------------------+\n| warehouse_id                         | product_id                           | stock_status | on_hand_qty | ledger_qty | variance | divergence_type            |\n+--------------------------------------+--------------------------------------+--------------+-------------+------------+----------+----------------------------+\n| 01a018f9-3c70-7099-9835-bb89de1a718a | 01a018f9-3e2c-7169-8b8f-2378f24105c8 | AVAILABLE    | 42          | 50         | -8       | QUANTITY_MISMATCH          |\n| 01a018f9-3c70-7099-9835-bb89de1a718a | 01a018f9-3ee1-73c6-8212-2ce58d87f4fb | AVAILABLE    | 20          | 0          | 20       | LEDGER_MISSING_FOR_BALANCE |\n| 01a018f9-3c70-7099-9835-bb89de1a718a | 01a018f9-3e80-737e-bbfc-4355f382324f | AVAILABLE    | 0           | 30         | -30      | BALANCE_MISSING_FOR_LEDGER |\n+--------------------------------------+--------------------------------------+--------------+-------------+------------+----------+----------------------------+\nĐối soát hoàn tất: 4 dimension kiểm tra, 3 lệch phát hiện, 3 incident mới\n",
+    "incidents_before": 0,
+    "incidents_after": 3,
+    "incidents_created": 3,
+    "incident_rows": [
+        {
+            "incident_no": "REC-20260819-KMD7L7XS",
+            "divergence_type": "QUANTITY_MISMATCH",
+            "warehouse_id": "01a018f9-3c70-7099-9835-bb89de1a718a",
+            "sku_id": "01a018f9-3e2c-7169-8b8f-2378f24105c8",
+            "balance_qty": 42,
+            "ledger_qty": 50,
+            "difference_qty": -8,
+            "severity": "CRITICAL",
+            "status": "OPEN"
+        },
+        {
+            "incident_no": "REC-20260819-LRDMUHML",
+            "divergence_type": "LEDGER_MISSING_FOR_BALANCE",
+            "warehouse_id": "01a018f9-3c70-7099-9835-bb89de1a718a",
+            "sku_id": "01a018f9-3ee1-73c6-8212-2ce58d87f4fb",
+            "balance_qty": 20,
+            "ledger_qty": 0,
+            "difference_qty": 20,
+            "severity": "ERROR",
+            "status": "OPEN"
+        },
+        {
+            "incident_no": "REC-20260819-OZJKHBQY",
+            "divergence_type": "BALANCE_MISSING_FOR_LEDGER",
+            "warehouse_id": "01a018f9-3c70-7099-9835-bb89de1a718a",
+            "sku_id": "01a018f9-3e80-737e-bbfc-4355f382324f",
+            "balance_qty": 0,
+            "ledger_qty": 30,
+            "difference_qty": -30,
+            "severity": "ERROR",
+            "status": "OPEN"
+        }
+    ],
+    "stock_state_before": {
+        "movement_count": 3,
+        "movement_delta_sum": 130,
+        "balances": [
+            {
+                "key": "01a018f9-3c70-7099-9835-bb89de1a718a|01a018f9-3c7c-711d-977a-0be852d4b2b6|AVAILABLE",
+                "on_hand_qty": 50,
+                "available_qty": 50,
+                "reserved_qty": 0
+            },
+            {
+                "key": "01a018f9-3c70-7099-9835-bb89de1a718a|01a018f9-3e2c-7169-8b8f-2378f24105c8|AVAILABLE",
+                "on_hand_qty": 42,
+                "available_qty": 42,
+                "reserved_qty": 0
+            },
+            {
+                "key": "01a018f9-3c70-7099-9835-bb89de1a718a|01a018f9-3ee1-73c6-8212-2ce58d87f4fb|AVAILABLE",
+                "on_hand_qty": 20,
+                "available_qty": 20,
+                "reserved_qty": 0
+            }
+        ]
+    },
+    "stock_state_after": {
+        "movement_count": 3,
+        "movement_delta_sum": 130,
+        "balances": [
+            {
+                "key": "01a018f9-3c70-7099-9835-bb89de1a718a|01a018f9-3c7c-711d-977a-0be852d4b2b6|AVAILABLE",
+                "on_hand_qty": 50,
+                "available_qty": 50,
+                "reserved_qty": 0
+            },
+            {
+                "key": "01a018f9-3c70-7099-9835-bb89de1a718a|01a018f9-3e2c-7169-8b8f-2378f24105c8|AVAILABLE",
+                "on_hand_qty": 42,
+                "available_qty": 42,
+                "reserved_qty": 0
+            },
+            {
+                "key": "01a018f9-3c70-7099-9835-bb89de1a718a|01a018f9-3ee1-73c6-8212-2ce58d87f4fb|AVAILABLE",
+                "on_hand_qty": 20,
+                "available_qty": 20,
+                "reserved_qty": 0
+            }
+        ]
+    },
+    "stock_neutral": true
+}

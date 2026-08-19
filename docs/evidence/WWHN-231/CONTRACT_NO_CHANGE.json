@@ -1,6 +1,11 @@
 {
   "task": "WWHN-231",
-  "register_item": "DEV231-P1-05",
+  "register_item": "DEV231-P1-05R2",
+  "candidate_pin": {
+    "backend_sha": "a16d1d63df7370e3fe40a2c1c846404d190324cd",
+    "frontend_sha": "7968fa8d88ed1b5c85be277c23b3850bdbb0cdeb",
+    "note": "DEV231-P1-05R2 doi review chot digest/endpoint list gan voi dung candidate SHA nay, khong de troi noi nhu ban P1-05 vong truoc. Xem EXACT_SHA.json cho chi tiet candidate day du."
+  },
   "disposition": "NO CONTRACT CHANGE",
   "statement": "WWHN-231 khong them, sua hay xoa endpoint, request/response field, error code, header hay permission nao. Thay doi chi nam o tang truy van (hinh dang SQL + index doc) va o tang bang chung/test.",
   "controlling_requirement": "REQ-SRS-037 (Must) + SRS §7.5 Reconciliation Controls + REQ-SRS-031",
@@ -17,25 +22,31 @@
     }
   ],
   "artifacts_not_modified": {
-    "note": "Digest lay tai commit HEAD cua nhanh m1 truoc khi commit WWHN-231; WWHN-231 khong sua file nao trong danh sach nay.",
+    "note": "Digest lay tai commit HEAD cua nhanh m1 truoc khi commit WWHN-231; WWHN-231 khong sua file nao trong danh sach nay. Cot 'sha256_today_20260819' la doi chieu lai vao ngay dong DEV231-P1-05R2, sau khi HEAD da di rat xa candidate vi nhieu phien khac cung commit len m1.",
     "files": [
       {
         "path": "storage/api-docs/api-docs.json",
         "sha256_head": "f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593",
         "sha256_worktree": "f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593",
-        "identical": true
+        "identical": true,
+        "sha256_today_20260819": "14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8",
+        "drift_since_candidate": "CO - hash da doi vi CAC TICKET KHAC them route sau a16d1d6 (khong lien quan WWHN-231; a16d1d6 khong nam trong danh sach files sua doi file nay, xem EXACT_SHA.json.candidate.backend.files)"
       },
       {
         "path": "storage/api-docs/api-docs.yaml",
         "sha256_head": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
         "sha256_worktree": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
-        "identical": true
+        "identical": true,
+        "sha256_today_20260819": "01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec",
+        "drift_since_candidate": "CO - cung nguyen nhan voi api-docs.json o tren"
       },
       {
         "path": "docs/contracts/HoaNam_Current_Baseline_Contract.json",
         "sha256_head": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
         "sha256_worktree": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
-        "identical": true
+        "identical": true,
+        "sha256_today_20260819": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
+        "drift_since_candidate": "KHONG - hash giu nguyen tu candidate den nay"
       }
     ],
     "postman": {
