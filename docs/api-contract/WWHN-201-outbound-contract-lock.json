@@ -2,7 +2,7 @@
   "ticket": "WWHN-201",
   "finding": "DEV201-P1-04R",
   "decision": "DEC-OUT-STOCK-HTTP-001",
-  "contract_version": "1.2.0",
+  "contract_version": "2.0.0-R2",
   "contract_status": "LOCKED_CANDIDATE",
   "approval_status": "PENDING_BA_SIGN_OFF",
   "error_contract": {
@@ -27,15 +27,22 @@
     "GET /api/v1/outbound-documents",
     "GET /api/v1/outbound-documents/{id}",
     "POST /api/v1/outbound-documents/{id}/cancel",
+    "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview",
+    "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/print",
+    "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/ready",
+    "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint",
     "POST /api/v1/outbound-documents/{id}/post-issue",
+    "POST /api/v1/outbound-documents/{id}/reversals",
     "POST /api/v1/outbound-documents/{id}/reverse",
     "POST /api/v1/outbound-documents/{id}/scan",
-    "POST /api/v1/outbound-documents/{id}/unmatch"
+    "POST /api/v1/outbound-documents/{id}/scans",
+    "POST /api/v1/outbound-documents/{id}/unmatch",
+    "PUT /api/v1/outbound-documents/{id}/items/{itemId}/rfid"
   ],
   "removed_from_previous_version": [],
   "artifacts": {
-    "docs/api-contract/WWHN-195-outbound-openapi.json": "2ca90694df9b66506afaaf58e003183985c6ce5d2eb951aed5ea7d18d61c7072",
-    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "04c92e17b8de127f70d1dde400c97e6cd7c09d8d798e5cc02186d66c5b1038f1",
-    "docs/postman/WWHN-195-outbound.postman_collection.json": "0d525bcf48ba723b24fe6d786fc7d90ee39f90d8a8d14e312ea3c08f5998c23b"
+    "docs/api-contract/WWHN-195-outbound-openapi.json": "9f1e6213522cd074709a455f72fce91098abbbdfbf5593afd8181ccf8a93137e",
+    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "4c4a0fbda1a9a6e9e14a52b66e5cee4792b30b30c86feb3d17c86ac49eb12777",
+    "docs/postman/WWHN-195-outbound.postman_collection.json": "2042c15459d47d4586fd7a62b491f5ce1bf1e9589da6766f808d49f95960fc47"
   }
 }

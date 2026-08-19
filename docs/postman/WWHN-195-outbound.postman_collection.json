@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "WWHN-195 Outbound Document API Contract v1.2.0",
-    "description": "Sinh tự động từ docs/api-contract/WWHN-195-outbound-openapi.json v1.2.0 bởi scripts/wwhn-201-outbound-contract-lock.mjs. KHÔNG sửa tay: chạy lại script sau mỗi lần đổi OpenAPI, nếu không verify-wwhn-201-contract.mjs sẽ đỏ. Neo quyết định: DEC-OUT-STOCK-HTTP-001 (không đủ tồn = 422 INSUFFICIENT_STOCK).",
+    "name": "WWHN-195 Outbound Document API Contract v2.0.0-R2",
+    "description": "Sinh tự động từ docs/api-contract/WWHN-195-outbound-openapi.json v2.0.0-R2 bởi scripts/wwhn-201-outbound-contract-lock.mjs. KHÔNG sửa tay: chạy lại script sau mỗi lần đổi OpenAPI, nếu không verify-wwhn-201-contract.mjs sẽ đỏ. Neo quyết định: DEC-OUT-STOCK-HTTP-001 (không đủ tồn = 422 INSUFFICIENT_STOCK).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -58,7 +58,7 @@
             "outbound-documents"
           ]
         },
-        "description": "Danh sách outbound document (label/RFID progress kèm theo) — sinh từ WWHN-195 v1.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403."
+        "description": "Danh sách phiếu xuất (kèm tiến độ match/label/RFID) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403."
       },
       "event": [
         {
@@ -113,7 +113,7 @@
             "{{document_id}}"
           ]
         },
-        "description": "Chi tiết outbound document — sinh từ WWHN-195 v1.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404."
+        "description": "Chi tiết phiếu xuất — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404."
       },
       "event": [
         {
@@ -177,7 +177,7 @@
             "cancel"
           ]
         },
-        "description": "Hủy outbound document (chỉ DRAFT/SCANNING; CANCELLED là terminal) — sinh từ WWHN-195 v1.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
+        "description": "Huỷ phiếu xuất (chỉ DRAFT/SCANNING; CANCELLED là terminal) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -185,7 +185,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"428\"].map(Number);",
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"422\",\"428\"].map(Number);",
               "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
               "  pm.expect(allowed).to.include(pm.response.code);",
               "});",
@@ -241,7 +241,71 @@
             "scan"
           ]
         },
-        "description": "Match item vào dòng outbound — chế độ nhập tay (item_id) hoặc quét mã (code_value) — sinh từ WWHN-195 v1.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Quét/match item vào dòng phiếu xuất (stock_effect=NONE) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"422\",\"428\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/outbound-documents/{id}/scans",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/scans",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "scans"
+          ]
+        },
+        "description": "Alias Annex C của scanOutboundDocument (cùng handler) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -305,7 +369,7 @@
             "unmatch"
           ]
         },
-        "description": "Gỡ item đã match trước Post (\"Gỡ trước Post\") — stock-neutral — sinh từ WWHN-195 v1.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
+        "description": "Gỡ item đã match trước Post (stock_effect=NONE) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -313,7 +377,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"428\"].map(Number);",
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"422\",\"428\"].map(Number);",
               "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
               "  pm.expect(allowed).to.include(pm.response.code);",
               "});",
@@ -373,7 +437,7 @@
             "post-issue"
           ]
         },
-        "description": "Post Issue atomically — full-post exact-match, thay đổi tồn kho đúng một lần — sinh từ WWHN-195 v1.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Hoàn tất xuất — SCANNING → POSTED, trừ tồn atomic đúng một lần — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -420,10 +484,6 @@
             "value": "application/json"
           },
           {
-            "key": "If-Match",
-            "value": "{{document_version}}"
-          },
-          {
             "key": "Idempotency-Key",
             "value": "{{idempotency_key}}"
           }
@@ -441,7 +501,7 @@
             "reverse"
           ]
         },
-        "description": "Reversal có kiểm soát cho outbound đã POSTED — original document giữ nguyên POSTED — sinh từ WWHN-195 v1.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Hoàn đảo phiếu xuất đã POSTED (append-only) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422, 428."
       },
       "event": [
         {
@@ -449,7 +509,393 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"422\",\"428\"].map(Number);",
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\",\"428\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/outbound-documents/{id}/reversals",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/reversals",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "reversals"
+          ]
+        },
+        "description": "Alias Annex C của reverseOutboundDocument (cùng handler) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422, 428."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\",\"428\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PUT /api/v1/outbound-documents/{id}/items/{itemId}/rfid",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/items/{itemId}/rfid",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "items",
+            "{itemId}",
+            "rfid"
+          ]
+        },
+        "description": "Gắn RFID/hardware_uid cho item đã match (tuỳ chọn, stock-neutral) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/packing-labels/{labelId}/preview",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "packing-labels",
+            "{labelId}",
+            "preview"
+          ]
+        },
+        "description": "Packing Label: DRAFT → PREVIEWED (stock-neutral) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"428\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/ready",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "If-Match",
+            "value": "{{document_version}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/packing-labels/{labelId}/ready",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "packing-labels",
+            "{labelId}",
+            "ready"
+          ]
+        },
+        "description": "Packing Label: PREVIEWED → READY_TO_PRINT (đóng băng snapshot) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"412\",\"428\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/print",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/packing-labels/{labelId}/print",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "packing-labels",
+            "{labelId}",
+            "print"
+          ]
+        },
+        "description": "Packing Label: READY_TO_PRINT → PRINTED (hoặc PRINT_FAILED) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/packing-labels/{labelId}/reprint",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "packing-labels",
+            "{labelId}",
+            "reprint"
+          ]
+        },
+        "description": "In lại Packing Label từ đúng snapshot bất biến (stock-neutral) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\"].map(Number);",
               "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
               "  pm.expect(allowed).to.include(pm.response.code);",
               "});",
@@ -475,6 +921,6 @@
       ]
     }
   ],
-  "x-source-contract-version": "1.2.0",
+  "x-source-contract-version": "2.0.0-R2",
   "x-decision": "DEC-OUT-STOCK-HTTP-001"
 }

@@ -24,9 +24,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
 import {
-  CONTRACT_VERSION,
   DECISION_ID,
   ERROR_CONTRACT,
+  MIN_CONTRACT_VERSION,
+  compareVersion,
   OUTBOUND_PATH_PREFIX,
   digest,
   realOutboundRoutes,
@@ -48,7 +49,12 @@ if (!fs.existsSync(rel(LOCK_FILE))) {
   process.exit(1)
 }
 const lock = JSON.parse(fs.readFileSync(rel(LOCK_FILE), 'utf8'))
-check(lock.contract_version === CONTRACT_VERSION, `lock.contract_version=${lock.contract_version} ≠ ${CONTRACT_VERSION}`)
+// Version do spec quyết định (nhiều task cùng sửa hợp đồng); verifier chỉ đòi
+// lock không thấp hơn mức tối thiểu sau WWHN-201 và khớp đúng spec hiện tại.
+check(
+  compareVersion(lock.contract_version, MIN_CONTRACT_VERSION) >= 0,
+  `lock.contract_version=${lock.contract_version} thấp hơn mức tối thiểu ${MIN_CONTRACT_VERSION}`,
+)
 check(lock.decision === DECISION_ID, `lock.decision=${lock.decision} ≠ ${DECISION_ID}`)
 
 // ---- 2. Digest -------------------------------------------------------------
@@ -73,7 +79,10 @@ check(
   JSON.stringify(spec) === JSON.stringify(specYaml),
   'WWHN-195-outbound-openapi.json và .yaml không còn cùng nội dung — FE đọc bản này, QA đọc bản kia là nguồn xung đột kinh điển.',
 )
-check(spec.info.version === CONTRACT_VERSION, `OpenAPI info.version=${spec.info.version} ≠ ${CONTRACT_VERSION}`)
+check(
+  spec.info.version === lock.contract_version,
+  `OpenAPI info.version=${spec.info.version} ≠ lock ${lock.contract_version} — chạy lại scripts/wwhn-201-outbound-contract-lock.mjs sau khi đổi hợp đồng.`,
+)
 check(spec['x-decision'] === DECISION_ID, 'OpenAPI thiếu x-decision neo về DEC-OUT-STOCK-HTTP-001.')
 
 // ---- 4. OpenAPI == routes thật --------------------------------------------
@@ -105,8 +114,8 @@ for (const op of [...routeOps].filter(inScope)) {
 // ---- 5 & 6. Postman phủ đúng + header §8.2 --------------------------------
 const postmanOps = new Map(postman.item.map((item) => [item.name, item]))
 check(
-  postman['x-source-contract-version'] === CONTRACT_VERSION,
-  `Postman bind sai revision (${postman['x-source-contract-version']} ≠ ${CONTRACT_VERSION}).`,
+  postman['x-source-contract-version'] === lock.contract_version,
+  `Postman bind sai revision (${postman['x-source-contract-version']} ≠ ${lock.contract_version}).`,
 )
 for (const op of specOps) {
   const item = postmanOps.get(op)
@@ -189,7 +198,7 @@ console.log(
       ticket: 'WWHN-201',
       findings_covered: ['DEV201-P1-04R', 'DEV201-P1-05'],
       status: 'PASS',
-      contract_version: CONTRACT_VERSION,
+      contract_version: lock.contract_version,
       decision: DECISION_ID,
       operations: [...specOps].sort(),
       artifacts: lock.artifacts,

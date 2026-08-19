@@ -1,33 +1,50 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "WWHN-195 Outbound Document API Contract",
-    "version": "1.2.0",
-    "description": "Chứng từ/chế độ/trạng thái xuất kho (BE1). Outbound document luôn sinh từ một outbound_request (toa xuất) đã OPEN — không nhận lines thủ công. Chế độ nhập tay/quét mã không phải một field enum tường minh: FE gửi item_id (nhập tay) hoặc code_value (quét mã/barcode/RFID) trong cùng payload /scan; server tự resolve item tương ứng. State machine dùng chung với inbound trên bảng stock_documents: DRAFT -> SCANNING -> POSTED, hoặc -> CANCELLED (terminal). Chỉ Post Issue mới thay đổi tồn kho (stock_effect=DECREASE); Scan/Unmatch stock_effect=NONE."
+    "title": "WWHN-195 — Outbound Document API (HN-OUT-001)",
+    "version": "2.0.0-R2",
+    "description": "Contract của luồng xuất kho, **sinh lại từ bảng route canonical** sau register R2 (DEV195-P1-05R2). Nguồn sự thật: `Modules/Warehouse/routes/api.php` + `Flow06AlignmentServiceProvider`, đối chiếu SRS/FRD v1.12 §5.2/§6/§8.1 + Annex C và ERD `HoaNam_ERD_Moi_Nhat.md`.\nBa lệch của bản 1.x đã đóng:\n1. **Ghost operation** — bản cũ khai `POST /outbound-documents` và\n   `PATCH /outbound-documents/{id}`. §8.1/Annex C: \"Confirm creates exactly one\n   outbound DRAFT; no direct POST /outbound-documents create operation\".\n   Hai operation này không có route runtime; đã gỡ khỏi contract lẫn khỏi\n   annotation Swagger inline trong `OutboundDocumentController`.\n2. **code_value maxLength 200 vs runtime 150** — nguyên nhân gốc: route `/scan`\n   khai trong routes/api.php trỏ `CurrentBaselineStockFlowController` (max 150)\n   nhưng bị `Flow06AlignmentServiceProvider` override sang\n   `AlignedOutboundFlowController` (max 200) lúc boot, nên bảng route và handler\n   chạy thật là hai thứ khác nhau. Đã trỏ route thẳng handler canonical và chốt\n   maxLength = 150 ở cả contract lẫn runtime.\n3. **Packing Label state cũ** — bản cũ khai `label_status` enum\n   `[PENDING_PRINT, PRINTED, PRINT_FAILED]` và mô tả \"scan tạo label + in ngay\".\n   SRS §6 chốt vòng đời `DRAFT → PREVIEWED → READY_TO_PRINT → PRINTED`\n   (`PRINT_FAILED` khi in lỗi), đúng 01 Packing Label cho mỗi phiếu xuất, tạo khi\n   full match, và mọi thao tác nhãn đều stock-neutral.\nBổ sung theo DEV195-P1-01R2: `scan_source` khai báo tường minh chế độ quét (CAMERA/MANUAL/HARDWARE, đúng CHECK của ERD bảng 25 `scan_events.scan_source`). Không gửi thì server suy luận và đánh dấu `scan_source_origin=INFERRED`. Mode không bị khoá theo phiếu: mỗi lần scan là một scan event độc lập, đổi qua lại camera/nhập tay trong cùng phiếu là hợp lệ (AC-SRS-005 + NFR-SRS-021 yêu cầu camera-denied rơi về nhập tay ngay giữa luồng). Cả hai mode dùng chung permission `outbound.scan`, chung state guard DRAFT/SCANNING, chung validation.",
+    "x-source-of-truth": {
+      "routes": "Modules/Warehouse/routes/api.php",
+      "provider_overrides": "Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider.php",
+      "srs": "HN_SRS_FRD_v1.12_FULL.md §5.2, §6, §8.1, Annex C, Annex D",
+      "erd": "HoaNam_ERD_Moi_Nhat.md bảng 25 (scan_events), bảng 37 (outbound_requests)",
+      "regression_guard": "tests/Feature/Wwhn195OutboundContractAlignmentTest.php"
+    },
+    "x-known-data-gap": {
+      "field": "physical_codes.code_value",
+      "erd_declares": "varchar(200)",
+      "migration_creates": "varchar(100)",
+      "api_accepts": 150,
+      "disposition": "API chốt 150 theo register R2. Cột vật lý hẹp hơn (100) chỉ khiến mã dài hơn 100 ký tự không bao giờ resolve được và trả PHYSICAL_CODE_NOT_FOUND — không tạo dữ liệu sai. Chênh lệch ERD 200 vs migration 100 nằm ngoài phạm vi WWHN-195 (task API không sửa schema); chuyển BE2/ERD owner xử lý bằng ERD amendment riêng."
+    }
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:8000",
-      "description": "Local/CI; thay bằng environment URL đã duyệt."
-    }
-  ],
-  "security": [
-    {
-      "bearerAuth": []
+      "url": "/",
+      "description": "Cùng host với ứng dụng; mọi path dưới đây đã gồm prefix /api/v1."
     }
   ],
   "tags": [
     {
-      "name": "Outbound Document"
+      "name": "Outbound Document",
+      "description": "Đọc và huỷ phiếu xuất. Phiếu chỉ sinh từ Confirm toa."
     },
     {
-      "name": "Outbound Scan"
+      "name": "Outbound Scan",
+      "description": "Quét/match item vào phiếu xuất; stock-neutral."
     },
     {
-      "name": "Outbound Posting"
+      "name": "Outbound Posting",
+      "description": "Hoàn tất xuất (trừ tồn) và hoàn đảo."
     },
     {
-      "name": "Outbound Reversal"
+      "name": "Packing Label",
+      "description": "Vòng đời 01 Packing Label cho mỗi phiếu xuất; stock-neutral."
+    },
+    {
+      "name": "Outbound RFID",
+      "description": "Gắn RFID tuỳ chọn cho item đã match; không phải gate Post Issue."
     }
   ],
   "components": {
@@ -43,6 +60,27 @@
         "name": "id",
         "in": "path",
         "required": true,
+        "description": "stock_documents.id của phiếu xuất (doc_type=issue).",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "ItemId": {
+        "name": "itemId",
+        "in": "path",
+        "required": true,
+        "description": "item_instances.item_id đã match vào phiếu.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "LabelId": {
+        "name": "labelId",
+        "in": "path",
+        "required": true,
+        "description": "label_snapshots.id của Packing Label thuộc chính phiếu này.",
         "schema": {
           "type": "string",
           "format": "uuid"
@@ -52,17 +90,17 @@
         "name": "If-Match",
         "in": "header",
         "required": true,
-        "description": "Version hiện tại của document (số nguyên, không phải ETag chuẩn RFC). Bắt buộc cho mọi mutation trên document đã tồn tại. Thiếu -> 428 PRECONDITION_REQUIRED; sai/khác version hiện tại -> 412 PRECONDITION_FAILED.",
+        "description": "Optimistic lock theo cột version của resource. Thiếu → 428 PRECONDITION_REQUIRED; sai → 412 STALE_VERSION.",
         "schema": {
           "type": "string",
-          "example": "1"
+          "example": "\"3\""
         }
       },
-      "IdempotencyKeyRequired": {
+      "IdempotencyKey": {
         "name": "Idempotency-Key",
         "in": "header",
         "required": true,
-        "description": "Bắt buộc cho Post Issue/Reverse — key ổn định cho một hành động thay đổi tồn kho.",
+        "description": "Bắt buộc ở Post Issue/Reverse/Ready. Unique theo (idem_key, operation, user_id); replay trả lại đúng response cũ kèm header Idempotent-Replay=true.",
         "schema": {
           "type": "string",
           "minLength": 8,
@@ -73,48 +111,37 @@
     "schemas": {
       "Error": {
         "type": "object",
-        "required": [
-          "success",
-          "error"
-        ],
         "properties": {
           "success": {
             "type": "boolean",
-            "enum": [
-              false
-            ]
+            "example": false
           },
           "message": {
             "type": "string"
           },
           "error": {
             "type": "object",
-            "required": [
-              "code"
-            ],
             "properties": {
               "code": {
-                "type": "string"
+                "type": "string",
+                "example": "LABEL_NOT_PRINTED"
               },
               "details": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
+                "type": "object",
+                "additionalProperties": true,
+                "nullable": true
               }
             }
           }
         }
       },
-      "StoreOutboundDocumentRequest": {
+      "OutboundDocument": {
         "type": "object",
-        "required": [
-          "src_warehouse_id",
-          "outbound_request_id"
-        ],
-        "description": "`lines` bị cấm tuyệt đối (BP-WMS-04/05) — mọi dòng được hydrate tự động từ outbound_request_lines của outbound_request_id.",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "doc_no": {
             "type": "string",
             "maxLength": 80,
@@ -125,18 +152,23 @@
             "format": "date",
             "nullable": true
           },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "SCANNING",
+              "POSTED",
+              "CANCELLED"
+            ]
+          },
           "src_warehouse_id": {
             "type": "string",
             "format": "uuid"
           },
           "outbound_request_id": {
             "type": "string",
-            "format": "uuid"
-          },
-          "agency_id": {
-            "type": "string",
             "format": "uuid",
-            "nullable": true
+            "description": "Luôn khác null — §8.1 cấm phiếu xuất ad-hoc không có toa nguồn."
           },
           "recipient_name": {
             "type": "string",
@@ -148,73 +180,44 @@
             "maxLength": 2000,
             "nullable": true
           },
-          "note": {
+          "recipient_contact_phone": {
             "type": "string",
-            "maxLength": 2000,
-            "nullable": true
-          }
-        }
-      },
-      "UpdateOutboundDocumentRequest": {
-        "type": "object",
-        "properties": {
-          "doc_no": {
-            "type": "string",
-            "maxLength": 80
+            "nullable": true,
+            "description": "REQ-SRS-014 — address/phone được phép trống."
           },
-          "doc_date": {
-            "type": "string",
-            "format": "date"
+          "version": {
+            "type": "integer",
+            "description": "Nguồn của ETag/If-Match."
           },
-          "agency_id": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+          "matched_count": {
+            "type": "integer"
           },
-          "recipient_name": {
-            "type": "string",
-            "maxLength": 200,
-            "nullable": true
+          "required_total": {
+            "type": "integer"
           },
-          "recipient_address": {
+          "packing_label_status": {
             "type": "string",
-            "maxLength": 2000,
-            "nullable": true
+            "nullable": true,
+            "enum": [
+              "DRAFT",
+              "PREVIEWED",
+              "READY_TO_PRINT",
+              "PRINTED",
+              "PRINT_FAILED"
+            ]
           },
-          "note": {
-            "type": "string",
-            "maxLength": 2000,
-            "nullable": true
-          },
-          "lines": {
-            "type": "array",
-            "description": "Chỉ cho phép khi document KHÔNG sinh từ outbound_request (source_request_immutable nếu có).",
-            "items": {
-              "type": "object",
-              "properties": {
-                "product_id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "qty_planned": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "note": {
-                  "type": "string",
-                  "nullable": true
-                }
-              }
-            }
+          "rfid_mapped_count": {
+            "type": "integer",
+            "description": "RFID tuỳ chọn, không phải gate."
           }
         }
       },
       "OutboundScanRequest": {
         "type": "object",
         "required": [
-          "line_id"
+          "line_id",
+          "quantity"
         ],
-        "description": "Chế độ nhập tay: gửi `item_id`. Chế độ quét mã: gửi `code_value` (server tự resolve item qua physical_codes). Có thể gửi cả hai để server đối chiếu khớp nhau (mismatch -> 422 PHYSICAL_CODE_ITEM_MISMATCH).",
         "properties": {
           "line_id": {
             "type": "string",
@@ -222,38 +225,44 @@
           },
           "quantity": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "example": 1
           },
           "qty": {
             "type": "integer",
             "minimum": 1,
-            "description": "Alias của quantity."
+            "description": "Alias lịch sử của quantity; gửi một trong hai."
           },
           "item_id": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Chế độ nhập tay."
+            "description": "Chế độ chọn thẳng item (nhập tay có kiểm soát)."
           },
           "code_value": {
             "type": "string",
-            "maxLength": 200,
+            "maxLength": 150,
             "nullable": true,
-            "description": "Chế độ quét mã (barcode/QR/RFID)."
+            "description": "Mã vật lý gửi lên (camera decode hoặc gõ tay). Server tra physical_codes ACTIVE rồi map sang item. Gửi cả item_id và code_value mà lệch nhau → 422 PHYSICAL_CODE_ITEM_MISMATCH."
           },
           "container_id": {
             "type": "string",
             "format": "uuid",
             "nullable": true
           },
-          "printer_config_id": {
+          "scan_source": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "nullable": true,
+            "enum": [
+              "CAMERA",
+              "MANUAL",
+              "HARDWARE"
+            ],
+            "description": "Chế độ quét, khai tường minh theo ERD bảng 25 `scan_events.scan_source` CHECK. Không gửi thì server suy luận (có code_value → HARDWARE, không có → MANUAL) và trả scan_source_origin=INFERRED. Suy luận KHÔNG phân biệt được camera với gõ tay nên client có camera phải khai CAMERA."
           }
         }
       },
-      "OutboundScanResult": {
+      "OutboundScanResponse": {
         "type": "object",
         "properties": {
           "document_id": {
@@ -261,10 +270,6 @@
             "format": "uuid"
           },
           "line_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "sku_id": {
             "type": "string",
             "format": "uuid"
           },
@@ -284,30 +289,35 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "SCANNING"
-            ]
-          },
-          "stock_effect": {
-            "type": "string",
-            "enum": [
-              "NONE"
-            ]
-          },
-          "movement_created": {
-            "type": "boolean",
-            "enum": [
-              false
-            ]
+            "example": "SCANNING"
           },
           "version": {
             "type": "integer"
           },
+          "scan_source": {
+            "type": "string",
+            "enum": [
+              "CAMERA",
+              "MANUAL",
+              "HARDWARE"
+            ]
+          },
+          "scan_source_origin": {
+            "type": "string",
+            "enum": [
+              "EXPLICIT",
+              "INFERRED"
+            ],
+            "description": "EXPLICIT khi client khai; INFERRED khi server tự suy luận."
+          },
+          "packing_label_ready": {
+            "type": "boolean",
+            "description": "true khi phiếu vừa đạt full match và đã có/đảm bảo 01 Packing Label."
+          },
           "label_snapshot_id": {
             "type": "string",
             "format": "uuid",
-            "nullable": true,
-            "description": "ID của Packing Label cấp lô; null khi phiếu chưa full match (chưa có nhãn)."
+            "nullable": true
           },
           "label_status": {
             "type": "string",
@@ -319,22 +329,21 @@
               "PRINTED",
               "PRINT_FAILED"
             ],
-            "nullable": true,
-            "description": "NOT_CREATED khi chưa full match. Khi full match, server tạo/đảm bảo nhãn ở DRAFT — KHÔNG tự động in. PRINTED chỉ đạt được qua chuỗi preview -> ready -> print."
-          },
-          "packing_label_ready": {
-            "type": "boolean",
-            "description": "true khi phiếu đã full match và Packing Label DRAFT đã được đảm bảo tồn tại."
+            "description": "NOT_CREATED khi chưa full match; DRAFT ngay khi vừa full match."
           },
           "rfid_required": {
             "type": "boolean",
-            "enum": [
-              false
-            ],
-            "description": "RFID là OPTIONAL và không gate scan lẫn Post Issue (DEC-RFID-FALLBACK-001)."
+            "example": false
+          },
+          "stock_effect": {
+            "type": "string",
+            "example": "NONE"
+          },
+          "movement_created": {
+            "type": "boolean",
+            "example": false
           }
-        },
-        "description": "Kết quả match một item vào dòng outbound. Nhãn là cấp LÔ/PHIẾU: đúng 01 Packing Label cho mỗi outbound_document, chỉ sinh khi toàn phiếu đã full match, và sinh ở trạng thái DRAFT."
+        }
       },
       "OutboundUnmatchRequest": {
         "type": "object",
@@ -365,55 +374,13 @@
           }
         }
       },
-      "PostIssueResult": {
-        "type": "object",
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "POSTED"
-            ]
-          },
-          "movement_ids": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "stock_effect": {
-            "type": "string",
-            "enum": [
-              "DECREASE"
-            ]
-          },
-          "version": {
-            "type": "integer"
-          },
-          "packing_label_id": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true,
-            "description": "Packing Label cấp lô đã PRINTED + đã dán, dùng làm gate của lần Post này."
-          },
-          "packing_label_applied": {
-            "type": "boolean",
-            "description": "Luôn true khi Post thành công — đã xác nhận dán nhãn trước khi trừ tồn."
-          }
-        }
-      },
-      "ReverseOutboundRequest": {
+      "OutboundReverseRequest": {
         "type": "object",
         "properties": {
           "reversal_document_id": {
             "type": "string",
             "format": "uuid",
-            "nullable": true,
-            "description": "Xác nhận pending return đã tạo trước đó."
+            "nullable": true
           },
           "reason_code": {
             "type": "string",
@@ -424,140 +391,78 @@
             "type": "string",
             "maxLength": 2000,
             "description": "Bắt buộc nếu không gửi reversal_document_id."
-          },
-          "condition_status": {
-            "type": "string",
-            "enum": [
-              "SELLABLE",
-              "DEFECTIVE",
-              "NON_SELLABLE"
-            ],
-            "description": "Bắt buộc cho outbound reversal khi không gửi reversal_document_id."
-          },
-          "physical_return_confirmed": {
-            "type": "boolean",
-            "description": "true để post ngay; false/omit -> DRAFT/PENDING_RETURN, stock_effect=NONE."
-          },
-          "lines": {
-            "type": "array",
-            "description": "Bắt buộc nếu không gửi reversal_document_id. PRODUCT/serial-tracked line yêu cầu item_id + quantity=1.",
-            "items": {
-              "type": "object",
-              "required": [
-                "movement_id",
-                "quantity"
-              ],
-              "properties": {
-                "movement_id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "quantity": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "item_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "nullable": true
-                }
-              }
-            }
           }
         }
       },
-      "OutboundDocument": {
+      "AssignItemRfidRequest": {
+        "type": "object",
+        "required": [
+          "hardware_uid"
+        ],
+        "properties": {
+          "hardware_uid": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "code_value": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "description": "Mặc định lấy theo hardware_uid khi không gửi."
+          }
+        }
+      },
+      "PackingLabel": {
         "type": "object",
         "properties": {
-          "id": {
+          "label_id": {
             "type": "string",
             "format": "uuid"
           },
-          "doc_type": {
+          "outbound_document_id": {
             "type": "string",
-            "enum": [
-              "issue"
-            ]
+            "format": "uuid"
           },
-          "doc_no": {
+          "label_code": {
             "type": "string"
-          },
-          "doc_date": {
-            "type": "string",
-            "format": "date"
           },
           "status": {
             "type": "string",
             "enum": [
               "DRAFT",
-              "SCANNING",
-              "POSTED",
-              "CANCELLED"
+              "PREVIEWED",
+              "READY_TO_PRINT",
+              "PRINTED",
+              "PRINT_FAILED"
             ]
           },
-          "src_warehouse_id": {
-            "type": "string",
-            "format": "uuid"
+          "applied": {
+            "type": "boolean",
+            "description": "Xác nhận đã dán nhãn lên kiện/lô (POST /api/v1/label-snapshots/{id}/apply). Là gate bắt buộc của Post Issue cùng với PRINTED."
           },
-          "outbound_request_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "agency_id": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "recipient_name": {
+          "customer_phone": {
             "type": "string",
             "nullable": true
           },
-          "recipient_address": {
-            "type": "string",
-            "nullable": true
+          "item_count": {
+            "type": "integer"
+          },
+          "sku_count": {
+            "type": "integer"
           },
           "version": {
             "type": "integer"
           },
-          "lines": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "line_no": {
-                  "type": "integer"
-                },
-                "product_id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "outbound_request_line_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "nullable": true
-                },
-                "qty_planned": {
-                  "type": "integer"
-                },
-                "qty_actual": {
-                  "type": "integer"
-                },
-                "scanned_qty": {
-                  "type": "integer"
-                }
-              }
-            }
+          "stock_effect": {
+            "type": "string",
+            "example": "NONE"
           }
         }
       }
     },
     "responses": {
       "Unauthenticated": {
-        "description": "Chưa xác thực",
+        "description": "401 UNAUTHENTICATED",
         "content": {
           "application/json": {
             "schema": {
@@ -567,7 +472,7 @@
         }
       },
       "Forbidden": {
-        "description": "Không có permission `outbound.*` tương ứng",
+        "description": "403 ACCESS_DENIED — thiếu permission hoặc ngoài warehouse data scope",
         "content": {
           "application/json": {
             "schema": {
@@ -576,8 +481,8 @@
           }
         }
       },
-      "Conflict": {
-        "description": "State/version/idempotency conflict",
+      "NotFound": {
+        "description": "404 RESOURCE_NOT_FOUND",
         "content": {
           "application/json": {
             "schema": {
@@ -587,7 +492,17 @@
         }
       },
       "Validation": {
-        "description": "Lỗi validate hoặc business rule",
+        "description": "422 VALIDATION_ERROR hoặc vi phạm quy tắc nghiệp vụ",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PreconditionFailed": {
+        "description": "412 STALE_VERSION — If-Match không khớp version hiện tại",
         "content": {
           "application/json": {
             "schema": {
@@ -597,7 +512,7 @@
         }
       },
       "PreconditionRequired": {
-        "description": "Thiếu header If-Match",
+        "description": "428 PRECONDITION_REQUIRED — thiếu If-Match (hoặc Idempotency-Key khi bắt buộc)",
         "content": {
           "application/json": {
             "schema": {
@@ -608,6 +523,11 @@
       }
     }
   },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
   "paths": {
     "/api/v1/outbound-documents": {
       "get": {
@@ -615,11 +535,61 @@
         "tags": [
           "Outbound Document"
         ],
-        "summary": "Danh sách outbound document (label/RFID progress kèm theo)",
+        "summary": "Danh sách phiếu xuất (kèm tiến độ match/label/RFID)",
+        "description": "Handler AlignedOutboundDocumentController::index. Không có `post` ở path này — §8.1 cấm direct create; phiếu sinh từ POST /api/v1/outbound-request-imports/{id}/confirm.",
         "x-permission": "outbound.view",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 15
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "SCANNING",
+                "POSTED",
+                "CANCELLED"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutboundDocument"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -632,12 +602,14 @@
     },
     "/api/v1/outbound-documents/{id}": {
       "get": {
-        "operationId": "showOutboundDocument",
+        "operationId": "getOutboundDocument",
         "tags": [
           "Outbound Document"
         ],
-        "summary": "Chi tiết outbound document",
+        "summary": "Chi tiết phiếu xuất",
+        "description": "Handler OutboundDocumentController::show. Không có `patch`/`put` — header phiếu được chốt tại bước Confirm toa (REQ-SRS-014).",
         "x-permission": "outbound.view",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
         "parameters": [
           {
             "$ref": "#/components/parameters/DocumentId"
@@ -661,7 +633,7 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "description": "RESOURCE_NOT_FOUND"
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -672,8 +644,10 @@
         "tags": [
           "Outbound Document"
         ],
-        "summary": "Hủy outbound document (chỉ DRAFT/SCANNING; CANCELLED là terminal)",
+        "summary": "Huỷ phiếu xuất (chỉ DRAFT/SCANNING; CANCELLED là terminal)",
+        "description": "Handler CurrentBaselineDocumentController::cancelOutbound. Stock-neutral. Nếu không còn phiếu active/POSTED nào khác dùng toa, toa trả về OPEN.",
         "x-permission": "outbound.cancel",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
         "parameters": [
           {
             "$ref": "#/components/parameters/DocumentId"
@@ -694,7 +668,7 @@
         },
         "responses": {
           "200": {
-            "description": "CANCELLED. Nếu document gắn outbound_request và không còn phiếu active/POSTED nào khác dùng toa, toa tự trả về OPEN.",
+            "description": "CANCELLED",
             "headers": {
               "ETag": {
                 "schema": {
@@ -710,10 +684,10 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "description": "RESOURCE_NOT_FOUND"
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "STATE_CONFLICT",
+            "description": "STATE_CONFLICT — chỉ DRAFT/SCANNING mới huỷ được",
             "content": {
               "application/json": {
                 "schema": {
@@ -723,7 +697,10 @@
             }
           },
           "412": {
-            "description": "PRECONDITION_FAILED"
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
@@ -737,9 +714,11 @@
         "tags": [
           "Outbound Scan"
         ],
-        "summary": "Match item vào dòng outbound — chế độ nhập tay (item_id) hoặc quét mã (code_value)",
-        "description": "stock_effect luôn NONE. Packing Label (controlling: DR-HN-20260817-OUTBOUND-FLOW03, SRS §5.2/§6/§15, AC-GWT-OUTBOUND-REQUEST-001): nhãn ở cấp lô — đúng 01 Packing Label cho mỗi outbound_document, KHÔNG phải mỗi item. Chỉ khi toàn bộ dòng đã scan đủ (full match) server mới tạo/đảm bảo nhãn, và tạo ở trạng thái DRAFT; server KHÔNG tự dispatch lệnh in tại bước scan. Lifecycle bắt buộc: DRAFT -> PREVIEWED -> READY_TO_PRINT -> PRINTED (PRINT_FAILED khi in lỗi, retry dùng lại đúng snapshot cũ), qua các endpoint POST /outbound-documents/{id}/packing-labels/{labelId}/{preview,ready,print,reprint}. Từ READY_TO_PRINT trở đi snapshot đóng băng: gỡ/sửa match sau đó bị chặn 409 PACKING_LABEL_ALREADY_CREATED. Post Issue vẫn yêu cầu nhãn PRINTED và đã xác nhận dán.",
+        "summary": "Quét/match item vào dòng phiếu xuất (stock_effect=NONE)",
+        "description": "Handler AlignedOutboundFlowController::outboundScan — cùng handler với alias Annex C `/scans`, nên hai path có nghiệp vụ giống hệt nhau. Scan KHÔNG tạo lệnh in. Khi phiếu đạt full match, hệ thống tổng hợp lô và tạo/đảm bảo đúng 01 Packing Label ở trạng thái DRAFT (SRS §5.2), trả về qua `packing_label_ready=true` + `label_status=DRAFT`. Chế độ quét khai qua `scan_source`; mode không khoá theo phiếu và không có endpoint switch riêng.",
         "x-permission": "outbound.scan",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-guard": "DRAFT | SCANNING",
         "parameters": [
           {
             "$ref": "#/components/parameters/DocumentId"
@@ -760,7 +739,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Item matched",
             "headers": {
               "ETag": {
                 "schema": {
@@ -771,7 +750,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OutboundScanResult"
+                  "$ref": "#/components/schemas/OutboundScanResponse"
                 }
               }
             }
@@ -783,10 +762,17 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "description": "RESOURCE_NOT_FOUND | DOCUMENT_LINE_NOT_FOUND"
+            "description": "RESOURCE_NOT_FOUND | DOCUMENT_LINE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
-            "description": "STATE_CONFLICT | DUPLICATE_ITEM_IN_DOCUMENT | ITEM_ALREADY_MATCHED | DUPLICATE_ITEM_MATCH",
+            "description": "STATE_CONFLICT | DUPLICATE_ITEM_IN_DOCUMENT | ITEM_ALREADY_MATCHED",
             "content": {
               "application/json": {
                 "schema": {
@@ -796,10 +782,10 @@
             }
           },
           "412": {
-            "description": "PRECONDITION_FAILED"
+            "$ref": "#/components/responses/PreconditionFailed"
           },
           "422": {
-            "description": "SCAN_EXCEEDS_REQUIRED | SKU_NOT_ACTIVE | PRODUCT_SKU_REQUIRED | ITEM_REQUIRED | SERIAL_QUANTITY_MUST_BE_ONE | INSUFFICIENT_STOCK | ITEM_NOT_AVAILABLE | PHYSICAL_CODE_NOT_FOUND | PHYSICAL_CODE_UNASSIGNED | PHYSICAL_CODE_ITEM_MISMATCH | ITEM_SKU_MISMATCH | OUTBOUND_REQUEST_REQUIRED",
+            "description": "VALIDATION_ERROR (gồm scan_source ngoài CAMERA/MANUAL/HARDWARE và code_value > 150 ký tự) | PRODUCT_SKU_REQUIRED | OUTBOUND_REQUEST_REQUIRED | PHYSICAL_CODE_NOT_FOUND | PHYSICAL_CODE_ITEM_MISMATCH | ITEM_REQUIRED | SERIAL_QUANTITY_MUST_BE_ONE | SCAN_EXCEEDS_REQUIRED | INSUFFICIENT_AVAILABLE_STOCK | PACKING_LABEL_ALREADY_CREATED",
             "content": {
               "application/json": {
                 "schema": {
@@ -814,14 +800,95 @@
         }
       }
     },
+    "/api/v1/outbound-documents/{id}/scans": {
+      "post": {
+        "operationId": "createOutboundScan",
+        "tags": [
+          "Outbound Scan"
+        ],
+        "summary": "Alias Annex C của scanOutboundDocument (cùng handler)",
+        "description": "Path canonical theo Annex C §8.1. Trỏ đúng AlignedOutboundFlowController::outboundScan như `/scan`, cùng permission, cùng data scope, cùng request/response — giữ hai path chỉ để không phá client cũ, không nhân đôi nghiệp vụ.",
+        "x-permission": "outbound.scan",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-guard": "DRAFT | SCANNING",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboundScanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Item matched",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboundScanResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "STATE_CONFLICT | DUPLICATE_ITEM_IN_DOCUMENT | ITEM_ALREADY_MATCHED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          }
+        }
+      }
+    },
     "/api/v1/outbound-documents/{id}/unmatch": {
       "post": {
         "operationId": "unmatchOutboundItem",
         "tags": [
           "Outbound Scan"
         ],
-        "summary": "Gỡ item đã match trước Post (\"Gỡ trước Post\") — stock-neutral",
+        "summary": "Gỡ item đã match trước Post (stock_effect=NONE)",
+        "description": "Handler AlignedOutboundFlowController::outboundUnmatch. Match chuyển ACTIVE → REMOVED, scanned_qty giảm, item quét lại được. Nhãn còn DRAFT/PREVIEWED sẽ bị huỷ và tạo lại khi full match lần sau; từ READY_TO_PRINT trở đi snapshot đã đóng băng nên bị chặn (§5.2).",
         "x-permission": "outbound.scan",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-guard": "DRAFT | SCANNING",
         "parameters": [
           {
             "$ref": "#/components/parameters/DocumentId"
@@ -842,7 +909,7 @@
         },
         "responses": {
           "200": {
-            "description": "Match chuyển ACTIVE -> REMOVED; item có thể scan lại vào phiếu này hoặc phiếu khác.",
+            "description": "Match REMOVED",
             "headers": {
               "ETag": {
                 "schema": {
@@ -858,7 +925,14 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "description": "RESOURCE_NOT_FOUND | OUTBOUND_MATCH_NOT_FOUND"
+            "description": "OUTBOUND_MATCH_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
             "description": "STATE_CONFLICT | MATCH_NOT_ACTIVE | PACKING_LABEL_ALREADY_CREATED",
@@ -871,25 +945,28 @@
             }
           },
           "412": {
-            "description": "PRECONDITION_FAILED"
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
           }
-        },
-        "description": "Gỡ item đã match trước Post — stock-neutral. Nếu phiếu đã full match và đang có Packing Label ở DRAFT/PREVIEWED (chưa đóng băng), nhãn đó bị huỷ kèm audit PACKING_LABEL_DISCARDED và sẽ được tạo lại khi full match lần sau. Từ READY_TO_PRINT trở đi snapshot đã đóng băng nên gỡ match bị chặn."
+        }
       }
     },
     "/api/v1/outbound-documents/{id}/post-issue": {
       "post": {
-        "operationId": "postIssue",
+        "operationId": "postOutboundIssue",
         "tags": [
           "Outbound Posting"
         ],
-        "summary": "Post Issue atomically — full-post exact-match, thay đổi tồn kho đúng một lần",
-        "description": "Yêu cầu mọi dòng scanned_qty == qty_planned (FULL_POST_REQUIRED), mọi PRODUCT unit có item match ACTIVE (PRODUCT_ITEM_MATCH_REQUIRED), và 01 Packing Label cấp lô đã PRINTED (LABEL_NOT_PRINTED) + đã xác nhận dán (PACKING_LABEL_NOT_APPLIED) + snapshot còn khớp nội dung phiếu (409 LABEL_SNAPSHOT_STALE). Theo SRS v1.12 REQ-SRS-011 / DEC-RFID-FALLBACK-001, RFID là OPTIONAL (barcode/QR là định danh hợp lệ) — Post Issue KHÔNG gate theo RFID hardware_uid; gate ITEM_RFID_REQUIRED cũ đã bị gỡ khỏi baseline hiện hành. Idempotent theo Idempotency-Key; version bump và stock effect nằm trong cùng transaction.",
+        "summary": "Hoàn tất xuất — SCANNING → POSTED, trừ tồn atomic đúng một lần",
+        "description": "Handler AlignedOutboundFlowController::postIssue. Đây là action DUY NHẤT trừ tồn trong luồng xuất. Gate bắt buộc (SRS §5.2): full match + đủ tồn + Packing Label PRINTED + snapshot còn khớp nội dung phiếu + đã xác nhận dán nhãn (`applied`). RFID/hardware_uid KHÔNG phải gate (DEC-RFID-FALLBACK-001). Replay theo Idempotency-Key trả lại response cũ và header `Idempotent-Replay: true`, không trừ tồn lần hai.",
         "x-permission": "outbound.post",
-        "x-stock-effect": "DECREASE",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-guard": "SCANNING",
         "parameters": [
           {
             "$ref": "#/components/parameters/DocumentId"
@@ -898,12 +975,12 @@
             "$ref": "#/components/parameters/IfMatch"
           },
           {
-            "$ref": "#/components/parameters/IdempotencyKeyRequired"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "responses": {
           "200": {
-            "description": "POSTED — committed đúng một lần, hoặc response gốc được replay nguyên trạng",
+            "description": "POSTED — movement append-only, item IN_STOCK → ISSUED",
             "headers": {
               "ETag": {
                 "schema": {
@@ -919,13 +996,6 @@
                   ]
                 }
               }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PostIssueResult"
-                }
-              }
             }
           },
           "401": {
@@ -935,10 +1005,10 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "description": "RESOURCE_NOT_FOUND"
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "STATE_CONFLICT (không phải SCANNING) | LABEL_SNAPSHOT_STALE (nội dung phiếu đổi sau khi in nhãn) | idempotency key dùng lại với payload khác",
+            "description": "STATE_CONFLICT | LABEL_SNAPSHOT_STALE | DUPLICATE_STOCK_EFFECT | IDEMPOTENCY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -948,10 +1018,10 @@
             }
           },
           "412": {
-            "description": "PRECONDITION_FAILED"
+            "$ref": "#/components/responses/PreconditionFailed"
           },
           "422": {
-            "description": "FULL_POST_REQUIRED | OUTBOUND_REQUEST_REQUIRED | PRODUCT_ITEM_MATCH_REQUIRED | PACKING_LABEL_REQUIRED | LABEL_NOT_PRINTED | PACKING_LABEL_NOT_APPLIED | INSUFFICIENT_STOCK | INSUFFICIENT_AVAILABLE_STOCK (RFID không phải gate — DEC-RFID-FALLBACK-001)",
+            "description": "FULL_POST_REQUIRED | OUTBOUND_REQUEST_REQUIRED | PRODUCT_ITEM_MATCH_REQUIRED | PACKING_LABEL_REQUIRED | LABEL_NOT_PRINTED | PACKING_LABEL_NOT_APPLIED | INSUFFICIENT_STOCK | INSUFFICIENT_AVAILABLE_STOCK",
             "content": {
               "application/json": {
                 "schema": {
@@ -968,37 +1038,46 @@
     },
     "/api/v1/outbound-documents/{id}/reverse": {
       "post": {
-        "operationId": "reverseOutbound",
+        "operationId": "reverseOutboundDocument",
         "tags": [
-          "Outbound Reversal"
+          "Outbound Posting"
         ],
-        "summary": "Reversal có kiểm soát cho outbound đã POSTED — original document giữ nguyên POSTED",
-        "description": "Nếu physical_return_confirmed != true, reversal dừng ở DRAFT/PENDING_RETURN với stock_effect=NONE (chờ xác nhận hàng vật lý đã về kho); gửi lại với reversal_document_id + physical_return_confirmed=true để Post.",
+        "summary": "Hoàn đảo phiếu xuất đã POSTED (append-only)",
+        "description": "Handler CurrentBaselineStockFlowController::reverseOutbound. Sinh movement đối ứng liên kết movement gốc; movement gốc giữ nguyên. Đổi tồn thật nên bắt buộc Idempotency-Key.",
         "x-permission": "inventory.reversal.post",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-guard": "POSTED",
         "parameters": [
           {
             "$ref": "#/components/parameters/DocumentId"
           },
           {
-            "$ref": "#/components/parameters/IfMatch"
-          },
-          {
-            "$ref": "#/components/parameters/IdempotencyKeyRequired"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReverseOutboundRequest"
+                "$ref": "#/components/schemas/OutboundReverseRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Reversal command processed; original document remains POSTED"
+            "description": "Reversal command processed",
+            "headers": {
+              "Idempotent-Replay": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -1007,10 +1086,10 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "description": "RESOURCE_NOT_FOUND | REVERSAL_NOT_FOUND"
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "STATE_CONFLICT | ALREADY_FULLY_REVERSED | REVERSAL_DEPENDENCY_EXISTS | REVERSAL_CONCURRENT_CONFLICT",
+            "description": "DOWNSTREAM_DEPENDENCY_EXISTS | REVERSAL_OF_REVERSAL_FORBIDDEN | IDEMPOTENCY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -1019,11 +1098,8 @@
               }
             }
           },
-          "412": {
-            "description": "PRECONDITION_FAILED"
-          },
           "422": {
-            "description": "REVERSAL_ITEM_REQUIRED | REVERSAL_QTY_EXCEEDED | INVALID_RETURN_CONDITION | RETURN_CONDITION_REQUIRED | ITEM_SKU_MISMATCH | ITEM_NOT_IN_ORIGINAL_TRANSACTION",
+            "description": "PHYSICAL_RETURN_REQUIRED | REVERSAL_QTY_EXCEEDED",
             "content": {
               "application/json": {
                 "schema": {
@@ -1037,12 +1113,427 @@
           }
         }
       }
+    },
+    "/api/v1/outbound-documents/{id}/reversals": {
+      "post": {
+        "operationId": "createOutboundReversal",
+        "tags": [
+          "Outbound Posting"
+        ],
+        "summary": "Alias Annex C của reverseOutboundDocument (cùng handler)",
+        "x-permission": "inventory.reversal.post",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-guard": "POSTED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboundReverseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reversal command processed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "DOWNSTREAM_DEPENDENCY_EXISTS | REVERSAL_OF_REVERSAL_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/items/{itemId}/rfid": {
+      "put": {
+        "operationId": "assignOutboundItemRfid",
+        "tags": [
+          "Outbound RFID"
+        ],
+        "summary": "Gắn RFID/hardware_uid cho item đã match (tuỳ chọn, stock-neutral)",
+        "description": "Handler CurrentBaselinePhysicalCodeController::assignOutboundItemRfid. DEC-RFID-FALLBACK-001 / REQ-SRS-011: RFID là tuỳ chọn, Barcode/QR vẫn hợp lệ, thiếu RFID KHÔNG chặn Post Issue. Không tạo Item/SKU/movement mới.",
+        "x-permission": "physical_code.assign_rfid",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/ItemId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignItemRfidRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "RFID đã gắn (idempotent khi gắn lại đúng cặp item/hardware_uid)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "DUPLICATE_HARDWARE_UID | DUPLICATE_CODE_VALUE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ITEM_NOT_MATCHED_IN_DOCUMENT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview": {
+      "post": {
+        "operationId": "previewPackingLabel",
+        "tags": [
+          "Packing Label"
+        ],
+        "summary": "Packing Label: DRAFT → PREVIEWED (stock-neutral)",
+        "description": "Handler AlignedOutboundFlowController::previewPackingLabel. Chỉ thao tác khi phiếu còn DRAFT/SCANNING. Chưa đóng băng snapshot ở bước này.",
+        "x-permission": "packing_label.preview|label.print",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-transition": "DRAFT|PREVIEWED → PREVIEWED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/LabelId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PREVIEWED",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackingLabel"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "LABEL_NOT_FOUND — nhãn không thuộc phiếu này",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT | LABEL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/packing-labels/{labelId}/ready": {
+      "post": {
+        "operationId": "readyPackingLabel",
+        "tags": [
+          "Packing Label"
+        ],
+        "summary": "Packing Label: PREVIEWED → READY_TO_PRINT (đóng băng snapshot)",
+        "description": "Handler AlignedOutboundFlowController::readyPackingLabel. Từ READY_TO_PRINT trở đi Packing_Label_Snapshot là immutable; mọi thay đổi match sau đó bị chặn (§5.2). Stock-neutral.",
+        "x-permission": "packing_label.ready|label.print",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-transition": "DRAFT|PREVIEWED|READY_TO_PRINT → READY_TO_PRINT",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/LabelId"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "READY_TO_PRINT",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackingLabel"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "STATE_CONFLICT | LABEL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/packing-labels/{labelId}/print": {
+      "post": {
+        "operationId": "printPackingLabel",
+        "tags": [
+          "Packing Label"
+        ],
+        "summary": "Packing Label: READY_TO_PRINT → PRINTED (hoặc PRINT_FAILED)",
+        "description": "Handler CurrentBaselineOperationsController::printPackingLabelForDocument. Chỉ in từ READY_TO_PRINT (hoặc retry sau PRINT_FAILED). Printer failure để nhãn ở PRINT_FAILED, chặn hoàn tất xuất, và KHÔNG đổi tồn/movement.",
+        "x-permission": "packing_label.print|label.print",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-transition": "READY_TO_PRINT|PRINT_FAILED → PRINTED|PRINT_FAILED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/LabelId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kết quả in (PRINTED hoặc PRINT_FAILED) — stock-neutral",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackingLabel"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "LABEL_STATE_CONFLICT — nhãn chưa READY_TO_PRINT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint": {
+      "post": {
+        "operationId": "reprintPackingLabel",
+        "tags": [
+          "Packing Label"
+        ],
+        "summary": "In lại Packing Label từ đúng snapshot bất biến (stock-neutral)",
+        "description": "Handler CurrentBaselineOperationsController::reprintPackingLabelForDocument. Cho phép sau khi đã PRINTED, kể cả sau khi phiếu đã POSTED; dùng lại đúng Packing_Label_Snapshot cũ nên không đổi tồn/movement.",
+        "x-permission": "packing_label.reprint|label.reprint",
+        "x-data-scope": "EnforceOutboundWarehouseScope",
+        "x-state-transition": "PRINTED|PRINT_FAILED → PRINTED|PRINT_FAILED",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/LabelId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kết quả in lại — stock-neutral",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackingLabel"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "LABEL_STATE_CONFLICT — chỉ in lại nhãn đã PRINTED/PRINT_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Validation"
+          }
+        }
+      }
     }
   },
-  "x-document-version": "1.2.0",
+  "x-packing-label-contract": {
+    "cardinality": "ONE_PER_OUTBOUND_DOCUMENT",
+    "created_at": "FULL_MATCH",
+    "created_status": "DRAFT",
+    "auto_dispatch_print": false,
+    "lifecycle": [
+      "DRAFT",
+      "PREVIEWED",
+      "READY_TO_PRINT",
+      "PRINTED",
+      "PRINT_FAILED"
+    ],
+    "scan_label_status_enum": [
+      "NOT_CREATED",
+      "DRAFT",
+      "PREVIEWED",
+      "READY_TO_PRINT",
+      "PRINTED",
+      "PRINT_FAILED"
+    ],
+    "frozen_from": "READY_TO_PRINT",
+    "unfrozen_discard_audit_action": "PACKING_LABEL_DISCARDED",
+    "unmatch_after_freeze_code": "PACKING_LABEL_ALREADY_CREATED",
+    "post_issue_gate": [
+      "PRINTED",
+      "APPLIED",
+      "SNAPSHOT_CURRENT"
+    ],
+    "controlling_decision": "DR-HN-20260817-OUTBOUND-FLOW03",
+    "runtime_handler": "AlignedOutboundFlowController@outboundScan",
+    "superseded_behavior": "CurrentBaselineStockFlowController@outboundScan (nhãn mỗi item + auto dispatch in, PENDING_PRINT) — không còn được route tới sau Flow06AlignmentServiceProvider.",
+    "ticket": "WWHN-198",
+    "finding": "DEV198-P1-06"
+  },
+  "x-document-version": "2.0.0-R2",
   "x-contract-status": "LOCKED_CANDIDATE",
   "x-approval-status": "PENDING_BA_SIGN_OFF",
-  "x-note": "v1.1.0 (WWHN-201/DEV201-P1-04R): gỡ POST /outbound-documents và PATCH /outbound-documents/{id} vì §8.1 không cho tạo/sửa phiếu xuất trực tiếp (phiếu chỉ sinh từ Confirm toa) và routes thật không khai hai endpoint đó. Bổ sung x-error-contract theo DEC-OUT-STOCK-HTTP-001: không đủ tồn = 422 INSUFFICIENT_STOCK, không phải 409. Tập path/method trong file này được sinh và kiểm tra lại từ `php artisan route:list` nên không thể mô tả endpoint không tồn tại. Postman WWHN-195-outbound.postman_collection.json bind cùng revision; hash cả ba artifact nằm trong WWHN-201-outbound-contract-lock.json. v1.2.0 (WWHN-198/DEV198-P1-06): đồng bộ MỘT controlling behavior về Packing Label theo DR-HN-20260817 + SRS §5.2/§6/§15 — nhãn cấp lô (01/outbound_document), chỉ sinh khi full match và sinh ở DRAFT, KHÔNG auto-dispatch in, lifecycle DRAFT/PREVIEWED/READY_TO_PRINT/PRINTED/PRINT_FAILED, đóng băng từ READY_TO_PRINT; bản 1.1.0 còn mô tả hành vi cũ (nhãn mỗi item + tự in, PENDING_PRINT) của controller đã bị Flow06AlignmentServiceProvider override. Chi tiết máy đọc được nằm ở x-packing-label-contract; sinh lại bằng scripts/wwhn198-packing-label-contract-sync.mjs.",
+  "x-tickets": [
+    "WWHN-201"
+  ],
   "x-ticket": "WWHN-201",
   "x-decision": "DEC-OUT-STOCK-HTTP-001",
   "x-error-contract": {
@@ -1063,36 +1554,5 @@
       "PRECONDITION_REQUIRED"
     ]
   },
-  "x-removed-in-1.1.0": [
-    "POST /api/v1/outbound-documents",
-    "PATCH /api/v1/outbound-documents/{id}"
-  ],
-  "x-packing-label-contract": {
-    "cardinality": "ONE_PER_OUTBOUND_DOCUMENT",
-    "created_at": "FULL_MATCH",
-    "created_status": "DRAFT",
-    "auto_dispatch_print": false,
-    "lifecycle": [
-      "DRAFT",
-      "PREVIEWED",
-      "READY_TO_PRINT",
-      "PRINTED",
-      "PRINT_FAILED"
-    ],
-    "frozen_from": "READY_TO_PRINT",
-    "post_issue_gate": [
-      "PRINTED",
-      "APPLIED",
-      "SNAPSHOT_CURRENT"
-    ],
-    "controlling_decision": "DR-HN-20260817-OUTBOUND-FLOW03",
-    "runtime_handler": "AlignedOutboundFlowController@outboundScan",
-    "superseded_behavior": "CurrentBaselineStockFlowController@outboundScan (nhãn mỗi item + auto dispatch in, PENDING_PRINT) — không còn được route tới sau Flow06AlignmentServiceProvider.",
-    "ticket": "WWHN-198",
-    "finding": "DEV198-P1-06"
-  },
-  "x-tickets": [
-    "WWHN-201",
-    "WWHN-198"
-  ]
+  "x-note": "v1.1.0 (WWHN-201/DEV201-P1-04R): gỡ POST /outbound-documents và PATCH /outbound-documents/{id} vì §8.1 không cho tạo/sửa phiếu xuất trực tiếp (phiếu chỉ sinh từ Confirm toa) và routes thật không khai hai endpoint đó. Bổ sung x-error-contract theo DEC-OUT-STOCK-HTTP-001: không đủ tồn = 422 INSUFFICIENT_STOCK, không phải 409. Tập path/method trong file này được sinh và kiểm tra lại từ `php artisan route:list` nên không thể mô tả endpoint không tồn tại. Postman WWHN-195-outbound.postman_collection.json bind cùng revision; hash cả ba artifact nằm trong WWHN-201-outbound-contract-lock.json."
 }

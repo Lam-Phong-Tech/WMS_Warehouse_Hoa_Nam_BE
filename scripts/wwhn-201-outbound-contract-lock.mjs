@@ -33,7 +33,30 @@ const YAML_PATH = path.join(ROOT, 'docs/api-contract/WWHN-195-outbound-openapi.y
 const POSTMAN_PATH = path.join(ROOT, 'docs/postman/WWHN-195-outbound.postman_collection.json')
 const LOCK_PATH = path.join(ROOT, 'docs/api-contract/WWHN-201-outbound-contract-lock.json')
 
-export const CONTRACT_VERSION = '1.2.0'
+/**
+ * Phiên bản TỐI THIỂU của hợp đồng Outbound sau WWHN-201. Cố ý KHÔNG phải một
+ * version cố định: nhánh m1 có nhiều task cùng sửa file này (WWHN-198 nâng lên
+ * 2.0.0-R2 cho Packing Label), nên ghi đè bằng một hằng số sẽ hạ cấp ngược công
+ * việc của task khác. Quy tắc: giữ nguyên version mà spec đang khai, chỉ nâng khi
+ * nó còn thấp hơn mức tối thiểu này.
+ */
+export const MIN_CONTRACT_VERSION = '1.1.0'
+
+/** Version thực tế của hợp đồng = thứ spec đang khai (sau khi bảo đảm >= tối thiểu). */
+export function contractVersionOf(spec) {
+  const declared = String(spec?.info?.version ?? '')
+  return compareVersion(declared, MIN_CONTRACT_VERSION) < 0 ? MIN_CONTRACT_VERSION : declared
+}
+
+/** So sánh version theo từng số; hậu tố (-R2, -rc1) chỉ dùng để phá hoà. */
+export function compareVersion(a, b) {
+  const parse = (v) => String(v).split('-')[0].split('.').map((x) => Number.parseInt(x, 10) || 0)
+  const [pa, pb] = [parse(a), parse(b)]
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) < (pb[i] ?? 0) ? -1 : 1
+  }
+  return 0
+}
 export const DECISION_ID = 'DEC-OUT-STOCK-HTTP-001'
 
 /** Prefix của các path thuộc phạm vi hợp đồng Outbound Document (WWHN-195). */
@@ -98,18 +121,21 @@ function main() {
   }
 
   // ---- 2. Metadata khoá ---------------------------------------------------
-  spec.info.version = CONTRACT_VERSION
-  spec['x-document-version'] = CONTRACT_VERSION
+  const contractVersion = contractVersionOf(spec)
+  spec.info.version = contractVersion
+  spec['x-document-version'] = contractVersion
   spec['x-contract-status'] = 'LOCKED_CANDIDATE'
   spec['x-approval-status'] = 'PENDING_BA_SIGN_OFF'
-  spec['x-ticket'] = 'WWHN-201'
-  // WWHN-198/DEV198-P1-06 sửa phần mô tả Packing Label trong cùng hợp đồng này,
-  // nên revision 1.2.0 có hai ticket nguồn chứ không phải một.
-  spec['x-tickets'] = ['WWHN-201', 'WWHN-198']
+  // Không ghi đè x-ticket của task khác: gộp vào danh sách.
+  spec['x-tickets'] = [...new Set([...(spec['x-tickets'] ?? []), spec['x-ticket'], 'WWHN-201'].filter(Boolean))]
+  spec['x-ticket'] = spec['x-ticket'] ?? 'WWHN-201'
   spec['x-decision'] = DECISION_ID
   spec['x-error-contract'] = ERROR_CONTRACT
-  spec['x-note'] =
-    'v1.1.0 (WWHN-201/DEV201-P1-04R): gỡ POST /outbound-documents và PATCH /outbound-documents/{id} vì §8.1 không cho tạo/sửa phiếu xuất trực tiếp (phiếu chỉ sinh từ Confirm toa) và routes thật không khai hai endpoint đó. Bổ sung x-error-contract theo DEC-OUT-STOCK-HTTP-001: không đủ tồn = 422 INSUFFICIENT_STOCK, không phải 409. Tập path/method trong file này được sinh và kiểm tra lại từ `php artisan route:list` nên không thể mô tả endpoint không tồn tại. Postman WWHN-195-outbound.postman_collection.json bind cùng revision; hash cả ba artifact nằm trong WWHN-201-outbound-contract-lock.json. v1.2.0 (WWHN-198/DEV198-P1-06): đồng bộ MỘT controlling behavior về Packing Label theo DR-HN-20260817 + SRS §5.2/§6/§15 — nhãn cấp lô (01/outbound_document), chỉ sinh khi full match và sinh ở DRAFT, KHÔNG auto-dispatch in, lifecycle DRAFT/PREVIEWED/READY_TO_PRINT/PRINTED/PRINT_FAILED, đóng băng từ READY_TO_PRINT; bản 1.1.0 còn mô tả hành vi cũ (nhãn mỗi item + tự in, PENDING_PRINT) của controller đã bị Flow06AlignmentServiceProvider override. Chi tiết máy đọc được nằm ở x-packing-label-contract; sinh lại bằng scripts/wwhn198-packing-label-contract-sync.mjs.'
+  const WWHN201_NOTE =
+    'v1.1.0 (WWHN-201/DEV201-P1-04R): gỡ POST /outbound-documents và PATCH /outbound-documents/{id} vì §8.1 không cho tạo/sửa phiếu xuất trực tiếp (phiếu chỉ sinh từ Confirm toa) và routes thật không khai hai endpoint đó. Bổ sung x-error-contract theo DEC-OUT-STOCK-HTTP-001: không đủ tồn = 422 INSUFFICIENT_STOCK, không phải 409. Tập path/method trong file này được sinh và kiểm tra lại từ `php artisan route:list` nên không thể mô tả endpoint không tồn tại. Postman WWHN-195-outbound.postman_collection.json bind cùng revision; hash cả ba artifact nằm trong WWHN-201-outbound-contract-lock.json.'
+  // Ghi chú của WWHN-201 chỉ nối thêm một lần, không đè ghi chú task khác.
+  const existingNote = String(spec['x-note'] ?? '')
+  spec['x-note'] = existingNote.includes('DEV201-P1-04R') ? existingNote : (existingNote ? existingNote + ' ' : '') + WWHN201_NOTE
   if (removed.length > 0) spec['x-removed-in-1.1.0'] = removed
 
   const specJson = canonicalJson(spec)
@@ -126,7 +152,7 @@ function main() {
     ticket: 'WWHN-201',
     finding: 'DEV201-P1-04R',
     decision: DECISION_ID,
-    contract_version: CONTRACT_VERSION,
+    contract_version: contractVersion,
     contract_status: spec['x-contract-status'],
     approval_status: spec['x-approval-status'],
     error_contract: ERROR_CONTRACT,
@@ -144,7 +170,7 @@ function main() {
   }
   fs.writeFileSync(LOCK_PATH, canonicalJson(lock))
 
-  console.log(JSON.stringify({ removed, operations: lock.operations, artifacts: lock.artifacts }, null, 2))
+  console.log(JSON.stringify({ contract_version: contractVersion, removed, operations: lock.operations, artifacts: lock.artifacts }, null, 2))
 }
 
 /**
