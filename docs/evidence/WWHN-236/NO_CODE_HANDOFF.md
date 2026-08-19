@@ -75,12 +75,18 @@ node scripts/verify-wwhn236-adjustment-disposition.mjs --emit-lock
 | Baseline contract | fragments + excluded tables + movement types khớp canonical | verifier `BASELINE-*` |
 | Spec contract (18 file) | zero, ngoài artifact historical đã có disposition | verifier `SPEC-SURFACE` |
 
-> **Giới hạn đã biết:** `php vendor/bin/phpunit --filter=Wwhn236DeferredAdjustmentGateTest` **không**
-> chạy được trên pgsql, vì migration chain hiện tại fail khi migrate fresh trên PostgreSQL
-> (`hn_erd_mirror_pv_industries`: `created_by` uuid vs text). Lỗi đó nằm ở bước migrate, trước khi
-> test của WWHN-236 bắt đầu, và ngoài phạm vi task này. P1-06 vì vậy được chứng minh bằng truy vấn
-> trực tiếp trên database đã migrate (`logs/pg-direct-constraint-probe.log`); trên sqlite cả 7 test
-> đều pass.
+> **Cập nhật 2026-08-19 (remediation cho vòng đánh giá 48/100, DEV236-P1-06R):** giới hạn "pgsql
+> không chạy được vì migration chain fail" ở trên **đã hết hiệu lực**. Một nhánh song song khác trên
+> `m1` (`WWHN-289`, `DEV289-P1-02R`) sửa tận gốc write-bridge cast gây lỗi
+> `hn_erd_mirror_pv_industries: created_by uuid vs text` bằng migration
+> `Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php`
+> (WWHN-236 không sở hữu migration này, chỉ xác nhận lại bằng cách migrate thật). Trên database
+> riêng `hoa_nam_wwhn236`, `php artisan migrate:fresh --force` chạy hết toàn bộ chain (exit `0`) và
+> `php vendor/bin/phpunit --filter=Wwhn236DeferredAdjustmentGateTest` chạy **THẬT** trên PostgreSQL
+> 16 — 7/7 test, 34 assertion PASS, bao gồm cả test CHECK constraint DB — thay vì chỉ suy ra từ truy
+> vấn thủ công. Bằng chứng: `logs/be-phpunit-pgsql.log` + `logs/pg-direct-constraint-probe.log`
+> (re-run cùng ngày, giữ lại paired insert-probe làm bằng chứng độc lập thứ hai). Trên sqlite cả 7
+> test vẫn pass (`logs/be-phpunit-sqlite.log`).
 
 ### Gate đã được chứng minh là fail-closed
 

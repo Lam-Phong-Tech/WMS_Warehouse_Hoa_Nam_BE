@@ -48,10 +48,10 @@
       "REVERSAL"
     ],
     "storage_api_docs_api_docs_yaml_path_count": 84,
-    "storage_api_docs_api_docs_yaml_sha256": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
+    "storage_api_docs_api_docs_yaml_sha256": "01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec",
     "storage_api_docs_api_docs_json_path_count": 183,
-    "storage_api_docs_api_docs_json_sha256": "f27e34ec08db1cada68b6a555e50fdcf13d8913921993d7cc62f759d4faaa593",
-    "permission_matrix_sha256": "af6f898400b4e3aba8ca9ed588d9e8bd4019aef032b124602c1e43c35c93ed75",
+    "storage_api_docs_api_docs_json_sha256": "14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8",
+    "permission_matrix_sha256": "edd52a2e87a14d47e5760e8c399c7653def797eb363bf222303132f279896e6c",
     "route_files_scanned": 11,
     "movement_type_check_constraint": [
       "OPENING",

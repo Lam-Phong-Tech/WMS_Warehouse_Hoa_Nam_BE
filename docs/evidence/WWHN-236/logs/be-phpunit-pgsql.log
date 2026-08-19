@@ -1,0 +1,39 @@
+WWHN-236 / DISP-STK-236 — DEV236-P1-06R: phpunit --filter=Wwhn236DeferredAdjustmentGateTest tren PostgreSQL that
+Chay: 2026-08-19T10:39+07:00
+
+DB      : hoa_nam_wwhn236 (moi tao bang CREATE DATABASE, khong dung chung voi phien song song)
+Container: wms_warehouse_hoa_nam_be-postgres-1 (postgres:16-alpine)
+ENV     : DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=hoa_nam_wwhn236 DB_USERNAME=postgres DB_PASSWORD=postgres
+
+--- Buoc 1: php artisan migrate:fresh --force ---
+Chay het toan bo migration chain, KET THUC exit code 0 (khong con SQLSTATE 42804 nhu log
+2026-08-18). Migration moi chay truoc moc chan cu:
+  2026_08_19_000050_repair_erd_mirror_projection_casts .. 289.91ms DONE   (WWHN-289 fix, khong
+                                                                            phai cua WWHN-236)
+  2026_08_19_000100_add_optimistic_lock_to_pv_master_tables .. 191.48ms DONE  (truoc day fail tai day)
+  ... (34 migration ke tiep, tat ca DONE, khong loi)
+EXIT_CODE=0
+
+--- Buoc 2: php vendor/bin/phpunit --filter=Wwhn236DeferredAdjustmentGateTest --testdox ---
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+Runtime: PHP 8.3.30
+
+Wwhn236 Deferred Adjustment Gate (Tests\Feature\Wwhn236DeferredAdjustmentGate)
+ [x] No adjustment stocktake or variance route is registered
+ [x] Permission catalog has no stocktake or adjustment permission
+ [x] Excluded stocktake tables are absent from the final schema
+ [x] Movement type check constraint rejects direct stock adjustment
+ [x] Disposition record pins req srs 037 as the single authority
+ [x] Baseline contract forbids every adjustment path fragment
+ [x] Canonical reversal correction path stays available
+
+OK (7 tests, 34 assertions)
+{"tool":"phpunit","result":"passed","tests":7,"passed":7,"assertions":34,"duration_ms":123074}
+
+=== Y nghia doi voi DEV236-P1-06R ===
+Vong danh gia 48/100 ghi: "PG full test itself blocked by migration". Dieu do dung tai thoi
+diem 2026-08-18. Sau khi WWHN-289 sua write-bridge cast (migration 000050, khong thuoc so huu
+WWHN-236 - chi xac nhan lai), migrate:fresh tren pgsql chay sach va toan bo 7 test cua
+Wwhn236DeferredAdjustmentGateTest — bao gom test CHECK constraint DB — chay THAT va PASS tren
+PostgreSQL 16, khong con phai dua vao truy van pg_constraint thu cong nhu vong truoc. Xem them
+pg-direct-constraint-probe.log cho bang chung insert-probe doc lap.

@@ -1,0 +1,25 @@
+WWHN-236 / DISP-STK-236 — Apply Adjustment disposition gate
+Re-run: 2026-08-19 (evaluation 48/100 remediation round, DEV236-P1-04R/P1-05R)
+
+  PASS [DISP-CONTENT] DISP-STK-236 neo REQ-SRS-037 + DEFERRED + WWHN-238 + HN-STK-002
+  PASS [DEC-STK-001] DEC-STK-001 vẫn PROPOSED / no effective date
+  PASS [BASELINE-FRAGMENTS] forbidden_path_fragments phủ [stocktake, adjustment, variance]
+  PASS [BASELINE-TABLES] excluded_tables phủ đủ 4 bảng stocktake_*
+  PASS [BASELINE-MOVEMENT] movement_types = canonical set, không có ADJUST_*
+  PASS [OPENAPI-RUNTIME] storage/api-docs/api-docs.yaml + storage/api-docs/api-docs.json: zero path adjustment/stocktake/variance
+  PASS [PERMISSION-MATRIX] endpoint-permission matrix: zero stocktake/adjust/variance
+  PASS [ROUTE-SOURCE] 11 route file: zero URI adjustment/stocktake/variance
+  PASS [DB-CONSTRAINT] chk_stock_movement_type_current = [OPENING, RECEIPT, ISSUE, COMPONENT_ISSUE, REVERSAL], zero ADJUST_*
+  PASS [MIGRATION-TABLES] 4 bảng stocktake_* do migration lịch sử tạo đều bị drop ở migration sau (trạng thái cuối = zero)
+  PASS [SPEC-SURFACE] 25 spec contract: zero bề mặt bị cấm ngoài 3 artifact historical đã có disposition
+  NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-150-scan-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
+  NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.json → /api/v1/stocktake/sessions/{id}/apply-adjustment, enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
+  NOTE [SPEC-HISTORICAL] docs/api-contract/WWHN-180-posting-openapi.yaml → enum:STOCKTAKE — historical, superseded bởi DISP-STK-236 §3; không sửa nội dung.
+
+11/11 check PASS — bề mặt adjustment/stocktake đang sống = zero.
+
+Ghi chú: OPENAPI-RUNTIME sha256 của storage/api-docs/api-docs.json đổi so với lần chốt trước
+(f27e34ec... → hiện tại) vì nhánh song song khác trên m1 đã thêm endpoint không liên quan WWHN-236
+rồi regenerate lại swagger. Gate không pin exact digest của api-docs.json — nó chỉ đòi zero path bị
+cấm ở bề mặt đang sống (đúng thiết kế "chống pin rot" đã ghi ở DISP-STK-236 §3), nên không FAIL vì
+thay đổi này.

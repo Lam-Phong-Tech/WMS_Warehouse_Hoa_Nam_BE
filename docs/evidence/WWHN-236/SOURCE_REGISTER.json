@@ -25,18 +25,18 @@
     {
       "repo": "BE",
       "branch": "m1",
-      "head_sha": "e6c693e312a0e3febb5a5e0e157fa19ee1461828",
+      "head_sha": "59e82b7dc939c4867312cd4062341a78c5cdb6d0",
       "working_tree": "DIRTY",
       "working_tree_note": "Working tree có thay đổi chưa commit tại thời điểm sinh register. Exact SHA của candidate phải được pin lại sau khi commit — xem SHA256SUMS.",
-      "dirty_file_count": 68
+      "dirty_file_count": 13
     },
     {
       "repo": "FE",
       "branch": "m1",
-      "head_sha": "48f7ff096ee6c570ff3a27c93f1d47b4e3b8595e",
+      "head_sha": "a4b37ebf242ab6cc142bcbbe9d25ba0b5a75920a",
       "working_tree": "DIRTY",
       "working_tree_note": "Working tree có thay đổi chưa commit tại thời điểm sinh register. Exact SHA của candidate phải được pin lại sau khi commit — xem SHA256SUMS.",
-      "dirty_file_count": 74
+      "dirty_file_count": 2
     }
   ],
   "controlling_sources": [
@@ -98,7 +98,7 @@
       "role": "MACHINE-GATE",
       "anchor": "Bề mặt API thật — zero path adjustment/stocktake/variance",
       "repo": "BE",
-      "sha256": "33e0dc2048e686f617b44a64dfc1fd3e13be82c1b546f92354e3979513c365dc",
+      "sha256": "01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec",
       "present": true
     },
     {

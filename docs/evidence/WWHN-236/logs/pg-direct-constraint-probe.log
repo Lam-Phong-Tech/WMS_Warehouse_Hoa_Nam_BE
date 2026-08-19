@@ -1,0 +1,75 @@
+WWHN-236 / DISP-STK-236 - DEV236-P1-06R: bang chung truc tiep tren PostgreSQL (re-run remediation)
+Container : wms_warehouse_hoa_nam_be-postgres-1 (postgres:16-alpine)
+Database  : hoa_nam_wwhn236  (database rieng, tao lai bang CREATE DATABASE de khong dung chung
+            voi phien lam viec song song tren m1 - dung chung gay deadlock/drop race)
+Chay      : 2026-08-19T10:42:48+07:00 (vong remediation cho danh gia 48/100, DEV236-P1-06R)
+
+Disposition la DEFERRED, nen nghia vu cua DEV236-P1-06R la nghia vu PHU DINH:
+chung minh KHONG ton tai duong ghi ton thu hai, thay vi chung minh apply-adjustment
+chay dung.
+
+=== 0. MIGRATION BLOCKER DA DUOC GO (khac voi log 2026-08-18) ===
+Log truoc ghi nhan `php artisan migrate:fresh` tren pgsql FAIL tai
+`2026_08_10_000791_...`/`...000100_add_optimistic_lock_to_pv_master_tables` voi
+  SQLSTATE[42804] column "created_by" is of type uuid but expression is of type text
+Loi nay nam ngoai pham vi WWHN-236 (write-bridge cua migration
+`2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync`).
+
+Mot nhanh song song khac tren m1 (WWHN-289, DEV289-P1-02R) da sua tan goc bang migration moi
+`Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php`
+(chay TRUOC 000100, chen cast tuong minh vao function hn_erd_mirror_pv_industries/pv_tags/
+pv_product_industries). WWHN-236 khong sua migration nay - chi xac nhan lai bang cach migrate
+that tren database rieng.
+
+`php artisan migrate:fresh --force` tren `hoa_nam_wwhn236` chay HET moi migration, exit code 0,
+khong con SQLSTATE 42804. Xem chi tiet lenh + toan bo danh sach migration DONE trong
+be-phpunit-pgsql.log.
+
+=== 1. CHECK constraint doc truc tiep tu pg_constraint ===
+             conname             |                                                                                                         def
+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ chk_stock_movement_type_current | CHECK (((movement_type)::text = ANY ((ARRAY['OPENING'::character varying, 'RECEIPT'::character varying, 'ISSUE'::character varying, 'COMPONENT_ISSUE'::character varying, 'REVERSAL'::character varying])::text[])))
+(1 row)
+
+=== 2. Bang stocktake_* o schema cuoi cung (ky vong: 0 rows) ===
+ table_name
+------------
+(0 rows)
+
+=== 3. Cot stock_movements.stocktake_variance_id (ky vong: 0 rows) ===
+ column_name
+-------------
+(0 rows)
+
+=== 4. Paired insert probe (trong transaction, ket thuc bang ROLLBACK) ===
+BEGIN
+CREATE TABLE
+DO
+          label          |                                                           outcome
+-------------------------+-----------------------------------------------------------------------------------------------------------------------------
+ movement_type=ADJUST_IN | STOPPED: new row for relation "stock_movements" violates check constraint "chk_stock_movement_type_current"
+ movement_type=REVERSAL  | STOPPED: insert or update on table "stock_movements" violates foreign key constraint "stock_movements_warehouse_id_foreign"
+(2 rows)
+
+ROLLBACK
+
+=== Ket luan ===
+- movement_type=REVERSAL  : di qua CHECK, chi dung lai o foreign key vi database rieng
+                            chua co du lieu tham chieu => CHECK CHAP NHAN gia tri canonical.
+- movement_type=ADJUST_IN : bi chan boi chinh chk_stock_movement_type_current, TRUOC ca
+                            foreign key => PostgreSQL TU CHOI sua ton truc tiep.
+- Ca hai insert nam trong transaction va da ROLLBACK, khong ghi du lieu.
+
+=> Khong ton tai duong ghi ton thu hai o tang DB, doc lap voi tang route/permission.
+   Correction path duy nhat la Reversal append-only (BR-REV-01/02).
+
+=== NANG CAP so voi vong truoc: phpunit --filter chay THAT tren pgsql, khong chi truy van thu cong ===
+Voi migration blocker da duoc go, `php vendor/bin/phpunit --filter=Wwhn236DeferredAdjustmentGateTest`
+chay duoc DEN CUNG tren `hoa_nam_wwhn236` (pgsql that, khong phai sqlite):
+
+  OK (7 tests, 34 assertions)
+
+bao gom ca `test_movement_type_check_constraint_rejects_direct_stock_adjustment` chay tren PostgreSQL
+that. Xem be-phpunit-pgsql.log. Gioi han cu ("PG full test blocked by migration") o
+DEV236-P1-06R cua vong danh gia 48/100 da duoc dong bang bang chung duong, khong con la known
+limitation.

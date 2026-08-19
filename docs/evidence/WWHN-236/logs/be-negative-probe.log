@@ -1,0 +1,15 @@
+WWHN-236 / DISP-STK-236 — negative probe (chứng minh gate fail-closed)
+Chạy: 2026-08-18T15:52:43Z
+
+--- PROBE A: route sửa tồn đặt tên ngoài chữ stocktake ---
+1 FAILURE(S):
+  FAIL [ROUTE-SOURCE] Route khai bề mặt bị cấm:
+exit=1  (kỳ vọng 1)
+
+--- PROBE B: ADJUST_IN quay lại movement_types ---
+1 FAILURE(S):
+  FAIL [BASELINE-MOVEMENT] movement_types chứa [ADJUST_IN] — REQ-SRS-037 cấm sửa tồn trực tiếp; correction path là REVERSAL.
+exit=1  (kỳ vọng 1)
+
+--- KHÔI PHỤC ---
+exit=0  (kỳ vọng 0)

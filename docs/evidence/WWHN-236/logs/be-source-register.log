@@ -1,0 +1,23 @@
+WWHN-236 source register — re-run 2026-08-19 (DEV236-P1-04R remediation)
+
+  CONTROLLING    SRS-1.12             02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2
+  CROSS-CONFIRM  ERD                  5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2
+  CROSS-CONFIRM  WIREFRAME            107a2b4de0f5763e39278ec130758d57e772e004e525416c088018cf9ddba658
+  CROSS-CONFIRM  TECHSTACK            049818cae2d18af0d06d40f5d40098a8cf11279fde7d38cafb256a27cc0812ea
+  MACHINE-GATE   BASELINE-CONTRACT    31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64
+  MACHINE-GATE   OPENAPI-RUNTIME      01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec
+  DISPOSITION    DISP-STK-236         63ef90e5493c4aa6a78ba68cb3bc68926d851105430780fb1caaa6c89f29d3b5
+  HISTORICAL     WWHN-180-OPENAPI-JSON 8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b
+  HISTORICAL     WWHN-180-OPENAPI-YAML 8922b027cdfbd02fd59c80a2c42900765451cb74e0f9edecc6675b47f7cfec4b
+  HISTORICAL     WWHN-150-SCAN-OPENAPI 3d01d8750f19f2e8a4a9c7aaafda0ee51615fb6b300771e9cc8ac5bbef982a08
+  HISTORICAL     CHANGELOG-BE1        90ef8276dddb22eefb00e2e935667c702a8be5338d2441e061ea7fe0b94a18f3
+  PROPOSED / NO EFFECTIVE DATE DEC-STK-001          e8d7d8b9810a5c89473c1bdf341413cd0cbc983bbf08257a17addf7e975ade18
+  SUPERSEDED     BRD-HANDOFF-v3.9     n/a
+
+candidate_identity ghi lại tại thời điểm regenerate: BE head trước lúc pin = 59e82b7dc939c4867312cd4062341a78c5cdb6d0,
+114 commit sau mốc cũ e6c693e (đúng phát hiện DEV236-P1-04R: register cũ lệch HEAD hiện hành).
+Working tree DIRTY do các phiên Claude song song khác đang sửa file KHÔNG thuộc WWHN-236
+(WWHN-193/260/Flow05/WWHN-249 evidence) — không đụng tới các file đó. Exact SHA cuối cùng của
+candidate WWHN-236 = commit trong đó chính các file evidence này được ghi (xem SHA256SUMS +
+git log -- docs/evidence/WWHN-236 sau khi commit bằng temp-index, theo quy trình an toàn khi
+dùng chung working tree với các phiên khác trên m1).

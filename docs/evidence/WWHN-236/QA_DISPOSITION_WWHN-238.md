@@ -35,7 +35,7 @@ gate** — capability không tồn tại ở mọi tầng đang sống:
 |---|---|---|---|
 | 1 | Không API sửa tồn trực tiếp | `node scripts/verify-wwhn236-adjustment-disposition.mjs` | exit `0`, 11/11 PASS |
 | 2 | Route / permission / schema / constraint bằng zero | `php artisan test --filter=Wwhn236DeferredAdjustmentGateTest` | 7/7 pass |
-| 3 | Constraint DB thật chặn `ADJUST_*` | truy vấn trực tiếp PostgreSQL — `docs/evidence/WWHN-236/logs/pg-direct-constraint-probe.log` | `REVERSAL` qua CHECK; `ADJUST_IN` bị `chk_stock_movement_type_current` chặn |
+| 3 | Constraint DB thật chặn `ADJUST_*` | `php vendor/bin/phpunit --filter=Wwhn236DeferredAdjustmentGateTest` **trên PostgreSQL 16 thật** (migration blocker đã được `WWHN-289` sửa 2026-08-19) — `docs/evidence/WWHN-236/logs/be-phpunit-pgsql.log`; đối chiếu độc lập bằng truy vấn trực tiếp — `docs/evidence/WWHN-236/logs/pg-direct-constraint-probe.log` | 7/7 test PASS trên pgsql; `REVERSAL` qua CHECK, `ADJUST_IN` bị `chk_stock_movement_type_current` chặn |
 | 4 | FE không có route / menu / permission kiểm kê | `npm run wwhn-236:verify` (FE) | exit `0` |
 | 5 | Gate fail-closed, không phải chỉ happy path | negative probe A/B, `docs/evidence/WWHN-236/logs/` | exit `1` khi vi phạm |
 | 6 | Đường sửa sai hợp lệ còn sống | `test_canonical_reversal_correction_path_stays_available` | 3 route reverse tồn tại |
