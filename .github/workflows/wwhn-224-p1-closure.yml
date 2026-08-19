@@ -1,0 +1,166 @@
+name: WWHN-224 SKU import P1 closure
+
+# DEV224-P1-02R/P1-03R: register 18/08 đòi bằng chứng chạy được trên EXACT SHA của nhánh
+# canonical, không phải log máy dev và không phải PR đã đóng. Job này chạy trên PostgreSQL
+# 16 (DB tham chiếu theo HN-WMS-ERD-DD-001) và xuất artifact để QA2 đối chiếu ở WWHN-226.
+#
+# Ba nhóm bằng chứng, tách bước để đọc log biết ngay hỏng ở đâu:
+#   1. Bơm lỗi Import báo cáo -> 503 + rollback (P1-05R).
+#   2. Hợp đồng công bố khớp quyền route thực thi + có 503 (P1-04R).
+#   3. Register mapping SKU-only chưa bị code trôi khỏi, và vẫn ở trạng thái chờ BA (P1-01R).
+
+on:
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
+      - 'Modules/Warehouse/app/Services/ImportService.php'
+      - 'Modules/Warehouse/app/Services/ImportReportWriter.php'
+      - 'Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php'
+      - 'Modules/Warehouse/routes/import.php'
+      - 'docs/decision-records/DISP-IMP-224-sku-import-scope-mapping.json'
+      - 'docs/evidence/WWHN-224/**'
+      - 'tests/Feature/Wwhn224P1ClosureTest.php'
+      - 'scripts/verify-wwhn-224-closure.mjs'
+      - 'scripts/sync-wwhn224-import-openapi.php'
+      - '.github/workflows/wwhn-224-p1-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
+      - 'Modules/Warehouse/app/Services/ImportService.php'
+      - 'Modules/Warehouse/app/Services/ImportReportWriter.php'
+      - 'tests/Feature/Wwhn224P1ClosureTest.php'
+      - 'scripts/verify-wwhn-224-closure.mjs'
+      - '.github/workflows/wwhn-224-p1-closure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  closure:
+    name: Import báo cáo bắt buộc + hợp đồng quyền
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn224
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn224"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      CI_DEMO_PASSWORD: WWHN224-CI-Only-2026
+      JWT_SECRET: WWHN224-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn224
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath, zip, gd
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Ghi nhận identity của lượt chạy
+        run: |
+          {
+            echo "### WWHN-224 P1 closure run identity"
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- run: \`${GITHUB_RUN_ID}\` (attempt ${GITHUB_RUN_ATTEMPT})"
+            echo "- engine: PostgreSQL 16 (DB tham chiếu HN-WMS-ERD-DD-001)"
+            echo "- php: \`$(php -r 'echo PHP_VERSION;')\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Style check trên nguồn của WWHN-224
+        run: |
+          vendor/bin/pint --test \
+            Modules/Warehouse/app/Http/Controllers/ImportController.php \
+            Modules/Warehouse/app/Services/ImportService.php \
+            Modules/Warehouse/app/Services/ImportReportWriter.php \
+            Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php \
+            tests/Feature/Wwhn224P1ClosureTest.php \
+            scripts/sync-wwhn224-import-openapi.php
+
+      - name: Cổng hồ sơ + hợp đồng (P1-01R / P1-04R / P1-05R tầng tĩnh)
+        run: node scripts/verify-wwhn-224-closure.mjs
+
+      - name: Artifact OpenAPI phải tái sinh ra đúng nhóm path import
+        # DEV224-P1-04R: chỗ này bắt đúng lỗi gốc — annotation và artifact nói khác nhau
+        # thì lần regenerate kế tiếp âm thầm nhả lại chuỗi quyền sai.
+        run: |
+          set -euo pipefail
+          mkdir -p build/openapi-committed
+          cp storage/api-docs/api-docs.json storage/api-docs/api-docs.yaml build/openapi-committed/
+          php artisan l5-swagger:generate
+          mkdir -p build/openapi-fresh
+          cp storage/api-docs/api-docs.json storage/api-docs/api-docs.yaml build/openapi-fresh/
+          # trả artifact về đúng bản đang commit rồi mới so — script chỉ so nhóm path import
+          cp build/openapi-committed/api-docs.json build/openapi-committed/api-docs.yaml storage/api-docs/
+          php scripts/sync-wwhn224-import-openapi.php --fresh-dir=build/openapi-fresh --check
+
+      - name: Migrate + seed
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Bơm lỗi Import báo cáo — 503 + rollback (P1-05R)
+        run: php artisan test --filter=Wwhn224P1ClosureTest
+
+      - name: Regression toàn nhóm import SKU
+        run: |
+          php artisan test --filter='Wwhn224SkuImportDryRunTest|Wwhn174SkuImportValidationTest|Wwhn330ImportHardeningTest|Wwhn330ImportR3ClosureTest|Wwhn330ImportResidualHardeningTest|Wwhn331ImportContractClosureTest'
+
+      - name: Hash artifact tại đúng SHA này
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p build/evidence
+          sha256sum \
+            storage/api-docs/api-docs.json \
+            storage/api-docs/api-docs.yaml \
+            "docs/postman/WWHN-172 SKU Container Contract.postman_collection.json" \
+            docs/decision-records/DISP-IMP-224-sku-import-scope-mapping.json \
+            Modules/Warehouse/app/Http/Controllers/ImportController.php \
+            Modules/Warehouse/app/Services/ImportService.php \
+            Modules/Warehouse/app/Services/ImportReportWriter.php \
+            tests/Feature/Wwhn224P1ClosureTest.php \
+            > build/evidence/WWHN-224-SHA256SUMS.txt
+          php artisan route:list --json > build/evidence/WWHN-224-routes.json || true
+          cat build/evidence/WWHN-224-SHA256SUMS.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bằng chứng WWHN-224
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-224-p1-closure-${{ github.sha }}
+          path: |
+            docs/evidence/WWHN-224/**
+            docs/decision-records/DISP-IMP-224-sku-import-scope-mapping.json
+            build/evidence/**
+          if-no-files-found: warn
+          retention-days: 30

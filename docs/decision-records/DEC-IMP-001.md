@@ -377,3 +377,59 @@ tự ý sửa tài liệu baseline.
 | `routes/console.php` | Giờ chạy đọc từ hợp đồng thay vì viết cứng |
 | `tests/Feature/Wwhn330ImportR3ClosureTest.php` | **Mới** — 14 test khoá §1/§4/§5/§6/§7 |
 | `tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php` | Thêm biên 1001/sparse/oversize; sinh `BENCHMARK_RAW.json`; mô tả môi trường suy từ tiến trình thật; assert ngân sách §4 |
+
+---
+
+## 11. Import báo cáo là output BẮT BUỘC, và mã 503 — DEV224-P1-05R (bổ sung 19/08)
+
+### 11.1 Quyết định
+
+`import_reports` **không** phải metadata tuỳ nghi. Với mọi lần workbook đã được xử lý
+(dry-run, commit, và cả từ chối theo DÒNG), một Import báo cáo phải được ghi **trong cùng
+transaction** với phần ghi SKU/audit. Không tồn tại trạng thái "đã ghi SKU nhưng không có
+báo cáo", và không có response 200 nào thiếu `import_report_id`.
+
+Không ghi được (hoặc không **đọc** được, khi kiểm tra trùng lặp) → transaction rollback →
+API trả **HTTP 503 `SKU_IMPORT_REPORT_PERSISTENCE_FAILED`**, kèm header `Retry-After`,
+`committed=false`, `partial_write=false`, `import_report_id=null`, `retryable=true`.
+
+### 11.2 Vì sao không giữ hành vi cũ
+
+Hành vi cũ (`persistReport()` nuốt lỗi, trả `null`, request vẫn 200) được biện minh bằng
+"report chỉ là metadata; trả 500 thì client tưởng thất bại rồi gửi lại, gây DUPLICATE_CODE
+giả". Lập luận đó tự phản bác: **chính bảng `import_reports` là nơi cơ chế idempotent đọc
+để nhận diện replay** (§6, `findRecentDuplicateReport`). Mất bản ghi `COMMITTED` thì lần
+gửi lại của người dùng **thật sự** chạy import lần hai — tức là hành vi nuốt lỗi tạo ra
+đúng rủi ro mà nó viện dẫn để tự bào chữa, chỉ khác là im lặng.
+
+### 11.3 Khoảng trống baseline (nối tiếp §9)
+
+**SRS §8.2 không định nghĩa HTTP 503.** Hàng 500 `INTERNAL_ERROR` của §8.2 mô tả đúng cam
+kết đang thực hiện ("transaction rolled back so state, stock and movement remain as before
+request"), nhưng:
+
+- Register review WWHN-224 ngày 18/08 (DEV224-P1-05R) **chỉ định tường minh mã 503** làm
+  điều kiện đóng;
+- 503 + `Retry-After` diễn đạt đúng bản chất hơn 500: phụ thuộc bắt buộc tạm không khả
+  dụng, thử lại là an toàn vì đã rollback.
+
+Đây là **yêu cầu bổ sung baseline**, không phải mã tự chế. Đề nghị BA thêm hàng 503
+`SERVICE_DEPENDENCY_UNAVAILABLE` (hoặc tên tương đương) vào §8.2 ở bản SRS kế tiếp, với
+ràng buộc "no partial write" giống hàng 500. Trước khi §8.2 được cập nhật, 503 chỉ áp cho
+đúng điều kiện này của luồng import SKU.
+
+Phân biệt với §6: 409 `CONCURRENCY_CONFLICT` là **tranh chấp nghiệp vụ** (có lần import
+trùng định danh đang chạy); 503 ở đây là **sự cố khả dụng hạ tầng**. Hai tình huống khác
+nhau nên không dùng chung một mã.
+
+### 11.4 Ảnh hưởng mã nguồn (bổ sung cho §10)
+
+| Tệp | Thay đổi |
+|---|---|
+| `Modules/Warehouse/app/Services/ImportReportWriter.php` | **Mới** — nơi duy nhất ghi `import_reports`; ném exception thay vì trả null; log không chứa giá trị ô dữ liệu (§13.8) |
+| `Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php` | **Mới** |
+| `Modules/Warehouse/app/Services/ImportService.php` | `withReport()` ghi báo cáo trong transaction; `findRecentDuplicateReport()` fail-closed khi không đọc được bảng |
+| `Modules/Warehouse/app/Http/Controllers/ImportController.php` | Bỏ `persistReport()` (ghi sau khi transaction đã commit); bắt exception → 503 + `Retry-After`; OpenAPI công bố 503 và sửa `product.manage` → `sku.manage` |
+| `docs/decision-records/DISP-IMP-224-sku-import-scope-mapping.json` | **Mới** — phạm vi SKU-only + mapping khoá theo field/type/required/default/owner (chờ BA/Data Owner duyệt tại WWHN-225) |
+| `tests/Feature/Wwhn224P1ClosureTest.php` | **Mới** — 8 test: 4 ca bơm lỗi báo cáo, bất biến report id, 2 guard hợp đồng quyền, đối chiếu register |
+| FE `src/modules/master-data/services/sku-import.service.ts` | **Mới** `SkuImportUnavailableError` — 503 mang khối `data` nên nếu không tách lớp lỗi, UI sẽ hiển thị "file có lỗi" cho một file hợp lệ |

@@ -1,5 +1,23 @@
 # WWHN-224 — Import báo cáo: kiểm tra thử không ghi dữ liệu (dry-run) cho import SKU
 
+## 0. Quyền sở hữu và trạng thái hiện tại (DEV224-P2-01, cập nhật 19/08/2026)
+
+> **Ownership lịch sử:** BE2 — Duy Khánh Nguyễn (placeholder `HN-BE-02`). Toàn bộ mục 1–7
+> bên dưới là bản ghi của lần triển khai đầu tiên, giữ nguyên làm **hồ sơ lịch sử**.
+>
+> **Ownership hiện tại:** DEV thống nhất — Quang (`quangntpk`). Mọi thay đổi từ vòng
+> re-review 18/08 trở đi thuộc chủ sở hữu này; không còn phân tách BE1/BE2 cho luồng import
+> SKU.
+>
+> **Nguồn canonical:** nhánh `m1`. `m1-be-2` là tổ tiên thuần của `m1` (0 commit chênh
+> ngược), giữ làm mốc lịch sử — xem `docs/evidence/WWHN-224/SOURCE_PIN.md`.
+>
+> **Hồ sơ đóng register P1 (18/08):** `docs/evidence/WWHN-224/DEV224_P1_CLOSURE_REGISTER.md`.
+> Đọc file đó trước khi chấm lại: mục **2.2 bên dưới có một quyết định thiết kế đã bị đảo
+> ngược**, đã đánh dấu SUPERSEDED tại chỗ.
+
+---
+
 > Vai trò: **BE2** (Duy Khánh Nguyễn — placeholder `HN-BE-02`)
 > Task cha: **WWHN-56 / HN-DATA-001** — [DATA] Import master/SKU/item kiểm tra thử không ghi dữ liệu
 > Epic: **HN-EPIC-04**
@@ -35,7 +53,15 @@ File: [`Modules/Warehouse/app/Services/ImportService.php`](../../Modules/Warehou
 - Migration mới: [`2026_08_14_000200_create_import_reports_table.php`](../../Modules/Warehouse/database/migrations/2026_08_14_000200_create_import_reports_table.php) tạo bảng `import_reports` (UUID PK `import_report_id`, `import_type`, `mode` [`DRY_RUN`|`COMMIT`], `status` [`VALID`|`REJECTED`|`COMMITTED`], `file_name`, `file_sha256`, `template_version`, số liệu dòng, `row_errors` JSON, `actor_id`, `request_id`, timestamps). Có index theo `file_sha256`, theo `(import_type, mode, created_at)` và theo `actor_id` để phục vụ tra cứu/đối soát.
 - Model mới: [`Modules/Warehouse/app/Models/ImportReport.php`](../../Modules/Warehouse/app/Models/ImportReport.php).
 - `ImportController::importExcel()` ([`Modules/Warehouse/app/Http/Controllers/ImportController.php`](../../Modules/Warehouse/app/Http/Controllers/ImportController.php)) gọi `persistReport()` sau mỗi lần chạy import (dry-run lẫn thật) để ghi lại kết quả vào `import_reports`, và trả `import_report_id` trong response để client tra cứu lại.
-  - **Quyết định thiết kế quan trọng**: nếu import thật đã COMMIT thành công SKU nhưng riêng bước ghi `import_reports` bị lỗi (ví dụ DB tạm thời gián đoạn), request **vẫn trả về thành công** (SKU đã ghi đúng là sự thật nghiệp vụ) — lỗi ghi report chỉ được `Log::error('IMPORT_REPORT_WRITE_FAILED', ...)`, không làm hỏng response. Lý do: nếu để lỗi này làm response thành 500, client có thể hiểu nhầm import thất bại và gửi lại request, gây `DUPLICATE_CODE` giả trên dữ liệu thực ra đã được tạo đúng. Report là metadata truy vết, không phải nguồn sự thật nghiệp vụ.
+  - ~~**Quyết định thiết kế quan trọng**: nếu import thật đã COMMIT thành công SKU nhưng riêng bước ghi `import_reports` bị lỗi (ví dụ DB tạm thời gián đoạn), request **vẫn trả về thành công**...~~
+    **[SUPERSEDED 19/08/2026 — DEV224-P1-05R]** Quyết định này đã bị đảo ngược và **không
+    còn mô tả đúng mã nguồn**. Lập luận cũ ("để 500 thì client gửi lại, gây DUPLICATE_CODE
+    giả") tự phản bác: chính bảng `import_reports` là nơi cơ chế idempotent (WWHN-330 P1-03)
+    đọc để nhận diện replay, nên nuốt lỗi ghi báo cáo mới là thứ khiến lần gửi lại **thật sự**
+    import lần hai. Hành vi hiện tại: báo cáo được ghi TRONG cùng transaction với SKU/audit;
+    ghi hoặc đọc hỏng → rollback toàn bộ → HTTP **503 `SKU_IMPORT_REPORT_PERSISTENCE_FAILED`**
+    kèm `Retry-After`, `partial_write=false`. Xem `DEC-IMP-001` §11 và
+    `docs/evidence/WWHN-224/DEV224_P1_CLOSURE_REGISTER.md` §2.
 - Endpoint mới, controller mới [`ImportReportController.php`](../../Modules/Warehouse/app/Http/Controllers/ImportReportController.php):
   - `GET /api/v1/skus/import-reports` — danh sách phân trang, filter theo `mode`, `status`, `file_sha256`.
   - `GET /api/v1/skus/import-reports/{id}` — chi tiết 1 report, 404 chuẩn nếu không có.
