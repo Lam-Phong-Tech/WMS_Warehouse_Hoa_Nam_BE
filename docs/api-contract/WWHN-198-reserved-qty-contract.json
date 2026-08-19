@@ -1,0 +1,37 @@
+{
+  "ticket": "WWHN-198",
+  "finding": "DEV198-P1-04R",
+  "decision": "DEC-INV-RESERVED-001",
+  "decision_document": "docs/decision-records/DEC-INV-RESERVED-001-reserved-qty-semantics.md",
+  "status": "ADOPTED_PENDING_BA_SIGN_OFF",
+  "field": "inventory_balances.reserved_qty",
+  "semantics": "COMPATIBILITY_FIELD",
+  "constant_value": 0,
+  "is_authoritative_for_availability": false,
+  "reservation_model": "IDENTITY_LEVEL",
+  "reservation_source_of_truth": {
+    "table": "outbound_item_matches",
+    "predicate": "status = 'ACTIVE'",
+    "database_guards": [
+      "ux_erd_outbound_active_item",
+      "uk_outbound_match_active_item"
+    ]
+  },
+  "availability_source_of_truth": {
+    "scan_time_soft_check": "inventory_balances.available_qty",
+    "final_authority": "CurrentBaselineStockService::mutateBalance() tại Post Issue (row lock, không cho tồn âm)",
+    "insufficient_stock_http": 422,
+    "insufficient_stock_code": "INSUFFICIENT_STOCK"
+  },
+  "api_exposure_rule": "Được phép trả kèm như raw passthrough của hàng balance, KHÔNG được mô tả là 'số lượng đang giữ chỗ'.",
+  "ui_mapping_rule": "FE không hiển thị reserved_qty như 'Đang giữ chỗ' và không dùng nó để tính khả dụng; cột khả dụng đọc available_qty (Annex D SCR-OUT-01).",
+  "guards": [
+    "tests/Feature/Wwhn198ReservedQtySemanticsTest.php",
+    "scripts/verify-wwhn-198-closure.mjs"
+  ],
+  "supersedes_open_points": [
+    "BE1-RESV-OP-01 (WWHN-199)",
+    "BE2-PICK-OP-03 (WWHN-198)"
+  ],
+  "change_policy": "Muốn ghi giá trị khác 0 phải ra Decision Record mới thay thế DEC-INV-RESERVED-001, cập nhật ERD + OpenAPI + UI mapping trước khi gỡ guard."
+}

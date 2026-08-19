@@ -1,0 +1,339 @@
+{
+    "generated_at": "2026-08-19T00:51:47+07:00",
+    "ticket": "WWHN-198",
+    "register_item": "DEV198-P1-02R",
+    "parent": "WWHN-46 / HN-OUT-002",
+    "evidence_type": "EXECUTED_RUNTIME_CONCURRENCY",
+    "note": "Mỗi scenario spawn OS process thật với backend PostgreSQL độc lập; assertion phủ match ACTIVE, scanned_qty, tồn kho và stock_movements chứ không chỉ HTTP status.",
+    "git_sha": "c29a220e5ebc070012d4ff0715a2f42ef0e4324c",
+    "github_run_id": null,
+    "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "database": "wwhn198_race",
+    "lock_hold_ms": 1500,
+    "run_token": "0D657C98",
+    "scenarios": {
+        "cross_request_same_item": {
+            "workers": [
+                {
+                    "worker_index": 0,
+                    "application_name": "wwhn198-worker-0",
+                    "scenario": "cross-request-same-item",
+                    "operation": "outbound_scan",
+                    "document_id": "af59fe47-fdfb-4519-8204-637be7bc2ea9",
+                    "item_id": "5c6f587e-9c11-42f5-83d9-f8793e599a42",
+                    "backend_pid": 40051,
+                    "outcome": "REJECTED",
+                    "http_status": 409,
+                    "error_code": "ITEM_ALREADY_MATCHED",
+                    "sqlstate": null,
+                    "error_message": "Item đang được match ở một outbound khác.",
+                    "lock_wait_ms": 1821,
+                    "timeline": {
+                        "booted_at": 1787075494.235984,
+                        "released_at": 1787075494.262043,
+                        "lock_acquired_at": 1787075496.08577,
+                        "hold_released_at": 1787075497.600488,
+                        "finished_at": 1787075497.740803
+                    }
+                },
+                {
+                    "worker_index": 1,
+                    "application_name": "wwhn198-worker-1",
+                    "scenario": "cross-request-same-item",
+                    "operation": "outbound_scan",
+                    "document_id": "69095dfd-7f41-4a75-b52d-bd12dd431b50",
+                    "item_id": "5c6f587e-9c11-42f5-83d9-f8793e599a42",
+                    "backend_pid": 40050,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "sqlstate": null,
+                    "error_message": null,
+                    "lock_wait_ms": 27,
+                    "timeline": {
+                        "booted_at": 1787075494.228185,
+                        "released_at": 1787075494.262076,
+                        "lock_acquired_at": 1787075494.291935,
+                        "hold_released_at": 1787075495.796828,
+                        "finished_at": 1787075496.083748
+                    },
+                    "payload": {
+                        "document_id": "69095dfd-7f41-4a75-b52d-bd12dd431b50",
+                        "line_id": "1c166e52-aeeb-4767-a6a0-5ce8caaf1373",
+                        "sku_id": "666970bf-2005-433c-8697-8d5c6b156657",
+                        "item_id": "5c6f587e-9c11-42f5-83d9-f8793e599a42",
+                        "quantity": 1,
+                        "required_quantity": 1,
+                        "scanned_quantity": 1,
+                        "status": "SCANNING",
+                        "stock_effect": "NONE",
+                        "movement_created": false
+                    }
+                }
+            ],
+            "distinct_backend_pids": [
+                40051,
+                40050
+            ],
+            "distinct_backend_pid_count": 2,
+            "observed_pg_lock_wait": true,
+            "max_worker_lock_wait_ms": 1821,
+            "lock_hold_ms": 1500,
+            "real_contention_proven": true,
+            "lock_sample_count": 22,
+            "fixture": {
+                "sku_id": "666970bf-2005-433c-8697-8d5c6b156657",
+                "item_id": "5c6f587e-9c11-42f5-83d9-f8793e599a42",
+                "document_a": {
+                    "document_id": "af59fe47-fdfb-4519-8204-637be7bc2ea9",
+                    "line_id": "9837376d-725c-44cf-90c8-05efdd7429bb",
+                    "request_id": "48a7752c-d7c1-4b42-b194-2ae0a37b22d0"
+                },
+                "document_b": {
+                    "document_id": "69095dfd-7f41-4a75-b52d-bd12dd431b50",
+                    "line_id": "1c166e52-aeeb-4767-a6a0-5ce8caaf1373",
+                    "request_id": "4fe6c5fd-692f-462e-9728-59f046563b82"
+                }
+            },
+            "balance_before": {
+                "quantity": 2,
+                "on_hand_qty": 2,
+                "available_qty": 2,
+                "reserved_qty": 0,
+                "version": 1
+            },
+            "balance_after": {
+                "quantity": 2,
+                "on_hand_qty": 2,
+                "available_qty": 2,
+                "reserved_qty": 0,
+                "version": 1
+            },
+            "active_match_count": 1,
+            "loser_scanned_qty": 0,
+            "movement_count": 0,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "exactly_one_winner": true,
+                "exactly_one_conflict": true,
+                "conflict_is_item_already_matched": true,
+                "conflict_http_409": true,
+                "no_double_active_match": true,
+                "loser_rolled_back_clean": true,
+                "scan_is_stock_neutral": true,
+                "no_stock_movement_created": true
+            },
+            "passed": true
+        },
+        "same_request_same_item": {
+            "workers": [
+                {
+                    "worker_index": 0,
+                    "application_name": "wwhn198-worker-0",
+                    "scenario": "same-request-same-item",
+                    "operation": "outbound_scan",
+                    "document_id": "6ad8ac1c-db7a-4548-a7f7-25e4cd30d0b9",
+                    "item_id": "1ffbbaa1-02a1-4aef-a1ac-1227d6ce8aa0",
+                    "backend_pid": 40064,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "sqlstate": null,
+                    "error_message": null,
+                    "lock_wait_ms": 28,
+                    "timeline": {
+                        "booted_at": 1787075498.910241,
+                        "released_at": 1787075498.9401,
+                        "lock_acquired_at": 1787075498.974435,
+                        "hold_released_at": 1787075500.480374,
+                        "finished_at": 1787075500.77982
+                    },
+                    "payload": {
+                        "document_id": "6ad8ac1c-db7a-4548-a7f7-25e4cd30d0b9",
+                        "line_id": "68b4e96c-7188-40ed-8cba-9c2b836b652a",
+                        "sku_id": "e1525a7a-d682-4311-8e87-6dd74c0fcecf",
+                        "item_id": "1ffbbaa1-02a1-4aef-a1ac-1227d6ce8aa0",
+                        "quantity": 1,
+                        "required_quantity": 2,
+                        "scanned_quantity": 1,
+                        "status": "SCANNING",
+                        "stock_effect": "NONE",
+                        "movement_created": false
+                    }
+                },
+                {
+                    "worker_index": 1,
+                    "application_name": "wwhn198-worker-1",
+                    "scenario": "same-request-same-item",
+                    "operation": "outbound_scan",
+                    "document_id": "6ad8ac1c-db7a-4548-a7f7-25e4cd30d0b9",
+                    "item_id": "1ffbbaa1-02a1-4aef-a1ac-1227d6ce8aa0",
+                    "backend_pid": 40063,
+                    "outcome": "REJECTED",
+                    "http_status": 409,
+                    "error_code": "DUPLICATE_ITEM_MATCH",
+                    "sqlstate": null,
+                    "error_message": "Item đã được match vào dòng outbound này.",
+                    "lock_wait_ms": 1838,
+                    "timeline": {
+                        "booted_at": 1787075498.891982,
+                        "released_at": 1787075498.940102,
+                        "lock_acquired_at": 1787075500.783832,
+                        "hold_released_at": 1787075502.286879,
+                        "finished_at": 1787075502.525967
+                    }
+                }
+            ],
+            "distinct_backend_pids": [
+                40064,
+                40063
+            ],
+            "distinct_backend_pid_count": 2,
+            "observed_pg_lock_wait": true,
+            "max_worker_lock_wait_ms": 1838,
+            "lock_hold_ms": 1500,
+            "real_contention_proven": true,
+            "lock_sample_count": 21,
+            "fixture": {
+                "sku_id": "e1525a7a-d682-4311-8e87-6dd74c0fcecf",
+                "item_id": "1ffbbaa1-02a1-4aef-a1ac-1227d6ce8aa0",
+                "document": {
+                    "document_id": "6ad8ac1c-db7a-4548-a7f7-25e4cd30d0b9",
+                    "line_id": "68b4e96c-7188-40ed-8cba-9c2b836b652a",
+                    "request_id": "cbf946de-5e4c-4590-9f47-12efd3c678ec"
+                }
+            },
+            "balance_before": {
+                "quantity": 2,
+                "on_hand_qty": 2,
+                "available_qty": 2,
+                "reserved_qty": 0,
+                "version": 1
+            },
+            "balance_after": {
+                "quantity": 2,
+                "on_hand_qty": 2,
+                "available_qty": 2,
+                "reserved_qty": 0,
+                "version": 1
+            },
+            "active_match_count": 1,
+            "scanned_qty": 1,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "exactly_one_winner": true,
+                "exactly_one_conflict": true,
+                "conflict_is_duplicate_item_match": true,
+                "conflict_http_409": true,
+                "no_double_active_match": true,
+                "scanned_qty_counted_once": true,
+                "scan_is_stock_neutral": true
+            },
+            "passed": true
+        },
+        "unique_index_guard": {
+            "workers": [
+                {
+                    "worker_index": 0,
+                    "application_name": "wwhn198-worker-0",
+                    "scenario": "unique-index-guard",
+                    "operation": "raw_active_match_insert",
+                    "document_id": "0bc76b73-6a58-4d20-bd5c-40d0fe4f3d17",
+                    "item_id": "6da2beb3-c2bc-478a-986a-b5ee59718782",
+                    "backend_pid": 40076,
+                    "outcome": "DB_CONSTRAINT_REJECTED",
+                    "http_status": null,
+                    "error_code": null,
+                    "sqlstate": "23505",
+                    "error_message": "SQLSTATE[23505]: Unique violation: 7 ERROR:  duplicate key value violates unique constraint \"uk_outbound_match_active_item\"\nDETAIL:  Key (item_id)=(6da2beb3-c2bc-478a-986a-b5ee59718782) already exists. (Connection: pgsql, Host: 127.0.0.1, Port: 5432, Database: wwhn198_race, SQL: insert into \"outbound_item_matches\" (\"id\", \"outbound_line_id\", \"item_id\", \"container_id\", \"quantity\", \"status\", \"matched_at\", \"matched_by\", \"created_at\", \"created_by\", \"updated_at\", \"updated_by\", \"version\") values (93313279-9bd6-417d-9e82-54e122dc4e2d, 0c7de513-150d-4a11-b5e6-9d3a76c2e671, 6da2beb3-c2bc-478a-986a-b5ee59718782, ?, 1, ACTIVE, 2026-08-19 00:51:47, 01a015fe-dfce-72b9-94fe-f0b66c1591d9, 2026-08-19 00:51:47, 01a015fe-dfce-72b9-94fe-f0b66c1591d9, 2026-08-19 00:51:47, 01a015fe-dfce-72b9-94fe-f0b66c1591d9, 0))",
+                    "lock_wait_ms": 1606,
+                    "timeline": {
+                        "booted_at": 1787075503.878273,
+                        "released_at": 1787075503.991289,
+                        "lock_acquired_at": 1787075505.60172,
+                        "hold_released_at": 1787075507.110186,
+                        "finished_at": 1787075507.152885
+                    }
+                },
+                {
+                    "worker_index": 1,
+                    "application_name": "wwhn198-worker-1",
+                    "scenario": "unique-index-guard",
+                    "operation": "raw_active_match_insert",
+                    "document_id": "1ba78a29-9fd0-45dc-b18b-34c2fc0b1dd5",
+                    "item_id": "6da2beb3-c2bc-478a-986a-b5ee59718782",
+                    "backend_pid": 40077,
+                    "outcome": "SUCCESS",
+                    "http_status": 200,
+                    "error_code": null,
+                    "sqlstate": null,
+                    "error_message": null,
+                    "lock_wait_ms": 32,
+                    "timeline": {
+                        "booted_at": 1787075503.96022,
+                        "released_at": 1787075503.991296,
+                        "lock_acquired_at": 1787075504.027352,
+                        "hold_released_at": 1787075505.540263,
+                        "finished_at": 1787075505.598541
+                    },
+                    "payload": {
+                        "raw_insert": true
+                    }
+                }
+            ],
+            "distinct_backend_pids": [
+                40076,
+                40077
+            ],
+            "distinct_backend_pid_count": 2,
+            "observed_pg_lock_wait": true,
+            "max_worker_lock_wait_ms": 1606,
+            "lock_hold_ms": 1500,
+            "real_contention_proven": true,
+            "lock_sample_count": 21,
+            "fixture": {
+                "sku_id": "334d1aae-f387-46b2-b041-f591a1296d64",
+                "item_id": "6da2beb3-c2bc-478a-986a-b5ee59718782",
+                "document_d": {
+                    "document_id": "0bc76b73-6a58-4d20-bd5c-40d0fe4f3d17",
+                    "line_id": "0c7de513-150d-4a11-b5e6-9d3a76c2e671",
+                    "request_id": "8e49eee4-cc85-4d2e-9341-79a008452291"
+                },
+                "document_e": {
+                    "document_id": "1ba78a29-9fd0-45dc-b18b-34c2fc0b1dd5",
+                    "line_id": "4889b72d-6bc8-4a26-b676-bf1cfc56d1aa",
+                    "request_id": "449609ee-610b-4d1f-a409-f99487a261f3"
+                }
+            },
+            "index_definitions": [
+                {
+                    "index": "uk_outbound_match_active_item",
+                    "definition": "CREATE UNIQUE INDEX uk_outbound_match_active_item ON public.outbound_item_matches USING btree (item_id) WHERE ((item_id IS NOT NULL) AND ((status)::text = 'ACTIVE'::text))"
+                },
+                {
+                    "index": "ux_erd_inbound_active_item",
+                    "definition": "CREATE UNIQUE INDEX ux_erd_inbound_active_item ON public.inbound_scan_entries USING btree (item_id) WHERE ((item_id IS NOT NULL) AND ((status)::text = 'ACTIVE'::text))"
+                },
+                {
+                    "index": "ux_erd_outbound_active_item",
+                    "definition": "CREATE UNIQUE INDEX ux_erd_outbound_active_item ON public.outbound_item_matches USING btree (item_id) WHERE ((item_id IS NOT NULL) AND ((status)::text = 'ACTIVE'::text))"
+                }
+            ],
+            "active_match_count": 1,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "partial_unique_index_present": true,
+                "exactly_one_winner": true,
+                "loser_blocked_by_database": true,
+                "loser_sqlstate_is_unique_violation": true,
+                "no_double_active_match": true
+            },
+            "passed": true
+        }
+    },
+    "failed_scenarios": [],
+    "status": "PASS"
+}
