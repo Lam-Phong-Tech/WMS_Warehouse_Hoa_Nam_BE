@@ -1,0 +1,12 @@
+{
+    "package_version": "1.2",
+    "source_file_name": "HoaNam_Import_Package_v1.2_WWHN310_R2_SAFE_TARGET.zip",
+    "datasets": {
+        "AGENCY": "agency.csv",
+        "SKU": "sku.csv",
+        "PHYSICAL_CODE": "physical_code.csv",
+        "CONTAINER": "container.csv",
+        "ITEM": "item.csv",
+        "OPENING_BALANCE": "opening_balance.csv"
+    }
+}

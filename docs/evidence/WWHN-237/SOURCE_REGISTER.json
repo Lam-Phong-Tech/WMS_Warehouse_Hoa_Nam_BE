@@ -30,7 +30,7 @@
   },
   "baselines": {
     "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
-    "docs/HoaNam_ERD_Moi_Nhat.md": "30badd145e3eba41d080492b07e995d92dacbc370d304c60c015adeddfa8c33b",
+    "docs/HoaNam_ERD_Moi_Nhat.md": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
     "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md": "232e4d313a0bd4ff6f70f42ab679bab63d559d07e2b33a994dfbfcfd27ac9b5b",
     "docs/contracts/HoaNam_Current_Baseline_Contract.json": "31c200514cd349dae2a63d46d8243b0216d530dab32009dbca6637d2bddffc64",
     "docs/decision-records/DISP-STK-237-VARIANCE-REPORT-DEFERRED.md": "c16a5e82a1bb46cb830e5b479f89ca85c721c8ec74210bfc1cc24c854f004f64"

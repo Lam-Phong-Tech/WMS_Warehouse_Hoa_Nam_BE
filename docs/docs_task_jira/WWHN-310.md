@@ -143,8 +143,28 @@ fixture warranty case `IDENTIFIED` mà không có `item_id`, vi phạm CHECK
 `chk_erd_warranty_identification_shape` nên chỉ chạy được trên SQLite. Đã xác minh đây là đỏ có sẵn
 bằng cách chạy lại test trên bản ERD gốc với ba migration của ticket được gỡ ra.
 
-Thay đổi hiện nằm ở working tree của `m1` (**chưa commit**) vì có phiên khác đang cùng làm việc
-trên nhánh này; closure SHA phải được ghim lại khi commit và đo lại số liệu tại đúng SHA đó.
+### Pin nguồn (DEV310-P1-01)
+
+Thay đổi **đã commit** trên `m1`. Không có nhánh riêng và không có PR: `m1` là nhánh làm việc chung,
+nhiều phiên commit song song — disposition chính thức là **direct-commit**, ranh giới review là
+*file set + blob hash tại exact SHA* chứ không phải PR approval.
+
+| Mục | Giá trị |
+| --- | --- |
+| Nhánh bị supersede | `m1-be-2` @ `60816499066f9f493596e326dc41116ef32f5c4b` — ancestor lịch sử thuần: `git merge-base --is-ancestor 6081649 m1` = true, `git rev-list --count 6081649..m1` = 719, `git rev-list --count m1..6081649` = 0 |
+| Nhánh canonical | `m1` |
+| Code candidate (vòng 1) | `127c573a7236ad1c25829eb92011a4914360b840` — commit gộp 80 file của một phiên song song, **không mang tên WWHN-310**; identity của ticket xác định theo 20 file + blob hash trong `docs/evidence/WWHN-310/WWHN-310_SOURCE_PIN.json` |
+| Final candidate (vòng 2) | ghi trong `WWHN-310_SOURCE_PIN.json` → `final_candidate.sha` (vòng đóng DEV310-P1-01..06) |
+| FE candidate | ghi trong cùng file → `frontend.sha` |
+
+Cách xác minh một file thuộc WWHN-310 tại code candidate:
+
+```bash
+git rev-parse 127c573a7236ad1c25829eb92011a4914360b840:Modules/Warehouse/database/migrations/2026_08_18_193000_align_defect_catalogs_to_erd_entity_15.php
+```
+
+Số liệu kiểm chứng của vòng 2 được đo lại tại final candidate, xem
+`docs/evidence/WWHN-310/WWHN-310_ROUND2_REGISTER.md`.
 
 ## 7. Definition of Done cho WWHN-310
 

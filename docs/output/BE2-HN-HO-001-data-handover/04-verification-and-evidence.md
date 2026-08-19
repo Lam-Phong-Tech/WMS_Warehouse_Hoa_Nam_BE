@@ -74,3 +74,39 @@ SELECT indexdef FROM pg_indexes WHERE tablename = 'inbound_scan_entries';
 
 Số test tăng do các ticket khác cùng chạy trên `m1` bổ sung test; con số chốt phải đo lại tại đúng
 closure SHA khi nhánh được commit.
+
+## 6. Evidence vòng 2 (2026-08-19) — đã nộp trong repo
+
+Vòng 1 mô tả *cách* kiểm chứng nhưng chưa nộp bản chạy thật gắn với một revision. Vòng 2 bổ sung:
+
+| Nhóm | Đường dẫn |
+| --- | --- |
+| Pin nguồn (supersede `m1-be-2`, exact SHA, file set + blob hash) | `docs/evidence/WWHN-310/WWHN-310_SOURCE_PIN.json` |
+| Register đóng P1/P2 kèm bằng chứng từng hạng mục | `docs/evidence/WWHN-310/WWHN-310_ROUND2_REGISTER.md` |
+| Hồ sơ review ERD/Data Dictionary cho Tech Lead + BA/BAS | `docs/evidence/WWHN-310/ERD_AMENDMENT_REVIEW_RECORD.md` |
+| Gói retest cho QA1 (WWHN-312) | `docs/evidence/WWHN-310/QA1_RETEST_PACKET.md` |
+| Diễn tập nạp dữ liệu cuối: DRY_RUN → COMMIT → ROLLBACK + mẫu bị từ chối | `docs/evidence/WWHN-310/round2/` |
+| Sổ bàn giao (parent WWHN-83) | `docs/output/HN-HANDOVER-INDEX.md` |
+
+Chạy lại toàn bộ diễn tập nạp dữ liệu cuối trên một database sạch:
+
+```bash
+docker exec wms_warehouse_hoa_nam_be-postgres-1 psql -U postgres -c "CREATE DATABASE hn_wwhn310_fdl;"
+DB_CONNECTION=pgsql DB_DATABASE=hn_wwhn310_fdl php artisan migrate:fresh --seed --force
+bash docs/evidence/WWHN-310/round2/run-final-load-rehearsal.sh
+```
+
+Cổng khoá lại chính bộ evidence này (đỏ nếu register và artifact nói khác nhau):
+
+```bash
+php vendor/bin/phpunit --no-coverage --filter 'Wwhn310Round2ClosureTest|Wwhn310ErdDocumentPinTest'
+```
+
+## 7. Pin bản ERD dùng chung hai repo
+
+`docs/contracts/erd-document-pin.json` tồn tại **giống hệt nhau** ở repo BE và repo FE: nó pin
+`effective_revision` (`1.0+AMD008`), `sha256` và danh sách `ERD-AMD-*` của `HN-WMS-ERD-DD-001`.
+
+Khi sửa ERD phải làm đủ ba bước trong cùng một lần: thêm dòng `ERD-AMD` mới → nâng hậu tố
+`+AMD<nnn>` → cập nhật `sha256`/`bytes`/`amendments` trong file pin của **cả hai repo**. Thiếu bước
+nào thì `Wwhn310ErdDocumentPinTest` (BE) hoặc `wwhn-310-erd-document-pin.test.ts` (FE) đỏ.

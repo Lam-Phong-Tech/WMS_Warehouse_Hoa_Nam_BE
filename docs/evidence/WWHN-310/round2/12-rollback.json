@@ -1,0 +1,44 @@
+{
+    "migration_run_id": "fdd9f4da-f393-4e0f-82cb-9412056ec72e",
+    "migration_run_code": "REHEARSAL-WWHN-310-R2#ROLLBACK",
+    "mode": "ROLLBACK",
+    "status": "ROLLED_BACK",
+    "reconciliation": {
+        "status": "PASS",
+        "scope": "ROLLBACK",
+        "reversed_movements": 3,
+        "master_rollback": {
+            "snapshots": 19,
+            "restored_rows": 2,
+            "deleted_rows": 14,
+            "disposed_rows": [
+                {
+                    "table": "sku",
+                    "id": "01a0160f-7339-71a7-bfa8-ae22b5f2b052",
+                    "reason": "LEDGER_PINNED",
+                    "status_column": "status",
+                    "status_value": "INACTIVE"
+                },
+                {
+                    "table": "sku",
+                    "id": "01a0160f-7176-72b8-9bc8-93d7889314b3",
+                    "reason": "LEDGER_PINNED",
+                    "status_column": "status",
+                    "status_value": "INACTIVE"
+                },
+                {
+                    "table": "sku",
+                    "id": "01a0160f-6ec9-739e-9c06-20006510c9f9",
+                    "reason": "LEDGER_PINNED",
+                    "status_column": "status",
+                    "status_value": "INACTIVE"
+                }
+            ],
+            "missing_rows": [],
+            "retained_rows": []
+        },
+        "residual_opening_qty": 0,
+        "residual_master_rows": 0
+    },
+    "replayed": false
+}

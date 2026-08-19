@@ -1,0 +1,69 @@
+{
+  "jira": "WWHN-310",
+  "parent": "WWHN-83",
+  "defect": "DEV310-P1-01",
+  "purpose": "Formal supersede cua pin nguon cho WWHN-310. Jira/register dang pin hai revision khac nhau (m1-be-2@6081649 va m1@127c573) trong khi toan bo hien thuc nam tren m1. File nay la nguon su that de reviewer resolve dung revision, kem file set + blob hash de xac dinh identity khi commit bi gop.",
+
+  "source_pin": {
+    "superseded_branch": "m1-be-2",
+    "superseded_sha": "60816499066f9f493596e326dc41116ef32f5c4b",
+    "superseded_subject": "docs(WWHN-151): pin schema api release manifest",
+    "superseded_reason": "Ancestor lich su thuan cua m1. Kiem chung: `git merge-base --is-ancestor 6081649 m1` = true; `git rev-list --count 6081649..m1` = 719; `git rev-list --count m1..6081649` = 0. Nhanh nay khong con nhan thay doi cua WWHN-310 va khong duoc dung lam final identity.",
+    "canonical_branch": "m1",
+    "repository": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "rule": "Khong dung ten nhanh dong lam identity. Moi review/closure phai resolve theo exact SHA liet ke ben duoi."
+  },
+
+  "code_candidate": {
+    "sha": "127c573a7236ad1c25829eb92011a4914360b840",
+    "short_sha": "127c573",
+    "subject": "go co 14 (commit gop cua mot phien song song)",
+    "traceability_warning": "Commit nay KHONG mang ten WWHN-310 va gom 80 file cua nhieu ticket: mot phien Claude song song tren m1 da commit bang blanket `git add -A`. Vi vay identity cua WWHN-310 phai xac dinh theo DANH SACH FILE + BLOB HASH duoi day tai dung SHA nay, khong theo commit message. Xac minh mot file: `git rev-parse 127c573:<path>` phai tra ve dung blob hash.",
+    "disposition": "DIRECT-COMMIT (khong co PR). Khong tao nhanh rieng theo yeu cau van hanh cua du an: m1 la nhanh lam viec chung, nhieu phien commit song song. Vi khong co PR de review, ranh gioi review = file set + blob hash duoi day tai exact SHA; reviewer duyet bang comment tren WWHN-310 chu khong bang PR approval.",
+    "files": [
+      { "path": "Modules/Warehouse/database/migrations/2026_08_18_193000_align_defect_catalogs_to_erd_entity_15.php", "blob": "12e4abce8f5d7807d6d8bf93cdb86009af5cdc9c" },
+      { "path": "Modules/Warehouse/database/migrations/2026_08_18_193100_add_canonical_ledger_fks_to_reversal_lines.php", "blob": "6a99b760b9b394ebfbca98c59396dae75acd6eea" },
+      { "path": "Modules/Warehouse/database/migrations/2026_08_18_193200_add_documented_partial_unique_on_inbound_scan_entries.php", "blob": "0764a0dc37fc9f11a1ba7ad95465ffdff8f84460" },
+      { "path": "Modules/Warehouse/database/migrations/2026_08_18_193300_restore_label_print_event_status_vocabulary.php", "blob": "61f3e1820ebee6e62f95c10cf8bde3d25b94947e" },
+      { "path": "Modules/Warehouse/database/migrations/2026_08_17_000100_materialize_erd_columns_on_sqlite.php", "blob": "247b425e35895b8630a345e4b24ce346251f8b6b" },
+      { "path": "Modules/Warehouse/app/Http/Controllers/DefectCatalogController.php", "blob": "3e2d5d70a5dc1090f1ac26b65bbd85cb05d37f2b" },
+      { "path": "Modules/Warehouse/app/Http/Requests/StoreDefectCatalogRequest.php", "blob": "963aa6fd656b219ad05fc03319337ae653188b2f" },
+      { "path": "Modules/Warehouse/app/Http/Requests/UpdateDefectCatalogRequest.php", "blob": "658041c1a6d9956047125cb95e32debd28da1625" },
+      { "path": "tests/Feature/ErdPhysicalSchemaParityTest.php", "blob": "2caee7198d9ab92e682e58f749d36d1c33c65e49" },
+      { "path": "tests/Feature/Wwhn310DataHandoverContractTest.php", "blob": "b2b50007eed5781a7c0fbd635ea06dca06ec6e3b" },
+      { "path": "docs/HoaNam_ERD_Moi_Nhat.md", "blob": "9ccc8f522e08da097260ea68daf2ab716c0ed249" },
+      { "path": "docs/decision-records/DEC-DATA-001-defect-catalogs-naming-and-erd-amendments.md", "blob": "a3604b3f4d968fa042121ebdcaf303c696748ed2" },
+      { "path": "docs/docs_task_jira/WWHN-310.md", "blob": "550f926119406bbef2e7ab7356bcb348759f60d3" },
+      { "path": "docs/docs_task_jira/WWHN-310-signoff-comments.md", "blob": "083669d263dd8ce7f7cca8cd1599a14cfa665731" },
+      { "path": "docs/output/BE2-HN-HO-001-data-handover/00-summary.md", "blob": "5083f2809983b417f96cd2eb990f1f5893151d83" },
+      { "path": "docs/output/BE2-HN-HO-001-data-handover/01-data-dictionary-and-integrity.md", "blob": "ba23a00f4ae5f7a038345209d221a63e85206be1" },
+      { "path": "docs/output/BE2-HN-HO-001-data-handover/02-migration-and-seed.md", "blob": "080692837bf1cbbfbc4193afd83399965c193db5" },
+      { "path": "docs/output/BE2-HN-HO-001-data-handover/03-report-catalog.md", "blob": "74c9a705925093ff7ae13ff99bbf58e22064ed1e" },
+      { "path": "docs/output/BE2-HN-HO-001-data-handover/04-verification-and-evidence.md", "blob": "962122fe2af12e91482a0c58d5903276d155bedc" },
+      { "path": "docs/contracts/HoaNam_Current_Baseline_Contract.json", "blob": "38ec085439edbc2b8f7aec2d2cd21ac866659068" }
+    ],
+    "not_owned_by_wwhn310_in_the_same_commit": "60 file con lai cua 127c573 thuoc WWHN-231/236/237/239/252/260/328 - khong thuoc pham vi review cua WWHN-310."
+  },
+
+  "final_candidate": {
+    "sha": "FILL_AFTER_CLOSURE_COMMIT",
+    "branch": "m1",
+    "note": "Vong 2 (dong DEV310-P1-01..06 + P2-01). Chua duoc thay the boi commit nao khac cua WWHN-310. Xem WWHN-310_ROUND2_REGISTER.md."
+  },
+
+  "frontend": {
+    "repository": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
+    "branch": "m1",
+    "sha": "FILL_AFTER_CLOSURE_COMMIT",
+    "impact": "DOCS + INPUT LIMIT + GATE",
+    "impact_evidence": "docs/HoaNam_ERD_Moi_Nhat.md dong bo byte-for-byte voi BE; src/modules/master-data/pages/ApiMasterScreens.tsx maxLength 80/200 theo Data Dictionary; src/test/wwhn-310-erd-document-pin.test.ts la cong chan lech ERD giua hai repo. Khong co thay doi API contract."
+  },
+
+  "how_to_verify": [
+    "git -C <BE_repo> fetch origin m1",
+    "git -C <BE_repo> merge-base --is-ancestor 60816499066f9f493596e326dc41116ef32f5c4b origin/m1 && echo SUPERSEDE_OK",
+    "git -C <BE_repo> rev-parse 127c573a7236ad1c25829eb92011a4914360b840:Modules/Warehouse/database/migrations/2026_08_18_193000_align_defect_catalogs_to_erd_entity_15.php",
+    "git -C <BE_repo> checkout <final_candidate.sha> && php vendor/bin/phpunit --no-coverage --filter '/(Wwhn310DataHandoverContractTest|Wwhn310ErdDocumentPinTest|Wwhn310Round2ClosureTest)/'",
+    "sha256sum docs/HoaNam_ERD_Moi_Nhat.md o CA HAI repo va so voi docs/contracts/erd-document-pin.json"
+  ]
+}

@@ -1,0 +1,12 @@
+           migration_run_code           |     dataset     | row_no |   field_name   |   error_code   | severity | raw_value_masked  
+----------------------------------------+-----------------+--------+----------------+----------------+----------+-------------------
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | AGENCY          |      3 | agency_name    | REQUIRED       | ERROR    | 
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | ITEM            |      5 | code_value     | UNKNOWN_FK     | CRITICAL | HN-ITEM-310091
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | ITEM            |      5 | sku_code       | UNKNOWN_SKU    | CRITICAL | HN-KHONG-TON-TAI
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | OPENING_BALANCE |      5 | warehouse_code | UNKNOWN_FK     | CRITICAL | KHO-KHONG-TON-TAI
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | OPENING_BALANCE |      6 | stock_status   | INVALID_ENUM   | ERROR    | SAI_TRANG_THAI
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | OPENING_BALANCE |        | quantity       | RECON_MISMATCH | CRITICAL | 
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | SKU             |      5 | sku_type       | INVALID_ENUM   | ERROR    | GADGET
+ REHEARSAL-WWHN-310-R2-REJECTED#DRY_RUN | SKU             |      6 | sku_code       | DUPLICATE_CODE | CRITICAL | HN-MK-310-V1
+(8 rows)
+

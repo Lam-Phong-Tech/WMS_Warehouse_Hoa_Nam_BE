@@ -1,0 +1,9 @@
+{
+    "migration_run_id": null,
+    "migration_run_code": "REHEARSAL-WWHN-310-R2-REJECTED",
+    "mode": "COMMIT",
+    "status": "BLOCKED",
+    "error_code": "DRY_RUN_NOT_PASSED",
+    "message": "COMMIT bị chặn: chưa có DRY_RUN ở trạng thái PASSED cho run code này.",
+    "replayed": false
+}

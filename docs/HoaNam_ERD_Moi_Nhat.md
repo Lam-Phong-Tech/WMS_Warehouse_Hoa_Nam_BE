@@ -27,6 +27,23 @@ ghi vào đây khi đã có nguồn baseline cao hơn (SRS/FRD v1.12, Decision R
 cũ là mô tả không khớp chính hình dạng vật lý mà chính tài liệu này quy định. Không sửa đổi nào
 được đổi business semantics đã chốt mà không có Change Request.
 
+**Bản hiệu lực (effective revision): `1.0+AMD008`** — bản phát hành `1.0` (04/08/2026) cộng các sửa
+đổi `ERD-AMD-001..008` trong bảng dưới. Hậu tố `+AMD<nnn>` luôn bằng mã ERD-AMD lớn nhất đã ghi:
+thêm một amendment mà không nâng hậu tố là một lệch tài liệu, không phải một sửa đổi.
+
+Tài liệu này tồn tại **hai bản giống hệt nhau** ở repo BE và repo FE. Mỗi lần sửa phải:
+
+1. Ghi một dòng ERD-AMD mới kèm nguồn baseline (SRS/FRD hoặc Decision Record).
+2. Nâng hậu tố `+AMD<nnn>` của bản hiệu lực.
+3. Cập nhật `docs/contracts/erd-document-pin.json` (`effective_revision` + `sha256` + `amendments`)
+   ở **cả hai repo** bằng đúng một giá trị.
+
+Cổng chặn: `tests/Feature/Wwhn310ErdDocumentPinTest.php` (BE) và
+`src/test/wwhn-310-erd-document-pin.test.ts` (FE) đều băm bản ERD nằm trong repo của mình rồi so với
+`sha256` đã pin. Hai repo pin cùng một chuỗi, nên checksum lệch nhau là đỏ ở cả hai phía — đây là
+cách chặn tái diễn lệch nội dung ERD giữa hai repo (lệch từng xảy ra: bản FE còn giữ quy tắc
+"PRODUCT Post Issue yêu cầu active RFID" đã bị SRS v1.12 thay thế).
+
   ------------------------------------------------------------------------------------------------------------------------------------------------------------
   **Mã**              **Ngày**       **Bảng / mục**                    **Nội dung sửa**                                                        **Nguồn**
   ------------------- -------------- --------------------------------- ----------------------------------------------------------------------- ----------------
@@ -59,6 +76,11 @@ cũ là mô tả không khớp chính hình dạng vật lý mà chính tài li�
                                                                        PASS và Data Dictionary yêu cầu lưu cả ba số; trước đó dòng trùng bị    §14 DD
                                                                        gộp vào `error_rows` nên bất biến không kiểm lại được từ dữ liệu đã
                                                                        lưu. Không đổi business semantics.
+
+  ERD-AMD-008         19/08/2026     0.0 Amendment Register            Bổ sung "Bản hiệu lực" `1.0+AMD<nnn>` và quy tắc pin checksum hai repo  WWHN-310 /
+                                                                       qua `docs/contracts/erd-document-pin.json`. Trước đó tài liệu đã amend  DEC-DATA-001 /
+                                                                       7 lần mà trường Version vẫn là 1.0, nên không có cách nào chỉ đúng một  SRS §13.4
+                                                                       bản ERD khi review. Không đổi entity/field/constraint/semantics.
   ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Bản trong `WMS_Warehouse_Hoa_Nam_BE/docs/` và `WMS_Warehouse_Hoa_Nam_FE/docs/` phải giống hệt

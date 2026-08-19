@@ -1,0 +1,16 @@
+== 1. DRY_RUN (package hợp lệ) — kỳ vọng PASSED, exit 0 ==
+exit=0
+== 2. COMMIT — kỳ vọng COMMITTED, exit 0 ==
+exit=0
+== 3. Đối soát sau COMMIT ==
+exit=0
+== 4. ROLLBACK — kỳ vọng ROLLED_BACK, exit 0 ==
+exit=0
+== 5. Đối soát sau ROLLBACK ==
+exit=0
+== 6. DRY_RUN (package có dòng bị từ chối) — kỳ vọng FAILED, exit 1 ==
+exit=1 (1 = FAILED là đúng kỳ vọng)
+== 7. COMMIT sau dry-run FAILED — kỳ vọng BLOCKED, exit 1 ==
+exit=1 (1 = BLOCKED là đúng kỳ vọng)
+== 8. Dòng bị từ chối đã ghi vào migration_errors ==
+exit=0

@@ -1,0 +1,58 @@
+Pager usage is off.
+== ledger cua package sau rollback: OPENING phai bi trung hoa boi REVERSAL ==
+ movement_type | qty_delta | movements 
+---------------+-----------+-----------
+ OPENING       |        12 |         3
+ REVERSAL      |       -12 |         3
+(2 rows)
+
+== residual_opening_qty = tong rong cua run (phai = 0) ==
+ residual_opening_qty 
+----------------------
+                    0
+(1 row)
+
+== ledger van la append-only: khong dong nao bi xoa ==
+ total_movements_of_package 
+----------------------------
+                          6
+(1 row)
+
+== master con lai (SKU bi ledger ghim => INACTIVE, khong xoa duoc) ==
+       t        | count 
+----------------+-------
+ skus           |     3
+ skus_active    |     0
+ agencies       |     0
+ item_instances |     0
+ containers     |     0
+ physical_codes |     0
+(6 rows)
+
+== balance con lai cua package (phai rong) ==
+ sku_id | stock_status | quantity 
+--------+--------------+----------
+(0 rows)
+
+== balance vs ledger tren TOAN BO kho sau rollback (phai rong) ==
+ warehouse_id | sku_id | stock_status | balance_qty | ledger_qty 
+--------------+--------+--------------+-------------+------------
+(0 rows)
+
+== migration_runs sau rollback ==
+       migration_run_code       |   mode   |   status    
+--------------------------------+----------+-------------
+ REHEARSAL-WWHN-310-R2#DRY_RUN  | DRY_RUN  | PASSED
+ REHEARSAL-WWHN-310-R2#COMMIT   | COMMIT   | ROLLED_BACK
+ REHEARSAL-WWHN-310-R2#ROLLBACK | ROLLBACK | ROLLED_BACK
+(3 rows)
+
+== audit MIGRATION_* ==
+            action            | count 
+------------------------------+-------
+ MIGRATION_COMMIT_COMPLETED   |     1
+ MIGRATION_DRY_RUN_COMPLETED  |     1
+ MIGRATION_MASTER_SNAPSHOT    |    19
+ MIGRATION_ROLLBACK_COMPLETED |     1
+(4 rows)
+

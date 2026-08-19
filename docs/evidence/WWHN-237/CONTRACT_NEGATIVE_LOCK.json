@@ -4,7 +4,7 @@
   "checks": {
     "disposition_sha256": "c16a5e82a1bb46cb830e5b479f89ca85c721c8ec74210bfc1cc24c854f004f64",
     "srs_sha256": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
-    "erd_sha256": "30badd145e3eba41d080492b07e995d92dacbc370d304c60c015adeddfa8c33b",
+    "erd_sha256": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
     "report_registry_literals": [
       "/api/v1/reports/document-history/export-excel",
       "/api/v1/reports/import-match/export-excel",

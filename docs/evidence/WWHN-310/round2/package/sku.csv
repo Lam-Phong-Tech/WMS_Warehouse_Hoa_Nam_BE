@@ -1,0 +1,4 @@
+sku_code,sku_name,sku_type,unit,is_serial_tracked,version_code,status
+HN-MK-310-V1,May khoan cutover 310 V1,PRODUCT,cai,TRUE,V1,ACTIVE
+HN-MK-310-V2,May khoan cutover 310 V2,PRODUCT,cai,TRUE,V2,ACTIVE
+HN-PK-310-V1,Phu kien cutover 310,COMPONENT,cai,FALSE,V1,ACTIVE

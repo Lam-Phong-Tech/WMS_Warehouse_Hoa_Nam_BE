@@ -1,0 +1,161 @@
+Evidence đã ghi: C:/LAM_PHONG_TECH/HoaNam_BE/WMS_Warehouse_Hoa_Nam_BE/docs/evidence/WWHN-310/round2/11-commit.json
+{
+ "migration_run_id": "6030bd06-8675-4c5b-8b6f-a9a2f42feef5",
+ "migration_run_code": "REHEARSAL-WWHN-310-R2#COMMIT",
+ "mode": "COMMIT",
+ "status": "COMMITTED",
+ "package_version": "1.2",
+ "mapping_version": "1.0",
+ "source_file_name": "HoaNam_Import_Package_v1.2_WWHN310_R2_SAFE_TARGET.zip",
+ "source_checksum": "c94756d9909b3c0fea4382262a16f166110ca648c9b916823871c0eda933bb9e",
+ "manifest_checksum": "c152179ea6497ce14481b6c2064e9b3247e4a3e7fc0bfe3d4dad4efa5152323a",
+ "manifest": {
+ "package_version": "1.2",
+ "source_file_name": "HoaNam_Import_Package_v1.2_WWHN310_R2_SAFE_TARGET.zip",
+ "datasets": {
+ "AGENCY": "agency.csv",
+ "CONTAINER": "container.csv",
+ "ITEM": "item.csv",
+ "OPENING_BALANCE": "opening_balance.csv",
+ "PHYSICAL_CODE": "physical_code.csv",
+ "SKU": "sku.csv"
+ }
+ },
+ "file_checksums": {
+ "AGENCY": "d40153aaff75950fcef041472b60c7f84783ae0c1153f2e2a1005cc9e22b9ac4",
+ "CONTAINER": "be8926328fc7991e062fb30fb748f7b4f87d61ba8b756bc6a5306e15f8eda4a4",
+ "ITEM": "519ccaa97a0ae92ef18dc7fd8f7a9806edbe2e2cd7341299382510e27cf4f73f",
+ "OPENING_BALANCE": "25f75b1dc65b43a3f0db6c5b755ef83e7010eff381009b3308695460f646377e",
+ "PHYSICAL_CODE": "721c8d122f1e8fc9a52de32b3d6992c3639dd781e1273abdd7c55c507190ce16",
+ "SKU": "8dbdd7b3f952c3ae6d057751b4878ffa9d753c51e263b3aeb7fad8b151e15265"
+ },
+ "source_files": {
+ "AGENCY": "agency.csv",
+ "CONTAINER": "container.csv",
+ "ITEM": "item.csv",
+ "OPENING_BALANCE": "opening_balance.csv",
+ "PHYSICAL_CODE": "physical_code.csv",
+ "SKU": "sku.csv"
+ },
+ "counts": {
+ "total": 16,
+ "valid": 16,
+ "invalid": 0,
+ "duplicate": 0,
+ "invariant_holds": true,
+ "by_dataset": {
+ "AGENCY": 2,
+ "SKU": 3,
+ "PHYSICAL_CODE": 4,
+ "CONTAINER": 1,
+ "ITEM": 3,
+ "OPENING_BALANCE": 3
+ }
+ },
+ "timing": {
+ "started_at": "2026-08-19T01:08:23+00:00",
+ "finished_at": "2026-08-19T01:08:38+00:00",
+ "duration_ms": 14608,
+ "duration_source": "MONOTONIC_CLOCK"
+ },
+ "reconciliation": {
+ "status": "PASS",
+ "scope": "COMMITTED",
+ "checks": [
+ {
+ "check": "SOURCE_QTY_EQUALS_LEDGER",
+ "warehouse_code": "KHO-TONG-HN",
+ "sku_code": "HN-MK-310-V1",
+ "stock_status": "AVAILABLE",
+ "expected": 2,
+ "actual": 2,
+ "status": "PASS",
+ "message": "Opening KHO-TONG-HN/HN-MK-310-V1/AVAILABLE: nguồn 2 vs ledger 2."
+ },
+ {
+ "check": "SOURCE_QTY_EQUALS_LEDGER",
+ "warehouse_code": "KHO-TONG-HN",
+ "sku_code": "HN-MK-310-V2",
+ "stock_status": "AVAILABLE",
+ "expected": 1,
+ "actual": 1,
+ "status": "PASS",
+ "message": "Opening KHO-TONG-HN/HN-MK-310-V2/AVAILABLE: nguồn 1 vs ledger 1."
+ },
+ {
+ "check": "SOURCE_QTY_EQUALS_LEDGER",
+ "warehouse_code": "KHO-TONG-HN",
+ "sku_code": "HN-PK-310-V1",
+ "stock_status": "AVAILABLE",
+ "expected": 9,
+ "actual": 9,
+ "status": "PASS",
+ "message": "Opening KHO-TONG-HN/HN-PK-310-V1/AVAILABLE: nguồn 9 vs ledger 9."
+ },
+ {
+ "check": "BALANCE_EQUALS_LEDGER",
+ "warehouse_id": "01a0160e-742d-72f6-8a2b-5f42b20b41f7",
+ "sku_id": "01a0160f-6ec9-739e-9c06-20006510c9f9",
+ "stock_status": "AVAILABLE",
+ "expected": 2,
+ "actual": 2,
+ "status": "PASS",
+ "message": "Balance vs ledger 01a0160e-742d-72f6-8a2b-5f42b20b41f7/01a0160f-6ec9-739e-9c06-20006510c9f9/AVAILABLE: 2 vs 2."
+ },
+ {
+ "check": "BALANCE_EQUALS_LEDGER",
+ "warehouse_id": "01a0160e-742d-72f6-8a2b-5f42b20b41f7",
+ "sku_id": "01a0160f-7176-72b8-9bc8-93d7889314b3",
+ "stock_status": "AVAILABLE",
+ "expected": 1,
+ "actual": 1,
+ "status": "PASS",
+ "message": "Balance vs ledger 01a0160e-742d-72f6-8a2b-5f42b20b41f7/01a0160f-7176-72b8-9bc8-93d7889314b3/AVAILABLE: 1 vs 1."
+ },
+ {
+ "check": "BALANCE_EQUALS_LEDGER",
+ "warehouse_id": "01a0160e-742d-72f6-8a2b-5f42b20b41f7",
+ "sku_id": "01a0160f-7339-71a7-bfa8-ae22b5f2b052",
+ "stock_status": "AVAILABLE",
+ "expected": 9,
+ "actual": 9,
+ "status": "PASS",
+ "message": "Balance vs ledger 01a0160e-742d-72f6-8a2b-5f42b20b41f7/01a0160f-7339-71a7-bfa8-ae22b5f2b052/AVAILABLE: 9 vs 9."
+ },
+ {
+ "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
+ "sku_code": "HN-MK-310-V1",
+ "expected": 2,
+ "actual": 2,
+ "status": "PASS",
+ "message": "SKU serial-tracked HN-MK-310-V1: opening 2 vs số Item 2."
+ },
+ {
+ "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",
+ "sku_code": "HN-MK-310-V2",
+ "expected": 1,
+ "actual": 1,
+ "status": "PASS",
+ "message": "SKU serial-tracked HN-MK-310-V2: opening 1 vs số Item 1."
+ },
+ {
+ "check": "CONTAINER_MAPPING_NO_EXTRA_STOCK",
+ "container_rows": 1,
+ "expected": 12,
+ "actual": 12,
+ "status": "PASS",
+ "message": "Tổng tồn ghi bởi run 12 vs tổng lượng nguồn 12 (1 dòng CONTAINER không được sinh thêm tồn)."
+ },
+ {
+ "check": "RUN_WRITES_ONLY_OPENING_MOVEMENTS",
+ "expected": 0,
+ "actual": 0,
+ "status": "PASS",
+ "message": "Số movement khác OPENING do run tạo: 0 (phải bằng 0)."
+ }
+ ]
+ },
+ "errors": [],
+ "replayed": false
+}
+

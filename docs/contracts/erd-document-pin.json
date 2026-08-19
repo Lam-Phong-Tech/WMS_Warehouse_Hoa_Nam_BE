@@ -1,0 +1,35 @@
+{
+  "document_id": "HN-WMS-ERD-DD-001",
+  "path": "docs/HoaNam_ERD_Moi_Nhat.md",
+  "released_version": "1.0",
+  "released_at": "2026-08-04",
+  "effective_revision": "1.0+AMD008",
+  "effective_at": "2026-08-19",
+  "amendments": [
+    "ERD-AMD-001",
+    "ERD-AMD-002",
+    "ERD-AMD-003",
+    "ERD-AMD-004",
+    "ERD-AMD-005",
+    "ERD-AMD-006",
+    "ERD-AMD-007",
+    "ERD-AMD-008"
+  ],
+  "sha256": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
+  "bytes": 205227,
+  "table_count": 59,
+  "decision_records": [
+    "DEC-DATA-001-defect-catalogs-naming-and-erd-amendments"
+  ],
+  "repos": {
+    "backend": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "frontend": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE"
+  },
+  "rule": "Hai repo giu hai ban ERD giong het nhau. Moi lan sua ERD phai: (1) them mot dong ERD-AMD kem nguon baseline, (2) nang hau to +AMD<nnn> cua effective_revision, (3) cap nhat sha256/bytes/amendments trong CA HAI file pin nay bang cung mot gia tri. Khong dung ten nhanh dong lam identity - review theo exact SHA.",
+  "gates": {
+    "backend": "tests/Feature/Wwhn310ErdDocumentPinTest.php",
+    "frontend": "src/test/wwhn-310-erd-document-pin.test.ts"
+  },
+  "owner": "BA (noi dung) + Tech Lead (physical schema)",
+  "jira": "WWHN-310 / WWHN-31"
+}

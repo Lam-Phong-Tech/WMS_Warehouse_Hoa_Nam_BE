@@ -1,0 +1,68 @@
+Pager usage is off.
+== migration_runs ==
+      migration_run_code       |  mode   |  status   | total_rows | valid_rows | error_rows | duplicate_rows |                         source_checksum                          | has_operator | has_approver |                                 note                                 
+-------------------------------+---------+-----------+------------+------------+------------+----------------+------------------------------------------------------------------+--------------+--------------+----------------------------------------------------------------------
+ REHEARSAL-WWHN-310-R2#DRY_RUN | DRY_RUN | PASSED    |         16 |         16 |          0 |              0 | c94756d9909b3c0fea4382262a16f166110ca648c9b916823871c0eda933bb9e | t            | f            | WWHN-310 DEV310-P1-04 rehearsal
+ REHEARSAL-WWHN-310-R2#COMMIT  | COMMIT  | COMMITTED |         16 |         16 |          0 |              0 | c94756d9909b3c0fea4382262a16f166110ca648c9b916823871c0eda933bb9e | t            | t            | APPROVAL_REF=WWHN-310#DEV310-P1-04 | WWHN-310 DEV310-P1-04 rehearsal
+(2 rows)
+
+== migration_errors (phai rong) ==
+ migration_run_id | dataset | row_no | field_name | error_code | severity | raw_value_masked 
+------------------+---------+--------+------------+------------+----------+------------------
+(0 rows)
+
+== ledger OPENING movements cua run ==
+ stock_status |   sku_code   | qty_delta | movements 
+--------------+--------------+-----------+-----------
+ AVAILABLE    | HN-MK-310-V1 |         2 |         1
+ AVAILABLE    | HN-MK-310-V2 |         1 |         1
+ AVAILABLE    | HN-PK-310-V1 |         9 |         1
+(3 rows)
+
+== balance vs ledger tren TOAN BO kho (phai rong) ==
+ warehouse_id | sku_id | stock_status | balance_qty | ledger_qty 
+--------------+--------+--------------+-------------+------------
+(0 rows)
+
+== serial-tracked: opening qty vs so Item (SRS 13.12) ==
+   sku_code   | tracking_mode | opening_qty | item_count 
+--------------+---------------+-------------+------------
+ HN-MK-310-V1 | SERIAL        |           2 |          2
+ HN-MK-310-V2 | SERIAL        |           1 |          1
+ HN-PK-310-V1 | QUANTITY      |           9 |          0
+(3 rows)
+
+== audit MIGRATION_* ==
+           action            | count 
+-----------------------------+-------
+ MIGRATION_COMMIT_COMPLETED  |     1
+ MIGRATION_DRY_RUN_COMPLETED |     1
+ MIGRATION_MASTER_SNAPSHOT   |    19
+(3 rows)
+
+== audit id cua tung buoc ==
+ id |           action            |       created_at       
+----+-----------------------------+------------------------
+ 16 | MIGRATION_DRY_RUN_COMPLETED | 2026-08-19 01:08:19+00
+ 17 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:24+00
+ 18 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:24+00
+ 19 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:25+00
+ 20 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:26+00
+ 21 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:26+00
+ 22 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:27+00
+ 23 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:27+00
+ 24 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:28+00
+ 25 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:31+00
+ 26 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:33+00
+ 27 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:34+00
+ 28 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:34+00
+ 29 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:35+00
+ 30 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:35+00
+ 31 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:35+00
+ 32 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:35+00
+ 33 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:36+00
+ 34 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:36+00
+ 35 | MIGRATION_MASTER_SNAPSHOT   | 2026-08-19 01:08:37+00
+ 36 | MIGRATION_COMMIT_COMPLETED  | 2026-08-19 01:08:38+00
+(21 rows)
+
