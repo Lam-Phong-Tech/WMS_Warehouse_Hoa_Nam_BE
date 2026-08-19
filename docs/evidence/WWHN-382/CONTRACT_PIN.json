@@ -1,7 +1,7 @@
 {
   "endpoint": "/api/v1/reports/dashboard-quick",
-  "ref": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
-  "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+  "ref": "b6df81d5670519c69cf172deed9fbc63052d5276",
+  "commit": "b6df81d5670519c69cf172deed9fbc63052d5276",
   "fingerprints": {
     "openapi_operation": "03445d7afebcfc44f3a83f57f44a1a554f2b4a7b09a7f6f96924d1889f5f1742",
     "postman_requests": "9e8091b404c37b7e813e885f43eea904e675149c54f57d37c3628371b09f0ea9",

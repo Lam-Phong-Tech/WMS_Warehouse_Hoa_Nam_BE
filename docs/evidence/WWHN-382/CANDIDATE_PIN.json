@@ -6,13 +6,13 @@
     "backend": {
       "repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE.git",
       "branch": "m1",
-      "sha": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
-      "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+      "sha": "b6df81d5670519c69cf172deed9fbc63052d5276",
+      "subject": "docs(WWHN-382): pin candidate/contract va neo log tho hai driver"
     },
     "frontend": {
       "repo": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE.git",
       "branch": "m1",
-      "sha": "54bd44fd1133c30dd69c796d439235732749c482"
+      "sha": "082d23327bb2a0d711e31fa7d66aa0815188740f"
     }
   },
   "semantic_anchor": {
@@ -86,20 +86,20 @@
     },
     {
       "path": "docs/evidence/WWHN-328/KPI_MATRIX.md",
-      "git_blob": "332950f639fd20e4d70af94b5fa5f3d0e5715e57",
+      "git_blob": "3654f48de18561b07b5a2bc3b588b88eb9515fa2",
       "last_touched": {
-        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "commit": "a1bd4d0cd4250beb255fe9ed2373cbd30b8fa910",
         "date": "2026-08-19",
-        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+        "subject": "docs(WWHN-328): pin candidate b610b1f va dong register R4 theo tung ID"
       }
     },
     {
       "path": "docs/evidence/WWHN-328/EVIDENCE_PACK.md",
-      "git_blob": "38f841863b1ba674f847438c01b6d1d66c034890",
+      "git_blob": "6c9ec1e912635b0676efd04ee976e968ac748f85",
       "last_touched": {
-        "commit": "127c573a7236ad1c25829eb92011a4914360b840",
-        "date": "2026-08-18",
-        "subject": "gỡ cờ 13"
+        "commit": "b610b1ff191f8c1f2cce3c24571de850f946d690",
+        "date": "2026-08-19",
+        "subject": "test(WWHN-328): khoa ngoai le warranty GLOBAL, doi soat RPT-INV-01 va tran canh bao bang test that"
       }
     },
     {
@@ -131,11 +131,11 @@
     },
     {
       "path": "docs/evidence/WWHN-382/DIFF_SCOPE_MAP.md",
-      "git_blob": "69aaa879ce86516839f567c43cb47fedab35ff5e",
+      "git_blob": "8d5c5365533b5bf83df15c246279922fca14311f",
       "last_touched": {
-        "commit": "fa3cbfa7d7eda37e4ec30e682b85f35fd085a247",
+        "commit": "b6df81d5670519c69cf172deed9fbc63052d5276",
         "date": "2026-08-19",
-        "subject": "fix(WWHN-382): dong register R4 dashboard bang pin muc doi tuong va 5 test khoa"
+        "subject": "docs(WWHN-382): pin candidate/contract va neo log tho hai driver"
       }
     },
     {
