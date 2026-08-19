@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
 use App\Support\ConflictCode;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
@@ -11,6 +12,25 @@ use Modules\AuditLog\Services\AuditLogger;
 class CurrentBaselineReversalService
 {
     private const AVAILABLE = 'AVAILABLE';
+
+    /**
+     * WWHN-266 · BE266-D03 / DEC-REV-COMPONENT-001: phạm vi reversal gồm ba loại
+     * chứng từ nguồn — receipt (INBOUND), issue (OUTBOUND) và component_issue
+     * (COMPONENT_ISSUE, phiếu xuất linh kiện bảo hành). BR-REV-01 áp cho MỌI sửa
+     * sai sau Post; trước đây COMPONENT_ISSUE bị chặn ở cả hai chốt (create/post)
+     * nên phiếu linh kiện post nhầm không có đường sửa hợp lệ.
+     */
+    private const REVERSIBLE_MOVEMENT_TYPES = ['RECEIPT', 'ISSUE', 'COMPONENT_ISSUE'];
+
+    /**
+     * issue và component_issue cùng chiều stock effect (movement gốc trừ tồn,
+     * reversal cộng lại) nên cùng chịu BR-REV-06/07: chỉ Post khi hàng vật lý đã
+     * quay lại kho và phải khai condition_status; chỉ SELLABLE cộng available_qty.
+     */
+    private function isStockRestoring(string $documentType): bool
+    {
+        return in_array($documentType, ['issue', 'component_issue'], true);
+    }
 
     public function execute(
         string $documentId,
@@ -54,7 +74,7 @@ class CurrentBaselineReversalService
                 $physicalConfirmed
             );
 
-            if ($documentType === 'issue' && ! $physicalConfirmed) {
+            if ($this->isStockRestoring($documentType) && ! $physicalConfirmed) {
                 return [
                     'original_document_id' => $documentId,
                     'original_document_status' => 'POSTED',
@@ -84,7 +104,13 @@ class CurrentBaselineReversalService
             ApiError::abort(422, 'REVERSAL_LINES_REQUIRED', 'Reversal phải chỉ rõ movement/quantity cần đảo; không auto-reverse toàn chứng từ.');
         }
 
-        $warehouseId = (string) ($documentType === 'receipt' ? $document->dst_warehouse_id : $document->src_warehouse_id);
+        $warehouseId = (string) match ($documentType) {
+            'receipt' => $document->dst_warehouse_id,
+            // component_issue_documents giữ warehouse_id trực tiếp (ERD), không
+            // tách src/dst như stock_documents.
+            'component_issue' => $document->warehouse_id,
+            default => $document->src_warehouse_id,
+        };
         $chainId = (string) (DB::table('reversal_document')
             ->where('original_document_id', $document->id)
             ->whereNotNull('correction_chain_id')
@@ -96,16 +122,23 @@ class CurrentBaselineReversalService
         DB::table('reversal_document')->insert([
             'reversal_document_id' => $reversalId,
             'document_no' => 'REV-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6)),
-            'stock_document_id' => $document->id,
+            // component_issue: chứng từ gốc KHÔNG nằm trong stock_documents nên
+            // stock_document_id để null (cột nullable, FK nullOnDelete); danh tính
+            // gốc giữ ở cặp original_document_type/original_document_id.
+            'stock_document_id' => $documentType === 'component_issue' ? null : $document->id,
             'warehouse_id' => $warehouseId,
-            'original_document_type' => $documentType === 'receipt' ? 'INBOUND' : 'OUTBOUND',
+            'original_document_type' => match ($documentType) {
+                'receipt' => 'INBOUND',
+                'component_issue' => 'COMPONENT_ISSUE',
+                default => 'OUTBOUND',
+            },
             'original_document_id' => $document->id,
             'correction_chain_id' => $chainId,
             'reason_code' => $reasonCode,
             'reason_text' => $reasonText,
             'reason' => $reasonText,
             'condition_status' => $condition,
-            'physical_return_status' => $documentType === 'issue' ? ($physicalConfirmed ? 'CONFIRMED' : 'PENDING_RETURN') : null,
+            'physical_return_status' => $this->isStockRestoring($documentType) ? ($physicalConfirmed ? 'CONFIRMED' : 'PENDING_RETURN') : null,
             'status' => 'DRAFT',
             'idempotency_key' => $idempotencyKey,
             'created_by' => $actorId,
@@ -124,12 +157,21 @@ class CurrentBaselineReversalService
         // qty-exceeded, item dependency) giữ nguyên thứ tự line_no ở Pha 1 này.
         $quantityDependencyChecks = [];
         foreach ($lines as $index => $lineInput) {
-            $movement = DB::table('stock_movements')
-                ->where('id', $lineInput['movement_id'])
-                ->where('stock_document_id', $document->id)
-                ->where('movement_type', $documentType === 'receipt' ? 'RECEIPT' : 'ISSUE')
-                ->lockForUpdate()
-                ->first();
+            $movementQuery = DB::table('stock_movements')->where('id', $lineInput['movement_id']);
+            if ($documentType === 'component_issue') {
+                // Movement COMPONENT_ISSUE không thuộc stock_document nào
+                // (stock_document_id null); danh tính gốc nằm ở cặp
+                // source_type/source_id do postComponentIssue() ghi.
+                $movementQuery
+                    ->where('source_type', 'COMPONENT_ISSUE_DOCUMENT')
+                    ->where('source_id', $document->id)
+                    ->where('movement_type', 'COMPONENT_ISSUE');
+            } else {
+                $movementQuery
+                    ->where('stock_document_id', $document->id)
+                    ->where('movement_type', $documentType === 'receipt' ? 'RECEIPT' : 'ISSUE');
+            }
+            $movement = $movementQuery->lockForUpdate()->first();
             if ($movement === null) {
                 ApiError::abort(422, 'ORIGINAL_MOVEMENT_INVALID', 'movement_id không thuộc original document hoặc không phải movement có thể reversal.');
             }
@@ -163,7 +205,7 @@ class CurrentBaselineReversalService
                 if ($qty !== 1 || empty($itemId)) {
                     ApiError::abort(422, 'REVERSAL_ITEM_REQUIRED', 'PRODUCT/serial reversal phải chỉ rõ item_id và quantity=1 cho từng line.');
                 }
-                $this->assertItemBelongsToOriginal((string) $itemId, (string) $movement->stock_document_line_id, $documentType, $skuId);
+                $this->assertItemBelongsToOriginal((string) $itemId, $movement, $documentType, $skuId);
                 $this->assertItemNotAlreadyReversed((string) $itemId, (string) $movement->id, $stagedItemIds);
                 $this->assertItemDependency((string) $itemId, $documentType);
                 $stagedItemIds[(string) $itemId] = true;
@@ -184,8 +226,8 @@ class CurrentBaselineReversalService
                 'item_id' => $itemId,
                 'reversal_qty' => $qty,
                 'quantity_to_reverse' => $qty,
-                'stock_status' => $documentType === 'issue' ? $this->stockStatusForCondition($condition) : ($movement->stock_status ?: self::AVAILABLE),
-                'return_condition' => $documentType === 'issue' ? $condition : null,
+                'stock_status' => $this->isStockRestoring($documentType) ? $this->stockStatusForCondition($condition) : ($movement->stock_status ?: self::AVAILABLE),
+                'return_condition' => $this->isStockRestoring($documentType) ? $condition : null,
                 'downstream_check_result' => json_encode(['status' => 'PASS', 'checked_at' => now()->toIso8601String()], JSON_UNESCAPED_UNICODE),
                 'reason' => $reasonText,
                 'created_by' => $actorId,
@@ -217,7 +259,7 @@ class CurrentBaselineReversalService
             reason: $reasonText,
             afterData: [
                 'status' => 'DRAFT',
-                'physical_return_status' => $documentType === 'issue' ? ($physicalConfirmed ? 'CONFIRMED' : 'PENDING_RETURN') : null,
+                'physical_return_status' => $this->isStockRestoring($documentType) ? ($physicalConfirmed ? 'CONFIRMED' : 'PENDING_RETURN') : null,
                 'original_document_id' => $document->id,
             ],
         );
@@ -235,7 +277,7 @@ class CurrentBaselineReversalService
         string $requestHash,
         int $expectedVersion
     ): array {
-        if ($documentType !== 'issue' || ($payload['physical_return_confirmed'] ?? false) !== true) {
+        if (! $this->isStockRestoring($documentType) || ($payload['physical_return_confirmed'] ?? false) !== true) {
             ApiError::abort(422, 'PHYSICAL_RETURN_CONFIRMATION_REQUIRED', 'Pending return chỉ được Post khi physical_return_confirmed=true.');
         }
 
@@ -254,7 +296,7 @@ class CurrentBaselineReversalService
         }
         foreach (DB::table('reversal_line')->where('reversal_document_id', $reversalId)->lockForUpdate()->get() as $line) {
             if ($line->item_id !== null) {
-                $this->assertItemDependency((string) $line->item_id, 'issue');
+                $this->assertItemDependency((string) $line->item_id, $documentType);
             }
         }
 
@@ -282,8 +324,8 @@ class CurrentBaselineReversalService
         if ($reversal === null || $reversal->status !== 'DRAFT') {
             ApiError::abort(409, 'REVERSAL_NOT_DRAFT', 'Reversal phải ở DRAFT trước khi Post.');
         }
-        if ($documentType === 'issue' && $reversal->physical_return_status !== 'CONFIRMED') {
-            ApiError::abort(409, 'PHYSICAL_RETURN_REQUIRED', 'Reverse Issue chưa xác nhận hàng về vật lý; stock effect = 0.');
+        if ($this->isStockRestoring($documentType) && $reversal->physical_return_status !== 'CONFIRMED') {
+            ApiError::abort(409, 'PHYSICAL_RETURN_REQUIRED', 'Reverse Issue/Component Issue chưa xác nhận hàng về vật lý; stock effect = 0.');
         }
 
         $lines = DB::table('reversal_line')->where('reversal_document_id', $reversalId)->orderBy('line_no')->lockForUpdate()->get();
@@ -298,8 +340,15 @@ class CurrentBaselineReversalService
         $originalByLine = [];
         foreach ($lines as $line) {
             $original = DB::table('stock_movements')->where('id', $line->original_movement_id)->lockForUpdate()->first();
-            if ($original === null || ! in_array($original->movement_type, ['RECEIPT', 'ISSUE'], true)) {
+            // BE266-D03 (vòng review 74/100): tách hai nguyên nhân trước đây gộp
+            // chung một thông điệp sai — movement REVERSAL mới là "reversal của
+            // reversal"; các loại ngoài phạm vi còn lại (OPENING...) là movement
+            // không đảo được, trả đúng mã 422 mà chốt createDraft() đã dùng.
+            if ($original !== null && $original->movement_type === 'REVERSAL') {
                 ApiError::abort(409, 'REVERSAL_OF_REVERSAL_FORBIDDEN', 'Không reverse trực tiếp movement REVERSAL; phải correction từ movement nghiệp vụ gốc.');
+            }
+            if ($original === null || ! in_array($original->movement_type, self::REVERSIBLE_MOVEMENT_TYPES, true)) {
+                ApiError::abort(422, 'ORIGINAL_MOVEMENT_INVALID', 'movement_id không thuộc original document hoặc không phải movement có thể reversal.');
             }
 
             $qty = (int) ($line->quantity_to_reverse ?? $line->reversal_qty);
@@ -362,7 +411,7 @@ class CurrentBaselineReversalService
             if ($line->item_id !== null) {
                 DB::table('item_instances')->where('item_id', $line->item_id)->update([
                     'item_status' => $documentType === 'receipt' ? 'ADJUSTED_OUT' : 'IN_STOCK',
-                    'item_condition' => $documentType === 'issue'
+                    'item_condition' => $this->isStockRestoring($documentType)
                         ? (($line->return_condition ?? 'SELLABLE') === 'SELLABLE' ? 'NORMAL' : $line->return_condition)
                         : DB::raw('item_condition'),
                     'updated_at' => now(),
@@ -379,7 +428,11 @@ class CurrentBaselineReversalService
             'updated_at' => now(),
         ]);
 
-        $this->recordPostingEvent($reversalId, $documentType === 'issue' ? 'REVERSE_ISSUE' : 'REVERSE_RECEIPT', $idempotencyKey, $requestHash, $movementIds, $actorId);
+        $this->recordPostingEvent($reversalId, match ($documentType) {
+            'receipt' => 'REVERSE_RECEIPT',
+            'component_issue' => 'REVERSE_COMPONENT_ISSUE',
+            default => 'REVERSE_ISSUE',
+        }, $idempotencyKey, $requestHash, $movementIds, $actorId);
         AuditLogger::record(
             action: 'REVERSAL_POST',
             objectType: 'reversal_document',
@@ -414,7 +467,7 @@ class CurrentBaselineReversalService
      */
     private function sortReversalLinesForBalanceLock(iterable $lines, array $originalByLine): array
     {
-        $items = $lines instanceof \Illuminate\Support\Collection ? $lines->all() : [...$lines];
+        $items = $lines instanceof Collection ? $lines->all() : [...$lines];
         usort($items, function (object $a, object $b) use ($originalByLine): int {
             $originalA = $originalByLine[$a->reversal_line_id];
             $originalB = $originalByLine[$b->reversal_line_id];
@@ -526,16 +579,32 @@ class CurrentBaselineReversalService
         return $movementId;
     }
 
-    private function assertItemBelongsToOriginal(string $itemId, string $originalLineId, string $documentType, string $skuId): void
+    private function assertItemBelongsToOriginal(string $itemId, object $movement, string $documentType, string $skuId): void
     {
         $item = DB::table('item_instances')->where('item_id', $itemId)->lockForUpdate()->first();
         if ($item === null || (string) $item->sku_id !== $skuId) {
             ApiError::abort(422, 'ITEM_SKU_MISMATCH', 'item_id không thuộc SKU movement gốc.');
         }
 
-        $exists = $documentType === 'receipt'
-            ? DB::table('inbound_scan_entries')->where('inbound_line_id', $originalLineId)->where('item_id', $itemId)->exists()
-            : DB::table('outbound_item_matches')->where('outbound_line_id', $originalLineId)->where('item_id', $itemId)->exists();
+        // receipt/issue neo line gốc bằng stock_document_line_id; component_issue
+        // neo bằng source_line_id (= component_issue_lines.id do postComponentIssue
+        // ghi) và item được chọn nằm ở component_issue_items (ACTIVE lúc scan,
+        // POSTED sau khi Post).
+        $exists = match ($documentType) {
+            'receipt' => DB::table('inbound_scan_entries')
+                ->where('inbound_line_id', (string) $movement->stock_document_line_id)
+                ->where('item_id', $itemId)
+                ->exists(),
+            'component_issue' => DB::table('component_issue_items')
+                ->where('component_issue_line_id', (string) $movement->source_line_id)
+                ->where('item_id', $itemId)
+                ->whereIn('status', ['ACTIVE', 'POSTED'])
+                ->exists(),
+            default => DB::table('outbound_item_matches')
+                ->where('outbound_line_id', (string) $movement->stock_document_line_id)
+                ->where('item_id', $itemId)
+                ->exists(),
+        };
         if (! $exists) {
             ApiError::abort(422, 'ITEM_NOT_IN_ORIGINAL_TRANSACTION', 'item_id không thuộc line giao dịch gốc.');
         }
@@ -591,8 +660,10 @@ class CurrentBaselineReversalService
         if ($documentType === 'receipt' && ! in_array($item->item_status, ['IN_STOCK', 'NEW'], true)) {
             ApiError::abort(409, ConflictCode::DOWNSTREAM_DEPENDENCY, 'Receipt item không còn ở trạng thái IN_STOCK/NEW (đã Issue/Warranty hoặc đã đảo); phải đảo dependency theo thứ tự ngược.');
         }
-        if ($documentType === 'issue' && ! in_array($item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true)) {
-            ApiError::abort(409, ConflictCode::DOWNSTREAM_DEPENDENCY, 'Issue item đang ở downstream state không thể nhận return trực tiếp.');
+        // issue lẫn component_issue đều đưa item sang ISSUED lúc Post; chỉ item
+        // còn ở trạng thái đó (hoặc RETURNED_TO_CUSTOMER) mới nhận return.
+        if ($this->isStockRestoring($documentType) && ! in_array($item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true)) {
+            ApiError::abort(409, ConflictCode::DOWNSTREAM_DEPENDENCY, 'Issue/Component Issue item đang ở downstream state không thể nhận return trực tiếp.');
         }
     }
 
@@ -657,7 +728,7 @@ class CurrentBaselineReversalService
         }
         $condition = strtoupper((string) ($payload['condition_status'] ?? ''));
         if (! in_array($condition, ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], true)) {
-            ApiError::abort(422, 'RETURN_CONDITION_REQUIRED', 'Reverse Issue bắt buộc condition_status SELLABLE/DEFECTIVE/NON_SELLABLE.');
+            ApiError::abort(422, 'RETURN_CONDITION_REQUIRED', 'Reverse Issue/Component Issue bắt buộc condition_status SELLABLE/DEFECTIVE/NON_SELLABLE.');
         }
 
         return $condition;
@@ -729,7 +800,11 @@ class CurrentBaselineReversalService
                 ApiError::abort(409, 'REVERSAL_NOT_DRAFT', 'Reversal phải ở DRAFT trước khi Post.');
             }
 
-            $documentType = strtoupper((string) $reversal->original_document_type) === 'INBOUND' ? 'receipt' : 'issue';
+            $documentType = match (strtoupper((string) $reversal->original_document_type)) {
+                'INBOUND' => 'receipt',
+                'COMPONENT_ISSUE' => 'component_issue',
+                default => 'issue',
+            };
             $document = $this->lockOriginalDocument((string) $reversal->original_document_id, $documentType);
 
             return $this->postDraft($reversalId, $document, $documentType, $actorId, $idempotencyKey, $requestHash);
@@ -804,11 +879,16 @@ class CurrentBaselineReversalService
 
     private function lockOriginalDocument(string $documentId, string $documentType): object
     {
-        $document = DB::table('stock_documents')
-            ->where('id', $documentId)
-            ->where('doc_type', $documentType)
-            ->lockForUpdate()
-            ->first();
+        // DEC-REV-COMPONENT-001: chứng từ linh kiện sống ở bảng riêng, không phải
+        // stock_documents; status POSTED dùng chung một ngữ nghĩa nên các guard
+        // phía trên (STATE_CONFLICT, assertVersion) không đổi.
+        $document = $documentType === 'component_issue'
+            ? DB::table('component_issue_documents')->where('id', $documentId)->lockForUpdate()->first()
+            : DB::table('stock_documents')
+                ->where('id', $documentId)
+                ->where('doc_type', $documentType)
+                ->lockForUpdate()
+                ->first();
         if ($document === null) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy original document.');
         }

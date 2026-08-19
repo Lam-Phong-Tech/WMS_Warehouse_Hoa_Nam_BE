@@ -24,13 +24,16 @@ class ReversalDocumentController extends Controller
         $query = DB::table('reversal_documents')
             ->leftJoin('warehouses', 'reversal_documents.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('stock_documents', 'reversal_documents.original_document_id', '=', 'stock_documents.id')
+            // DEC-REV-COMPONENT-001: chứng từ gốc COMPONENT_ISSUE nằm ở bảng riêng;
+            // join thêm để REV-00 vẫn hiển thị được mã phiếu nguồn.
+            ->leftJoin('component_issue_documents', 'reversal_documents.original_document_id', '=', 'component_issue_documents.id')
             ->leftJoin('app_user', 'reversal_documents.created_by', '=', 'app_user.user_id')
             ->select([
                 'reversal_documents.id',
                 'reversal_documents.reversal_no as reversal_code',
                 'reversal_documents.original_document_type as reference_document_type',
                 'reversal_documents.original_document_id as reference_document_id',
-                'stock_documents.doc_no as reference_document_code',
+                DB::raw('COALESCE(stock_documents.doc_no, component_issue_documents.component_issue_no) as reference_document_code'),
                 'reversal_documents.status',
                 'reversal_documents.reason_code',
                 'reversal_documents.reason_text as reason',
@@ -83,13 +86,16 @@ class ReversalDocumentController extends Controller
         $doc = DB::table('reversal_documents')
             ->leftJoin('warehouses', 'reversal_documents.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('stock_documents', 'reversal_documents.original_document_id', '=', 'stock_documents.id')
+            // DEC-REV-COMPONENT-001: chứng từ gốc COMPONENT_ISSUE nằm ở bảng riêng;
+            // join thêm để REV-00 vẫn hiển thị được mã phiếu nguồn.
+            ->leftJoin('component_issue_documents', 'reversal_documents.original_document_id', '=', 'component_issue_documents.id')
             ->leftJoin('app_user', 'reversal_documents.created_by', '=', 'app_user.user_id')
             ->select([
                 'reversal_documents.id',
                 'reversal_documents.reversal_no as reversal_code',
                 'reversal_documents.original_document_type as reference_document_type',
                 'reversal_documents.original_document_id as reference_document_id',
-                'stock_documents.doc_no as reference_document_code',
+                DB::raw('COALESCE(stock_documents.doc_no, component_issue_documents.component_issue_no) as reference_document_code'),
                 'reversal_documents.status',
                 'reversal_documents.reason_code',
                 'reversal_documents.reason_text as reason',
@@ -359,6 +365,9 @@ class ReversalDocumentController extends Controller
 
         $refId = $validated['reference_document_id'];
 
+        // DEC-REV-COMPONENT-001 (BE266-D03): phạm vi reversal theo ERD bảng 33
+        // original_document_type INBOUND/OUTBOUND/COMPONENT_ISSUE — thêm movement
+        // COMPONENT_ISSUE vào tập nguồn; movement REVERSAL vẫn ngoài tập (BR-REV-08).
         $movements = DB::table('stock_movements')
             ->leftJoin('products', 'stock_movements.product_id', '=', 'products.id')
             ->where(function ($q) use ($refId) {
@@ -366,7 +375,7 @@ class ReversalDocumentController extends Controller
                     ->orWhere('stock_movements.source_id', $refId)
                     ->orWhere('stock_movements.id', $refId);
             })
-            ->whereIn('stock_movements.movement_type', ['RECEIPT', 'ISSUE'])
+            ->whereIn('stock_movements.movement_type', ['RECEIPT', 'ISSUE', 'COMPONENT_ISSUE'])
             ->select('stock_movements.*', 'products.code as product_code')
             ->get();
 
@@ -390,11 +399,18 @@ class ReversalDocumentController extends Controller
         }
 
         $firstMv = $movements->first();
-        $type = $firstMv->movement_type === 'RECEIPT' ? 'receipt' : 'issue';
-        $stockDocId = $firstMv->stock_document_id;
+        $type = match ($firstMv->movement_type) {
+            'RECEIPT' => 'receipt',
+            'COMPONENT_ISSUE' => 'component_issue',
+            default => 'issue',
+        };
+        // Movement COMPONENT_ISSUE không thuộc stock_documents; chứng từ gốc là
+        // component_issue_documents nằm ở source_id (postComponentIssue ghi
+        // source_type=COMPONENT_ISSUE_DOCUMENT).
+        $stockDocId = $type === 'component_issue' ? $firstMv->source_id : $firstMv->stock_document_id;
 
         if (! $stockDocId) {
-            ApiError::abort(422, 'NO_STOCK_DOCUMENT', 'Movement không liên kết stock document.');
+            ApiError::abort(422, 'NO_STOCK_DOCUMENT', 'Movement không liên kết chứng từ gốc.');
         }
 
         $servicePayload = [
@@ -402,9 +418,10 @@ class ReversalDocumentController extends Controller
             'reason_code' => 'CORRECTION',
             'lines' => $reversalLines,
         ];
-        if ($type === 'issue') {
+        if ($type === 'issue' || $type === 'component_issue') {
             // BR-REV-06: chỉ cộng tồn khi client xác nhận tường minh hàng vật lý
             // đã về — default true sẽ cộng tồn cho hàng chưa quay lại kho.
+            // Component Issue cùng chiều stock effect với Issue nên chịu cùng guard.
             $servicePayload['condition_status'] = strtoupper((string) ($validated['return_condition'] ?? 'SELLABLE'));
             $servicePayload['physical_return_confirmed'] = (bool) ($validated['physical_return_confirmed'] ?? false);
         }

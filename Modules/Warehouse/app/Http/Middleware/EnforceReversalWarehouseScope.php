@@ -110,8 +110,14 @@ class EnforceReversalWarehouseScope
     }
 
     /**
-     * reference_document_id của controller nhận stock_document.id, movement.id
-     * hoặc source_id; giải bằng đúng thứ tự đó rồi quy về warehouse hiệu lực.
+     * reference_document_id của controller nhận stock_document.id,
+     * component_issue_document.id, movement.id hoặc source_id; giải bằng đúng
+     * thứ tự đó rồi quy về warehouse hiệu lực.
+     *
+     * WWHN-266 (DEC-REV-COMPONENT-001): trước đây danh sách movement_type chỉ có
+     * RECEIPT/ISSUE nên một reference COMPONENT_ISSUE rơi xuyên qua guard (trả
+     * null = fail-open). Thêm nhánh component_issue_documents + COMPONENT_ISSUE
+     * để mọi loại chứng từ nguồn của reversal đều chịu data scope.
      */
     private function referenceWarehouseId(string $referenceId): ?string
     {
@@ -126,11 +132,18 @@ class EnforceReversalWarehouseScope
             return $warehouseId === null ? null : (string) $warehouseId;
         }
 
+        $componentWarehouseId = DB::table('component_issue_documents')
+            ->where('id', $referenceId)
+            ->value('warehouse_id');
+        if ($componentWarehouseId !== null) {
+            return (string) $componentWarehouseId;
+        }
+
         $movementWarehouseId = DB::table('stock_movements')
             ->where(function ($query) use ($referenceId): void {
                 $query->where('id', $referenceId)->orWhere('source_id', $referenceId);
             })
-            ->whereIn('movement_type', ['RECEIPT', 'ISSUE'])
+            ->whereIn('movement_type', ['RECEIPT', 'ISSUE', 'COMPONENT_ISSUE'])
             ->value('warehouse_id');
 
         return $movementWarehouseId === null ? null : (string) $movementWarehouseId;

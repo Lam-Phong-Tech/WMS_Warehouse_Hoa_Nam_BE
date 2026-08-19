@@ -1,0 +1,66 @@
+{
+    "ticket": "WWHN-266",
+    "register_items": [
+        "DEV266-P1-04R"
+    ],
+    "decision": "DEC-REV-COMPONENT-001 — correction policy = append-only reversal cho COMPONENT_ISSUE",
+    "action": "REVERSAL of COMPONENT_ISSUE (quantity-mode)",
+    "driver": "sqlite",
+    "producer": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest",
+    "dimensions": {
+        "TC-REV-CI-01": {
+            "dimension": "POSITIVE",
+            "http": 201,
+            "balance_before": 7,
+            "balance_after": 9,
+            "reversal_qty_delta": 2,
+            "original_movement_immutable": true,
+            "box_subledger_untouched": 7,
+            "posting_action": "REVERSE_COMPONENT_ISSUE"
+        },
+        "TC-REV-CI-02": {
+            "dimension": "PENDING_RETURN → CONFIRMED → POSTED (BR-REV-06)",
+            "stock_neutral_until_confirm": true,
+            "early_post_http": 409,
+            "balance_after_post": 10
+        },
+        "TC-REV-CI-03": {
+            "dimension": "RETURN_CONDITION (BR-REV-07)",
+            "available_unchanged": 7,
+            "defective_bucket": 1
+        },
+        "TC-REV-CI-04": {
+            "dimension": "NEGATIVE (BR-REV-05)",
+            "http": 422,
+            "error_code": "REVERSAL_QTY_EXCEEDED",
+            "no_second_write": true
+        },
+        "TC-REV-CI-05": {
+            "dimension": "RETRY_SAME_KEY + SAME_KEY_DIFF_PAYLOAD (BR-REV-12)",
+            "replay_flags": [
+                false,
+                true
+            ],
+            "conflict_http": 409,
+            "single_stock_effect": 9
+        },
+        "TC-REV-CI-06": {
+            "dimension": "PERMISSION + PRECONDITION (BR-REV-02 \/ §8.2)",
+            "permission_http": 403,
+            "missing_if_match_http": 428,
+            "stale_version_http": 412,
+            "balance_unchanged": 7
+        },
+        "TC-REV-CI-07": {
+            "dimension": "INVALID_SOURCE (BR-REV-08)",
+            "http": 404,
+            "error_code": "MOVEMENT_NOT_FOUND"
+        },
+        "TC-REV-CI-08": {
+            "dimension": "RECONCILE (§7.5)",
+            "ledger_sum_qty_delta": 9,
+            "balance_quantity": 9,
+            "mismatch_count": 0
+        }
+    }
+}

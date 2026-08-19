@@ -547,8 +547,15 @@ class StockMovementController extends Controller
         $query = DB::table('stock_movements')
             ->leftJoin('warehouses', 'stock_movements.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('stock_documents', 'stock_movements.stock_document_id', '=', 'stock_documents.id')
+            // DEC-REV-COMPONENT-001 (WWHN-266 · BE266-D03): movement COMPONENT_ISSUE
+            // cũng đảo được; chứng từ gốc của nó nằm ở component_issue_documents
+            // (qua source_id) nên version If-Match phải COALESCE từ bảng đó.
+            ->leftJoin('component_issue_documents', function ($join): void {
+                $join->on('stock_movements.source_id', '=', 'component_issue_documents.id')
+                    ->where('stock_movements.movement_type', '=', 'COMPONENT_ISSUE');
+            })
             ->leftJoin('sku', 'stock_movements.product_id', '=', 'sku.sku_id')
-            ->whereIn('stock_movements.movement_type', ['RECEIPT', 'ISSUE'])
+            ->whereIn('stock_movements.movement_type', ['RECEIPT', 'ISSUE', 'COMPONENT_ISSUE'])
             ->select([
                 'stock_movements.id',
                 'stock_movements.movement_no',
@@ -562,7 +569,7 @@ class StockMovementController extends Controller
                 'stock_movements.occurred_at',
                 'stock_movements.created_by',
                 'stock_movements.stock_document_id',
-                DB::raw('COALESCE(stock_documents.version, 1) AS version'),
+                DB::raw('COALESCE(stock_documents.version, component_issue_documents.version, 1) AS version'),
                 'warehouses.name as warehouse_name',
                 'warehouses.code as warehouse_code',
                 'sku.sku_code',
@@ -606,6 +613,12 @@ class StockMovementController extends Controller
             ->all();
         $itemDependencyMap = $this->buildItemDependencyMap($serialDocIds);
         $itemCandidateMap = $this->buildItemCandidateMap($serialDocIds);
+        $componentDocIds = collect($movements->items())
+            ->filter(fn ($mv) => $mv->is_serial_tracked && $mv->movement_type === 'COMPONENT_ISSUE' && $mv->source_id)
+            ->pluck('source_id')
+            ->unique()
+            ->all();
+        $componentCandidateMap = $this->buildComponentItemCandidateMap($componentDocIds);
         $availableByBucket = $this->buildAvailableByBucket(collect($movements->items()));
 
         $result = [];
@@ -663,12 +676,20 @@ class StockMovementController extends Controller
                         'dependency_guard' => $docDepGuard,
                         'can_reverse' => $canReverse,
                         'is_serial_tracked' => (bool) $mv->is_serial_tracked,
-                        'items' => $mv->is_serial_tracked && $mv->stock_document_id
-                            ? array_values(array_filter(
+                        'items' => match (true) {
+                            ! (bool) $mv->is_serial_tracked => [],
+                            // Serial component: ứng viên lấy từ component_issue_items
+                            // (item còn ISSUED), không phải outbound_item_matches.
+                            $mv->movement_type === 'COMPONENT_ISSUE' => array_values(array_filter(
+                                $componentCandidateMap[$mv->source_id] ?? [],
+                                fn (array $item): bool => (string) $item['sku_id'] === (string) $mv->product_id
+                            )),
+                            (bool) $mv->stock_document_id => array_values(array_filter(
                                 $itemCandidateMap[$mv->stock_document_id] ?? [],
                                 fn (array $item): bool => (string) $item['sku_id'] === (string) $mv->product_id
-                            ))
-                            : [],
+                            )),
+                            default => [],
+                        },
                     ],
                 ],
             ];
@@ -720,6 +741,50 @@ class StockMovementController extends Controller
 
         foreach ($outboundItems->merge($inboundItems) as $row) {
             $map[(string) $row->stock_document_id][] = [
+                'item_id' => (string) $row->item_id,
+                'sku_id' => (string) $row->sku_id,
+                'item_code' => $row->item_code,
+                'serial_number' => $row->serial_number,
+                'item_status' => (string) $row->item_status,
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * DEC-REV-COMPONENT-001: ứng viên item cho Reverse Component Issue serial-tracked.
+     * Item được chọn nằm ở component_issue_items (ACTIVE lúc scan → POSTED sau Post)
+     * và chỉ item còn ISSUED mới nhận return (đã đảo thì item về IN_STOCK và tự
+     * rời khỏi danh sách này — cùng nguyên lý buildItemCandidateMap cho ISSUE).
+     *
+     * @param  list<string>  $componentDocIds
+     * @return array<string, list<array{item_id: string, sku_id: string, item_code: ?string, serial_number: ?string, item_status: string}>>
+     */
+    private function buildComponentItemCandidateMap(array $componentDocIds): array
+    {
+        if (empty($componentDocIds)) {
+            return [];
+        }
+
+        $rows = DB::table('item_instances')
+            ->join('component_issue_items', 'component_issue_items.item_id', '=', 'item_instances.item_id')
+            ->join('component_issue_lines', 'component_issue_lines.id', '=', 'component_issue_items.component_issue_line_id')
+            ->whereIn('component_issue_lines.component_issue_document_id', $componentDocIds)
+            ->whereIn('component_issue_items.status', ['ACTIVE', 'POSTED'])
+            ->where('item_instances.item_status', 'ISSUED')
+            ->get([
+                'component_issue_lines.component_issue_document_id',
+                'item_instances.item_id',
+                'item_instances.sku_id',
+                'item_instances.item_code',
+                'item_instances.serial_number',
+                'item_instances.item_status',
+            ]);
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string) $row->component_issue_document_id][] = [
                 'item_id' => (string) $row->item_id,
                 'sku_id' => (string) $row->sku_id,
                 'item_code' => $row->item_code,
