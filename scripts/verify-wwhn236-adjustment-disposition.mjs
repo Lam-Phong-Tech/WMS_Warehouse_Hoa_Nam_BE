@@ -714,8 +714,13 @@ const readJsonIfExists = (root, rel) => {
   }
 }
 
-// ── Check 13: QA rerun tại exact SHA có thật (DEV236-P1-07R3) ─────────────────
+// ── Check 13: QA rerun tại exact SHA (DEV236-P1-07R3) ────────────────────────
+// Gate của DEV chỉ được đòi thứ DEV tạo ra: lệnh chuẩn + thủ tục viết rõ. Raw log là
+// sản phẩm của QA, sinh SAU khi DEV đóng — bắt buộc nó ở đây sẽ tạo vòng gà-trứng
+// (gate đòi chính artifact mà việc chạy gate mới sinh ra). Vì vậy nó là NOTE ở chế độ
+// thường và chỉ thành gate cứng khi chạy --require-qa-evidence, tức lúc đóng closure.
 {
+  const REQUIRE_QA_EVIDENCE = process.argv.includes("--require-qa-evidence");
   const runner = "scripts/qa-wwhn236-exact-sha-gate.mjs";
   const qaDoc = readIfExists("docs/evidence/WWHN-236/QA_DISPOSITION_WWHN-238.md");
   const problems = [];
@@ -725,19 +730,51 @@ const readJsonIfExists = (root, rel) => {
   else {
     if (!qaDoc.includes(runner)) problems.push(`QA_DISPOSITION_WWHN-238.md không chỉ tới ${runner}`);
     if (!/exact SHA/i.test(qaDoc)) problems.push("QA_DISPOSITION_WWHN-238.md không nêu yêu cầu chạy tại exact SHA");
-    if (!/PASS \/ FAIL \/ DEFERRED/i.test(qaDoc) && !/PASS\/FAIL\/DEFERRED/i.test(qaDoc))
+    if (!/PASS[^\n]{0,6}\/[^\n]{0,6}FAIL/i.test(qaDoc) || !/DEFERRED[-\s]?\/?\s?N\/A/i.test(qaDoc))
       problems.push("QA_DISPOSITION_WWHN-238.md không nêu QA1 phải ghi PASS / FAIL / DEFERRED-N/A");
+    // Ô mà QA1 phải điền lên Jira: thiếu ô nào là vòng sau lại hỏi lại đúng ô đó.
+    for (const field of ["Exact SHA", "Env", "Command", "Raw log"]) {
+      if (!qaDoc.includes(field)) problems.push(`QA_DISPOSITION_WWHN-238.md thiếu ô [${field}] mà QA1 phải điền`);
+    }
   }
 
   const logDir = join(ROOT, "docs/evidence/WWHN-236/logs");
   const rawLogs = existsSync(logDir) ? readdirSync(logDir).filter((f) => /^qa-rerun-.*\.log$/.test(f)) : [];
-  if (rawLogs.length === 0) problems.push("chưa có raw log docs/evidence/WWHN-236/logs/qa-rerun-*.log");
+
+  // Nếu đã có raw log thì nó phải là log THẬT của bản đã pin, không phải file rỗng.
+  const approvalForQa = (() => {
+    const raw = readIfExists("docs/decision-records/DISP-STK-236-APPROVAL.json");
+    try {
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const pinnedBe = approvalForQa?.exactCommitSha?.backend ?? null;
+  for (const name of rawLogs) {
+    const body = readFileSync(join(logDir, name), "utf8");
+    if (!/KẾT QUẢ QA \(WWHN-238\):/.test(body)) problems.push(`${name} không có dòng kết luận — không phải log của runner`);
+    if (pinnedBe && !body.includes(pinnedBe)) problems.push(`${name} không chứa SHA đã pin ${pinnedBe.slice(0, 7)} — log thuộc bản khác`);
+  }
+
+  if (rawLogs.length === 0) {
+    if (REQUIRE_QA_EVIDENCE) problems.push("chưa có raw log docs/evidence/WWHN-236/logs/qa-rerun-*.log (--require-qa-evidence)");
+    else
+      warn(
+        "QA-RERUN",
+        `chưa có raw log qa-rerun-*.log. Đó là sản phẩm của QA1: chạy \`node ${runner}\`. ` +
+          "Chạy verifier với --require-qa-evidence để biến việc này thành gate cứng khi đóng closure.",
+      );
+  }
 
   if (problems.length > 0) fail("QA-RERUN", problems.join("\n    "));
-  else pass("QA-RERUN", `${runner} + ${rawLogs.length} raw log qa-rerun-*; QA1 ghi kết quả trực tiếp trên WWHN-238`);
+  else
+    pass(
+      "QA-RERUN",
+      `${runner} + ${rawLogs.length} raw log qa-rerun-* khớp SHA đã pin; QA1 ghi kết quả trực tiếp trên WWHN-238`,
+    );
   lock.checks.qa_rerun_logs = rawLogs;
 }
-
 
 // ── Kết quả ──────────────────────────────────────────────────────────────────
 console.log("WWHN-236 / DISP-STK-236 — Apply Adjustment disposition gate\n");
