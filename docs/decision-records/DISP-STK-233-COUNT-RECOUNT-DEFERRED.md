@@ -6,12 +6,13 @@
 |---|---|
 | Disposition ID | `DISP-STK-233` |
 | Jira task | `WWHN-233` (child of `WWHN-59`; QA gate `WWHN-235`) |
-| Register closed | `DEV233-P1-01` … `DEV233-P1-06`, `DEV233-P2-01` |
-| Version | `1.0.0` |
+| Register closed | R1: `DEV233-P1-01` … `DEV233-P1-06`, `DEV233-P2-01` — R2: `DEV233-P1-01R2`, `-P1-02R2`, `-P1-03R2`, `-P1-06R2`, `-P2-01R2`, `-P2-02R2`, `-P2-03R2` (xem §13) |
+| Version | `1.1.0` |
 | Status | **PROPOSED — chờ approver-authored disposition trên Jira** |
 | Proposed by | DEV — WWHN-233 |
 | Required approvers | BA Main + PM/PO (P1-01), DEV → TL/QA (P1-02), BAS + BA (P1-03), DEV + TL → BA/FE/QA (P1-04), DEV → QA1/TL/DBA (P1-05), QA1 → BA/TL (P1-06), PM/BAS (P2-01) |
 | Effective date | `NULL — chỉ có sau formal sign-off` |
+| Bản ghi phê duyệt máy đọc được | `docs/evidence/WWHN-233/APPROVAL_RECORD.json` (bất biến chống trạng thái nửa vời — §13.1) |
 | Repository | `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE` + `Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE` |
 | Canonical branch | `m1` |
 | Quan hệ với `DISP-STK-236` | **Thực thi** phần hàng rào mà DISP-STK-236 §5 mô tả nhưng chưa tồn tại trong repo; mở rộng sang nhánh `WWHN-59/233/235`. Không thay thế. |
@@ -344,3 +345,110 @@ Hai nhánh đóng hai nửa khác nhau của cùng một `REQ-SRS-037`. Ranh gi�
 Verifier của WWHN-233 **gọi** verifier của WWHN-236 như một bước con khi file đó có mặt, và chỉ
 *cảnh báo* (không fail) khi chưa có — để hai nhánh merge theo thứ tự nào cũng không làm đỏ nhánh kia.
 Sau khi cả hai đã merge, `ANTI-DANGLING` biến nó thành ràng buộc cứng.
+
+---
+
+## 13. Vòng R2 — đóng phần register còn lại (v1.1.0)
+
+Re-review chấm **71/100** và giữ lại 7 mục. Đọc kỹ cả 7 thì **không mục nào đòi thêm capability**:
+chúng đòi bốn thứ khác hẳn — thẩm quyền phạm vi phải *final*, candidate phải *pin được*, parent phải
+*rebaseline*, và phần source kiểm kê còn nằm lại trong repo phải có *disposition*. §13 này ghi cách
+đóng, và quan trọng hơn là ghi **bất biến** để vòng sau không mở lại cùng một lỗ.
+
+### 13.1 `DEV233-P1-01R2` — thẩm quyền phạm vi và effective date
+
+Phát hiện đúng: *"DEFER/NO-GO candidate có nhưng approval/effective date chưa final"*.
+
+Nguyên nhân không phải là thiếu chữ ký, mà là **trạng thái phê duyệt chưa bao giờ được mô hình hoá**.
+Khi nó chỉ nằm rải rác trong văn bản, tình trạng "đã duyệt nhưng chưa có ngày hiệu lực" là biểu diễn
+được — và đó chính là tình trạng bị chấm.
+
+`docs/evidence/WWHN-233/APPROVAL_RECORD.json` biến nó thành bản ghi máy đọc được với năm bất biến,
+kiểm bởi `scripts/verify-wwhn233-count-disposition.mjs` (check `APPROVAL-INTEGRITY`) và
+`tests/Feature/Wwhn233CountDeferredGateTest.php`:
+
+1. `status = PROPOSED` ⇒ `effective_date` **bắt buộc** `null`.
+2. `status ≠ PROPOSED` ⇒ `effective_date` phải là ISO-8601 `YYYY-MM-DD` **và** mọi slot approver phải
+   đủ `result` + `actor` + `date`. Không có đường ở giữa.
+3. `status ≠ PROPOSED` ⇒ digest của chính tài liệu này phải khớp digest đã ghi trong bản ghi: **phê
+   duyệt gắn vào nội dung đã đọc, không gắn vào tên file.**
+4. DEV **không** được đứng tên hai slot `SCOPE-AUTHORITY` và `SOURCE-REBASELINE`.
+5. `decision_ticket = WWHN-25`, `attachment_ref = ATT-11898`, `parent_ticket = WWHN-59` — cố định,
+   để bản ghi không trôi sang một Decision khác.
+
+Repo **không** tự đặt `effective_date`. Ngày hiệu lực là ngày Process Owner/Client + PM/PO ghi kết quả
+formal trên `WWHN-25`; DEV chỉ chuẩn bị chỗ trống và bất biến quanh nó.
+
+### 13.2 `DEV233-P1-02R2` — pin immutable của candidate
+
+`docs/evidence/WWHN-233/IMMUTABLE_CANDIDATE_PIN.json`. Ba quyết định thiết kế, mỗi cái sửa một lỗi đã
+gặp thật trên nhánh dùng chung:
+
+- **Định danh ở mức đối tượng.** Fingerprint = sha256 của tập `path:blob-sha` đã sắp xếp. Trên `m1` có
+  nhiều phiên commit song song nên commit SHA một mình không chứng minh được nội dung; fingerprint thì
+  kiểm chứng lại được ở bất kỳ checkout nào, kể cả khi HEAD đã tiến lên vì commit của task khác.
+- **Tập nguồn không chứa evidence pack.** Nếu chứa, pin **tự tham chiếu**: mỗi lần phát hành lại
+  evidence sẽ sinh commit mới, commit đó thành candidate mới, và giá trị vừa ghi lập tức stale. Vì
+  evidence đứng ngoài, `--emit-evidence` là **idempotent** và `candidate` chỉ dịch chuyển khi nguồn đổi thật.
+- **Workflow CI chỉ pin ở mức WARN.** Drift hạ tầng không được làm đỏ một disposition nghiệp vụ.
+
+Kèm theo là `range` (`range_start..candidate`), số commit chạm tập nguồn (bất biến: **không được
+giảm** — giảm nghĩa là lịch sử bị viết lại), danh sách affected files, và 9 `expected_checks`
+no-route/no-OA với chỗ chạy tương ứng. Kiểm chứng lại tại đúng candidate:
+
+```bash
+node scripts/verify-wwhn233-count-disposition.mjs --expect-sha=<be_commit_sha>
+```
+
+### 13.3 `DEV233-P1-03R2` — rebaseline parent `WWHN-59`
+
+`docs/evidence/WWHN-233/WWHN-59_AC_REBASELINE.json` ghi từng nhóm AC của parent với đúng một trong ba
+disposition `SUPERSEDED` / `REMAPPED` / `DEFERRED`; nhóm `REMAPPED` **bắt buộc** nói map sang endpoint
+canonical nào. Bốn AC kiểm kê (count / recount / partial / stale) là `SUPERSEDED`; ba intent nghiệp vụ
+(phát hiện lệch, truy vết, sửa lệch) là `REMAPPED` sang reconciliation report / trace / Reversal.
+
+Nguồn: BRD/Handoff v3.9 chuyển sang `HISTORICAL / SUPERSEDED`; baseline hiện hành là BRD v3.20 +
+SRS/FRD v1.12. `decision.sha256` được verifier **tính lại** mỗi lần emit, nên Decision version/hash mà
+BA trích lên Jira không thể pin rot âm thầm.
+
+### 13.4 `DEV233-P1-06R2` — QA hard gate
+
+`docs/evidence/WWHN-233/QA_INDEPENDENT_VERIFICATION_WWHN-235.md` là kết luận **do QA1 viết**, chạy
+trên đúng candidate đã pin, kèm env và raw log trong `docs/evidence/WWHN-233/raw/`.
+
+Khác biệt so với vòng R1: R1 chỉ mô tả *cách chạy* negative gate; R2 có **kết quả chạy thật** và
+verifier áp `ANTI-DANGLING` cho chính evidence — mọi raw log được trích dẫn phải tồn tại (check
+`QA-EVIDENCE`). Bổ sung hai bằng chứng mà R1 thiếu: probe HTTP thật cho *reachability* (mọi URL
+count / recount / apply-adjustment trả `404`) và probe *stock effect* ở tầng DB.
+
+### 13.5 `DEV233-P2-03R2` — dormant Stocktake source
+
+`docs/evidence/WWHN-233/DORMANT_SOURCE_DISPOSITION.json`.
+
+Kết quả rà soát: **không có** controller / service / model / route / permission / màn hình kiểm kê nào
+ở trạng thái ngủ. Phần còn lại được phân loại và giữ có lý do:
+
+| Loại | Ví dụ | Disposition |
+|---|---|---|
+| `MIGRATION-CREATE` | `2026_01_01_000044`, `2026_08_03_000100` | Giữ trong chain — xoá migration đã chạy sẽ phá `migrate:rollback` (WWHN-300). Nghĩa vụ đo ở **end-state**. |
+| `MIGRATION-NEUTRALIZE` | `2026_08_09_000400/000420`, `2026_08_10_000600` | Giữ — đây là lớp trung hoà. |
+| `NEGATIVE-GUARD-COMMENT` | `WmsContractController`, `StockLedger`, `OpenApi.php` | Giữ — xoá comment là mất căn cứ của rule. |
+| `HOMONYM-ALLOWED` | `InventoryProjectionRebuildService` dùng `variance` làm delta của reconciliation | Giữ, có test khoá ranh giới. |
+| `IMMUTABLE-PACK-OTHER-OWNER` | Postman `WWHN-180 Canonical Contract` còn khai `/api/v1/stocktake/…/apply-adjustment` | **Không sửa.** Thuộc `WWHN-237`; runtime đã chứng minh 0 route tương ứng. |
+
+Vì vậy disposition là **document + runtime check**, không phải remove, và **không** tạo thư mục
+quarantine (di chuyển migration sẽ phá chain). Runtime check nằm ở check `DORMANT-SOURCE`: nó quét cây
+làm việc thật và bắt buộc **tập file còn nhắc tới bề mặt kiểm kê phải trùng khớp tập đã đăng ký** — một
+file mới lọt vào sẽ làm gate đỏ, kể cả khi nó chưa có route.
+
+### 13.6 `DEV233-P2-01R2` / `DEV233-P2-02R2` — governance
+
+Hai mục thuần Jira: owner narrative (historical role + current DEV owner) và sprint metadata (Sprint
+Scope còn W4 trong khi actual là Sprint 93 W3). Repo không phải nơi lưu assignee hay sprint; chúng có
+slot riêng trong `APPROVAL_RECORD.json` để trạng thái "đã đồng bộ hay chưa" không bị mất dấu.
+
+### 13.7 Cái gì **không** đổi ở v1.1.0
+
+Disposition vẫn là **DEFERRED — NO CODE**; điều kiện re-open vẫn đúng bốn điều ở §2; ranh giới với
+`WWHN-236` / `WWHN-237` ở §12 giữ nguyên; không artifact nào của nhánh khác bị sửa; và không có thay
+đổi nào chạm cấu hình CI.

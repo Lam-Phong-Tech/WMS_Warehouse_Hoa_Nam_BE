@@ -1,0 +1,15 @@
+# PROBE 1 - ROUTE SURFACE (DEV233-P1-06R2 / expected_checks ROUTE-SURFACE)
+# Ky vong: 0 route chua stocktake|adjustment|variance|recount|cycle-count|physical-count
+
+$ php artisan route:list --json | node -e <loc dung 6 manh cam>
+TOTAL_ROUTES=239
+MATCHING_FORBIDDEN_FRAGMENT=0
+SAMPLE_INVENTORY_ROUTES:
+  GET|HEAD api/v1/inventory
+  GET|HEAD api/v1/inventory/balances
+  GET|HEAD api/v1/inventory/balances/{id}/subledger
+  GET|HEAD api/v1/inventory/trace/{code}
+  GET|HEAD api/v1/reports/inventory-balance
+  GET|HEAD api/v1/reports/inventory-balance/export-excel
+  GET|HEAD api/v1/reports/inventory-ledger
+  GET|HEAD api/v1/reports/inventory-reconciliation

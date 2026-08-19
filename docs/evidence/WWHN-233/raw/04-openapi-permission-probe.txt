@@ -1,0 +1,19 @@
+# PROBE 4 - OPENAPI RUNTIME + PERMISSION CATALOG + BASELINE CONTRACT
+# DEV233-P1-06R2 - expected_checks OPENAPI / PERMISSION / BASELINE-CONTRACT
+
+--- 4.1 storage/api-docs/api-docs.yaml (sinh tu route that): dem path va path bi cam
+TOTAL_PATHS=84
+FORBIDDEN_PATHS=0
+
+--- 4.2 permission trong baseline contract
+TOTAL_PERMISSIONS=31
+FORBIDDEN_PERMISSIONS=0
+MOVEMENT_TYPES=["OPENING","RECEIPT","ISSUE","COMPONENT_ISSUE","REVERSAL"]
+FORBIDDEN_PATH_FRAGMENTS=["stocktake","adjustment","variance","recount","cycle-count","physical-count","transfer-orders","stock-requests","inventory-reservations","inventory-snapshots","safe-stock","close-remainder"]
+EXCLUDED_TABLES=["stocktake_session","stocktake_snapshot","stocktake_count","stocktake_variance","inventory_reservations","inventory_report_snapshots","safe_stock_configs","safe_stock_alerts_history","stock_requests","stock_request_lines","in_transit_ledger"]
+
+--- 4.3 permission catalog BE1 (docs/permissions): grep 6 manh cam
+2
+(so dong khop - can doc ky vi file nay co the nhac de LOAI TRU)
+18:| Nội dung Markdown | Còn liệt kê `stocktake.adjust`, `stock_document.*`, `warranty.temp_only` — không thuộc baseline MVP hiện hành | Chỉ liệt kê nhóm permission có thật trong seed/route |
+81:MVP **không** có stocktake/adjustment trực tiếp; không tồn tại permission `stocktake.adjust` trong baseline. Correction đi qua reversal (`inventory.reversal.post`).

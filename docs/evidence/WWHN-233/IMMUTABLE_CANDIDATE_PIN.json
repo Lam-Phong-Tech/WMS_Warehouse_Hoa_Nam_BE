@@ -1,0 +1,105 @@
+{
+  "pin_id": "WWHN-233-IMMUTABLE-CANDIDATE-PIN",
+  "register_item": "DEV233-P1-02R2",
+  "version": "1.0.0",
+  "gate": "Traceability",
+  "branch": "m1",
+  "handoff_type": "NO-CODE / DEFERRED",
+  "identity_rule": "Candidate được định danh ở MỨC ĐỐI TƯỢNG (sha của từng blob nguồn, gộp thành fingerprint), còn commit SHA là hệ quả. Trên nhánh dùng chung m1 có nhiều phiên commit song song nên commit SHA một mình không chứng minh được nội dung; fingerprint thì kiểm chứng lại được bất kỳ lúc nào.",
+  "defer_surface": {
+    "fingerprint_sha256": "bb00f181f713d2ed40b9d7abff61ac06fbbe1483941e351df160a928f71ab63e",
+    "fingerprint_input": [
+      "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md:149cbf216aa3b3eaaea919af5cee0f3df1709767",
+      "scripts/verify-wwhn233-count-disposition.mjs:310a49752e0c30e146ecab5125077c0d8781a122",
+      "tests/Feature/Wwhn233CountDeferredGateTest.php:b26726d5726151c1cd74796ae004fee567db526e"
+    ],
+    "files": [
+      {
+        "path": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+        "git_blob_sha": "149cbf216aa3b3eaaea919af5cee0f3df1709767",
+        "sha256": "c47dc64a62a4d06ada0c0f0e87b6e18917c1869aae3ebc1ccb17d7898b578d82",
+        "role": "DISPOSITION"
+      },
+      {
+        "path": "scripts/verify-wwhn233-count-disposition.mjs",
+        "git_blob_sha": "310a49752e0c30e146ecab5125077c0d8781a122",
+        "sha256": "490df25d65e57eb27e3c035030e36f86a6dba7e561cfb6c1595289f48d458345",
+        "role": "VERIFIER"
+      },
+      {
+        "path": "tests/Feature/Wwhn233CountDeferredGateTest.php",
+        "git_blob_sha": "b26726d5726151c1cd74796ae004fee567db526e",
+        "sha256": "8e07704b091fe896148133aaaf8b10ba85252ed6098633aa0400e5e579c381c1",
+        "role": "RUNTIME-GATE-TEST"
+      }
+    ]
+  },
+  "candidate": {
+    "be_commit_sha": "9a252a0a1d595df4390b3c74d1fc414ed481fb33",
+    "be_range_start": "2c82d0e8427eaeda986d55ecfaa5b211bfe3186f",
+    "be_range": "2c82d0e8427eaeda986d55ecfaa5b211bfe3186f..9a252a0a1d595df4390b3c74d1fc414ed481fb33",
+    "be_commit_count_touching_source": 4,
+    "fe_commit_sha": "2d87fb5b69e5e838bf298245f422546a883c8fc0",
+    "meaning": "Commit cuối cùng chạm TẬP NGUỒN của WWHN-233. Không phải HEAD của m1, và không dịch chuyển khi evidence pack được phát hành lại — nên pin là idempotent."
+  },
+  "ci_gate_reference": {
+    "path": ".github/workflows/wwhn-233-count-deferral-gate.yml",
+    "git_blob_sha": "972053eda5c0d34037c30368b89add567a0dee52",
+    "drift_policy": "WARN-ONLY",
+    "reason": "Workflow có thể bị nhánh hạ tầng chạm; drift ở đó không được làm đỏ disposition."
+  },
+  "expected_checks": [
+    {
+      "id": "ROUTE-SURFACE",
+      "expected": "0 route đăng ký chứa stocktake/adjustment/variance/recount/cycle-count/physical-count",
+      "how": "tests/Feature/Wwhn233CountDeferredGateTest.php::test_no_count_or_recount_route_is_registered"
+    },
+    {
+      "id": "RUNTIME-REACHABILITY",
+      "expected": "mọi probe URL của count/recount/apply-adjustment trả 404 (không route nào bắt)",
+      "how": "tests/Feature/Wwhn233CountDeferredGateTest.php::test_count_and_apply_adjustment_urls_are_unreachable_at_runtime"
+    },
+    {
+      "id": "OPENAPI",
+      "expected": "0 path trong storage/api-docs/api-docs.yaml thuộc bề mặt bị cấm",
+      "how": "scripts/verify-wwhn233-count-disposition.mjs — check OPENAPI"
+    },
+    {
+      "id": "PERMISSION",
+      "expected": "0 permission kiểm kê ở seed và ở baseline contract",
+      "how": "tests/Feature/Wwhn233CountDeferredGateTest.php::test_no_stocktake_or_count_permission_is_registered"
+    },
+    {
+      "id": "SCHEMA-END-STATE",
+      "expected": "4 bảng stocktake_* vắng mặt sau migrate; stock_movements không giữ FK variance",
+      "how": "tests/Feature/Wwhn233CountDeferredGateTest.php::test_no_stocktake_table_survives_migration"
+    },
+    {
+      "id": "STOCK-EFFECT",
+      "expected": "movement_type chỉ OPENING/RECEIPT/ISSUE/COMPONENT_ISSUE/REVERSAL; ADJUST_IN/ADJUST_OUT bị chặn ở DB",
+      "how": "tests/Feature/Wwhn233CountDeferredGateTest.php::test_movement_type_surface_has_no_adjustment_path"
+    },
+    {
+      "id": "BASELINE-CONTRACT",
+      "expected": "forbidden_path_fragments phủ đủ 6 mảnh; 0 operation/permission thuộc bề mặt bị cấm",
+      "how": "scripts/verify-wwhn233-count-disposition.mjs — check BASELINE-*"
+    },
+    {
+      "id": "DORMANT-SOURCE",
+      "expected": "0 class/route kiểm kê trong app/Modules/routes/config/database; tập file còn nhắc bề mặt trùng khớp đăng ký",
+      "how": "scripts/verify-wwhn233-count-disposition.mjs — check DORMANT-SOURCE"
+    },
+    {
+      "id": "FE-SURFACE",
+      "expected": "0 route, 0 menu, 0 permission kiểm kê ở repo FE",
+      "how": "FE: npm run wwhn-233:verify + src/test/wwhn-233-count-deferral-gate.test.ts"
+    }
+  ],
+  "how_to_reverify": [
+    "git -C <BE> fetch && git -C <BE> checkout <be_commit_sha>",
+    "node scripts/verify-wwhn233-count-disposition.mjs --expect-sha=<be_commit_sha>",
+    "php artisan test tests/Feature/Wwhn233CountDeferredGateTest.php",
+    "FE: git checkout <fe_commit_sha> && npm run wwhn-233:verify && npx vitest run src/test/wwhn-233-count-deferral-gate.test.ts"
+  ],
+  "note": "Pin này không cấp phép cho bất kỳ capability nào. Nó chỉ khẳng định: tại đúng candidate trên, bề mặt count/recount/variance/adjustment bằng zero và bộ hàng rào tồn tại đúng nội dung đã pin."
+}

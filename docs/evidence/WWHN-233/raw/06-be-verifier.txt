@@ -1,0 +1,26 @@
+# PROBE 6 - VERIFIER BE (chay day du, khong emit)
+# DEV233-P1-06R2 - bao gom CANDIDATE-PIN, APPROVAL-INTEGRITY, PARENT-REBASELINE, DORMANT-SOURCE, QA-EVIDENCE
+
+$ node scripts/verify-wwhn233-count-disposition.mjs
+  PASS [DISP-CONTENT] DISP-STK-233 neo REQ-SRS-037 + DEFERRED + WWHN-59 + WWHN-235 + DISP-STK-236
+  PASS [ANTI-DANGLING] docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md: toàn bộ 21 artifact được cam kết đều tồn tại.
+  PASS [ANTI-DANGLING] docs/decision-records/DISP-STK-236-APPLY-ADJUSTMENT-DEFERRED.md: toàn bộ 12 artifact được cam kết đều tồn tại.
+  PASS [BASELINE-FRAGMENTS] forbidden_path_fragments phủ đủ recount, cycle-count, physical-count
+  PASS [BASELINE-OPERATIONS] 56 operation được khai, zero thuộc bề mặt bị cấm.
+  PASS [BASELINE-PERMISSIONS] 31 permission, zero capability kiểm kê.
+  PASS [OPENAPI] 84 path runtime, zero path count/recount/variance/adjustment.
+  PASS [DEC-STK-001] DEC-STK-001 vẫn PROPOSED / Effective date = NULL
+  PASS [SOURCE] 5 nguồn hiện hành có mặt, anchor còn nguyên, digest tính lại.
+  PASS [SOURCE-SUPERSESSION] BRD v3.9 được SRS v1.12 đánh dấu HISTORICAL/SUPERSEDED.
+  PASS [EVIDENCE] NO_CODE_HANDOFF + QA_DISPOSITION_WWHN-235 có mặt.
+  PASS [CHAIN-236] verify-wwhn236-adjustment-disposition.mjs PASS toàn bộ.
+  PASS [CANDIDATE-PIN] Fingerprint mức đối tượng khớp (bb00f181f713d2ed…), 3 file nguồn.
+  PASS [CANDIDATE-PIN] candidate 9a252a0a1d59 nằm trên nhánh, range bắt đầu từ 2c82d0e8427e.
+  PASS [APPROVAL-INTEGRITY] Bản ghi phê duyệt hợp lệ: status=PROPOSED, effective_date=null, 7 slot, DEV không đứng tên gate phạm vi.
+  PASS [PARENT-REBASELINE] WWHN-59 rebaseline: 7 nhóm AC có disposition, v3.9 superseded, Decision version 1.1.0.
+  PASS [DORMANT-SOURCE] Quét 478 file PHP: 0 class/route kiểm kê; 10 file còn nhắc bề mặt này đều đã có disposition.
+  PASS [QA-EVIDENCE] Báo cáo QA1 có exact SHA + env + verdict, 7 raw log được trích và đều tồn tại.
+
+[wwhn-233] PASS: DISP-STK-233 DEFERRED/NO-CODE, hàng rào được cam kết đều tồn tại (ANTI-DANGLING), bề mặt count/recount/variance/adjustment bằng zero, nguồn hiện hành có digest tính lại.
+
+EXIT_CODE=0

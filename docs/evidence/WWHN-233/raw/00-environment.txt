@@ -1,0 +1,22 @@
+# WWHN-233 / WWHN-235 QA negative probe - ENVIRONMENT
+# Generated for DEV233-P1-06R2. Raw, khong bien tap.
+
+$ date -u
+Wed Aug 19 09:31:18 UTC 2026
+
+$ php -v
+PHP 8.3.30 (cli) (built: Jan 13 2026 22:50:40) (ZTS Visual C++ 2019 x64)
+Copyright (c) The PHP Group
+Zend Engine v4.3.30, Copyright (c) Zend Technologies
+
+$ node -v
+v22.17.1
+
+$ git rev-parse --abbrev-ref HEAD
+m1
+
+$ git log -1 --format=%H -- docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md scripts/verify-wwhn233-count-disposition.mjs tests/Feature/Wwhn233CountDeferredGateTest.php
+9a252a0a1d595df4390b3c74d1fc414ed481fb33
+
+$ php artisan --version
+Laravel Framework [32m13.23.0[39m

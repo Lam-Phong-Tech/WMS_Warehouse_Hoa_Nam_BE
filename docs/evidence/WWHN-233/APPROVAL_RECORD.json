@@ -1,0 +1,131 @@
+{
+  "register_id": "WWHN-233-APPROVAL-RECORD",
+  "register_items": [
+    "DEV233-P1-01R2",
+    "DEV233-P1-03R2",
+    "DEV233-P2-01R2",
+    "DEV233-P2-02R2"
+  ],
+  "version": "1.0.0",
+  "gate": "Scope authority",
+  "purpose": "Vong R2 cham 71/100 voi ket luan: DEFER/NO-GO candidate CO nhung approval va effective date CHUA final. File nay bien trang thai phe duyet thanh mot ban ghi may doc duoc, co bat bien kiem chung duoc, de khong the ton tai trang thai nua voi - vi du APPROVED ma khong co effective date, hoac APPROVED ma thieu chu ky cua mot vai tro bat buoc.",
+  "under_approval": {
+    "disposition_id": "DISP-STK-233",
+    "disposition_version": "1.1.0",
+    "disposition_path": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+    "disposition_sha256": "c47dc64a62a4d06ada0c0f0e87b6e18917c1869aae3ebc1ccb17d7898b578d82",
+    "disposition_sha256_note": "Duoc verifier ghi lai moi lan chay --emit-evidence. Khi status khac PROPOSED, verifier assert digest nay TRUNG voi file that: phe duyet gan vao dung noi dung da doc, khong phai gan vao ten file.",
+    "decision_ticket": "WWHN-25",
+    "decision_label": "DEC-STK-001",
+    "attachment_ref": "ATT-11898",
+    "parent_ticket": "WWHN-59",
+    "qa_gate_ticket": "WWHN-235",
+    "option_under_approval": "DEFERRED_NO_CODE"
+  },
+  "status": "PROPOSED",
+  "effective_date": null,
+  "effective_date_rule": "effective_date CHI duoc dien khi status = APPROVED va toan bo approver bat buoc da ghi result tren Jira. Ngay ghi theo ISO-8601 (YYYY-MM-DD) va la ngay comment formal cua PM/PO tren WWHN-25, khong phai ngay commit. Khi status = PROPOSED thi effective_date BAT BUOC la null.",
+  "self_approval_forbidden": "DEV khong duoc dong vai approver cua gate Scope authority (DEV233-P1-01R2) hay Source/G2 (DEV233-P1-03R2). DEV chi ky phan traceability va maintainability cua chinh minh, va phan do van phai co reviewer TL/QA.",
+  "approvers": [
+    {
+      "slot": "SCOPE-AUTHORITY",
+      "register_item": "DEV233-P1-01R2",
+      "role": "Process Owner / Client + PM/PO",
+      "reviewer": "BAS / TL / QA",
+      "must_state": "approve hoac request-changes tren exact Decision (WWHN-25), exact attachment (ATT-11898) va exact SHA candidate; kem effective date",
+      "result": null,
+      "actor": null,
+      "date": null,
+      "jira_ref": null
+    },
+    {
+      "slot": "SOURCE-REBASELINE",
+      "register_item": "DEV233-P1-03R2",
+      "role": "BA / BAS",
+      "reviewer": "TL / QA",
+      "must_state": "WWHN-59 da rebaseline Source/AC/Output; nguon lich su v3.9 danh dau superseded; ghi Decision version va hash",
+      "result": null,
+      "actor": null,
+      "date": null,
+      "jira_ref": null
+    },
+    {
+      "slot": "TRACEABILITY",
+      "register_item": "DEV233-P1-02R2",
+      "role": "DEV",
+      "reviewer": "TL / QA",
+      "must_state": "chap nhan immutable candidate pin (SHA + range + affected files + expected no-route/no-OA checks)",
+      "result": null,
+      "actor": null,
+      "date": null,
+      "jira_ref": null
+    },
+    {
+      "slot": "QA-HARD-GATE",
+      "register_item": "DEV233-P1-06R2",
+      "role": "QA1",
+      "reviewer": "BA / TL",
+      "must_state": "QA tu chay va tu ket luan PASS/FAIL tren exact candidate SHA, kem env va raw evidence",
+      "result": null,
+      "actor": null,
+      "date": null,
+      "jira_ref": null
+    },
+    {
+      "slot": "GOVERNANCE-OWNER-NARRATIVE",
+      "register_item": "DEV233-P2-01R2",
+      "role": "PM / BAS",
+      "reviewer": "BA",
+      "must_state": "Description WWHN-233 ghi ro historical role va current DEV owner",
+      "result": null,
+      "actor": null,
+      "date": null,
+      "jira_ref": null
+    },
+    {
+      "slot": "GOVERNANCE-SPRINT-METADATA",
+      "register_item": "DEV233-P2-02R2",
+      "role": "PM / Jira owner",
+      "reviewer": "BAS",
+      "must_state": "dong bo Sprint Scope voi actual sprint, hoac ghi ro truong sprint nao la authoritative",
+      "result": null,
+      "actor": null,
+      "date": null,
+      "jira_ref": null
+    },
+    {
+      "slot": "MAINTAINABILITY-DORMANT-SOURCE",
+      "register_item": "DEV233-P2-03R2",
+      "role": "DEV",
+      "reviewer": "Tech / TL",
+      "must_state": "chap nhan disposition cua dormant source (document + runtime check, khong remove) theo DORMANT_SOURCE_DISPOSITION.json",
+      "result": null,
+      "actor": null,
+      "date": null,
+      "jira_ref": null
+    }
+  ],
+  "allowed_results": [
+    "APPROVED",
+    "CONDITIONAL_APPROVED",
+    "REQUEST_CHANGES"
+  ],
+  "allowed_status": [
+    "PROPOSED",
+    "APPROVED",
+    "CONDITIONAL_APPROVED",
+    "REJECTED"
+  ],
+  "invariants": [
+    "status = PROPOSED  =>  effective_date phai la null.",
+    "status khac PROPOSED  =>  effective_date phai khop ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ VA moi approver bat buoc phai co du result, actor va date.",
+    "status khac PROPOSED  =>  under_approval.disposition_sha256 phai bang sha256 that cua file disposition.",
+    "khong slot nao co role chua DEV duoc giu SCOPE-AUTHORITY hoac SOURCE-REBASELINE.",
+    "result cua moi slot phai thuoc allowed_results."
+  ],
+  "enforced_by": [
+    "scripts/verify-wwhn233-count-disposition.mjs (check APPROVAL-INTEGRITY)",
+    "tests/Feature/Wwhn233CountDeferredGateTest.php::test_approval_record_cannot_be_half_approved"
+  ],
+  "note": "Guard ky thuat cua WWHN-233 active BAT KE trang thai phe duyet: CI van chan tai xuat hien be mat stocktake/count/variance/adjustment ngay khi status con PROPOSED. File nay chi quyet dinh khi nao SCOPE duoc coi la chot, khong quyet dinh khi nao hang rao bat dau chay."
+}

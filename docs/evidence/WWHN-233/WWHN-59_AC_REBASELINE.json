@@ -1,0 +1,130 @@
+{
+  "register_id": "WWHN-233-PARENT-REBASELINE",
+  "register_item": "DEV233-P1-03R2",
+  "version": "1.0.0",
+  "gate": "Source / G2",
+  "owner": "BA / BAS -> TL / QA",
+  "parent_ticket": "WWHN-59",
+  "child_ticket": "WWHN-233",
+  "qa_gate_ticket": "WWHN-235",
+  "finding_r2": "Parent WWHN-59 van con active Stocktake va van tro ve nguon v3.9. Chung nao Source/AC/Output cua parent chua rebaseline thi child WWHN-233 khong the dong: mot task khong the vua PASS AC cua parent vua PASS REQ-SRS-037.",
+  "decision": {
+    "id": "DISP-STK-233",
+    "version": "1.1.0",
+    "path": "docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md",
+    "sha256": "c47dc64a62a4d06ada0c0f0e87b6e18917c1869aae3ebc1ccb17d7898b578d82",
+    "sha256_note": "Verifier ghi lai moi lan --emit-evidence va assert khop file that o moi lan chay. Day la Decision version/hash ma BA trich vao Jira.",
+    "controlling_requirement": "REQ-SRS-037",
+    "controlling_source": "docs/HN_SRS_FRD_v1.12_FULL.md (SRS/FRD v1.12, adopt tai WWHN-334)",
+    "result": "DEFERRED_NO_CODE"
+  },
+  "source_rebaseline": [
+    {
+      "source": "BRD / Handoff v3.9",
+      "old_role": "Baseline trien khai cua WWHN-59",
+      "new_role": "HISTORICAL / SUPERSEDED",
+      "evidence_anchor": "docs/HN_SRS_FRD_v1.12_FULL.md - bang supersession ghi BRD v3.9 -> BRD v3.20 va Handoff v3.10 reference -> Removed",
+      "rule": "Chi giu de trace/tombstone. Khong duoc dung lam can cu AC hay baseline trien khai."
+    },
+    {
+      "source": "BRD v3.20 (WWHN-333) + SRS/FRD v1.12 (WWHN-334)",
+      "old_role": "-",
+      "new_role": "CURRENT BASELINE",
+      "evidence_anchor": "REQ-SRS-037 (Must) + AC-SRS-037 + TC-SRS-037 + BR-NOSTK-01..03",
+      "rule": "La nguon duy nhat cho pham vi kiem ke/dem/sua ton."
+    },
+    {
+      "source": "DEC-STK-001 (WWHN-25)",
+      "old_role": "Duoc trich nhu decision co hieu luc",
+      "new_role": "PROPOSED - khong hieu luc o MVP v1.12",
+      "evidence_anchor": "docs/decision-records/DEC-STK-001.md (Status PROPOSED, Effective date NULL)",
+      "rule": "Khong repository file nao duoc trich DEC-NO-STOCKTAKE-001 nhu mot approved standalone Decision ID."
+    }
+  ],
+  "ac_rebaseline": [
+    {
+      "ac_group": "Count - tao phien dem va ghi so dem theo grain",
+      "old_expectation": "Co API/man hinh tao Stocktake_Session va ghi Stocktake_Count",
+      "disposition": "SUPERSEDED",
+      "canonical_replacement": null,
+      "reason": "REQ-SRS-037 cam entity, API, permission, screen, report cua Stocktake."
+    },
+    {
+      "ac_group": "Recount - dem lai lan 2 tren cung phien",
+      "old_expectation": "Co endpoint recount va lich su count",
+      "disposition": "SUPERSEDED",
+      "canonical_replacement": null,
+      "reason": "Khong co phien kiem ke nao de dem lai."
+    },
+    {
+      "ac_group": "Partial count - dem mot phan pham vi",
+      "old_expectation": "Co co che dong bo pham vi dem tung phan",
+      "disposition": "SUPERSEDED",
+      "canonical_replacement": null,
+      "reason": "Nhu tren."
+    },
+    {
+      "ac_group": "Stale / CAS baseline cua phien kiem ke",
+      "old_expectation": "So sanh snapshot voi ton hien tai, chan ghi de khi baseline da cu",
+      "disposition": "SUPERSEDED",
+      "canonical_replacement": null,
+      "reason": "Khong co Stocktake_Snapshot. CAS cua he thong hien hanh nam o Reversal va cac chung tu post, khong o phien kiem ke."
+    },
+    {
+      "ac_group": "Business intent - phat hien lech ton",
+      "old_expectation": "Phat hien lech qua variance cua phien kiem ke",
+      "disposition": "REMAPPED",
+      "canonical_replacement": "GET /api/v1/reports/inventory-reconciliation (permission report.view) - sinh reconciliation_incidents",
+      "reason": "Intent nghiep vu duoc giu, phuong tien doi sang reconciliation report."
+    },
+    {
+      "ac_group": "Business intent - truy vet mot ma vat ly",
+      "old_expectation": "Tra ma trong phien dem",
+      "disposition": "REMAPPED",
+      "canonical_replacement": "GET /api/v1/inventory/trace/{code} (permission inventory.trace)",
+      "reason": "Nhu tren."
+    },
+    {
+      "ac_group": "Business intent - sua lech ton",
+      "old_expectation": "Apply adjustment tu variance cua phien dem",
+      "disposition": "REMAPPED",
+      "canonical_replacement": "POST /api/v1/inbound-documents/{id}/reverse, POST /api/v1/outbound-documents/{id}/reverse, POST /api/v1/reversal-documents (permission inventory.reversal.post)",
+      "reason": "Correction path duy nhat la Reversal append-only, co Idempotency-Key + If-Match va audit theo BR-REV-02. Ke thua DISP-ADJ-001 Option B."
+    }
+  ],
+  "output_rebaseline": {
+    "old_output": "Endpoint + man hinh + report cua phien kiem ke",
+    "new_output": "NO-CODE. Output cua WWHN-59/WWHN-233 o MVP v1.12 la disposition + hang rao chay duoc + evidence pack, khong phai capability.",
+    "evidence": "docs/evidence/WWHN-233/NO_CODE_HANDOFF.md va docs/evidence/WWHN-233/IMMUTABLE_CANDIDATE_PIN.json"
+  },
+  "children_alignment": [
+    {
+      "ticket": "WWHN-233",
+      "disposition": "DEFERRED - NO CODE"
+    },
+    {
+      "ticket": "WWHN-234",
+      "disposition": "Ke thua nguyen van DISP-STK-233, khong phat hanh disposition rieng"
+    },
+    {
+      "ticket": "WWHN-235",
+      "disposition": "DEFERRED / N/A - khong phai Blocked, khong phai Pending"
+    }
+  ],
+  "reopen_conditions": [
+    "Approved Change Request nang pham vi MVP",
+    "WWHN-25 ghi GO hoac CONDITIONAL GO kem effective date cu the",
+    "SRS rebaseline: REQ-SRS-037 duoc sua hoac go o mot version SRS moi co so hieu va ngay",
+    "Chi khi du ba dieu tren moi mo DEV; DEV233-P1-04R, P1-05R, P1-06R quay lai nguyen van"
+  ],
+  "jira_actions_required": [
+    "WWHN-59: cap nhat truong Source sang BRD v3.20 + SRS v1.12, danh dau v3.9 la historical",
+    "WWHN-59: dua AC count/recount/partial/stale sang muc historical va tro toi DISP-STK-233 v1.1.0 kem hash",
+    "WWHN-59: cap nhat Output sang NO-CODE deliverable",
+    "WWHN-235: doi trang thai tu Blocked/Pending sang DEFERRED / N/A voi cung dieu kien re-open"
+  ],
+  "enforced_by": [
+    "scripts/verify-wwhn233-count-disposition.mjs (check PARENT-REBASELINE)",
+    "tests/Feature/Wwhn233CountDeferredGateTest.php::test_parent_rebaseline_record_is_complete"
+  ]
+}

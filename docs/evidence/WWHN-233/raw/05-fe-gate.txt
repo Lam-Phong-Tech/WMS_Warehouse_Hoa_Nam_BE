@@ -1,0 +1,33 @@
+# PROBE 5 - NUA FE (repo WMS_Warehouse_Hoa_Nam_FE, nhanh m1)
+# DEV233-P1-06R2 - expected_checks FE-SURFACE
+
+$ node -v && npx vitest --version
+v22.17.1
+vitest/4.1.10 win32-x64 node-v22.17.1
+
+$ npm run wwhn-233:verify
+  PASS [GOVERNANCE] Governance register neo REQ-SRS-037 (Must).
+  PASS [GOVERNANCE] DEC-NO-STOCKTAKE-001 vẫn không được coi là approved standalone Decision ID.
+  PASS [DISP-233] DISP-STK-233 đúng chuỗi WWHN-59 → WWHN-233 → WWHN-235, DEFERRED_NO_CODE.
+  PASS [DISP-233] Disposition ở trạng thái PROPOSED / effectiveDate = null.
+  PASS [ANTI-DANGLING] Toàn bộ 2 gate FE được cam kết đều tồn tại.
+  PASS [ANTI-DANGLING] Governance register trỏ đúng file disposition của WWHN-233.
+  PASS [PIN-ROT] 3 baseline được pin, digest khớp thực tế.
+  PASS [ANCHOR] SRS / ERD / Wireframe giữ nguyên anchor no-Stocktake.
+  PASS [FE-SURFACE] 3 file nguồn runtime: zero route/permission/endpoint kiểm kê.
+  PASS [FE-SCREEN] Zero selector, route constant hoặc permission màn hình kiểm kê trong src/.
+  PASS [R2-CLOSURE] Disposition v1.1.0 mang đủ bản ghi R2, effective date đồng bộ hai nơi.
+  PASS [FE-CANDIDATE-PIN] Fingerprint FE khớp (14d15bfc647323dc…), 2 file nguồn.
+  PASS [FE-DORMANT] Quét src/: 1 file mang token kiểm kê, tất cả đều là nhãn lịch sử đã đăng ký.
+
+[wwhn-233] PASS: DISP-STK-233 được ghi nhận, hàng rào FE được cam kết đều tồn tại (ANTI-DANGLING), digest baseline khớp thực tế (không pin rot), bề mặt count/recount ở FE bằng zero.
+
+$ npx vitest run src/test/wwhn-233-count-deferral-gate.test.ts
+ RUN  v4.1.10 C:/LAM_PHONG_TECH/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE
+ ✓ src/test/wwhn-233-count-deferral-gate.test.ts (10 tests) 101ms
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  16:41:19
+   Duration  1.97s (transform 153ms, setup 536ms, import 42ms, tests 101ms, environment 1.09s)
+JSON report written to C:/LAM_PHONG_TECH/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE/test-results/vitest-results.json
+JUNIT report written to C:/LAM_PHONG_TECH/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE/test-results/vitest-junit.xml

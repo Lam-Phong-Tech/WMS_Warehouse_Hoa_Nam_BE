@@ -1,0 +1,70 @@
+# PROBE 2 - STOCK EFFECT / SCHEMA END-STATE tren PostgreSQL 16 THAT (khong phai sqlite)
+# DEV233-P1-06R2 - expected_checks SCHEMA-END-STATE + STOCK-EFFECT
+# DB: wms_hoanam @ container wms_warehouse_hoa_nam_be-postgres-1 (postgres:16-alpine)
+# E1 la CONTROL chung minh row shape hop le; E2..E5 chi doi duy nhat movement_type.
+# Moi buoc boc SAVEPOINT (PG abort ca transaction sau loi - 25P02), va ca khoi nam trong BEGIN...ROLLBACK.
+
+--- A. Bon bang stocktake_* co ton tai o END-STATE khong? (ky vong: 0 dong)
+ table_name 
+------------
+(0 rows)
+
+--- B. stock_movements con cot stocktake_variance_id khong? (ky vong: 0 dong)
+ column_name 
+-------------
+(0 rows)
+
+--- C. Rang buoc movement_type hien hanh (ky vong: chi 5 gia tri canonical)
+             conname             |                                                                                                 pg_get_constraintdef                                                                                                 
+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ chk_stock_movement_type_current | CHECK (((movement_type)::text = ANY ((ARRAY['OPENING'::character varying, 'RECEIPT'::character varying, 'ISSUE'::character varying, 'COMPONENT_ISSUE'::character varying, 'REVERSAL'::character varying])::text[])))
+(1 row)
+
+--- D. Trigger append-only tren stock_movements (ky vong: co)
+                         tgname                          
+---------------------------------------------------------
+ trg_erd_mirror_inventory_movements_from_stock_movements
+ trg_stock_movements_append_only
+(2 rows)
+
+
+=== E. THU GHI TON TRUC TIEP. Moi buoc boc SAVEPOINT nen mot loi khong abort ca transaction. ===
+=== Toan bo nam trong BEGIN...ROLLBACK: khong de lai du lieu. ===
+BEGIN
+--- E1 (CONTROL): payload y het, movement_type canonical REVERSAL -> ky vong INSERT 0 1
+SAVEPOINT
+INSERT 0 1
+ROLLBACK
+--- E2 (BIEN DUY NHAT = movement_type): ADJUST_IN -> ky vong BI CHECK CONSTRAINT TU CHOI
+SAVEPOINT
+ERROR:  new row for relation "stock_movements" violates check constraint "chk_stock_movement_type_current"
+DETAIL:  Failing row contains (2b36d230-ed58-4a3b-8d34-50cd5c153ea3, PROBE-233-ADJIN, PROBE-233-ADJIN, ADJUST_IN, 01a01923-e793-73af-b1e6-11fab1075bf9, 01a01923-e872-71ac-ae12-4847dda240c5, AVAILABLE, 20, 1, 21, null, null, null, 01a01923-e2ef-7386-8aa3-275990e09ad9, null, 2026-08-19 09:33:59, 2026-08-19 09:33:59, null, 1, null, null, null, null, null, null, null).
+ROLLBACK
+--- E3: ADJUST_OUT -> ky vong BI TU CHOI
+SAVEPOINT
+ERROR:  new row for relation "stock_movements" violates check constraint "chk_stock_movement_type_current"
+DETAIL:  Failing row contains (da5674c1-ade2-496e-a6e8-7a798d303db3, PROBE-233-ADJOUT, PROBE-233-ADJOUT, ADJUST_OUT, 01a01923-e793-73af-b1e6-11fab1075bf9, 01a01923-e872-71ac-ae12-4847dda240c5, AVAILABLE, 20, 1, 21, null, null, null, 01a01923-e2ef-7386-8aa3-275990e09ad9, null, 2026-08-19 09:33:59, 2026-08-19 09:33:59, null, 1, null, null, null, null, null, null, null).
+ROLLBACK
+--- E4: STOCKTAKE -> ky vong BI TU CHOI
+SAVEPOINT
+ERROR:  new row for relation "stock_movements" violates check constraint "chk_stock_movement_type_current"
+DETAIL:  Failing row contains (dc880783-a89f-4c77-b0f6-2f0d8b9e2334, PROBE-233-STK, PROBE-233-STK, STOCKTAKE, 01a01923-e793-73af-b1e6-11fab1075bf9, 01a01923-e872-71ac-ae12-4847dda240c5, AVAILABLE, 20, 1, 21, null, null, null, 01a01923-e2ef-7386-8aa3-275990e09ad9, null, 2026-08-19 09:33:59, 2026-08-19 09:33:59, null, 1, null, null, null, null, null, null, null).
+ROLLBACK
+--- E5: COUNT -> ky vong BI TU CHOI
+SAVEPOINT
+ERROR:  new row for relation "stock_movements" violates check constraint "chk_stock_movement_type_current"
+DETAIL:  Failing row contains (ba197c87-c5ec-4c00-8eef-8d2a47e52fbe, PROBE-233-COUNT, PROBE-233-COUNT, COUNT, 01a01923-e793-73af-b1e6-11fab1075bf9, 01a01923-e872-71ac-ae12-4847dda240c5, AVAILABLE, 20, 1, 21, null, null, null, 01a01923-e2ef-7386-8aa3-275990e09ad9, null, 2026-08-19 09:33:59, 2026-08-19 09:33:59, null, 1, null, null, null, null, null, null, null).
+ROLLBACK
+ROLLBACK
+--- F. Sau ROLLBACK: khong con dau vet probe nao (ky vong: 0 dong)
+ movement_no 
+-------------
+(0 rows)
+
+--- G. Doi chieu movement_type dang ton tai trong du lieu
+ movement_type | count 
+---------------+-------
+ ISSUE         |     1
+ RECEIPT       |     2
+(2 rows)
+

@@ -1,0 +1,178 @@
+{
+  "register_id": "WWHN-233-DORMANT-SOURCE-DISPOSITION",
+  "register_item": "DEV233-P2-03R2",
+  "version": "1.0.0",
+  "gate": "Maintainability",
+  "owner": "DEV -> Tech",
+  "statement": "Sau formal DEFER, moi be mat Stocktake/Count con ton tai trong repo phai duoc phan loai va co disposition tuong minh. Khong duoc de code ngu ma khong ai biet no thuoc dien nao. Verifier chay lai phan loai nay tren cay lam viec that (check DORMANT-SOURCE) nen mot file moi thuoc be mat nay khong the xuat hien ma khong duoc dang ky.",
+  "classification_legend": {
+    "MIGRATION-CREATE": "Migration lich su co tao bang stocktake. Giu nguyen trong chain vi xoa migration da chay se pha migrate:rollback (bai hoc WWHN-300). Nghia vu duoc do o END-STATE.",
+    "MIGRATION-NEUTRALIZE": "Migration drop/thu hoi be mat stocktake. Khong duoc xoa - day la lop trung hoa cua chain.",
+    "NEGATIVE-GUARD-COMMENT": "Chi la comment/hang rao neo REQ-SRS-037. Phai duoc GIU. Xoa comment nay lam mat can cu cua rule.",
+    "HOMONYM-ALLOWED": "Tu variance dung theo nghia delta cua bao cao reconciliation, khong phai Stocktake_Variance. Duoc phep, co rule kem theo.",
+    "HISTORICAL-ARTIFACT": "Tai lieu/pack lich su, khong executable, khong routable. Chi duoc trich de trace.",
+    "IMMUTABLE-PACK-OTHER-OWNER": "Pack immutable thuoc task khac. WWHN-233 KHONG duoc sua noi dung; chi ghi nhan va tro ve chu so huu."
+  },
+  "runtime_check": {
+    "id": "DORMANT-SOURCE",
+    "where": "scripts/verify-wwhn233-count-disposition.mjs",
+    "asserts": [
+      "Quet that app/, Modules/*/app/, routes/, config/, database/seeders/ tren cay lam viec: zero ten class hoac ten file mang manh stocktake|recount|cycle-count|physical-count|apply-adjustment.",
+      "Tap file PHP con nhac toi be mat nay phai TRUNG KHOP tap da dang ky duoi day - mot file moi chua dang ky se lam gate do.",
+      "Moi entry co status PRESENT phai thuc su ton tai tren dia."
+    ],
+    "runtime_counterpart": "tests/Feature/Wwhn233CountDeferredGateTest.php::test_dormant_stocktake_surface_is_not_loadable_bound_or_routable"
+  },
+  "backend": [
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_01_01_000044_create_hoanam_erd_extension_tables.php",
+      "classification": "MIGRATION-CREATE",
+      "status": "PRESENT",
+      "detail": "createStocktakeAndReversalExtensions() tao stocktake_session/snapshot/count/variance.",
+      "disposition": "KEEP. Bi trung hoa boi 2026_08_09_000400, 2026_08_09_000420 va 2026_08_10_000600. End-state schema khong con bang nao trong 4 bang.",
+      "removal_forbidden_reason": "Xoa migration da chay se pha migrate:rollback va lam vo rollback drill cua WWHN-300."
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_08_03_000100_harden_stocktake_three_layer_contract.php",
+      "classification": "MIGRATION-CREATE",
+      "status": "PRESENT",
+      "detail": "Them cot/index/FK cho 4 bang stocktake va FK stock_movements.stocktake_variance_id.",
+      "disposition": "KEEP trong chain, da bi trung hoa o cung ba migration tren.",
+      "removal_forbidden_reason": "Nhu tren."
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_08_09_000400_align_latest_erd_baseline.php",
+      "classification": "MIGRATION-NEUTRALIZE",
+      "status": "PRESENT",
+      "detail": "Drop cot stock_movements.stocktake_variance_id va 4 bang stocktake.",
+      "disposition": "KEEP - bat buoc. Day la lop trung hoa."
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_08_09_000420_harden_latest_mvp_contract.php",
+      "classification": "MIGRATION-NEUTRALIZE",
+      "status": "PRESENT",
+      "detail": "dropIfExists stocktake_variance va drop cot FK con sot.",
+      "disposition": "KEEP - bat buoc."
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_08_10_000600_enforce_current_erd_business_contract.php",
+      "classification": "MIGRATION-NEUTRALIZE",
+      "status": "PRESENT",
+      "detail": "Chot end-state: 4 bang stocktake vang mat.",
+      "disposition": "KEEP - bat buoc."
+    },
+    {
+      "path": "Modules/Warehouse/app/Http/Controllers/WmsContractController.php",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "detail": "Dong 215: comment REQ-SRS-037 khong expose Stocktake/Variance.",
+      "disposition": "GIU. Khong co method hay route stocktake trong controller nay."
+    },
+    {
+      "path": "Modules/Warehouse/app/Services/StockLedger.php",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "detail": "Dong 17: docblock khang dinh service khong chua hanh vi stocktake.",
+      "disposition": "GIU."
+    },
+    {
+      "path": "Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php",
+      "classification": "HOMONYM-ALLOWED",
+      "status": "PRESENT",
+      "detail": "Dong 19 la negative guard. Dong 161 va 221 dung khoa variance lam ten truong delta cua bao cao reconciliation (current tru target).",
+      "disposition": "GIU. Rule: variance o day la delta cua reconciliation report, KHONG duoc mo rong thanh entity Stocktake_Variance, khong duoc gan session_id hay count_id, khong duoc sinh stock movement.",
+      "guard": "Wwhn233CountDeferredGateTest::test_reconciliation_variance_homonym_stays_report_only"
+    },
+    {
+      "path": "Modules/Warehouse/database/migrations/2026_07_31_000001_create_agencies_table.php",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "detail": "Dong 10: cam phat sinh stocktake rieng cho agency.",
+      "disposition": "GIU."
+    },
+    {
+      "path": "app/Swagger/OpenApi.php",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "detail": "Dong 12: mo ta OpenAPI ghi no Stocktake scope.",
+      "disposition": "GIU."
+    },
+    {
+      "path": "docs/decision-records/DEC-STK-001.md",
+      "classification": "HISTORICAL-ARTIFACT",
+      "status": "PRESENT",
+      "detail": "Ban nhap PROPOSED / Effective date NULL - noi duy nhat trong repo mo ta hop dong count/recount/stale.",
+      "disposition": "GIU nguyen trang. Verifier assert van PROPOSED va NULL (check DEC-STK-001)."
+    },
+    {
+      "path": "docs/testing/WWHN-131-stocktake-test-cases.json",
+      "classification": "HISTORICAL-ARTIFACT",
+      "status": "PRESENT",
+      "disposition": "GIU de trace WWHN-131. Khong duoc trich lam controlling contract."
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.json",
+      "classification": "IMMUTABLE-PACK-OTHER-OWNER",
+      "status": "PRESENT",
+      "owner_task": "WWHN-180",
+      "disposition": "KHONG SUA. Superseded bang decision record tro toi no (DISP-STK-233 muc 3), khong bao gio bang cach sua noi dung."
+    },
+    {
+      "path": "docs/api-contract/WWHN-180-posting-openapi.yaml",
+      "classification": "IMMUTABLE-PACK-OTHER-OWNER",
+      "status": "PRESENT",
+      "owner_task": "WWHN-180",
+      "disposition": "KHONG SUA - nhu tren."
+    },
+    {
+      "path": "docs/postman/WWHN-180 Canonical Contract.postman_collection.json",
+      "classification": "IMMUTABLE-PACK-OTHER-OWNER",
+      "status": "PRESENT",
+      "owner_task": "WWHN-237",
+      "detail": "Con khai /api/v1/stocktake/sessions/{{stocktake_id}}/apply-adjustment. Day la ban khai TRONG PACK, khong phai route runtime: test_no_count_or_recount_route_is_registered chung minh runtime co 0 route tuong ung.",
+      "disposition": "OUT OF SCOPE cua WWHN-233. Thuoc nhanh WWHN-237 (variance/adjustment report). WWHN-233 chi ghi nhan va KHONG sua pack immutable.",
+      "known_red": "Flow05InventoryControlAlignmentTest::test_published_contract_artifacts_carry_no_stocktake_capability"
+    }
+  ],
+  "frontend": [
+    {
+      "path": "src/shared/api/wms-contract-signoff.ts",
+      "classification": "HISTORICAL-ARTIFACT",
+      "status": "PRESENT",
+      "detail": "reviewScope co nhan stocktake-apply-adjustment - day la PHAM VI RA SOAT lich su cua WWHN-181, khong phai endpoint, khong phai route, khong phai permission.",
+      "disposition": "GIU lam nhan trace. FE verifier phan biet nhan review-scope voi be mat routable (check FE-DORMANT)."
+    },
+    {
+      "path": "src/shared/api/endpoints.ts",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "disposition": "GIU - comment neo REQ-SRS-037."
+    },
+    {
+      "path": "src/shared/constants/routes.ts",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "disposition": "GIU - comment cam trich DEC-NO-STOCKTAKE-001 nhu mot Decision ID."
+    },
+    {
+      "path": "src/shared/constants/wms-permissions.ts",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "disposition": "GIU."
+    },
+    {
+      "path": "src/shared/hooks/usePermission.ts",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "disposition": "GIU."
+    },
+    {
+      "path": "src/shared/api/wms-contract.ts",
+      "classification": "NEGATIVE-GUARD-COMMENT",
+      "status": "PRESENT",
+      "disposition": "GIU."
+    }
+  ],
+  "conclusion": "Khong ton tai controller, service, model, route, permission hay man hinh Stocktake nao o trang thai ngu tren nhanh m1. Be mat con lai chi gom: (a) chain migration create-roi-drop giu de bao toan rollback, (b) comment hang rao, (c) mot dong nghia variance cua reconciliation report, (d) artifact lich su hoac immutable khong executable. Vi vay disposition la DOCUMENT + RUNTIME CHECK, khong phai remove.",
+  "no_quarantine_directory_reason": "Khong tao thu muc quarantine vi khong co file source nao thuoc dien capability de di chuyen; di chuyen migration se pha chain va vo rollback drill."
+}

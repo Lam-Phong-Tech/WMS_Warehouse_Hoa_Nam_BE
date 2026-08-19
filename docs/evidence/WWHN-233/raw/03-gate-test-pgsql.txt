@@ -1,0 +1,39 @@
+# PROBE 3 - GATE TEST tren PostgreSQL 16 THAT (schema day du, KHONG vacuous)
+# DEV233-P1-06R2.
+#
+# BAY da gap: phpunit.xml khai <env name="DB_CONNECTION" value="sqlite"/> + DB_DATABASE=:memory:.
+# Bo test nay khong dung RefreshDatabase, nen tren sqlite in-memory KHONG co migration nao chay
+# va Schema::hasTable('stocktake_*') tra false MOT CACH HIEN NHIEN -> assertion schema VACUOUS.
+# <env> cua PHPUnit khong co force="true" nen no khong de len bien moi truong da co san;
+# chay trong container (DB_CONNECTION=pgsql, DB_HOST=postgres, co mat khau that) se dung
+# PostgreSQL da migrate day du. Phu luc 3b chung minh co che nay.
+
+$ docker exec -w /var/www/html -e DB_CONNECTION=pgsql wms_warehouse_hoa_nam_be-backend-1 php artisan test tests/Feature/Wwhn233CountDeferredGateTest.php
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\Wwhn233CountDeferredGateTest[39m
+  [32;1m✓[39;22m[90m [39m[90mno count or recount route is registered[39m[90m                             [39m [90m1.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mno stocktake or count permission is registered[39m[90m                      [39m [90m1.27s[39m  
+  [32;1m✓[39;22m[90m [39m[90mno stocktake table survives migration[39m[90m                               [39m [90m0.76s[39m  
+  [32;1m✓[39;22m[90m [39m[90mmovement type surface has no adjustment path[39m[90m                        [39m [90m0.79s[39m  
+  [32;1m✓[39;22m[90m [39m[90mbaseline contract forbids count surface[39m[90m                             [39m [90m0.81s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdisposition record exists and its guards are real[39m[90m                   [39m [90m0.80s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstocktake decision record stays proposed[39m[90m                            [39m [90m0.81s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcount and apply adjustment urls are unreachable at runtime[39m[90m          [39m [90m1.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdormant stocktake surface is not loadable bound or routable[39m[90m         [39m [90m1.01s[39m  
+  [32;1m✓[39;22m[90m [39m[90mreconciliation variance homonym stays report only[39m[90m                   [39m [90m0.93s[39m  
+  [32;1m✓[39;22m[90m [39m[90mapproval record cannot be half approved[39m[90m                             [39m [90m1.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mparent rebaseline record is complete[39m[90m                                [39m [90m0.91s[39m  
+  [32;1m✓[39;22m[90m [39m[90mimmutable candidate pin matches working tree[39m[90m                        [39m [90m0.80s[39m  
+
+  [90mTests:[39m    [32;1m13 passed[39;22m[90m (361 assertions)[39m
+  [90mDuration:[39m [39m12.51s[39m
+
+
+########################################################################
+# PHU LUC 3b - CHUNG MINH phpunit.xml KHONG de len bien moi truong shell
+# Chay tren HOST voi DB_CONNECTION=pgsql nhung KHONG co mat khau.
+# Neu <env> cua phpunit thang thi test da chay sqlite va PASS im lang.
+# Thuc te no bao loi ket noi pgsql => bien moi truong moi la cai quyet dinh driver.
+
+$ DB_CONNECTION=pgsql DB_HOST=127.0.0.1 php artisan test --filter=test_no_stocktake_table_survives_migration
+{"tool":"phpunit","result":"failed","tests":1,"passed":0,"assertions":0,"duration_ms":326,"errors":1,"error_details":[{"test":"Tests\\Feature\\Wwhn233CountDeferredGateTest::test_no_stocktake_table_survives_migration","file":"C:\\LAM_PHONG_TECH\\HoaNam_BE\\WMS_Warehouse_Hoa_Nam_BE\\tests\\Feature\\Wwhn233CountDeferredGateTest.php","line":119,"message":"SQLSTATE[08006] [7] connection to server at \"127.0.0.1\", port 5432 failed: fe_sendauth: no password supplied (Connection: pgsql, Host: 127.0.0.1, Port: 5432, Database: wms_hoanam, SQL: select exists (select 1 from pg_class c, pg_namespace n where n.nspname = current_schema() and c.relname = 'stocktake_session' and c.relkind in ('r', 'p') and n.oid = c.relnamespace))"}]}

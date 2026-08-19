@@ -250,6 +250,266 @@ class Wwhn233CountDeferredGateTest extends TestCase
         );
     }
 
+    /**
+     * DEV233-P1-02R2 / DEV233-P1-06R2 — bề mặt bị cấm không chỉ *chưa đăng ký*, mà còn
+     * **không với tới được** khi gọi thật.
+     *
+     * `test_no_count_or_recount_route_is_registered` đọc router; test này đi qua đúng
+     * middleware stack và khẳng định không có route nào bắt các URL đó. Đây là bằng
+     * chứng "no reachable Apply Adjustment" mà QA hard gate của WWHN-235 đòi.
+     */
+    public function test_count_and_apply_adjustment_urls_are_unreachable_at_runtime(): void
+    {
+        $probes = [
+            ['POST', '/api/v1/stocktake/sessions/01HZZZZZZZZZZZZZZZZZZZZZZZ/apply-adjustment'],
+            ['GET', '/api/v1/stocktake/sessions'],
+            ['POST', '/api/v1/stocktake/sessions/01HZZZZZZZZZZZZZZZZZZZZZZZ/counts'],
+            ['POST', '/api/v1/inventory/recount'],
+            ['POST', '/api/v1/inventory/cycle-count'],
+            ['POST', '/api/v1/inventory/physical-count'],
+            ['POST', '/api/v1/inventory-balances/apply-adjustment'],
+        ];
+
+        $reachable = [];
+
+        foreach ($probes as [$method, $uri]) {
+            $response = $this->json($method, $uri);
+
+            if ($response->getStatusCode() !== 404) {
+                $reachable[] = "{$method} {$uri} => HTTP {$response->getStatusCode()}";
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $reachable,
+            'REQ-SRS-037: URL kiểm kê/sửa tồn phải không có route nào bắt (404). Với tới được: '
+                .implode(', ', $reachable)
+        );
+    }
+
+    /**
+     * DEV233-P2-03R2 — dormant source không được "còn tồn tại dù route disabled".
+     *
+     * Kiểm ba tầng: không class nào nạp được, không binding nào trong container, và
+     * không route action nào trỏ tới controller mang ngữ nghĩa kiểm kê.
+     */
+    public function test_dormant_stocktake_surface_is_not_loadable_bound_or_routable(): void
+    {
+        $candidates = [
+            'Modules\\Warehouse\\App\\Http\\Controllers\\StocktakeController',
+            'Modules\\Warehouse\\App\\Http\\Controllers\\StocktakeSessionController',
+            'Modules\\Warehouse\\App\\Http\\Controllers\\CycleCountController',
+            'Modules\\Warehouse\\App\\Http\\Controllers\\RecountController',
+            'Modules\\Warehouse\\App\\Services\\StocktakeService',
+            'Modules\\Warehouse\\App\\Services\\ApplyAdjustmentService',
+            'Modules\\Warehouse\\App\\Models\\StocktakeSession',
+            'Modules\\Warehouse\\App\\Models\\StocktakeCount',
+            'Modules\\Warehouse\\App\\Models\\StocktakeVariance',
+            'App\\Http\\Controllers\\StocktakeController',
+        ];
+
+        foreach ($candidates as $class) {
+            $this->assertFalse(
+                class_exists($class),
+                "REQ-SRS-037: class [{$class}] không được tồn tại ở trạng thái ngủ."
+            );
+            $this->assertFalse(
+                app()->bound($class),
+                "REQ-SRS-037: [{$class}] không được đăng ký trong service container."
+            );
+        }
+
+        $offending = [];
+        foreach (Route::getRoutes() as $route) {
+            $action = strtolower((string) ($route->getActionName() ?? ''));
+            foreach (self::FORBIDDEN_FRAGMENTS as $fragment) {
+                if (str_contains($action, str_replace('-', '', $fragment)) || str_contains($action, $fragment)) {
+                    $offending[] = "{$route->uri()} => {$route->getActionName()}";
+                    break;
+                }
+            }
+        }
+        $this->assertSame([], $offending, 'Route action trỏ tới controller kiểm kê: '.implode(', ', $offending));
+
+        // Đăng ký disposition phải đầy đủ và trỏ tới file có thật.
+        $register = $this->evidenceJson('DORMANT_SOURCE_DISPOSITION.json');
+        $this->assertNotEmpty($register['backend'] ?? [], 'DORMANT_SOURCE_DISPOSITION.json trống phần backend.');
+
+        foreach ($register['backend'] as $entry) {
+            $this->assertArrayHasKey('classification', $entry);
+            $this->assertArrayHasKey('disposition', $entry);
+            $this->assertArrayHasKey(
+                $entry['classification'],
+                $register['classification_legend'] ?? [],
+                "Classification [{$entry['classification']}] không có trong legend."
+            );
+
+            if (($entry['status'] ?? null) === 'PRESENT') {
+                $this->assertFileExists(
+                    base_path($entry['path']),
+                    "Đăng ký khai [{$entry['path']}] là PRESENT nhưng file không tồn tại."
+                );
+            }
+        }
+    }
+
+    /**
+     * DEV233-P2-03R2 — `variance` trong reconciliation là ĐỒNG ÂM, không phải
+     * `Stocktake_Variance`. Ranh giới này phải được khoá, nếu không một vòng rà soát
+     * sau sẽ hoặc gỡ nhầm nó, hoặc để nó lớn dần thành entity kiểm kê.
+     */
+    public function test_reconciliation_variance_homonym_stays_report_only(): void
+    {
+        $path = base_path('Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php');
+        $this->assertFileExists($path);
+
+        $source = (string) file_get_contents($path);
+
+        foreach (['stocktake_variance', 'stocktake_session', 'stocktake_count', 'ADJUST_IN', 'ADJUST_OUT'] as $forbidden) {
+            $this->assertStringNotContainsString(
+                $forbidden,
+                $source,
+                "Reconciliation service chạm [{$forbidden}] — đồng âm `variance` đã biến thành bề mặt kiểm kê."
+            );
+        }
+
+        $register = $this->evidenceJson('DORMANT_SOURCE_DISPOSITION.json');
+        $entry = collect($register['backend'] ?? [])
+            ->firstWhere('path', 'Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php');
+
+        $this->assertNotNull($entry, 'Service reconciliation phải được đăng ký trong dormant source register.');
+        $this->assertSame('HOMONYM-ALLOWED', $entry['classification']);
+    }
+
+    /**
+     * DEV233-P1-01R2 — không tồn tại trạng thái phê duyệt nửa vời.
+     *
+     * Phát hiện của vòng R2 đúng là "candidate có nhưng approval/effective date chưa
+     * final". Bất biến dưới đây làm cho tình trạng đó không biểu diễn được: hoặc
+     * PROPOSED và effective date rỗng, hoặc đã duyệt và đủ cả chữ ký lẫn ngày.
+     */
+    public function test_approval_record_cannot_be_half_approved(): void
+    {
+        $approval = $this->evidenceJson('APPROVAL_RECORD.json');
+
+        $status = $approval['status'] ?? null;
+        $this->assertContains($status, $approval['allowed_status'] ?? [], "status [{$status}] không hợp lệ.");
+
+        if ($status === 'PROPOSED') {
+            $this->assertNull($approval['effective_date'], 'Chưa duyệt thì không được có effective date.');
+        } else {
+            $this->assertMatchesRegularExpression(
+                '/^\d{4}-\d{2}-\d{2}$/',
+                (string) ($approval['effective_date'] ?? ''),
+                'Đã duyệt thì effective date bắt buộc theo ISO-8601.'
+            );
+            $this->assertSame(
+                hash_file('sha256', base_path('docs/decision-records/DISP-STK-233-COUNT-RECOUNT-DEFERRED.md')),
+                $approval['under_approval']['disposition_sha256'] ?? null,
+                'Phê duyệt phải gắn vào đúng nội dung disposition đã đọc.'
+            );
+
+            foreach ($approval['approvers'] as $slot) {
+                foreach (['result', 'actor', 'date'] as $field) {
+                    $this->assertNotNull($slot[$field] ?? null, "Slot [{$slot['slot']}] thiếu {$field}.");
+                }
+            }
+        }
+
+        $slots = collect($approval['approvers'] ?? []);
+        foreach (['SCOPE-AUTHORITY', 'SOURCE-REBASELINE', 'TRACEABILITY', 'QA-HARD-GATE', 'MAINTAINABILITY-DORMANT-SOURCE'] as $required) {
+            $this->assertNotNull($slots->firstWhere('slot', $required), "Thiếu slot bắt buộc [{$required}].");
+        }
+
+        foreach (['SCOPE-AUTHORITY', 'SOURCE-REBASELINE'] as $guarded) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/\bDEV\b/',
+                (string) $slots->firstWhere('slot', $guarded)['role'],
+                "DEV không được tự duyệt gate [{$guarded}]."
+            );
+        }
+
+        $this->assertSame('WWHN-25', $approval['under_approval']['decision_ticket'] ?? null);
+        $this->assertSame('ATT-11898', $approval['under_approval']['attachment_ref'] ?? null);
+    }
+
+    /** DEV233-P1-03R2 — parent WWHN-59 phải có bản ghi rebaseline đầy đủ. */
+    public function test_parent_rebaseline_record_is_complete(): void
+    {
+        $rebaseline = $this->evidenceJson('WWHN-59_AC_REBASELINE.json');
+
+        $this->assertSame('REQ-SRS-037', $rebaseline['decision']['controlling_requirement'] ?? null);
+        $this->assertNotEmpty($rebaseline['ac_rebaseline'] ?? []);
+
+        foreach ($rebaseline['ac_rebaseline'] as $ac) {
+            $this->assertContains(
+                $ac['disposition'],
+                ['SUPERSEDED', 'REMAPPED', 'DEFERRED'],
+                "AC [{$ac['ac_group']}] có disposition ngoài tập cho phép."
+            );
+
+            if ($ac['disposition'] === 'REMAPPED') {
+                $this->assertNotEmpty(
+                    $ac['canonical_replacement'] ?? null,
+                    "AC [{$ac['ac_group']}] được REMAPPED nhưng không nói map sang đâu."
+                );
+            }
+        }
+
+        $v39 = collect($rebaseline['source_rebaseline'] ?? [])
+            ->first(fn (array $entry): bool => str_contains((string) $entry['source'], 'v3.9'));
+        $this->assertNotNull($v39, 'Phải nêu BRD/Handoff v3.9 trong source rebaseline.');
+        $this->assertMatchesRegularExpression('/SUPERSEDED|HISTORICAL/', (string) $v39['new_role']);
+
+        $qaGate = collect($rebaseline['children_alignment'] ?? [])->firstWhere('ticket', 'WWHN-235');
+        $this->assertNotNull($qaGate);
+        $this->assertStringContainsString('DEFERRED', (string) $qaGate['disposition']);
+
+        $this->assertCount(4, $rebaseline['reopen_conditions'] ?? [], 'Bốn điều kiện re-open phải giữ nguyên.');
+    }
+
+    /**
+     * DEV233-P1-02R2 — pin immutable phải khớp cây làm việc.
+     *
+     * Kiểm bằng digest nội dung chứ không bằng git, nên nó đúng ở mọi checkout kể cả
+     * khi lịch sử của nhánh dùng chung `m1` đã tiến lên vì commit của task khác.
+     */
+    public function test_immutable_candidate_pin_matches_working_tree(): void
+    {
+        $pin = $this->evidenceJson('IMMUTABLE_CANDIDATE_PIN.json');
+
+        $this->assertNotEmpty($pin['expected_checks'] ?? [], 'Pin phải khai expected no-route/no-OA checks.');
+        $this->assertMatchesRegularExpression(
+            '/^[0-9a-f]{40}$/',
+            (string) ($pin['candidate']['be_commit_sha'] ?? ''),
+            'candidate.be_commit_sha phải là full SHA 40 ký tự.'
+        );
+
+        $files = $pin['defer_surface']['files'] ?? [];
+        $this->assertNotEmpty($files);
+
+        foreach ($files as $file) {
+            $abs = base_path($file['path']);
+            $this->assertFileExists($abs, "Pin trỏ tới [{$file['path']}] nhưng file không tồn tại.");
+            $this->assertSame(
+                hash_file('sha256', $abs),
+                $file['sha256'],
+                "[{$file['path']}] đã đổi so với candidate đã pin — refresh pin bằng "
+                    .'`node scripts/verify-wwhn233-count-disposition.mjs --emit-evidence`.'
+            );
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function evidenceJson(string $file): array
+    {
+        $path = base_path("docs/evidence/WWHN-233/{$file}");
+        $this->assertFileExists($path, "Evidence pack thiếu [{$file}].");
+
+        return json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    }
+
     /** @return array<string, mixed> */
     private function baselineContract(): array
     {

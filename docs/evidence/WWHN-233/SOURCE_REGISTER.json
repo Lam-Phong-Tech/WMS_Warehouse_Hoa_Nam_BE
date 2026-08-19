@@ -5,7 +5,7 @@
       "id": "SRS-1.12",
       "path": "docs/HN_SRS_FRD_v1.12_FULL.md",
       "role": "CONTROLLING",
-      "sha256": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
+      "sha256": "5ab1dd6c468e93f57a932741e823855806a9d37ac5dde9b118335ff8f84de086",
       "anchors_present": true
     },
     {
@@ -33,7 +33,7 @@
       "id": "OPENAPI-RUNTIME",
       "path": "storage/api-docs/api-docs.yaml",
       "role": "RUNTIME-SURFACE",
-      "sha256": "01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec",
+      "sha256": "e5d630106e0c0ea8dec90c4f1fca142271eff501e096fd08a1a1b4977d7c8a9b",
       "anchors_present": true
     }
   ],
@@ -85,8 +85,8 @@
   },
   "repository": {
     "branch": "m1",
-    "be_commit_sha": "bf06fea0bf228f7fe0b119525eeb6e099bb94c9d",
+    "be_commit_sha": "9a252a0a1d595df4390b3c74d1fc414ed481fb33",
     "be_commit_sha_meaning": "Commit cuối cùng chạm artifact của WWHN-233, không phải HEAD của nhánh dùng chung — nhiều nhánh Stocktake commit song song vào m1.",
-    "fe_commit_sha": "3bad47deb266b2cc276fa9844b1cf00e9b50348c"
+    "fe_commit_sha": "2d87fb5b69e5e838bf298245f422546a883c8fc0"
   }
 }
