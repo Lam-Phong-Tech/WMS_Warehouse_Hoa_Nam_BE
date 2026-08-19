@@ -1,5 +1,5 @@
 {
-    "migration_run_id": "b27d9d4f-6be3-4289-88dd-73eb2577e97c",
+    "migration_run_id": "0edbf946-aac4-4edd-9c85-d60db9122747",
     "migration_run_code": "REHEARSAL-WWHN-299#COMMIT",
     "mode": "COMMIT",
     "status": "COMMITTED",
@@ -52,9 +52,9 @@
         }
     },
     "timing": {
-        "started_at": "2026-08-19T09:23:43+07:00",
-        "finished_at": "2026-08-19T09:23:43+07:00",
-        "duration_ms": 11,
+        "started_at": "2026-08-19T10:33:09+07:00",
+        "finished_at": "2026-08-19T10:33:09+07:00",
+        "duration_ms": 97,
         "duration_source": "MONOTONIC_CLOCK"
     },
     "reconciliation": {
@@ -73,13 +73,13 @@
             },
             {
                 "check": "BALANCE_EQUALS_LEDGER",
-                "warehouse_id": "01a017d4-e6ca-7363-bd02-c0a03bad2082",
-                "sku_id": "01a017d4-e717-712b-8b89-f9aa92e2da57",
+                "warehouse_id": "01a01814-7732-7183-b853-4b76bde9d821",
+                "sku_id": "01a01814-77c4-73b4-86f2-95df2c599986",
                 "stock_status": "AVAILABLE",
                 "expected": 1,
                 "actual": 1,
                 "status": "PASS",
-                "message": "Balance vs ledger 01a017d4-e6ca-7363-bd02-c0a03bad2082/01a017d4-e717-712b-8b89-f9aa92e2da57/AVAILABLE: 1 vs 1."
+                "message": "Balance vs ledger 01a01814-7732-7183-b853-4b76bde9d821/01a01814-77c4-73b4-86f2-95df2c599986/AVAILABLE: 1 vs 1."
             },
             {
                 "check": "SERIAL_TRACKED_QTY_EQUALS_ITEM_COUNT",

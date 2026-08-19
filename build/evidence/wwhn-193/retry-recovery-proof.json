@@ -14,14 +14,14 @@
             "event_version": 2,
             "event_status": "CONFIRMED",
             "box_version": 2,
-            "box_parent": "01a017d4-4cc7-7055-a37b-cdb6e36daec5"
+            "box_parent": "01a0183c-9a53-7224-a3f4-71306906344b"
         },
         "state_after_retry": {
             "movements": 0,
             "event_version": 2,
             "event_status": "CONFIRMED",
             "box_version": 2,
-            "box_parent": "01a017d4-4cc7-7055-a37b-cdb6e36daec5"
+            "box_parent": "01a0183c-9a53-7224-a3f4-71306906344b"
         },
         "verdict": "PASS — replay trả kết quả cũ, không transition lần hai, movements=0"
     },

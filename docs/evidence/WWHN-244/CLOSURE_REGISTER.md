@@ -49,8 +49,10 @@ WWHN-244, lọc bỏ nhiễu từ ticket khác):
   khẳng định lại `WARRANTY_NEXT_STATUS` khớp `DEC-WAR-STATE-001`) — dùng SHA cũ sẽ bỏ sót một
   phần sửa PII thuộc cùng luồng.
 
-QA1 chạy WWHN-245 trên **BE `77d243e` + FE `59c4b16`** cộng với bất kỳ commit nào theo sau đóng
-P1-06 (xem §0.4 — SHA đó chưa tồn tại tại thời điểm ghi vì đang uncommitted ở phiên khác).
+QA1 chạy WWHN-245 trên **BE `6dfae4c` + FE `59c4b16`** — `6dfae4c` là commit đóng P1-06
+(xem §0.4), kế thừa trực tiếp từ `77d243e` (đã xác nhận bằng
+`git merge-base --is-ancestor 77d243e 6dfae4c`) nên không mất bất kỳ nội dung nào của candidate
+gốc, chỉ thêm đúng phần sửa migration.
 
 ### 0.2 P1-03/P1-04 — green run thật, chạy local (không đụng GitHub Actions)
 
@@ -60,11 +62,24 @@ budget Actions đã dùng hết 3000/3000 phút. Toàn bộ bằng chứng dư�
 `warranty-readiness.yml` làm (lint + integration test + PostgreSQL 16 local) nhưng không qua
 Actions.
 
-*(Kết quả cụ thể — số test pass/fail, log — được ghi bổ sung ngay khi hai gói phụ thuộc
-`vendor/`(BE, composer) và `node_modules/`(FE, npm) của một phiên song song khác cài xong;
-tại thời điểm viết mục này cả hai đang giữa chừng cài đặt bởi tiến trình của phiên khác — xem
-ghi chú "bẫy phiên song song làm hỏng autoload" trong bộ nhớ dự án. Không tự chạy
-`composer install`/`npm install` đè lên để tránh phá tiến trình của phiên kia.)*
+**Kết quả thật (19/08/2026, sau khi `vendor/` của phiên song song cài xong):**
+
+```
+php artisan test tests/Feature/Wwhn244WarrantyStateMatrixTest.php tests/Feature/WarrantyReadinessTest.php \
+  tests/Feature/WarrantyIdempotencyKeyContractTest.php tests/Feature/Wwhn219WarrantyTempOnlyAuditTest.php \
+  tests/Feature/WarrantyStatusOnlyContractTest.php
+# → tests=20 passed=18 assertions=266 skipped=2 (2 skip = driver-guard test, chỉ chạy khi
+#   WARRANTY_REQUIRE_DB_DRIVER được set — đúng thiết kế, không phải lỗ hổng)
+```
+
+Lint (Pint) + `php artisan route:list` (runtime route tồn tại) + OpenAPI route-sync xem §0.3.
+**FE (`npx vitest run src/modules/warranty`) chưa chạy được** vì `node_modules/.bin` của repo FE
+vẫn đang giữa chừng cài đặt bởi một phiên song song khác tại thời điểm ghi mục này — không tự
+`npm install` đè lên để tránh phá tiến trình của họ; bổ sung log này ngay khi sẵn sàng.
+
+**Vì sao không phải qua `.github/workflows/warranty-readiness.yml`:** tài khoản GitHub Actions
+đã dùng hết 3000/3000 phút — theo đúng yêu cầu, phiên này không trigger, không sửa, không chạm
+bất kỳ file `.github/workflows/*` nào. Bằng chứng trên hoàn toàn chạy local.
 
 ### 0.3 P1-05 — bản chất của việc "pin hash" khi artifact không nằm trong git
 
@@ -84,6 +99,17 @@ nào đổi ở bất kỳ ticket nào khác**, không riêng gì WWHN-244. Đã
 source commit — đã kiểm bằng `grep -n "generatedAt\|generated_at"` trên file: chỉ khớp các
 `description` nói về tên file export có timestamp, không phải metadata của chính OpenAPI doc.
 
+**Đã tái lập thật (19/08/2026, sau khi vendor sẵn sàng):** chạy lại
+`php artisan l5-swagger:generate` hai lần cách nhau — hash `api-docs.json` ra
+**đúng lại `14b226e5bcddb6e486878b6130e058d1fe49d176b7973275fce055bc79127af8`** cả hai lần
+→ xác nhận determinism, không phải trùng hợp. Hash `api-docs.yaml` mới:
+`01052e5c025ba6cb50af13c63f91dc35950950214cd2935055fcfad607a5a6ec`. Đã grep xác nhận cả 5 mã
+lỗi guard của `DEC-WAR-STATE-001` (`WARRANTY_DIAGNOSIS_REQUIRED`,
+`WARRANTY_TREATMENT_RESULT_REQUIRED`, `WARRANTY_HANDOVER_NOTE_REQUIRED`,
+`CANCEL_REASON_REQUIRED`, `INVALID_WARRANTY_TRANSITION`) đều còn xuất hiện trong contract —
+không hồi quy §5 của quyết định đó. FE/QA tái lập bằng đúng lệnh trên tại candidate BE ghi ở
+§0.1 sẽ ra cùng hash; Postman export lại từ hai file này.
+
 ### 0.4 P1-06 — không sửa file đang dở của phiên khác, chỉ verify
 
 Tại thời điểm vòng 2 này chạy, `git status` cho thấy
@@ -98,11 +124,53 @@ Bản sửa của phiên kia (`resolvePhysicalTable()` dò cả `warranty_case` 
 hướng và khớp với chẩn đoán ở đây.
 
 **Theo đúng quy tắc "không sửa file đang dở của phiên khác"**: không đụng vào migration này.
-Sau khi phiên kia commit, bước còn lại là chạy proof PG cục bộ (PostgreSQL 16 container local
-`wms_warehouse_hoa_nam_be-postgres-1`, không phải job CI) — đọc `pg_indexes.indexdef` để xác nhận
-index tồn tại trên bảng vật lý đúng driver, chèn thử case active thứ hai và xác nhận bị chặn bởi
-đúng tên constraint `uk_warranty_case_one_active_item`. Sẽ bổ sung SHA + log vào bản ghi này ngay
-khi (a) phiên kia commit và (b) vendor/ cài xong để chạy được `php artisan migrate`.
+
+**Phiên kia đã commit tại `6dfae4c6d1b20956b31eb1169222249b0de0fc01`**
+(`fix(WWHN-244): P1-06 vong 2 - migration one-active-case no-op tren pgsql do warranty_case
+thanh view`, `77d243e` là ancestor trực tiếp — xác nhận bằng
+`git merge-base --is-ancestor 77d243e 6dfae4c`). Đây là **candidate BE cập nhật cho P1-06**.
+
+**Proof PG thật đã chạy (19/08/2026) — KHÔNG đụng vào DB dev dùng chung `hoa_nam_audit`.**
+Lý do phải tách riêng: kiểm tra `SELECT * FROM migrations WHERE migration LIKE '%warranty_one_active%'`
+trên `hoa_nam_audit` cho thấy migration `2026_08_18_000100_...` **đã được Laravel ghi nhận là đã
+chạy (batch 1) từ trước khi bản sửa `6dfae4c` tồn tại** — Laravel không chạy lại `up()` của một
+migration đã ghi nhận dù file đổi trên đĩa, nên chạy `php artisan migrate` thẳng trên DB dùng
+chung sẽ **không** thực sự thực thi code đã sửa, và index đang có sẵn ở đó chỉ là di sản của
+migration `2026_08_10_000710` (đã tạo trước khi `warranty_case` bị `000791` biến thành view cùng
+ngày, sống sót qua lần đổi tên bảng) — không phải bằng chứng cho bản sửa mới. Kiểm tra kiểu này
+trên DB dùng chung sẽ **cho kết quả dương tính giả**.
+
+Cách làm đúng: tạo database tạm `wwhn244_p106_proof` trong CÙNG container Postgres 16
+(`wms_warehouse_hoa_nam_be-postgres-1`, `PostgreSQL 16.14`), migrate from scratch (137 migration,
+bao gồm cả `2026_08_18_000100_enforce_warranty_one_active_case_all_drivers .. DONE`), rồi xoá
+sau khi xong — không đụng, không tạo rủi ro cho DB dev mà các phiên khác đang dùng.
+
+```
+\d warranty_case            -- View "public.warranty_case" (đúng chẩn đoán: view trên pgsql)
+SELECT indexname, indexdef FROM pg_indexes WHERE indexname = 'uk_warranty_case_one_active_item';
+-- CREATE UNIQUE INDEX uk_warranty_case_one_active_item ON public.warranty_cases USING btree (item_id)
+--   WHERE item_id IS NOT NULL AND status <> ALL('{RETURNED,CANCELLED}')
+-- → index nằm ĐÚNG trên bảng vật lý warranty_cases, migration mới thật sự tạo ra nó, không NO-OP.
+```
+
+Để cô lập đúng constraint mà migration 000100 chịu trách nhiệm (tách khỏi index cũ
+`ux_erd_warranty_one_active_case_item` vốn đã che lấp trùng hợp — xem chẩn đoán ở trên), đã
+`DROP INDEX ux_erd_warranty_one_active_case_item` (chỉ trên DB tạm), rồi:
+
+```
+INSERT INTO warranty_cases (... item_id='222...222', status='RECEIVED' ...);  -- OK, 1 case active
+INSERT INTO warranty_cases (... item_id='222...222', status='CHECKING' ...);  -- case active thứ 2, CÙNG item
+-- ERROR: duplicate key value violates unique constraint "uk_warranty_case_one_active_item"
+--        DETAIL: Key (item_id)=(222...222) already exists.
+```
+
+**Kết luận: `uk_warranty_case_one_active_item` một mình (không nhờ index cũ) đã chặn đúng case
+active thứ hai trên cùng item, trên PostgreSQL 16 thật, từ một migration chạy từ đầu bao gồm bản
+sửa `6dfae4c`.** Database tạm đã `DROP DATABASE wwhn244_p106_proof` ngay sau khi lấy bằng chứng;
+`hoa_nam_audit` (DB dev dùng chung) không bị đụng vào ở bất kỳ bước nào.
+
+**Candidate BE cho P1-06 (thay `77d243e`): `6dfae4c`.** QA1 chạy lại WWHN-245 nên dùng SHA này
+(kế thừa từ `77d243e`, không mất gì) thay vì SHA cũ ở §0.1.
 
 ---
 
