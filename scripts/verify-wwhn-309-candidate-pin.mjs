@@ -61,6 +61,7 @@ const HANDOVER_ARTIFACTS = [
   "scripts/generate-api-contract-metrics.mjs",
   "scripts/verify-wwhn-309-handover-contract.mjs",
   "scripts/verify-wwhn-309-candidate-pin.mjs",
+  "scripts/collect-wwhn309-handover-evidence.sh",
   ".github/workflows/wwhn-309-backend-handover-evidence.yml",
   "tests/Feature/Wwhn309PermissionCatalogEvidenceTest.php",
   "tests/Feature/Wwhn309ScheduledOperationsTest.php",

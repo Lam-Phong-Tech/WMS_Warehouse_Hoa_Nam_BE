@@ -21,12 +21,15 @@ SHA="$(git rev-parse HEAD)"
 SHORT="$(git rev-parse --short HEAD)"
 OUT="build/evidence/wwhn-309/local/${SHORT}"
 LOGS="${OUT}/logs"
-mkdir -p "$LOGS"
 
+# Do BAN cua working tree phai duoc do TRUOC khi script tu ghi output cua chinh no,
+# va phai bo qua chinh thu muc evidence - neu khong script luon tu bao "dirty".
 DIRTY="clean"
-if [ -n "$(git status --porcelain)" ]; then
+if [ -n "$(git status --porcelain -- . ":(exclude)build/evidence/wwhn-309/local")" ]; then
   DIRTY="dirty"
 fi
+
+mkdir -p "$LOGS"
 
 FAILED=0
 
