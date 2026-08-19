@@ -109,4 +109,20 @@ return [
     // TRẠNG THÁI: đề xuất tại WWHN-289, CHỜ Tech Lead phê duyệt — chưa thuộc tập đã
     // dispositioned của WWHN-300.
     '2026_08_19_000050_repair_erd_mirror_projection_casts' => 'down() rỗng có chủ ý — fail-forward đề xuất tại WWHN-289, chờ Tech Lead phê duyệt',
+    // WWHN-184 (DEV184-P1-03R3): dựng lại view `audit_log` + trigger INSTEAD OF trên
+    // PostgreSQL để phơi đủ idempotency_key/error_code (xem migration cho root cause).
+    // Hoàn tác = xoá 2 cột vừa thêm khỏi audit_logs và dựng lại view/trigger cũ thiếu
+    // cột — quay lại đúng defect P0 (audit_log rỗng toàn hệ thống trên PostgreSQL) mà
+    // migration này vá, nên down() cố ý rỗng, cùng lớp quyết định với
+    // `2026_08_10_000790_retire_legacy_runtime_tables` (dòng ngay phía trên) đã
+    // dispositioned ở WWHN-300.
+    // TRẠNG THÁI: đề xuất tại WWHN-184, chờ Tech Lead phê duyệt.
+    '2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields' => 'down() rỗng có chủ ý — fail-forward đề xuất tại WWHN-184, chờ Tech Lead phê duyệt',
+    // Phát hiện khi chạy full regression cho WWHN-184 (không thuộc phạm vi ticket này):
+    // migration đã landing trên m1 từ trước nhưng chưa từng được thêm vào allowlist,
+    // nên wms:golive-check đỏ độc lập với mọi thay đổi ở trên. down() rỗng có chủ ý —
+    // xem docblock trong chính file migration (mirror ERD, hoàn tác lại lỗi 23505 nó vá).
+    // TRẠNG THÁI: ghi nhận hộ, chờ Tech Lead phê duyệt nguồn gốc (không phải quyết định
+    // của phiên WWHN-184 này).
+    '2026_08_19_130000_sync_inbound_lines_mirror_deletes' => 'down() rỗng có chủ ý — fail-forward phát hiện thiếu khi chạy regression WWHN-184, chờ Tech Lead phê duyệt nguồn gốc',
 ];
