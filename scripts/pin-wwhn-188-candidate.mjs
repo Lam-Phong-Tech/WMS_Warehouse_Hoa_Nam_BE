@@ -57,8 +57,20 @@ function git(args) {
   return execFileSync("git", ["-C", ROOT, ...args], { encoding: "utf8" }).trim();
 }
 
-function blobSha(path) {
-  return git(["hash-object", path]);
+/**
+ * Blob SHA **tại commit candidate**, không phải blob của working tree.
+ *
+ * Nhánh `m1` có nhiều phiên làm song song nên working tree gần như luôn chứa việc
+ * đang dở của task khác trong cùng một file. Pin theo working tree sẽ mục ngay khi
+ * phiên khác lưu file; pin theo commit thì bất kỳ ai clone đúng SHA cũng dựng lại
+ * được đúng giá trị này.
+ */
+function blobShaAt(commit, path) {
+  try {
+    return git(["rev-parse", `${commit}:${path}`]);
+  } catch {
+    return null;
+  }
 }
 
 /** Commit cuối cùng chạm vào đúng tập đường dẫn này — KHÔNG phải HEAD của nhánh. */
@@ -86,11 +98,23 @@ if (candidate === null) {
 }
 
 const artifacts = {};
+const unpinned = [];
 for (const path of allArtifacts) {
+  const blob = blobShaAt(candidate.sha, path);
+  if (blob === null) unpinned.push(path);
   artifacts[path] = {
-    blob_sha: blobSha(path),
+    blob_sha: blob,
     last_commit: lastCommitTouching([path])?.sha ?? null,
   };
+}
+
+if (unpinned.length > 0) {
+  // Fail-closed: một artifact chưa được commit thì reviewer không đọc lại được
+  // tại exact SHA, và pin sẽ nói dối là "đã đóng".
+  console.error(
+    `WWHN-188: các artifact sau chưa có mặt tại candidate ${candidate.sha} — commit trước rồi chạy lại:\n  ${unpinned.join("\n  ")}`,
+  );
+  process.exit(2);
 }
 
 const pin = {

@@ -1,0 +1,22 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn188-worker-1",
+    "scenario": "same_document_different_line",
+    "mode": "locked",
+    "backend_pid": 1763,
+    "os_pid": 12276,
+    "outcome": "REJECTED",
+    "http_status": 412,
+    "error_code": "STALE_VERSION",
+    "error_message": "Document version mismatch.",
+    "lock_wait_ms": 1550,
+    "response_version": null,
+    "response_scanned_quantity": null,
+    "response_replayed": null,
+    "idempotent_replay_header": null,
+    "idempotency_key": null,
+    "process_started_at": "2026-08-19T01:37:15.024046+00:00",
+    "barrier_released_at": "2026-08-19T08:37:15.667696+07:00",
+    "request_started_at": "2026-08-19T08:37:18.470560+07:00",
+    "request_finished_at": "2026-08-19T08:37:18.559966+07:00"
+}

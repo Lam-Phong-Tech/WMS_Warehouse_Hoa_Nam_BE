@@ -1,0 +1,22 @@
+{
+    "worker_index": 1,
+    "application_name": "wwhn188-worker-1",
+    "scenario": "same_item_different_document",
+    "mode": "locked",
+    "backend_pid": 1773,
+    "os_pid": 21048,
+    "outcome": "SUCCESS",
+    "http_status": 200,
+    "error_code": null,
+    "error_message": null,
+    "lock_wait_ms": 9,
+    "response_version": 2,
+    "response_scanned_quantity": 1,
+    "response_replayed": false,
+    "idempotent_replay_header": "false",
+    "idempotency_key": null,
+    "process_started_at": "2026-08-19T01:37:19.359618+00:00",
+    "barrier_released_at": "2026-08-19T08:37:19.762325+07:00",
+    "request_started_at": "2026-08-19T08:37:21.027932+07:00",
+    "request_finished_at": "2026-08-19T08:37:21.787234+07:00"
+}

@@ -97,20 +97,29 @@ if (expectSha !== null) {
   );
 }
 
-// Pin hai tầng: blob SHA phải còn khớp nội dung đang nằm trong working tree.
+// Pin hai tầng: blob SHA phải khớp nội dung **tại commit candidate**.
+//
+// Cố ý KHÔNG so với working tree: nhánh m1 có nhiều phiên làm song song nên cùng
+// một file thường mang thêm việc đang dở của task khác. Điều cần bảo đảm là
+// "reviewer clone đúng SHA sẽ đọc được đúng nội dung đã review", chứ không phải
+// "máy của người viết đang sạch".
 const drifted = [];
 for (const [path, meta] of Object.entries(pin.artifacts ?? {})) {
-  if (!existsSync(resolve(ROOT, path))) {
-    drifted.push(`${path} (MISSING)`);
-    continue;
+  let actual = null;
+  try {
+    actual = git(["rev-parse", `${candidateSha}:${path}`]);
+  } catch {
+    actual = null;
   }
-  const actual = git(["hash-object", path]);
-  if (actual !== meta.blob_sha) drifted.push(`${path} (${meta.blob_sha} -> ${actual})`);
+  if (actual === null) drifted.push(`${path} (không có tại candidate)`);
+  else if (actual !== meta.blob_sha) drifted.push(`${path} (pin ${meta.blob_sha} -> candidate ${actual})`);
 }
 record(
-  "P1-05/artifact-blobs-unchanged",
+  "P1-05/artifact-blobs-match-candidate-commit",
   drifted.length === 0,
-  drifted.length === 0 ? `${Object.keys(pin.artifacts).length} artifact khớp blob SHA` : drifted.join("; "),
+  drifted.length === 0
+    ? `${Object.keys(pin.artifacts).length} artifact khớp blob SHA tại ${candidateSha.slice(0, 12)}`
+    : drifted.join("; "),
 );
 
 // ---------------------------------------------------------------------------

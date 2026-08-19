@@ -1,0 +1,18 @@
+{
+    "scenario": "same_item_different_document",
+    "worker_index": 1,
+    "barrier_dir": "docs\/evidence\/WWHN-188\/runtime\/runtime-concurrency\/same_item_different_document\/barrier",
+    "out_file": "docs\/evidence\/WWHN-188\/runtime\/runtime-concurrency\/same_item_different_document\/worker-1.json",
+    "hold_ms": 1200,
+    "operation": {
+        "document_id": "2b4eb295-1087-48d2-8dd8-e4a6d0acf4a3",
+        "line_id": "5de10921-0d4f-4f71-b189-4a353d38e36f",
+        "quantity": 1,
+        "item_id": "333c6128-fc58-4557-9544-c92546594ab8",
+        "if_match": 1,
+        "actor_id": "01a017aa-41b9-701a-8c5d-92b15a6ead87",
+        "contended_table": "item_instances",
+        "contended_key": "item_id",
+        "contended_value": "333c6128-fc58-4557-9544-c92546594ab8"
+    }
+}
