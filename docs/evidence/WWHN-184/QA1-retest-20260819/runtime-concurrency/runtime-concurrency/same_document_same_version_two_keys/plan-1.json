@@ -1,0 +1,15 @@
+{
+    "scenario": "same_document_same_version_two_keys",
+    "worker_index": 1,
+    "barrier_dir": "docs\/evidence\/WWHN-184\/QA1-retest-20260819\/runtime-concurrency\/runtime-concurrency\/same_document_same_version_two_keys\/barrier",
+    "out_file": "docs\/evidence\/WWHN-184\/QA1-retest-20260819\/runtime-concurrency\/runtime-concurrency\/same_document_same_version_two_keys\/worker-1.json",
+    "hold_ms": 1200,
+    "operation": {
+        "action": "post_receipt",
+        "mode": "locked",
+        "actor_id": "01a0188e-1bfd-7055-83ba-a162ade2664c",
+        "document_id": "094c0d07-568c-4a2c-957b-1a731e427907",
+        "if_match": "2",
+        "idempotency_key": "w184-race-a2-00496D6D"
+    }
+}

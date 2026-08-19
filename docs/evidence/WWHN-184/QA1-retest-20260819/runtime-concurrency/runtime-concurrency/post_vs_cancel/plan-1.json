@@ -1,0 +1,15 @@
+{
+    "scenario": "post_vs_cancel",
+    "worker_index": 1,
+    "barrier_dir": "docs\/evidence\/WWHN-184\/QA1-retest-20260819\/runtime-concurrency\/runtime-concurrency\/post_vs_cancel\/barrier",
+    "out_file": "docs\/evidence\/WWHN-184\/QA1-retest-20260819\/runtime-concurrency\/runtime-concurrency\/post_vs_cancel\/worker-1.json",
+    "hold_ms": 1200,
+    "operation": {
+        "action": "cancel",
+        "mode": "locked",
+        "actor_id": "01a0188e-1bfd-7055-83ba-a162ade2664c",
+        "document_id": "1bf30ce2-37c3-44b8-99b7-355f64c91db9",
+        "if_match": "2",
+        "reason": "WWHN-184 race: Cancel \u0111ua v\u1edbi Post tr\u00ean c\u00f9ng version"
+    }
+}

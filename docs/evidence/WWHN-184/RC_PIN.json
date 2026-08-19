@@ -65,7 +65,11 @@
     "Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php": "3709771f87d343339514d4367812687ec9120c0a317275ed65e46df3b2a203e5",
     "Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php": "b117c143f58c5a713892b04be57d3005472b189ea64d6c6c2e4efbb5de97abf5",
     "Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php": "5e9521bc93f2fe7f970c0eeb23fef47490ea275067b9132134a8f8f6f777c9b8",
-    "Modules/Warehouse/routes/api.php": "88dde3a72402750df15fca970d1d5830450cb567c07169977dc180da434a66b9",
+    "Modules/Warehouse/routes/api.php": {
+      "extractor": "inbound-route-block",
+      "sha256": "3a15ca813f8e381c0dd9011ea643f4668bfc86db0683775252a3fb675627352f",
+      "note": "DEV184-P1-03R3: file dùng chung nhiều ticket (WWHN-195/WWHN-234 cũng sửa route trong file này). Hash chỉ tính trên khối 13 statement Route::*('inbound-documents...') trích bằng scripts/verify-wwhn184-candidate-pin.mjs, không hash cả tệp."
+    },
     "app/Support/IdempotencyStore.php": "917cf9f89180d16a7e62858f8e044fd78cea02308eded991b494df2ddfa017f0",
     "app/Support/IdempotencyKeyGuard.php": "81c73c4bdcad38524ffc6e6b92dbe30ec7eced0ceb8eeac1d260ddcce697d3a9",
     "app/Support/ConflictCode.php": "9b66ff66372ee0a048a6a5f202b7879dd6df78056b9ed629a4d6b0e335883d5d",

@@ -13,6 +13,19 @@
  *   - Commit của ticket khác lên `m1` -> pin vẫn xanh (không rot).
  *   - Ai đó sửa đúng file của WWHN-184 -> pin đỏ ngay, phải review lại.
  *
+ * DEV184-P1-03R3 (retest 2026-08-19): lời hứa "commit của ticket khác không làm đỏ
+ * pin" bị vỡ cho đúng 1 file — `Modules/Warehouse/routes/api.php` — vì đây là file
+ * route DÙNG CHUNG cho mọi module (inbound/outbound/warranty/component-issue...).
+ * WWHN-195 và WWHN-234 sửa route outbound/component-issue trong CHÍNH file này ->
+ * hash cả file đổi -> pin đỏ dù không dòng inbound nào bị đụng (verify bằng
+ * `git diff <old> -- Modules/Warehouse/routes/api.php`, không có hunk nào chạm
+ * `inbound-documents`). Áp dụng lại đúng mô hình đã dùng ở HN-PIN-328 ("pin mức đối
+ * tượng thay vì hash cả tệp"): với file dùng chung, không hash toàn bộ nội dung mà
+ * trích xuất đúng các statement `Route::verb('inbound-documents...')->middleware(...)`
+ * (đại diện toàn bộ Annex C operation của WWHN-184 + alias/scan-entries), sắp xếp ổn
+ * định rồi hash phần trích xuất đó — bất biến với mọi sửa đổi ở phần route khác trong
+ * cùng file.
+ *
  * Chế độ chạy:
  *   node scripts/verify-wwhn184-candidate-pin.mjs
  *       Kiểm tra nội dung working tree khớp pin.
@@ -35,7 +48,8 @@ const expectSha = (args.find(a => a.startsWith('--expect-sha=')) ?? '').split('=
 const pin = JSON.parse(fs.readFileSync(PIN_PATH, 'utf8'));
 const failures = [];
 
-const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const sha256text = text => crypto.createHash('sha256').update(text).digest('hex');
+const sha256 = file => sha256text(fs.readFileSync(file));
 const git = (...a) => {
   try {
     return execFileSync('git', a, {encoding: 'utf8'}).trim();
@@ -44,16 +58,36 @@ const git = (...a) => {
   }
 };
 
+/* ---- File dùng chung cần pin theo khối route sở hữu, không hash cả tệp ---- */
+const ROUTE_BLOCK_PATTERN = /Route::(?:get|post|patch)\(\s*'inbound-documents[^']*'[\s\S]*?;/g;
+const EXTRACTORS = {
+  'inbound-route-block': content => {
+    const matches = content.match(ROUTE_BLOCK_PATTERN) ?? [];
+
+    return [...matches].sort().join('\n---\n');
+  },
+};
+
 /* ---- 1. Nội dung file thuộc sở hữu của WWHN-184 ---- */
 const owned = pin.owned_artifacts ?? {};
 const computed = {};
-for (const relative of Object.keys(owned)) {
+for (const [relative, expected] of Object.entries(owned)) {
   const absolute = path.resolve(relative);
   if (!fs.existsSync(absolute)) {
     failures.push(`Artifact bắt buộc bị thiếu: ${relative}`);
     continue;
   }
-  computed[relative] = sha256(absolute);
+  const extractorId = expected && typeof expected === 'object' ? expected.extractor : null;
+  if (extractorId) {
+    const extractor = EXTRACTORS[extractorId];
+    if (!extractor) {
+      failures.push(`${relative}: không rõ extractor "${extractorId}" khai trong pin.`);
+      continue;
+    }
+    computed[relative] = {extractor: extractorId, sha256: sha256text(extractor(fs.readFileSync(absolute, 'utf8')))};
+  } else {
+    computed[relative] = sha256(absolute);
+  }
 }
 
 if (write) {
@@ -71,11 +105,18 @@ for (const [relative, expected] of Object.entries(owned)) {
     failures.push(`Pin chưa ghi hash cho ${relative} — chạy --write kèm review trước khi dùng làm evidence.`);
     continue;
   }
-  if (computed[relative] !== expected) {
+  const isBlock = expected && typeof expected === 'object';
+  const expectedHash = isBlock ? expected.sha256 : expected;
+  const computedHash = isBlock ? computed[relative]?.sha256 : computed[relative];
+  if (computedHash !== expectedHash) {
     failures.push(
-      `Nội dung ${relative} đã đổi so với candidate đã pin.\n` +
-      `        pinned  : ${expected}\n` +
-      `        current : ${computed[relative]}`,
+      isBlock
+        ? `Khối route sở hữu bởi WWHN-184 trong ${relative} đã đổi so với candidate đã pin (extractor "${expected.extractor}").\n` +
+          `        pinned  : ${expectedHash}\n` +
+          `        current : ${computedHash}`
+        : `Nội dung ${relative} đã đổi so với candidate đã pin.\n` +
+          `        pinned  : ${expectedHash}\n` +
+          `        current : ${computedHash}`,
     );
   }
 }
