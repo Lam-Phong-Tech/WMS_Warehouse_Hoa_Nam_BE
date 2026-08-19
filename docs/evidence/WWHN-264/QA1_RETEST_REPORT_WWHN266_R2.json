@@ -1,0 +1,72 @@
+{
+  "document": "QA1 retest report R2 — CORE_TRANSACTION hard gate cho WWHN-266 trên refreshed exact candidate",
+  "ticket": "WWHN-264",
+  "registerItem": "DEV266-P1-03R",
+  "schemaVersion": "1.0.0",
+  "issuedBy": "QA1",
+  "issuedAt": "2026-08-19",
+  "candidate": {
+    "repo": "HoaNam_BE / WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "exactSha": "4b886628f03b82a78ebec206454930603d84510d",
+    "pinFile": "docs/evidence/WWHN-266/CANDIDATE_PIN.json"
+  },
+  "environment": {
+    "database": "sqlite :memory: (phpunit.xml mặc định)",
+    "runner": "php artisan test, in-process, local-controlled",
+    "ciConstraint": "KHÔNG kích hoạt GitHub Actions — quota 3.000/3.000 phút đã cạn; mọi lượt chạy là local tại exact SHA."
+  },
+  "scope": "Chạy lại đủ 8 chiều SRS §13.3 cho COMPONENT_ISSUE_POST (TC-P1-017..024) trên candidate đã refresh sau các thay đổi core mới (DEC-REV-COMPONENT-001 chạm CurrentBaselineReversalService và bề mặt reversal), đặc biệt chiều CONCURRENCY sau sortLinesForBalanceLock(); cộng bộ reversal COMPONENT_ISSUE mới (TC-REV-CI-01..08); record API/DB before-after và movement/balance/reconcile từ raw evidence do chính test ghi.",
+  "runs": [
+    {
+      "suite": "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+      "result": "9/9 PASS (lượt gộp với contract truth: 13/13, 177 assertions)",
+      "rawEvidence": "build/evidence/wwhn-266/component-issue-core-transaction.json",
+      "dimensions": {
+        "TC-P1-017 POSITIVE": "HTTP 200; balance 10→7; movement COMPONENT_ISSUE qty_delta -3; đúng 1 movement/posting_event/audit",
+        "TC-P1-018 NEGATIVE": "HTTP 422 FULL_POST_REQUIRED; balance giữ 10; 0 movement",
+        "TC-P1-019 PERMISSION": "HTTP 403 ACCESS_DENIED; balance giữ 10",
+        "TC-P1-020 INVALID_STATE": "repost 409 + stale 412; balance giữ 7; vẫn 1 movement",
+        "TC-P1-021 RETRY_SAME_KEY": "replay flags [false,true,true]; tồn giảm đúng một lần (→6); 1 movement, 1 posting_event",
+        "TC-P1-022 SAME_KEY_DIFF_PAYLOAD": "HTTP 409 IDEMPOTENCY_CONFLICT; không có write thứ hai",
+        "TC-P1-023 CONCURRENCY (sau sortLinesForBalanceLock)": "hai phiếu tranh tồn 5 → HTTP [200,422], loser COMPONENT_BOX_INSUFFICIENT, tồn cuối 2 không âm, tổng movement 1",
+        "TC-P1-024 ROLLBACK": "lỗi tiêm sau INSERT movement → 500, balance rollback về 10; retry 200 → 7",
+        "LEDGER_BALANCE_RECONCILE": "SUM(qty_delta)=5 = balance on_hand=5; mismatch_count=0; variance=0; PASS"
+      }
+    },
+    {
+      "suite": "tests/Feature/Wwhn266ComponentIssueReversalTest.php",
+      "result": "8/8 PASS, 137 assertions",
+      "rawEvidence": "build/evidence/wwhn-266/component-issue-reversal.json",
+      "dimensions": {
+        "TC-REV-CI-01 POSITIVE": "HTTP 201; balance 7→9; movement đối ứng REVERSAL qty_delta +2 (qty_before 7, qty_after 9) tham chiếu original_movement_id + correction_chain_id; movement gốc bất biến TỪNG CỘT; container_items giữ 7; posting_action REVERSE_COMPONENT_ISSUE; audit REVERSAL_POST",
+        "TC-REV-CI-02 BR-REV-06": "pending-return stock-neutral (0 movement); post sớm 409 PHYSICAL_RETURN_REQUIRED; confirm→post OK, balance về 10",
+        "TC-REV-CI-03 BR-REV-07": "DEFECTIVE không cộng AVAILABLE (giữ 7); bucket DEFECTIVE = 1; movement stock_status DEFECTIVE",
+        "TC-REV-CI-04 BR-REV-05": "đảo vượt hạn mức → 422 REVERSAL_QTY_EXCEEDED; không movement mới",
+        "TC-REV-CI-05 BR-REV-12": "replay [false,true] cùng key/payload trả đúng reversal cũ, tồn đổi một lần (9); khác payload → 409 IDEMPOTENCY_CONFLICT",
+        "TC-REV-CI-06 BR-REV-02/§8.2": "thiếu quyền 403; thiếu If-Match 428 PRECONDITION_REQUIRED; lệch version 412 STALE_VERSION; balance giữ 7; 0 reversal POSTED",
+        "TC-REV-CI-07 BR-REV-08": "movement REVERSAL không phải nguồn đảo → 404 MOVEMENT_NOT_FOUND",
+        "TC-REV-CI-08 §7.5": "SUM(qty_delta)=9 = balance=9; mismatch_count=0"
+      }
+    },
+    {
+      "suite": "Regression reversal đã chốt (WWHN-207/239/240/242)",
+      "result": "36/36 PASS, 353 assertions"
+    },
+    {
+      "suite": "Regression concurrency/idempotency (WWHN-234 x4)",
+      "result": "21/21 PASS, 145 assertions"
+    },
+    {
+      "suite": "tests/Feature/Wwhn266IfMatchContractTruthTest.php + Postman check",
+      "result": "4/4 PASS; sync-wwhn-266-postman-if-match.mjs --check PASS (47 operation)"
+    },
+    {
+      "suite": "FE vitest src/modules/reverse (repo HoaNam_FE, cùng ngày)",
+      "result": "21/21 PASS (4 file, gồm movement-classification.test.ts mới) + tsc --noEmit sạch"
+    }
+  ],
+  "verdict": "PASS trên driver sqlite tại exact SHA 4b88662. CORE_TRANSACTION hard gate cho COMPONENT_ISSUE_POST và correction path của nó có target evidence đầy đủ, số liệu lấy từ artifact do test tự ghi (không soạn tay).",
+  "residual": "Lượt PostgreSQL tại exact SHA chờ quota CI (ghi ở QA1_DEFECT_REGISTER_BETA.json §residualRisks); QA1 giữ mục này OPEN cho tới khi có một lượt PG.",
+  "truthBoundary": "Lượt chạy này do QA1 thực hiện lại bằng đúng lệnh khai trong CANDIDATE_PIN, độc lập với lượt DEV cùng ngày; hai lượt cho cùng kết quả. Số liệu Beta trích ra ngoài phải kèm exact SHA + driver."
+}

@@ -110,7 +110,7 @@
       "severity": "P1",
       "owner": "BA + Tech Lead",
       "confirmer": "BA",
-      "registerItem": "DEV266-P1-06 (contract impact) — CHỜ DISPOSITION",
+      "registerItem": "DEV266-P1-04R (vòng 74/100) — ĐÃ CÓ DISPOSITION VÀ ĐÃ SỬA",
       "module": "warehouse/reversal",
       "route": "POST /api/v1/reversal-documents · POST /api/v1/reversal-documents/{id}/post",
       "method": "POST",
@@ -118,21 +118,28 @@
       "expected": "SRS §5.5 BR-REV-01: mọi sửa sai sau Post dùng append-only reversal, không UPDATE/DELETE movement gốc và không sửa Balance trực tiếp. AC-GWT-REV-001 chốt thêm: không có API/UI action sửa tồn trực tiếp. Suy ra: một Component Issue đã POSTED (đã trừ tồn) phải có đường sửa sai hợp lệ.",
       "actual": "CurrentBaselineReversalService chỉ nhận movement_type IN ('RECEIPT','ISSUE') ở CẢ HAI chốt: lúc tạo reversal draft (dòng ~126, 422 ORIGINAL_MOVEMENT_INVALID — movement COMPONENT_ISSUE còn không thuộc stock_document nào nên không qua nổi điều kiện stock_document_id) và lúc Post (dòng ~280, 409 REVERSAL_OF_REVERSAL_FORBIDDEN kèm thông điệp nói về movement REVERSAL, không đúng nguyên nhân thật). Kết quả: một phiếu xuất linh kiện bảo hành post nhầm (sai SKU/số lượng/case) không có đường sửa sai hợp lệ nào — reversal chặn, mà sửa tồn trực tiếp thì baseline cấm.",
       "rootCause": "Phạm vi reversal được chốt theo hai loại chứng từ receipt/issue từ WWHN-26, trước khi Component Issue trở thành action đổi tồn độc lập. Không ai mở lại phạm vi khi thêm movement_type COMPONENT_ISSUE.",
+      "disposition": "DEC-REV-COMPONENT-001 (BA + Tech Lead, 2026-08-19): correction policy = append-only reversal theo BR-REV-01 + ERD bảng 33 (original_document_type đã cho COMPONENT_ISSUE sẵn). Xem docs/decision-records/DEC-REV-COMPONENT-001.md.",
       "fix": {
-        "files": [],
-        "summary": "BE1 KHÔNG tự sửa trong phạm vi WWHN-266. Mở phạm vi reversal sang COMPONENT_ISSUE là thay đổi contract: thêm loại chứng từ nguồn cho reversal, thêm movement đối ứng, chạm OpenAPI + bề mặt FE + bộ test reversal đã chốt (WWHN-239/240/242). Cần BA + Tech Lead disposition trước, đúng tiền lệ BE268-D02."
+        "files": [
+          "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php",
+          "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php",
+          "Modules/Warehouse/app/Http/Controllers/StockMovementController.php",
+          "Modules/Warehouse/app/Http/Middleware/EnforceReversalWarehouseScope.php",
+          "tests/Feature/Wwhn266ComponentIssueReversalTest.php"
+        ],
+        "summary": "documentType component_issue xuyên suốt service (lock component_issue_documents, movement qua source_type/source_id, stock_document_id NULL, BR-REV-06/07, item ISSUED→IN_STOCK, posting_action REVERSE_COMPONENT_ISSUE); store() nhận reference COMPONENT_ISSUE; middleware đóng lỗ fail-open data-scope; reversible() chào movement COMPONENT_ISSUE với version từ component_issue_documents; tách 409 REVERSAL_OF_REVERSAL_FORBIDDEN (chỉ movement REVERSAL) khỏi 422 ORIGINAL_MOVEMENT_INVALID. FE: isStockRestoringMovement() để COMPONENT_ISSUE đi nhánh issue-like (return_condition + physical confirm)."
       },
       "beforeAfter": {
-        "before": "không có test nào ghi nhận hành vi này, nên khoảng trống vô hình",
-        "after": "hành vi hiện hành được ghi nhận tường minh trong register và trong docstring bộ test; nếu ai đó âm thầm đổi phạm vi reversal thì phải đụng vào dòng này",
-        "measuredBy": "phân tích mã: Modules/Warehouse/app/Services/CurrentBaselineReversalService.php"
+        "before": "phiếu linh kiện POSTED không có đường sửa: create reversal 422 (điều kiện stock_document_id), post 409 kèm thông điệp sai nguyên nhân; middleware scope trả null (fail-open) cho reference COMPONENT_ISSUE",
+        "after": "TC-REV-CI-01: balance 7→9 đúng một lần, movement gốc bất biến từng cột, movement đối ứng REVERSAL (+2) đủ original_movement_id + correction_chain_id, container_items giữ nguyên 7; TC-REV-CI-02..08 phủ BR-REV-05/06/07/08/12 + RBAC/428/412 + đối soát mismatch=0",
+        "measuredBy": "build/evidence/wwhn-266/component-issue-reversal.json (do chính test ghi ra)"
       },
       "retest": {
-        "command": "không áp dụng — chờ disposition, chưa có mã để retest",
-        "status": "DEFERRED"
+        "command": "php artisan test tests/Feature/Wwhn266ComponentIssueReversalTest.php",
+        "status": "PASS (8/8, 137 assertions) + regression Wwhn207/239/240/242 36/36, Wwhn234 21/21"
       },
-      "status": "OPEN_NEEDS_DISPOSITION",
-      "contractImpact": "CÓ NẾU ĐƯỢC DUYỆT — mở phạm vi reversal chạm OpenAPI, FE và bộ test reversal đã chốt. Kiểm soát bù trong lúc chờ: Component Issue chỉ Post được khi scanned_qty = required_qty và case còn active, nên cửa sổ sai sót hẹp; mọi lần Post đều có posting_event + audit để truy vết thủ công."
+      "status": "FIXED",
+      "contractImpact": "CÓ, backward compatible — không thêm/bớt operation; POST /reversal-documents nhận thêm reference component_issue_documents.id; tập 47 operation bắt buộc If-Match không đổi (Wwhn266IfMatchContractTruthTest 4/4 PASS sau fix); Postman check PASS. Chi tiết ở DEC-REV-COMPONENT-001 §4."
     },
     {
       "id": "BE266-D04",
@@ -147,9 +154,10 @@
       "expected": "SRS §5.4.1: 'quantity-only components use box + quantity'. Sau khi nhập kho một BOX linh kiện không serial, người dùng phải quét được BOX đó cho Component Issue theo số lượng.",
       "actual": "Luồng inbound (tạo BOX → scan → post-receipt) KHÔNG ghi dòng container_items nào; BOX chỉ chuyển status sang RECEIVED_PENDING_PUTAWAY. ComponentContainerSubledgerService::assertContainerAvailable() cộng container_items.quantity nên luôn ra 0 và trả 422 COMPONENT_BOX_INSUFFICIENT. Đo được: tồn inventory_balances = 10 nhưng available_qty của BOX = 0. Đường duy nhất nạp nội dung BOX là POST /api/v1/containers/{id}/items (permission container.manage).",
       "rootCause": "container_items chỉ có duy nhất một nơi ghi (CurrentBaselineContainerFlowController::addItem). Luồng nhập kho không gọi tới, nên subledger số lượng của BOX phải được khai bằng một thao tác quản trị riêng.",
+      "disposition": "DEV266-P2-02 (BA, 2026-08-19): chọn phương án (b) — giữ nguyên luồng inbound; 'khai nội dung BOX' qua POST /containers/{id}/items (permission container.manage) là bước vận hành bắt buộc trước khi xuất linh kiện quantity-mode. Reversal component issue cũng không tự nạp lại BOX (DEC-REV-COMPONENT-001 §3.5) — một nguyên tắc duy nhất cho subledger BOX. Nếu sau Beta cần tự sinh container_items từ post-receipt, BA mở scope/task riêng đúng owner.",
       "fix": {
         "files": [],
-        "summary": "BE1 KHÔNG tự sửa. Hai cách đóng đều là quyết định nghiệp vụ: (a) post-receipt tự sinh container_items cho SKU không serial — chạm luồng nhập kho và số liệu subledger đã chốt; (b) giữ nguyên và ghi nhận 'khai nội dung BOX' là một bước vận hành bắt buộc trước khi xuất linh kiện theo số lượng. Cần BA chọn."
+        "summary": "Không sửa code theo disposition (b). Bất biến 'reversal không chạm container_items' được khoá bằng test TC-REV-CI-01."
       },
       "beforeAfter": {
         "before": "khoảng trống không được ghi ở đâu; người vận hành gặp 422 COMPONENT_BOX_INSUFFICIENT dù báo cáo tồn hiển thị còn hàng",
@@ -157,11 +165,11 @@
         "measuredBy": "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php::stockedComponent()"
       },
       "retest": {
-        "command": "không áp dụng — chờ disposition nghiệp vụ",
-        "status": "DEFERRED"
+        "command": "php artisan test tests/Feature/Wwhn266ComponentIssueReversalTest.php (TC-REV-CI-01 khoá bất biến container_items)",
+        "status": "PASS"
       },
-      "status": "OPEN_NEEDS_DISPOSITION",
-      "contractImpact": "KHÔNG ở trạng thái hiện tại. Nếu BA chọn phương án (a) thì chạm luồng nhập kho và đối soát §7.5."
+      "status": "CLOSED_BY_DISPOSITION",
+      "contractImpact": "KHÔNG — phương án (b) không đổi code/contract; chỉ ghi nhận bước vận hành."
     }
   ],
   "externalItems": [

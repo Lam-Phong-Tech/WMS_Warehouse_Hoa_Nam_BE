@@ -1,0 +1,69 @@
+{
+  "document": "QA1 Beta Defect Register — vòng WWHN-70 / HN-QA-005-ST01, phần backend core transaction",
+  "ticket": "WWHN-264",
+  "adoptsFrom": "WWHN-266 (BE1) — DEV266-P1-01R",
+  "schemaVersion": "1.0.0",
+  "issuedBy": "QA1",
+  "issuedAt": "2026-08-19",
+  "authorityNote": "Đây là defect register CHÍNH THỨC do QA1 phát hành theo DEV266-P1-01R — review + adopt register 1-1 của DEV (docs/evidence/WWHN-266/DEFECT_REGISTER.json) sau khi đối chiếu từng dòng với test/build/env thật. DEV self-register từ vòng này chỉ còn là input; nguồn QA là file này.",
+  "environment": {
+    "repo": "HoaNam_BE / WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "m1",
+    "candidateSha": "4b886628f03b82a78ebec206454930603d84510d",
+    "database": "sqlite :memory: (driver DEV mặc định theo phpunit.xml); PostgreSQL 16 là driver tham chiếu docs — lượt PG tại exact SHA chờ môi trường CI có quota, KHÔNG chạy trong vòng này vì quota GitHub Actions đã cạn (3.000/3.000 phút)",
+    "build": "php artisan test in-process, local-controlled",
+    "ciNote": "Không có run CI mới nào được kích hoạt trong vòng này theo ràng buộc quota."
+  },
+  "defects": [
+    {
+      "id": "BE266-D01",
+      "qaDisposition": "ADOPTED — CONFIRMED FIXED",
+      "severity": "P1",
+      "title": "Contract khai sai required-ness của If-Match trên 41/47 operation bắt buộc",
+      "mappedEvidence": {
+        "test": "tests/Feature/Wwhn266IfMatchContractTruthTest.php (4/4 PASS tại 4b88662 — chạy lại sau thay đổi D03, tập 47 operation không đổi)",
+        "build": "storage/api-docs sinh lại trong test qua l5-swagger:generate (đo SOURCE, không đo file tĩnh)",
+        "postman": "node scripts/sync-wwhn-266-postman-if-match.mjs --check → PASS"
+      },
+      "qaNote": "Doc-only fix tại nguồn sinh contract (RouteSyncProcessor); không đổi hành vi runtime. Khớp khai báo của DEV."
+    },
+    {
+      "id": "BE266-D02",
+      "qaDisposition": "ADOPTED — CONFIRMED FIXED",
+      "severity": "P1",
+      "title": "COMPONENT_ISSUE_POST không có evidence 8 chiều (khoảng trống TC-P1-017..024 của SRS §13.3)",
+      "mappedEvidence": {
+        "test": "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php — 9/9 PASS tại 4b88662",
+        "rawResult": "build/evidence/wwhn-266/component-issue-core-transaction.json (driver sqlite): TC-P1-017 balance 10→7 qty_delta=-3 movements=1; TC-P1-021 replay_flags[false,true,true]; TC-P1-022 409 IDEMPOTENCY_CONFLICT; TC-P1-023 http[200,422] tồn cuối 2 không âm movements=1; TC-P1-024 500 rollback về 10 rồi retry 200 → 7; đối soát ledger=balance=5 mismatch=0"
+      },
+      "qaNote": "Hiện thực BE không có bug ở 8 chiều; giá trị là lấp khoảng trống chứng minh. Khớp khai báo của DEV."
+    },
+    {
+      "id": "BE266-D03",
+      "qaDisposition": "ADOPTED — FIXED TRONG VÒNG NÀY (trước đây OPEN_NEEDS_DISPOSITION)",
+      "severity": "P1",
+      "title": "Movement COMPONENT_ISSUE không đảo được — phiếu linh kiện post nhầm không có đường sửa hợp lệ (vi phạm BR-REV-01)",
+      "decision": "DEC-REV-COMPONENT-001 (BA + Tech Lead): correction policy = append-only reversal; original movement bất biến, movement đối ứng REVERSAL, không direct-edit balance; BR-REV-06/07 áp cho chiều cộng-lại-tồn; container_items không tự hoàn (khớp disposition D04).",
+      "mappedEvidence": {
+        "test": "tests/Feature/Wwhn266ComponentIssueReversalTest.php — 8/8 PASS, 137 assertions tại 4b88662",
+        "rawResult": "build/evidence/wwhn-266/component-issue-reversal.json: TC-REV-CI-01 balance 7→9, movement gốc immutable từng cột, box_subledger giữ 7, posting_action REVERSE_COMPONENT_ISSUE; TC-REV-CI-02 pending-return stock-neutral, post sớm 409, sau confirm+post = 10; TC-REV-CI-03 DEFECTIVE không cộng AVAILABLE (bucket DEFECTIVE=1); TC-REV-CI-04 422 REVERSAL_QTY_EXCEEDED không write; TC-REV-CI-05 replay[false,true] + 409 conflict; TC-REV-CI-06 perm 403 / thiếu If-Match 428 / stale 412, tồn không đổi; TC-REV-CI-07 movement REVERSAL không phải nguồn (404); TC-REV-CI-08 ledger=balance=9 mismatch=0",
+        "regression": "Wwhn207/239/240/242 (36/36 PASS) + Wwhn234 (21/21 PASS) — bộ reversal đã chốt không vỡ"
+      },
+      "qaNote": "QA1 xác nhận mã lỗi sai nghĩa cũ (409 REVERSAL_OF_REVERSAL_FORBIDDEN cho movement không phải reversal) đã được tách đúng; lỗ fail-open data-scope ở EnforceReversalWarehouseScope đã đóng."
+    },
+    {
+      "id": "BE266-D04",
+      "qaDisposition": "ADOPTED — BUSINESS DISPOSITION (BA), KHÔNG SỬA CODE",
+      "severity": "P2",
+      "title": "Luồng inbound không ghi container_items — BOX phải được khai nội dung trước khi xuất linh kiện quantity-mode",
+      "decision": "BA chọn phương án (b): giữ nguyên luồng; 'khai nội dung BOX' qua POST /containers/{id}/items (permission container.manage) là bước vận hành bắt buộc, ghi vào tài liệu vận hành. Reversal component issue cũng KHÔNG tự nạp lại BOX — nhất quán cùng nguyên tắc (DEC-REV-COMPONENT-001 §3.5). Nếu sau Beta phát sinh nhu cầu tự sinh container_items từ post-receipt thì mở scope/task riêng đúng owner (BA tạo).",
+      "mappedEvidence": {
+        "test": "fixture của cả hai bộ WWHN-266 (bước /containers/{id}/items có comment giải thích); TC-REV-CI-01 khoá bất biến 'reversal không chạm container_items' (box giữ 7)"
+      }
+    }
+  ],
+  "residualRisks": [
+    "Lượt PostgreSQL tại exact SHA chưa chạy trong vòng này (ràng buộc quota CI). Nhánh schema sqlite/PG có khác biệt đã biết (bảng số ít/số nhiều); các bộ reversal 239/240/242 từng xanh trên PG và không đổi hành vi, nhưng QA1 ghi nhận đây là residual risk cần một lượt PG khi quota mở lại.",
+    "Serial component reversal dùng chung guard với Reverse Issue serial (đã khoá bởi WWHN-239/242); chưa có ca end-to-end riêng cho serial COMPONENT sku — ghi nhận theo phạm vi DEC-REV-COMPONENT-001 (quantity-mode là chế độ chính §5.4.1)."
+  ]
+}

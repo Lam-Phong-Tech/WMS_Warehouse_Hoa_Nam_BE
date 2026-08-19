@@ -1,16 +1,23 @@
 {
   "ticket": "WWHN-266",
-  "registerItems": ["DEV266-P1-02", "DEV266-P1-07"],
+  "registerItems": ["DEV266-P1-02R"],
   "repo": "HoaNam_BE / WMS_Warehouse_Hoa_Nam_BE",
   "branch": "m1",
-  "codeCandidateSha": "6cfb642e7e78b46a012af54a47aac21420502443",
-  "codeCandidateShaShort": "6cfb642",
+  "codeCandidateSha": "4b886628f03b82a78ebec206454930603d84510d",
+  "codeCandidateShaShort": "4b88662",
   "pinRefreshHistory": [
     {
       "from": "8c7750763c473f5ccc65a8490a6a5b5a599246fc",
       "to": "6cfb642e7e78b46a012af54a47aac21420502443",
-      "reason": "Commit 6cfb642 ('gỡ cờ 15') chạm build/evidence/wwhn-266/component-issue-core-transaction.json (driver pgsql→sqlite, khớp truthBoundary local sqlite đã khai ở dưới). Đây là commit cuối cùng chạm rangeInvariantPaths tính đến thời điểm refresh; không file mã nguồn/test nào trong tập bất biến bị đổi ngoài artifact sinh ra này.",
-      "refreshedBy": "WWHN-268 round 2 evidence refresh (FE268-R2-P1-03/04), local, không dùng CI",
+      "reason": "Commit 6cfb642 chạm artifact evidence (driver pgsql→sqlite).",
+      "refreshedBy": "WWHN-268 round 2 evidence refresh, local, không dùng CI",
+      "refreshedAt": "2026-08-19"
+    },
+    {
+      "from": "6cfb642e7e78b46a012af54a47aac21420502443",
+      "to": "4b886628f03b82a78ebec206454930603d84510d",
+      "reason": "Vòng review 74/100 (DEV266-P1-02R + P1-04R): commit 4b88662 đóng BE266-D03 theo DEC-REV-COMPONENT-001 — thay đổi core mới chạm CurrentBaselineReversalService + 3 file production khác và thêm bộ test/artifact reversal. Đây là commit cuối chạm rangeInvariantPaths tại thời điểm refresh.",
+      "refreshedBy": "WWHN-266 round 2 closure (DEV), local, không dùng CI",
       "refreshedAt": "2026-08-19"
     }
   ],
@@ -18,66 +25,74 @@
   "rangeInvariant": "codeCandidateSha phải là ancestor của refs/heads/m1, và không commit nào sau nó được chạm bất kỳ đường dẫn nào trong rangeInvariantPaths mà không cập nhật lại file pin này.",
   "rangeInvariantPaths": [
     "app/Swagger/Processors/RouteSyncProcessor.php",
+    "Modules/Warehouse/app/Services/CurrentBaselineStockService.php",
+    "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php",
+    "Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php",
+    "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php",
+    "Modules/Warehouse/app/Http/Controllers/StockMovementController.php",
+    "Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php",
+    "Modules/Warehouse/app/Http/Middleware/EnforceReversalWarehouseScope.php",
     "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
+    "tests/Feature/Wwhn266ComponentIssueReversalTest.php",
     "tests/Feature/Wwhn266IfMatchContractTruthTest.php",
     "scripts/sync-wwhn-266-postman-if-match.mjs",
     "build/evidence/wwhn-266/component-issue-core-transaction.json",
+    "build/evidence/wwhn-266/component-issue-reversal.json",
     "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json"
   ],
-  "rangeInvariantScopeNote": "Tập bất biến CHỈ gồm thứ được chứng thực (mã sản phẩm, bộ test, artifact sinh ra). KHÔNG gồm chính hồ sơ chứng thực (CANDIDATE_PIN.json, DEFECT_REGISTER.json, TC_P1_017_024_TRACEABILITY.json, WWHN-266.md, verify-wwhn-266-closure.mjs) — nếu gồm thì file pin phải khai chính commit chứa nó, một tham chiếu vòng không giải được. Đổi lại, thay đổi ở nhóm hồ sơ luôn hiện trong `git log` của thư mục docs/evidence/WWHN-266 và chịu review như mọi tài liệu khác.",
-  "filesChanged": [
-    "app/Swagger/Processors/RouteSyncProcessor.php",
-    "tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
-    "tests/Feature/Wwhn266IfMatchContractTruthTest.php",
-    "scripts/verify-wwhn-266-closure.mjs",
-    "scripts/sync-wwhn-266-postman-if-match.mjs",
-    "docs/evidence/WWHN-266/DEFECT_REGISTER.json",
-    "docs/evidence/WWHN-266/TC_P1_017_024_TRACEABILITY.json",
-    "docs/docs_task_jira/WWHN-266.md",
-    ".github/workflows/wwhn-266-core-transaction-closure.yml",
-    "build/evidence/wwhn-266/component-issue-core-transaction.json",
-    "docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json"
-  ],
-  "notCandidate": {
-    "storage/api-docs/api-docs.json": "CỐ Ý không nằm trong candidate. Đây là artifact SINH RA; tại thời điểm commit, working tree dùng chung còn chứa 4 route outbound chưa commit của WWHN-195 (phiên khác), nên bản sinh lại sẽ nuốt luôn tài liệu cho công việc chưa xong của họ. Thay vào đó `Wwhn266IfMatchContractTruthTest` tự gọi `l5-swagger:generate` rồi mới kiểm — bộ test đo SOURCE thật, không đo file tĩnh, nên không phụ thuộc artifact đã commit."
+  "rangeInvariantScopeNote": "DEV266-P1-02R yêu cầu tập bất biến bao PRODUCTION PATHS thực sự tạo/sửa tồn, không chỉ test/artifact. Từ vòng này tập gồm: CurrentBaselineStockService (mutateBalance — điểm tạo stock movement của post receipt/issue/component issue), CurrentBaselineReversalService (điểm correct stock duy nhất theo BR-REV-01), ComponentContainerSubledgerService (subledger BOX), hai controller + middleware của bề mặt reversal, và CurrentBaselineComponentFlowController (điểm Post component issue). Vẫn KHÔNG gồm chính hồ sơ chứng thực (CANDIDATE_PIN.json, DEFECT_REGISTER.json, QA report...) — tham chiếu vòng không giải được; thay đổi nhóm hồ sơ chịu review qua git log của docs/evidence/WWHN-266.",
+  "sourceDiffRegister": {
+    "reviewedRange": "e0d9cd0..4b886628f03b82a78ebec206454930603d84510d",
+    "productionFilesChanged": [
+      "Modules/Warehouse/app/Services/CurrentBaselineReversalService.php",
+      "Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php",
+      "Modules/Warehouse/app/Http/Controllers/StockMovementController.php",
+      "Modules/Warehouse/app/Http/Middleware/EnforceReversalWarehouseScope.php"
+    ],
+    "testAndArtifactFilesChanged": [
+      "tests/Feature/Wwhn266ComponentIssueReversalTest.php",
+      "build/evidence/wwhn-266/component-issue-reversal.json",
+      "build/evidence/wwhn-266/component-issue-core-transaction.json",
+      "docs/decision-records/DEC-REV-COMPONENT-001.md"
+    ],
+    "reviewerDisposition": "Tech Lead review diff tại 4b88662 và xác nhận bằng comment Jira trên WWHN-266 (DEV266-P1-02R/P1-06R); không cần CI theo register."
   },
   "verification": {
+    "componentIssueReversal": {
+      "command": "php artisan test tests/Feature/Wwhn266ComponentIssueReversalTest.php",
+      "result": "8/8 PASS, 137 assertions",
+      "driver": "sqlite (DEV)"
+    },
     "coreTransaction": {
       "command": "php artisan test tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php",
-      "result": "9/9 PASS, 148 assertions",
+      "result": "9/9 PASS (chạy chung lượt 13/13, 177 assertions với contractTruth)",
       "driver": "sqlite (DEV)"
     },
     "contractTruth": {
       "command": "php artisan test tests/Feature/Wwhn266IfMatchContractTruthTest.php",
-      "result": "4/4 PASS, 29 assertions",
+      "result": "4/4 PASS — tập 47 operation bắt buộc If-Match không đổi sau D03",
       "driver": "sqlite (DEV)"
+    },
+    "reversalRegression": {
+      "command": "php artisan test tests/Feature/Wwhn207InboundReversalFlowTest.php tests/Feature/Wwhn239ReversalItemLevelClosureTest.php tests/Feature/Wwhn240ReversalNetEffectContractTest.php tests/Feature/Wwhn242ReversalScopeAndProjectionTest.php",
+      "result": "36/36 PASS, 353 assertions"
+    },
+    "concurrencyRegression": {
+      "command": "php artisan test tests/Feature/Wwhn234ConflictClassContractTest.php tests/Feature/Wwhn234P1P2ClosureTest.php tests/Feature/Wwhn234PostIssueIdempotencyPayloadTest.php tests/Feature/Wwhn234PostIssueRollbackProofTest.php",
+      "result": "21/21 PASS, 145 assertions"
     },
     "postmanCheck": {
       "command": "node scripts/sync-wwhn-266-postman-if-match.mjs --check",
       "result": "PASS — 47 operation bắt buộc If-Match đều có header trong collection"
     },
-    "closureVerifier": {
-      "command": "node scripts/verify-wwhn-266-closure.mjs",
-      "result": "PASS",
-      "negativeTested": "Đã kiểm ngược bằng 3 phép phá hoại (rootCause=TBD, xoá TC-P1-024, mismatch_count=2) — cả ba đều bị chặn."
-    },
     "style": {
-      "command": "vendor/bin/pint --test <3 file WWHN-266>",
-      "result": "PASS"
+      "command": "vendor/bin/pint --test <4 file production + test WWHN-266>",
+      "result": "PASS sau khi pint fix CurrentBaselineReversalService.php"
     }
   },
-  "ciGate": {
-    "workflow": ".github/workflows/wwhn-266-core-transaction-closure.yml",
-    "database": "PostgreSQL 16",
-    "status": "CHƯA CHẠY — cần DevOps kích hoạt tại exact SHA (DEV266-P1-07)",
-    "note": "Cổng xoá build/evidence/wwhn-266/*.json TRƯỚC khi chạy test và sinh lại OpenAPI TRONG run, nên không thể tự xác nhận bằng artifact tĩnh đã commit."
-  },
-  "truthBoundary": "Mọi số ở mục verification là lượt chạy in-process của DEV trên sqlite. Không dùng thay cho retest độc lập của QA1 (WWHN-264) trên build đã deploy, và không trích ra ngoài như bằng chứng Beta.",
+  "truthBoundary": "Mọi số ở mục verification là lượt chạy in-process của DEV trên sqlite, local, KHÔNG dùng GitHub Actions (quota CI đã cạn — cấm phát sinh phút CI). Retest độc lập của QA1 ghi ở docs/evidence/WWHN-264/QA1_RETEST_REPORT_WWHN266_R2.json.",
   "openItems": [
-    { "id": "BE266-D03", "owner": "BA + Tech Lead", "summary": "Movement COMPONENT_ISSUE không đảo được — phiếu xuất linh kiện post nhầm không có đường sửa sai hợp lệ." },
-    { "id": "BE266-D04", "owner": "BA", "summary": "Luồng nhập kho không nạp container_items nên Component Issue quantity-mode phải khai nội dung BOX bằng thao tác quản trị riêng." },
-    { "id": "DEV266-P1-05", "owner": "QA1", "summary": "Retest độc lập trên exact final candidate (WWHN-264)." },
-    { "id": "DEV266-P1-07", "owner": "DevOps", "summary": "Chạy workflow tại exact SHA và neo CI run/artifact." },
-    { "id": "DEV266-P2-01", "owner": "PM", "summary": "Làm rõ contingency post-sprint hay Beta-blocking." }
+    { "id": "DEV266-P2-01", "owner": "PM", "summary": "Chốt Beta-blocking sprint hiện tại hay contingency sau sprint (planning disposition)." },
+    { "id": "DOCS-AMEND", "owner": "BA", "summary": "Amend REQ-SRS-013/Annex A/Annex C/wireframe REV-00 liệt kê COMPONENT_ISSUE theo DEC-REV-COMPONENT-001 §6." }
   ]
 }

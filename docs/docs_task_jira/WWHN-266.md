@@ -192,3 +192,23 @@ Tương tự, `DocumentationBaselineContractTest::test_generated_swagger_has_rou
 đỏ ở `get /api/v1/health missing HTTP 400`. Đã kiểm: `api-docs.json` **tại HEAD** đã
 là `[200, 503]`, nên ca này đỏ sẵn từ trước, do tính năng opt-out
 `exhaustive-responses` của WWHN-295 — không phải hệ quả của WWHN-266.
+
+---
+
+## 0-R2. Vòng review 2 (74/100, register *R) — đóng 2026-08-19
+
+Register mới không có P0. Từng mục và nơi chứng minh:
+
+| Mục | Việc đã làm | Closure evidence |
+|---|---|---|
+| DEV266-P1-01R | QA1 review/adopt register DEV và **phát hành defect register Beta chính thức có version** — map từng defect vào test/build/env thật, kèm residual risks (PG chờ quota CI). | `docs/evidence/WWHN-264/QA1_DEFECT_REGISTER_BETA.json` (schemaVersion 1.0.0) |
+| DEV266-P1-02R | Refresh exact candidate sau thay đổi core: pin `4b88662`; **rangeInvariantPaths mở rộng sang production paths thực sự tạo/sửa tồn** (CurrentBaselineStockService, CurrentBaselineReversalService, ComponentContainerSubledgerService, 2 controller + middleware reversal, ComponentFlowController) — không còn chỉ test/artifact; kèm sourceDiffRegister cho TL review. | `docs/evidence/WWHN-266/CANDIDATE_PIN.json` |
+| DEV266-P1-03R | QA1 chạy lại đủ 8 chiều trên candidate mới (đặc biệt CONCURRENCY sau `sortLinesForBalanceLock()`: HTTP [200,422], tồn cuối 2 không âm, 1 movement) + bộ reversal mới; số liệu API/DB before-after lấy từ artifact test tự ghi. Hai lượt (DEV + QA) cùng kết quả. | `docs/evidence/WWHN-264/QA1_RETEST_REPORT_WWHN266_R2.json` |
+| DEV266-P1-04R | BA + Tech Lead chốt correction policy cho posted COMPONENT_ISSUE = **append-only reversal** (`DEC-REV-COMPONENT-001`); hiện thực đầy đủ: original movement COMPONENT_ISSUE + movement đối ứng REVERSAL, không UPDATE/DELETE gốc, không direct-edit balance; test subledger/balance/audit/idempotency 8 ca PASS. | `docs/decision-records/DEC-REV-COMPONENT-001.md` · `tests/Feature/Wwhn266ComponentIssueReversalTest.php` · `build/evidence/wwhn-266/component-issue-reversal.json` · commit `4b88662` |
+| DEV266-P1-06R | TL review độc lập contract sau D03: **không thêm/bớt operation**, tập 47 operation bắt buộc If-Match không đổi (contract truth 4/4 PASS chạy lại), Postman check PASS; D01 xác nhận doc-only. | DEC-REV-COMPONENT-001 §4 + comment TL trên Jira |
+| DEV266-P2-01 | PM chốt planning disposition (comment Jira). | Comment PM trên Jira |
+| DEV266-P2-02 | BA chốt BOX/container_items = phương án (b) vận hành, nhất quán với nguyên tắc reversal-không-chạm-BOX; bất biến khoá bằng TC-REV-CI-01. | `DEFECT_REGISTER.json` (BE266-D04 → CLOSED_BY_DISPOSITION) |
+
+Ràng buộc vòng này: **không đụng GitHub Actions / không phát sinh phút CI**
+(quota 3.000/3.000 đã cạn) — mọi lượt chạy là local tại exact SHA, và mục
+`ciGate` cũ của pin được thay bằng lượt PG chờ quota trong residual risks.
