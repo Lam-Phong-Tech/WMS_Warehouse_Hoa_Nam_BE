@@ -1,5 +1,12 @@
 # WWHN-328 — Evidence Pack (candidate 2026-08-18)
 
+> **Trạng thái: hồ sơ vòng R3 — giữ làm lịch sử.** Cặp SHA ở §1 (BE `6db0965`, FE `3ddce52`) đã
+> **superseded**. Candidate đang có hiệu lực, pin contract và bảng đóng register R4 nằm ở
+> [`R4_CLOSURE.md`](./R4_CLOSURE.md) · [`CONTRACT_PIN.json`](./CONTRACT_PIN.json) ·
+> [`EVIDENCE_INDEX.md`](./EVIDENCE_INDEX.md). KPI matrix hiện hành là **v1.2** — §5 dưới đây nhắc
+> v1.1 là đúng theo thời điểm R3, không sửa lại để giữ nguyên dấu vết. Phần còn giá trị nguyên vẹn
+> của tệp này: mô tả khiếm khuyết đã đóng (§3) và kết quả đo trên hai driver (§4, §4b).
+
 Đóng P0/P1/P2 EXACT FIX ACTION REGISTER trong comment `15602` (WWHN-328) và các mục
 liên đới ở comment `15623` (WWHN-327).
 

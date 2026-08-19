@@ -1,0 +1,191 @@
+name: WWHN-328 Dashboard Closure
+
+# DEV328-P1-03R4 / DEV328-P1-06R4.
+#
+# Vì sao có cổng riêng cho một endpoint:
+#  1. `6db0965` và `127c573` là bundled commit không mang Jira key, không có PR. Không có
+#     cách nào chứng minh "đã chạy CI liên quan WWHN-328 tại đúng SHA" nếu không có một
+#     job chỉ nói về WWHN-328.
+#  2. Path filter của Flow 06 không phủ `Wwhn328*` và `docs/evidence/WWHN-328/**`, nên một
+#     thay đổi chạm riêng dashboard có thể merge mà không job nào chạy.
+#  3. `workflow_dispatch` với `candidate_sha` cho phép chạy lại đúng candidate đã pin trên
+#     Jira — điều kiện bắt buộc của register ("green WWHN-328-relevant run at exact SHA").
+#
+# Cổng chạy trên PostgreSQL 16, không phải SQLite: các ràng buộc bắt lỗi fixture của
+# dashboard (`uk_warehouses_single_active`, `chk_erd_warranty_identification_shape`,
+# `chk_erd_warranty_cases_2`) chỉ tồn tại trên PostgreSQL. CI SQLite từng xanh giả.
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: 'Exact commit SHA cần chứng minh (bỏ trống = HEAD của ref đang chọn)'
+        required: false
+        type: string
+  push:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
+      - 'tests/Feature/Wwhn328R4ClosureTest.php'
+      - 'scripts/wwhn-328-contract-fingerprint.mjs'
+      - 'scripts/verify-wwhn-328-closure.mjs'
+      - 'docs/evidence/WWHN-328/**'
+      - 'docs/docs_task_jira/WWHN-328.md'
+      - 'storage/api-docs/api-docs.json'
+      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
+      - '.github/workflows/wwhn-328-dashboard-closure.yml'
+  pull_request:
+    branches: [m1]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
+      - 'tests/Feature/Wwhn328R4ClosureTest.php'
+      - 'scripts/wwhn-328-contract-fingerprint.mjs'
+      - 'scripts/verify-wwhn-328-closure.mjs'
+      - 'docs/evidence/WWHN-328/**'
+      - 'storage/api-docs/api-docs.json'
+      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
+      - '.github/workflows/wwhn-328-dashboard-closure.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard-closure:
+    name: dashboard-quick contract + R4 closure evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hoanam_wwhn328
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hoanam_wwhn328"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      CI_DEMO_PASSWORD: Wwhn328-CI-Only-2026
+      JWT_SECRET: Wwhn328-CI-JWT-Exact-SHA-2026
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: hoanam_wwhn328
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    steps:
+      # fetch-depth: 0 là bắt buộc — cổng chứng minh bất biến contract trên dải
+      # candidate..HEAD, shallow clone thì không có dải để duyệt.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.candidate_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Pin resolved identity
+        id: identity
+        run: |
+          RESOLVED="$(git rev-parse HEAD)"
+          REQUESTED="${{ github.event.inputs.candidate_sha }}"
+          if [ -n "${REQUESTED}" ] && [ "${RESOLVED}" != "$(git rev-parse "${REQUESTED}")" ]; then
+            echo "::error::Requested SHA ${REQUESTED} khong khop HEAD da checkout ${RESOLVED}"
+            exit 1
+          fi
+          echo "resolved_sha=${RESOLVED}" >> "$GITHUB_OUTPUT"
+          echo "requested_sha=${REQUESTED:-none}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Hạ tầng GitHub từng trả 429/503 khi tải action. Thử lại trước khi kết luận đỏ.
+      - name: Setup PHP 8.3 (attempt 1)
+        id: php1
+        continue-on-error: true
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+      - name: Setup PHP 8.3 (attempt 2)
+        if: steps.php1.outcome == 'failure'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pgsql, pdo_pgsql, bcmath
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Pint on the WWHN-328 surface
+        run: |
+          vendor/bin/pint --test \
+            Modules/Warehouse/app/Http/Controllers/OperationalReportController.php \
+            tests/Feature/Wwhn328DashboardQuickContractTest.php \
+            tests/Feature/Wwhn328R4ClosureTest.php
+
+      # Cổng hồ sơ chạy TRƯỚC test: nếu candidate/pin/matrix đã lệch thì kết quả test
+      # dù xanh cũng không gắn được vào bằng chứng nào.
+      - name: WWHN-328 closure evidence gate
+        run: node scripts/verify-wwhn-328-closure.mjs
+
+      - name: Contract fingerprint invariant (candidate..HEAD)
+        run: |
+          CANDIDATE="$(node -e "process.stdout.write(require('./docs/evidence/WWHN-328/CONTRACT_PIN.json').candidate.commit)")"
+          node scripts/wwhn-328-contract-fingerprint.mjs \
+            --check docs/evidence/WWHN-328/CONTRACT_PIN.json --ref "${CANDIDATE}"
+          node scripts/wwhn-328-contract-fingerprint.mjs \
+            --check docs/evidence/WWHN-328/CONTRACT_PIN.json --range "${CANDIDATE}..HEAD"
+
+      - name: Prepare runtime
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Migrate and seed PostgreSQL
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Dashboard contract + R4 closure tests
+        run: php artisan test --filter '/(Wwhn328DashboardQuickContractTest|Wwhn328R4ClosureTest)/'
+
+      - name: Exact SHA evidence summary
+        run: |
+          mkdir -p artifacts/wwhn-328
+          {
+            printf 'task=WWHN-328\n'
+            printf 'endpoint=GET /api/v1/reports/dashboard-quick\n'
+            printf 'requested_sha=%s\n' "${{ steps.identity.outputs.requested_sha }}"
+            printf 'resolved_sha=%s\n' "${{ steps.identity.outputs.resolved_sha }}"
+            printf 'branch=%s\n' "${GITHUB_REF_NAME}"
+            printf 'run_id=%s\n' "${GITHUB_RUN_ID}"
+            printf 'db=postgres16\n'
+            printf 'result=PASS\n'
+          } > artifacts/wwhn-328/manifest.txt
+          node scripts/wwhn-328-contract-fingerprint.mjs --ref HEAD \
+            > artifacts/wwhn-328/fingerprint-at-run.json
+          cp docs/evidence/WWHN-328/CONTRACT_PIN.json artifacts/wwhn-328/
+          sha256sum artifacts/wwhn-328/* > artifacts/wwhn-328/SHA256SUMS
+          cat artifacts/wwhn-328/manifest.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwhn-328-closure-${{ steps.identity.outputs.resolved_sha }}
+          path: artifacts/wwhn-328
+          if-no-files-found: error
+          retention-days: 30
