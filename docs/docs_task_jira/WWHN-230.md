@@ -83,7 +83,33 @@ cd <tmp>/HoaNam_FE/WMS_Warehouse_Hoa_Nam_FE && node scripts/verify-wwhn-230-clos
 ```
 - FE gate `wwhn-230:verify`: **PASS** (21 check, 1 PENDING là sign-off).
 
-## 6. Điều còn mở, thuộc thẩm quyền ngoài repo
+### 6.1 Soát lại vòng 2 — sửa lệch nhãn commit (round 3, 2026-08-19)
+
+Soát lại bằng `git merge-base --is-ancestor` phát hiện: **nội dung** `CLOSURE_EVIDENCE.json` tại
+commit `b589106` tự nhất quán (worktree cô lập tại `831bda6d554faf3d1e1b11c5ff299bd53792f7bf`,
+test 11/11 pass, đúng như bảng trên đã ghi), nhưng **chủ đề (subject) của chính commit `b589106`**
+lại ghi "candidate 87bdd4c" — đó là SHA của HEAD nhánh `m1` tại thời điểm soạn message, không
+phải SHA đã pin trong file. `87bdd4c` là cha trực tiếp của `b589106`; `831bda6` là ancestor xa
+hơn — tức worktree cô lập được dựng trước, rồi các commit khác của phiên song song chen vào
+trước khi `b589106` được commit lên working tree chung, làm message soạn theo HEAD ambient thay
+vì theo giá trị đã pin trong file. Cùng bẫy bên FE: message `52969fb` ghi "candidate 1bb3cba"
+(cha trực tiếp) trong khi JSON pin `f9f2e65e687669f033d259a693635546876f05a8` (ancestor xa hơn —
+đúng như bảng §"Vòng 2" bản FE `docs/Task_docs_Jira/WWHN-230.md` đã ghi từ đầu).
+
+**Không sửa lại commit cũ** (nhánh `m1` dùng chung, amend là destructive/rewrite history). Ghi
+nhận tại đây làm nguồn tham chiếu chuẩn: SHA đúng, đã test thật bằng candidate cô lập, luôn là
+SHA nằm **trong nội dung file** (`identity.backend.commitSha` / `identity.frontend.commitSha`),
+không phải SHA trong dòng subject `git log --oneline` của commit regenerate đó. Áp dụng quy tắc
+này cho mọi lần regenerate evidence sau này trên nhánh `m1` dùng chung: soạn message **sau khi**
+đã ghi file xong, đọc lại đúng giá trị vừa ghi (`jq .identity.backend.commitSha
+docs/evidence/WWHN-230/CLOSURE_EVIDENCE.json`) thay vì gọi lại `git rev-parse HEAD` một lần nữa —
+giữa hai lần gọi, một phiên khác có thể đã commit thêm.
+
+Không thay đổi kết luận `DEV230-P1-02R`: evidence vẫn hợp lệ, `commitSha` bên trong file vẫn là
+candidate đã test thật (`workingTreeClean=true`, `testResult` không null). Chỉ nhãn subject của
+2 commit lịch sử là lệch, đã ghi rõ tại đây để reviewer sau không hiểu nhầm SHA nào là chuẩn.
+
+## 7. Điều còn mở, thuộc thẩm quyền ngoài repo
 
 1. Sign-off 5 vai trò trên `WWHN-230` (comment mẫu: `docs/Task_docs_Jira/WWHN-230_SIGNOFF_COMMENTS.md` bên FE).
 2. `WWHN-25 / DEC-STK-001` vẫn `In Progress` — không đóng được từ repo.
