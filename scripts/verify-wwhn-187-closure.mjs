@@ -28,8 +28,17 @@ const flag = (name) => {
   return hit.includes('=') ? hit.slice(hit.indexOf('=') + 1) : true;
 };
 
+/**
+ * Tập được bảo vệ CHẶT: quyết định, hợp đồng QA và chính cái gate. Đổi bất kỳ file nào
+ * trong đây sau candidate là đổi điều kiện đóng register, phải pin lại.
+ *
+ * `docs/evidence/WWHN-187/**` cố ý KHÔNG nằm ở đây: chính hồ sơ evidence là nơi ghi
+ * candidate, nên commit điền SHA luôn nằm *sau* candidate. Nếu bắt nó no-drift thì gate
+ * tự đòi bằng chứng của chính nó và không bao giờ xanh được — đúng cái bẫy đã gặp ở
+ * WWHN-191. Văn bản evidence được phép cập nhật; cái phải bất biến là quyết định + hợp
+ * đồng + gate.
+ */
 const PINNED_ARTIFACTS = [
-  'docs/evidence/WWHN-187',
   'docs/decision-records/DEC-SCAN-AUDIT-001-scan-evidence-vs-audit-log.md',
   'docs/postman/WWHN-187 Inbound Scan Retry.postman_collection.json',
   'scripts/verify-wwhn-187-closure.mjs',
@@ -98,20 +107,15 @@ if (!existsSync(OPENAPI_PATH)) {
     const ifMatch = byName('If-Match');
     const idem = byName('Idempotency-Key');
 
-    // Phạm vi WWHN-187: cả hai alias PHẢI khai header If-Match.
+    // Cả hai alias phải khai If-Match và khai là BẮT BUỘC — runtime trả 428
+    // PRECONDITION_REQUIRED khi thiếu, nên required=false là contract nói dối.
+    // (Từng đỏ vì api-docs.json stale; xem WWHN-187_CONTRACT_LOCK.md mục 7.)
     check(`CONTRACT-IFMATCH-DECLARED ${p}`, ifMatch !== undefined, 'thiếu tham số header If-Match');
-    if (ifMatch !== undefined && ifMatch.required !== true) {
-      // Đây là phát hiện thật nhưng KHÔNG thuộc WWHN-187: toàn bộ 52 operation do
-      // RouteSyncProcessor tự sinh đang publish `required: false`, trong khi 6
-      // operation viết tay bằng OA attribute thì đúng. Runtime vẫn trả 428 khi thiếu
-      // header, nên đây là lệch giữa contract công bố và hành vi thật, thuộc nhóm
-      // artifact OpenAPI (WWHN-266 / WWHN-309), không phải nghiệp vụ quét.
-      warn(
-        `CONTRACT-IFMATCH-REQUIRED-FLAG ${p}`,
-        'alias tự sinh publish required=false dù runtime trả 428 khi thiếu If-Match',
-        'WWHN-309 / WWHN-266 (artifact OpenAPI) — xem WWHN-187_CONTRACT_LOCK.md mục 7',
-      );
-    }
+    check(
+      `CONTRACT-IFMATCH-REQUIRED ${p}`,
+      ifMatch?.required === true,
+      'If-Match phải required=true; nếu vừa đổi annotation thì chạy lại php artisan l5-swagger:generate',
+    );
     // Annex C dòng scanInboundDocument chỉ khai If-Match. Idempotency-Key được thêm
     // như header TÙY CHỌN (DEC-SCAN-IDEMP-001) — required=true sẽ là contract break
     // và biến mọi client cũ thành 428.

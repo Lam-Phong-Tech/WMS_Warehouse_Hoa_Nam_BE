@@ -101,37 +101,37 @@ nghiệp vụ hợp lệ của COMPONENT quantity-mode. Đây là ràng buộc c
 chính thức đều gửi key** — đã khoá bằng ma trận mục 4 + verifier. Consumer mới phải được
 thêm vào bảng đó trước khi lên production.
 
-## 7. Phát hiện ngoài phạm vi WWHN-187, đã bàn giao (không giấu)
+## 7. Phát hiện ngoài phạm vi WWHN-187 — đã bàn giao và đã được đóng
 
-Khi khoá contract, verifier bắt được một lệch **thật** giữa contract công bố và hành vi
-runtime, nhưng chủ sở hữu không phải WWHN-187:
+Khi khoá contract lần đầu, verifier bắt được một lệch **thật** giữa contract công bố và
+hành vi runtime:
 
-> `storage/api-docs/api-docs.json` hiện có **58 operation khai header `If-Match`**, trong
-> đó chỉ **6 operation publish `required: true`** — đúng 6 operation được viết tay bằng
+> `storage/api-docs/api-docs.json` khi đó có **58 operation khai header `If-Match`**,
+> trong đó chỉ **6 operation publish `required: true`** — đúng 6 operation viết tay bằng
 > OA attribute trong `InboundDocumentController.php`. **52 operation còn lại**, tức toàn
 > bộ nhóm do `app/Swagger/Processors/RouteSyncProcessor.php` tự sinh (bao gồm alias
 > canonical `POST /inbound-documents/{id}/scans` mà **FE đang thật sự gọi**), publish
 > `required: false` — dù runtime trả 428 `PRECONDITION_REQUIRED` khi thiếu header.
 
-Đây chính xác là lỗi mà comment `WWHN-266 (BE266-D01)` trong `RouteSyncProcessor` mô tả
-là *đã sửa*. Hai khả năng, phải phân biệt bằng một lệnh:
+Ghi nhận là `HN-OPENAPI-IFMATCH-001`, bàn giao `WWHN-309` / `WWHN-266`. Hai khả năng cần
+phân biệt: artifact **stale** (commit trước khi `WWHN-266` landed) hay logic
+`actionContractFlags()` đã **regress**.
 
-```bash
-php artisan l5-swagger:generate
-git diff --stat storage/api-docs/api-docs.json
-```
+**Kết quả: là artifact stale, và đã được đóng.** Sau khi `storage/api-docs/api-docs.json`
+được sinh lại trên `m1` (thuộc công việc `WWHN-309`/`WWHN-252` cùng đợt), tỉ lệ đảo
+chiều thành **51 operation `required: true` / 7 `required: false`**, và cả hai alias quét
+nhập đều publish `If-Match: required=true`:
 
-- Nếu sau khi sinh lại, 52 operation chuyển sang `required: true` → artifact
-  `api-docs.json` đang **stale** (được commit trước khi `WWHN-266` landed). Việc cần làm
-  là sinh lại và commit.
-- Nếu vẫn `required: false` → logic phân biệt bắt buộc/tuỳ chọn trong
-  `actionContractFlags()` đã **regress**, phải mở lại `WWHN-266`.
+| Path | If-Match | Idempotency-Key |
+|---|---|---|
+| `POST /api/v1/inbound-documents/{id}/scan` | `required: true` | `required: false` |
+| `POST /api/v1/inbound-documents/{id}/scans` | `required: true` | `required: false` |
 
-**Vì sao WWHN-187 không tự sửa:** `storage/api-docs/*` là artifact sinh tự động cho toàn
-hệ thống và đang nằm trong working tree của nhánh công việc `WWHN-309`; sinh lại từ đây
-sẽ kéo thay đổi của 50+ operation không liên quan vào diff của task này và đè lên công
-việc đang dở của họ. Ảnh hưởng tới WWHN-187 là **không có**: hành vi runtime đúng, test
-hợp đồng phủ đủ, và consumer FE/QA đều đã gửi `If-Match`.
+Logic `WWHN-266 (BE266-D01)` không regress. Không cần mở lại `WWHN-266`. Digest hợp đồng
+trong `WWHN-187_CONTRACT_PIN.json` đã được sinh lại theo trạng thái đúng này, và verifier
+hiện kiểm `If-Match` phải `required: true` trên **cả hai** alias thay vì chỉ cảnh báo.
 
-Verifier in dòng này ở mục **WARN** (không đánh đỏ gate của WWHN-187) kèm tên chủ sở
-hữu, để nó không bị trôi mất giữa hai task.
+**Vì sao WWHN-187 vẫn không tự chạy `l5-swagger:generate`:** `storage/api-docs/*` là
+artifact sinh tự động cho toàn hệ thống và nằm trong working tree của nhánh công việc
+khác; sinh lại từ đây sẽ kéo thay đổi của 50+ operation không liên quan vào diff của task
+này. Việc đúng là chờ chủ sở hữu artifact commit — đã xảy ra — rồi pin lại digest.

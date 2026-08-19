@@ -90,13 +90,15 @@ Trong lúc khoá contract, verifier bắt được một lệch thật giữa co
 runtime. Ghi ở đây để nó không trôi mất giữa hai task — **không** gộp vào register của
 WWHN-187 vì sửa nó nằm ngoài blast radius của task này.
 
-| ID | Sev đề xuất | Nội dung | Chủ sở hữu đề xuất |
-|---|---|---|---|
-| `HN-OPENAPI-IFMATCH-001` | P2 | `storage/api-docs/api-docs.json`: 52/58 operation khai `If-Match` publish `required: false` dù runtime trả 428 khi thiếu; chỉ 6 operation viết tay bằng OA attribute là đúng. Alias canonical `POST /inbound-documents/{id}/scans` (FE đang gọi) nằm trong nhóm sai | `WWHN-309` / `WWHN-266` — artifact OpenAPI |
+| ID | Sev đề xuất | Nội dung | Chủ sở hữu | Trạng thái |
+|---|---|---|---|---|
+| `HN-OPENAPI-IFMATCH-001` | P2 | `storage/api-docs/api-docs.json`: 52/58 operation khai `If-Match` publish `required: false` dù runtime trả 428 khi thiếu; chỉ 6 operation viết tay bằng OA attribute là đúng. Alias canonical `POST /inbound-documents/{id}/scans` (FE đang gọi) nằm trong nhóm sai | `WWHN-309` / `WWHN-266` — artifact OpenAPI | **ĐÃ ĐÓNG** — là artifact stale, không phải logic regress. Sau khi `api-docs.json` được sinh lại trên `m1` thì tỉ lệ đảo thành 51 `required: true` / 7 `false`, cả hai alias quét đều đúng |
 
-Cách phân biệt "artifact stale" và "logic regress", cùng lý do WWHN-187 không tự sửa:
-xem `WWHN-187_CONTRACT_LOCK.md` mục 7. Ảnh hưởng tới WWHN-187: **không có** — runtime
-đúng, test hợp đồng phủ đủ, FE/QA đều đã gửi `If-Match`.
+Chi tiết cách phân biệt "artifact stale" vs "logic regress" và lý do WWHN-187 không tự
+chạy `l5-swagger:generate`: xem `WWHN-187_CONTRACT_LOCK.md` mục 7. Ảnh hưởng tới
+WWHN-187: **không có** — runtime luôn đúng, test hợp đồng phủ đủ, FE/QA đều đã gửi
+`If-Match`. Verifier hiện kiểm `If-Match: required=true` là điều kiện **cứng** trên cả
+hai alias.
 
 ## 5. `DEV187-P2-01` — dọn metadata (không chặn)
 
