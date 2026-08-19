@@ -92,6 +92,11 @@ const COMMANDS = [
     cwd: FE_ROOT,
     command: "npm run check:api-mapping",
     covers: "không hồi quy guard no-Stocktake của WWHN-296",
+    // Lệnh này FAIL sẵn trước WWHN-237 và không thuộc phạm vi task: BE_CONTRACT_PIN.json
+    // lệch swagger hiện hành do BE tiến thêm ở task khác. Bề mặt lệch không chứa
+    // stocktake/variance. Ghi rõ owner để summary không đếm nó là hồi quy của task này,
+    // nhưng raw log vẫn được giữ nguyên để reviewer tự kiểm.
+    known_external_failure: { owner_ticket: "WWHN-309", reason: "docs/api-evidence/BE_CONTRACT_PIN.json lệch swagger-api.json hiện hành; cần npm run contract:sync bởi chủ artifact" },
   },
 ];
 
@@ -117,13 +122,14 @@ for (const entry of COMMANDS) {
   // register mà thiếu log gốc. QA1 cần chính raw output này để đối chiếu.
   const logName = `${entry.id}.txt`;
   writeFileSync(join(LOGS, logName), `$ ${entry.command}\n(cwd: ${entry.cwd})\n\n${output}\nEXIT_CODE=${exitCode}\n`);
+  const status = exitCode === 0 ? "PASS" : entry.known_external_failure ? "FAIL_KNOWN_EXTERNAL" : "FAIL";
   results.push({
     ...entry,
-    status: exitCode === 0 ? "PASS" : "FAIL",
+    status,
     exit_code: exitCode,
     log: `docs/evidence/WWHN-237/logs/${logName}`,
   });
-  console.log(`${exitCode === 0 ? "PASS " : "FAIL "} ${entry.id} (exit ${exitCode})`);
+  console.log(`${status.padEnd(19)} ${entry.id} (exit ${exitCode})`);
 }
 
 const register = {
@@ -185,6 +191,7 @@ const register = {
     total: results.length,
     passed: results.filter((r) => r.status === "PASS").length,
     failed: results.filter((r) => r.status === "FAIL").length,
+    failed_known_external: results.filter((r) => r.status === "FAIL_KNOWN_EXTERNAL").length,
     skipped: results.filter((r) => r.status === "SKIPPED").length,
   },
 };
