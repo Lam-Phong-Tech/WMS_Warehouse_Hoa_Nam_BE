@@ -4,6 +4,7 @@
 - Nhánh: `m1` (không tạo nhánh riêng) · Nhánh `m1-be-2` được supersede, xem §4
 - Vai trò giao nộp: **BE2** · Vai trò nhận và xác nhận độc lập: **QA1** (`WWHN-264`), **QA2** (`WWHN-265`)
 - Trạng thái: `ĐÃ GIAO PHẦN THUỘC WWHN-267 — CHỜ QA RETEST ĐỘC LẬP + 2 DISPOSITION CỦA BA`
+- Candidate SHA: BE `9ea9c18` · FE `a2b555b` (repo `HoaNam_FE`). Bất biến kiểm chéo: candidate là commit trên `m1` chạm `docs/evidence/WWHN-267/**` — dùng bất biến này khi SHA bị rebase.
 
 ## 1. Vấn đề gốc
 

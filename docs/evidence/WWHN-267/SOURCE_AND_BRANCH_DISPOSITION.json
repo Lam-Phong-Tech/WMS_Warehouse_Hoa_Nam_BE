@@ -51,6 +51,9 @@
   "pins": {
     "beMeasuredSha": "301899c48af13ea01171b30b280cc6f5d39d3404",
     "feMeasuredSha": "42e6957",
-    "candidateShaRule": "Candidate SHA của WWHN-267 là commit trên m1 chạm docs/evidence/WWHN-267/**, tests/Feature/Wwhn267ContractClosureTest.php và scripts/verify-wwhn-267-closure.mjs. Dùng bất biến này thay vì hard-pin HEAD: m1 có nhiều phiên làm việc song song nên HEAD trôi liên tục, hard-pin sẽ mục ngay ngày hôm sau (bài học WWHN-247/WWHN-233)."
+    "candidateShaRule": "Candidate SHA của WWHN-267 là commit trên m1 chạm docs/evidence/WWHN-267/**, tests/Feature/Wwhn267ContractClosureTest.php và scripts/verify-wwhn-267-closure.mjs. Dùng bất biến này thay vì hard-pin HEAD: m1 có nhiều phiên làm việc song song nên HEAD trôi liên tục, hard-pin sẽ mục ngay ngày hôm sau (bài học WWHN-247/WWHN-233).",
+    "beCandidateSha": "9ea9c18",
+    "feCandidateSha": "a2b555b",
+    "candidateNote": "Candidate duoc dien sau khi commit; bat bien candidateShaRule van la cach kiem chinh khi SHA nay bi rebase hoac khi m1 tien them."
   }
 }

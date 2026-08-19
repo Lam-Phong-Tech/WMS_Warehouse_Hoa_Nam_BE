@@ -19,7 +19,9 @@
     "feMeasuredSha": "42e6957",
     "environment": "local-controlled · sqlite in-memory (phpunit.xml) · PHP 8.3.30 · Windows",
     "candidateShaRule": "Xem docs/evidence/WWHN-267/SOURCE_AND_BRANCH_DISPOSITION.json → pins.candidateShaRule",
-    "note": "Lượt chạy tại chỗ chỉ dùng để phát hiện lỗi và chứng minh fix. Bằng chứng exact-SHA trích ra ngoài phải lấy từ CI trên GITHUB_SHA."
+    "note": "Lượt chạy tại chỗ chỉ dùng để phát hiện lỗi và chứng minh fix. Bằng chứng exact-SHA trích ra ngoài phải lấy từ CI trên GITHUB_SHA.",
+    "beCandidateSha": "9ea9c18",
+    "feCandidateSha": "a2b555b"
   },
   "defects": [
     {
