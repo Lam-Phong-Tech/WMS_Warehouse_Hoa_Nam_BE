@@ -1,0 +1,139 @@
+{
+  "ticket": "WWHN-198",
+  "title": "[DEV] Triển khai lấy/quét hàng/dedup/availability",
+  "parent": "WWHN-46",
+  "parent_temp_key": "HN-OUT-002",
+  "epic_temp_key": "HN-EPIC-06",
+  "role": "BE2",
+  "round": 2,
+  "generated_at": "2026-08-19",
+  "canonical_branch": {
+    "name": "m1",
+    "superseded_by_ancestor": "origin/m1-be-2",
+    "evidence": "git merge-base --is-ancestor origin/m1-be-2 origin/m1 -> true; rev-list --left-right --count -> 0 719",
+    "disposition": "docs/decision-records/DISP-OUT-198-CANONICAL-BRANCH.md",
+    "note": "m1-be-2 là ancestor thuần nên không mất nội dung; đây là ghi nhận quan hệ đang có, không phải thay nhánh cần governance mới."
+  },
+  "candidate": {
+    "backend_sha": "e0ef044b8e0a9eda1a051d2414e0b7b4c331cb92",
+    "backend_branch": "m1",
+    "frontend_sha": "0dfbe981c00ef907220b9fcdbe780d7c1264a8d4",
+    "frontend_branch": "m1"
+  },
+  "evidence_index": {
+    "reservation_race_summary": "docs/evidence/WWHN-198/reservation-race-summary.json",
+    "pg_lock_samples": "docs/evidence/WWHN-198/pg-lock-samples-cross-request.json",
+    "qa_test_pack": "docs/evidence/WWHN-198/WWHN-198_QA1_TEST_PACK.md",
+    "outbound_contract": "docs/api-contract/WWHN-195-outbound-openapi.json",
+    "reserved_qty_contract": "docs/api-contract/WWHN-198-reserved-qty-contract.json"
+  },
+  "items": [
+    {
+      "id": "DEV198-P1-01R",
+      "severity": "P1",
+      "summary": "Pin nhánh canonical + sửa false trace 'WWHN-198 là inbound' + map Jira 198 -> commit -> test",
+      "status": "CLOSED_PENDING_SIGN_OFF",
+      "owner": "DEV + PM/Tech Lead",
+      "reviewer": "QA1",
+      "resolution": "m1 là canonical (m1-be-2 là ancestor thuần, 0 commit đi trước). Task inbound bị nhầm số thật ra là WWHN-187. Artifact test đã đổi tên theo task cha thật WWHN-46.",
+      "evidence": [
+        "docs/decision-records/DISP-OUT-198-CANONICAL-BRANCH.md",
+        "tests/Feature/Wwhn46OutboundPickScanDedupTest.php",
+        "docs/docs_task_jira/WWHN-187.md"
+      ],
+      "gate": "Dev Done"
+    },
+    {
+      "id": "DEV198-P1-02R",
+      "severity": "P1",
+      "summary": "Race PostgreSQL đa connection thật cho same item / cross request",
+      "status": "CLOSED",
+      "owner": "DEV + DevOps",
+      "reviewer": "QA1",
+      "resolution": "3 scenario chạy thật trên PostgreSQL 16.14, mỗi scenario 2 backend PID tách rời + contention thật: cross-request (loser 409 ITEM_ALREADY_MATCHED), same-request (loser 409 DUPLICATE_ITEM_MATCH), unique index guard (loser SQLSTATE 23505). Không double ACTIVE match, loser rollback sạch (scanned_qty=0), scan stock-neutral (balance before == after, 0 stock_movements).",
+      "evidence": [
+        "scripts/wwhn198-outbound-reservation-race.php",
+        "scripts/wwhn198-outbound-reservation-worker.php",
+        "tests/Feature/Wwhn198OutboundReservationRuntimeRaceTest.php",
+        "docs/evidence/WWHN-198/reservation-race-summary.json",
+        "docs/evidence/WWHN-198/pg-lock-samples-cross-request.json"
+      ],
+      "gate": "Core Quality"
+    },
+    {
+      "id": "DEV198-P1-03R",
+      "severity": "P1",
+      "summary": "Chốt: standalone availability API required hay reactive scan soft-check là controlling rule",
+      "status": "CLOSED_PENDING_SIGN_OFF",
+      "owner": "BA Main",
+      "reviewer": "DEV + QA",
+      "resolution": "Không cần endpoint mới. Annex D SCR-OUT-01 khai available_qty là trường đọc từ Inventory_Balance, không phải operation; Annex C không khai operation availability nào; FE đã tiêu thụ GET /inventory/balances (có sẵn filter warehouse_id/sku_id/stock_status). Controlling rule = soft-check tại scan + hard-check có lock tại Post Issue. Ghi chú 'thiếu filter warehouse_id' ở vòng 1 là sai và đã đính chính.",
+      "evidence": [
+        "docs/decision-records/DEC-OUT-AVAILABILITY-001-scan-soft-check.md"
+      ],
+      "gate": "Requirement"
+    },
+    {
+      "id": "DEV198-P1-04R",
+      "severity": "P1",
+      "summary": "Chốt semantics reserved_qty=0 + quy định API/UI exposure",
+      "status": "CLOSED_PENDING_SIGN_OFF",
+      "owner": "BA Main + DEV",
+      "reviewer": "FE/QA",
+      "resolution": "reserved_qty là COMPATIBILITY FIELD hằng 0. Giữ chỗ là identity-level qua outbound_item_matches ACTIVE + unique partial index, không phải quantity-level. API chỉ trả raw passthrough; FE không hiển thị như 'Đang giữ chỗ' và không tính khả dụng từ nó.",
+      "evidence": [
+        "docs/decision-records/DEC-INV-RESERVED-001-reserved-qty-semantics.md",
+        "docs/api-contract/WWHN-198-reserved-qty-contract.json",
+        "tests/Feature/Wwhn198ReservedQtySemanticsTest.php"
+      ],
+      "gate": "Contract/Data"
+    },
+    {
+      "id": "DEV198-P1-05R",
+      "severity": "P1",
+      "summary": "QA execution tại exact candidate SHA/build",
+      "status": "CLOSED_PENDING_SIGN_OFF",
+      "owner": "QA1",
+      "reviewer": "BA Main",
+      "resolution": "Test pack đầy đủ lệnh chạy lại được tại exact SHA (valid scan, toàn bộ negative code, RBAC, same/cross request dedup, retry/race, DB state, stock-neutrality). QA1 chạy và ký; BA Main ACCEPT.",
+      "evidence": [
+        "docs/evidence/WWHN-198/WWHN-198_QA1_TEST_PACK.md"
+      ],
+      "gate": "QA hard gate"
+    },
+    {
+      "id": "DEV198-P1-06",
+      "severity": "P1",
+      "summary": "Đồng bộ MỘT controlling behavior về Packing Label giữa OpenAPI và runtime",
+      "status": "CLOSED",
+      "owner": "DEV + BA/Tech Lead",
+      "reviewer": "FE/QA",
+      "resolution": "Controlling behavior = AlignedOutboundFlowController (DR-HN-20260817): 01 nhãn cấp lô, sinh khi full match ở DRAFT, KHÔNG auto-dispatch in, lifecycle DRAFT/PREVIEWED/READY_TO_PRINT/PRINTED/PRINT_FAILED, đóng băng từ READY_TO_PRINT. Đã thêm khối máy đọc được x-packing-label-contract và sửa 5 chỗ khai mã lỗi ma (OUTBOUND_MATCH_NOT_ACTIVE -> MATCH_NOT_ACTIVE, PACKING_LABEL_FROZEN -> PACKING_LABEL_ALREADY_CREATED, IDEMPOTENCY_KEY_REUSED -> IDEMPOTENCY_CONFLICT). OpenAPI/YAML/Postman/lock cùng revision 2.0.0-R2.",
+      "evidence": [
+        "scripts/wwhn198-packing-label-contract-sync.mjs",
+        "tests/Feature/Wwhn198PackingLabelContractAlignmentTest.php",
+        "docs/api-contract/WWHN-195-outbound-openapi.json",
+        "docs/api-contract/WWHN-201-outbound-contract-lock.json"
+      ],
+      "gate": "API Contract"
+    },
+    {
+      "id": "DEV198-P2-01",
+      "severity": "P2",
+      "summary": "Disposition cho DUPLICATE_ITEM_MATCH: giữ defense-in-depth hay chuẩn hoá",
+      "status": "CLOSED_PENDING_SIGN_OFF",
+      "owner": "Tech Lead",
+      "reviewer": "DEV",
+      "resolution": "KEEP. Race thật chứng minh đây KHÔNG phải dead code: khi hai request đồng thời cùng vượt qua guard ở controller, guard trong service (sau row lock) là hàng rào cuối cùng ở tầng ứng dụng — loser nhận đúng 409 DUPLICATE_ITEM_MATCH thay vì rơi xuống 500 QueryException.",
+      "evidence": [
+        "docs/decision-records/DISP-OUT-198-DUPLICATE-ITEM-MATCH.md",
+        "docs/evidence/WWHN-198/reservation-race-summary.json"
+      ],
+      "gate": "Tech Lead decision"
+    }
+  ],
+  "cross_ticket_notes": [
+    "Hợp đồng outbound đã được WWHN-309/WWHN-201 nâng lên 2.0.0-R2 trong cùng nhánh m1; phần P1-06 của WWHN-198 áp lên đúng revision đó chứ không hạ cấp ngược.",
+    "FE commit cua DEV198-P1-04R da vao m1 tai 0dfbe98 sau khi nhanh xanh typecheck tro lai."
+  ]
+}
