@@ -46,15 +46,16 @@
   },
 
   "final_candidate": {
-    "sha": "FILL_AFTER_CLOSURE_COMMIT",
+    "sha": "c7178d28f3a54974e9a7df00b567890e43534fe4",
+    "short_sha": "c7178d2",
     "branch": "m1",
-    "note": "Vong 2 (dong DEV310-P1-01..06 + P2-01). Chua duoc thay the boi commit nao khac cua WWHN-310. Xem WWHN-310_ROUND2_REGISTER.md."
+    "note": "Vong 2 (dong DEV310-P1-01..06 + P2-01) = commit cuoi cham artifact cua WWHN-310. Chinh file pin nay duoc cap nhat o commit KE TIEP (chi sua file pin), nen no tro toi commit cha cua no - dung quy uoc da dung o WWHN-299. Xem WWHN-310_ROUND2_REGISTER.md."
   },
 
   "frontend": {
     "repository": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE",
     "branch": "m1",
-    "sha": "FILL_AFTER_CLOSURE_COMMIT",
+    "sha": "719c1a4e689c739099a9f92f54ee463222ea5b33",
     "impact": "DOCS + INPUT LIMIT + GATE",
     "impact_evidence": "docs/HoaNam_ERD_Moi_Nhat.md dong bo byte-for-byte voi BE; src/modules/master-data/pages/ApiMasterScreens.tsx maxLength 80/200 theo Data Dictionary; src/test/wwhn-310-erd-document-pin.test.ts la cong chan lech ERD giua hai repo. Khong co thay doi API contract."
   },
