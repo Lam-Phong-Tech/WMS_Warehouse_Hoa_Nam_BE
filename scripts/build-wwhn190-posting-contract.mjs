@@ -64,7 +64,101 @@ const IDEMPOTENCY_KEY = {
 
 const DOCUMENT_ID = { $ref: '#/components/parameters/DocumentId' };
 
-const ERR = (codes) => ({ 'x-error-codes': codes });
+/**
+ * Request body — trích đúng từ `$request->validate()` của handler runtime.
+ * v1.7.0 khai thiếu body của TEMP_ONLY (FE đã ghi drift `BE-HANDOFF-WARRANTY-BODY-DRIFT`)
+ * và khai sai enum `context` của scan/classify (còn `STOCKTAKE`, thiếu 3 giá trị thật).
+ */
+const BODY = {
+  classify: {
+    required: true,
+    schema: {
+      type: 'object',
+      required: ['raw_code', 'context', 'warehouse_id'],
+      properties: {
+        raw_code: { type: 'string', minLength: 1, maxLength: 150 },
+        context: {
+          type: 'string',
+          // ScanController@classify — enum runtime; KHÔNG còn STOCKTAKE (REQ-SRS-037).
+          enum: ['INBOUND', 'OUTBOUND', 'INVENTORY', 'TRACE', 'WARRANTY_RECEIVE', 'WARRANTY_TEMP_ONLY'],
+        },
+        warehouse_id: { type: 'string', format: 'uuid' },
+      },
+    },
+  },
+  lineScan: {
+    required: true,
+    schema: {
+      type: 'object',
+      required: ['line_id'],
+      description: 'Bắt buộc có `quantity` hoặc `qty` (required_without lẫn nhau).',
+      properties: {
+        line_id: { type: 'string', format: 'uuid' },
+        quantity: { type: 'integer', minimum: 1 },
+        qty: { type: 'integer', minimum: 1, description: 'Bí danh của `quantity`.' },
+        code_value: { type: 'string', minLength: 1, maxLength: 150, nullable: true },
+        item_id: { type: 'string', format: 'uuid', nullable: true },
+        container_id: { type: 'string', format: 'uuid', nullable: true },
+        printer_config_id: { type: 'string', format: 'uuid', nullable: true },
+      },
+    },
+  },
+  postNoBody: {
+    required: false,
+    schema: {
+      type: 'object',
+      description:
+        'Không có field bắt buộc. Body vẫn tham gia request hash của Idempotency-Key: gửi lại cùng key với body khác => 409 IDEMPOTENCY_CONFLICT.',
+      additionalProperties: true,
+    },
+  },
+  reverse: {
+    required: true,
+    schema: {
+      type: 'object',
+      description: 'Phải chỉ rõ `lines` cần đảo, trừ khi tham chiếu `reversal_document_id` có sẵn.',
+      properties: {
+        reversal_document_id: { type: 'string', format: 'uuid', nullable: true },
+        reason_code: { type: 'string', maxLength: 80, nullable: true },
+        reason: { type: 'string', maxLength: 2000, description: 'Bắt buộc khi không có reversal_document_id.' },
+        condition_status: {
+          type: 'string',
+          enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'],
+          description: 'Bắt buộc cho reversal phiếu xuất khi không có reversal_document_id.',
+        },
+        physical_return_confirmed: { type: 'boolean', nullable: true },
+        lines: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            required: ['movement_id', 'quantity'],
+            properties: {
+              movement_id: { type: 'string', format: 'uuid' },
+              quantity: { type: 'integer', minimum: 1 },
+              item_id: { type: 'string', format: 'uuid', nullable: true },
+            },
+          },
+        },
+      },
+    },
+  },
+  tempOnly: {
+    required: true,
+    schema: {
+      type: 'object',
+      required: ['temporary_item_code', 'missing_code_reason', 'manual_product_description', 'condition_status'],
+      properties: {
+        temporary_item_code: { type: 'string', maxLength: 150 },
+        missing_code_reason: { type: 'string', maxLength: 500 },
+        manual_product_description: { type: 'string', maxLength: 2000 },
+        defect_id: { type: 'string', format: 'uuid', nullable: true },
+        condition_status: { type: 'string', enum: ['WAITING_CHECK', 'INSPECTING'] },
+        note: { type: 'string', maxLength: 1000, nullable: true },
+      },
+    },
+  },
+};
 
 /**
  * Mỗi operation khai:
@@ -76,6 +170,7 @@ const ERR = (codes) => ({ 'x-error-codes': codes });
 const OPERATIONS = [
   {
     key: 'scanClassify',
+    body: BODY.classify,
     method: 'post',
     path: '/api/v1/scan/classify',
     operationId: 'wwhn190ScanClassify',
@@ -90,12 +185,15 @@ const OPERATIONS = [
     responses: {
       200: ['-'],
       401: ['UNAUTHENTICATED'],
-      403: ['ACCESS_DENIED'],
+      403: ['ACCESS_DENIED', 'WAREHOUSE_SCOPE_DENIED'],
+      404: ['WAREHOUSE_NOT_FOUND'],
+      409: ['WAREHOUSE_INACTIVE'],
       422: ['VALIDATION_ERROR'],
     },
   },
   {
     key: 'inboundScan',
+    body: BODY.lineScan,
     method: 'post',
     path: '/api/v1/inbound-documents/{id}/scan',
     operationId: 'wwhn190InboundScan',
@@ -132,6 +230,7 @@ const OPERATIONS = [
   },
   {
     key: 'postReceipt',
+    body: BODY.postNoBody,
     method: 'post',
     path: '/api/v1/inbound-documents/{id}/post-receipt',
     operationId: 'wwhn190PostReceipt',
@@ -160,6 +259,7 @@ const OPERATIONS = [
   },
   {
     key: 'outboundScan',
+    body: BODY.lineScan,
     method: 'post',
     path: '/api/v1/outbound-documents/{id}/scan',
     operationId: 'wwhn190OutboundScan',
@@ -184,6 +284,7 @@ const OPERATIONS = [
   },
   {
     key: 'postIssue',
+    body: BODY.postNoBody,
     method: 'post',
     path: '/api/v1/outbound-documents/{id}/post-issue',
     operationId: 'wwhn190PostIssue',
@@ -222,6 +323,7 @@ const OPERATIONS = [
   },
   {
     key: 'reverseInbound',
+    body: BODY.reverse,
     method: 'post',
     path: '/api/v1/inbound-documents/{id}/reverse',
     operationId: 'wwhn190ReverseInbound',
@@ -246,6 +348,7 @@ const OPERATIONS = [
   },
   {
     key: 'reverseOutbound',
+    body: BODY.reverse,
     method: 'post',
     path: '/api/v1/outbound-documents/{id}/reverse',
     operationId: 'wwhn190ReverseOutbound',
@@ -270,6 +373,7 @@ const OPERATIONS = [
   },
   {
     key: 'warrantyTempOnly',
+    body: BODY.tempOnly,
     method: 'post',
     path: '/api/v1/warranty-cases/{id}/temp-only',
     operationId: 'wwhn190WarrantyTempOnly',
@@ -447,6 +551,7 @@ function buildOpenApi() {
       'x-requires-idempotency-key': op.idempotency,
       'x-lifecycle': op.lifecycle,
       ...(parameters.length ? { parameters } : {}),
+      ...(op.body ? { requestBody: { required: op.body.required, content: { 'application/json': { schema: op.body.schema } } } } : {}),
       responses,
     };
   }

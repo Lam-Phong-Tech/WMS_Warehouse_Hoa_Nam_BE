@@ -69,8 +69,8 @@ class Wwhn310ErdDocumentPinTest extends TestCase
             $pin['sha256'] ?? null,
             $actual,
             "ERD đã đổi nhưng pin chưa cập nhật.\n"
-            ."Sửa đúng thứ tự: (1) thêm dòng ERD-AMD mới vào §0.0, (2) nâng hậu tố +AMD<nnn>, "
-            ."(3) cập nhật sha256/bytes/amendments trong ".self::PIN_PATH." của CẢ HAI repo.\n"
+            .'Sửa đúng thứ tự: (1) thêm dòng ERD-AMD mới vào §0.0, (2) nâng hậu tố +AMD<nnn>, '
+            .'(3) cập nhật sha256/bytes/amendments trong '.self::PIN_PATH." của CẢ HAI repo.\n"
             ."sha256 thật = {$actual}; bytes thật = {$actualBytes}.",
         );
         $this->assertSame($pin['bytes'] ?? null, $actualBytes, 'Số byte của ERD lệch giá trị đã pin.');

@@ -132,6 +132,43 @@
           "to": [],
           "note": "Read-only classification; không đổi trạng thái chứng từ."
         },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "raw_code",
+                  "context",
+                  "warehouse_id"
+                ],
+                "properties": {
+                  "raw_code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "context": {
+                    "type": "string",
+                    "enum": [
+                      "INBOUND",
+                      "OUTBOUND",
+                      "INVENTORY",
+                      "TRACE",
+                      "WARRANTY_RECEIVE",
+                      "WARRANTY_TEMP_ONLY"
+                    ]
+                  },
+                  "warehouse_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true."
@@ -159,7 +196,34 @@
               }
             },
             "x-error-codes": [
-              "ACCESS_DENIED"
+              "ACCESS_DENIED",
+              "WAREHOUSE_SCOPE_DENIED"
+            ]
+          },
+          "404": {
+            "description": "Không tìm thấy tài nguyên.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "x-error-codes": [
+              "WAREHOUSE_NOT_FOUND"
+            ]
+          },
+          "409": {
+            "description": "Xung đột trạng thái / idempotency / concurrency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "x-error-codes": [
+              "WAREHOUSE_INACTIVE"
             ]
           },
           "422": {
@@ -216,6 +280,56 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "line_id"
+                ],
+                "description": "Bắt buộc có `quantity` hoặc `qty` (required_without lẫn nhau).",
+                "properties": {
+                  "line_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "qty": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Bí danh của `quantity`."
+                  },
+                  "code_value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150,
+                    "nullable": true
+                  },
+                  "item_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "container_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "printer_config_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true.",
@@ -384,6 +498,18 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Không có field bắt buộc. Body vẫn tham gia request hash của Idempotency-Key: gửi lại cùng key với body khác => 409 IDEMPOTENCY_CONFLICT.",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true.",
@@ -546,6 +672,56 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "line_id"
+                ],
+                "description": "Bắt buộc có `quantity` hoặc `qty` (required_without lẫn nhau).",
+                "properties": {
+                  "line_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "qty": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Bí danh của `quantity`."
+                  },
+                  "code_value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150,
+                    "nullable": true
+                  },
+                  "item_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "container_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "printer_config_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true.",
@@ -710,6 +886,18 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Không có field bắt buộc. Body vẫn tham gia request hash của Idempotency-Key: gửi lại cùng key với body khác => 409 IDEMPOTENCY_CONFLICT.",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true.",
@@ -887,6 +1075,73 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Phải chỉ rõ `lines` cần đảo, trừ khi tham chiếu `reversal_document_id` có sẵn.",
+                "properties": {
+                  "reversal_document_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "reason_code": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "nullable": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Bắt buộc khi không có reversal_document_id."
+                  },
+                  "condition_status": {
+                    "type": "string",
+                    "enum": [
+                      "SELLABLE",
+                      "DEFECTIVE",
+                      "NON_SELLABLE"
+                    ],
+                    "description": "Bắt buộc cho reversal phiếu xuất khi không có reversal_document_id."
+                  },
+                  "physical_return_confirmed": {
+                    "type": "boolean",
+                    "nullable": true
+                  },
+                  "lines": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "movement_id",
+                        "quantity"
+                      ],
+                      "properties": {
+                        "movement_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "item_id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true.",
@@ -1061,6 +1316,73 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Phải chỉ rõ `lines` cần đảo, trừ khi tham chiếu `reversal_document_id` có sẵn.",
+                "properties": {
+                  "reversal_document_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "reason_code": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "nullable": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Bắt buộc khi không có reversal_document_id."
+                  },
+                  "condition_status": {
+                    "type": "string",
+                    "enum": [
+                      "SELLABLE",
+                      "DEFECTIVE",
+                      "NON_SELLABLE"
+                    ],
+                    "description": "Bắt buộc cho reversal phiếu xuất khi không có reversal_document_id."
+                  },
+                  "physical_return_confirmed": {
+                    "type": "boolean",
+                    "nullable": true
+                  },
+                  "lines": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "movement_id",
+                        "quantity"
+                      ],
+                      "properties": {
+                        "movement_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "item_id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true.",
@@ -1221,6 +1543,53 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "temporary_item_code",
+                  "missing_code_reason",
+                  "manual_product_description",
+                  "condition_status"
+                ],
+                "properties": {
+                  "temporary_item_code": {
+                    "type": "string",
+                    "maxLength": 150
+                  },
+                  "missing_code_reason": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "manual_product_description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "defect_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "nullable": true
+                  },
+                  "condition_status": {
+                    "type": "string",
+                    "enum": [
+                      "WAITING_CHECK",
+                      "INSPECTING"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Thành công. Với operation idempotent: lần gọi lại cùng key + cùng payload trả đúng body đã lưu, header Idempotent-Replay: true và data.replayed=true.",

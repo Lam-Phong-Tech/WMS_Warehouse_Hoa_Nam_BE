@@ -58,7 +58,7 @@
             "classify"
           ]
         },
-        "description": "permission: scan.execute|scan.classify\nIf-Match bắt buộc: false\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: n/a -> n/a (Read-only classification; không đổi trạng thái chứng từ.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED; 422=VALIDATION_ERROR"
+        "description": "permission: scan.execute|scan.classify\nIf-Match bắt buộc: false\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: n/a -> n/a (Read-only classification; không đổi trạng thái chứng từ.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED,WAREHOUSE_SCOPE_DENIED; 404=WAREHOUSE_NOT_FOUND; 409=WAREHOUSE_INACTIVE; 422=VALIDATION_ERROR"
       },
       "response": []
     },

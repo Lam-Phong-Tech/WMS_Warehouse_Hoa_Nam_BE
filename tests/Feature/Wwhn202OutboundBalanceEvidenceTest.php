@@ -5,7 +5,10 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Modules\Auth\Models\Role;
+use Modules\Auth\Models\User;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -613,16 +616,16 @@ class Wwhn202OutboundBalanceEvidenceTest extends TestCase
     /** Actor hợp lệ nhưng role rỗng permission — dùng để đo đúng tầng permission, không phải tầng auth. */
     private function headersWithoutAnyPermission(): array
     {
-        $role = \Modules\Auth\Models\Role::create([
+        $role = Role::create([
             'role_code' => 'WWHN202_NO_PERMISSION',
             'role_name' => 'Không có quyền nào (WWHN-202)',
             'scope_type' => 'SYSTEM',
             'status' => 'ACTIVE',
         ]);
-        $user = \Modules\Auth\Models\User::create([
+        $user = User::create([
             'username' => 'wwhn202-noperm-'.Str::lower(Str::random(6)),
             'display_name' => 'WWHN-202 No Permission',
-            'password_hash' => \Illuminate\Support\Facades\Hash::make('secret123'),
+            'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

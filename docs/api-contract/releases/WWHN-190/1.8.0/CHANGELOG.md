@@ -15,6 +15,9 @@ Pack v1.7.0 **không bị sửa nội dung** (DISP-STK-236 §3) — chỉ bị s
 - `x-requires-if-match`, `x-requires-idempotency-key`, `x-runtime-source`, `x-error-codes`.
 - Header response `ETag` và `Idempotent-Replay` trên 200.
 - Bề mặt bổ sung so với v1.7.0: `inbound-documents/{id}/reverse`, `outbound-documents/{id}/reverse`.
+- `requestBody` cho **mọi** operation, trích đúng từ `$request->validate()` của handler runtime.
+  Đóng luôn drift mà FE đã ghi nhận là `BE-HANDOFF-WARRANTY-BODY-DRIFT` (v1.7.0 không khai body của TEMP_ONLY,
+  trong khi runtime bắt buộc `temporary_item_code`, `missing_code_reason`, `manual_product_description`, `condition_status`).
 
 ## Changed
 
@@ -24,7 +27,10 @@ Pack v1.7.0 **không bị sửa nội dung** (DISP-STK-236 §3) — chỉ bị s
   - `scan.classify` → `scan.execute|scan.classify`
 - Mã 409 idempotency: `IDEMPOTENCY_ERROR` → **`IDEMPOTENCY_CONFLICT`** (SRS §8.2 + `ConflictCode::IDEMPOTENCY`).
 - 428 mô tả lại: áp dụng cho **cả** thiếu `If-Match` lẫn thiếu `Idempotency-Key`, cùng mã `PRECONDITION_REQUIRED`.
-- Schema `Error` đổi theo envelope runtime thật (`success`, `error_code`, `message`, `request_id`, `timestamp`, `errors`).
+- Enum `context` của `scan/classify`: v1.7.0 khai `STOCKTAKE,INBOUND,OUTBOUND,WARRANTY`; runtime là
+  `INBOUND,OUTBOUND,INVENTORY,TRACE,WARRANTY_RECEIVE,WARRANTY_TEMP_ONLY` — **không còn STOCKTAKE** (REQ-SRS-037).
+- Schema `Error` đổi theo envelope runtime thật do `ApiError::abort()` sinh: có ĐỒNG THỜI `error_code` phẳng và
+  `error.code` lồng; `request_id`/`timestamp` nằm trong `meta` (v1.7.0 khai thiếu `error_code` và đặt sai vị trí `request_id`).
 
 ## Removed
 
