@@ -198,6 +198,42 @@ class CacheServiceTest extends TestCase
         Log::shouldHaveReceived('warning')->withArgs(fn (string $message) => $message === 'cache.unavailable')->atLeast()->once();
     }
 
+    public function test_remember_self_heals_when_cached_payload_is_a_corrupted_object(): void
+    {
+        // Mô phỏng đúng sự cố thực tế: `config('cache.serializable_classes') = false`
+        // (config/cache.php) khiến Laravel âm thầm trả `__PHP_Incomplete_Class` khi
+        // unserialize() gặp 1 object bị chặn (vd. Eloquent Model từng bị cache nhầm
+        // trực tiếp) — dựng chính object hỏng này bằng cách unserialize() 1 class ẩn
+        // danh với allowed_classes=false, rồi ghi thẳng vào store (bỏ qua vòng
+        // serialize thật của driver 'array' để giả lập payload đã hỏng sẵn).
+        Log::spy();
+
+        // PHP không cho serialize() class ẩn danh ("Serialization of 'class@anonymous'
+        // is not allowed") nên dùng CacheServiceCorruptionProbe (khai báo cuối file) —
+        // chỉ cần 1 class có tên thật, không liên quan gì đến domain nghiệp vụ.
+        $corrupted = unserialize(serialize(new CacheServiceCorruptionProbe), ['allowed_classes' => false]);
+        $this->assertInstanceOf(\__PHP_Incomplete_Class::class, $corrupted, 'Tiền đề của test: phải dựng được object hỏng thật sự.');
+
+        Cache::put('test:corrupted:key', ['items' => [$corrupted], 'total' => 1], 60);
+
+        $service = CacheService::make();
+        $calls = 0;
+        $resolver = function () use (&$calls) {
+            $calls++;
+
+            return ['items' => ['clean'], 'total' => 1];
+        };
+
+        $result = $service->remember('test:corrupted:key', 60, $resolver);
+
+        $this->assertSame(['items' => ['clean'], 'total' => 1], $result, 'Payload hỏng phải bị coi là miss và rebuild từ resolver, không được trả thẳng object hỏng.');
+        $this->assertSame(1, $calls);
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message) => $message === 'cache.corrupted')->atLeast()->once();
+
+        // Key hỏng phải được dọn/ghi đè bằng dữ liệu sạch — request kế tiếp không còn hỏng nữa.
+        $this->assertSame(['items' => ['clean'], 'total' => 1], Cache::get('test:corrupted:key'));
+    }
+
     public function test_bump_version_is_reflected_in_current_version(): void
     {
         $service = CacheService::make();
@@ -208,4 +244,10 @@ class CacheServiceTest extends TestCase
         $this->assertSame($before + 1, $after);
         $this->assertSame($after, $service->currentVersion('test:version:namespace'));
     }
+}
+
+/** Class có tên thật dùng riêng để dựng __PHP_Incomplete_Class trong test ở trên (serialize() từ chối class ẩn danh). */
+class CacheServiceCorruptionProbe
+{
+    public $foo = 'bar';
 }

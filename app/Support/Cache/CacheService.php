@@ -149,12 +149,52 @@ class CacheService
     {
         $hadError = false;
         try {
-            return CacheFacade::get($key, self::MISS);
+            $value = CacheFacade::get($key, self::MISS);
         } catch (\Throwable $e) {
             $hadError = true;
 
             return $this->handleFailure($key, 'read', $e, $resolver);
         }
+
+        // Phòng thủ ở cổng vào DUY NHẤT của cache: nếu payload đọc lên bị hỏng (xem
+        // isCorrupted()), KHÔNG được trả thẳng ra caller — coi như miss để tự rebuild
+        // từ resolver (DB) và tự dọn key hỏng, thay vì để dữ liệu hỏng lọt ra response
+        // API trong suốt phần đời còn lại của TTL.
+        if ($value !== self::MISS && self::isCorrupted($value)) {
+            Log::warning('cache.corrupted', ['key' => $key]);
+            $this->forget($key);
+
+            return self::MISS;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Phát hiện payload hỏng do `config('cache.serializable_classes') = false` (mục
+     * an ninh chống gadget-chain unserialize, xem config/cache.php) chặn một PHP
+     * object (thường là Eloquent Model bị cache nhầm thay vì mảng thuần — dù đường
+     * ghi hiện tại của BaseRepository/AuthCache đã tránh việc này, đây vẫn là lưới an
+     * toàn cuối cùng cho MỌI domain cache). Laravel không ném lỗi ở bước đọc, chỉ âm
+     * thầm trả về `__PHP_Incomplete_Class` rỗng — nếu không tự kiểm tra ở đây, payload
+     * hỏng sẽ lọt thẳng ra response API. Quét đệ quy vì giá trị cache thường là mảng
+     * lồng nhau (vd. ['items' => [...], 'total' => N]).
+     */
+    private static function isCorrupted(mixed $value): bool
+    {
+        if (is_object($value)) {
+            return $value instanceof \__PHP_Incomplete_Class;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if (self::isCorrupted($item)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function put(string $key, mixed $value, int $ttlSeconds): void

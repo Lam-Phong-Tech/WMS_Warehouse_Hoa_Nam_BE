@@ -93,18 +93,31 @@ abstract class BaseRepository implements RepositoryInterface
         // paginator mang path/query của request lúc build cache, dùng cache hit ở 1
         // request khác (URL/query string khác) sẽ sinh link phân trang (next/prev) sai.
         // Paginator luôn được dựng lại mới từ path/query của request hiện tại.
+        //
+        // Items được xuống cache dưới dạng ARRAY thuần (attributes thô, không phải
+        // Eloquent Model) — config/cache.php có `serializable_classes = false`
+        // (chặn unserialize object để tránh gadget-chain attack nếu APP_KEY lộ), nên
+        // cache Model object trực tiếp sẽ bị Laravel âm thầm trả về
+        // `__PHP_Incomplete_Class` rỗng ở lần cache-hit (mất hết dữ liệu, không lỗi
+        // rõ ràng). Rehydrate lại Model thật từ array ở dưới, KHÔNG nới lỏng cấu hình
+        // bảo mật này.
         $cached = $this->cacheService()->rememberStampede(
             $key,
             CacheTtl::seconds($this->cacheTtlPolicy),
             function () use ($filters, $perPage, $scope): array {
                 $paginator = $this->paginateFresh($filters, $perPage, $scope);
 
-                return ['items' => $paginator->items(), 'total' => $paginator->total()];
+                return [
+                    'items' => array_map(fn (Model $item) => $this->serializeItemForCache($item), $paginator->items()),
+                    'total' => $paginator->total(),
+                ];
             }
         );
 
+        $items = array_map(fn (array $data) => $this->hydrateItemFromCache($data), $cached['items']);
+
         return new \Illuminate\Pagination\LengthAwarePaginator(
-            $cached['items'],
+            $items,
             $cached['total'],
             $perPage,
             $currentPage,
@@ -138,11 +151,77 @@ abstract class BaseRepository implements RepositoryInterface
             return $this->findFresh($id);
         }
 
-        return $this->cacheService()->remember(
+        // Xem ghi chú trong paginate(): cache attributes thô (array), không cache
+        // Model object trực tiếp — tránh __PHP_Incomplete_Class do
+        // config('cache.serializable_classes') = false.
+        $cached = $this->cacheService()->remember(
             $this->detailCacheKey($id),
             CacheTtl::seconds($this->cacheTtlPolicy),
-            fn () => $this->findFresh($id)
+            function () use ($id) {
+                $model = $this->findFresh($id);
+
+                return $model ? $this->serializeItemForCache($model) : null;
+            }
         );
+
+        return $cached ? $this->hydrateItemFromCache($cached) : null;
+    }
+
+    /**
+     * Chuyển 1 Model (kèm relation trong $this->with, nếu có) thành array thuần để
+     * đưa vào cache — an toàn với `serializable_classes = false` vì không có object
+     * PHP nào trong payload, chỉ scalar/array.
+     *
+     * @return array{attributes: array<string, mixed>, relations: array<string, mixed>}
+     */
+    protected function serializeItemForCache(Model $item): array
+    {
+        $relations = [];
+
+        foreach ($item->getRelations() as $name => $value) {
+            if ($value instanceof Collection) {
+                $relations[$name] = $value->map(fn (Model $related) => $related->getAttributes())->all();
+            } elseif ($value instanceof Model) {
+                $relations[$name] = $value->getAttributes();
+            } else {
+                $relations[$name] = null;
+            }
+        }
+
+        return ['attributes' => $item->getAttributes(), 'relations' => $relations];
+    }
+
+    /**
+     * Dựng lại Model thật từ array đã cache — dùng `newFromBuilder()`, đúng cơ chế
+     * Eloquent tự dùng khi hydrate 1 dòng DB thô, nên casts/accessors/hidden hoạt
+     * động y hệt như đọc thẳng từ DB. Chỉ hỗ trợ tên quan hệ 1 cấp (khớp $with hiện
+     * tại của các repo bật cache — không có 'a.b' lồng nhau).
+     *
+     * @param  array{attributes?: array<string, mixed>, relations?: array<string, mixed>}  $data
+     */
+    protected function hydrateItemFromCache(array $data): Model
+    {
+        $model = $this->model->newFromBuilder($data['attributes'] ?? []);
+
+        foreach ($data['relations'] ?? [] as $name => $relationData) {
+            if (! method_exists($model, $name)) {
+                continue;
+            }
+
+            $related = $model->{$name}()->getRelated();
+
+            if ($relationData === null) {
+                $model->setRelation($name, null);
+            } elseif (array_is_list($relationData)) {
+                $model->setRelation($name, $related->newCollection(
+                    array_map(fn (array $attrs) => $related->newFromBuilder($attrs), $relationData)
+                ));
+            } else {
+                $model->setRelation($name, $related->newFromBuilder($relationData));
+            }
+        }
+
+        return $model;
     }
 
     protected function findFresh(int|string $id): ?Model
