@@ -77,6 +77,44 @@ class SwaggerRouteSyncTest extends TestCase
     }
 
     /**
+     * WWHN-153/WWHN-180/WWHN-152: `WarrantyController.php` (TEMP_ONLY) từng bị thiếu
+     * khỏi `config/l5-swagger.php` annotations[] — cùng lỗi lớp với WWHN-184 ở trên.
+     * Annotation thật đã có sẵn trên `tempOnly()` nhưng RouteSyncProcessor không bao
+     * giờ đọc được file này, nên tự sinh skeleton `{type: object, additionalProperties:
+     * true}` rỗng. QA1 WWHN-152 ghi "typed schema still generic"; FE1 WWHN-180 ghi
+     * TEMP_ONLY requestBody thiếu trong artifact. Test này khoá lại để không tái phát.
+     */
+    public function test_warranty_temp_only_operation_carries_real_contract_not_generic_skeleton(): void
+    {
+        Artisan::call('l5-swagger:generate');
+
+        $swagger = json_decode((string) file_get_contents(storage_path('api-docs/api-docs.json')), true, flags: JSON_THROW_ON_ERROR);
+        $tempOnly = $swagger['paths']['/api/v1/warranty-cases/{id}/temp-only']['post'] ?? null;
+
+        $this->assertNotNull($tempOnly, 'warranty_temp_only operation missing from generated OpenAPI');
+        $this->assertSame('warranty_temp_only', $tempOnly['operationId'] ?? null);
+
+        $schema = $tempOnly['requestBody']['content']['application/json']['schema'] ?? [];
+        $this->assertNotSame(
+            true,
+            $schema['additionalProperties'] ?? false,
+            'temp-only requestBody fell back to the generic additionalProperties skeleton',
+        );
+
+        $required = $schema['required'] ?? [];
+        sort($required);
+        $this->assertSame(
+            ['condition_status', 'manual_product_description', 'missing_code_reason', 'temporary_item_code'],
+            $required,
+            'temp-only requestBody required[] must match WarrantyController::tempOnly() validate() rules',
+        );
+
+        $idempotencyParam = collect($tempOnly['parameters'] ?? [])->firstWhere('name', 'Idempotency-Key');
+        $this->assertNotNull($idempotencyParam, 'Idempotency-Key header contract missing from warranty_temp_only');
+        $this->assertTrue($idempotencyParam['required'] ?? false);
+    }
+
+    /**
      * @return array<int, string>
      */
     private function routeOperations(): array

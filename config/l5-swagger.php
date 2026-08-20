@@ -90,6 +90,15 @@ return [
                     // không có param/schema nào để wire. KHÔNG được bỏ hai dòng dưới.
                     base_path('Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/PvAdminResourceController.php'),
+                    // WWHN-153/WWHN-180/WWHN-152: cùng lỗi lớp với WWHN-184/240/244/252 ở trên
+                    // — annotation TEMP_ONLY (requestBody temporary_item_code/missing_code_reason/
+                    // manual_product_description/condition_status, permission warranty.temp_only)
+                    // đã có sẵn trên WarrantyController::tempOnly() nhưng file này chưa từng có
+                    // trong danh sách scan, nên RouteSyncProcessor tự sinh skeleton
+                    // `{type: object, additionalProperties: true}` rỗng — đúng như QA1 WWHN-152
+                    // ghi "typed schema still generic" và FE1 WWHN-180 ghi TEMP_ONLY requestBody
+                    // thiếu trong artifact. KHÔNG được bỏ dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/WarrantyController.php'),
                 ],
             ],
         ],

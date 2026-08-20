@@ -33063,21 +33063,22 @@
                 "tags": [
                     "13. Warranty"
                 ],
-                "summary": "Đánh dấu hồ sơ bảo hành chỉ xử lý tạm",
-                "operationId": "post_api_v1_warranty__cases_id_temp__only",
+                "summary": "Tiếp nhận bảo hành chưa định danh, không tác động tồn kho",
+                "description": "TEMP_ONLY chỉ cập nhật trạng thái phiếu và tạo warranty_event. Không liên kết inventory_serial, không tạo stock_movement và không cập nhật inventory_balance.",
+                "operationId": "warranty_temp_only",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     },
                     {
                         "name": "Idempotency-Key",
                         "in": "header",
-                        "description": "Bắt buộc. Chuỗi 8-100 ký tự do client sinh. Gửi lại cùng key trả về kết quả lần đầu (replay); dùng lại key cho payload khác trả 409.",
                         "required": true,
                         "schema": {
                             "type": "string",
@@ -33087,24 +33088,99 @@
                     }
                 ],
                 "requestBody": {
-                    "required": false,
+                    "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "object",
-                                "example": {},
-                                "additionalProperties": true
+                                "required": [
+                                    "temporary_item_code",
+                                    "missing_code_reason",
+                                    "manual_product_description",
+                                    "condition_status"
+                                ],
+                                "properties": {
+                                    "temporary_item_code": {
+                                        "type": "string",
+                                        "maxLength": 150
+                                    },
+                                    "missing_code_reason": {
+                                        "type": "string",
+                                        "maxLength": 500
+                                    },
+                                    "manual_product_description": {
+                                        "type": "string",
+                                        "maxLength": 2000
+                                    },
+                                    "defect_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "condition_status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "WAITING_CHECK",
+                                            "INSPECTING"
+                                        ]
+                                    },
+                                    "note": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 1000
+                                    }
+                                },
+                                "type": "object"
                             }
                         }
                     }
                 },
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Tiếp nhận TEMP_ONLY thành công, stock_effect=NONE",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Thiếu permission warranty.temp_only",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Sai trạng thái, active warranty trùng hoặc khóa idempotency xung đột payload",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu hoặc Idempotency-Key không hợp lệ, hoặc serial chưa Post Issue",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu Idempotency-Key",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -33129,16 +33205,6 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "Không có quyền truy cập",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
                     "404": {
                         "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
                         "content": {
@@ -33149,38 +33215,8 @@
                             }
                         }
                     },
-                    "409": {
-                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
                     "412": {
                         "description": "Điều kiện If-Match không đạt",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "428": {
-                        "description": "Thiếu điều kiện If-Match bắt buộc",
                         "content": {
                             "application/json": {
                                 "schema": {

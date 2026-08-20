@@ -17,43 +17,6 @@ use Modules\Warehouse\Models\WarrantyEvent;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
 
-#[OA\Post(
-    path: '/api/v1/warranty-cases/{id}/temp-only',
-    operationId: 'warranty_temp_only',
-    summary: 'Tiếp nhận bảo hành chưa định danh, không tác động tồn kho',
-    description: 'TEMP_ONLY chỉ cập nhật trạng thái phiếu và tạo warranty_event. Không liên kết inventory_serial, không tạo stock_movement và không cập nhật inventory_balance.',
-    security: [['bearerAuth' => []]],
-    tags: ['13. Warranty'],
-    parameters: [
-        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(
-            name: 'Idempotency-Key',
-            in: 'header',
-            required: true,
-            schema: new OA\Schema(type: 'string', minLength: IdempotencyKeyGuard::MIN_LENGTH, maxLength: IdempotencyKeyGuard::MAX_LENGTH)
-        ),
-    ],
-    requestBody: new OA\RequestBody(
-        required: true,
-        content: new OA\JsonContent(
-            required: ['temporary_item_code', 'missing_code_reason', 'condition_status'],
-            properties: [
-                new OA\Property(property: 'temporary_item_code', type: 'string', maxLength: 150),
-                new OA\Property(property: 'missing_code_reason', type: 'string', maxLength: 500),
-                new OA\Property(property: 'manual_product_description', type: 'string', nullable: true),
-                new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'condition_status', type: 'string', enum: ['WAITING_CHECK', 'INSPECTING']),
-                new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
-            ]
-        )
-    ),
-    responses: [
-        new OA\Response(response: 200, description: 'Tiếp nhận TEMP_ONLY thành công, stock_effect=NONE'),
-        new OA\Response(response: 409, description: 'Sai trạng thái, active warranty trùng hoặc khóa idempotency xung đột payload'),
-        new OA\Response(response: 422, description: 'Dữ liệu hoặc Idempotency-Key không hợp lệ, hoặc serial chưa Post Issue'),
-        new OA\Response(response: 428, description: 'Thiếu Idempotency-Key'),
-    ]
-)]
 class WarrantyController extends Controller
 {
     use ApiResponse;
@@ -78,6 +41,53 @@ class WarrantyController extends Controller
         WarrantyCase::STATUS_CANCELLED,
     ];
 
+    // WWHN-153 root-cause fix 2026-08-20: attribute này trước đây gắn trên `class
+    // WarrantyController` thay vì trên method — swagger-php chỉ bind OA\Post theo
+    // method, nên operation không bao giờ nhận requestBody này. RouteSyncProcessor
+    // (app/Swagger/Processors/RouteSyncProcessor.php:458) coi requestBody là
+    // Undefined và fallback generic `{type: object, additionalProperties: true}`,
+    // đúng như QA1 WWHN-152 ghi nhận "typed schema still generic" và FE1 WWHN-180
+    // ghi nhận TEMP_ONLY requestBody thiếu trong artifact. `required` cũng bổ sung
+    // `manual_product_description` vì DB CHECK chk_erd_warranty_identification_shape
+    // và validate() runtime (dòng dưới) đều bắt buộc field này, không phải optional.
+    #[OA\Post(
+        path: '/api/v1/warranty-cases/{id}/temp-only',
+        operationId: 'warranty_temp_only',
+        summary: 'Tiếp nhận bảo hành chưa định danh, không tác động tồn kho',
+        description: 'TEMP_ONLY chỉ cập nhật trạng thái phiếu và tạo warranty_event. Không liên kết inventory_serial, không tạo stock_movement và không cập nhật inventory_balance.',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(
+                name: 'Idempotency-Key',
+                in: 'header',
+                required: true,
+                schema: new OA\Schema(type: 'string', minLength: IdempotencyKeyGuard::MIN_LENGTH, maxLength: IdempotencyKeyGuard::MAX_LENGTH)
+            ),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['temporary_item_code', 'missing_code_reason', 'manual_product_description', 'condition_status'],
+                properties: [
+                    new OA\Property(property: 'temporary_item_code', type: 'string', maxLength: 150),
+                    new OA\Property(property: 'missing_code_reason', type: 'string', maxLength: 500),
+                    new OA\Property(property: 'manual_product_description', type: 'string', maxLength: 2000),
+                    new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'condition_status', type: 'string', enum: ['WAITING_CHECK', 'INSPECTING']),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Tiếp nhận TEMP_ONLY thành công, stock_effect=NONE'),
+            new OA\Response(response: 403, description: 'Thiếu permission warranty.temp_only'),
+            new OA\Response(response: 409, description: 'Sai trạng thái, active warranty trùng hoặc khóa idempotency xung đột payload'),
+            new OA\Response(response: 422, description: 'Dữ liệu hoặc Idempotency-Key không hợp lệ, hoặc serial chưa Post Issue'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key'),
+        ]
+    )]
     public function tempOnly(Request $request, string $id)
     {
         $idemKey = IdempotencyKeyGuard::require($request);
