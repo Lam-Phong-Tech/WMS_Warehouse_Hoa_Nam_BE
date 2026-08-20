@@ -5,11 +5,28 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Support\Facades\DB;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineImportReadController extends Controller
 {
     use ApiResponse;
 
+    #[OA\Get(
+        path: '/api/v1/outbound-request-imports/{id}/preview',
+        operationId: 'import_read_preview',
+        summary: 'Preview kết quả validate import yêu cầu xuất',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'import + rows (row_no/status/normalized/errors) + can_consume'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền outbound.request.import hoặc outbound.import'),
+            new OA\Response(response: 404, description: 'Import not found'),
+        ]
+    )]
     public function preview(string $id)
     {
         $import = DB::table('outbound_request_imports')->where('id', $id)->first();
@@ -35,6 +52,22 @@ class CurrentBaselineImportReadController extends Controller
         ]);
     }
 
+    #[OA\Get(
+        path: '/api/v1/outbound-request-imports/{id}/errors',
+        operationId: 'import_read_errors',
+        summary: 'Danh sách lỗi row/field của import yêu cầu xuất',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'import_id + status + error_count + errors (row/field/error_code/message)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền outbound.request.import hoặc outbound.import'),
+            new OA\Response(response: 404, description: 'Import not found'),
+        ]
+    )]
     public function errors(string $id)
     {
         $import = DB::table('outbound_request_imports')->where('id', $id)->first();

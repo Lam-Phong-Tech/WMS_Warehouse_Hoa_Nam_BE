@@ -11,7 +11,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use OpenApi\Attributes as OA;
 
+/**
+ * DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 3) — chỉ 6 trong số các public
+ * method dưới đây có route thật đang publish (xác nhận bằng `php artisan
+ * route:list`): pvTags, listLabelSnapshots, listPrinterConfigs,
+ * listComponentIssueDocuments, listWarrantyCases, listWarrantyEvents. Các
+ * method còn lại (listBrands/storeBrand/storeOutboundRequestImport/pvCatalog/...)
+ * không được route nào trỏ tới nên KHÔNG khai #[OA\...] cho chúng —
+ * RouteSyncProcessor tự loại annotation không khớp route table thật.
+ */
 class CanonicalMvpController extends Controller
 {
     use ApiResponse;
@@ -185,6 +195,24 @@ class CanonicalMvpController extends Controller
         return $this->respondSuccess($payload, 'Outbound import consumed.');
     }
 
+    #[OA\Get(
+        path: '/api/v1/label-snapshots',
+        operationId: 'canonical_mvp_list_label_snapshots',
+        summary: 'Danh sách snapshot nhãn',
+        security: [['bearerAuth' => []]],
+        tags: ['19. Label / Printer'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách label_snapshots'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền label.print'),
+        ]
+    )]
     public function listLabelSnapshots(Request $request)
     {
         return $this->tablePage($request, 'label_snapshots');
@@ -215,6 +243,24 @@ class CanonicalMvpController extends Controller
         return $this->recordPrint($request, $id, true);
     }
 
+    #[OA\Get(
+        path: '/api/v1/printer-configs',
+        operationId: 'canonical_mvp_list_printer_configs',
+        summary: 'Danh sách cấu hình máy in',
+        security: [['bearerAuth' => []]],
+        tags: ['19. Label / Printer'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách printer_configs'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền label.print'),
+        ]
+    )]
     public function listPrinterConfigs(Request $request)
     {
         return $this->tablePage($request, 'printer_configs');
@@ -232,6 +278,46 @@ class CanonicalMvpController extends Controller
         return $this->insertAndReturn('printer_configs', $validated);
     }
 
+    #[OA\Get(
+        path: '/api/v1/component-issue-documents',
+        operationId: 'canonical_mvp_list_component_issue_documents',
+        summary: 'Danh sách phiếu xuất linh kiện bảo hành',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'warranty_case_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách component_issue_documents'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.component_issue'),
+        ]
+    )]
+    #[OA\Get(
+        path: '/api/v1/warranty-component-issues',
+        operationId: 'canonical_mvp_list_warranty_component_issues',
+        summary: 'Danh sách phiếu xuất linh kiện bảo hành (Annex C)',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'warranty_case_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách component_issue_documents (Annex C alias)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.component_issue'),
+        ]
+    )]
     public function listComponentIssueDocuments(Request $request)
     {
         return $this->tablePage($request, 'component_issue_documents', 'created_at', [], ['warranty_case_id', 'warehouse_id']);
@@ -243,6 +329,26 @@ class CanonicalMvpController extends Controller
     // COMPONENT, coi COMPLETED là case không active). Bề mặt duy nhất của luồng 04 là
     // CurrentBaselineWarrantyController + CurrentBaselineComponentFlowController.
 
+    #[OA\Get(
+        path: '/api/v1/warranty-cases',
+        operationId: 'canonical_mvp_list_warranty_cases',
+        summary: 'Danh sách hồ sơ bảo hành',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'identification_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['IDENTIFIED', 'TEMP_ONLY'])),
+            new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp customer_name/customer_phone/customer_address (mask nếu thiếu quyền warranty.pii.view) hoặc serial/mã vật lý của item gắn case', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách warranty_case; mỗi item kèm cờ pii_masked (§13.8)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.view hoặc warranty.manage'),
+        ]
+    )]
     public function listWarrantyCases(Request $request)
     {
         return $this->tablePage(
@@ -269,6 +375,24 @@ class CanonicalMvpController extends Controller
         );
     }
 
+    #[OA\Get(
+        path: '/api/v1/warranty-cases/{id}/events',
+        operationId: 'canonical_mvp_list_warranty_events',
+        summary: 'Lịch sử sự kiện của hồ sơ bảo hành',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp event_type/from_status/to_status/note', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách warranty_event của hồ sơ, sắp xếp event_at giảm dần'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.view hoặc warranty.manage'),
+        ]
+    )]
     public function listWarrantyEvents(Request $request, string $id)
     {
         $query = DB::table('warranty_event')
@@ -299,6 +423,22 @@ class CanonicalMvpController extends Controller
         return $this->publicActivePage($request, 'pv_industry', 'sort_order');
     }
 
+    #[OA\Get(
+        path: '/api/v1/pv/tags',
+        operationId: 'canonical_mvp_pv_tags',
+        summary: 'Danh sách tag PV',
+        security: [],
+        tags: ['21. Public Catalog'],
+        parameters: [
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 50)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách pv_filter_tag đang ACTIVE'),
+            new OA\Response(response: 429, description: 'Vượt rate limit pv-public'),
+        ]
+    )]
     public function pvTags(Request $request)
     {
         return $this->publicActivePage($request, 'pv_filter_tag', 'sort_order');

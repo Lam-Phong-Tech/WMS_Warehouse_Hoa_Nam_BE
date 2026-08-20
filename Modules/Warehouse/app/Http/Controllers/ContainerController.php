@@ -53,35 +53,14 @@ class ContainerController extends Controller
         );
     }
 
-    #[OA\Post(
-        path: '/api/v1/containers',
-        operationId: 'container_create',
-        summary: 'Tạo container mới (CARTON/BOX/TRAY)',
-        security: [['bearerAuth' => []]],
-        tags: ['23. Container'],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['container_code', 'container_type', 'physical_code_id', 'status'],
-                properties: [
-                    new OA\Property(property: 'container_code', type: 'string', maxLength: 100),
-                    new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY']),
-                    new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true, description: 'Bắt buộc với CARTON/BOX'),
-                    new OA\Property(property: 'parent_container_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
-                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 255, nullable: true),
-                    new OA\Property(property: 'status', type: 'string'),
-                ]
-            )
-        ),
-        responses: [
-            new OA\Response(response: 201, description: 'Tạo container thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: CARTON/BOX thiếu primary_sku_id)'),
-        ]
-    )]
+    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 4): #[OA\Post] cho
+    // POST /api/v1/containers ĐÃ GỠ khỏi đây — `php artisan route:list` xác nhận
+    // path này thật sự do CurrentBaselineContainerFlowController::store phục vụ,
+    // không phải method dưới đây (không route nào trỏ tới store() của class này).
+    // Annotation cũ còn khai physical_code_id/status là required, sai với contract
+    // thật (đều nullable) và khiến `l5-swagger:generate` crash "Unable to merge"
+    // vì hai class cùng khai một path+method. Giữ method PHP nguyên vẹn (không rõ
+    // superseded hoàn toàn hay còn được gọi nội bộ), chỉ gỡ annotation sai route.
     public function store(StoreContainerRequest $request)
     {
         $container = DB::transaction(fn () => $this->containers->create($request->validated() + ['version' => 1]));
@@ -122,35 +101,10 @@ class ContainerController extends Controller
         return $this->respondSuccess($container->load('items'));
     }
 
-    #[OA\Patch(
-        path: '/api/v1/containers/{id}',
-        operationId: 'container_update',
-        summary: 'Sửa container (optimistic locking qua version)',
-        security: [['bearerAuth' => []]],
-        tags: ['23. Container'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        requestBody: new OA\RequestBody(
-            content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'container_code', type: 'string', maxLength: 100),
-                new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY']),
-                new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'parent_container_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
-                new OA\Property(property: 'location_hint', type: 'string', maxLength: 255, nullable: true),
-                new OA\Property(property: 'status', type: 'string'),
-                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking'),
-            ])
-        ),
-        responses: [
-            new OA\Response(response: 200, description: 'Cập nhật thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
-            new OA\Response(response: 404, description: 'Không tìm thấy container'),
-            new OA\Response(response: 409, description: 'version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
-        ]
-    )]
+    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 4): #[OA\Patch] cho
+    // PATCH /api/v1/containers/{id} ĐÃ GỠ — route thật thuộc
+    // CurrentBaselineContainerFlowController::update (bắt buộc header If-Match,
+    // khác cơ chế version-in-body của method dưới đây). Cùng lý do với store().
     public function update(UpdateContainerRequest $request, string $id)
     {
         $before = $this->containers->find($id);
@@ -192,29 +146,9 @@ class ContainerController extends Controller
         return $this->respondSuccess($container, 'Cập nhật container thành công');
     }
 
-    #[OA\Post(
-        path: '/api/v1/containers/{id}/items',
-        operationId: 'container_add_item',
-        summary: 'Gán item (serial) hoặc sku+quantity vào container',
-        security: [['bearerAuth' => []]],
-        tags: ['23. Container'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, description: 'XOR với sku_id — dùng cho hàng có serial'),
-                new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, description: 'XOR với item_id — dùng cho hàng theo số lượng'),
-                new OA\Property(property: 'quantity', type: 'number', nullable: true, description: 'Bắt buộc khi dùng sku_id'),
-            ])
-        ),
-        responses: [
-            new OA\Response(response: 201, description: 'Gán item vào container thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
-            new OA\Response(response: 404, description: 'Không tìm thấy container'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vi phạm XOR item_id/sku_id+quantity)'),
-        ]
-    )]
+    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 4): #[OA\Post] cho
+    // POST /api/v1/containers/{id}/items ĐÃ GỠ — route thật thuộc
+    // CurrentBaselineContainerFlowController::addItem. Cùng lý do với store().
     public function addItem(StoreContainerItemRequest $request, string $id)
     {
         $container = $this->containers->find($id);
@@ -242,23 +176,10 @@ class ContainerController extends Controller
         return $this->respondCreated($containerItem, 'Gán item vào container thành công');
     }
 
-    #[OA\Delete(
-        path: '/api/v1/containers/{id}/items/{containerItemId}',
-        operationId: 'container_remove_item',
-        summary: 'Gỡ item khỏi container (đánh dấu REMOVED, không xoá bản ghi)',
-        security: [['bearerAuth' => []]],
-        tags: ['23. Container'],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-            new OA\Parameter(name: 'containerItemId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Gỡ item thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
-            new OA\Response(response: 404, description: 'Không tìm thấy mapping item trong container'),
-        ]
-    )]
+    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 4): #[OA\Delete] cho
+    // DELETE /api/v1/containers/{id}/items/{containerItemId} ĐÃ GỠ — route thật
+    // thuộc CurrentBaselineContainerFlowController::removeItem (bắt buộc If-Match
+    // + reason). Cùng lý do với store().
     public function removeItem(Request $request, string $id, string $containerItemId)
     {
         $containerItem = $this->containerItems->find($containerItemId);

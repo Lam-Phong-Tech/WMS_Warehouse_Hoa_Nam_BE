@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineContainerFlowController extends Controller
 {
@@ -58,6 +59,36 @@ class CurrentBaselineContainerFlowController extends Controller
      * đường vòng đầy đủ qua mọi guard của POST /putaway-tasks + confirm. PATCH đã chặn từ
      * trước; POST thì chưa. Nay cả hai method đều bắt buộc đi qua luồng canonical.
      */
+    #[OA\Post(
+        path: '/api/v1/containers',
+        operationId: 'container_flow_store',
+        summary: 'Tạo container (vỏ chứa) rỗng — KHÔNG phải đường tạo putaway',
+        security: [['bearerAuth' => []]],
+        tags: ['18. Physical Inventory'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['container_code', 'container_type'],
+                properties: [
+                    new OA\Property(property: 'container_code', type: 'string', maxLength: 120),
+                    new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY']),
+                    new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true, description: 'Bắt buộc nếu container_type là CARTON hoặc BOX'),
+                    new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
+                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['EMPTY'], nullable: true, description: 'Chỉ EMPTY được khai lúc tạo; các trạng thái vòng đời khác do luồng nghiệp vụ đặt'),
+                    new OA\Property(property: 'migration_run_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid', nullable: true, description: 'Physical code phải đang ACTIVE và chưa gán target khác'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Container created; stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 409, description: 'PHYSICAL_CODE_ALREADY_ASSIGNED'),
+            new OA\Response(response: 422, description: 'PRIMARY_SKU_REQUIRED, PHYSICAL_CODE_NOT_ACTIVE, CONTAINER_STATUS_NOT_CREATABLE hoặc PUTAWAY_MUST_USE_TASK_FLOW nếu gửi parent_container_id'),
+        ]
+    )]
     public function store(Request $request)
     {
         $this->assertNoPutawaySideEffectRequested($request, 'POST /containers');
@@ -145,6 +176,38 @@ class CurrentBaselineContainerFlowController extends Controller
         return $this->respondCreated($result, 'Container created; assign physical code through physical_codes.container_id; stock_effect=NONE.');
     }
 
+    #[OA\Patch(
+        path: '/api/v1/containers/{id}',
+        operationId: 'container_flow_update',
+        summary: 'Cập nhật container (bắt buộc If-Match)',
+        security: [['bearerAuth' => []]],
+        tags: ['18. Physical Inventory'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, description: 'Optimistic locking theo version. Thiếu: 428. Sai version: 412.', schema: new OA\Schema(type: 'integer', minimum: 0)),
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'container_code', type: 'string', maxLength: 120),
+                new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'parent_container_id', type: 'string', format: 'uuid', nullable: true, description: 'KHÔNG được đổi qua endpoint này — đổi placement BOX->TRAY phải dùng POST /putaway-tasks + confirm'),
+                new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
+                new OA\Property(property: 'location_hint', type: 'string', maxLength: 200, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['EMPTY', 'IN_STOCK', 'PARTIAL', 'ISSUED', 'RECEIVED_PENDING_PUTAWAY', 'STORED', 'CLOSED'], nullable: true, description: 'RECEIVED_PENDING_PUTAWAY/STORED/ISSUED chỉ được đặt bởi luồng nghiệp vụ sở hữu sự kiện tương ứng, không set qua PATCH'),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Container updated; stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy container'),
+            new OA\Response(response: 409, description: 'CONTAINER_CLOSED'),
+            new OA\Response(response: 412, description: 'STALE_VERSION'),
+            new OA\Response(response: 422, description: 'PUTAWAY_MUST_USE_TASK_FLOW hoặc CONTAINER_STATUS_LIFECYCLE_MANAGED'),
+            new OA\Response(response: 428, description: 'Thiếu header If-Match'),
+        ]
+    )]
     public function update(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -220,6 +283,40 @@ class CurrentBaselineContainerFlowController extends Controller
         return $this->respondSuccess($result, 'Container updated.');
     }
 
+    #[OA\Post(
+        path: '/api/v1/containers/{id}/items',
+        operationId: 'container_flow_add_item',
+        summary: 'Thêm hàng vào container (bắt buộc If-Match)',
+        security: [['bearerAuth' => []]],
+        tags: ['18. Physical Inventory'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, description: 'Optimistic locking theo version. Thiếu: 428. Sai version: 412.', schema: new OA\Schema(type: 'integer', minimum: 0)),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                description: 'Chọn ĐÚNG MỘT trong hai chế độ: item_id (từng item) hoặc sku_id+quantity (theo số lượng)',
+                properties: [
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, nullable: true, description: 'Bắt buộc khi dùng sku_id-mode'),
+                    new OA\Property(property: 'source_type', type: 'string', enum: ['RECEIPT', 'PUTAWAY', 'MIGRATION', 'CORRECTION'], nullable: true),
+                    new OA\Property(property: 'source_id', type: 'string', format: 'uuid', nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Container content added; stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy container'),
+            new OA\Response(response: 409, description: 'CONTAINER_NOT_EDITABLE hoặc ITEM_ALREADY_IN_CONTAINER'),
+            new OA\Response(response: 412, description: 'STALE_VERSION'),
+            new OA\Response(response: 422, description: 'CONTAINER_ITEM_XOR, QUANTITY_REQUIRED, ITEM_NOT_FOUND hoặc CONTAINER_PRIMARY_SKU_MISMATCH'),
+            new OA\Response(response: 428, description: 'Thiếu header If-Match'),
+        ]
+    )]
     public function addItem(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -311,6 +408,33 @@ class CurrentBaselineContainerFlowController extends Controller
         return $this->respondCreated($mapping, 'Container content added; stock_effect=NONE.');
     }
 
+    #[OA\Delete(
+        path: '/api/v1/containers/{id}/items/{containerItemId}',
+        operationId: 'container_flow_remove_item',
+        summary: 'Xoá hàng khỏi container (bắt buộc If-Match)',
+        security: [['bearerAuth' => []]],
+        tags: ['18. Physical Inventory'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'containerItemId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, description: 'Optimistic locking theo version. Thiếu: 428. Sai version: 412.', schema: new OA\Schema(type: 'integer', minimum: 0)),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(required: ['reason'], properties: [
+                new OA\Property(property: 'reason', type: 'string', maxLength: 2000),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Container content removed; stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền container.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy container hoặc active mapping (CONTAINER_ITEM_NOT_ACTIVE)'),
+            new OA\Response(response: 409, description: 'CONTAINER_CLOSED'),
+            new OA\Response(response: 412, description: 'STALE_VERSION'),
+            new OA\Response(response: 428, description: 'Thiếu header If-Match'),
+        ]
+    )]
     public function removeItem(Request $request, string $id, string $containerItemId)
     {
         $validated = $request->validate(['reason' => ['required', 'string', 'max:2000']]);

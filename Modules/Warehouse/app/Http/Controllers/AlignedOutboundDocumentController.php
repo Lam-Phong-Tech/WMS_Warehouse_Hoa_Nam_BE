@@ -5,10 +5,29 @@ namespace Modules\Warehouse\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockDocument;
+use OpenApi\Attributes as OA;
 
 /** Read-side alignment: Packing Label progress is 0/1 per outbound document; RFID is optional metadata. */
 class AlignedOutboundDocumentController extends OutboundDocumentController
 {
+    #[OA\Get(
+        path: '/api/v1/outbound-documents',
+        operationId: 'aligned_outbound_document_index',
+        summary: 'Danh sách phiếu xuất kèm tiến độ matching/packing label',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp doc_no/note', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang danh sách phiếu xuất, mỗi item kèm required_total/matched_count/label_printed_count/packing_label_count/packing_label_applied_count/rfid_mapped_count'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền outbound.view hoặc ngoài warehouse data scope'),
+        ]
+    )]
     public function index(Request $request)
     {
         $query = StockDocument::query()

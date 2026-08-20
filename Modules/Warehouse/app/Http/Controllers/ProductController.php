@@ -449,43 +449,20 @@ class ProductController extends Controller
         return $payload;
     }
 
-    #[OA\Patch(
-        path: '/api/v1/products/{id}/enable',
-        operationId: 'product_enable',
-        summary: 'Enable a product',
-        security: [['bearerAuth' => []]],
-        tags: ['05. Product'],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Product enabled successfully'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
-            new OA\Response(response: 404, description: 'Product not found'),
-        ]
-    )]
+    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 4): #[OA\Patch] cho
+    // PATCH /api/v1/products/{id}/enable ĐÃ GỠ — `php artisan route:list` xác
+    // nhận không route nào trỏ tới enable()/disable() của class này; path thật
+    // do routes/governance.php khai riêng cho
+    // ProductStatusCompatibilityController::enable/disable (permission
+    // sku.manage, không phải product.manage như annotation cũ khai sai). Giữ
+    // nguyên method PHP, chỉ gỡ annotation khai lại route không thuộc về nó.
     public function enable(string $id)
     {
         return $this->setStatus($id, 'ACTIVE', 'Bật sản phẩm thành công');
     }
 
-    #[OA\Patch(
-        path: '/api/v1/products/{id}/disable',
-        operationId: 'product_disable',
-        summary: 'Disable a product',
-        security: [['bearerAuth' => []]],
-        tags: ['05. Product'],
-        parameters: [
-            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        ],
-        responses: [
-            new OA\Response(response: 200, description: 'Product disabled successfully'),
-            new OA\Response(response: 401, description: 'Unauthenticated'),
-            new OA\Response(response: 403, description: 'Missing product.manage permission'),
-            new OA\Response(response: 404, description: 'Product not found'),
-        ]
-    )]
+    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 4): cùng lý do với enable() —
+    // #[OA\Patch] cho PATCH /api/v1/products/{id}/disable ĐÃ GỠ.
     public function disable(string $id)
     {
         return $this->setStatus($id, 'INACTIVE', 'Tắt sản phẩm thành công');

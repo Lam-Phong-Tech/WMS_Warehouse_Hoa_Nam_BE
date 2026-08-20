@@ -6,11 +6,44 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Support\Facades\DB;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineComponentIssueQueryController extends Controller
 {
     use ApiResponse;
 
+    #[OA\Get(
+        path: '/api/v1/component-issue-documents/{id}',
+        operationId: 'component_issue_query_show',
+        summary: 'Chi tiết phiếu xuất linh kiện bảo hành',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'document + lines (kèm items) + stock_effect + movement_created'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.component_issue hoặc ngoài warehouse data scope'),
+            new OA\Response(response: 404, description: 'RESOURCE_NOT_FOUND'),
+        ]
+    )]
+    #[OA\Get(
+        path: '/api/v1/warranty-component-issues/{id}',
+        operationId: 'component_issue_query_show_alias',
+        summary: 'Chi tiết phiếu xuất linh kiện bảo hành (Annex C alias)',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'document + lines (kèm items) + stock_effect + movement_created'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.component_issue hoặc ngoài warehouse data scope'),
+            new OA\Response(response: 404, description: 'RESOURCE_NOT_FOUND'),
+        ]
+    )]
     public function show(string $id)
     {
         $document = DB::table('component_issue_documents')->where('id', $id)->first();

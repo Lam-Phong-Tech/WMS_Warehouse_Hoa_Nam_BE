@@ -2603,31 +2603,8 @@
                     "14. Component Issue"
                 ],
                 "summary": "Danh sách phiếu xuất linh kiện bảo hành",
-                "operationId": "get_api_v1_component__issue__documents",
+                "operationId": "canonical_mvp_list_component_issue_documents",
                 "parameters": [
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 15
-                        }
-                    },
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
                     {
                         "name": "status",
                         "in": "query",
@@ -2650,25 +2627,38 @@
                             "type": "string",
                             "format": "uuid"
                         }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách component_issue_documents",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -2684,7 +2674,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền warranty.component_issue",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2958,34 +2958,25 @@
                     "14. Component Issue"
                 ],
                 "summary": "Chi tiết phiếu xuất linh kiện bảo hành",
-                "operationId": "get_api_v1_component__issue__documents_id",
+                "operationId": "component_issue_query_show",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "document + lines (kèm items) + stock_effect + movement_created",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -3001,7 +2992,7 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền warranty.component_issue hoặc ngoài warehouse data scope",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3011,7 +3002,17 @@
                         }
                     },
                     "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "description": "RESOURCE_NOT_FOUND",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3741,8 +3742,9 @@
                 "tags": [
                     "18. Physical Inventory"
                 ],
-                "summary": "Tạo container mới (CARTON/BOX/TRAY)",
-                "operationId": "container_create",
+                "summary": "Tạo container (vỏ chứa) rỗng — KHÔNG phải đường tạo putaway",
+                "description": "POST /containers — tạo vỏ chứa rỗng. KHÔNG phải đường tạo putaway.\n\nWWHN-193 (DEV193-P1-05R): trước đây endpoint này nhận `parent_container_id` rồi\nINSERT thẳng một `putaway_events` status = CONFIRMED (không DRAFT, không If-Match,\nkhông eligibility BOX, không PUTAWAY_DRAFT_EXISTS guard, không kiểm Posted Receipt),\nđồng thời nhận cả `status` vòng đời như STORED/RECEIVED_PENDING_PUTAWAY. Đó là một\nđường vòng đầy đủ qua mọi guard của POST /putaway-tasks + confirm. PATCH đã chặn từ\ntrước; POST thì chưa. Nay cả hai method đều bắt buộc đi qua luồng canonical.",
+                "operationId": "container_flow_store",
                 "parameters": [],
                 "requestBody": {
                     "required": true,
@@ -3751,14 +3753,12 @@
                             "schema": {
                                 "required": [
                                     "container_code",
-                                    "container_type",
-                                    "physical_code_id",
-                                    "status"
+                                    "container_type"
                                 ],
                                 "properties": {
                                     "container_code": {
                                         "type": "string",
-                                        "maxLength": 100
+                                        "maxLength": 120
                                     },
                                     "container_type": {
                                         "type": "string",
@@ -3768,17 +3768,8 @@
                                             "TRAY"
                                         ]
                                     },
-                                    "physical_code_id": {
-                                        "type": "string",
-                                        "format": "uuid"
-                                    },
                                     "primary_sku_id": {
-                                        "description": "Bắt buộc với CARTON/BOX",
-                                        "type": "string",
-                                        "format": "uuid",
-                                        "nullable": true
-                                    },
-                                    "parent_container_id": {
+                                        "description": "Bắt buộc nếu container_type là CARTON hoặc BOX",
                                         "type": "string",
                                         "format": "uuid",
                                         "nullable": true
@@ -3791,10 +3782,26 @@
                                     "location_hint": {
                                         "type": "string",
                                         "nullable": true,
-                                        "maxLength": 255
+                                        "maxLength": 200
                                     },
                                     "status": {
-                                        "type": "string"
+                                        "description": "Chỉ EMPTY được khai lúc tạo; các trạng thái vòng đời khác do luồng nghiệp vụ đặt",
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "EMPTY"
+                                        ]
+                                    },
+                                    "migration_run_id": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
+                                    },
+                                    "physical_code_id": {
+                                        "description": "Physical code phải đang ACTIVE và chưa gán target khác",
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -3804,7 +3811,7 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Tạo container thành công",
+                        "description": "Container created; stock_effect=NONE",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3833,8 +3840,18 @@
                             }
                         }
                     },
+                    "409": {
+                        "description": "PHYSICAL_CODE_ALREADY_ASSIGNED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
                     "422": {
-                        "description": "Dữ liệu không hợp lệ (vd: CARTON/BOX thiếu primary_sku_id)",
+                        "description": "PRIMARY_SKU_REQUIRED, PHYSICAL_CODE_NOT_ACTIVE, CONTAINER_STATUS_NOT_CREATABLE hoặc PUTAWAY_MUST_USE_TASK_FLOW nếu gửi parent_container_id",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3865,16 +3882,6 @@
                     },
                     "404": {
                         "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4051,8 +4058,8 @@
                 "tags": [
                     "18. Physical Inventory"
                 ],
-                "summary": "Sửa container (optimistic locking qua version)",
-                "operationId": "container_update",
+                "summary": "Cập nhật container (bắt buộc If-Match)",
+                "operationId": "container_flow_update",
                 "parameters": [
                     {
                         "name": "id",
@@ -4066,7 +4073,7 @@
                     {
                         "name": "If-Match",
                         "in": "header",
-                        "description": "Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                        "description": "Optimistic locking theo version. Thiếu: 428. Sai version: 412.",
                         "required": true,
                         "schema": {
                             "type": "integer",
@@ -4075,25 +4082,14 @@
                     }
                 ],
                 "requestBody": {
+                    "required": false,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "properties": {
                                     "container_code": {
                                         "type": "string",
-                                        "maxLength": 100
-                                    },
-                                    "container_type": {
-                                        "type": "string",
-                                        "enum": [
-                                            "CARTON",
-                                            "BOX",
-                                            "TRAY"
-                                        ]
-                                    },
-                                    "physical_code_id": {
-                                        "type": "string",
-                                        "format": "uuid"
+                                        "maxLength": 120
                                     },
                                     "primary_sku_id": {
                                         "type": "string",
@@ -4101,6 +4097,7 @@
                                         "nullable": true
                                     },
                                     "parent_container_id": {
+                                        "description": "KHÔNG được đổi qua endpoint này — đổi placement BOX->TRAY phải dùng POST /putaway-tasks + confirm",
                                         "type": "string",
                                         "format": "uuid",
                                         "nullable": true
@@ -4113,15 +4110,21 @@
                                     "location_hint": {
                                         "type": "string",
                                         "nullable": true,
-                                        "maxLength": 255
+                                        "maxLength": 200
                                     },
                                     "status": {
-                                        "type": "string"
-                                    },
-                                    "version": {
-                                        "description": "Optimistic locking",
-                                        "type": "integer",
-                                        "nullable": true
+                                        "description": "RECEIVED_PENDING_PUTAWAY/STORED/ISSUED chỉ được đặt bởi luồng nghiệp vụ sở hữu sự kiện tương ứng, không set qua PATCH",
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "EMPTY",
+                                            "IN_STOCK",
+                                            "PARTIAL",
+                                            "ISSUED",
+                                            "RECEIVED_PENDING_PUTAWAY",
+                                            "STORED",
+                                            "CLOSED"
+                                        ]
                                     }
                                 },
                                 "type": "object"
@@ -4131,7 +4134,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Cập nhật thành công",
+                        "description": "Container updated; stock_effect=NONE",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4171,7 +4174,17 @@
                         }
                     },
                     "409": {
-                        "description": "version không khớp — dữ liệu đã bị thay đổi bởi thao tác khác",
+                        "description": "CONTAINER_CLOSED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "STALE_VERSION",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4181,7 +4194,17 @@
                         }
                     },
                     "422": {
-                        "description": "Dữ liệu không hợp lệ",
+                        "description": "PUTAWAY_MUST_USE_TASK_FLOW hoặc CONTAINER_STATUS_LIFECYCLE_MANAGED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu header If-Match",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4192,26 +4215,6 @@
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "412": {
-                        "description": "Điều kiện If-Match không đạt",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "428": {
-                        "description": "Thiếu điều kiện If-Match bắt buộc",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4243,8 +4246,8 @@
                 "tags": [
                     "18. Physical Inventory"
                 ],
-                "summary": "Gán item (serial) hoặc sku+quantity vào container",
-                "operationId": "container_add_item",
+                "summary": "Thêm hàng vào container (bắt buộc If-Match)",
+                "operationId": "container_flow_add_item",
                 "parameters": [
                     {
                         "name": "id",
@@ -4258,7 +4261,7 @@
                     {
                         "name": "If-Match",
                         "in": "header",
-                        "description": "Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                        "description": "Optimistic locking theo version. Thiếu: 428. Sai version: 412.",
                         "required": true,
                         "schema": {
                             "type": "integer",
@@ -4271,22 +4274,37 @@
                     "content": {
                         "application/json": {
                             "schema": {
+                                "description": "Chọn ĐÚNG MỘT trong hai chế độ: item_id (từng item) hoặc sku_id+quantity (theo số lượng)",
                                 "properties": {
                                     "item_id": {
-                                        "description": "XOR với sku_id — dùng cho hàng có serial",
                                         "type": "string",
                                         "format": "uuid",
                                         "nullable": true
                                     },
                                     "sku_id": {
-                                        "description": "XOR với item_id — dùng cho hàng theo số lượng",
                                         "type": "string",
                                         "format": "uuid",
                                         "nullable": true
                                     },
                                     "quantity": {
-                                        "description": "Bắt buộc khi dùng sku_id",
-                                        "type": "number",
+                                        "description": "Bắt buộc khi dùng sku_id-mode",
+                                        "type": "integer",
+                                        "nullable": true,
+                                        "minimum": 1
+                                    },
+                                    "source_type": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "RECEIPT",
+                                            "PUTAWAY",
+                                            "MIGRATION",
+                                            "CORRECTION"
+                                        ]
+                                    },
+                                    "source_id": {
+                                        "type": "string",
+                                        "format": "uuid",
                                         "nullable": true
                                     }
                                 },
@@ -4297,7 +4315,7 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Gán item vào container thành công",
+                        "description": "Container content added; stock_effect=NONE",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4336,8 +4354,38 @@
                             }
                         }
                     },
+                    "409": {
+                        "description": "CONTAINER_NOT_EDITABLE hoặc ITEM_ALREADY_IN_CONTAINER",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "STALE_VERSION",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
                     "422": {
-                        "description": "Dữ liệu không hợp lệ (vi phạm XOR item_id/sku_id+quantity)",
+                        "description": "CONTAINER_ITEM_XOR, QUANTITY_REQUIRED, ITEM_NOT_FOUND hoặc CONTAINER_PRIMARY_SKU_MISMATCH",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu header If-Match",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4358,36 +4406,6 @@
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "412": {
-                        "description": "Điều kiện If-Match không đạt",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "428": {
-                        "description": "Thiếu điều kiện If-Match bắt buộc",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4419,8 +4437,8 @@
                 "tags": [
                     "18. Physical Inventory"
                 ],
-                "summary": "Gỡ item khỏi container (đánh dấu REMOVED, không xoá bản ghi)",
-                "operationId": "container_remove_item",
+                "summary": "Xoá hàng khỏi container (bắt buộc If-Match)",
+                "operationId": "container_flow_remove_item",
                 "parameters": [
                     {
                         "name": "id",
@@ -4443,7 +4461,7 @@
                     {
                         "name": "If-Match",
                         "in": "header",
-                        "description": "Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.",
+                        "description": "Optimistic locking theo version. Thiếu: 428. Sai version: 412.",
                         "required": true,
                         "schema": {
                             "type": "integer",
@@ -4451,9 +4469,28 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "reason": {
+                                        "type": "string",
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
-                        "description": "Gỡ item thành công",
+                        "description": "Container content removed; stock_effect=NONE",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4483,7 +4520,37 @@
                         }
                     },
                     "404": {
-                        "description": "Không tìm thấy mapping item trong container",
+                        "description": "Không tìm thấy container hoặc active mapping (CONTAINER_ITEM_NOT_ACTIVE)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "CONTAINER_CLOSED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "STALE_VERSION",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu header If-Match",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4502,38 +4569,8 @@
                             }
                         }
                     },
-                    "409": {
-                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "412": {
-                        "description": "Điều kiện If-Match không đạt",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
                     "422": {
                         "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "428": {
-                        "description": "Thiếu điều kiện If-Match bắt buộc",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5735,23 +5772,15 @@
                 "tags": [
                     "07. Inventory"
                 ],
-                "summary": "Danh sách lịch sử trạng thái chứng từ",
-                "operationId": "get_api_v1_document__status__history",
+                "summary": "Lịch sử chuyển trạng thái chứng từ (inbound/outbound documents)",
+                "operationId": "document_status_history_list",
                 "parameters": [
                     {
-                        "name": "page",
+                        "name": "stock_document_id",
                         "in": "query",
                         "schema": {
-                            "type": "integer",
-                            "default": 1
-                        }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 15
+                            "type": "string",
+                            "format": "uuid"
                         }
                     },
                     {
@@ -5769,17 +5798,25 @@
                         }
                     },
                     {
-                        "name": "stock_document_id",
+                        "name": "page",
                         "in": "query",
                         "schema": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Danh sách lịch sử chuyển trạng thái",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5788,8 +5825,8 @@
                             }
                         }
                     },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
+                    "401": {
+                        "description": "Chưa xác thực",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5798,8 +5835,8 @@
                             }
                         }
                     },
-                    "401": {
-                        "description": "Chưa xác thực",
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -8772,26 +8809,89 @@
                 "tags": [
                     "07. Inventory"
                 ],
-                "summary": "Tồn kho hiện tại (Annex C)",
-                "operationId": "get_api_v1_inventory",
-                "parameters": [],
+                "summary": "Annex C queryInventory — tồn kho theo SKU/stock_status kèm đối soát ledger authoritative",
+                "operationId": "inventory_balance_list",
+                "parameters": [
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "sku_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "query",
+                        "description": "Alias của sku_id",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "sku_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "PRODUCT",
+                                "COMPONENT"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "stock_status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "AVAILABLE",
+                                "NON_SELLABLE",
+                                "DEFECTIVE",
+                                "QUARANTINE"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "InventorySummaryPage: on_hand/available + reconciliation_status + subledger counts + container hint",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -8807,7 +8907,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền inventory.view hoặc ngoài warehouse data scope",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -9006,8 +9116,8 @@
                 "tags": [
                     "07. Inventory"
                 ],
-                "summary": "Chi tiết subledger item và container của một số dư tồn",
-                "operationId": "flow06_inventory_balance_subledger",
+                "summary": "Subledger drill-down: item_instances + container_items cho một balance",
+                "operationId": "inventory_balance_subledger",
                 "parameters": [
                     {
                         "name": "id",
@@ -9021,11 +9131,21 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Subledger tồn kho",
+                        "description": "Item/Container subledger lists",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Balance not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -9052,16 +9172,6 @@
                     },
                     "403": {
                         "description": "Không có quyền truy cập",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -10179,8 +10289,22 @@
                     "19. Label / Printer"
                 ],
                 "summary": "Danh sách snapshot nhãn",
-                "operationId": "get_api_v1_label__snapshots",
+                "operationId": "canonical_mvp_list_label_snapshots",
                 "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
                     {
                         "name": "page",
                         "in": "query",
@@ -10196,39 +10320,15 @@
                             "type": "integer",
                             "default": 15
                         }
-                    },
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách label_snapshots",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -10244,7 +10344,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền label.print",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -11065,9 +11175,24 @@
                 "tags": [
                     "10. Stock Out (Outbound)"
                 ],
-                "summary": "Danh sách phiếu xuất",
-                "operationId": "get_api_v1_outbound__documents",
+                "summary": "Danh sách phiếu xuất kèm tiến độ matching/packing label",
+                "operationId": "aligned_outbound_document_index",
                 "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "description": "Khớp doc_no/note",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
                     {
                         "name": "page",
                         "in": "query",
@@ -11083,39 +11208,15 @@
                             "type": "integer",
                             "default": 15
                         }
-                    },
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách phiếu xuất, mỗi item kèm required_total/matched_count/label_printed_count/packing_label_count/packing_label_applied_count/rfid_mapped_count",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -11131,7 +11232,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền outbound.view hoặc ngoài warehouse data scope",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -14577,34 +14688,25 @@
                     "10. Stock Out (Outbound)"
                 ],
                 "summary": "Danh sách lỗi row/field của import yêu cầu xuất",
-                "operationId": "get_api_v1_outbound__request__imports_id_errors",
+                "operationId": "import_read_errors",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "import_id + status + error_count + errors (row/field/error_code/message)",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -14620,7 +14722,7 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền outbound.request.import hoặc outbound.import",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -14630,7 +14732,17 @@
                         }
                     },
                     "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "description": "Import not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -14703,34 +14815,25 @@
                     "10. Stock Out (Outbound)"
                 ],
                 "summary": "Preview kết quả validate import yêu cầu xuất",
-                "operationId": "get_api_v1_outbound__request__imports_id_preview",
+                "operationId": "import_read_preview",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "import + rows (row_no/status/normalized/errors) + can_consume",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -14746,7 +14849,7 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền outbound.request.import hoặc outbound.import",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -14756,7 +14859,17 @@
                         }
                     },
                     "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "description": "Import not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -14828,8 +14941,9 @@
                 "tags": [
                     "10. Stock Out (Outbound)"
                 ],
-                "summary": "Danh sách toa yêu cầu xuất",
-                "operationId": "get_api_v1_outbound__requests",
+                "summary": "Danh sách toa yêu cầu xuất (phân trang, filter status/keyword)",
+                "description": "Read API cho toa yêu cầu xuất (outbound_requests) theo ERD bảng 37/38.\n\nToa được tạo duy nhất qua flow consume Excel/nhập tay (BP-WMS-04); controller\nnày chỉ phục vụ tra cứu/đối soát toa (báo cáo \"Đối soát toa\" mục 12) — không\ncó write endpoint để giữ nguyên nguồn tạo toa duy nhất.",
+                "operationId": "outbound_request_list",
                 "parameters": [
                     {
                         "name": "page",
@@ -14858,27 +14972,22 @@
                         "name": "status",
                         "in": "query",
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "enum": [
+                                "OPEN",
+                                "CONSUMED",
+                                "CANCELLED"
+                            ]
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Danh sách toa yêu cầu xuất",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -14894,7 +15003,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền outbound.view",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -14976,35 +15095,26 @@
                 "tags": [
                     "10. Stock Out (Outbound)"
                 ],
-                "summary": "Chi tiết toa yêu cầu xuất",
-                "operationId": "get_api_v1_outbound__requests_id",
+                "summary": "Chi tiết toa yêu cầu xuất kèm lines và outbound documents liên kết",
+                "operationId": "outbound_request_detail",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Chi tiết toa yêu cầu xuất",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -15019,8 +15129,8 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "Không có quyền truy cập",
+                    "404": {
+                        "description": "Không tìm thấy toa",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -15029,8 +15139,18 @@
                             }
                         }
                     },
-                    "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -16980,8 +17100,22 @@
                     "19. Label / Printer"
                 ],
                 "summary": "Danh sách cấu hình máy in",
-                "operationId": "get_api_v1_printer__configs",
+                "operationId": "canonical_mvp_list_printer_configs",
                 "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
                     {
                         "name": "page",
                         "in": "query",
@@ -16997,39 +17131,15 @@
                             "type": "integer",
                             "default": 15
                         }
-                    },
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách printer_configs",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -17045,7 +17155,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền label.print",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -19823,8 +19943,8 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "Disable a product",
-                "operationId": "product_disable",
+                "summary": "Ngừng kích hoạt SKU",
+                "operationId": "product_status_compat_disable",
                 "parameters": [
                     {
                         "name": "id",
@@ -19850,7 +19970,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Product disabled successfully",
+                        "description": "SKU cập nhật status=INACTIVE",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -19860,7 +19980,7 @@
                         }
                     },
                     "401": {
-                        "description": "Unauthenticated",
+                        "description": "Chưa xác thực",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -19870,7 +19990,7 @@
                         }
                     },
                     "403": {
-                        "description": "Missing product.manage permission",
+                        "description": "Không có quyền sku.manage",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -19880,7 +20000,7 @@
                         }
                     },
                     "404": {
-                        "description": "Product not found",
+                        "description": "Không tìm thấy SKU",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -19962,8 +20082,8 @@
                 "tags": [
                     "05. Product"
                 ],
-                "summary": "Enable a product",
-                "operationId": "product_enable",
+                "summary": "Kích hoạt SKU",
+                "operationId": "product_status_compat_enable",
                 "parameters": [
                     {
                         "name": "id",
@@ -19989,7 +20109,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Product enabled successfully",
+                        "description": "SKU cập nhật status=ACTIVE",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -19999,7 +20119,7 @@
                         }
                     },
                     "401": {
-                        "description": "Unauthenticated",
+                        "description": "Chưa xác thực",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -20009,7 +20129,7 @@
                         }
                     },
                     "403": {
-                        "description": "Missing product.manage permission",
+                        "description": "Không có quyền sku.manage",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -20019,7 +20139,7 @@
                         }
                     },
                     "404": {
-                        "description": "Product not found",
+                        "description": "Không tìm thấy SKU",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -22696,15 +22816,49 @@
                     "21. Public Catalog"
                 ],
                 "summary": "Danh sách tag PV",
-                "operationId": "get_api_v1_pv_tags",
-                "parameters": [],
+                "operationId": "canonical_mvp_pv_tags",
+                "parameters": [
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 50
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách pv_filter_tag đang ACTIVE",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Vượt rate limit pv-public",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -34535,31 +34689,8 @@
                     "13. Warranty"
                 ],
                 "summary": "Danh sách hồ sơ bảo hành",
-                "operationId": "get_api_v1_warranty__cases",
+                "operationId": "canonical_mvp_list_warranty_cases",
                 "parameters": [
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 1
-                        }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "schema": {
-                            "type": "integer",
-                            "default": 15
-                        }
-                    },
-                    {
-                        "name": "keyword",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
                     {
                         "name": "status",
                         "in": "query",
@@ -34585,25 +34716,39 @@
                             "type": "string",
                             "format": "uuid"
                         }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "description": "Khớp customer_name/customer_phone/customer_address (mask nếu thiếu quyền warranty.pii.view) hoặc serial/mã vật lý của item gắn case",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách warranty_case; mỗi item kèm cờ pii_masked (§13.8)",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -34619,7 +34764,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền warranty.view hoặc warranty.manage",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -35577,34 +35732,49 @@
                     "13. Warranty"
                 ],
                 "summary": "Lịch sử sự kiện của hồ sơ bảo hành",
-                "operationId": "get_api_v1_warranty__cases_id_events",
+                "operationId": "canonical_mvp_list_warranty_events",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "description": "Khớp event_type/from_status/to_status/note",
+                        "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách warranty_event của hồ sơ, sắp xếp event_at giảm dần",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -35620,7 +35790,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền warranty.view hoặc warranty.manage",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -36115,25 +36295,62 @@
                     "14. Component Issue"
                 ],
                 "summary": "Danh sách phiếu xuất linh kiện bảo hành (Annex C)",
-                "operationId": "get_api_v1_warranty__component__issues",
-                "parameters": [],
+                "operationId": "canonical_mvp_list_warranty_component_issues",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "warranty_case_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "Trang danh sách component_issue_documents (Annex C alias)",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -36149,7 +36366,17 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền warranty.component_issue",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -36358,35 +36585,26 @@
                 "tags": [
                     "14. Component Issue"
                 ],
-                "summary": "Chi tiết phiếu xuất linh kiện bảo hành (Annex C)",
-                "operationId": "get_api_v1_warranty__component__issues_id",
+                "summary": "Chi tiết phiếu xuất linh kiện bảo hành (Annex C alias)",
+                "operationId": "component_issue_query_show_alias",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công",
+                        "description": "document + lines (kèm items) + stock_effect + movement_created",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -36402,7 +36620,7 @@
                         }
                     },
                     "403": {
-                        "description": "Không có quyền truy cập",
+                        "description": "Không có quyền warranty.component_issue hoặc ngoài warehouse data scope",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -36412,7 +36630,17 @@
                         }
                     },
                     "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "description": "RESOURCE_NOT_FOUND",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
                         "content": {
                             "application/json": {
                                 "schema": {

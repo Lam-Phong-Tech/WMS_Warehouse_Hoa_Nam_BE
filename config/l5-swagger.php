@@ -149,6 +149,29 @@ return [
                     // storage/api-docs/api-docs.json để đối chiếu x-permission nên KHÔNG
                     // được bỏ dòng dưới.
                     base_path('Modules/Warehouse/app/Http/Controllers/ScanController.php'),
+                    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 3): cùng lỗi lớp
+                    // với toàn bộ các mục trên — 3 controller dưới đây có annotation
+                    // #[OA\...] thật (query parameter/response schema) trên chính
+                    // controller nhưng chưa từng nằm trong danh sách scan, nên
+                    // RouteSyncProcessor tự sinh skeleton generic (operationId
+                    // "get_api_v1_inventory", parameters: []) thay vì contract thật.
+                    // KHÔNG được bỏ 3 dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/InventoryBalanceController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/OutboundRequestController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/DocumentStatusHistoryController.php'),
+                    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 4): 6 controller dưới
+                    // đây trước đó KHÔNG có annotation #[OA\...] nào (khác lớp lỗi ở trên —
+                    // đây là annotation mới viết, không phải annotation có sẵn bị bỏ sót),
+                    // nên mọi route của chúng publish dạng skeleton generic hoàn toàn.
+                    // CurrentBaselineContainerFlowController đặc biệt quan trọng: các
+                    // endpoint container này nằm trong ma trận 58 endpoint bắt buộc
+                    // If-Match. KHÔNG được bỏ các dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/AlignedOutboundDocumentController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CanonicalMvpController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentIssueQueryController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportReadController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/ProductStatusCompatibilityController.php'),
                 ],
             ],
         ],
