@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Modules\AuditLog\Services\DenyAuditRecorder;
 use Modules\Auth\Models\User;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -174,6 +175,10 @@ class EnforceInventoryWarehouseScope
 
     private function forbidden(Request $request, string $message): JsonResponse
     {
+        // WWHN-165 / QA1-AUD-002: denied action audit (best-effort, ADR-AUDIT-002).
+        // Error code của guard này là ACCESS_DENIED (WWHN-211) — giữ nguyên vocabulary.
+        DenyAuditRecorder::dataScopeDenied($request, $message, errorCode: 'ACCESS_DENIED');
+
         $requestId = $request->attributes->get('request_id');
 
         return response()->json([

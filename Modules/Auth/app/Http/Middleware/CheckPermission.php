@@ -5,6 +5,7 @@ namespace Modules\Auth\Http\Middleware;
 use App\Support\ApiError;
 use Closure;
 use Illuminate\Http\Request;
+use Modules\AuditLog\Services\DenyAuditRecorder;
 use Modules\Auth\Models\User;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -47,6 +48,9 @@ class CheckPermission
         }
 
         if (! $granted) {
+            // WWHN-165 / QA1-AUD-002: denied action phải có audit result='DENIED'.
+            // Best-effort theo ADR-AUDIT-002 — lỗi ghi audit không đổi response 403.
+            DenyAuditRecorder::permissionDenied($request, $permission, (string) $user->user_id);
             ApiError::abort(403, 'ACCESS_DENIED', 'Bạn không có quyền thực hiện thao tác này.');
         }
 

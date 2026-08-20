@@ -227,7 +227,12 @@ class ApiConventionMiddleware
                         $newBody['data'] = $data['data'];
                     }
 
-                    if (config('app.debug')) {
+                    // WWHN-165: "no-stack-trace" phải fail-closed theo môi trường,
+                    // không chỉ theo cờ debug. Trước đây chỉ cần APP_DEBUG=true (kể
+                    // cả bật nhầm trên testing/staging/production) là exception/file/
+                    // line/trace bị gắn lại vào envelope. Nay debug payload chỉ tồn
+                    // tại khi debug bật VÀ môi trường là local/development.
+                    if (config('app.debug') && app()->environment(['local', 'development'])) {
                         if (isset($data['exception'])) {
                             $newBody['exception'] = $data['exception'];
                         }

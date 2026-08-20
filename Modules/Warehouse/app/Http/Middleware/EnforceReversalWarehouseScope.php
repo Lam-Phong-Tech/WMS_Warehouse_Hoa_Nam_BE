@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Modules\AuditLog\Services\DenyAuditRecorder;
 use Modules\Auth\Models\User;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -158,6 +159,9 @@ class EnforceReversalWarehouseScope
 
     private function denied(Request $request, string $message): JsonResponse
     {
+        // WWHN-165 / QA1-AUD-002: denied action audit (best-effort, ADR-AUDIT-002).
+        DenyAuditRecorder::dataScopeDenied($request, $message);
+
         $requestId = $request->attributes->get('request_id');
 
         return response()->json([

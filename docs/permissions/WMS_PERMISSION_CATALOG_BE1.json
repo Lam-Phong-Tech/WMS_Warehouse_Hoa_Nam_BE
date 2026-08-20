@@ -1,6 +1,6 @@
 {
     "schema_version": "1.2.0",
-    "generated_at_utc": "2026-08-19T07:40:22+00:00",
+    "generated_at_utc": "2026-08-20T02:55:25+00:00",
     "approval_status": "PENDING_FE_BA_REVIEW",
     "source_hashes": {
         "permission_seed": {
@@ -21,7 +21,7 @@
         },
         "permission_middleware": {
             "path": "Modules/Auth/app/Http/Middleware/CheckPermission.php",
-            "sha256": "a5a09613a2956092c1c30ad08211089ddf305911d1a64dd06b595967f31851d5"
+            "sha256": "aa1a0dd68884cbb345dcb53067c62f44e0fbc6d0e9de7730b89e27705f2afdd8"
         },
         "permission_exporter": {
             "path": "app/Console/Commands/ExportPermissionCatalog.php",
