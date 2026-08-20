@@ -1,0 +1,14 @@
+{
+    "success": false,
+    "message": "Khóa Idempotency đã được dùng cho một yêu cầu khác với dữ liệu khác. Vui lòng tạo khóa mới.",
+    "error_code": "IDEMPOTENCY_CONFLICT",
+    "errors": [],
+    "error": {
+        "code": "IDEMPOTENCY_CONFLICT",
+        "details": []
+    },
+    "meta": {
+        "request_id": "5b117046-2143-4da7-a56b-6176db597116",
+        "timestamp": "2026-08-20T09:45:33+07:00"
+    }
+}

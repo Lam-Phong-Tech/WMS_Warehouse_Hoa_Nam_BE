@@ -1,0 +1,20 @@
+{
+    "success": false,
+    "message": "Document version mismatch.",
+    "error_code": "STALE_VERSION",
+    "errors": {
+        "expected_version": 999,
+        "current_version": 2
+    },
+    "error": {
+        "code": "STALE_VERSION",
+        "details": {
+            "expected_version": 999,
+            "current_version": 2
+        }
+    },
+    "meta": {
+        "request_id": "3b0f27a8-c14a-4193-9b63-277c6902bc10",
+        "timestamp": "2026-08-20T09:45:33+07:00"
+    }
+}

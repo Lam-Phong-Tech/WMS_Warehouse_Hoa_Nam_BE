@@ -1,0 +1,14 @@
+{
+    "success": false,
+    "message": "Chưa xác thực",
+    "error_code": "UNAUTHENTICATED",
+    "errors": [],
+    "error": {
+        "code": "UNAUTHENTICATED",
+        "details": []
+    },
+    "meta": {
+        "request_id": "d519bea0-6053-4caa-a6c4-233060d53bba",
+        "timestamp": "2026-08-20T09:45:32+07:00"
+    }
+}

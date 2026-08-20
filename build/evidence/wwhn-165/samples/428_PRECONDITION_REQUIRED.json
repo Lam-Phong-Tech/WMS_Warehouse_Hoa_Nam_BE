@@ -1,0 +1,14 @@
+{
+    "success": false,
+    "message": "If-Match là bắt buộc cho scan/post/reversal mutation.",
+    "error_code": "PRECONDITION_REQUIRED",
+    "errors": [],
+    "error": {
+        "code": "PRECONDITION_REQUIRED",
+        "details": []
+    },
+    "meta": {
+        "request_id": "a051bc20-b177-432a-a7c5-7be285e3811a",
+        "timestamp": "2026-08-20T09:45:33+07:00"
+    }
+}
