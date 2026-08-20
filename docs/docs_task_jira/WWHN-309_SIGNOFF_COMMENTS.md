@@ -18,9 +18,9 @@
 Tôi xác nhận đã hoàn thành và tự kiểm trên nhánh m1 @ <CANDIDATE_SHA>:
 
 1. Tài liệu bàn giao: HN-BE-ARCH-001 (kiến trúc as-built), HN-BE-API-001 (contract API cho
-   FE/QA), HN-BE-API-002 (247 error code), HN-BE-API-003 (231 operation × 57 permission),
-   HN-BE-API-004 (số liệu contract sinh tự động), HN-BE-OPS-001 (runbook vận hành),
-   README build/run/env, docs/docs_task_jira/WWHN-309.md.
+   FE/QA), HN-BE-API-002 (247 error code [historical] — số hiện tại xem HN-BE-API-004),
+   HN-BE-API-003 (231 operation × 57 permission), HN-BE-API-004 (số liệu contract sinh tự
+   động), HN-BE-OPS-001 (runbook vận hành), README build/run/env, docs/docs_task_jira/WWHN-309.md.
 2. Đóng gốc DEV309-P1-02: số liệu contract không còn là văn xuôi. HN-BE-API-004 sinh từ
    OpenAPI + catalog + ma trận; cổng tổng đối chiếu MỌI con số trong tài liệu bàn giao với
    artifact đó, dòng mô tả trạng thái cũ phải đánh dấu [historical]. Lệch 2267/2268 không
@@ -38,9 +38,7 @@ Tôi xác nhận đã hoàn thành và tự kiểm trên nhánh m1 @ <CANDIDATE_
    DEC-API-IFMATCH-001. Lý do: nó không gắn vào route nào nhưng là nguồn DUY NHẤT của hai
    error code RESOURCE_ID_REQUIRED và VERSION_CONTRACT_MISSING đang publish cho FE/QA —
    contract quảng cáo hai mã không đường chạy nào trả về. Catalog giảm đúng 2 mã ma.
-6. OpenAPI: 183 path / 231 operation, phủ 100% route /api/v1; 2315/2315 response có schema
-   envelope; 27 operation khai Idempotency-Key (23 bắt buộc, 4 tuỳ chọn), 58 operation khai
-   If-Match — sinh tự động từ source nên không lệch runtime.
+6. [historical] (số hiện tại xem HN-BE-API-004) — OpenAPI: 183 path / 231 operation, phủ 100% route /api/v1; 2315/2315 response có schema envelope, 27 operation khai Idempotency-Key (23 bắt buộc, 4 tuỳ chọn), 58 operation khai If-Match — sinh tự động từ source nên không lệch runtime.
 7. Bất biến MVP giữ nguyên: không stocktake/sửa tồn trực tiếp, full-post, correction qua
    reversal, RFID optional, scan stock-neutral.
 8. Biên nhận contract phía FE (cùng người, KHÔNG tính là sign-off độc lập):
@@ -124,8 +122,9 @@ Không có blocker kỹ thuật thuộc Tech Lead đối với WWHN-309.
 Tôi xác nhận đã review tài liệu và evidence bàn giao tại m1 @ <CANDIDATE_SHA>, đủ điều kiện
 để QA kiểm thử độc lập:
 
-1. Catalog 247 error code + ma trận 231 operation × 57 permission đủ chi tiết để viết case
-   âm/dương; endpoint public đúng 9 và được allowlist tường minh.
+1. Catalog 247 error code [historical] — số hiện tại xem HN-BE-API-004 + ma trận 231
+   operation × 57 permission đủ chi tiết để viết case âm/dương; endpoint public đúng 9 và
+   được allowlist tường minh.
 2. Quy tắc kiểm thử đồng thời rõ ràng: If-Match sai version → 412, thiếu header bắt buộc →
    428, Idempotency-Key trùng payload → replay / khác payload → 409.
 3. Runbook vận hành HN-BE-OPS-001 đủ để dựng và kiểm tra môi trường: health check, 4 job nền

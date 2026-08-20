@@ -108,8 +108,8 @@ Bảng đầy đủ endpoint → permission: `HN-BE-API-003_ENDPOINT_PERMISSION_
 
 | Header | Khi nào | Hành vi |
 | --- | --- | --- |
-| `Authorization: Bearer <jwt>` | Mọi endpoint trừ 7 endpoint public | Thiếu/hết hạn → 401 `UNAUTHENTICATED` |
-| `Idempotency-Key` | 27 operation (23 bắt buộc, 4 tuỳ chọn) | Chuỗi 8–100 ký tự. Thiếu ở endpoint bắt buộc → 428. Cùng key + cùng payload → trả lại kết quả lần đầu. Cùng key + payload khác → 409 |
+| `Authorization: Bearer <jwt>` | Mọi endpoint trừ 9 endpoint public | Thiếu/hết hạn → 401 `UNAUTHENTICATED` |
+| `Idempotency-Key` | 33 operation (23 bắt buộc, 10 tuỳ chọn) | Chuỗi 8–100 ký tự. Thiếu ở endpoint bắt buộc → 428. Cùng key + cùng payload → trả lại kết quả lần đầu. Cùng key + payload khác → 409 |
 | `If-Match` | xem HN-BE-API-004 | Số nguyên = `version` hiện tại. Sai → 412 `STALE_VERSION`. Thiếu ở endpoint bắt buộc → 428 `PRECONDITION_REQUIRED` |
 | `Accept: application/json` | Nên luôn gửi | Bảo đảm handler lỗi trả JSON |
 

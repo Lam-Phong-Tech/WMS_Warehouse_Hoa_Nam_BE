@@ -57,6 +57,40 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         'CANCELLED' => 'CANCEL',
     ];
 
+    #[OA\Post(
+        path: '/api/v1/warranty-cases',
+        operationId: 'createWarrantyCase',
+        summary: 'Tiếp nhận hồ sơ bảo hành mới (RECEIVED, stock_effect=NONE)',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['customer_name', 'customer_phone', 'description'],
+                properties: [
+                    new OA\Property(property: 'warranty_case_code', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để hệ thống tự sinh mã phiếu.'),
+                    new OA\Property(property: 'case_no', type: 'string', maxLength: 80, nullable: true, description: 'Alias của warranty_case_code.'),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, description: 'Item đã xuất cho khách; thiếu item thì case ở nhánh TEMP_ONLY.'),
+                    new OA\Property(property: 'item_code', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'defect_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, description: 'PII — mask theo quyền warranty.pii.view khi đọc lại.'),
+                    new OA\Property(property: 'customer_phone', type: 'string', maxLength: 30),
+                    new OA\Property(property: 'customer_address', type: 'string', maxLength: 500, nullable: true),
+                    new OA\Property(property: 'purchase_date', type: 'string', format: 'date', nullable: true, description: 'Không được sau ngày hiện tại.'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000),
+                    new OA\Property(property: 'reported_defect', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'accessories_received', type: 'string', maxLength: 1000, nullable: true),
+                    new OA\Property(property: 'received_condition', type: 'string', maxLength: 500, nullable: true),
+                    new OA\Property(property: 'missing_code_reason', type: 'string', maxLength: 500, nullable: true, description: 'Bắt buộc cùng manual_product_description khi không resolve được item (TEMP_ONLY).'),
+                    new OA\Property(property: 'manual_product_description', type: 'string', maxLength: 2000, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Case bảo hành đã tiếp nhận (RECEIVED); ETag = version; stock_effect=NONE.'),
+        ]
+    )]
     public function storeWarrantyCase(Request $request)
     {
         // Annex C createWarrantyCase: cột Idempotency/If-Match = "-" và §8.1 nhóm
@@ -245,6 +279,31 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             new OA\Property(property: 'customer_phone', type: 'string', maxLength: 30, example: '0901234567', description: 'PII — cần warranty.pii.view.'),
             new OA\Property(property: 'customer_address', type: 'string', maxLength: 500, description: 'PII — cần warranty.pii.view.'),
             new OA\Property(property: 'purchase_date', type: 'string', format: 'date'),
+        ])),
+        responses: [new OA\Response(response: 200, description: 'Case đã cập nhật; ETag = version mới; stock_effect=NONE.')]
+    )]
+    #[OA\Patch(
+        path: '/api/v1/warranty-cases/{id}',
+        operationId: 'updateWarrantyCase',
+        summary: 'Cập nhật / chuyển trạng thái hồ sơ bảo hành (cùng handler với POST /warranty-cases/{id}/status)',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'status', type: 'string', enum: ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'], description: 'Trạng thái đích theo ma trận DEC-WAR-STATE-001; bỏ trống nếu chỉ hiệu chỉnh dữ liệu.'),
+            new OA\Property(property: 'condition_status', type: 'string', maxLength: 30, nullable: true),
+            new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, description: 'Ghi vào warranty_event.note, không ghi đè mô tả tiếp nhận gốc.'),
+            new OA\Property(property: 'confirmed_defect', type: 'string', maxLength: 2000, nullable: true, description: 'Kết quả kiểm tra; bắt buộc khi rời CHECKING.'),
+            new OA\Property(property: 'accessories_received', type: 'string', maxLength: 1000, nullable: true),
+            new OA\Property(property: 'received_condition', type: 'string', maxLength: 500, nullable: true),
+            new OA\Property(property: 'cancel_reason', type: 'string', maxLength: 1000, nullable: true, description: 'Bắt buộc khi CANCELLED.'),
+            new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true),
+            new OA\Property(property: 'defect_code', type: 'string', maxLength: 80, nullable: true),
+            new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, description: 'PII — cần warranty.pii.view.'),
+            new OA\Property(property: 'customer_phone', type: 'string', maxLength: 30, description: 'PII — cần warranty.pii.view.'),
+            new OA\Property(property: 'customer_address', type: 'string', maxLength: 500, nullable: true, description: 'PII — cần warranty.pii.view.'),
+            new OA\Property(property: 'purchase_date', type: 'string', format: 'date', nullable: true, description: 'Không được sau ngày hiện tại.'),
         ])),
         responses: [new OA\Response(response: 200, description: 'Case đã cập nhật; ETag = version mới; stock_effect=NONE.')]
     )]

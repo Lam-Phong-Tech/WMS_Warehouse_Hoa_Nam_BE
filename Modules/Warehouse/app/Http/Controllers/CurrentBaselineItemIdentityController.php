@@ -12,11 +12,40 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineItemIdentityController extends Controller
 {
     use ApiResponse;
 
+    #[OA\Post(
+        path: '/api/v1/skus/{id}/physical-codes',
+        operationId: 'sku_item_physical_code_assign',
+        summary: 'Gán định danh vật lý (physical code) cho item của SKU, stock-neutral',
+        security: [['bearerAuth' => []]],
+        tags: ['21. Physical Code'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['item_id', 'code_value', 'carrier_type'],
+                properties: [
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL']),
+                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 200, nullable: true, description: 'Bắt buộc khi carrier_type=RFID'),
+                    new OA\Property(property: 'encoded_payload_version', type: 'string', maxLength: 30, nullable: true),
+                    new OA\Property(property: 'is_primary', type: 'boolean', nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Gán physical code thành công (stock_effect=NONE)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy SKU ACTIVE'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: item không thuộc SKU, RFID thiếu hardware_uid, code_value/hardware_uid trùng)'),
+        ]
+    )]
     public function assign(Request $request, string $skuId)
     {
         $validated = $request->validate([

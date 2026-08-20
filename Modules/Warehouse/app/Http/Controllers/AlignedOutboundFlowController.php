@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use OpenApi\Attributes as OA;
 
 /**
  * Alignment 2026-08-15:
@@ -28,6 +29,33 @@ class AlignedOutboundFlowController extends Controller
         private readonly CurrentBaselineStockFlowController $legacyFlow,
     ) {}
 
+    #[OA\Post(
+        path: '/api/v1/outbound-documents/{id}/scans',
+        operationId: 'stock_out_scans',
+        summary: 'Quét & match item vào dòng phiếu xuất (stock-neutral; full match tự tạo 01 Packing Label DRAFT)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['line_id'],
+                properties: [
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
+                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.'),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 150, nullable: true),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'MANUAL', 'HARDWARE'], nullable: true, description: 'Nguồn quét khai tường minh (ERD bảng 25); không gửi thì server suy luận và ghi scan_source_origin=INFERRED.'),
+                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ nhận để tương thích client cũ; scan không in nhãn.'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Item matched; kèm scan_source/scan_source_origin, packing_label_ready và label_status; stock_effect=NONE'),
+        ]
+    )]
     public function outboundScan(Request $request, string $id)
     {
         $payload = $this->scanPayload($request);
@@ -96,6 +124,27 @@ class AlignedOutboundFlowController extends Controller
         )->header('ETag', '"'.((int) $result['version']).'"');
     }
 
+    #[OA\Post(
+        path: '/api/v1/outbound-documents/{id}/unmatch',
+        operationId: 'stock_out_unmatch',
+        summary: 'Gỡ item đã match khỏi phiếu xuất trước Post (match ACTIVE → REMOVED, stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['outbound_item_match_id'],
+                properties: [
+                    new OA\Property(property: 'outbound_item_match_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Match REMOVED; scanned_qty giảm tương ứng, nhãn chưa đóng băng bị huỷ; stock_effect=NONE'),
+        ]
+    )]
     public function outboundUnmatch(Request $request, string $id)
     {
         // Nhãn DRAFT/PREVIEWED được sinh tự động khi full match nên phải cho phép
@@ -143,6 +192,26 @@ class AlignedOutboundFlowController extends Controller
      * bước nhãn khi toa nguồn để trống. Payload bất biến nên phải tạo lại nhãn
      * chưa đóng băng thay vì UPDATE (guard hn_erd_lock_label_snapshot_payload).
      */
+    #[OA\Post(
+        path: '/api/v1/label-snapshots',
+        operationId: 'label_snapshot_create',
+        summary: 'Tạo/đảm bảo đúng 01 Packing Label DRAFT cho phiếu xuất đã full match (bổ sung SĐT nếu toa thiếu)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['outbound_document_id'],
+                properties: [
+                    new OA\Property(property: 'outbound_document_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true, description: 'SĐT hiển thị trên nhãn; thiếu thì nhãn render blank, không chặn tạo nhãn.'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã đảm bảo đúng 01 Packing Label bất biến cho phiếu/lô xuất; chưa trừ tồn'),
+        ]
+    )]
     public function storePackingLabel(Request $request)
     {
         // SRS §5.2 + §15 + AC-GWT-OUTBOUND-REQUEST-001: address/phone nullable,

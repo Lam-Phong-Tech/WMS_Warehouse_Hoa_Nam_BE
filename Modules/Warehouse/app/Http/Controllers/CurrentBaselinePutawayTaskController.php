@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 /**
  * Current MVP contract for the initial COMPONENT BOX -> TRAY putaway.
@@ -22,6 +23,31 @@ class CurrentBaselinePutawayTaskController extends Controller
 {
     use ApiResponse;
 
+    #[OA\Post(
+        path: '/api/v1/putaway-tasks',
+        operationId: 'putaway_task_create',
+        summary: 'Tạo tác vụ putaway DRAFT (BOX COMPONENT -> TRAY, stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['24. Putaway'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['box_container_id', 'to_tray_id'],
+                properties: [
+                    new OA\Property(property: 'box_container_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'to_tray_id', type: 'string', format: 'uuid', description: 'Phải khác box_container_id'),
+                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 255, nullable: true),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Đã tạo tác vụ putaway DRAFT (stock_effect=NONE)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 409, description: 'PUTAWAY_DRAFT_EXISTS hoặc BOX_NOT_PUTAWAY_ELIGIBLE (chưa có Posted Receipt / sai trạng thái)'),
+            new OA\Response(response: 422, description: 'BOX_REQUIRED, TRAY_REQUIRED, TRAY_NOT_USABLE, CONTAINER_CYCLE hoặc payload không hợp lệ'),
+        ]
+    )]
     public function store(Request $request)
     {
         $payload = $request->validate([

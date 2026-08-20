@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 /**
  * ERD §47 warranty_attachments: ảnh/tệp private của warranty case.
@@ -44,6 +45,31 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         return $this->respondPaginated($page);
     }
 
+    #[OA\Post(
+        path: '/api/v1/warranty-cases/{id}/attachments',
+        operationId: 'uploadWarrantyAttachment',
+        summary: 'Tải lên tệp đính kèm cho hồ sơ bảo hành (stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(
+                    type: 'object',
+                    required: ['file'],
+                    properties: [
+                        new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Ảnh jpg/jpeg/png/webp, tối đa 10MB (Annex D SCR-WAR-01); tối đa 10 tệp ACTIVE mỗi case.'),
+                        new OA\Property(property: 'attachment_type', type: 'string', enum: ['INTAKE', 'DIAGNOSTIC', 'RETURN', 'OTHER'], nullable: true, description: 'Mặc định INTAKE.'),
+                    ]
+                )
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Tệp đính kèm đã lưu (metadata + scan_result); stock_effect=NONE.'),
+        ]
+    )]
     public function store(Request $request, string $id)
     {
         $case = $this->requireCase($id);

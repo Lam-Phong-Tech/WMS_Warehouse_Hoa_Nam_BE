@@ -232,6 +232,30 @@ class RoleController extends Controller
             new OA\Response(response: 422, description: 'permission_ids không hợp lệ'),
         ]
     )]
+    #[OA\Put(
+        path: '/api/v1/roles/{id}/permissions',
+        operationId: 'role_replace_permissions',
+        summary: 'Thay thế toàn bộ tập permission của role (Annex C replaceRolePermissions)',
+        security: [['bearerAuth' => []]],
+        tags: ['03. Roles'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['permission_ids'],
+                properties: [
+                    new OA\Property(property: 'permission_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid')),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Gán permission thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền role.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy role'),
+            new OA\Response(response: 422, description: 'permission_ids không hợp lệ'),
+        ]
+    )]
     public function assignPermissions(AssignRolePermissionRequest $request, string $id)
     {
         $role = $this->roles->find($id);

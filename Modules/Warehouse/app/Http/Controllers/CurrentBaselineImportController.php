@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\MasterSelectionGuard;
+use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -71,6 +72,60 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
         );
     }
 
+    #[OA\Post(
+        path: '/api/v1/outbound-request-imports',
+        operationId: 'createOutboundRequestImport',
+        summary: 'Upload/validate toa yêu cầu xuất (Excel hoặc rows chuẩn hoá)',
+        description: 'Nhận đúng một trong hai: file Excel (multipart/form-data) hoặc mảng rows (application/json). '
+            .'Duplicate checksum/source_key được replay, không tạo import trùng.',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: [
+                new OA\MediaType(
+                    mediaType: 'multipart/form-data',
+                    schema: new OA\Schema(
+                        type: 'object',
+                        required: ['file'],
+                        properties: [
+                            new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Excel .xlsx/.xls, tối đa 20MB; bắt buộc khi không gửi rows.'),
+                        ]
+                    )
+                ),
+                new OA\MediaType(
+                    mediaType: 'application/json',
+                    schema: new OA\Schema(
+                        type: 'object',
+                        required: ['rows'],
+                        properties: [
+                            new OA\Property(property: 'rows', type: 'array', minItems: 1, maxItems: 10000, description: 'Bắt buộc khi không upload file.', items: new OA\Items(
+                                required: ['request_no', 'required_qty'],
+                                properties: [
+                                    new OA\Property(property: 'request_no', type: 'string', maxLength: 80),
+                                    new OA\Property(property: 'request_date', type: 'string', maxLength: 20, nullable: true),
+                                    new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
+                                    new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, nullable: true),
+                                    new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true),
+                                    new OA\Property(property: 'customer_address', type: 'string', maxLength: 1000, nullable: true),
+                                    new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true),
+                                    new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true),
+                                    new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true),
+                                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
+                                    new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
+                                    new OA\Property(property: 'required_qty', type: 'integer', minimum: 1),
+                                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                                ]
+                            )),
+                        ]
+                    )
+                ),
+            ]
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Import đã validate (VALIDATED/REJECTED) hoặc replay theo checksum/source_key.'),
+        ]
+    )]
     public function storeOutboundRequestImport(Request $request)
     {
         $sourceKey = trim((string) ($request->input('source_key') ?? $request->header('X-Source-Key')));
@@ -177,6 +232,47 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
      * SCR-REQ-OUT-01 vì thế cho phép map lại SKU/số lượng ngay ở bước review thay vì
      * bắt người dùng upload lại file.
      */
+    #[OA\Post(
+        path: '/api/v1/outbound-request-imports/{id}/confirm',
+        operationId: 'confirmOutboundRequestImport',
+        summary: 'Xác nhận (consume) import toa yêu cầu xuất — sinh toa CONSUMED + phiếu xuất DRAFT',
+        description: '§8.1 ConfirmRequest: cho phép map lại SKU/số lượng từng source line và override người nhận '
+            .'ngay ở bước review; mọi field đều optional để Confirm "sạch" vẫn hoạt động. '
+            .'Import còn row lỗi chưa resolve trả 409 IMPORT_HAS_BLOCKING_ERRORS.',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'lines', type: 'array', maxItems: 10000, nullable: true, description: 'Mapping lại từng source line theo row_no.', items: new OA\Items(
+                    required: ['row_no'],
+                    properties: [
+                        new OA\Property(property: 'row_no', type: 'integer', minimum: 1),
+                        new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
+                        new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true),
+                        new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, nullable: true),
+                    ]
+                )),
+                new OA\Property(property: 'receiver_name', type: 'string', maxLength: 200, nullable: true, description: 'Override người nhận áp cho mọi request_no không có override riêng.'),
+                new OA\Property(property: 'receiver_address', type: 'string', maxLength: 1000, nullable: true),
+                new OA\Property(property: 'receiver_contact_phone', type: 'string', maxLength: 50, nullable: true),
+                new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true, description: 'Định dạng Y-m-d.'),
+                new OA\Property(property: 'requests', type: 'array', maxItems: 500, nullable: true, description: 'Override người nhận theo từng request_no.', items: new OA\Items(
+                    required: ['request_no'],
+                    properties: [
+                        new OA\Property(property: 'request_no', type: 'string', maxLength: 80),
+                        new OA\Property(property: 'receiver_name', type: 'string', maxLength: 200, nullable: true),
+                        new OA\Property(property: 'receiver_address', type: 'string', maxLength: 1000, nullable: true),
+                        new OA\Property(property: 'receiver_contact_phone', type: 'string', maxLength: 50, nullable: true),
+                        new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true),
+                    ]
+                )),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Import CONSUMED; trả outbound_request_ids + outbound_document_ids; header Idempotent-Replay.'),
+        ]
+    )]
     public function consumeOutboundRequestImport(Request $request, string $id)
     {
         $payload = $this->confirmPayload($request);

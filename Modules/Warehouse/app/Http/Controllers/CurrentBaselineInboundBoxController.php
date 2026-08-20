@@ -10,11 +10,41 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineInboundBoxController extends Controller
 {
     use ApiResponse;
 
+    #[OA\Post(
+        path: '/api/v1/inbound-documents/{id}/boxes',
+        // operationId + tập response bị pin bởi Wwhn184InboundContractParityTest
+        // (đối chiếu docs/api-contract/WWHN-184-inbound-openapi.json): phải giữ
+        // đúng id skeleton và KHÔNG khai 201 để tập response giữ nguyên
+        // {200,400,401,403,404,409,412,422,428,500} sau khi merge baseline.
+        operationId: 'post_api_v1_inbound__documents_id_boxes',
+        summary: 'Đăng ký BOX cho dòng nhập SKU COMPONENT (stock-neutral, tái sử dụng BOX EMPTY hợp lệ)',
+        security: [['bearerAuth' => []]],
+        tags: ['09. Stock In (Inbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['line_id', 'box_code'],
+                properties: [
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'box_code', type: 'string', maxLength: 100),
+                ]
+            )
+        ),
+        responses: [
+            // CHỈ khai 200: RouteSyncProcessor append baseline 400..500 theo đúng
+            // thứ tự pinned; khai thêm mã lỗi ở đây sẽ đảo thứ tự key trong spec
+            // compile và làm Wwhn184InboundContractParityTest fail (assertSame
+            // trên array_keys là so sánh CÓ thứ tự).
+            new OA\Response(response: 200, description: 'BOX hợp lệ: tái sử dụng BOX EMPTY đã tồn tại (200) hoặc tạo và đăng ký BOX mới'),
+        ]
+    )]
     public function store(Request $request, string $id)
     {
         $payload = $request->validate([

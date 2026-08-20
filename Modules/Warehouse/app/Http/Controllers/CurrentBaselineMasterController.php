@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 /**
  * 5 loại catalog master (brands/product_categories/power_sources/product_models/
@@ -54,21 +55,126 @@ class CurrentBaselineMasterController extends Controller
         return $this->page($request, 'package_variants');
     }
 
+    #[OA\Post(
+        path: '/api/v1/brands',
+        operationId: 'brand_create',
+        summary: 'Tạo brand mới (catalog master)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['brand_code', 'brand_name'],
+                properties: [
+                    new OA\Property(property: 'brand_code', type: 'string', maxLength: 80, example: 'BR-0001'),
+                    new OA\Property(property: 'brand_name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo brand thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: brand_code đã tồn tại)'),
+        ]
+    )]
     public function storeBrand(Request $request)
     {
         return $this->storeSimpleMaster($request, 'brands', 'brand_code', 'brand_name');
     }
 
+    #[OA\Post(
+        path: '/api/v1/product-categories',
+        operationId: 'product_category_create',
+        summary: 'Tạo product category mới (catalog master)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['category_code', 'category_name'],
+                properties: [
+                    new OA\Property(property: 'category_code', type: 'string', maxLength: 80, example: 'CAT-0001'),
+                    new OA\Property(property: 'category_name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo product category thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: category_code đã tồn tại)'),
+        ]
+    )]
     public function storeProductCategory(Request $request)
     {
         return $this->storeSimpleMaster($request, 'product_categories', 'category_code', 'category_name');
     }
 
+    #[OA\Post(
+        path: '/api/v1/power-sources',
+        operationId: 'power_source_create',
+        summary: 'Tạo power source mới (catalog master)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['power_source_code', 'power_source_name'],
+                properties: [
+                    new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80, example: 'PWR-0001'),
+                    new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo power source thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: power_source_code đã tồn tại)'),
+        ]
+    )]
     public function storePowerSource(Request $request)
     {
         return $this->storeSimpleMaster($request, 'power_sources', 'power_source_code', 'power_source_name');
     }
 
+    #[OA\Post(
+        path: '/api/v1/product-models',
+        operationId: 'product_model_create',
+        summary: 'Tạo product model mới (catalog master; brand tham chiếu phải ACTIVE)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['model_code', 'model_name'],
+                properties: [
+                    new OA\Property(property: 'model_code', type: 'string', maxLength: 80, example: 'MDL-0001'),
+                    new OA\Property(property: 'model_name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo product model thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: model_code đã tồn tại, BRAND_NOT_ACTIVE)'),
+        ]
+    )]
     public function storeProductModel(Request $request)
     {
         $validated = $request->validate([
@@ -90,6 +196,32 @@ class CurrentBaselineMasterController extends Controller
         return $this->insert('product_models', $validated);
     }
 
+    #[OA\Post(
+        path: '/api/v1/package-variants',
+        operationId: 'package_variant_create',
+        summary: 'Tạo package variant mới (catalog master)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['package_code', 'package_name'],
+                properties: [
+                    new OA\Property(property: 'package_code', type: 'string', maxLength: 80, example: 'PKG-0001'),
+                    new OA\Property(property: 'package_name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo package variant thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: package_code đã tồn tại)'),
+        ]
+    )]
     public function storePackageVariant(Request $request)
     {
         $validated = $request->validate([
@@ -110,26 +242,162 @@ class CurrentBaselineMasterController extends Controller
         return $this->insert('package_variants', $validated);
     }
 
+    #[OA\Patch(
+        path: '/api/v1/brands/{id}',
+        operationId: 'brand_update',
+        summary: 'Sửa brand (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'brand_code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'brand_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật brand thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy catalog master'),
+            new OA\Response(response: 409, description: 'MASTER_CODE_IMMUTABLE_AFTER_USE: mã đã được SKU tham chiếu'),
+            new OA\Response(response: 412, description: 'STALE_VERSION khi If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc EMPTY_UPDATE'),
+        ]
+    )]
     public function updateBrand(Request $request, string $id)
     {
         return $this->updateMaster($request, $id, 'brands', 'brand_code', 'brand_name');
     }
 
+    #[OA\Patch(
+        path: '/api/v1/product-categories/{id}',
+        operationId: 'product_category_update',
+        summary: 'Sửa product category (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'category_code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'category_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật product category thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy catalog master'),
+            new OA\Response(response: 409, description: 'MASTER_CODE_IMMUTABLE_AFTER_USE: mã đã được SKU tham chiếu'),
+            new OA\Response(response: 412, description: 'STALE_VERSION khi If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc EMPTY_UPDATE'),
+        ]
+    )]
     public function updateProductCategory(Request $request, string $id)
     {
         return $this->updateMaster($request, $id, 'product_categories', 'category_code', 'category_name');
     }
 
+    #[OA\Patch(
+        path: '/api/v1/power-sources/{id}',
+        operationId: 'power_source_update',
+        summary: 'Sửa power source (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật power source thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy catalog master'),
+            new OA\Response(response: 409, description: 'MASTER_CODE_IMMUTABLE_AFTER_USE: mã đã được SKU tham chiếu'),
+            new OA\Response(response: 412, description: 'STALE_VERSION khi If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc EMPTY_UPDATE'),
+        ]
+    )]
     public function updatePowerSource(Request $request, string $id)
     {
         return $this->updateMaster($request, $id, 'power_sources', 'power_source_code', 'power_source_name');
     }
 
+    #[OA\Patch(
+        path: '/api/v1/product-models/{id}',
+        operationId: 'product_model_update',
+        summary: 'Sửa product model (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'model_code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'model_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật product model thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy catalog master'),
+            new OA\Response(response: 409, description: 'MASTER_CODE_IMMUTABLE_AFTER_USE: mã đã được SKU tham chiếu'),
+            new OA\Response(response: 412, description: 'STALE_VERSION khi If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc EMPTY_UPDATE'),
+        ]
+    )]
     public function updateProductModel(Request $request, string $id)
     {
         return $this->updateMaster($request, $id, 'product_models', 'model_code', 'model_name');
     }
 
+    #[OA\Patch(
+        path: '/api/v1/package-variants/{id}',
+        operationId: 'package_variant_update',
+        summary: 'Sửa package variant (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'package_code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'package_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật package variant thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy catalog master'),
+            new OA\Response(response: 409, description: 'MASTER_CODE_IMMUTABLE_AFTER_USE: mã đã được SKU tham chiếu'),
+            new OA\Response(response: 412, description: 'STALE_VERSION khi If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc EMPTY_UPDATE'),
+        ]
+    )]
     public function updatePackageVariant(Request $request, string $id)
     {
         return $this->updateMaster($request, $id, 'package_variants', 'package_code', 'package_name');
@@ -167,6 +435,37 @@ class CurrentBaselineMasterController extends Controller
         return $this->page($request, $table);
     }
 
+    #[OA\Post(
+        path: '/api/v1/catalog-masters/{masterType}',
+        operationId: 'catalog_master_entry_create',
+        summary: 'Tạo catalog master entry theo master_type (Annex C createCatalogMasterEntry)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [
+            new OA\Parameter(name: 'masterType', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: ['brands', 'product-categories', 'product-models', 'power-sources', 'package-variants'])),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            description: 'Chấp nhận cặp code/name chung hoặc tên cột riêng của từng loại (brand_code/brand_name, category_code/category_name, model_code/model_name, power_source_code/power_source_name, package_code/package_name).',
+            content: new OA\JsonContent(
+                required: ['code', 'name'],
+                properties: [
+                    new OA\Property(property: 'code', type: 'string', maxLength: 80),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                    new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models; brand tham chiếu phải ACTIVE'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo catalog master entry thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'UNKNOWN_MASTER_TYPE / BRAND_NOT_ACTIVE / dữ liệu không hợp lệ'),
+        ]
+    )]
     public function createCatalogMasterEntry(Request $request, string $masterType)
     {
         [$table, $codeColumn, $nameColumn] = $this->resolveCatalogMasterType($masterType);
@@ -179,6 +478,38 @@ class CurrentBaselineMasterController extends Controller
         };
     }
 
+    #[OA\Patch(
+        path: '/api/v1/catalog-masters/{masterType}/{id}',
+        operationId: 'catalog_master_entry_update',
+        summary: 'Sửa catalog master entry theo master_type (Annex C updateCatalogMasterEntry)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [
+            new OA\Parameter(name: 'masterType', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: ['brands', 'product-categories', 'product-models', 'power-sources', 'package-variants'])),
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            description: 'Chấp nhận cặp code/name chung hoặc tên cột riêng của từng loại (brand_code/brand_name, category_code/category_name, model_code/model_name, power_source_code/power_source_name, package_code/package_name).',
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models'),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật catalog master entry thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy catalog master'),
+            new OA\Response(response: 409, description: 'MASTER_CODE_IMMUTABLE_AFTER_USE: mã đã được SKU tham chiếu'),
+            new OA\Response(response: 412, description: 'STALE_VERSION khi If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'UNKNOWN_MASTER_TYPE / EMPTY_UPDATE / dữ liệu không hợp lệ'),
+        ]
+    )]
     public function updateCatalogMasterEntry(Request $request, string $masterType, string $id)
     {
         [$table, $codeColumn, $nameColumn] = $this->resolveCatalogMasterType($masterType);

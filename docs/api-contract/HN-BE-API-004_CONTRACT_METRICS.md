@@ -12,17 +12,17 @@ spec thật đã sang giá trị thứ ba. Từ nay chỉ có **một** nguồn 
 | Phiên bản OpenAPI | 2.0.0 |
 | Path trong OpenAPI | 183 |
 | Operation trong OpenAPI | 231 |
-| Response trong OpenAPI | 2315 |
-| Response có schema envelope | 2315/2315 |
-| Schema trong components.schemas | 21 |
+| Response trong OpenAPI | 2334 |
+| Response có schema envelope | 2334/2334 |
+| Schema trong components.schemas | 22 |
 | Operation khai `Idempotency-Key` | 33 |
 | Trong đó bắt buộc / tuỳ chọn | 23 / 10 |
 | Operation khai `If-Match` | 58 |
-| Error code trong catalog | 247 |
+| Error code trong catalog | 248 |
 | Operation trong ma trận endpoint | 231 |
 | Permission trong ma trận endpoint | 57 |
 | Nhóm nghiệp vụ (tag) | 22 |
-| Operation có data scope theo kho | 43 |
+| Operation có data scope theo kho | 53 |
 | Operation public (không JWT) | 9 |
 
 ## Cách dùng

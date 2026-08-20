@@ -11,11 +11,71 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Services\SkuAggregateService;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineSkuController extends Controller
 {
     public function __construct(private readonly SkuAggregateService $service) {}
 
+    #[OA\Post(
+        path: '/api/v1/skus',
+        operationId: 'sku_create',
+        summary: 'Tạo SKU mới (governance aggregate)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            description: 'Bắt buộc một trong hai alias cho mã (code hoặc sku_code) và một trong hai alias cho tên (name hoặc sku_name).',
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'code', type: 'string', maxLength: 100, description: 'Bắt buộc nếu thiếu sku_code'),
+                    new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, description: 'Bắt buộc nếu thiếu code'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 255, description: 'Bắt buộc nếu thiếu sku_name'),
+                    new OA\Property(property: 'sku_name', type: 'string', maxLength: 255, description: 'Bắt buộc nếu thiếu name'),
+                    new OA\Property(property: 'unit', type: 'string', maxLength: 30, nullable: true),
+                    new OA\Property(property: 'sku_type', type: 'string', enum: ['PRODUCT', 'COMPONENT']),
+                    new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'brand_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'category_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'category_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'model_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'model_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'power_source_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'power_or_voltage', type: 'string', maxLength: 100, nullable: true),
+                    new OA\Property(property: 'package_variant_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'package_variant_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'package_variant', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                    new OA\Property(property: 'published_to_app', type: 'boolean'),
+                    new OA\Property(property: 'is_serial_tracked', type: 'boolean'),
+                    new OA\Property(property: 'warranty_applicable', type: 'boolean'),
+                    new OA\Property(property: 'specification', type: 'object', nullable: true),
+                    new OA\Property(property: 'components', type: 'array', maxItems: 100, items: new OA\Items(
+                        required: ['component_id', 'quantity'],
+                        properties: [
+                            new OA\Property(property: 'component_id', type: 'string', format: 'uuid'),
+                            new OA\Property(property: 'quantity', type: 'number', minimum: 0.001),
+                        ]
+                    )),
+                    new OA\Property(property: 'physical_codes', type: 'array', maxItems: 100, items: new OA\Items(
+                        required: ['code_value'],
+                        properties: [
+                            new OA\Property(property: 'code_value', type: 'string', maxLength: 150),
+                            new OA\Property(property: 'code_type', type: 'string', nullable: true),
+                            new OA\Property(property: 'carrier_type', type: 'string', nullable: true),
+                            new OA\Property(property: 'status', type: 'string', nullable: true),
+                        ]
+                    )),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo SKU thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: master tham chiếu không ACTIVE)'),
+        ]
+    )]
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate($this->rules(true));
@@ -33,6 +93,65 @@ class CurrentBaselineSkuController extends Controller
         });
     }
 
+    #[OA\Patch(
+        path: '/api/v1/skus/{id}',
+        operationId: 'sku_update',
+        summary: 'Sửa SKU (optimistic locking bằng If-Match version)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'code', type: 'string', maxLength: 100),
+                new OA\Property(property: 'sku_code', type: 'string', maxLength: 100),
+                new OA\Property(property: 'name', type: 'string', maxLength: 255),
+                new OA\Property(property: 'sku_name', type: 'string', maxLength: 255),
+                new OA\Property(property: 'unit', type: 'string', maxLength: 30, nullable: true),
+                new OA\Property(property: 'sku_type', type: 'string', enum: ['PRODUCT', 'COMPONENT']),
+                new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'brand_code', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'category_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'category_code', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'model_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'model_code', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'power_source_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'power_or_voltage', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'package_variant_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'package_variant_code', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'package_variant', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
+                new OA\Property(property: 'published_to_app', type: 'boolean'),
+                new OA\Property(property: 'is_serial_tracked', type: 'boolean'),
+                new OA\Property(property: 'warranty_applicable', type: 'boolean'),
+                new OA\Property(property: 'specification', type: 'object', nullable: true),
+                new OA\Property(property: 'components', type: 'array', maxItems: 100, items: new OA\Items(
+                    required: ['component_id', 'quantity'],
+                    properties: [
+                        new OA\Property(property: 'component_id', type: 'string', format: 'uuid'),
+                        new OA\Property(property: 'quantity', type: 'number', minimum: 0.001),
+                    ]
+                )),
+                new OA\Property(property: 'physical_codes', type: 'array', maxItems: 100, items: new OA\Items(
+                    required: ['code_value'],
+                    properties: [
+                        new OA\Property(property: 'code_value', type: 'string', maxLength: 150),
+                        new OA\Property(property: 'code_type', type: 'string', nullable: true),
+                        new OA\Property(property: 'carrier_type', type: 'string', nullable: true),
+                        new OA\Property(property: 'status', type: 'string', nullable: true),
+                    ]
+                )),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật SKU thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 409, description: 'sku_code/tracking mode immutable sau khi đã có stock/movement'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — version If-Match không khớp'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+            new OA\Response(response: 428, description: 'PRECONDITION_REQUIRED — thiếu If-Match'),
+        ]
+    )]
     public function update(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate($this->rules(false));

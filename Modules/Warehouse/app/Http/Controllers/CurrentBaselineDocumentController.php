@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineDocumentController extends Controller
 {
@@ -127,6 +128,26 @@ class CurrentBaselineDocumentController extends Controller
         return $this->cancelDocument($request, $id, 'receipt');
     }
 
+    #[OA\Post(
+        path: '/api/v1/outbound-documents/{id}/cancel',
+        operationId: 'stock_out_cancel',
+        summary: 'Huỷ phiếu xuất DRAFT/SCANNING (terminal, stock-neutral; toa nguồn được trả về OPEN nếu không còn phiếu active)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['reason'],
+                properties: [
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã hủy chứng từ; status=CANCELLED'),
+        ]
+    )]
     public function cancelOutbound(Request $request, string $id)
     {
         return $this->cancelDocument($request, $id, 'issue');

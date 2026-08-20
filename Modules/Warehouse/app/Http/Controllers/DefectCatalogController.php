@@ -76,6 +76,28 @@ class DefectCatalogController extends Controller
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: defect_code đã tồn tại)'),
         ]
     )]
+    #[OA\Post(
+        path: '/api/v1/defects',
+        operationId: 'defect_create',
+        summary: 'Tạo bệnh/lỗi bảo hành (Annex C createDefect — cùng handler với POST /defect-catalogs)',
+        security: [['bearerAuth' => []]],
+        tags: ['17. Defect Catalog'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['defect_code', 'defect_name'],
+                properties: [
+                    new OA\Property(property: 'defect_code', type: 'string', maxLength: 80, example: 'LOI-0001'),
+                    new OA\Property(property: 'defect_name', type: 'string', maxLength: 200, example: 'Chập cháy động cơ'),
+                    new OA\Property(property: 'description', type: 'string', nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Tạo danh mục lỗi thành công'),
+        ]
+    )]
     public function store(StoreDefectCatalogRequest $request)
     {
         $defect = $this->defects->create($request->validated() + ['status' => 'ACTIVE']);
@@ -133,6 +155,25 @@ class DefectCatalogController extends Controller
             new OA\Response(response: 403, description: 'Không có quyền defect_catalog.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        ]
+    )]
+    #[OA\Patch(
+        path: '/api/v1/defects/{id}',
+        operationId: 'defect_update',
+        summary: 'Cập nhật bệnh/lỗi bảo hành (Annex C updateDefect — cùng handler với PATCH /defect-catalogs/{id})',
+        security: [['bearerAuth' => []]],
+        tags: ['17. Defect Catalog'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'defect_code', type: 'string', maxLength: 80),
+                new OA\Property(property: 'defect_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'description', type: 'string', nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật danh mục lỗi thành công'),
         ]
     )]
     public function update(UpdateDefectCatalogRequest $request, string $id)

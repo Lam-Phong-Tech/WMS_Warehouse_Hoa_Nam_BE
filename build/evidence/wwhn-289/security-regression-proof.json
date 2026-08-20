@@ -62,7 +62,7 @@
     "meta": {
         "jira": "WWHN-289",
         "register_item": "DEV289-P1-04",
-        "driver": "pgsql",
+        "driver": "sqlite",
         "generated_by": "Tests\\Feature\\Wwhn289SecurityRegressionProofTest"
     },
     "rbac_matrix": {

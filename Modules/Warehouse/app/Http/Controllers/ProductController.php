@@ -211,6 +211,29 @@ class ProductController extends Controller
      * Mỗi lần publish/unpublish thành công tăng version hồ sơ lên 1 và trả về
      * `pv_profile_version` để client refresh mà không phải đọc lại danh sách.
      */
+    #[OA\Patch(
+        path: '/api/v1/pv/products/{id}/publish',
+        operationId: 'publishPvProduct',
+        summary: 'Bật/tắt publish SKU lên App PV (quyền pv.publish, If-Match theo version hồ sơ App PV)',
+        description: 'DEC-API-IFMATCH-002: If-Match là version hồ sơ App PV (0 nếu SKU chưa có hồ sơ; N >= 1 là version hiện tại). '
+            .'Mỗi lần publish/unpublish thành công tăng version hồ sơ lên 1 và trả về pv_profile_version. '
+            .'REQ-SRS-020: SKU không ACTIVE thì không được publish; publish không phụ thuộc tồn kho.',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['published'],
+                properties: [
+                    new OA\Property(property: 'published', type: 'boolean', description: 'true = publish lên App PV, false = gỡ khỏi App PV.'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã publish/gỡ SKU; response kèm pv_profile_version mới.'),
+        ]
+    )]
     public function publishPvProduct(Request $request, string $id)
     {
         $validated = $request->validate([

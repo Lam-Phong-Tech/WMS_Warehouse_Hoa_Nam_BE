@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\MasterSelectionGuard;
+use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
@@ -40,6 +41,56 @@ class CurrentBaselineOperationsController extends Controller
         'CANCELLED' => [],
     ];
 
+    #[OA\Post(
+        path: '/api/v1/outbound-request-imports/manual',
+        operationId: 'outbound_request_import_manual_create',
+        summary: 'Import toa xuất thủ công (file Excel xlsx/xls hoặc rows JSON đã chuẩn hoá)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            description: 'Gửi MỘT trong hai: `file` (multipart, xlsx/xls, tối đa 20480 KB, required_without:rows) hoặc `rows` (JSON, required_without:file). Trùng source_checksum thì replay import cũ, không tạo bản ghi mới.',
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'file', type: 'string', format: 'binary', nullable: true, description: 'File Excel xlsx/xls, tối đa 20480 KB (gửi qua multipart/form-data); required_without:rows'),
+                    new OA\Property(
+                        property: 'rows',
+                        type: 'array',
+                        minItems: 1,
+                        maxItems: 10000,
+                        nullable: true,
+                        description: 'Danh sách dòng toa đã chuẩn hoá; required_without:file',
+                        items: new OA\Items(
+                            required: ['request_no', 'required_qty'],
+                            properties: [
+                                new OA\Property(property: 'request_no', type: 'string', maxLength: 80),
+                                new OA\Property(property: 'request_date', type: 'string', maxLength: 20, nullable: true),
+                                new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
+                                new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, nullable: true),
+                                new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true),
+                                new OA\Property(property: 'customer_address', type: 'string', maxLength: 1000, nullable: true),
+                                new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true),
+                                new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true),
+                                new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true),
+                                new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
+                                new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
+                                new OA\Property(property: 'required_qty', type: 'integer', minimum: 1),
+                                new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                            ]
+                        )
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Trùng checksum: replay import cũ, không tạo import mới'),
+            new OA\Response(response: 201, description: 'Import được tạo (VALIDATED nếu không có lỗi dòng, REJECTED nếu có)'),
+            new OA\Response(response: 400, description: 'INVALID_EXCEL_FILE: không đọc được file Excel'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'EMPTY_EXCEL_FILE / INVALID_EXCEL_TEMPLATE / dữ liệu không hợp lệ'),
+        ]
+    )]
     public function storeOutboundRequestImport(Request $request)
     {
         $validated = $request->validate([
@@ -396,6 +447,33 @@ class CurrentBaselineOperationsController extends Controller
         return $this->respondCreated(DB::table('label_snapshots')->where('id', $id)->first(), 'Immutable label snapshot created.');
     }
 
+    #[OA\Post(
+        path: '/api/v1/printer-configs',
+        operationId: 'printer_config_create',
+        summary: 'Tạo cấu hình máy in nhãn (printer agent endpoint)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['printer_code', 'printer_name', 'agent_endpoint'],
+                properties: [
+                    new OA\Property(property: 'printer_code', type: 'string', maxLength: 80, example: 'PRN-0001'),
+                    new OA\Property(property: 'printer_name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'agent_code', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'agent_endpoint', type: 'string', format: 'uri', maxLength: 500),
+                    new OA\Property(property: 'label_size', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo printer config thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: printer_code đã tồn tại, agent_endpoint không phải URL)'),
+        ]
+    )]
     public function storePrinterConfig(Request $request)
     {
         $validated = $request->validate([
@@ -427,6 +505,31 @@ class CurrentBaselineOperationsController extends Controller
     }
 
     /** SCR-LBL-01: cập nhật/vô hiệu hóa máy in (health/status quản lý qua API). */
+    #[OA\Patch(
+        path: '/api/v1/printer-configs/{id}',
+        operationId: 'printer_config_update',
+        summary: 'Cập nhật/vô hiệu hoá cấu hình máy in (SCR-LBL-01)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'printer_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'agent_code', type: 'string', maxLength: 120, nullable: true),
+                new OA\Property(property: 'agent_endpoint', type: 'string', format: 'uri', maxLength: 500),
+                new OA\Property(property: 'label_size', type: 'string', maxLength: 80, nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'UNHEALTHY']),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật printer config thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy printer config'),
+            new OA\Response(response: 422, description: 'NO_UPDATABLE_FIELDS hoặc dữ liệu không hợp lệ'),
+        ]
+    )]
     public function updatePrinterConfig(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -504,11 +607,69 @@ class CurrentBaselineOperationsController extends Controller
         return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 15)))));
     }
 
+    #[OA\Post(
+        path: '/api/v1/label-snapshots/{id}/print',
+        operationId: 'label_snapshot_print',
+        summary: 'In label snapshot (READY_TO_PRINT/PRINT_FAILED → PRINTED, stock_effect=NONE)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['printer_config_id'],
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Nhãn PRINTED; kèm label_print_event_id, version mới, stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy label snapshot'),
+            new OA\Response(response: 409, description: 'LABEL_STATE_CONFLICT / PRINT_FAILED / xung đột concurrency'),
+            new OA\Response(response: 412, description: 'STALE_VERSION: If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'printer_config_id không hợp lệ hoặc INVALID_VERSION'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match'),
+        ]
+    )]
     public function printLabelSnapshot(Request $request, string $id)
     {
         return $this->dispatchLabel($request, $id, false);
     }
 
+    #[OA\Post(
+        path: '/api/v1/label-snapshots/{id}/reprint',
+        operationId: 'label_snapshot_reprint',
+        summary: 'In lại label snapshot đã PRINTED (stock-neutral, dùng lại chính snapshot cũ)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['printer_config_id'],
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Nhãn in lại thành công; kèm label_print_event_id, version mới, stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'Không tìm thấy label snapshot'),
+            new OA\Response(response: 409, description: 'LABEL_STATE_CONFLICT (chỉ in lại nhãn PRINTED/PRINT_FAILED) / PRINT_FAILED / xung đột concurrency'),
+            new OA\Response(response: 412, description: 'STALE_VERSION: If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'printer_config_id không hợp lệ hoặc INVALID_VERSION'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match'),
+        ]
+    )]
     public function reprintLabelSnapshot(Request $request, string $id)
     {
         return $this->dispatchLabel($request, $id, true);
@@ -518,6 +679,36 @@ class CurrentBaselineOperationsController extends Controller
      * Annex C printPackingLabel: POST /outbound-documents/{id}/packing-labels/{label_id}/print.
      * Ràng buộc nhãn phải thuộc đúng phiếu xuất trước khi gửi lệnh in.
      */
+    #[OA\Post(
+        path: '/api/v1/outbound-documents/{id}/packing-labels/{labelId}/print',
+        operationId: 'packing_label_print',
+        summary: 'In Packing Label của phiếu xuất (Annex C printPackingLabel; READY_TO_PRINT/PRINT_FAILED → PRINTED)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['printer_config_id'],
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Nhãn PRINTED; kèm label_print_event_id, version mới, stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'LABEL_NOT_FOUND: nhãn không tồn tại hoặc không thuộc phiếu xuất này'),
+            new OA\Response(response: 409, description: 'LABEL_STATE_CONFLICT / PRINT_FAILED / xung đột concurrency'),
+            new OA\Response(response: 412, description: 'STALE_VERSION: If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'printer_config_id không hợp lệ hoặc INVALID_VERSION'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match'),
+        ]
+    )]
     public function printPackingLabelForDocument(Request $request, string $documentId, string $labelId)
     {
         $this->assertLabelBelongsToDocument($documentId, $labelId);
@@ -526,6 +717,36 @@ class CurrentBaselineOperationsController extends Controller
     }
 
     /** Annex C reprintPackingLabel — stock-neutral, dùng lại chính snapshot cũ. */
+    #[OA\Post(
+        path: '/api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint',
+        operationId: 'packing_label_reprint',
+        summary: 'In lại Packing Label đã PRINTED của phiếu xuất (Annex C reprintPackingLabel; stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['printer_config_id'],
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Nhãn in lại thành công; kèm label_print_event_id, version mới, stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền'),
+            new OA\Response(response: 404, description: 'LABEL_NOT_FOUND: nhãn không tồn tại hoặc không thuộc phiếu xuất này'),
+            new OA\Response(response: 409, description: 'LABEL_STATE_CONFLICT (chỉ in lại nhãn PRINTED/PRINT_FAILED) / PRINT_FAILED / xung đột concurrency'),
+            new OA\Response(response: 412, description: 'STALE_VERSION: If-Match không khớp version'),
+            new OA\Response(response: 422, description: 'printer_config_id không hợp lệ hoặc INVALID_VERSION'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match'),
+        ]
+    )]
     public function reprintPackingLabelForDocument(Request $request, string $documentId, string $labelId)
     {
         $this->assertLabelBelongsToDocument($documentId, $labelId);

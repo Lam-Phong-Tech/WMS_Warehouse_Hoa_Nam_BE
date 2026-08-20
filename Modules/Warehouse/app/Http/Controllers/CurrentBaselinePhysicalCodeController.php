@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselinePhysicalCodeController extends Controller
 {
@@ -102,6 +103,33 @@ class CurrentBaselinePhysicalCodeController extends Controller
      * phải gate của Post Issue. Idempotent theo (item, hardware_uid): gọi lại cùng
      * tag trả về chính mapping cũ thay vì tạo bản ghi trùng.
      */
+    #[OA\Put(
+        path: '/api/v1/outbound-documents/{id}/items/{itemId}/rfid',
+        operationId: 'outbound_item_rfid_assign',
+        summary: 'Gắn RFID cho item đã match trong phiếu xuất (stock-neutral, idempotent theo hardware_uid)',
+        security: [['bearerAuth' => []]],
+        tags: ['21. Physical Code'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'itemId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['hardware_uid'],
+                properties: [
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Bỏ trống thì lấy theo hardware_uid'),
+                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 200),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã gắn RFID (hoặc trả lại mapping cũ nếu cùng hardware_uid), stock_effect=NONE'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 409, description: 'DUPLICATE_HARDWARE_UID (tag đã gắn item khác) hoặc DUPLICATE_CODE_VALUE'),
+            new OA\Response(response: 422, description: 'ITEM_NOT_MATCHED_IN_DOCUMENT hoặc payload không hợp lệ'),
+        ]
+    )]
     public function assignOutboundItemRfid(Request $request, string $documentId, string $itemId)
     {
         $validated = $request->validate([

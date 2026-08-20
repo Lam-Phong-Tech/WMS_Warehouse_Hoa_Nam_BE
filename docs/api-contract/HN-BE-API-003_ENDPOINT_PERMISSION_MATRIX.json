@@ -20,421 +20,12 @@
   "operations": [
     {
       "method": "GET",
-      "path": "/api/v1/catalog-masters/{masterType}",
-      "tag": "00. Platform",
-      "summary": "Danh sách catalog master theo loại (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "catalog.view"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/catalog-masters/{masterType}",
-      "tag": "00. Platform",
-      "summary": "Tạo catalog master theo loại (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "catalog.manage"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "PATCH",
-      "path": "/api/v1/catalog-masters/{masterType}/{id}",
-      "tag": "00. Platform",
-      "summary": "Cập nhật catalog master theo loại (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "catalog.manage"
-      ],
-      "if_match": true,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/defects",
-      "tag": "00. Platform",
-      "summary": "Danh sách bệnh/lỗi bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "defect.view"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/defects",
-      "tag": "00. Platform",
-      "summary": "Tạo bệnh/lỗi bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "defect.manage"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/defects/{id}",
-      "tag": "00. Platform",
-      "summary": "Chi tiết bệnh/lỗi bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "defect.view"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "PATCH",
-      "path": "/api/v1/defects/{id}",
-      "tag": "00. Platform",
-      "summary": "Cập nhật bệnh/lỗi bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "defect.manage"
-      ],
-      "if_match": true,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
       "path": "/api/v1/health",
       "tag": "00. Platform",
       "summary": "Public readiness health check",
       "auth": "public",
       "permissions": [],
       "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/label-print-events",
-      "tag": "00. Platform",
-      "summary": "Danh sách sự kiện in nhãn",
-      "auth": "JWT",
-      "permissions": [
-        "label.print"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/outbound-requests",
-      "tag": "00. Platform",
-      "summary": "Danh sách toa yêu cầu xuất",
-      "auth": "JWT",
-      "permissions": [
-        "outbound.view"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/outbound-requests/{id}",
-      "tag": "00. Platform",
-      "summary": "Chi tiết toa yêu cầu xuất",
-      "auth": "JWT",
-      "permissions": [
-        "outbound.view"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/putaway-tasks",
-      "tag": "00. Platform",
-      "summary": "Danh sách BOX chờ xếp khay (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "putaway.view",
-        "putaway.manage",
-        "container.view"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/putaway-tasks",
-      "tag": "00. Platform",
-      "summary": "Tạo tác vụ xếp BOX vào TRAY (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "putaway.manage",
-        "container.manage"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/putaway-tasks/{id}/cancel",
-      "tag": "00. Platform",
-      "summary": "Huỷ tác vụ xếp BOX vào TRAY (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "putaway.manage",
-        "container.manage"
-      ],
-      "if_match": true,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/putaway-tasks/{id}/confirm",
-      "tag": "00. Platform",
-      "summary": "Xác nhận xếp BOX vào TRAY (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "putaway.manage",
-        "container.manage"
-      ],
-      "if_match": true,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pv-admin/resources/{resourceType}",
-      "tag": "00. Platform",
-      "summary": "PV Admin — danh sách master App PV (industry/tag/rule/profile)",
-      "auth": "JWT",
-      "permissions": [
-        "pv.master.manage"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pv-admin/resources/{resourceType}",
-      "tag": "00. Platform",
-      "summary": "PV Admin — tạo master App PV",
-      "auth": "JWT",
-      "permissions": [
-        "pv.master.manage"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "PATCH",
-      "path": "/api/v1/pv-admin/resources/{resourceType}/{id}",
-      "tag": "00. Platform",
-      "summary": "PV Admin — cập nhật master App PV (bắt buộc If-Match)",
-      "auth": "JWT",
-      "permissions": [
-        "pv.master.manage"
-      ],
-      "if_match": true,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reversal-documents",
-      "tag": "00. Platform",
-      "summary": "Danh sách phiếu reversal và correction",
-      "auth": "JWT",
-      "permissions": [
-        "inventory.view"
-      ],
-      "if_match": false,
-      "data_scope": true,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/reversal-documents",
-      "tag": "00. Platform",
-      "summary": "Tạo reversal append-only cho movement đã post",
-      "auth": "JWT",
-      "permissions": [
-        "inventory.reversal.post"
-      ],
-      "if_match": true,
-      "data_scope": true,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reversal-documents/{id}",
-      "tag": "00. Platform",
-      "summary": "Chi tiết phiếu reversal và correction chain",
-      "auth": "JWT",
-      "permissions": [
-        "inventory.view"
-      ],
-      "if_match": false,
-      "data_scope": true,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/reversal-documents/{id}/cancel",
-      "tag": "00. Platform",
-      "summary": "Huỷ Reversal khi còn DRAFT",
-      "auth": "JWT",
-      "permissions": [
-        "inventory.reversal.post"
-      ],
-      "if_match": true,
-      "data_scope": true,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/reversal-documents/{id}/confirm",
-      "tag": "00. Platform",
-      "summary": "Xác nhận hàng vật lý quay lại kho cho Reversal",
-      "auth": "JWT",
-      "permissions": [
-        "inventory.reversal.post"
-      ],
-      "if_match": true,
-      "data_scope": true,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reversal-documents/{id}/lines",
-      "tag": "00. Platform",
-      "summary": "Danh sách dòng movement được reversal",
-      "auth": "JWT",
-      "permissions": [
-        "inventory.view"
-      ],
-      "if_match": false,
-      "data_scope": true,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/reversal-documents/{id}/post",
-      "tag": "00. Platform",
-      "summary": "Post Reversal và ghi movement append-only",
-      "auth": "JWT",
-      "permissions": [
-        "inventory.reversal.post"
-      ],
-      "if_match": true,
-      "data_scope": true,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/scan-batches/classify",
-      "tag": "00. Platform",
-      "summary": "Phân loại lô mã quét (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "scan.execute",
-        "scan.classify"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/warranty-component-issues",
-      "tag": "00. Platform",
-      "summary": "Danh sách phiếu xuất linh kiện bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "warranty.component_issue"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/warranty-component-issues",
-      "tag": "00. Platform",
-      "summary": "Tạo phiếu xuất linh kiện bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "warranty.component_issue"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/warranty-component-issues/{id}",
-      "tag": "00. Platform",
-      "summary": "Chi tiết phiếu xuất linh kiện bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "warranty.component_issue"
-      ],
-      "if_match": false,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/warranty-component-issues/{id}/cancel",
-      "tag": "00. Platform",
-      "summary": "Huỷ phiếu xuất linh kiện bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "warranty.component_issue"
-      ],
-      "if_match": true,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/warranty-component-issues/{id}/post",
-      "tag": "00. Platform",
-      "summary": "Ghi nhận phiếu xuất linh kiện bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "warranty.component_issue"
-      ],
-      "if_match": true,
-      "data_scope": false,
-      "in_openapi": true
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/warranty-component-issues/{id}/scans",
-      "tag": "00. Platform",
-      "summary": "Quét linh kiện cho phiếu xuất bảo hành (Annex C)",
-      "auth": "JWT",
-      "permissions": [
-        "warranty.component_issue"
-      ],
-      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -651,7 +242,7 @@
       "method": "PUT",
       "path": "/api/v1/roles/{id}/permissions",
       "tag": "03. Roles",
-      "summary": "Thay toàn bộ tập quyền của vai trò",
+      "summary": "Thay thế toàn bộ tập permission của role (Annex C replaceRolePermissions)",
       "auth": "JWT",
       "permissions": [
         "iam.role.manage"
@@ -690,7 +281,7 @@
       "method": "GET",
       "path": "/api/v1/product-masters",
       "tag": "05. Product",
-      "summary": "Danh sách product master",
+      "summary": "Danh sách product master (phân trang, filter theo keyword/master_type/status)",
       "auth": "JWT",
       "permissions": [
         "catalog.view"
@@ -729,7 +320,7 @@
       "method": "PATCH",
       "path": "/api/v1/product-masters/{id}",
       "tag": "05. Product",
-      "summary": "Cập nhật product master",
+      "summary": "Sửa product master",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -742,7 +333,7 @@
       "method": "GET",
       "path": "/api/v1/products",
       "tag": "05. Product",
-      "summary": "Danh sách sản phẩm/SKU",
+      "summary": "Danh sách SKU (phân trang, filter theo keyword/status)",
       "auth": "JWT",
       "permissions": [
         "sku.view"
@@ -755,7 +346,7 @@
       "method": "POST",
       "path": "/api/v1/products",
       "tag": "05. Product",
-      "summary": "Tạo sản phẩm/SKU mới",
+      "summary": "Tạo SKU mới qua product compatibility façade",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -768,7 +359,7 @@
       "method": "GET",
       "path": "/api/v1/products/{id}",
       "tag": "05. Product",
-      "summary": "Chi tiết sản phẩm/SKU",
+      "summary": "Chi tiết SKU",
       "auth": "JWT",
       "permissions": [
         "sku.view"
@@ -781,7 +372,7 @@
       "method": "PATCH",
       "path": "/api/v1/products/{id}",
       "tag": "05. Product",
-      "summary": "Cập nhật sản phẩm/SKU",
+      "summary": "Sửa SKU (brand/category/model/package/specification...)",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -794,7 +385,7 @@
       "method": "PATCH",
       "path": "/api/v1/products/{id}/disable",
       "tag": "05. Product",
-      "summary": "Ngừng kích hoạt sản phẩm/SKU",
+      "summary": "Disable a product",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -807,7 +398,7 @@
       "method": "PATCH",
       "path": "/api/v1/products/{id}/enable",
       "tag": "05. Product",
-      "summary": "Kích hoạt sản phẩm/SKU",
+      "summary": "Enable a product",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -833,7 +424,7 @@
       "method": "POST",
       "path": "/api/v1/skus",
       "tag": "05. Product",
-      "summary": "Tạo SKU mới",
+      "summary": "Tạo SKU mới (governance aggregate)",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -859,7 +450,7 @@
       "method": "PATCH",
       "path": "/api/v1/skus/{id}",
       "tag": "05. Product",
-      "summary": "Cập nhật SKU",
+      "summary": "Sửa SKU (optimistic locking bằng If-Match version)",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -872,7 +463,7 @@
       "method": "POST",
       "path": "/api/v1/skus/{id}/physical-codes",
       "tag": "05. Product",
-      "summary": "Gán mã vật lý cho SKU",
+      "summary": "Gán định danh vật lý (physical code) cho item của SKU, stock-neutral",
       "auth": "JWT",
       "permissions": [
         "physical_code.assign_rfid"
@@ -1078,6 +669,97 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/reversal-documents",
+      "tag": "07. Inventory",
+      "summary": "Danh sách phiếu reversal và correction",
+      "auth": "JWT",
+      "permissions": [
+        "inventory.view"
+      ],
+      "if_match": false,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reversal-documents",
+      "tag": "07. Inventory",
+      "summary": "Tạo Reversal document từ chứng từ gốc (RECEIPT/ISSUE/COMPONENT_ISSUE)",
+      "auth": "JWT",
+      "permissions": [
+        "inventory.reversal.post"
+      ],
+      "if_match": true,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reversal-documents/{id}",
+      "tag": "07. Inventory",
+      "summary": "Chi tiết phiếu reversal và correction chain",
+      "auth": "JWT",
+      "permissions": [
+        "inventory.view"
+      ],
+      "if_match": false,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reversal-documents/{id}/cancel",
+      "tag": "07. Inventory",
+      "summary": "Huỷ Reversal khi còn DRAFT (stock-neutral)",
+      "auth": "JWT",
+      "permissions": [
+        "inventory.reversal.post"
+      ],
+      "if_match": true,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reversal-documents/{id}/confirm",
+      "tag": "07. Inventory",
+      "summary": "Xác nhận hàng vật lý quay lại kho cho Reversal (stock-neutral)",
+      "auth": "JWT",
+      "permissions": [
+        "inventory.reversal.post"
+      ],
+      "if_match": true,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reversal-documents/{id}/lines",
+      "tag": "07. Inventory",
+      "summary": "Danh sách dòng movement được reversal",
+      "auth": "JWT",
+      "permissions": [
+        "inventory.view"
+      ],
+      "if_match": false,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reversal-documents/{id}/post",
+      "tag": "07. Inventory",
+      "summary": "Post Reversal và ghi movement append-only",
+      "auth": "JWT",
+      "permissions": [
+        "inventory.reversal.post"
+      ],
+      "if_match": true,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/stock-movements",
       "tag": "07. Inventory",
       "summary": "Lịch sử biến động tồn (phân trang, filter theo warehouse_id/product_id/movement_type)",
@@ -1158,7 +840,7 @@
       "method": "POST",
       "path": "/api/v1/brands",
       "tag": "08. Catalog Master",
-      "summary": "Tạo thương hiệu mới",
+      "summary": "Tạo brand mới (catalog master)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1171,7 +853,46 @@
       "method": "PATCH",
       "path": "/api/v1/brands/{id}",
       "tag": "08. Catalog Master",
-      "summary": "Cập nhật thương hiệu",
+      "summary": "Sửa brand (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)",
+      "auth": "JWT",
+      "permissions": [
+        "catalog.manage"
+      ],
+      "if_match": true,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/catalog-masters/{masterType}",
+      "tag": "08. Catalog Master",
+      "summary": "Danh sách catalog master theo loại (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "catalog.view"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/catalog-masters/{masterType}",
+      "tag": "08. Catalog Master",
+      "summary": "Tạo catalog master entry theo master_type (Annex C createCatalogMasterEntry)",
+      "auth": "JWT",
+      "permissions": [
+        "catalog.manage"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/catalog-masters/{masterType}/{id}",
+      "tag": "08. Catalog Master",
+      "summary": "Sửa catalog master entry theo master_type (Annex C updateCatalogMasterEntry)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1197,7 +918,7 @@
       "method": "POST",
       "path": "/api/v1/package-variants",
       "tag": "08. Catalog Master",
-      "summary": "Tạo quy cách đóng gói mới",
+      "summary": "Tạo package variant mới (catalog master)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1210,7 +931,7 @@
       "method": "PATCH",
       "path": "/api/v1/package-variants/{id}",
       "tag": "08. Catalog Master",
-      "summary": "Cập nhật quy cách đóng gói",
+      "summary": "Sửa package variant (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1236,7 +957,7 @@
       "method": "POST",
       "path": "/api/v1/power-sources",
       "tag": "08. Catalog Master",
-      "summary": "Tạo nguồn điện mới",
+      "summary": "Tạo power source mới (catalog master)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1249,7 +970,7 @@
       "method": "PATCH",
       "path": "/api/v1/power-sources/{id}",
       "tag": "08. Catalog Master",
-      "summary": "Cập nhật nguồn điện",
+      "summary": "Sửa power source (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1275,7 +996,7 @@
       "method": "POST",
       "path": "/api/v1/product-categories",
       "tag": "08. Catalog Master",
-      "summary": "Tạo danh mục sản phẩm mới",
+      "summary": "Tạo product category mới (catalog master)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1288,7 +1009,7 @@
       "method": "PATCH",
       "path": "/api/v1/product-categories/{id}",
       "tag": "08. Catalog Master",
-      "summary": "Cập nhật danh mục sản phẩm",
+      "summary": "Sửa product category (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1314,7 +1035,7 @@
       "method": "POST",
       "path": "/api/v1/product-models",
       "tag": "08. Catalog Master",
-      "summary": "Tạo model sản phẩm mới",
+      "summary": "Tạo product model mới (catalog master; brand tham chiếu phải ACTIVE)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1327,7 +1048,7 @@
       "method": "PATCH",
       "path": "/api/v1/product-models/{id}",
       "tag": "08. Catalog Master",
-      "summary": "Cập nhật model sản phẩm",
+      "summary": "Sửa product model (deactivate thay vì xoá; mã immutable sau khi SKU tham chiếu)",
       "auth": "JWT",
       "permissions": [
         "catalog.manage"
@@ -1392,7 +1113,7 @@
       "method": "POST",
       "path": "/api/v1/inbound-documents/{id}/boxes",
       "tag": "09. Stock In (Inbound)",
-      "summary": "Tạo phiếu nhập mới",
+      "summary": "Đăng ký BOX cho dòng nhập SKU COMPONENT (stock-neutral, tái sử dụng BOX EMPTY hợp lệ)",
       "auth": "JWT",
       "permissions": [
         "inbound.scan"
@@ -1432,7 +1153,7 @@
       "method": "POST",
       "path": "/api/v1/inbound-documents/{id}/reversals",
       "tag": "09. Stock In (Inbound)",
-      "summary": "Hoàn tác nhập kho cho phiếu nhập (Annex C)",
+      "summary": "Tạo reversal cho phiếu nhập POSTED (chứng từ gốc giữ nguyên POSTED)",
       "auth": "JWT",
       "permissions": [
         "inventory.reversal.post"
@@ -1484,7 +1205,7 @@
       "method": "POST",
       "path": "/api/v1/inbound-documents/{id}/scans",
       "tag": "09. Stock In (Inbound)",
-      "summary": "Quét hàng cho phiếu nhập (Annex C)",
+      "summary": "Quét hàng vào phiếu nhập DRAFT/SCANNING (stock-neutral, chưa đổi tồn)",
       "auth": "JWT",
       "permissions": [
         "inbound.scan"
@@ -1536,7 +1257,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-documents/{id}/cancel",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Huỷ phiếu xuất",
+      "summary": "Huỷ phiếu xuất DRAFT/SCANNING (terminal, stock-neutral; toa nguồn được trả về OPEN nếu không còn phiếu active)",
       "auth": "JWT",
       "permissions": [
         "outbound.cancel"
@@ -1549,7 +1270,7 @@
       "method": "PUT",
       "path": "/api/v1/outbound-documents/{id}/items/{itemId}/rfid",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Gắn RFID cho item của phiếu xuất",
+      "summary": "Gắn RFID cho item đã match trong phiếu xuất (stock-neutral, idempotent theo hardware_uid)",
       "auth": "JWT",
       "permissions": [
         "physical_code.assign_rfid"
@@ -1576,7 +1297,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-documents/{id}/packing-labels/{labelId}/print",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "In Packing Label của phiếu xuất",
+      "summary": "In Packing Label của phiếu xuất (Annex C printPackingLabel; READY_TO_PRINT/PRINT_FAILED → PRINTED)",
       "auth": "JWT",
       "permissions": [
         "packing_label.print",
@@ -1604,7 +1325,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-documents/{id}/packing-labels/{labelId}/reprint",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "In lại Packing Label sau hoàn tất",
+      "summary": "In lại Packing Label đã PRINTED của phiếu xuất (Annex C reprintPackingLabel; stock-neutral)",
       "auth": "JWT",
       "permissions": [
         "packing_label.reprint",
@@ -1631,7 +1352,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-documents/{id}/reversals",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Hoàn tác xuất kho cho phiếu xuất (Annex C)",
+      "summary": "Tạo reversal cho phiếu xuất POSTED (chứng từ gốc giữ nguyên POSTED)",
       "auth": "JWT",
       "permissions": [
         "inventory.reversal.post"
@@ -1670,7 +1391,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-documents/{id}/scans",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Quét hàng cho phiếu xuất (Annex C)",
+      "summary": "Quét & match item vào dòng phiếu xuất (stock-neutral; full match tự tạo 01 Packing Label DRAFT)",
       "auth": "JWT",
       "permissions": [
         "outbound.scan"
@@ -1683,7 +1404,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-documents/{id}/unmatch",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Gỡ item đã match khỏi phiếu xuất",
+      "summary": "Gỡ item đã match khỏi phiếu xuất trước Post (match ACTIVE → REMOVED, stock-neutral)",
       "auth": "JWT",
       "permissions": [
         "outbound.scan"
@@ -1710,7 +1431,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-request-imports",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Tạo import yêu cầu xuất mới",
+      "summary": "Upload/validate toa yêu cầu xuất (Excel hoặc rows chuẩn hoá)",
       "auth": "JWT",
       "permissions": [
         "outbound.request.import",
@@ -1738,7 +1459,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-request-imports/{id}/confirm",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Xác nhận import yêu cầu xuất (Annex C)",
+      "summary": "Xác nhận (consume) import toa yêu cầu xuất — sinh toa CONSUMED + phiếu xuất DRAFT",
       "auth": "JWT",
       "permissions": [
         "outbound.request.confirm",
@@ -1794,7 +1515,7 @@
       "method": "POST",
       "path": "/api/v1/outbound-request-imports/manual",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Tạo toa yêu cầu xuất nhập tay (Annex C)",
+      "summary": "Import toa xuất thủ công (file Excel xlsx/xls hoặc rows JSON đã chuẩn hoá)",
       "auth": "JWT",
       "permissions": [
         "outbound.request.manual_create",
@@ -1820,6 +1541,46 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/outbound-requests",
+      "tag": "10. Stock Out (Outbound)",
+      "summary": "Danh sách toa yêu cầu xuất",
+      "auth": "JWT",
+      "permissions": [
+        "outbound.view"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/outbound-requests/{id}",
+      "tag": "10. Stock Out (Outbound)",
+      "summary": "Chi tiết toa yêu cầu xuất",
+      "auth": "JWT",
+      "permissions": [
+        "outbound.view"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/scan-batches/classify",
+      "tag": "11. Scan",
+      "summary": "Phân loại lô mã quét (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "scan.execute",
+        "scan.classify"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/scan/batches",
       "tag": "11. Scan",
       "summary": "Danh sách lô quét (scan evidence)",
@@ -1835,7 +1596,7 @@
       "method": "POST",
       "path": "/api/v1/scan/classify",
       "tag": "11. Scan",
-      "summary": "Phân loại mã quét",
+      "summary": "Phân loại và validate mã scan, không thay đổi tồn kho",
       "auth": "JWT",
       "permissions": [
         "scan.execute",
@@ -2215,7 +1976,7 @@
       "method": "POST",
       "path": "/api/v1/warranty-cases",
       "tag": "13. Warranty",
-      "summary": "Tạo hồ sơ bảo hành mới",
+      "summary": "Tiếp nhận hồ sơ bảo hành mới (RECEIVED, stock_effect=NONE)",
       "auth": "JWT",
       "permissions": [
         "warranty.manage"
@@ -2242,7 +2003,7 @@
       "method": "PATCH",
       "path": "/api/v1/warranty-cases/{id}",
       "tag": "13. Warranty",
-      "summary": "Cập nhật hồ sơ bảo hành",
+      "summary": "Cập nhật / chuyển trạng thái hồ sơ bảo hành (cùng handler với POST /warranty-cases/{id}/status)",
       "auth": "JWT",
       "permissions": [
         "warranty.manage"
@@ -2269,7 +2030,7 @@
       "method": "POST",
       "path": "/api/v1/warranty-cases/{id}/attachments",
       "tag": "13. Warranty",
-      "summary": "Tải lên tệp đính kèm cho hồ sơ bảo hành",
+      "summary": "Tải lên tệp đính kèm cho hồ sơ bảo hành (stock-neutral)",
       "auth": "JWT",
       "permissions": [
         "warranty.manage"
@@ -2309,7 +2070,7 @@
       "method": "POST",
       "path": "/api/v1/warranty-cases/{id}/temp-only",
       "tag": "13. Warranty",
-      "summary": "Đánh dấu hồ sơ bảo hành chỉ xử lý tạm",
+      "summary": "Tiếp nhận bảo hành chưa định danh, không tác động tồn kho",
       "auth": "JWT",
       "permissions": [
         "warranty.temp_only"
@@ -2335,13 +2096,13 @@
       "method": "POST",
       "path": "/api/v1/component-issue-documents",
       "tag": "14. Component Issue",
-      "summary": "Tạo phiếu xuất linh kiện bảo hành mới",
+      "summary": "Tạo phiếu xuất linh kiện bảo hành (DRAFT, stock-neutral)",
       "auth": "JWT",
       "permissions": [
         "warranty.component_issue"
       ],
       "if_match": false,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -2354,20 +2115,20 @@
         "warranty.component_issue"
       ],
       "if_match": false,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
       "method": "POST",
       "path": "/api/v1/component-issue-documents/{id}/cancel",
       "tag": "14. Component Issue",
-      "summary": "Huỷ phiếu xuất linh kiện bảo hành",
+      "summary": "Huỷ phiếu xuất linh kiện bảo hành (chỉ DRAFT/SCANNING)",
       "auth": "JWT",
       "permissions": [
         "warranty.component_issue"
       ],
       "if_match": true,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -2380,20 +2141,98 @@
         "warranty.component_issue"
       ],
       "if_match": true,
-      "data_scope": false,
+      "data_scope": true,
       "in_openapi": true
     },
     {
       "method": "POST",
       "path": "/api/v1/component-issue-documents/{id}/scan",
       "tag": "14. Component Issue",
-      "summary": "Quét linh kiện cho phiếu xuất bảo hành",
+      "summary": "Quét linh kiện cho phiếu xuất bảo hành (stock-neutral)",
       "auth": "JWT",
       "permissions": [
         "warranty.component_issue"
       ],
       "if_match": true,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/warranty-component-issues",
+      "tag": "14. Component Issue",
+      "summary": "Danh sách phiếu xuất linh kiện bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "warranty.component_issue"
+      ],
+      "if_match": false,
       "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warranty-component-issues",
+      "tag": "14. Component Issue",
+      "summary": "Tạo phiếu xuất linh kiện bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "warranty.component_issue"
+      ],
+      "if_match": false,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/warranty-component-issues/{id}",
+      "tag": "14. Component Issue",
+      "summary": "Chi tiết phiếu xuất linh kiện bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "warranty.component_issue"
+      ],
+      "if_match": false,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warranty-component-issues/{id}/cancel",
+      "tag": "14. Component Issue",
+      "summary": "Huỷ phiếu xuất linh kiện bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "warranty.component_issue"
+      ],
+      "if_match": true,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warranty-component-issues/{id}/post",
+      "tag": "14. Component Issue",
+      "summary": "Ghi nhận phiếu xuất linh kiện bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "warranty.component_issue"
+      ],
+      "if_match": true,
+      "data_scope": true,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/warranty-component-issues/{id}/scans",
+      "tag": "14. Component Issue",
+      "summary": "Quét linh kiện cho phiếu xuất bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "warranty.component_issue"
+      ],
+      "if_match": true,
+      "data_scope": true,
       "in_openapi": true
     },
     {
@@ -2413,7 +2252,7 @@
       "method": "GET",
       "path": "/api/v1/agencies",
       "tag": "16. Agency",
-      "summary": "Danh sách đại lý",
+      "summary": "Danh sách đại lý (phân trang, filter theo keyword/status)",
       "auth": "JWT",
       "permissions": [
         "agency.view"
@@ -2452,7 +2291,7 @@
       "method": "PATCH",
       "path": "/api/v1/agencies/{id}",
       "tag": "16. Agency",
-      "summary": "Cập nhật đại lý",
+      "summary": "Sửa đại lý",
       "auth": "JWT",
       "permissions": [
         "agency.manage"
@@ -2465,7 +2304,7 @@
       "method": "GET",
       "path": "/api/v1/defect-catalogs",
       "tag": "17. Defect Catalog",
-      "summary": "Danh sách lỗi bảo hành",
+      "summary": "Danh sách lỗi/bệnh máy (phân trang, filter theo keyword/status)",
       "auth": "JWT",
       "permissions": [
         "defect.view"
@@ -2478,7 +2317,7 @@
       "method": "POST",
       "path": "/api/v1/defect-catalogs",
       "tag": "17. Defect Catalog",
-      "summary": "Tạo danh mục lỗi bảo hành mới",
+      "summary": "Tạo danh mục lỗi/bệnh máy mới",
       "auth": "JWT",
       "permissions": [
         "defect.manage"
@@ -2491,7 +2330,7 @@
       "method": "GET",
       "path": "/api/v1/defect-catalogs/{id}",
       "tag": "17. Defect Catalog",
-      "summary": "Chi tiết danh mục lỗi bảo hành",
+      "summary": "Chi tiết lỗi/bệnh máy",
       "auth": "JWT",
       "permissions": [
         "defect.view"
@@ -2504,7 +2343,59 @@
       "method": "PATCH",
       "path": "/api/v1/defect-catalogs/{id}",
       "tag": "17. Defect Catalog",
-      "summary": "Cập nhật danh mục lỗi bảo hành",
+      "summary": "Sửa lỗi/bệnh máy",
+      "auth": "JWT",
+      "permissions": [
+        "defect.manage"
+      ],
+      "if_match": true,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/defects",
+      "tag": "17. Defect Catalog",
+      "summary": "Danh sách bệnh/lỗi bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "defect.view"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/defects",
+      "tag": "17. Defect Catalog",
+      "summary": "Tạo bệnh/lỗi bảo hành (Annex C createDefect — cùng handler với POST /defect-catalogs)",
+      "auth": "JWT",
+      "permissions": [
+        "defect.manage"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/defects/{id}",
+      "tag": "17. Defect Catalog",
+      "summary": "Chi tiết bệnh/lỗi bảo hành (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "defect.view"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/defects/{id}",
+      "tag": "17. Defect Catalog",
+      "summary": "Cập nhật bệnh/lỗi bảo hành (Annex C updateDefect — cùng handler với PATCH /defect-catalogs/{id})",
       "auth": "JWT",
       "permissions": [
         "defect.manage"
@@ -2517,7 +2408,7 @@
       "method": "GET",
       "path": "/api/v1/containers",
       "tag": "18. Physical Inventory",
-      "summary": "Danh sách container",
+      "summary": "Danh sách container (phân trang, filter theo keyword/container_type/status/zone_code)",
       "auth": "JWT",
       "permissions": [
         "container.view"
@@ -2530,7 +2421,7 @@
       "method": "POST",
       "path": "/api/v1/containers",
       "tag": "18. Physical Inventory",
-      "summary": "Tạo container mới",
+      "summary": "Tạo container mới (CARTON/BOX/TRAY)",
       "auth": "JWT",
       "permissions": [
         "container.manage"
@@ -2543,7 +2434,7 @@
       "method": "GET",
       "path": "/api/v1/containers/{id}",
       "tag": "18. Physical Inventory",
-      "summary": "Chi tiết container",
+      "summary": "Chi tiết container (kèm danh sách item bên trong)",
       "auth": "JWT",
       "permissions": [
         "container.view"
@@ -2556,7 +2447,7 @@
       "method": "PATCH",
       "path": "/api/v1/containers/{id}",
       "tag": "18. Physical Inventory",
-      "summary": "Cập nhật container",
+      "summary": "Sửa container (optimistic locking qua version)",
       "auth": "JWT",
       "permissions": [
         "container.manage"
@@ -2569,7 +2460,7 @@
       "method": "POST",
       "path": "/api/v1/containers/{id}/items",
       "tag": "18. Physical Inventory",
-      "summary": "Thêm hàng vào container",
+      "summary": "Gán item (serial) hoặc sku+quantity vào container",
       "auth": "JWT",
       "permissions": [
         "container.manage"
@@ -2582,7 +2473,7 @@
       "method": "DELETE",
       "path": "/api/v1/containers/{id}/items/{containerItemId}",
       "tag": "18. Physical Inventory",
-      "summary": "Xoá container",
+      "summary": "Gỡ item khỏi container (đánh dấu REMOVED, không xoá bản ghi)",
       "auth": "JWT",
       "permissions": [
         "container.manage"
@@ -2595,7 +2486,7 @@
       "method": "GET",
       "path": "/api/v1/import-batches",
       "tag": "18. Physical Inventory",
-      "summary": "Danh sách lô import",
+      "summary": "Danh sách lô nhập khẩu (phân trang, filter theo keyword/status)",
       "auth": "JWT",
       "permissions": [
         "import_batch.view"
@@ -2608,7 +2499,7 @@
       "method": "POST",
       "path": "/api/v1/import-batches",
       "tag": "18. Physical Inventory",
-      "summary": "Tạo lô import mới",
+      "summary": "Tạo lô nhập khẩu mới",
       "auth": "JWT",
       "permissions": [
         "import_batch.manage"
@@ -2621,7 +2512,7 @@
       "method": "GET",
       "path": "/api/v1/import-batches/{id}",
       "tag": "18. Physical Inventory",
-      "summary": "Chi tiết lô import",
+      "summary": "Chi tiết lô nhập khẩu",
       "auth": "JWT",
       "permissions": [
         "import_batch.view"
@@ -2634,7 +2525,7 @@
       "method": "PATCH",
       "path": "/api/v1/import-batches/{id}",
       "tag": "18. Physical Inventory",
-      "summary": "Cập nhật lô import",
+      "summary": "Sửa lô nhập khẩu",
       "auth": "JWT",
       "permissions": [
         "import_batch.manage"
@@ -2647,7 +2538,7 @@
       "method": "GET",
       "path": "/api/v1/item-instances",
       "tag": "18. Physical Inventory",
-      "summary": "Danh sách item instance",
+      "summary": "Danh sách item instance (phân trang, filter theo sku_id/item_status/item_condition/container_id)",
       "auth": "JWT",
       "permissions": [
         "item_instance.view"
@@ -2660,7 +2551,7 @@
       "method": "POST",
       "path": "/api/v1/item-instances",
       "tag": "18. Physical Inventory",
-      "summary": "Tạo item instance mới",
+      "summary": "Tạo item instance mới (máy/linh kiện có serial)",
       "auth": "JWT",
       "permissions": [
         "item_instance.manage"
@@ -2686,7 +2577,7 @@
       "method": "PATCH",
       "path": "/api/v1/item-instances/{id}",
       "tag": "18. Physical Inventory",
-      "summary": "Cập nhật item instance",
+      "summary": "Sửa item instance (optimistic locking qua version)",
       "auth": "JWT",
       "permissions": [
         "item_instance.manage"
@@ -2699,7 +2590,7 @@
       "method": "GET",
       "path": "/api/v1/item-instances/{id}/trace",
       "tag": "18. Physical Inventory",
-      "summary": "Truy vết vòng đời item instance",
+      "summary": "Truy vết item qua stock document line tới stock movements",
       "auth": "JWT",
       "permissions": [
         "inventory.trace"
@@ -2712,7 +2603,7 @@
       "method": "GET",
       "path": "/api/v1/physical-codes",
       "tag": "18. Physical Inventory",
-      "summary": "Danh sách mã vật lý",
+      "summary": "Danh sách mã vật lý (phân trang, filter theo keyword/code_type/carrier_type/status)",
       "auth": "JWT",
       "permissions": [
         "inventory.trace"
@@ -2725,7 +2616,7 @@
       "method": "POST",
       "path": "/api/v1/physical-codes",
       "tag": "18. Physical Inventory",
-      "summary": "Tạo mã vật lý mới",
+      "summary": "Đăng ký mã vật lý mới",
       "auth": "JWT",
       "permissions": [
         "physical_code.assign_rfid"
@@ -2751,12 +2642,25 @@
       "method": "PATCH",
       "path": "/api/v1/physical-codes/{id}",
       "tag": "18. Physical Inventory",
-      "summary": "Cập nhật mã vật lý",
+      "summary": "Sửa trạng thái mã vật lý (LOST/REPLACED/INACTIVE)",
       "auth": "JWT",
       "permissions": [
         "physical_code.assign_rfid"
       ],
       "if_match": true,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/label-print-events",
+      "tag": "19. Label / Printer",
+      "summary": "Danh sách sự kiện in nhãn",
+      "auth": "JWT",
+      "permissions": [
+        "label.print"
+      ],
+      "if_match": false,
       "data_scope": false,
       "in_openapi": true
     },
@@ -2777,7 +2681,7 @@
       "method": "POST",
       "path": "/api/v1/label-snapshots",
       "tag": "19. Label / Printer",
-      "summary": "Tạo snapshot nhãn mới",
+      "summary": "Tạo/đảm bảo đúng 01 Packing Label DRAFT cho phiếu xuất đã full match (bổ sung SĐT nếu toa thiếu)",
       "auth": "JWT",
       "permissions": [
         "label.print"
@@ -2816,7 +2720,7 @@
       "method": "POST",
       "path": "/api/v1/label-snapshots/{id}/print",
       "tag": "19. Label / Printer",
-      "summary": "In nhãn từ snapshot",
+      "summary": "In label snapshot (READY_TO_PRINT/PRINT_FAILED → PRINTED, stock_effect=NONE)",
       "auth": "JWT",
       "permissions": [
         "label.print"
@@ -2829,7 +2733,7 @@
       "method": "POST",
       "path": "/api/v1/label-snapshots/{id}/reprint",
       "tag": "19. Label / Printer",
-      "summary": "In lại nhãn từ snapshot",
+      "summary": "In lại label snapshot đã PRINTED (stock-neutral, dùng lại chính snapshot cũ)",
       "auth": "JWT",
       "permissions": [
         "label.reprint"
@@ -2855,7 +2759,7 @@
       "method": "POST",
       "path": "/api/v1/printer-configs",
       "tag": "19. Label / Printer",
-      "summary": "Tạo cấu hình máy in mới",
+      "summary": "Tạo cấu hình máy in nhãn (printer agent endpoint)",
       "auth": "JWT",
       "permissions": [
         "label.print"
@@ -2868,12 +2772,51 @@
       "method": "PATCH",
       "path": "/api/v1/printer-configs/{id}",
       "tag": "19. Label / Printer",
-      "summary": "Cập nhật cấu hình máy in",
+      "summary": "Cập nhật/vô hiệu hoá cấu hình máy in (SCR-LBL-01)",
       "auth": "JWT",
       "permissions": [
         "label.print"
       ],
       "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pv-admin/resources/{resourceType}",
+      "tag": "21. Public Catalog",
+      "summary": "PV Admin — danh sách master App PV (industry/tag/rule/profile)",
+      "auth": "JWT",
+      "permissions": [
+        "pv.master.manage"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pv-admin/resources/{resourceType}",
+      "tag": "21. Public Catalog",
+      "summary": "PV Admin — tạo master App PV",
+      "auth": "JWT",
+      "permissions": [
+        "pv.master.manage"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/pv-admin/resources/{resourceType}/{id}",
+      "tag": "21. Public Catalog",
+      "summary": "PV Admin — cập nhật master App PV (bắt buộc If-Match)",
+      "auth": "JWT",
+      "permissions": [
+        "pv.master.manage"
+      ],
+      "if_match": true,
       "data_scope": false,
       "in_openapi": true
     },
@@ -2914,7 +2857,7 @@
       "method": "PATCH",
       "path": "/api/v1/pv/products/{id}/publish",
       "tag": "21. Public Catalog",
-      "summary": "Publish/gỡ SKU khỏi App PV",
+      "summary": "Bật/tắt publish SKU lên App PV (quyền pv.publish, If-Match theo version hồ sơ App PV)",
       "auth": "JWT",
       "permissions": [
         "pv.publish"
@@ -2958,9 +2901,66 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/putaway-tasks",
+      "tag": "24. Putaway",
+      "summary": "Danh sách BOX chờ xếp khay (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "putaway.view",
+        "putaway.manage",
+        "container.view"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/putaway-tasks",
+      "tag": "24. Putaway",
+      "summary": "Tạo tác vụ putaway DRAFT (BOX COMPONENT -> TRAY, stock-neutral)",
+      "auth": "JWT",
+      "permissions": [
+        "putaway.manage",
+        "container.manage"
+      ],
+      "if_match": false,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/putaway-tasks/{id}/cancel",
+      "tag": "24. Putaway",
+      "summary": "Huỷ tác vụ xếp BOX vào TRAY (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "putaway.manage",
+        "container.manage"
+      ],
+      "if_match": true,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/putaway-tasks/{id}/confirm",
+      "tag": "24. Putaway",
+      "summary": "Xác nhận xếp BOX vào TRAY (Annex C)",
+      "auth": "JWT",
+      "permissions": [
+        "putaway.manage",
+        "container.manage"
+      ],
+      "if_match": true,
+      "data_scope": false,
+      "in_openapi": true
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/putaway/history",
       "tag": "24. Putaway",
-      "summary": "Lịch sử xếp BOX vào TRAY",
+      "summary": "Lịch sử putaway CONFIRMED",
       "auth": "JWT",
       "permissions": [
         "putaway.view",
@@ -2975,7 +2975,7 @@
       "method": "GET",
       "path": "/api/v1/putaway/tasks",
       "tag": "24. Putaway",
-      "summary": "Danh sách BOX chờ xếp khay",
+      "summary": "PTW-00 - Danh sách BOX chờ xếp khay và DRAFT đang xử lý",
       "auth": "JWT",
       "permissions": [
         "putaway.view",
@@ -3004,7 +3004,7 @@
       "method": "POST",
       "path": "/api/v1/putaway/tasks/{id}/cancel",
       "tag": "24. Putaway",
-      "summary": "Huỷ tác vụ xếp BOX vào TRAY",
+      "summary": "Hủy putaway DRAFT",
       "auth": "JWT",
       "permissions": [
         "putaway.manage",
@@ -3018,7 +3018,7 @@
       "method": "POST",
       "path": "/api/v1/putaway/tasks/{id}/confirm",
       "tag": "24. Putaway",
-      "summary": "Xác nhận xếp BOX vào TRAY",
+      "summary": "Xác nhận putaway; cập nhật BOX->TRAY, không tạo stock movement",
       "auth": "JWT",
       "permissions": [
         "putaway.manage",

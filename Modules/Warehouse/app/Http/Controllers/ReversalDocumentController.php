@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
+use OpenApi\Attributes as OA;
 
 class ReversalDocumentController extends Controller
 {
@@ -136,6 +137,22 @@ class ReversalDocumentController extends Controller
      * movement) → hoặc cancel khi còn DRAFT. BR-REV-02 bắt buộc If-Match;
      * BR-REV-12 bắt buộc Idempotency-Key ở bước Post.
      */
+    #[OA\Post(
+        path: '/api/v1/reversal-documents/{id}/confirm',
+        operationId: 'confirmReversalPhysicalReturn',
+        summary: 'Xác nhận hàng vật lý quay lại kho cho Reversal (stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['07. Inventory'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'return_condition', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true, description: 'BR-REV-06/07: chỉ SELLABLE mới cộng available_qty khi Post.'),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã xác nhận hàng vật lý quay lại kho; chưa phát sinh stock effect.'),
+        ]
+    )]
     public function confirm(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -186,6 +203,26 @@ class ReversalDocumentController extends Controller
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
     }
 
+    #[OA\Post(
+        path: '/api/v1/reversal-documents/{id}/cancel',
+        operationId: 'cancelReversalDocument',
+        summary: 'Huỷ Reversal khi còn DRAFT (stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['07. Inventory'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['reason'],
+                properties: [
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã huỷ reversal DRAFT; không phát sinh stock effect.'),
+        ]
+    )]
     public function cancel(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -332,6 +369,39 @@ class ReversalDocumentController extends Controller
         return $map;
     }
 
+    #[OA\Post(
+        path: '/api/v1/reversal-documents',
+        operationId: 'createReversalDocument',
+        summary: 'Tạo Reversal document từ chứng từ gốc (RECEIPT/ISSUE/COMPONENT_ISSUE)',
+        security: [['bearerAuth' => []]],
+        tags: ['07. Inventory'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['reference_document_id', 'reference_document_type', 'reason', 'lines'],
+                properties: [
+                    new OA\Property(property: 'reversal_type', type: 'string', nullable: true),
+                    new OA\Property(property: 'reference_document_id', type: 'string'),
+                    new OA\Property(property: 'reference_document_type', type: 'string'),
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000),
+                    new OA\Property(property: 'return_condition', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true, description: 'BR-REV-06/07: chỉ áp dụng cho Reverse Issue/Component Issue.'),
+                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true, description: 'BR-REV-06: chỉ cộng tồn khi xác nhận tường minh hàng vật lý đã về.'),
+                    new OA\Property(property: 'lines', type: 'array', minItems: 1, items: new OA\Items(
+                        required: ['sku', 'reversal_qty'],
+                        properties: [
+                            new OA\Property(property: 'sku', type: 'string'),
+                            new OA\Property(property: 'reversal_qty', type: 'integer', minimum: 1),
+                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                            new OA\Property(property: 'reason', type: 'string', nullable: true),
+                        ]
+                    )),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Reversal document được tạo; header Idempotent-Replay cho biết replay.'),
+        ]
+    )]
     public function store(Request $request)
     {
         $validated = $request->validate([

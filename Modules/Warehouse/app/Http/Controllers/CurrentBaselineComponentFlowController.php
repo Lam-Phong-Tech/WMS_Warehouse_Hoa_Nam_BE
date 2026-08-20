@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineComponentFlowController extends Controller
 {
@@ -24,6 +25,38 @@ class CurrentBaselineComponentFlowController extends Controller
         private readonly ComponentContainerSubledgerService $containers,
     ) {}
 
+    #[OA\Post(
+        path: '/api/v1/component-issue-documents',
+        operationId: 'createComponentIssue',
+        summary: 'Tạo phiếu xuất linh kiện bảo hành (DRAFT, stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['warehouse_id', 'warranty_case_id', 'lines'],
+                properties: [
+                    new OA\Property(property: 'component_issue_no', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để hệ thống tự sinh mã phiếu.'),
+                    new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'warranty_case_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'document_date', type: 'string', format: 'date', nullable: true, description: 'Thiếu thì lấy ngày lập phiếu = hôm nay.'),
+                    new OA\Property(property: 'purpose', type: 'string', enum: ['WARRANTY'], nullable: true),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'lines', type: 'array', minItems: 1, items: new OA\Items(
+                        required: ['sku_id', 'required_qty'],
+                        properties: [
+                            new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', description: 'Chỉ nhận SKU COMPONENT ACTIVE.'),
+                            new OA\Property(property: 'required_qty', type: 'integer', minimum: 1),
+                            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                        ]
+                    )),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Component Issue DRAFT được tạo; stock_effect=NONE; ETag = version.'),
+        ]
+    )]
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -105,6 +138,30 @@ class CurrentBaselineComponentFlowController extends Controller
             ->header('ETag', '"1"');
     }
 
+    #[OA\Post(
+        path: '/api/v1/component-issue-documents/{id}/scan',
+        operationId: 'scanComponentIssue',
+        summary: 'Quét linh kiện cho phiếu xuất bảo hành (stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['line_id', 'quantity'],
+                properties: [
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Barcode/QR/RFID; resolve về đúng một item hoặc BOX container.'),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Serial component bắt buộc quantity = 1.'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Scan hợp lệ; stock_effect=NONE; ETag = version mới.'),
+        ]
+    )]
     public function scan(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -218,6 +275,26 @@ class CurrentBaselineComponentFlowController extends Controller
             ->header('ETag', '"'.$result['version'].'"');
     }
 
+    #[OA\Post(
+        path: '/api/v1/component-issue-documents/{id}/cancel',
+        operationId: 'cancelComponentIssue',
+        summary: 'Huỷ phiếu xuất linh kiện bảo hành (chỉ DRAFT/SCANNING)',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['reason'],
+                properties: [
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã huỷ; stock_effect=NONE; ETag = version mới.'),
+        ]
+    )]
     public function cancel(Request $request, string $id)
     {
         $validated = $request->validate(['reason' => ['required', 'string', 'max:2000']]);

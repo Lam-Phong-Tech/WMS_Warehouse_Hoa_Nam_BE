@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use OpenApi\Attributes as OA;
 
 class CurrentBaselineStockFlowController extends Controller
 {
@@ -51,6 +52,32 @@ class CurrentBaselineStockFlowController extends Controller
      * Fingerprint không chứa version và không chứa mốc thời gian — không dùng
      * time-window heuristic, đúng khuyến nghị của reviewer.
      */
+    #[OA\Post(
+        path: '/api/v1/inbound-documents/{id}/scans',
+        operationId: 'post_api_v1_inbound__documents_id_scans',
+        summary: 'Quét hàng vào phiếu nhập DRAFT/SCANNING (stock-neutral, chưa đổi tồn)',
+        security: [['bearerAuth' => []]],
+        tags: ['09. Stock In (Inbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['line_id'],
+                properties: [
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
+                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.'),
+                    new OA\Property(property: 'code_value', type: 'string', minLength: 1, maxLength: 150, nullable: true),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Scan hợp lệ; stock_effect=NONE, data.replayed=true khi response là replay theo Idempotency-Key'),
+        ]
+    )]
     public function inboundScan(Request $request, string $id)
     {
         $payload = $this->scanPayload($request);
@@ -296,11 +323,73 @@ class CurrentBaselineStockFlowController extends Controller
     // `$type === 'issue'` trong postDocument() được giữ lại vì reverse('issue')
     // vẫn dùng chung hạ tầng idempotency/version của method này.
 
+    #[OA\Post(
+        path: '/api/v1/inbound-documents/{id}/reversals',
+        operationId: 'post_api_v1_inbound__documents_id_reversals',
+        summary: 'Tạo reversal cho phiếu nhập POSTED (chứng từ gốc giữ nguyên POSTED)',
+        security: [['bearerAuth' => []]],
+        tags: ['09. Stock In (Inbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'reversal_document_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'reason_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, description: 'Bắt buộc khi không gửi reversal_document_id.'),
+                    new OA\Property(property: 'condition_status', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true),
+                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'lines', type: 'array', minItems: 1, description: 'Bắt buộc khi không gửi reversal_document_id.', items: new OA\Items(
+                        required: ['movement_id', 'quantity'],
+                        properties: [
+                            new OA\Property(property: 'movement_id', type: 'string', format: 'uuid'),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1),
+                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                        ]
+                    )),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Reversal command đã xử lý; chứng từ gốc vẫn POSTED, data.replayed=true khi replay theo Idempotency-Key'),
+        ]
+    )]
     public function reverseInbound(Request $request, string $id)
     {
         return $this->reverse($request, $id, 'receipt');
     }
 
+    #[OA\Post(
+        path: '/api/v1/outbound-documents/{id}/reversals',
+        operationId: 'stock_out_reversals',
+        summary: 'Tạo reversal cho phiếu xuất POSTED (chứng từ gốc giữ nguyên POSTED)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'reversal_document_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'reason_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, description: 'Bắt buộc khi không gửi reversal_document_id.'),
+                    new OA\Property(property: 'condition_status', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], description: 'Bắt buộc khi không gửi reversal_document_id (hàng trả về phải khai điều kiện).'),
+                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'lines', type: 'array', minItems: 1, description: 'Bắt buộc khi không gửi reversal_document_id.', items: new OA\Items(
+                        required: ['movement_id', 'quantity'],
+                        properties: [
+                            new OA\Property(property: 'movement_id', type: 'string', format: 'uuid'),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1),
+                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                        ]
+                    )),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Reversal command đã xử lý; chứng từ gốc vẫn POSTED, data.replayed=true khi replay theo Idempotency-Key'),
+        ]
+    )]
     public function reverseOutbound(Request $request, string $id)
     {
         return $this->reverse($request, $id, 'issue');

@@ -99,6 +99,56 @@ return [
                     // ghi "typed schema still generic" và FE1 WWHN-180 ghi TEMP_ONLY requestBody
                     // thiếu trong artifact. KHÔNG được bỏ dòng dưới.
                     base_path('Modules/Warehouse/app/Http/Controllers/WarrantyController.php'),
+                    // DEV handover QA 2026-08-20 (HN-BE-API-005): cùng lỗi lớp với toàn bộ
+                    // các mục trên — 9 controller dưới đây có annotation #[OA\...] thật
+                    // (request body schema/query/header đầy đủ) nhưng chưa từng nằm trong
+                    // danh sách scan, khiến 90/112 operation mutation trong api-docs.json
+                    // chỉ có placeholder `{type: object, additionalProperties: true}` rỗng
+                    // (ví dụ đã verify: POST /api/v1/agencies có schema agency_code/agency_name
+                    // trong source nhưng "agency_code" không xuất hiện trong artifact).
+                    // RouteSyncProcessor tự loại annotation không khớp route table nên việc
+                    // thêm file chỉ làm giàu schema, không thể sinh endpoint ma.
+                    // LƯU Ý: TransferController/StockRequestController/
+                    // DocumentStatusTransitionController KHÔNG được thêm — chúng nằm trong
+                    // scanOptions.exclude có chủ ý (bề mặt superseded). KHÔNG được bỏ các dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/AgencyController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/ContainerController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/DefectCatalogController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/ImportBatchController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/ItemInstanceController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/PhysicalCodeController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/ProductController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/ProductMasterController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/PutawayController.php'),
+                    // DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 2): 14 file dưới
+                    // vừa được bổ sung annotation #[OA\...] mới (request body theo đúng
+                    // validation rules trong code) cho các operation mutation trước đó
+                    // chỉ có skeleton rỗng. LƯU Ý pin: CurrentBaselineInboundBoxController
+                    // phải giữ operationId `post_api_v1_inbound__documents_id_boxes` và
+                    // CurrentBaselineStockFlowController giữ các operationId
+                    // `post_api_v1_inbound__documents_id_{reversals,scans}` — bị pin bởi
+                    // Wwhn184InboundContractParityTest. KHÔNG được bỏ các dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineItemIdentityController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineMasterController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineOperationsController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselinePhysicalCodeController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineSkuController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyAttachmentController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/ReversalDocumentController.php'),
+                    // ScanController đã có annotation WWHN-150 đầy đủ (requestBody
+                    // raw_code/context/warehouse_id, x-permission, response schema) từ
+                    // trước nhưng file chưa từng nằm trong danh sách scan — cùng lỗi lớp
+                    // với các dòng trên. scripts/verify-wwhn150-contract.mjs đọc
+                    // storage/api-docs/api-docs.json để đối chiếu x-permission nên KHÔNG
+                    // được bỏ dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/ScanController.php'),
                 ],
             ],
         ],
