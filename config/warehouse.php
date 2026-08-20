@@ -152,4 +152,43 @@ return [
          */
         'report_data_scope' => 'ACTOR_SCOPED_UNLESS_GLOBAL',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRODUCT Barcode/QR composite payload (Change Pack QR/SKU 20/08/2026)
+    |--------------------------------------------------------------------------
+    |
+    | PRODUCT QR mới chứa đồng thời sku_code + item_unique và PHẢI được backend
+    | parse authoritative (FE chỉ gửi raw payload). Đây là nguồn sự thật duy nhất
+    | của các hằng số parser; ProductQrPayloadParser và các scan endpoint đều đọc
+    | từ đây để khi nhà cung cấp chốt format thật chỉ phải đổi adapter/config,
+    | không đụng luồng nghiệp vụ (DEC-QR-01).
+    |
+    | Quyết định chốt: docs/decision-records/DEC-QR-001.md
+    |
+    */
+    'product_qr' => [
+        'decision_ref' => 'DEC-QR-001',
+
+        /** Prefix nhận diện composite payload; segment đầu = <prefix><version>. */
+        'composite_prefix' => env('WMS_PRODUCT_QR_PREFIX', 'HN'),
+
+        /** Các payload_version parser hiện hỗ trợ; version lạ -> UNSUPPORTED_PAYLOAD_VERSION. */
+        'supported_versions' => [1],
+
+        /*
+         | DEC-QR-04 — transition flag cho mã legacy (plain code_value) trên dòng
+         | PRODUCT của scan nhập/xuất. OFF nghĩa là mã PRODUCT bắt buộc composite;
+         | các ngữ cảnh read-only (trace/warranty/classify) vẫn resolve mã cũ để
+         | không khoá dữ liệu lịch sử.
+         */
+        'legacy_enabled' => (bool) env('WMS_PRODUCT_QR_LEGACY_ENABLED', true),
+
+        /*
+         | Trần độ dài raw payload nhận ở request (Change Pack §8: nâng 150 -> 512).
+         | Evidence scan_event.raw_code bị cắt còn 200 ký tự theo trần cột ERD bảng
+         | 25; phần parse được lưu đủ trong metadata/parsed fields.
+         */
+        'max_payload_length' => (int) env('WMS_PRODUCT_QR_MAX_PAYLOAD_LENGTH', 512),
+    ],
 ];

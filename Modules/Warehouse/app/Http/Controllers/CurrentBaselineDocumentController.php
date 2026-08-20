@@ -51,6 +51,12 @@ class CurrentBaselineDocumentController extends Controller
         if (Schema::hasColumn('item_instances', 'item_code')) {
             $columns[] = 'i.item_code';
         }
+        // Change Pack QR/SKU (DEC-QR-03): entry candidate chưa có item_id cho tới
+        // Post Receipt — FE hiển thị identity qua candidate_item_unique.
+        if (Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+            $columns[] = 'e.candidate_item_unique';
+            $columns[] = 'e.candidate_serial_number';
+        }
 
         // status=ACTIVE (mặc định hiển thị của IN-03) lọc bỏ entry đã gỡ; status=ALL
         // trả cả lịch sử REMOVED để đối soát/audit.

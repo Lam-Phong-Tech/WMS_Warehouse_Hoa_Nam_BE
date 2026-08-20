@@ -197,12 +197,15 @@ components:
     OutboundScanRequest:
       type: object
       required:
-        - line_id
         - quantity
       properties:
         line_id:
           type: string
           format: uuid
+          nullable: true
+          description: >-
+            Tùy chọn khi gửi code_value (Change Pack QR/SKU 20/08/2026): server tự match dòng
+            theo SKU parse từ composite QR. Bắt buộc cho scan không kèm code_value.
         quantity:
           type: integer
           minimum: 1
@@ -218,11 +221,15 @@ components:
           description: Chế độ chọn thẳng item (nhập tay có kiểm soát).
         code_value:
           type: string
-          maxLength: 150
+          maxLength: 512
           nullable: true
           description: >-
-            Mã vật lý gửi lên (camera decode hoặc gõ tay). Server tra physical_codes ACTIVE rồi map
-            sang item. Gửi cả item_id và code_value mà lệch nhau → 422 PHYSICAL_CODE_ITEM_MISMATCH.
+            RAW scan payload (camera decode hoặc gõ tay). PRODUCT QR composite
+            HN1|SKU=<sku_code>|ITEM=<item_unique> được server parse authoritative rồi cross-check
+            SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).
+            Plain code legacy vẫn tra physical_codes ACTIVE rồi map sang item. Gửi cả item_id và
+            code_value mà lệch nhau → 422 PHYSICAL_CODE_ITEM_MISMATCH. Trần 512 theo Change Pack
+            QR/SKU 20/08/2026 (trước là 150).
         container_id:
           type: string
           format: uuid

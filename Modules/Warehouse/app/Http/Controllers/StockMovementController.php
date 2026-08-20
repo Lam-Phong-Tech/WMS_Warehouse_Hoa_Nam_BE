@@ -3,12 +3,16 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Support\HoaNamErdSchema;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockMovement;
+use Modules\Warehouse\Services\ProductIdentityResolver;
+use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Support\ProductQrPayload;
 use OpenApi\Attributes as OA;
 
 /** Lịch sử biến động tồn (inventory_movement) — append-only, không cho sửa/xoá. */
@@ -333,7 +337,9 @@ class StockMovementController extends Controller
     )]
     public function traceByPhysicalCode(Request $request)
     {
-        $request->validate(['code' => ['required', 'string', 'max:200']]);
+        // Change Pack QR/SKU: chấp nhận cả raw composite payload (trần 512);
+        // resolveTraceTarget parse + chuẩn hoá trước khi tra movement chain.
+        $request->validate(['code' => ['required', 'string', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)]]);
         $codeValue = trim((string) $request->input('code'));
 
         $resolution = $this->resolveTraceTarget($codeValue);
@@ -450,6 +456,24 @@ class StockMovementController extends Controller
      */
     private function resolveTraceTarget(string $codeValue): ?array
     {
+        // DEC-QR-001 / AC-QR-07: raw composite PRODUCT QR phải qua parser trước —
+        // trace chạy theo normalized item_unique, không bao giờ theo raw payload.
+        $parser = app(ProductQrPayloadParser::class);
+        if ($parser->looksComposite($codeValue)) {
+            $parsed = $parser->parse($codeValue);
+            if ($parsed->parseStatus === ProductQrPayload::STATUS_UNSUPPORTED_VERSION) {
+                ApiError::abort(422, 'UNSUPPORTED_PAYLOAD_VERSION', 'Version cấu trúc QR không được hỗ trợ.', [
+                    'payload_version' => $parsed->payloadVersion,
+                ]);
+            }
+            if (! $parsed->isValid()) {
+                ApiError::abort(422, 'INVALID_PAYLOAD', 'QR/Barcode composite sai cấu trúc; không thể parse SKU + item unique.');
+            }
+            // SKU embedded phải tồn tại/ACTIVE (Change Pack §5: not found -> REJECT).
+            app(ProductIdentityResolver::class)->requireActiveSkuByCode((string) $parsed->skuCode);
+            $codeValue = (string) $parsed->normalizedCodeValue;
+        }
+
         $needle = mb_strtolower($codeValue);
 
         $physicalCode = DB::table('physical_codes')

@@ -5,10 +5,12 @@ namespace Modules\Warehouse\Services;
 use App\Support\ApiError;
 use App\Support\Cache\CacheService;
 use App\Support\ConflictCode;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\ProductQrPayload;
 
 class CurrentBaselineStockService
 {
@@ -28,14 +30,14 @@ class CurrentBaselineStockService
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ chứng từ DRAFT/SCANNING mới được scan.');
             }
 
-            $line = DB::table('stock_document_lines')
-                ->where('id', $payload['line_id'])
-                ->where('stock_document_id', $documentId)
-                ->lockForUpdate()
-                ->first();
-            if ($line === null) {
-                ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy dòng chứng từ.');
-            }
+            // DEC-QR-001: backend parse composite PRODUCT QR authoritative; FE chỉ
+            // gửi raw payload. Payload không composite đi tiếp nhánh legacy y cũ.
+            $parsed = $this->parseScanPayload($payload);
+            $embeddedSku = $parsed !== null && $parsed->isComposite()
+                ? $this->identityResolver()->requireActiveSkuByCode((string) $parsed->skuCode)
+                : null;
+
+            $line = $this->resolveLineForScan($documentId, $payload, $embeddedSku, $parsed);
 
             $quantity = (int) $payload['quantity'];
             if ($quantity <= 0) {
@@ -52,13 +54,16 @@ class CurrentBaselineStockService
             if ($sku === null || strtoupper((string) $sku->status) !== 'ACTIVE') {
                 ApiError::abort(422, 'SKU_NOT_ACTIVE', 'SKU không tồn tại hoặc không ACTIVE.');
             }
+            if ($documentType === 'issue' && strtoupper((string) $sku->sku_type) !== 'PRODUCT') {
+                ApiError::abort(422, 'PRODUCT_SKU_REQUIRED', 'Outbound sản phẩm không được scan COMPONENT; linh kiện chỉ xuất qua Component Issue WARRANTY.');
+            }
 
-            $item = $this->resolveItem($payload, (string) $line->product_id);
+            [$item, $candidate] = $this->resolveScanTarget($payload, $line, $sku, $parsed, $embeddedSku, $documentType, $documentId);
             $requiresItem = strtoupper((string) $sku->sku_type) === 'PRODUCT' || (bool) $sku->is_serial_tracked;
-            if ($requiresItem && $item === null) {
+            if ($requiresItem && $item === null && $candidate === null) {
                 ApiError::abort(422, 'ITEM_REQUIRED', 'PRODUCT/serial-tracked line bắt buộc scan một item cụ thể.');
             }
-            if ($item !== null && $quantity !== 1) {
+            if (($item !== null || $candidate !== null) && $quantity !== 1) {
                 ApiError::abort(422, 'SERIAL_QUANTITY_MUST_BE_ONE', 'Scan item cụ thể chỉ cho phép quantity=1.');
             }
 
@@ -69,6 +74,10 @@ class CurrentBaselineStockService
                 }
             } elseif ($item !== null) {
                 $this->assertItemAvailableForReceipt($item, $documentId);
+            }
+
+            if ($candidate !== null) {
+                $this->assertCandidateAvailable($documentId, (string) $candidate['item_unique']);
             }
 
             if ($document->status === 'DRAFT') {
@@ -82,7 +91,7 @@ class CurrentBaselineStockService
             }
 
             if ($documentType === 'receipt') {
-                $this->recordInboundScan((string) $line->id, $item, $payload, $quantity, $actorId);
+                $this->recordInboundScan((string) $line->id, $item, $payload, $quantity, $actorId, $candidate);
             } else {
                 $this->recordOutboundMatch((string) $line->id, $item, $payload, $quantity, $actorId);
             }
@@ -92,7 +101,14 @@ class CurrentBaselineStockService
                 'updated_at' => now(),
             ]);
 
-            $this->recordScanEvidence($document, $line, $item, $payload, $actorId);
+            $this->recordScanEvidence($document, $line, $item, $payload, $actorId, $parsed);
+
+            $resolutionStatus = null;
+            if ($candidate !== null) {
+                $resolutionStatus = 'NEW_ITEM_CANDIDATE';
+            } elseif ($item !== null) {
+                $resolutionStatus = $parsed !== null && $parsed->isComposite() ? 'EXISTING_ITEM' : 'LEGACY_ITEM';
+            }
 
             return [
                 'document_id' => $documentId,
@@ -105,8 +121,241 @@ class CurrentBaselineStockService
                 'status' => 'SCANNING',
                 'stock_effect' => 'NONE',
                 'movement_created' => false,
+                // Change Pack QR/SKU §8 — parsed identity cho FE hiển thị, không
+                // phải để FE tự parse lại (AC-QR-10).
+                'payload_format' => $parsed?->format,
+                'payload_version' => $parsed?->payloadVersion,
+                'sku_code' => $parsed !== null && $parsed->isComposite()
+                    ? $parsed->skuCode
+                    : (string) $sku->sku_code,
+                'item_unique' => $parsed?->itemUnique,
+                'serial_number' => $candidate !== null ? $candidate['serial_number'] : $item?->serial_number,
+                'normalized_code_value' => $parsed?->normalizedCodeValue,
+                'resolution_status' => $resolutionStatus,
             ];
         }, 3);
+    }
+
+    /**
+     * Parse code_value theo DEC-QR-001; abort ngay tại đây cho payload hỏng để
+     * không nhánh nào phía sau phải đoán cấu trúc (Change Pack §9).
+     */
+    private function parseScanPayload(array $payload): ?ProductQrPayload
+    {
+        if (! isset($payload['code_value']) || trim((string) $payload['code_value']) === '') {
+            return null;
+        }
+
+        $parsed = app(ProductQrPayloadParser::class)->parse((string) $payload['code_value']);
+        if ($parsed->parseStatus === ProductQrPayload::STATUS_UNSUPPORTED_VERSION) {
+            ApiError::abort(422, 'UNSUPPORTED_PAYLOAD_VERSION', 'Version cấu trúc QR không được hỗ trợ.', [
+                'payload_version' => $parsed->payloadVersion,
+            ]);
+        }
+        if (! $parsed->isValid()) {
+            ApiError::abort(422, 'INVALID_PAYLOAD', 'QR/Barcode composite sai cấu trúc; không thể parse SKU + item unique.');
+        }
+
+        return $parsed;
+    }
+
+    private function identityResolver(): ProductIdentityResolver
+    {
+        return app(ProductIdentityResolver::class);
+    }
+
+    /**
+     * Dùng cho duplicate pre-check của controller (assertNoDuplicateItemInDocument):
+     * resolve item ĐÃ TỒN TẠI từ payload scan, hiểu cả composite QR lẫn plain code.
+     * Trả null khi chưa resolve được (candidate/mã lạ) — các guard chuyên sâu hơn
+     * nằm trong scanStockDocument.
+     */
+    public function resolveExistingItemIdForPayload(array $payload): ?string
+    {
+        if (! empty($payload['item_id'])) {
+            return (string) $payload['item_id'];
+        }
+        if (empty($payload['code_value'])) {
+            return null;
+        }
+
+        $parsed = app(ProductQrPayloadParser::class)->parse((string) $payload['code_value']);
+        if (! $parsed->isValid()) {
+            return null;
+        }
+
+        $needle = $parsed->isComposite() ? (string) $parsed->itemUnique : (string) $parsed->normalizedCodeValue;
+        $item = $this->identityResolver()->findItemByUnique($needle);
+
+        return $item?->item_id !== null ? (string) $item->item_id : null;
+    }
+
+    /**
+     * Xác định dòng chứng từ cho một lần scan.
+     *
+     * - line_id gửi tường minh: giữ hành vi cũ, nhưng composite phải khớp SKU
+     *   embedded với SKU của dòng (AC-QR-02/05 — không cho override tay).
+     * - line_id vắng: tự match theo SKU embedded (composite) hoặc SKU của item
+     *   đã đăng ký (legacy) — Change Pack §6.1 bước 4: người dùng không chọn SKU
+     *   cho từng lần scan.
+     */
+    private function resolveLineForScan(
+        string $documentId,
+        array $payload,
+        ?object $embeddedSku,
+        ?ProductQrPayload $parsed
+    ): object {
+        if (! empty($payload['line_id'])) {
+            $line = DB::table('stock_document_lines')
+                ->where('id', $payload['line_id'])
+                ->where('stock_document_id', $documentId)
+                ->lockForUpdate()
+                ->first();
+            if ($line === null) {
+                ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy dòng chứng từ.');
+            }
+            if ($embeddedSku !== null && (string) $line->product_id !== (string) $embeddedSku->sku_id) {
+                ApiError::abort(422, 'WRONG_SKU', 'SKU embedded trong QR không khớp SKU của dòng chứng từ.', [
+                    'sku_code' => $parsed?->skuCode,
+                    'line_id' => (string) $line->id,
+                ]);
+            }
+
+            return $line;
+        }
+
+        $skuId = null;
+        if ($embeddedSku !== null) {
+            $skuId = (string) $embeddedSku->sku_id;
+        } elseif ($parsed !== null) {
+            // Legacy code không kèm line: chỉ auto-match được khi item đã đăng ký.
+            $item = $this->identityResolver()->findItemByUnique((string) $parsed->normalizedCodeValue);
+            if ($item === null) {
+                ApiError::abort(422, 'PHYSICAL_CODE_NOT_FOUND', 'Barcode/QR không tồn tại hoặc không ACTIVE.');
+            }
+            $skuId = (string) $item->sku_id;
+        } else {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'Thiếu line_id cho scan không kèm code_value.');
+        }
+
+        $lines = DB::table('stock_document_lines')
+            ->where('stock_document_id', $documentId)
+            ->where('product_id', $skuId)
+            ->orderBy('line_no')
+            ->lockForUpdate()
+            ->get();
+        if ($lines->isEmpty()) {
+            ApiError::abort(422, 'WRONG_SKU', 'SKU của mã scan không có dòng nào trên chứng từ.', [
+                'sku_code' => $parsed?->skuCode,
+            ]);
+        }
+
+        // Ưu tiên dòng còn thiếu; mọi dòng đã đủ thì trả dòng đầu để guard
+        // SCAN_EXCEEDS_REQUIRED phía sau báo đúng ngữ nghĩa EXCESS.
+        foreach ($lines as $line) {
+            if ((int) $line->scanned_qty < (int) $line->qty_planned) {
+                return $line;
+            }
+        }
+
+        return $lines->first();
+    }
+
+    /**
+     * Resolve item/candidate cho một lần scan.
+     *
+     * @return array{0: ?object, 1: ?array{item_unique: string, serial_number: ?string}}
+     */
+    private function resolveScanTarget(
+        array $payload,
+        object $line,
+        object $sku,
+        ?ProductQrPayload $parsed,
+        ?object $embeddedSku,
+        string $documentType,
+        string $documentId
+    ): array {
+        $isProductLine = strtoupper((string) $sku->sku_type) === 'PRODUCT';
+
+        if ($parsed !== null && $parsed->isLegacy() && $isProductLine
+            && ! (bool) config('warehouse.product_qr.legacy_enabled', true)) {
+            // DEC-QR-04: hết cửa sổ transition thì mã PRODUCT bắt buộc composite.
+            ApiError::abort(422, 'LEGACY_CODE_DISABLED', 'Mã PRODUCT dạng cũ đã bị tắt; hàng mới phải dùng QR composite chứa SKU + item unique.');
+        }
+
+        if ($parsed === null || $parsed->isLegacy()) {
+            return [$this->resolveItem($payload, (string) $line->product_id), null];
+        }
+
+        // Composite: resolve theo item_unique đã chuẩn hoá.
+        $item = $this->identityResolver()->findItemByUnique((string) $parsed->itemUnique);
+        if ($item !== null) {
+            if (! empty($payload['item_id']) && strtolower((string) $payload['item_id']) !== strtolower((string) $item->item_id)) {
+                ApiError::abort(422, 'PHYSICAL_CODE_ITEM_MISMATCH', 'code_value và item_id không trỏ cùng item.');
+            }
+            $this->identityResolver()->assertItemMatchesSku($item, $embeddedSku, $parsed);
+
+            // Khoá lại đúng hàng item trước khi dùng cho guard/subledger.
+            $item = DB::table('item_instances')->where('item_id', $item->item_id)->lockForUpdate()->first();
+
+            return [$item, null];
+        }
+
+        if ($documentType !== 'receipt') {
+            // AC-QR-05: outbound chỉ nhận item đã tồn tại.
+            ApiError::abort(422, 'UNKNOWN_CODE', 'QR hợp lệ nhưng item chưa được đăng ký trong hệ thống.', [
+                'item_unique' => $parsed->itemUnique,
+            ]);
+        }
+
+        if ($this->identityResolver()->identityOccupied((string) $parsed->itemUnique)) {
+            // Mã đã bị chiếm bởi bản ghi không còn ACTIVE — không được đăng ký đè.
+            ApiError::abort(409, 'ITEM_ALREADY_REGISTERED', 'item_unique đã được sử dụng bởi một định danh khác trong hệ thống.', [
+                'item_unique' => $parsed->itemUnique,
+            ]);
+        }
+
+        // AC-QR-03: new item candidate — chưa ghi item/physical code, đăng ký
+        // atomically tại Post Receipt (DEC-QR-03).
+        $serial = $parsed->serialNumber !== null && $parsed->serialNumber !== $parsed->itemUnique
+            ? $parsed->serialNumber
+            : null;
+
+        return [null, ['item_unique' => (string) $parsed->itemUnique, 'serial_number' => $serial]];
+    }
+
+    /**
+     * Duplicate guard cho new item candidate (AC-QR-03/QR-02): cùng phiếu →
+     * DUPLICATE_ITEM_IN_DOCUMENT; phiếu inbound mở khác → ITEM_ALREADY_RECEIVING
+     * (đối xứng với guard item đã tồn tại).
+     */
+    private function assertCandidateAvailable(string $documentId, string $itemUnique): void
+    {
+        if (! Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+            ApiError::abort(422, 'INVALID_PAYLOAD', 'Schema chưa hỗ trợ new item candidate; hãy chạy migration mới nhất.');
+        }
+
+        $inDocument = DB::table('inbound_scan_entries as e')
+            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
+            ->where('l.stock_document_id', $documentId)
+            ->where('e.candidate_item_unique', $itemUnique)
+            ->where(fn ($query) => self::activeScanEntry($query))
+            ->exists();
+        if ($inDocument) {
+            ApiError::abort(409, 'DUPLICATE_ITEM_IN_DOCUMENT', 'Một item chỉ được scan/match một lần trong cùng document.');
+        }
+
+        $inOtherDocument = DB::table('inbound_scan_entries as e')
+            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
+            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
+            ->where('d.id', '!=', $documentId)
+            ->whereIn('d.status', self::ACTIVE_DOCUMENT_STATUSES)
+            ->where('e.candidate_item_unique', $itemUnique)
+            ->where(fn ($query) => self::activeScanEntry($query))
+            ->exists();
+        if ($inOtherDocument) {
+            ApiError::abort(409, 'ITEM_ALREADY_RECEIVING', 'Item đang thuộc một inbound chưa Post khác.');
+        }
     }
 
     public function postStockDocument(
@@ -143,6 +392,15 @@ class CurrentBaselineStockService
 
             if ($documentType === 'issue') {
                 $this->assertMatchedProductRfids($documentId, $lines);
+            }
+
+            if ($documentType === 'receipt') {
+                // DEC-QR-03 / AC-QR-04: đăng ký item/physical code cho new item
+                // candidate TRƯỚC vòng tạo movement để movement.item_id được gán
+                // đúng, trong cùng transaction — lỗi ở bất kỳ bước nào rollback
+                // toàn bộ; Idempotency replay không chạy lại closure nên không
+                // thể tạo item lần hai.
+                $this->registerCandidateItems($documentId, $actorId);
             }
 
             $movementIds = [];
@@ -603,7 +861,10 @@ class CurrentBaselineStockService
         }
     }
 
-    private function recordInboundScan(string $lineId, ?object $item, array $payload, int $quantity, ?string $actorId): void
+    /**
+     * @param  array{item_unique: string, serial_number: ?string}|null  $candidate
+     */
+    private function recordInboundScan(string $lineId, ?object $item, array $payload, int $quantity, ?string $actorId, ?array $candidate = null): void
     {
         // ERD bảng 28 yêu cầu status ACTIVE/REMOVED + captured_at/captured_by.
         // Trên PostgreSQL trigger hn_fill_scan_evidence_fields đã điền hộ, nhưng ghi
@@ -626,6 +887,11 @@ class CurrentBaselineStockService
             if (Schema::hasColumn('inbound_scan_entries', $column)) {
                 $row[$column] = $value;
             }
+        }
+        // DEC-QR-03: candidate giữ identity trên entry cho tới Post Receipt.
+        if ($candidate !== null) {
+            $row['candidate_item_unique'] = $candidate['item_unique'];
+            $row['candidate_serial_number'] = $candidate['serial_number'];
         }
 
         DB::table('inbound_scan_entries')->insert($row);
@@ -660,7 +926,7 @@ class CurrentBaselineStockService
         ]);
     }
 
-    private function recordScanEvidence(object $document, object $line, ?object $item, array $payload, ?string $actorId): void
+    private function recordScanEvidence(object $document, object $line, ?object $item, array $payload, ?string $actorId, ?ProductQrPayload $parsed = null): void
     {
         // scan_event là compatibility VIEW từ 000791 — hasTable() trả false cho
         // view trên PostgreSQL nên phải kiểm tra thêm hasView, nếu không evidence
@@ -672,7 +938,10 @@ class CurrentBaselineStockService
 
         // NFR-SRS-004: mọi scan (camera/nhập tay code_value lẫn chọn item_id trực
         // tiếp) đều để lại scan_event; raw_code fallback về mã vật lý của item.
-        $rawCode = isset($payload['code_value']) ? strtoupper(trim((string) $payload['code_value'])) : null;
+        // Composite QR: raw payload là bắt buộc trong evidence (Change Pack §7)
+        // nhưng cột code_value canonical trần 200 (ERD bảng 25) → cắt an toàn;
+        // identity đã parse nằm đủ trong metadata bên dưới.
+        $rawCode = isset($payload['code_value']) ? mb_substr(strtoupper(trim((string) $payload['code_value'])), 0, 200) : null;
         if ($rawCode === null || $rawCode === '') {
             if ($item !== null) {
                 $physical = DB::table('physical_codes')
@@ -722,6 +991,44 @@ class CurrentBaselineStockService
             $document->doc_type === 'receipt' ? 'INBOUND' : 'OUTBOUND',
             (string) $document->id
         );
+        $this->stampScanPayloadAudit($scanEventId, $parsed);
+    }
+
+    /**
+     * Change Pack QR/SKU §7 — audit parse của composite QR (raw_payload đầy đủ,
+     * parsed sku/item, payload_version, parse_status) ghi vào scan_events.metadata
+     * (jsonb, ERD bảng 25) thay vì thêm cột mới: cùng pattern defensive với
+     * stampScanSource để driver/schema thiếu cột không chặn nghiệp vụ scan.
+     */
+    private function stampScanPayloadAudit(string $scanEventId, ?ProductQrPayload $parsed): void
+    {
+        if ($parsed === null || ! $parsed->isComposite()) {
+            return;
+        }
+
+        $metadata = json_encode([
+            'raw_payload' => $parsed->rawPayload,
+            'payload_version' => $parsed->payloadVersion,
+            'parsed_sku_code' => $parsed->skuCode,
+            'parsed_item_unique' => $parsed->itemUnique,
+            'parse_status' => $parsed->parseStatus,
+        ], JSON_UNESCAPED_UNICODE);
+
+        foreach (['scan_events' => 'id', 'scan_event' => 'scan_event_id'] as $table => $key) {
+            if ((! Schema::hasTable($table) && ! Schema::hasView($table)) || ! Schema::hasColumn($table, 'metadata')) {
+                continue;
+            }
+
+            try {
+                $affected = DB::table($table)->where($key, $scanEventId)->update(['metadata' => $metadata]);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($affected > 0) {
+                return;
+            }
+        }
     }
 
     /**
@@ -814,10 +1121,129 @@ class CurrentBaselineStockService
      */
     private function sortLinesForBalanceLock(iterable $lines, string $skuColumn): array
     {
-        $items = $lines instanceof \Illuminate\Support\Collection ? $lines->all() : [...$lines];
+        $items = $lines instanceof Collection ? $lines->all() : [...$lines];
         usort($items, fn (object $a, object $b): int => [(string) $a->{$skuColumn}, (string) $a->id] <=> [(string) $b->{$skuColumn}, (string) $b->id]);
 
         return $items;
+    }
+
+    /**
+     * DEC-QR-03 / AC-QR-04: tạo Item_Instance + Physical_Code cho mọi new item
+     * candidate còn ACTIVE của phiếu, atomically trong transaction Post Receipt.
+     *
+     * Item tạo với item_status=NEW rồi được applyReceiptSubledger (chạy ngay sau,
+     * cùng transaction) chuyển IN_STOCK qua entry.item_id vừa gán — đi đúng một
+     * đường state với item pre-seeded, không mở nhánh state riêng cho candidate.
+     * Trùng identity (phiếu khác Post trước / mã được đăng ký ngoài luồng sau khi
+     * scan) bị chặn fail-closed bằng re-check trong transaction; unique constraint
+     * của physical_codes.code_value và item_instances.serial_number là backstop.
+     */
+    private function registerCandidateItems(string $documentId, ?string $actorId): void
+    {
+        if (! Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+            return;
+        }
+
+        $candidates = DB::table('inbound_scan_entries as e')
+            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
+            ->where('l.stock_document_id', $documentId)
+            ->whereNull('e.item_id')
+            ->whereNotNull('e.candidate_item_unique')
+            ->where(fn ($query) => self::activeScanEntry($query))
+            ->lockForUpdate()
+            ->get(['e.id as entry_id', 'e.candidate_item_unique', 'e.candidate_serial_number', 'l.product_id']);
+
+        foreach ($candidates as $candidate) {
+            $itemUnique = strtoupper(trim((string) $candidate->candidate_item_unique));
+            $serial = $candidate->candidate_serial_number !== null && trim((string) $candidate->candidate_serial_number) !== ''
+                ? strtoupper(trim((string) $candidate->candidate_serial_number))
+                : $itemUnique;
+
+            if (DB::table('physical_codes')->where('code_value', $itemUnique)->exists()
+                || DB::table('item_instances')->where('serial_number', $serial)->exists()) {
+                ApiError::abort(409, 'ITEM_ALREADY_REGISTERED', 'item_unique/serial của candidate đã được đăng ký bởi giao dịch khác; gỡ mã và quét lại.', [
+                    'item_unique' => $itemUnique,
+                ]);
+            }
+
+            $itemId = (string) Str::uuid();
+            $itemRow = [
+                'item_id' => $itemId,
+                'sku_id' => (string) $candidate->product_id,
+                'serial_number' => $serial,
+                'item_status' => 'NEW',
+                'item_condition' => 'NORMAL',
+                'version' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            // Cột chỉ có trên một driver (id/item_code/status/condition ở nhánh ERD
+            // PostgreSQL; created_by tuỳ schema) — điền có điều kiện như các luồng khác.
+            foreach ([
+                'id' => $itemId,
+                'item_code' => $itemUnique,
+                'status' => 'NEW',
+                'condition' => 'NORMAL',
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+            ] as $column => $value) {
+                if (Schema::hasColumn('item_instances', $column)) {
+                    $itemRow[$column] = $value;
+                }
+            }
+            DB::table('item_instances')->insert($itemRow);
+
+            $physicalCodeId = (string) Str::uuid();
+            DB::table('physical_codes')->insert([
+                'physical_code_id' => $physicalCodeId,
+                'code_value' => $itemUnique,
+                'code_type' => 'ITEM',
+                'carrier_type' => 'QR',
+                'hardware_uid' => null,
+                'item_id' => $itemId,
+                'container_id' => null,
+                'assigned_object_type' => 'ITEM',
+                'assigned_object_id' => $itemId,
+                'is_primary' => true,
+                'assigned_at' => now(),
+                'assigned_by' => $actorId,
+                // DEC-QR-001: composite V1 — đánh version để phân biệt mã phát
+                // hành theo cấu trúc mới với mã legacy.
+                'encoded_payload_version' => '1',
+                'status' => 'ACTIVE',
+                'version' => 1,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('item_instances')->where('item_id', $itemId)->update([
+                'physical_code_id' => $physicalCodeId,
+                'updated_at' => now(),
+            ]);
+
+            DB::table('inbound_scan_entries')->where('id', $candidate->entry_id)->update([
+                'item_id' => $itemId,
+                'updated_at' => now(),
+                'updated_by' => $actorId,
+            ]);
+
+            AuditLogger::record(
+                action: 'ITEM_REGISTERED_AT_POST_RECEIPT',
+                objectType: 'item_instance',
+                objectId: $itemId,
+                actorId: $actorId,
+                requestId: request()?->attributes->get('request_id'),
+                afterData: [
+                    'document_id' => $documentId,
+                    'sku_id' => (string) $candidate->product_id,
+                    'item_unique' => $itemUnique,
+                    'physical_code_id' => $physicalCodeId,
+                    'encoded_payload_version' => '1',
+                ],
+            );
+        }
     }
 
     private function applyReceiptSubledger(string $documentId): void

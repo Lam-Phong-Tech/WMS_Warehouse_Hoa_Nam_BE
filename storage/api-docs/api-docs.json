@@ -8487,13 +8487,12 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "required": [
-                                    "line_id"
-                                ],
                                 "properties": {
                                     "line_id": {
+                                        "description": "Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU). Bắt buộc cho scan quantity-mode không kèm code_value.",
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "nullable": true
                                     },
                                     "quantity": {
                                         "description": "Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).",
@@ -8508,9 +8507,10 @@
                                         "minimum": 1
                                     },
                                     "code_value": {
+                                        "description": "RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse authoritative, FE không tự tách. Plain code legacy vẫn nhận theo transition flag.",
                                         "type": "string",
                                         "nullable": true,
-                                        "maxLength": 150,
+                                        "maxLength": 512,
                                         "minLength": 1
                                     },
                                     "item_id": {
@@ -8536,7 +8536,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Scan hợp lệ; stock_effect=NONE, data.replayed=true khi response là replay theo Idempotency-Key",
+                        "description": "Scan hợp lệ; stock_effect=NONE, data.replayed=true khi replay theo Idempotency-Key. Composite QR trả kèm payload_format/payload_version/sku_code/item_unique/normalized_code_value/resolution_status (NEW_ITEM_CANDIDATE khi item chưa tồn tại — item_id=null cho tới Post Receipt).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -13144,13 +13144,12 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "required": [
-                                    "line_id"
-                                ],
                                 "properties": {
                                     "line_id": {
+                                        "description": "Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU).",
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "nullable": true
                                     },
                                     "quantity": {
                                         "description": "Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).",
@@ -13165,9 +13164,10 @@
                                         "minimum": 1
                                     },
                                     "code_value": {
+                                        "description": "RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse + cross-check SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).",
                                         "type": "string",
                                         "nullable": true,
-                                        "maxLength": 150
+                                        "maxLength": 512
                                     },
                                     "item_id": {
                                         "type": "string",
@@ -29833,9 +29833,9 @@
                                 ],
                                 "properties": {
                                     "raw_code": {
-                                        "description": "QR, barcode, serial, container code hoặc SKU code",
+                                        "description": "RAW scan payload: composite PRODUCT QR (HN1|SKU=<sku_code>|ITEM=<item_unique>) hoặc plain QR/barcode/serial/container/SKU code. Server parse authoritative — client không tự tách SKU/item.",
                                         "type": "string",
-                                        "maxLength": 150
+                                        "maxLength": 512
                                     },
                                     "context": {
                                         "type": "string",
@@ -29976,6 +29976,43 @@
                                                     "type": "boolean",
                                                     "enum": [
                                                         false
+                                                    ]
+                                                },
+                                                "payload_format": {
+                                                    "description": "Chỉ có khi raw_code là composite PRODUCT QR (Change Pack QR/SKU).",
+                                                    "type": "string",
+                                                    "nullable": true,
+                                                    "enum": [
+                                                        "COMPOSITE_V1"
+                                                    ]
+                                                },
+                                                "payload_version": {
+                                                    "type": "integer",
+                                                    "nullable": true
+                                                },
+                                                "sku_code": {
+                                                    "description": "sku_code embedded đã parse từ composite QR.",
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "item_unique": {
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "serial_number": {
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "normalized_code_value": {
+                                                    "description": "Identity chuẩn hoá để gọi tiếp trace/warranty; không dùng raw payload cho path/URL.",
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "resolution_status": {
+                                                    "type": "string",
+                                                    "nullable": true,
+                                                    "enum": [
+                                                        "EXISTING_ITEM"
                                                     ]
                                                 },
                                                 "current_location": {
@@ -37200,7 +37237,13 @@
                             "SCAN_WAREHOUSE_MISMATCH",
                             "SCAN_CONTEXT_CONFLICT",
                             "BUSINESS_RULE_ERROR",
-                            "VALIDATION_ERROR"
+                            "VALIDATION_ERROR",
+                            "INVALID_PAYLOAD",
+                            "UNSUPPORTED_PAYLOAD_VERSION",
+                            "SKU_NOT_FOUND",
+                            "SKU_INACTIVE",
+                            "WRONG_SKU",
+                            "UNKNOWN_CODE"
                         ]
                     },
                     "errors": {
