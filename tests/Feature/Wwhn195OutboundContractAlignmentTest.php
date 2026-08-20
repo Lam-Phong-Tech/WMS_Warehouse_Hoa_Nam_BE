@@ -127,21 +127,23 @@ class Wwhn195OutboundContractAlignmentTest extends TestCase
 
     public function test_code_value_max_length_is_identical_in_contract_and_runtime(): void
     {
+        // Change Pack QR/SKU 20/08/2026: trần nâng 150 -> 512 cho RAW composite
+        // payload — contract, literal runtime và boundary test đổi đồng bộ.
         $contract = Yaml::parseFile(base_path(self::CONTRACT_PATH));
         $declaredMax = $contract['components']['schemas']['OutboundScanRequest']['properties']['code_value']['maxLength'];
-        $this->assertSame(150, $declaredMax);
+        $this->assertSame(512, $declaredMax);
 
         $controller = (string) file_get_contents(base_path('Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php'));
-        $this->assertStringContainsString("'code_value' => ['nullable', 'string', 'max:150']", $controller);
+        $this->assertStringContainsString("'code_value' => ['nullable', 'string', 'max:512']", $controller);
 
-        // Và runtime thật sự từ chối 151 ký tự.
+        // Và runtime thật sự từ chối 513 ký tự.
         $headers = $this->superAdminHeaders();
         $fixture = $this->scanReadyDocument($headers, 'PROD-W195-LEN');
 
         $this->postJson("/api/v1/outbound-documents/{$fixture['document_id']}/scan", [
             'line_id' => $fixture['line_id'],
             'quantity' => 1,
-            'code_value' => str_repeat('A', 151),
+            'code_value' => str_repeat('A', 513),
         ], $headers + ['If-Match' => '1'])->assertStatus(422);
     }
 

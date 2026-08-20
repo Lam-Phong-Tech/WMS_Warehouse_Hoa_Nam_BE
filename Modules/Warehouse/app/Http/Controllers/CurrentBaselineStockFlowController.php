@@ -62,12 +62,11 @@ class CurrentBaselineStockFlowController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['line_id'],
                 properties: [
-                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU). Bắt buộc cho scan quantity-mode không kèm code_value.'),
                     new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
                     new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.'),
-                    new OA\Property(property: 'code_value', type: 'string', minLength: 1, maxLength: 150, nullable: true),
+                    new OA\Property(property: 'code_value', type: 'string', minLength: 1, maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse authoritative, FE không tự tách. Plain code legacy vẫn nhận theo transition flag.'),
                     new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true),
@@ -75,7 +74,7 @@ class CurrentBaselineStockFlowController extends Controller
             )
         ),
         responses: [
-            new OA\Response(response: 200, description: 'Scan hợp lệ; stock_effect=NONE, data.replayed=true khi response là replay theo Idempotency-Key'),
+            new OA\Response(response: 200, description: 'Scan hợp lệ; stock_effect=NONE, data.replayed=true khi replay theo Idempotency-Key. Composite QR trả kèm payload_format/payload_version/sku_code/item_unique/normalized_code_value/resolution_status (NEW_ITEM_CANDIDATE khi item chưa tồn tại — item_id=null cho tới Post Receipt).'),
         ]
     )]
     public function inboundScan(Request $request, string $id)
@@ -404,19 +403,23 @@ class CurrentBaselineStockFlowController extends Controller
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được scan.');
             }
 
-            $line = DB::table('stock_document_lines')->where('id', $payload['line_id'])->where('stock_document_id', $documentId)->first();
-            if ($line === null) {
-                ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy line trong document.');
-            }
-            $sku = DB::table('sku')->where('sku_id', $line->product_id)->first();
-            if ($type === 'issue' && ($sku === null || strtoupper((string) $sku->sku_type) !== 'PRODUCT')) {
-                ApiError::abort(422, 'PRODUCT_SKU_REQUIRED', 'Outbound sản phẩm không được scan COMPONENT; linh kiện chỉ xuất qua Component Issue WARRANTY.');
+            // line_id là tùy chọn khi có code_value (Change Pack QR/SKU: server tự
+            // match dòng theo SKU embedded); các guard theo dòng chạy trong service.
+            if (! empty($payload['line_id'])) {
+                $line = DB::table('stock_document_lines')->where('id', $payload['line_id'])->where('stock_document_id', $documentId)->first();
+                if ($line === null) {
+                    ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy line trong document.');
+                }
+                $sku = DB::table('sku')->where('sku_id', $line->product_id)->first();
+                if ($type === 'issue' && ($sku === null || strtoupper((string) $sku->sku_type) !== 'PRODUCT')) {
+                    ApiError::abort(422, 'PRODUCT_SKU_REQUIRED', 'Outbound sản phẩm không được scan COMPONENT; linh kiện chỉ xuất qua Component Issue WARRANTY.');
+                }
             }
             if ($type === 'issue' && $document->outbound_request_id === null) {
                 ApiError::abort(422, 'OUTBOUND_REQUEST_REQUIRED', 'Outbound phải được sinh từ toa/request đã consume theo BP-WMS-04.');
             }
 
-            $resolvedItemId = $this->resolveItemId($payload);
+            $resolvedItemId = $this->stock->resolveExistingItemIdForPayload($payload);
             if ($resolvedItemId !== null) {
                 $this->assertNoDuplicateItemInDocument($documentId, $type, $resolvedItemId);
             }
@@ -428,7 +431,7 @@ class CurrentBaselineStockFlowController extends Controller
                 'updated_by' => $this->actorId(),
                 'updated_at' => now(),
             ]);
-            $this->attachScanEventToEvidence($documentId, $type, (string) $line->id, $result['item_id'] ?? null);
+            $this->attachScanEventToEvidence($documentId, $type, (string) $result['line_id'], $result['item_id'] ?? null);
             $result['version'] = $newVersion;
 
             return $result;
@@ -574,26 +577,6 @@ class CurrentBaselineStockFlowController extends Controller
         }
     }
 
-    private function resolveItemId(array $payload): ?string
-    {
-        if (! empty($payload['item_id'])) {
-            return (string) $payload['item_id'];
-        }
-        if (empty($payload['code_value'])) {
-            return null;
-        }
-        $physical = DB::table('physical_codes')->where('code_value', strtoupper(trim((string) $payload['code_value'])))->where('status', 'ACTIVE')->first();
-        if ($physical === null) {
-            return null;
-        }
-        if (($physical->assigned_object_type ?? null) === 'ITEM' && ! empty($physical->assigned_object_id)) {
-            return (string) $physical->assigned_object_id;
-        }
-        $itemId = DB::table('item_instances')->where('physical_code_id', $physical->physical_code_id)->value('item_id');
-
-        return $itemId ? (string) $itemId : null;
-    }
-
     private function attachScanEventToEvidence(string $documentId, string $type, string $lineId, mixed $itemId): void
     {
         if (! DB::getSchemaBuilder()->hasColumn($type === 'receipt' ? 'inbound_scan_entries' : 'outbound_item_matches', 'scan_event_id')) {
@@ -619,18 +602,20 @@ class CurrentBaselineStockFlowController extends Controller
 
     private function scanPayload(Request $request): array
     {
-        // Annex D SCR-IN-01 field `scan_input`: "1..150 chars; trim". Trim trước khi
-        // validate để chuỗi chỉ gồm khoảng trắng bị bắt là rỗng thay vì lọt xuống
-        // resolver, và chặn đúng ngưỡng 150 của contract (trước đây là 200).
+        // Trim trước khi validate để chuỗi chỉ gồm khoảng trắng bị bắt là rỗng
+        // thay vì lọt xuống resolver.
         if ($request->has('code_value') && $request->input('code_value') !== null) {
             $request->merge(['code_value' => trim((string) $request->input('code_value'))]);
         }
 
+        // Change Pack QR/SKU 20/08/2026: line_id tùy chọn khi có code_value (server
+        // tự match dòng theo SKU embedded); trần raw payload nâng 150 -> 512 cho
+        // composite QR (nguồn số: config warehouse.product_qr.max_payload_length).
         $validated = $request->validate([
-            'line_id' => ['required', 'uuid'],
+            'line_id' => ['nullable', 'required_without:code_value', 'uuid'],
             'quantity' => ['required_without:qty', 'integer', 'min:1'],
             'qty' => ['required_without:quantity', 'integer', 'min:1'],
-            'code_value' => ['nullable', 'string', 'min:1', 'max:150'],
+            'code_value' => ['nullable', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'item_id' => ['nullable', 'uuid'],
             'container_id' => ['nullable', 'uuid'],
             'printer_config_id' => ['nullable', 'uuid', 'exists:printer_configs,id'],

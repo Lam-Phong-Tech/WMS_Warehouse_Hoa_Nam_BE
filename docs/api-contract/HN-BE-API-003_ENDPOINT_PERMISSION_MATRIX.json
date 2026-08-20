@@ -385,7 +385,7 @@
       "method": "PATCH",
       "path": "/api/v1/products/{id}/disable",
       "tag": "05. Product",
-      "summary": "Disable a product",
+      "summary": "Ngừng kích hoạt SKU",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -398,7 +398,7 @@
       "method": "PATCH",
       "path": "/api/v1/products/{id}/enable",
       "tag": "05. Product",
-      "summary": "Enable a product",
+      "summary": "Kích hoạt SKU",
       "auth": "JWT",
       "permissions": [
         "sku.manage"
@@ -606,7 +606,7 @@
       "method": "GET",
       "path": "/api/v1/document-status-history",
       "tag": "07. Inventory",
-      "summary": "Danh sách lịch sử trạng thái chứng từ",
+      "summary": "Lịch sử chuyển trạng thái chứng từ (inbound/outbound documents)",
       "auth": "JWT",
       "permissions": [
         "inventory.view"
@@ -619,7 +619,7 @@
       "method": "GET",
       "path": "/api/v1/inventory",
       "tag": "07. Inventory",
-      "summary": "Tồn kho hiện tại (Annex C)",
+      "summary": "Annex C queryInventory — tồn kho theo SKU/stock_status kèm đối soát ledger authoritative",
       "auth": "JWT",
       "permissions": [
         "inventory.view"
@@ -645,7 +645,7 @@
       "method": "GET",
       "path": "/api/v1/inventory/balances/{id}/subledger",
       "tag": "07. Inventory",
-      "summary": "Chi tiết subledger item và container của một số dư tồn",
+      "summary": "Subledger drill-down: item_instances + container_items cho một balance",
       "auth": "JWT",
       "permissions": [
         "inventory.view"
@@ -1231,7 +1231,7 @@
       "method": "GET",
       "path": "/api/v1/outbound-documents",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Danh sách phiếu xuất",
+      "summary": "Danh sách phiếu xuất kèm tiến độ matching/packing label",
       "auth": "JWT",
       "permissions": [
         "outbound.view"
@@ -1543,7 +1543,7 @@
       "method": "GET",
       "path": "/api/v1/outbound-requests",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Danh sách toa yêu cầu xuất",
+      "summary": "Danh sách toa yêu cầu xuất (phân trang, filter status/keyword)",
       "auth": "JWT",
       "permissions": [
         "outbound.view"
@@ -1556,7 +1556,7 @@
       "method": "GET",
       "path": "/api/v1/outbound-requests/{id}",
       "tag": "10. Stock Out (Outbound)",
-      "summary": "Chi tiết toa yêu cầu xuất",
+      "summary": "Chi tiết toa yêu cầu xuất kèm lines và outbound documents liên kết",
       "auth": "JWT",
       "permissions": [
         "outbound.view"
@@ -2187,7 +2187,7 @@
       "method": "GET",
       "path": "/api/v1/warranty-component-issues/{id}",
       "tag": "14. Component Issue",
-      "summary": "Chi tiết phiếu xuất linh kiện bảo hành (Annex C)",
+      "summary": "Chi tiết phiếu xuất linh kiện bảo hành (Annex C alias)",
       "auth": "JWT",
       "permissions": [
         "warranty.component_issue"
@@ -2421,7 +2421,7 @@
       "method": "POST",
       "path": "/api/v1/containers",
       "tag": "18. Physical Inventory",
-      "summary": "Tạo container mới (CARTON/BOX/TRAY)",
+      "summary": "Tạo container (vỏ chứa) rỗng — KHÔNG phải đường tạo putaway",
       "auth": "JWT",
       "permissions": [
         "container.manage"
@@ -2447,7 +2447,7 @@
       "method": "PATCH",
       "path": "/api/v1/containers/{id}",
       "tag": "18. Physical Inventory",
-      "summary": "Sửa container (optimistic locking qua version)",
+      "summary": "Cập nhật container (bắt buộc If-Match)",
       "auth": "JWT",
       "permissions": [
         "container.manage"
@@ -2460,7 +2460,7 @@
       "method": "POST",
       "path": "/api/v1/containers/{id}/items",
       "tag": "18. Physical Inventory",
-      "summary": "Gán item (serial) hoặc sku+quantity vào container",
+      "summary": "Thêm hàng vào container (bắt buộc If-Match)",
       "auth": "JWT",
       "permissions": [
         "container.manage"
@@ -2473,7 +2473,7 @@
       "method": "DELETE",
       "path": "/api/v1/containers/{id}/items/{containerItemId}",
       "tag": "18. Physical Inventory",
-      "summary": "Gỡ item khỏi container (đánh dấu REMOVED, không xoá bản ghi)",
+      "summary": "Xoá hàng khỏi container (bắt buộc If-Match)",
       "auth": "JWT",
       "permissions": [
         "container.manage"

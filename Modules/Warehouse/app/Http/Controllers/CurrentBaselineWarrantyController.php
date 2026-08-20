@@ -11,6 +11,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\ProductIdentityResolver;
+use Modules\Warehouse\Services\ProductQrPayloadParser;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineWarrantyController extends CurrentBaselineOperationsController
@@ -100,7 +102,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'warranty_case_code' => ['nullable', 'string', 'max:80'],
             'case_no' => ['nullable', 'string', 'max:80'],
             'item_id' => ['nullable', 'uuid'],
-            'item_code' => ['nullable', 'string', 'max:200'],
+            // Change Pack QR/SKU: item_code chấp nhận cả RAW composite QR (trần 512).
+            'item_code' => ['nullable', 'string', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'defect_id' => ['nullable', 'uuid'],
             'defect_code' => ['nullable', 'string', 'max:80'],
             'customer_name' => ['required', 'string', 'max:200'],
@@ -549,6 +552,36 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         }
         if ($itemCode === '') {
             return null;
+        }
+
+        // Change Pack QR/SKU §6.4 (AC-QR-06): item_code có thể là RAW composite QR
+        // (WAR-02 quét thẳng hoặc nhập tay). Parse xong resolve theo normalized
+        // item_unique; QR hỏng/không resolve được -> WARRANTY_ITEM_NOT_FOUND để UI
+        // đi tiếp nhánh TEMP_ONLY, tuyệt đối không suy đoán link theo SKU/model.
+        $parser = app(ProductQrPayloadParser::class);
+        if ($parser->looksComposite($itemCode)) {
+            $parsed = $parser->parse($itemCode);
+            if (! $parsed->isValid()) {
+                ApiError::abort(422, 'WARRANTY_ITEM_NOT_FOUND', 'QR composite không parse được; dùng TEMP_ONLY nếu không thể định danh item.', [
+                    'parse_status' => $parsed->parseStatus,
+                ]);
+            }
+            $identity = app(ProductIdentityResolver::class);
+            $embeddedSku = $identity->requireActiveSkuByCode((string) $parsed->skuCode);
+            $resolved = $identity->findItemByUnique((string) $parsed->itemUnique);
+            if ($resolved === null) {
+                ApiError::abort(422, 'WARRANTY_ITEM_NOT_FOUND', 'QR hợp lệ nhưng item chưa được đăng ký; dùng TEMP_ONLY nếu cần.', [
+                    'item_unique' => $parsed->itemUnique,
+                ]);
+            }
+            if ((string) $resolved->sku_id !== (string) $embeddedSku->sku_id) {
+                ApiError::abort(422, 'WRONG_SKU', 'SKU embedded trong QR không khớp SKU của item đã đăng ký.', [
+                    'sku_code' => $parsed->skuCode,
+                    'item_unique' => $parsed->itemUnique,
+                ]);
+            }
+
+            return DB::table('item_instances')->where('item_id', $resolved->item_id)->lockForUpdate()->first();
         }
 
         $item = DB::table('item_instances')

@@ -39,12 +39,11 @@ class AlignedOutboundFlowController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['line_id'],
                 properties: [
-                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU).'),
                     new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
                     new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.'),
-                    new OA\Property(property: 'code_value', type: 'string', maxLength: 150, nullable: true),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse + cross-check SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).'),
                     new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'MANUAL', 'HARDWARE'], nullable: true, description: 'Nguồn quét khai tường minh (ERD bảng 25); không gửi thì server suy luận và ghi scan_source_origin=INFERRED.'),
@@ -71,19 +70,24 @@ class AlignedOutboundFlowController extends Controller
                 ApiError::abort(422, 'OUTBOUND_REQUEST_REQUIRED', 'Outbound phải được sinh từ toa/request nguồn.');
             }
 
-            $line = DB::table('stock_document_lines')
-                ->where('id', $payload['line_id'])
-                ->where('stock_document_id', $id)
-                ->first();
-            if ($line === null) {
-                ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy line trong phiếu xuất.');
-            }
-            $sku = DB::table('sku')->where('sku_id', $line->product_id)->first();
-            if ($sku === null || strtoupper((string) $sku->sku_type) !== 'PRODUCT') {
-                ApiError::abort(422, 'PRODUCT_SKU_REQUIRED', 'Outbound sản phẩm chỉ nhận SKU loại PRODUCT.');
+            // line_id là tùy chọn khi có code_value (Change Pack QR/SKU: server tự
+            // match dòng theo SKU embedded); guard PRODUCT_SKU_REQUIRED cho dòng
+            // auto-match nằm trong CurrentBaselineStockService::scanStockDocument.
+            if (! empty($payload['line_id'])) {
+                $line = DB::table('stock_document_lines')
+                    ->where('id', $payload['line_id'])
+                    ->where('stock_document_id', $id)
+                    ->first();
+                if ($line === null) {
+                    ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy line trong phiếu xuất.');
+                }
+                $sku = DB::table('sku')->where('sku_id', $line->product_id)->first();
+                if ($sku === null || strtoupper((string) $sku->sku_type) !== 'PRODUCT') {
+                    ApiError::abort(422, 'PRODUCT_SKU_REQUIRED', 'Outbound sản phẩm chỉ nhận SKU loại PRODUCT.');
+                }
             }
 
-            $resolvedItemId = $this->resolveItemId($payload);
+            $resolvedItemId = $this->stock->resolveExistingItemIdForPayload($payload);
             if ($resolvedItemId !== null) {
                 $this->assertNoDuplicateItemInDocument($id, $resolvedItemId);
             }
@@ -95,7 +99,7 @@ class AlignedOutboundFlowController extends Controller
                 'updated_by' => $this->actorId(),
                 'updated_at' => now(),
             ]);
-            $this->attachScanEventToEvidence($id, (string) $line->id, $result['item_id'] ?? null);
+            $this->attachScanEventToEvidence($id, (string) $result['line_id'], $result['item_id'] ?? null);
 
             $fullScan = $this->isFullScan($id);
             // §5.2/§15/AC-GWT-OUTBOUND-REQUEST-001: "Khi full match, hệ thống tổng hợp
@@ -679,12 +683,15 @@ class AlignedOutboundFlowController extends Controller
         }
 
         $validated = $request->validate([
-            'line_id' => ['required', 'uuid'],
+            // Change Pack QR/SKU 20/08/2026: line_id tùy chọn khi có code_value —
+            // server tự match dòng theo SKU embedded trong composite QR.
+            'line_id' => ['nullable', 'required_without:code_value', 'uuid'],
             'quantity' => ['required_without:qty', 'integer', 'min:1'],
             'qty' => ['required_without:quantity', 'integer', 'min:1'],
-            // DEV195-P1-05R2: contract và runtime cùng 150 ký tự. Trước đây route
-            // này nhận 200 còn handler bị che nhận 150 nên review đọc ra hai số.
-            'code_value' => ['nullable', 'string', 'max:150'],
+            // DEV195-P1-05R2: contract và runtime cùng một trần ký tự. Change Pack
+            // QR/SKU nâng 150 -> 512 cho raw composite payload; WWHN-195 pin cả
+            // hai phía (yaml + literal dưới đây) nên đổi số là đổi đồng bộ.
+            'code_value' => ['nullable', 'string', 'max:512'],
             'item_id' => ['nullable', 'uuid'],
             'container_id' => ['nullable', 'uuid'],
             'scan_source' => ['nullable', 'string', 'in:'.implode(',', self::SCAN_SOURCES)],
@@ -739,29 +746,6 @@ class AlignedOutboundFlowController extends Controller
                 'current_version' => (int) ($document->version ?? 0),
             ]);
         }
-    }
-
-    private function resolveItemId(array $payload): ?string
-    {
-        if (! empty($payload['item_id'])) {
-            return (string) $payload['item_id'];
-        }
-        if (empty($payload['code_value'])) {
-            return null;
-        }
-        $physical = DB::table('physical_codes')
-            ->where('code_value', strtoupper(trim((string) $payload['code_value'])))
-            ->where('status', 'ACTIVE')
-            ->first();
-        if ($physical === null) {
-            return null;
-        }
-        if (($physical->assigned_object_type ?? null) === 'ITEM' && ! empty($physical->assigned_object_id)) {
-            return (string) $physical->assigned_object_id;
-        }
-        $itemId = DB::table('item_instances')->where('physical_code_id', $physical->physical_code_id)->value('item_id');
-
-        return $itemId ? (string) $itemId : null;
     }
 
     private function assertNoDuplicateItemInDocument(string $documentId, string $itemId): void

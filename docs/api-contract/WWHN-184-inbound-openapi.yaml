@@ -558,19 +558,27 @@ paths:
           application/json:
             schema:
               required:
-                - line_id
                 - qty
               properties:
                 line_id:
                   type: string
                   format: uuid
+                  nullable: true
+                  description: >-
+                    Tùy chọn khi gửi code_value (Change Pack QR/SKU 20/08/2026): server tự match
+                    dòng theo SKU parse từ composite QR. Bắt buộc cho scan quantity-mode.
                 qty:
                   type: integer
                   example: 1
                   minimum: 1
                 code_value:
                   type: string
+                  maxLength: 512
                   nullable: true
+                  description: >-
+                    RAW scan payload. PRODUCT QR composite HN1|SKU=<sku_code>|ITEM=<item_unique>:
+                    server parse authoritative, chấp nhận new item candidate (item_id=null tới khi
+                    Post Receipt đăng ký atomically). Plain code legacy theo transition flag.
                 item_id:
                   type: string
                   format: uuid

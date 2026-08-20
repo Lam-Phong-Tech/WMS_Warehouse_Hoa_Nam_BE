@@ -90,8 +90,8 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | POST | `/api/v1/products` | `sku.manage` | - | - | Tạo SKU mới qua product compatibility façade |
 | GET | `/api/v1/products/{id}` | `sku.view` | - | - | Chi tiết SKU |
 | PATCH | `/api/v1/products/{id}` | `sku.manage` | có | - | Sửa SKU (brand/category/model/package/specification...) |
-| PATCH | `/api/v1/products/{id}/disable` | `sku.manage` | - | - | Disable a product |
-| PATCH | `/api/v1/products/{id}/enable` | `sku.manage` | - | - | Enable a product |
+| PATCH | `/api/v1/products/{id}/disable` | `sku.manage` | - | - | Ngừng kích hoạt SKU |
+| PATCH | `/api/v1/products/{id}/enable` | `sku.manage` | - | - | Kích hoạt SKU |
 | GET | `/api/v1/skus` | `sku.view` | - | - | Danh sách SKU |
 | POST | `/api/v1/skus` | `sku.manage` | - | - | Tạo SKU mới (governance aggregate) |
 | GET | `/api/v1/skus/{id}` | `sku.view` | - | - | Chi tiết SKU |
@@ -117,10 +117,10 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 
 | Method | Path | Permission | If-Match | Data scope | Mô tả |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/api/v1/document-status-history` | `inventory.view` | - | - | Danh sách lịch sử trạng thái chứng từ |
-| GET | `/api/v1/inventory` | `inventory.view` | - | có | Tồn kho hiện tại (Annex C) |
+| GET | `/api/v1/document-status-history` | `inventory.view` | - | - | Lịch sử chuyển trạng thái chứng từ (inbound/outbound documents) |
+| GET | `/api/v1/inventory` | `inventory.view` | - | có | Annex C queryInventory — tồn kho theo SKU/stock_status kèm đối soát ledger authoritative |
 | GET | `/api/v1/inventory/balances` | `inventory.view` | - | có | Tồn kho hiện tại theo kho và SKU |
-| GET | `/api/v1/inventory/balances/{id}/subledger` | `inventory.view` | - | có | Chi tiết subledger item và container của một số dư tồn |
+| GET | `/api/v1/inventory/balances/{id}/subledger` | `inventory.view` | - | có | Subledger drill-down: item_instances + container_items cho một balance |
 | GET | `/api/v1/inventory/trace/{code}` | `inventory.trace` | - | có | Truy vết tồn kho theo mã vật lý (Annex C) |
 | GET | `/api/v1/reversal-documents` | `inventory.view` | - | có | Danh sách phiếu reversal và correction |
 | POST | `/api/v1/reversal-documents` | `inventory.reversal.post` | có | có | Tạo Reversal document từ chứng từ gốc (RECEIPT/ISSUE/COMPONENT_ISSUE) |
@@ -180,7 +180,7 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 
 | Method | Path | Permission | If-Match | Data scope | Mô tả |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/api/v1/outbound-documents` | `outbound.view` | - | có | Danh sách phiếu xuất |
+| GET | `/api/v1/outbound-documents` | `outbound.view` | - | có | Danh sách phiếu xuất kèm tiến độ matching/packing label |
 | GET | `/api/v1/outbound-documents/{id}` | `outbound.view` | - | có | Chi tiết phiếu xuất |
 | POST | `/api/v1/outbound-documents/{id}/cancel` | `outbound.cancel` | có | có | Huỷ phiếu xuất DRAFT/SCANNING (terminal, stock-neutral; toa nguồn được trả về OPEN nếu không còn phiếu active) |
 | PUT | `/api/v1/outbound-documents/{id}/items/{itemId}/rfid` | `physical_code.assign_rfid` | - | có | Gắn RFID cho item đã match trong phiếu xuất (stock-neutral, idempotent theo hardware_uid) |
@@ -203,8 +203,8 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | GET | `/api/v1/outbound-request-imports/{id}/preview` | `outbound.request.import` hoặc `outbound.import` | - | - | Preview kết quả validate import yêu cầu xuất |
 | POST | `/api/v1/outbound-request-imports/manual` | `outbound.request.manual_create` hoặc `outbound.import` | - | - | Import toa xuất thủ công (file Excel xlsx/xls hoặc rows JSON đã chuẩn hoá) |
 | GET | `/api/v1/outbound-request-imports/template` | `outbound.request.import` hoặc `outbound.import` | - | - | Tải file mẫu Excel toa yêu cầu xuất |
-| GET | `/api/v1/outbound-requests` | `outbound.view` | - | - | Danh sách toa yêu cầu xuất |
-| GET | `/api/v1/outbound-requests/{id}` | `outbound.view` | - | - | Chi tiết toa yêu cầu xuất |
+| GET | `/api/v1/outbound-requests` | `outbound.view` | - | - | Danh sách toa yêu cầu xuất (phân trang, filter status/keyword) |
+| GET | `/api/v1/outbound-requests/{id}` | `outbound.view` | - | - | Chi tiết toa yêu cầu xuất kèm lines và outbound documents liên kết |
 
 ### 11. Scan
 
@@ -272,7 +272,7 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | POST | `/api/v1/component-issue-documents/{id}/scan` | `warranty.component_issue` | có | có | Quét linh kiện cho phiếu xuất bảo hành (stock-neutral) |
 | GET | `/api/v1/warranty-component-issues` | `warranty.component_issue` | - | - | Danh sách phiếu xuất linh kiện bảo hành (Annex C) |
 | POST | `/api/v1/warranty-component-issues` | `warranty.component_issue` | - | có | Tạo phiếu xuất linh kiện bảo hành (Annex C) |
-| GET | `/api/v1/warranty-component-issues/{id}` | `warranty.component_issue` | - | có | Chi tiết phiếu xuất linh kiện bảo hành (Annex C) |
+| GET | `/api/v1/warranty-component-issues/{id}` | `warranty.component_issue` | - | có | Chi tiết phiếu xuất linh kiện bảo hành (Annex C alias) |
 | POST | `/api/v1/warranty-component-issues/{id}/cancel` | `warranty.component_issue` | có | có | Huỷ phiếu xuất linh kiện bảo hành (Annex C) |
 | POST | `/api/v1/warranty-component-issues/{id}/post` | `warranty.component_issue` | có | có | Ghi nhận phiếu xuất linh kiện bảo hành (Annex C) |
 | POST | `/api/v1/warranty-component-issues/{id}/scans` | `warranty.component_issue` | có | có | Quét linh kiện cho phiếu xuất bảo hành (Annex C) |
@@ -310,11 +310,11 @@ Thêm route public mới mà không khai vào allowlist sẽ làm generator fail
 | Method | Path | Permission | If-Match | Data scope | Mô tả |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/v1/containers` | `container.view` | - | - | Danh sách container (phân trang, filter theo keyword/container_type/status/zone_code) |
-| POST | `/api/v1/containers` | `container.manage` | - | - | Tạo container mới (CARTON/BOX/TRAY) |
+| POST | `/api/v1/containers` | `container.manage` | - | - | Tạo container (vỏ chứa) rỗng — KHÔNG phải đường tạo putaway |
 | GET | `/api/v1/containers/{id}` | `container.view` | - | - | Chi tiết container (kèm danh sách item bên trong) |
-| PATCH | `/api/v1/containers/{id}` | `container.manage` | có | - | Sửa container (optimistic locking qua version) |
-| POST | `/api/v1/containers/{id}/items` | `container.manage` | có | - | Gán item (serial) hoặc sku+quantity vào container |
-| DELETE | `/api/v1/containers/{id}/items/{containerItemId}` | `container.manage` | có | - | Gỡ item khỏi container (đánh dấu REMOVED, không xoá bản ghi) |
+| PATCH | `/api/v1/containers/{id}` | `container.manage` | có | - | Cập nhật container (bắt buộc If-Match) |
+| POST | `/api/v1/containers/{id}/items` | `container.manage` | có | - | Thêm hàng vào container (bắt buộc If-Match) |
+| DELETE | `/api/v1/containers/{id}/items/{containerItemId}` | `container.manage` | có | - | Xoá hàng khỏi container (bắt buộc If-Match) |
 | GET | `/api/v1/import-batches` | `import_batch.view` | - | - | Danh sách lô nhập khẩu (phân trang, filter theo keyword/status) |
 | POST | `/api/v1/import-batches` | `import_batch.manage` | - | - | Tạo lô nhập khẩu mới |
 | GET | `/api/v1/import-batches/{id}` | `import_batch.view` | - | - | Chi tiết lô nhập khẩu |

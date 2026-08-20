@@ -38,10 +38,14 @@ paths:
               properties:
                 raw_code:
                   type: string
-                  maxLength: 150
+                  maxLength: 512
+                  description: >-
+                    RAW scan payload. PRODUCT QR composite HN1|SKU=<sku_code>|ITEM=<item_unique>
+                    được server parse authoritative (Change Pack QR/SKU 20/08/2026); plain code
+                    legacy giữ resolution cũ. Trần 512 (trước là 150).
                 context:
                   type: string
-                  enum: [INBOUND, OUTBOUND, STOCKTAKE, WARRANTY_TEMP_ONLY]
+                  enum: [INBOUND, OUTBOUND, INVENTORY, TRACE, WARRANTY_RECEIVE, WARRANTY_TEMP_ONLY]
                 warehouse_id:
                   type: string
                   format: uuid
@@ -115,6 +119,31 @@ paths:
                       idempotency_cache_written:
                         type: boolean
                         enum: [false]
+                      payload_format:
+                        type: string
+                        enum: [COMPOSITE_V1]
+                        nullable: true
+                        description: Chỉ có khi raw_code là composite PRODUCT QR.
+                      payload_version:
+                        type: integer
+                        nullable: true
+                      sku_code:
+                        type: string
+                        nullable: true
+                      item_unique:
+                        type: string
+                        nullable: true
+                      serial_number:
+                        type: string
+                        nullable: true
+                      normalized_code_value:
+                        type: string
+                        nullable: true
+                        description: Identity chuẩn hoá để gọi tiếp trace/warranty.
+                      resolution_status:
+                        type: string
+                        enum: [EXISTING_ITEM]
+                        nullable: true
                       current_location:
                         type: object
                         required: [warehouse_id, warehouse_code, warehouse_name]
@@ -198,6 +227,12 @@ components:
             - SCAN_CONTEXT_CONFLICT
             - BUSINESS_RULE_ERROR
             - VALIDATION_ERROR
+            - INVALID_PAYLOAD
+            - UNSUPPORTED_PAYLOAD_VERSION
+            - SKU_NOT_FOUND
+            - SKU_INACTIVE
+            - WRONG_SKU
+            - UNKNOWN_CODE
         errors:
           oneOf:
             - type: object
