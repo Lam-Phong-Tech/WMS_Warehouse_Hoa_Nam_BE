@@ -9,6 +9,8 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Services\ComponentContainerSubledgerService;
+use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 
 /**
@@ -57,6 +59,45 @@ class WarehouseBusinessDataSeeder extends Seeder
 
     private const WARRANTY_CASE_CODE = 'WC-SEED-0001';
 
+    /**
+     * Khối mở rộng "đủ 5 dòng/bảng" (WWHN — yêu cầu demo/QA có dữ liệu mẫu phong
+     * phú). Doc no cố định riêng, độc lập với khối gốc phía trên để guard
+     * idempotency không giẫm lên nhau.
+     */
+    private const PRODUCT_SKU_2 = 'HN-PRD-SEED-002';
+
+    private const PRODUCT_SKU_3 = 'HN-PRD-SEED-003';
+
+    private const PRODUCT_SKU_4 = 'HN-PRD-SEED-004';
+
+    private const COMPONENT_SKU_2 = 'HN-COMP-SEED-002';
+
+    private const RECEIPT_PRODUCT_NO_2 = 'PN-SEED-0004';
+
+    private const RECEIPT_PRODUCT_NO_3 = 'PN-SEED-0005';
+
+    private const RECEIPT_PRODUCT_NO_4 = 'PN-SEED-0007';
+
+    private const ISSUE_POSTED_NO_2 = 'PX-SEED-0003';
+
+    private const ISSUE_POSTED_NO_3 = 'PX-SEED-0004';
+
+    private const ISSUE_POSTED_NO_4 = 'PX-SEED-0005';
+
+    private const ISSUE_POSTED_NO_5 = 'PX-SEED-0006';
+
+    private const WARRANTY_CASE_CODE_2 = 'WC-SEED-0002';
+
+    private const WARRANTY_CASE_CODE_3 = 'WC-SEED-0003';
+
+    private const WARRANTY_CASE_CODE_4 = 'WC-SEED-0004';
+
+    private const WARRANTY_CASE_CODE_5 = 'WC-SEED-0005';
+
+    private const COMPONENT_ISSUE_NOS = ['CID-SEED-0001', 'CID-SEED-0002', 'CID-SEED-0003'];
+
+    private const OUTBOUND_IMPORT_NOS = ['IMP-SEED-0002', 'IMP-SEED-0003', 'IMP-SEED-0004', 'IMP-SEED-0005'];
+
     private CurrentBaselineStockService $stock;
 
     private string $actorId;
@@ -99,6 +140,8 @@ class WarehouseBusinessDataSeeder extends Seeder
         $issuedItemId = $this->seedPostedIssue($productSku, $issuableItems[0]);
         $this->seedDraftIssue($productSku);
         $this->seedWarrantyCase($issuedItemId, $productSku);
+
+        $this->seedExtraBusinessData();
 
         $this->command?->info('WarehouseBusinessDataSeeder: đã tạo dữ liệu nghiệp vụ inbound/outbound/putaway/warranty.');
     }
@@ -249,14 +292,19 @@ class WarehouseBusinessDataSeeder extends Seeder
      * Warranty case cho item đã xuất cho khách (item_status=ISSUED) — đúng guard
      * WARRANTY_ITEM_NOT_ELIGIBLE của CurrentBaselineWarrantyController.
      */
-    private function seedWarrantyCase(string $itemId, string $skuId): void
+    private function seedWarrantyCase(string $itemId, string $skuId, string $caseCode = self::WARRANTY_CASE_CODE, string $defectCode = 'DEF-004'): string
     {
+        $existingId = DB::table('warranty_case')->where('warranty_case_code', $caseCode)->value('warranty_case_id');
+        if ($existingId !== null) {
+            return (string) $existingId;
+        }
+
         $caseId = (string) Str::uuid();
-        $defectId = DB::table('defect_catalogs')->where('defect_code', 'DEF-004')->value('defect_id');
+        $defectId = DB::table('defect_catalogs')->where('defect_code', $defectCode)->value('defect_id');
 
         DB::table('warranty_case')->insert([
             'warranty_case_id' => $caseId,
-            'warranty_case_code' => self::WARRANTY_CASE_CODE,
+            'warranty_case_code' => $caseCode,
             'item_id' => $itemId,
             'inventory_serial_id' => null,
             'product_id' => $skuId,
@@ -309,8 +357,395 @@ class WarehouseBusinessDataSeeder extends Seeder
             objectType: 'warranty_case',
             objectId: $caseId,
             actorId: $this->actorId,
-            requestId: 'seed-warranty-001',
+            requestId: 'seed-warranty-'.strtolower($caseCode),
             afterData: ['status' => 'CHECKING', 'item_id' => $itemId, 'stock_effect' => 'NONE'],
+        );
+
+        return $caseId;
+    }
+
+    // ------------------------------------------------------------------
+    // Mở rộng — bảo đảm mỗi bảng nghiệp vụ có tối thiểu 5 dòng dữ liệu mẫu
+    // ------------------------------------------------------------------
+
+    /**
+     * Chạy sau khối gốc phía trên (guard idempotency riêng theo doc_no cố định
+     * của từng chứng từ). Mọi hiệu ứng tồn kho vẫn đi qua CurrentBaselineStockService/
+     * ComponentContainerSubledgerService/CurrentBaselineReversalService — không tự
+     * UPDATE inventory_balances/INSERT stock_movements.
+     */
+    private function seedExtraBusinessData(): void
+    {
+        $productSku2 = $this->ensureSku(self::PRODUCT_SKU_2, 'Máy phát điện PV mẫu Hòa Nam 002', 'PRODUCT', true);
+        $productSku3 = $this->ensureSku(self::PRODUCT_SKU_3, 'Máy cắt cỏ PV mẫu Hòa Nam 003', 'PRODUCT', true);
+        $productSku4 = $this->ensureSku(self::PRODUCT_SKU_4, 'Máy xới đất PV mẫu Hòa Nam 004', 'PRODUCT', true);
+        $componentSku2 = $this->ensureSku(self::COMPONENT_SKU_2, 'Dây curoa mẫu Hòa Nam 002', 'COMPONENT', false);
+
+        // Mỗi bước dưới đây tự guard theo doc_no/code riêng (idempotent độc lập) —
+        // không có transaction bọc toàn seedExtraBusinessData, nên nếu 1 bước lỗi
+        // giữa chừng, lần chạy sau vẫn phải tiếp tục đúng từ bước còn thiếu.
+        $items2 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_2, $productSku2, 'SN-HN-SEED-EXT-01', 'RFID-HN-SEED-EXT-01', 2, 'Nhà máy Hòa Nam — lô mẫu 2');
+        $items3 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_3, $productSku3, 'SN-HN-SEED-EXT-02', 'RFID-HN-SEED-EXT-02', 2, 'Nhà máy Hòa Nam — lô mẫu 3');
+        $items4 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_4, $productSku4, 'SN-HN-SEED-EXT-03', 'RFID-HN-SEED-EXT-03', 6, 'Nhà máy Hòa Nam — lô mẫu 4');
+
+        $issuedItem2 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_2, 'TOA-SEED-0003', $productSku2, $items2[0], 'Đại lý Hòa Nam Hồ Chí Minh', 'Số 1, Quận 7, TP.HCM', self::OUTBOUND_IMPORT_NOS[0]);
+        $issuedItem3 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_3, 'TOA-SEED-0004', $productSku3, $items3[0], 'Đại lý Hòa Nam Hải Phòng', 'Số 3, Lê Chân, Hải Phòng', self::OUTBOUND_IMPORT_NOS[1]);
+        $issuedItem4 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_4, 'TOA-SEED-0005', $productSku4, $items4[0], 'Đại lý Hòa Nam Cần Thơ', 'Số 8, Ninh Kiều, Cần Thơ', self::OUTBOUND_IMPORT_NOS[2]);
+        $issuedItem5 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_5, 'TOA-SEED-0006', $productSku4, $items4[1], 'Đại lý Hòa Nam Hà Nội', 'Số 2, Cầu Giấy, Hà Nội', self::OUTBOUND_IMPORT_NOS[2]);
+
+        $this->seedWarrantyCase($issuedItem2, $productSku2, self::WARRANTY_CASE_CODE_2, 'DEF-001');
+        $this->seedWarrantyCase($issuedItem3, $productSku3, self::WARRANTY_CASE_CODE_3, 'DEF-002');
+        $this->seedWarrantyCase($issuedItem4, $productSku4, self::WARRANTY_CASE_CODE_4, 'DEF-005');
+        $this->seedWarrantyCase($issuedItem5, $productSku4, self::WARRANTY_CASE_CODE_5, 'DEF-003');
+        $warrantyCaseId4 = DB::table('warranty_case')->where('warranty_case_code', self::WARRANTY_CASE_CODE_4)->value('warranty_case_id');
+
+        // Phiếu xuất thứ 6-7 (mỗi phiếu 1 import riêng) + warranty case thêm dùng
+        // items4[3]/items4[4] để outbound_request_imports/warranty_case đạt ≥5 dòng.
+        $issuedItem6 = $this->seedPostedIssueVariant('PX-SEED-0007', 'TOA-SEED-0007', $productSku4, $items4[3], 'Đại lý Hòa Nam Đà Nẵng', 'Số 12, Hải Châu, Đà Nẵng', self::OUTBOUND_IMPORT_NOS[2]);
+        $this->seedWarrantyCase($issuedItem6, $productSku4, 'WC-SEED-0006', 'DEF-004');
+        $this->seedPostedIssueVariant('PX-SEED-0008', 'TOA-SEED-0008', $productSku4, $items4[4], 'Đại lý Hòa Nam Cần Thơ', 'Số 20, Ninh Kiều, Cần Thơ', self::OUTBOUND_IMPORT_NOS[3]);
+
+        // BOX riêng cho componentSku2: assertContainerAvailable đòi container.primary_sku_id
+        // khớp đúng SKU của Component Issue line, không dùng chung BOX-SEED-0001 (SKU khác).
+        // Putaway BOX-SEED-0002 vào TRAY thứ 2 -> containers/putaway_events tăng thêm.
+        $boxId2 = $this->seedComponentReceiptVariant('PN-SEED-0006', $componentSku2, 'BOX-SEED-0002', 10);
+        $this->seedPutawayVariant('PN-SEED-0006', $boxId2, 'TRAY-SEED-0002', 'A-01-02');
+
+        // BOX thứ 3-5 cho componentSku2 (lô riêng mỗi cái) -> containers/
+        // container_items/putaway_events đạt tối thiểu 5 dòng.
+        $boxId3 = $this->seedComponentReceiptVariant('PN-SEED-0008', $componentSku2, 'BOX-SEED-0003', 8);
+        $this->seedPutawayVariant('PN-SEED-0008', $boxId3, 'TRAY-SEED-0001', 'A-01-01');
+        $boxId4 = $this->seedComponentReceiptVariant('PN-SEED-0009', $componentSku2, 'BOX-SEED-0004', 6);
+        $this->seedPutawayVariant('PN-SEED-0009', $boxId4, 'TRAY-SEED-0001', 'A-01-01');
+        $boxId5 = $this->seedComponentReceiptVariant('PN-SEED-0010', $componentSku2, 'BOX-SEED-0005', 4);
+        $this->seedPutawayVariant('PN-SEED-0010', $boxId5, 'TRAY-SEED-0002', 'A-01-02');
+
+        // Component Issue (WARRANTY) — nối tiếp warranty case #4, dùng đúng service
+        // thật qua ComponentContainerSubledgerService + CurrentBaselineStockService.
+        $this->seedComponentIssue(self::COMPONENT_ISSUE_NOS[0], $warrantyCaseId4, $componentSku2, $boxId2, 3);
+        $this->seedComponentIssue(self::COMPONENT_ISSUE_NOS[1], $warrantyCaseId4, $componentSku2, $boxId2, 2);
+        $this->seedComponentIssue(self::COMPONENT_ISSUE_NOS[2], $warrantyCaseId4, $componentSku2, $boxId2, 1);
+        $this->seedComponentIssue('CID-SEED-0004', $warrantyCaseId4, $componentSku2, $boxId3, 2);
+        $this->seedComponentIssue('CID-SEED-0005', $warrantyCaseId4, $componentSku2, $boxId3, 1);
+
+        // Reversal — sửa sai các phiếu nhập PRODUCT đã POSTED, mỗi phiếu 1 item còn
+        // IN_STOCK (chưa Issue/Warranty), qua đúng CurrentBaselineReversalService.
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_3, 'SN-HN-SEED-EXT-02-02', 'Seed reversal — hiệu chỉnh mẫu QA/dev #1.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_4, 'SN-HN-SEED-EXT-03-03', 'Seed reversal — hiệu chỉnh mẫu QA/dev #2.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_4, 'SN-HN-SEED-EXT-03-06', 'Seed reversal — hiệu chỉnh mẫu QA/dev #3.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0002', 'Seed reversal — hiệu chỉnh mẫu QA/dev #4.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0003', 'Seed reversal — hiệu chỉnh mẫu QA/dev #5.');
+    }
+
+    /**
+     * Biến thể tham số hóa của seedProductReceipt(): thêm 1 phiếu nhập PRODUCT
+     * POSTED với serial/RFID prefix riêng để không đụng dữ liệu khối gốc.
+     *
+     * @return list<string> item_id đã IN_STOCK sau khi post
+     */
+    private function seedProductReceiptVariant(string $docNo, string $skuId, string $serialPrefix, string $rfidPrefix, int $qty, string $sourceName): array
+    {
+        $itemIds = [];
+        for ($i = 1; $i <= $qty; $i++) {
+            $itemId = $this->ensureItemInstance($skuId, $serialPrefix.'-'.sprintf('%02d', $i));
+            $this->ensureRfid($itemId, $rfidPrefix.'-'.sprintf('%02d', $i));
+            $itemIds[] = $itemId;
+        }
+
+        if (DB::table('stock_documents')->where('doc_no', $docNo)->exists()) {
+            return $itemIds;
+        }
+
+        [$documentId, $lineId] = $this->createDocument('receipt', $docNo, [
+            ['product_id' => $skuId, 'qty_planned' => count($itemIds)],
+        ], ['source_name' => $sourceName]);
+
+        foreach ($itemIds as $itemId) {
+            $this->stock->scanStockDocument($documentId, 'receipt', [
+                'line_id' => $lineId,
+                'quantity' => 1,
+                'item_id' => $itemId,
+            ], $this->actorId);
+        }
+
+        $this->postDocument($documentId, 'receipt');
+
+        return $itemIds;
+    }
+
+    /**
+     * Biến thể tham số hóa của seedPostedIssue(): thêm 1 phiếu xuất PRODUCT
+     * POSTED với toa/đại lý riêng.
+     *
+     * @return string item_id đã ISSUED
+     */
+    private function seedPostedIssueVariant(string $docNo, string $requestNo, string $skuId, string $itemId, string $recipientName, string $recipientAddress, string $importNo = 'IMP-SEED-0001'): string
+    {
+        if (DB::table('stock_documents')->where('doc_no', $docNo)->exists()) {
+            return $itemId;
+        }
+
+        $requestId = $this->createOutboundRequest($requestNo, $skuId, 1, $importNo);
+        [$documentId, $lineId] = $this->createDocument('issue', $docNo, [
+            ['product_id' => $skuId, 'qty_planned' => 1],
+        ], [
+            'outbound_request_id' => $requestId,
+            'recipient_name' => $recipientName,
+            'recipient_address' => $recipientAddress,
+        ]);
+
+        $this->stock->scanStockDocument($documentId, 'issue', [
+            'line_id' => $lineId,
+            'quantity' => 1,
+            'item_id' => $itemId,
+        ], $this->actorId);
+
+        $this->markLabelPrinted($documentId, $skuId);
+        $this->postDocument($documentId, 'issue');
+
+        return $itemId;
+    }
+
+    /**
+     * Biến thể tham số hóa của seedComponentReceipt(): phiếu nhập COMPONENT
+     * POSTED vào 1 BOX riêng (primary_sku_id = $skuId), không đụng BOX-SEED-0001.
+     *
+     * @return string container_id của BOX đã nhận hàng
+     */
+    private function seedComponentReceiptVariant(string $docNo, string $skuId, string $boxCode, int $qty): string
+    {
+        $boxId = $this->ensureContainer($boxCode, 'BOX', 'EMPTY', $skuId);
+        if (DB::table('stock_documents')->where('doc_no', $docNo)->exists()) {
+            return $boxId;
+        }
+
+        [$documentId, $lineId] = $this->createDocument('receipt', $docNo, [
+            ['product_id' => $skuId, 'qty_planned' => $qty],
+        ], ['source_name' => 'Nhà cung cấp linh kiện Hòa Nam — lô mẫu 2']);
+
+        $this->stock->scanStockDocument($documentId, 'receipt', [
+            'line_id' => $lineId,
+            'quantity' => $qty,
+            'container_id' => $boxId,
+        ], $this->actorId);
+
+        $this->postDocument($documentId, 'receipt');
+
+        DB::table('container_items')->insert([
+            'container_item_id' => (string) Str::uuid(),
+            'container_id' => $boxId,
+            'item_id' => null,
+            'sku_id' => $skuId,
+            'quantity' => $qty,
+            'status' => 'ACTIVE',
+            'is_active' => true,
+            'source_type' => 'STOCK_DOCUMENT',
+            'source_id' => $documentId,
+            'placed_at' => now(),
+            'placed_by' => $this->actorId,
+            'created_by' => $this->actorId,
+            'updated_by' => $this->actorId,
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $boxId;
+    }
+
+    /**
+     * Component Issue (purpose=WARRANTY) qua đúng service thật —
+     * ComponentContainerSubledgerService::consumeDocument() +
+     * CurrentBaselineStockService::postComponentIssue(), giống hệt
+     * CurrentBaselineComponentIssueController::store()/post().
+     */
+    private function seedComponentIssue(string $componentIssueNo, string $warrantyCaseId, string $componentSkuId, string $boxId, int $qty): void
+    {
+        if (DB::table('component_issue_documents')->where('component_issue_no', $componentIssueNo)->exists()) {
+            return;
+        }
+
+        $documentId = (string) Str::uuid();
+        DB::table('component_issue_documents')->insert([
+            'id' => $documentId,
+            'component_issue_no' => $componentIssueNo,
+            'warehouse_id' => $this->warehouseId,
+            'warranty_case_id' => $warrantyCaseId,
+            'document_date' => now()->toDateString(),
+            'purpose' => 'WARRANTY',
+            'status' => 'DRAFT',
+            'created_at' => now(),
+            'created_by' => $this->actorId,
+            'updated_at' => now(),
+            'updated_by' => $this->actorId,
+            'version' => 0,
+        ]);
+
+        $lineId = (string) Str::uuid();
+        DB::table('component_issue_lines')->insert([
+            'id' => $lineId,
+            'component_issue_document_id' => $documentId,
+            'line_no' => 1,
+            'sku_id' => $componentSkuId,
+            'required_qty' => $qty,
+            'scanned_qty' => $qty,
+            'created_at' => now(),
+            'created_by' => $this->actorId,
+            'updated_at' => now(),
+            'updated_by' => $this->actorId,
+            'version' => 0,
+        ]);
+
+        DB::table('component_issue_items')->insert([
+            'id' => (string) Str::uuid(),
+            'component_issue_line_id' => $lineId,
+            'item_id' => null,
+            'container_id' => $boxId,
+            'quantity' => $qty,
+            'created_at' => now(),
+            'created_by' => $this->actorId,
+            'updated_at' => now(),
+            'updated_by' => $this->actorId,
+            'version' => 0,
+        ]);
+
+        AuditLogger::record(
+            action: 'CREATE_COMPONENT_ISSUE',
+            objectType: 'component_issue_document',
+            objectId: $documentId,
+            actorId: $this->actorId,
+            requestId: 'seed-'.strtolower($componentIssueNo),
+            afterData: ['status' => 'DRAFT', 'purpose' => 'WARRANTY', 'stock_effect' => 'NONE'],
+        );
+
+        app(ComponentContainerSubledgerService::class)->consumeDocument($documentId);
+        $key = 'seed-component-issue-'.$documentId;
+        $this->stock->postComponentIssue($documentId, $this->actorId, $key, sha1($key));
+    }
+
+    /**
+     * Putaway DRAFT->CONFIRMED biến thể cho 1 BOX bổ sung (tham số hóa
+     * confirmPutaway() theo doc_no cụ thể thay vì hằng số cố định).
+     */
+    private function seedPutawayVariant(string $receiptDocNo, string $boxId, string $trayCode, string $locationHint): void
+    {
+        if (DB::table('putaway_events')->where('box_container_id', $boxId)->exists()) {
+            return;
+        }
+
+        $documentId = DB::table('stock_documents')->where('doc_no', $receiptDocNo)->value('id');
+        if ($documentId === null) {
+            return;
+        }
+
+        $trayId = $this->ensureContainer($trayCode, 'TRAY', 'EMPTY', null);
+
+        $eventId = (string) Str::uuid();
+        DB::table('putaway_events')->insert([
+            'id' => $eventId,
+            'box_container_id' => $boxId,
+            'container_id' => $boxId,
+            'stock_document_id' => $documentId,
+            'warehouse_id' => $this->warehouseId,
+            'from_tray_id' => null,
+            'to_tray_id' => $trayId,
+            'from_parent_container_id' => null,
+            'to_parent_container_id' => $trayId,
+            'to_location_hint' => $locationHint,
+            'status' => 'CONFIRMED',
+            'location_hint' => $locationHint,
+            'note' => 'Putaway mẫu từ seeder (biến thể)',
+            'confirmed_at' => now(),
+            'confirmed_by' => $this->actorId,
+            'version' => 2,
+            'created_by' => $this->actorId,
+            'updated_by' => $this->actorId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('containers')->where('container_id', $boxId)->update([
+            'parent_container_id' => $trayId,
+            'status' => 'STORED',
+            'location_hint' => $locationHint,
+            'version' => DB::raw('version + 1'),
+            'updated_at' => now(),
+        ]);
+        DB::table('containers')->where('container_id', $trayId)->update([
+            'status' => 'PARTIAL',
+            'version' => DB::raw('version + 1'),
+            'updated_at' => now(),
+        ]);
+
+        AuditLogger::record(
+            action: 'PUTAWAY_CONFIRM',
+            objectType: 'putaway_event',
+            objectId: $eventId,
+            actorId: $this->actorId,
+            requestId: 'seed-putaway-'.strtolower($boxId),
+            afterData: ['status' => 'CONFIRMED', 'box_status' => 'STORED', 'stock_effect' => 'NONE'],
+        );
+    }
+
+    /**
+     * Reversal DRAFT->POSTED biến thể — tham số hóa doc_no/serial/reason để gọi
+     * nhiều lần với chứng từ khác nhau, qua đúng
+     * CurrentBaselineReversalService::execute() (cùng code path mà
+     * ReversalDocumentController::store() dùng, không tự tay ghi movement).
+     *
+     * BR-REV: PRODUCT/serial reversal bắt buộc item_id + quantity=1/line, và
+     * assertItemDependency() chỉ chấp nhận item còn IN_STOCK/NEW cho receipt —
+     * item đã bị Issue/Warranty không đảo được, phải dùng item còn nguyên trong
+     * kho (chưa động tới ở nơi khác của seedExtraBusinessData()).
+     */
+    private function seedReversalVariant(string $receiptDocNo, string $serialNumber, string $reason): void
+    {
+        $receiptId = DB::table('stock_documents')->where('doc_no', $receiptDocNo)->value('id');
+        if ($receiptId === null) {
+            return;
+        }
+
+        $itemId = DB::table('item_instances')->where('serial_number', $serialNumber)->value('item_id');
+        if ($itemId === null) {
+            return;
+        }
+
+        if (DB::table('reversal_lines')->where('item_id', $itemId)->exists()) {
+            return;
+        }
+
+        if (DB::table('item_instances')->where('item_id', $itemId)->value('item_status') !== 'IN_STOCK') {
+            return;
+        }
+
+        // Movement RECEIPT được ghi 1 dòng/line chứng từ (gộp cả line nhiều serial),
+        // không phải 1 dòng/item — item_id cụ thể đi trong reversal_line, không lọc
+        // ở đây.
+        $movement = DB::table('stock_movements')
+            ->where('stock_document_id', $receiptId)
+            ->where('movement_type', 'RECEIPT')
+            ->first();
+        if ($movement === null) {
+            return;
+        }
+
+        $version = (int) DB::table('stock_documents')->where('id', $receiptId)->value('version');
+        $key = 'seed-reversal-'.$itemId;
+
+        app(CurrentBaselineReversalService::class)->execute(
+            $receiptId,
+            'receipt',
+            [
+                'reason' => $reason,
+                'reason_code' => 'CORRECTION',
+                'lines' => [
+                    ['movement_id' => $movement->id, 'quantity' => 1, 'item_id' => $itemId],
+                ],
+            ],
+            $this->actorId,
+            $key,
+            sha1($key),
+            $version
         );
     }
 
@@ -558,14 +993,14 @@ class WarehouseBusinessDataSeeder extends Seeder
     }
 
     /** Toa xuất (outbound_requests) — nguồn bắt buộc của mọi phiếu xuất theo BP-WMS-04. */
-    private function createOutboundRequest(string $requestNo, string $skuId, int $qty): string
+    private function createOutboundRequest(string $requestNo, string $skuId, int $qty, string $importNo = 'IMP-SEED-0001'): string
     {
         $existing = DB::table('outbound_requests')->where('request_no', $requestNo)->value('id');
         if ($existing !== null) {
             return (string) $existing;
         }
 
-        $importId = $this->ensureOutboundImport();
+        $importId = $this->ensureOutboundImport($importNo);
         $requestId = (string) Str::uuid();
         DB::table('outbound_requests')->insert([
             'id' => $requestId,
@@ -597,9 +1032,9 @@ class WarehouseBusinessDataSeeder extends Seeder
         return $requestId;
     }
 
-    private function ensureOutboundImport(): string
+    private function ensureOutboundImport(string $importNo = 'IMP-SEED-0001'): string
     {
-        $existing = DB::table('outbound_request_imports')->where('import_no', 'IMP-SEED-0001')->value('id');
+        $existing = DB::table('outbound_request_imports')->where('import_no', $importNo)->value('id');
         if ($existing !== null) {
             return (string) $existing;
         }
@@ -607,10 +1042,10 @@ class WarehouseBusinessDataSeeder extends Seeder
         $importId = (string) Str::uuid();
         DB::table('outbound_request_imports')->insert([
             'id' => $importId,
-            'import_no' => 'IMP-SEED-0001',
+            'import_no' => $importNo,
             'source_file_name' => 'toa-xuat-mau.xlsx',
-            'source_key' => 'seed/toa-xuat-mau.xlsx',
-            'source_checksum' => hash('sha256', 'toa-xuat-mau-seed'),
+            'source_key' => 'seed/'.strtolower($importNo).'.xlsx',
+            'source_checksum' => hash('sha256', 'toa-xuat-mau-seed-'.$importNo),
             'status' => 'CONSUMED',
             'total_rows' => 2,
             'valid_rows' => 2,

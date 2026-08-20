@@ -7,15 +7,18 @@ use Modules\AuditLog\Database\Seeders\AuditLogDatabaseSeeder;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Warehouse\Database\Seeders\WarehouseBusinessDataSeeder;
 use Modules\Warehouse\Database\Seeders\WarehouseDatabaseSeeder;
+use Modules\Warehouse\Database\Seeders\WarehouseSupplementalDataSeeder;
 
 class DatabaseSeeder extends Seeder
 {
     /**
      * Thứ tự phụ thuộc:
-     *  1. Auth      — users/roles/permissions (actor_id của mọi bản ghi phía sau).
-     *  2. Warehouse — master data (kho, SKU baseline, agency, defect, power source).
-     *  3. Business  — chứng từ nhập/xuất, tồn kho, container, warranty (cần 1 + 2).
-     *  4. AuditLog  — tham chiếu doc_no của bộ dữ liệu nghiệp vụ ở bước 3.
+     *  1. Auth        — users/roles/permissions (actor_id của mọi bản ghi phía sau).
+     *  2. Warehouse   — master data (kho, SKU baseline, agency, defect, power source).
+     *  3. Business    — chứng từ nhập/xuất, tồn kho, container, warranty (cần 1 + 2).
+     *  4. Supplemental — bảng vệ tinh/hệ thống (import batch, scan, PV catalog,
+     *     idempotency, audit outbox...); cần dữ liệu của bước 2 + 3 làm tham chiếu.
+     *  5. AuditLog    — tham chiếu doc_no của bộ dữ liệu nghiệp vụ ở bước 3.
      */
     public function run(): void
     {
@@ -23,6 +26,7 @@ class DatabaseSeeder extends Seeder
             AuthDatabaseSeeder::class,
             WarehouseDatabaseSeeder::class,
             WarehouseBusinessDataSeeder::class,
+            WarehouseSupplementalDataSeeder::class,
             AuditLogDatabaseSeeder::class,
         ]);
     }
