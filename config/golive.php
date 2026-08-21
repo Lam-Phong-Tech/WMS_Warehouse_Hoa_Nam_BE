@@ -100,22 +100,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Contract seeding tài khoản admin
+    | Seeding fixture phi admin
     |--------------------------------------------------------------------------
     |
-    | Dự án yêu cầu tài khoản seed canonical luôn là:
-    |   email:    admin@gmail.com
-    |   password: Cntt@1234
-    |
-    | Không cho WMS_SEED_ADMIN_PASSWORD ghi đè contract này theo môi trường nữa.
-    | AuthDatabaseSeeder vẫn bỏ qua các demo/test account ngoài development trừ
-    | khi WMS_SEED_DEMO_ACCOUNTS=true; quy tắc đó độc lập với tài khoản admin.
+    | Credential admin canonical được pin trực tiếp trong AuthDatabaseSeeder và
+    | không có config/env override. `seed` ở đây chỉ điều khiển việc có tạo thêm
+    | tài khoản demo/test ngoài development hay không.
     |
     */
     'seed' => [
-        'admin_password' => 'Cntt@1234',
         'demo_accounts' => (bool) env('WMS_SEED_DEMO_ACCOUNTS', false),
-        'min_admin_password_length' => 8,
     ],
 
     /*
