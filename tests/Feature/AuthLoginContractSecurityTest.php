@@ -24,7 +24,9 @@ class AuthLoginContractSecurityTest extends TestCase
         $this->assertStringNotContainsString('default:', $passwordProperty);
 
         foreach ((array) config('golive.credential.known_defaults', []) as $knownDefault) {
-            $this->assertStringNotContainsString((string) $knownDefault, $passwordProperty);
+            $literal = var_export((string) $knownDefault, true);
+            $this->assertStringNotContainsString('example: '.$literal, $source);
+            $this->assertStringNotContainsString('default: '.$literal, $source);
         }
     }
 }
