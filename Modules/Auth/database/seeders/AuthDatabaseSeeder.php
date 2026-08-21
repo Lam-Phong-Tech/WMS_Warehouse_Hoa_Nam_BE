@@ -8,7 +8,6 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
-use RuntimeException;
 
 class AuthDatabaseSeeder extends Seeder
 {
@@ -282,9 +281,8 @@ class AuthDatabaseSeeder extends Seeder
     {
         $withFixtures = $this->allowsNonProductionFixtures();
 
-        // Fail fast: nếu môi trường production mà chưa cấp WMS_SEED_ADMIN_PASSWORD
-        // thì dừng NGAY ở đây, trước khi ghi bất kỳ permission/role nào — chạy nửa
-        // chừng rồi ném lỗi sẽ để lại một database seed dở dang.
+        // Contract dự án: mỗi lần seed phải đưa admin về đúng credential canonical.
+        // Không phụ thuộc APP_ENV/WMS_SEED_ADMIN_PASSWORD để DEV/UAT không drift.
         $adminPassword = $this->adminPassword();
 
         $permissionsByKey = [];
@@ -391,52 +389,18 @@ class AuthDatabaseSeeder extends Seeder
     }
 
     /**
-     * DEV300-P1-01 — mật khẩu admin khởi tạo.
+     * Credential admin canonical của dự án.
      *
-     * Trên local/testing giữ nguyên hằng số cũ để fixture của bộ test không đổi.
-     * Ngoài đó, seeder TỪ CHỐI chạy nếu không được cấp WMS_SEED_ADMIN_PASSWORD:
-     * tạo tài khoản SUPER_ADMIN với mật khẩu nằm sẵn trong source code là dạng
-     * sự cố bảo mật tệ nhất mà một lệnh seed có thể gây ra, và trước đây nó xảy ra
-     * âm thầm, không có cảnh báo nào.
+     * Giá trị này cố định cho tài khoản `admin@gmail.com` được seeder tạo/cập nhật
+     * và không đọc APP_ENV hay WMS_SEED_ADMIN_PASSWORD. Nhờ đó DEV/UAT không thể
+     * drift sang một password khác trong khi Swagger/test vẫn dùng contract cũ.
      */
     private function adminPassword(): string
     {
-        $configured = trim((string) config('golive.seed.admin_password'));
-
-        if ($this->isDevelopmentEnvironment()) {
-            return $configured !== '' ? $configured : $this->fixturePassword();
-        }
-
-        $minLength = max(8, (int) config('golive.seed.min_admin_password_length', 12));
-
-        if ($configured === '') {
-            throw new RuntimeException(
-                'AuthDatabaseSeeder: môi trường "'.app()->environment().'" yêu cầu WMS_SEED_ADMIN_PASSWORD. '
-                .'Seeder không tạo tài khoản admin bằng mật khẩu mặc định nằm trong source code.'
-            );
-        }
-
-        // Kiểm tra "mật khẩu mặc định đã biết" TRƯỚC độ dài: `Cntt@1234` cũng ngắn
-        // hơn ngưỡng, nhưng thông báo phải nói đúng vấn đề — nó là credential ai
-        // đọc repo cũng biết, chứ không phải chỉ ngắn.
-        $knownDefaults = array_map('strval', (array) config('golive.credential.known_defaults', []));
-        if (in_array($configured, $knownDefaults, true)) {
-            throw new RuntimeException(
-                'AuthDatabaseSeeder: WMS_SEED_ADMIN_PASSWORD trùng một mật khẩu mặc định đã biết '
-                .'(golive.credential.known_defaults) — chọn giá trị khác.'
-            );
-        }
-
-        if (mb_strlen($configured) < $minLength) {
-            throw new RuntimeException(
-                'AuthDatabaseSeeder: WMS_SEED_ADMIN_PASSWORD phải dài tối thiểu '.$minLength.' ký tự.'
-            );
-        }
-
-        return $configured;
+        return self::DEFAULT_PASSWORD;
     }
 
-    /** Mật khẩu dùng chung của các tài khoản fixture; chỉ hợp lệ ngoài production. */
+    /** Mật khẩu dùng chung của các tài khoản fixture phi admin. */
     private function fixturePassword(): string
     {
         $ciPassword = env('CI_DEMO_PASSWORD');
