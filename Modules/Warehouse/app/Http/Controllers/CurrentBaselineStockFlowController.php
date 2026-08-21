@@ -222,6 +222,99 @@ class CurrentBaselineStockFlowController extends Controller
     }
 
     /**
+     * Inbound Carton Scan v1.0 §3.3 — mốc "Đã quét xong thùng".
+     *
+     * Audit-only: xác nhận người dùng đã quét hết hàng vật lý của carton hiện tại
+     * trong phiếu nhập. KHÔNG tạo state mới — không đổi container.status, không
+     * bump document version, stock_effect=NONE, movement_created=false. Bằng chứng
+     * duy nhất là AuditLogger action=INBOUND_CARTON_SCAN_COMPLETED nên sau F5
+     * server vẫn biết mốc này (§3.3: phương án audit endpoint được ưu tiên).
+     *
+     * Không có REOPEN: user scan lại carton là FE set lại active context; audit
+     * lần trước vẫn là lịch sử (CTN-07). Retry/duplicate call là harmless theo
+     * contract đã chọn (CTN-T11) vì không có side effect ngoài một dòng audit.
+     */
+    #[OA\Post(
+        path: '/api/v1/inbound-documents/{id}/cartons/{containerId}/complete-scan',
+        operationId: 'inbound_carton_complete_scan',
+        x: ['permission' => 'inbound.scan'],
+        summary: 'Ghi nhận "Đã quét xong thùng" cho carton trong phiếu nhập (audit-only, stock-neutral)',
+        description: 'Inbound Carton Scan v1.0: đóng active carton context. Guard: document DRAFT/SCANNING, container loại CARTON, có ít nhất 1 ACTIVE inbound_scan_entry của carton trong phiếu. Không đổi container.status, không tạo movement/balance, không bump version. actual_item_qty = SUM quantity các ACTIVE scan entries của carton trong phiếu.',
+        security: [['bearerAuth' => []]],
+        tags: ['09. Stock In (Inbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'containerId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Audit INBOUND_CARTON_SCAN_COMPLETED đã ghi; data gồm document_id, container_id, carton_code, actual_item_qty, completed_at, stock_effect=NONE, movement_created=false.'),
+        ]
+    )]
+    public function completeInboundCartonScan(Request $request, string $id, string $containerId)
+    {
+        $document = DB::table('stock_documents')->where('id', $id)->where('doc_type', 'receipt')->first();
+        if ($document === null) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nhập.');
+        }
+        if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
+            ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới ghi nhận được mốc xong thùng.');
+        }
+
+        $carton = DB::table('containers')->where('container_id', $containerId)->first();
+        if ($carton === null) {
+            ApiError::abort(404, 'CARTON_NOT_FOUND', 'Không tìm thấy carton.', [
+                'container_id' => $containerId,
+            ]);
+        }
+        if (strtoupper((string) $carton->container_type) !== 'CARTON') {
+            ApiError::abort(422, 'CARTON_TYPE_INVALID', 'Chỉ container loại CARTON mới có mốc "Đã quét xong thùng".', [
+                'container_id' => $containerId,
+                'container_type' => (string) $carton->container_type,
+            ]);
+        }
+
+        // actual_item_qty đếm theo bằng chứng đang ACTIVE của chính phiếu này —
+        // entry REMOVED (gỡ trước Post) không còn tính (ERD bảng 28).
+        $actualItemQty = (int) DB::table('inbound_scan_entries as e')
+            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
+            ->where('l.stock_document_id', $id)
+            ->where('e.container_id', $containerId)
+            ->where(function ($query): void {
+                $query->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED');
+            })
+            ->sum('e.quantity');
+        if ($actualItemQty <= 0) {
+            ApiError::abort(422, 'CARTON_NO_ACTIVE_SCANS', 'Carton chưa có Item nào được quét (ACTIVE) trong phiếu này nên không có gì để xác nhận.', [
+                'container_id' => $containerId,
+            ]);
+        }
+
+        $completedAt = now();
+        AuditLogger::record(
+            action: 'INBOUND_CARTON_SCAN_COMPLETED',
+            objectType: 'container',
+            objectId: $containerId,
+            actorId: $this->actorId(),
+            requestId: request()?->attributes->get('request_id'),
+            afterData: [
+                'document_id' => $id,
+                'carton_code' => (string) $carton->container_code,
+                'actual_item_qty' => $actualItemQty,
+            ],
+        );
+
+        return $this->respondSuccess([
+            'document_id' => $id,
+            'container_id' => $containerId,
+            'carton_code' => (string) $carton->container_code,
+            'actual_item_qty' => $actualItemQty,
+            'completed_at' => $completedAt->toIso8601String(),
+            'stock_effect' => 'NONE',
+            'movement_created' => false,
+        ], 'Carton scan completed; stock_effect=NONE.');
+    }
+
+    /**
      * Gỡ một item đã match khỏi phiếu xuất trước khi Post (BR "Gỡ trước Post").
      * Match chuyển ACTIVE -> REMOVED, line scanned_qty giảm tương ứng; hoàn toàn
      * stock-neutral. Item sau đó có thể scan lại vào phiếu này hoặc phiếu khác.

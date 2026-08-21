@@ -58,6 +58,13 @@ class CurrentBaselineStockService
                 ApiError::abort(422, 'PRODUCT_SKU_REQUIRED', 'Outbound sản phẩm không được scan COMPONENT; linh kiện chỉ xuất qua Component Issue WARRANTY.');
             }
 
+            // Inbound Carton Scan v1.0 §3.2: PRODUCT scan mang container_id (active
+            // carton) phải trỏ tới CARTON còn dùng được và khớp primary SKU. Nhánh
+            // COMPONENT+BOX đã được EnsureInboundComponentBox middleware guard riêng.
+            if ($documentType === 'receipt') {
+                $this->assertReceiptCartonUsable($line, $sku, $payload);
+            }
+
             [$item, $candidate] = $this->resolveScanTarget($payload, $line, $sku, $parsed, $embeddedSku, $documentType, $documentId);
             $requiresItem = strtoupper((string) $sku->sku_type) === 'PRODUCT' || (bool) $sku->is_serial_tracked;
             if ($requiresItem && $item === null && $candidate === null) {
@@ -826,6 +833,52 @@ class CurrentBaselineStockService
     private static function activeScanEntry($query, string $alias = 'e')
     {
         return $query->whereNull("{$alias}.status")->orWhere("{$alias}.status", '!=', 'REMOVED');
+    }
+
+    /**
+     * Inbound Carton Scan v1.0 §3.2: PRODUCT Item scan có active carton bắt buộc
+     * mang container_id của carton đó; BE verify carton tồn tại/usable, đúng loại
+     * CARTON và primary SKU khớp SKU của dòng nhập. Item lẻ (container_id null)
+     * đi qua không đụng guard này. COMPONENT/BOX giữ nguyên guard riêng ở
+     * EnsureInboundComponentBox nên không lặp lại tại đây.
+     */
+    private function assertReceiptCartonUsable(object $line, object $sku, array $payload): void
+    {
+        $containerId = trim((string) ($payload['container_id'] ?? ''));
+        if ($containerId === '' || strtoupper((string) $sku->sku_type) !== 'PRODUCT') {
+            return;
+        }
+
+        $carton = DB::table('containers')->where('container_id', $containerId)->first();
+        if ($carton === null) {
+            ApiError::abort(422, 'CARTON_NOT_FOUND', 'Không tìm thấy carton được gửi trong container_id.', [
+                'container_id' => $containerId,
+            ]);
+        }
+        if (strtoupper((string) $carton->container_type) !== 'CARTON') {
+            ApiError::abort(422, 'CARTON_TYPE_INVALID', 'PRODUCT Item chỉ được scan vào container loại CARTON.', [
+                'container_id' => $containerId,
+                'container_type' => (string) $carton->container_type,
+            ]);
+        }
+        // ERD bảng 22: CLOSED/ISSUED là container không còn dùng được cho scan mới
+        // (cùng ngưỡng với scan/classify); các trạng thái khác vẫn nhận hàng.
+        if (in_array(strtoupper((string) $carton->status), ['CLOSED', 'ISSUED'], true)) {
+            ApiError::abort(409, 'CARTON_NOT_USABLE', 'Carton đã CLOSED/ISSUED nên không nhận scan mới.', [
+                'container_id' => $containerId,
+                'status' => (string) $carton->status,
+            ]);
+        }
+        // §5: "Carton SKU ≠ inbound line SKU → Reject". Carton chưa đăng ký
+        // primary SKU thì không có cơ sở đối chiếu nên không chặn.
+        if ($carton->primary_sku_id !== null
+            && (string) $carton->primary_sku_id !== (string) $line->product_id) {
+            ApiError::abort(422, 'CARTON_SKU_MISMATCH', 'Primary SKU của carton không khớp SKU của dòng nhập.', [
+                'container_id' => $containerId,
+                'carton_sku_id' => (string) $carton->primary_sku_id,
+                'line_sku_id' => (string) $line->product_id,
+            ]);
+        }
     }
 
     private function assertItemAvailableForReceipt(object $item, string $documentId): void

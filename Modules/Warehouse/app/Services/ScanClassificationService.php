@@ -288,6 +288,9 @@ class ScanClassificationService
             'object_status' => $status,
             'container_id' => (string) $container->container_id,
             'container_code' => $container->container_code ?? null,
+            // Inbound Carton Scan v1.0 §3.1: FE cần phân biệt CARTON với BOX/TRAY
+            // ngay tại classify để chỉ CARTON mới được đặt làm "Thùng đang quét".
+            'container_type' => $container->container_type ?? null,
             'location_hint' => $container->location_hint ?? null,
         ];
     }
