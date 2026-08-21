@@ -372,6 +372,26 @@ class CanonicalMvpController extends Controller
                         ->where('code_value', $operator, "%{$keyword}%");
                 });
             },
+            // FE cột "Sản phẩm" (WAR-01) đọc row.sku/row.sku_code/row.sku_name — nhưng
+            // warranty_case chỉ lưu product_id (uuid). Không JOIN thẳng vào query
+            // chính vì cả 2 bảng đều có cột `status` (JOIN sẽ làm mọi
+            // `$query->where('status', ...)` phía trên ném lỗi ambiguous column trên
+            // PostgreSQL) — enrich SAU KHI đã phân trang, gom 1 query duy nhất theo
+            // các product_id có mặt trong trang hiện tại (không phải N+1).
+            function ($rows): void {
+                $productIds = $rows->pluck('product_id')->filter()->unique()->values()->all();
+                if ($productIds === []) {
+                    return;
+                }
+                $skus = DB::table('sku')->whereIn('sku_id', $productIds)
+                    ->get(['sku_id', 'sku_code', 'sku_name'])
+                    ->keyBy('sku_id');
+                foreach ($rows as $row) {
+                    $sku = $row->product_id !== null ? $skus->get($row->product_id) : null;
+                    $row->sku_code = $sku->sku_code ?? null;
+                    $row->sku_name = $sku->sku_name ?? null;
+                }
+            },
         );
     }
 
@@ -468,7 +488,7 @@ class CanonicalMvpController extends Controller
         return $this->insertAndReturn($table, $validated);
     }
 
-    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [], ?callable $keywordExtension = null)
+    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [], ?callable $keywordExtension = null, ?callable $collectionEnricher = null)
     {
         $query = DB::table($table);
         if ($request->filled('status')) {
@@ -502,6 +522,9 @@ class CanonicalMvpController extends Controller
         }
 
         $page = $query->orderByDesc($orderBy)->paginate($this->perPage($request));
+        if ($collectionEnricher !== null) {
+            $collectionEnricher($page->getCollection());
+        }
         if ($masked !== []) {
             // §13.8 · WWHN-247: bề mặt đọc danh sách phải khai báo trạng thái mask
             // giống bề mặt chi tiết (`casePayload.pii_masked`). Thiếu cờ này, client

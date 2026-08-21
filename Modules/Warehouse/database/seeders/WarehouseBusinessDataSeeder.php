@@ -131,8 +131,8 @@ class WarehouseBusinessDataSeeder extends Seeder
         $this->actorId = (string) $actorId;
         $this->warehouseId = (string) $warehouse->id;
 
-        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Máy bơm PV mẫu Hòa Nam', 'PRODUCT', true);
-        $componentSku = $this->ensureSku(self::COMPONENT_SKU, 'Bo mạch điều khiển mẫu', 'COMPONENT', false);
+        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Máy bơm PV mẫu Hòa Nam', 'PRODUCT', true, 'HOANAM', 'PUMP', 'MDL-HN-01', 'SOLAR', 'KIT');
+        $componentSku = $this->ensureSku(self::COMPONENT_SKU, 'Bo mạch điều khiển mẫu', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', 'BATTERY', 'BARE');
 
         $this->seedComponentReceipt($componentSku);
         $issuableItems = $this->seedProductReceipt($productSku);
@@ -376,10 +376,10 @@ class WarehouseBusinessDataSeeder extends Seeder
      */
     private function seedExtraBusinessData(): void
     {
-        $productSku2 = $this->ensureSku(self::PRODUCT_SKU_2, 'Máy phát điện PV mẫu Hòa Nam 002', 'PRODUCT', true);
-        $productSku3 = $this->ensureSku(self::PRODUCT_SKU_3, 'Máy cắt cỏ PV mẫu Hòa Nam 003', 'PRODUCT', true);
-        $productSku4 = $this->ensureSku(self::PRODUCT_SKU_4, 'Máy xới đất PV mẫu Hòa Nam 004', 'PRODUCT', true);
-        $componentSku2 = $this->ensureSku(self::COMPONENT_SKU_2, 'Dây curoa mẫu Hòa Nam 002', 'COMPONENT', false);
+        $productSku2 = $this->ensureSku(self::PRODUCT_SKU_2, 'Máy phát điện PV mẫu Hòa Nam 002', 'PRODUCT', true, 'KUBOTA', 'ENGINE', 'MDL-KB-01', 'DIESEL', 'SET');
+        $productSku3 = $this->ensureSku(self::PRODUCT_SKU_3, 'Máy cắt cỏ PV mẫu Hòa Nam 003', 'PRODUCT', true, 'HUSQVARNA', 'ENGINE', 'MDL-HQ-01', 'GASOLINE', 'BARE');
+        $productSku4 = $this->ensureSku(self::PRODUCT_SKU_4, 'Máy xới đất PV mẫu Hòa Nam 004', 'PRODUCT', true, 'YANMAR', 'TRACTOR', 'MDL-YM-01', 'DIESEL', 'SET');
+        $componentSku2 = $this->ensureSku(self::COMPONENT_SKU_2, 'Dây curoa mẫu Hòa Nam 002', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', null, 'BARE');
 
         // Mỗi bước dưới đây tự guard theo doc_no/code riêng (idempotent độc lập) —
         // không có transaction bọc toàn seedExtraBusinessData, nên nếu 1 bước lỗi
@@ -435,6 +435,14 @@ class WarehouseBusinessDataSeeder extends Seeder
         $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_4, 'SN-HN-SEED-EXT-03-06', 'Seed reversal — hiệu chỉnh mẫu QA/dev #3.');
         $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0002', 'Seed reversal — hiệu chỉnh mẫu QA/dev #4.');
         $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0003', 'Seed reversal — hiệu chỉnh mẫu QA/dev #5.');
+
+        // BOX-SEED-0006: nhận COMPONENT rồi POST nhưng CỐ Ý không gọi
+        // seedPutawayVariant() — mọi BOX component khác ở trên đều được putaway
+        // xác nhận ngay, nên "/putaway/tasks" (tab Chờ xếp khay) luôn trống dù
+        // trigger trg_materialize_receipt_putaway_status đã đưa BOX này về
+        // RECEIVED_PENDING_PUTAWAY. Giữ đúng 1 BOX ở trạng thái chờ để màn hình
+        // có việc để làm ngay sau khi seed.
+        $this->seedComponentReceiptVariant('PN-SEED-0011', $componentSku2, 'BOX-SEED-0006', 5);
     }
 
     /**
@@ -841,8 +849,23 @@ class WarehouseBusinessDataSeeder extends Seeder
         $this->stock->postStockDocument($documentId, $type, $this->actorId, $key, sha1($key));
     }
 
-    private function ensureSku(string $code, string $name, string $type, bool $serialTracked): string
-    {
+    /**
+     * $brandCode/$categoryCode/$modelCode/$powerSourceCode/$packageCode tham
+     * chiếu các mã đã seed bởi WarehouseDatabaseSeeder (BRANDS/PRODUCT_CATEGORIES/
+     * PRODUCT_MODELS/POWER_SOURCES/PACKAGE_VARIANTS) — seeder này chạy sau nên
+     * các bảng catalog đã tồn tại.
+     */
+    private function ensureSku(
+        string $code,
+        string $name,
+        string $type,
+        bool $serialTracked,
+        ?string $brandCode = null,
+        ?string $categoryCode = null,
+        ?string $modelCode = null,
+        ?string $powerSourceCode = null,
+        ?string $packageCode = null,
+    ): string {
         $existing = Sku::query()->where('sku_code', $code)->value('sku_id');
         if ($existing !== null) {
             return (string) $existing;
@@ -854,6 +877,11 @@ class WarehouseBusinessDataSeeder extends Seeder
             'sku_type' => $type,
             'unit' => 'cái',
             'is_serial_tracked' => $serialTracked,
+            'brand_id' => $brandCode !== null ? DB::table('brands')->where('brand_code', $brandCode)->value('id') : null,
+            'category_id' => $categoryCode !== null ? DB::table('product_categories')->where('category_code', $categoryCode)->value('id') : null,
+            'model_id' => $modelCode !== null ? DB::table('product_models')->where('model_code', $modelCode)->value('id') : null,
+            'power_source_id' => $powerSourceCode !== null ? DB::table('power_sources')->where('power_source_code', $powerSourceCode)->value('id') : null,
+            'package_variant_id' => $packageCode !== null ? DB::table('package_variants')->where('package_code', $packageCode)->value('id') : null,
             'version_code' => 'V1',
             'warranty_applicable' => $type === 'PRODUCT',
             'published_to_app' => true,
