@@ -18,7 +18,7 @@ class AuthLoginContractSecurityTest extends TestCase
 
         try {
             // Đi đúng nhánh logic ngoài local/testing để chặn regression kiểu
-            // WMS_SEED_ADMIN_PASSWORD/known_defaults làm UAT không đăng nhập được.
+            // environment-specific password làm UAT không đăng nhập được.
             $this->app['env'] = 'uat';
             $this->seed(AuthDatabaseSeeder::class);
 
@@ -39,14 +39,21 @@ class AuthLoginContractSecurityTest extends TestCase
         }
     }
 
-    public function test_golive_policy_accepts_the_canonical_admin_password(): void
+    public function test_golive_policy_does_not_reject_the_canonical_admin_password(): void
     {
-        $password = (string) config('golive.seed.admin_password');
-        $minimumLength = (int) config('golive.seed.min_admin_password_length');
+        $this->assertNotContains('Cntt@1234', (array) config('golive.credential.known_defaults', []));
+        $this->assertNull(config('golive.seed.admin_password'));
+        $this->assertNull(config('golive.seed.min_admin_password_length'));
+    }
 
-        $this->assertSame('Cntt@1234', $password);
-        $this->assertNotContains($password, (array) config('golive.credential.known_defaults', []));
-        $this->assertGreaterThanOrEqual($minimumLength, mb_strlen($password));
+    public function test_admin_seeder_has_one_environment_independent_password_source(): void
+    {
+        $source = file_get_contents(base_path('Modules/Auth/database/seeders/AuthDatabaseSeeder.php'));
+
+        $this->assertIsString($source);
+        $this->assertStringContainsString("private const DEFAULT_PASSWORD = 'Cntt@1234';", $source);
+        $this->assertStringContainsString('return self::DEFAULT_PASSWORD;', $source);
+        $this->assertStringNotContainsString('WMS_SEED_ADMIN_PASSWORD', $source);
     }
 
     public function test_login_openapi_exposes_the_canonical_admin_credential(): void
