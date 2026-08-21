@@ -28,11 +28,17 @@ class AuthController extends Controller
     #[OA\Post(
         path: '/api/v1/auth/login', operationId: 'auth_login',
         summary: 'Đăng nhập bằng email và password',
+        description: 'UAT/production không có mật khẩu mặc định. Dùng đúng credential được cấp cho môi trường hiện tại; mật khẩu fixture/local không phải credential UAT.',
         tags: ['01. Authentication'], security: [],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
             required: ['email', 'password'], properties: [
-                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'admin@gmail.com'),
-                new OA\Property(property: 'password', type: 'string', format: 'password', example: 'Cntt@1234'),
+                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'user@example.com'),
+                new OA\Property(
+                    property: 'password',
+                    type: 'string',
+                    format: 'password',
+                    description: 'Mật khẩu của tài khoản trên môi trường hiện tại. Không dùng mật khẩu fixture/local trên UAT/production.'
+                ),
             ]
         )),
         responses: [
@@ -81,8 +87,16 @@ class AuthController extends Controller
                 ? User::query()->where('username', $credentials['username'])->first()
                 : User::query()->where('email', $credentials['email'] ?? null)->first();
 
+            // Chỉ ghi diagnostic không nhạy cảm. Tuyệt đối không log password,
+            // password hash/fingerprint hoặc token. `account_found=true` + ACTIVE
+            // giúp phân biệt ngay sai credential/request với lỗi account lifecycle
+            // khi đối chiếu HTTP UAT và Laravel CLI mà không mở đường bypass auth.
             $logData = $credentials;
             unset($logData['password']);
+            $logData['identity_field'] = $request->filled('username') ? 'username' : 'email';
+            $logData['account_found'] = $user !== null;
+            $logData['account_status'] = $user?->status;
+            $logData['content_type'] = $request->header('Content-Type');
 
             $this->auditLogger->log(
                 'LOGIN_FAILED',
