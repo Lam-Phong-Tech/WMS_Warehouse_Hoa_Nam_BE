@@ -3,11 +3,13 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportErrorFileService;
@@ -49,6 +51,18 @@ class ImportReportController extends Controller
         $actorScope = SkuImportContract::reportActorScope($user instanceof User ? $user : null);
 
         return $actorScope === null ? $query : $query->where('actor_id', $actorScope);
+    }
+
+    /**
+     * {id} tới từ route path, không đi qua $request->validate() như các query param
+     * khác của controller này. Chặn ở đây để chuỗi rác trả 422 rõ ràng thay vì rơi
+     * xuống DB driver (PostgreSQL ném lỗi kiểu uuid, sqlite lại âm thầm trả rỗng).
+     */
+    private function assertValidId(string $id): void
+    {
+        if (! Str::isUuid($id)) {
+            ApiError::abort(422, 'INVALID_UUID', 'id không phải UUID hợp lệ.', ['field' => 'id']);
+        }
     }
 
     /** Nhãn phạm vi đang áp dụng, trả trong meta để QA/BA có bằng chứng đọc được ngay. */
@@ -153,6 +167,11 @@ class ImportReportController extends Controller
     )]
     public function show(string $id): JsonResponse
     {
+        // {id} không có route constraint uuid nên chuỗi rác lọt thẳng xuống Eloquent
+        // find(); trên PostgreSQL, so sánh cột kiểu uuid với chuỗi không hợp lệ ném
+        // QueryException (22P02) → 500 thay vì 422 rõ ràng. Chặn sớm tại đây.
+        $this->assertValidId($id);
+
         // FE331-P1-06R3: bản ghi ngoài data-scope trả 404 y hệt bản ghi không tồn tại —
         // fail-closed và không lộ việc "có tồn tại một báo cáo id này của người khác".
         $report = $this->scopedQuery()->find($id);
@@ -199,6 +218,10 @@ class ImportReportController extends Controller
     )]
     public function downloadErrorFile(string $id): JsonResponse|StreamedResponse
     {
+        // Cùng lý do với show(): chặn chuỗi rác trước khi chạm Eloquent find() để
+        // không lộ QueryException/500 khi cột id là uuid trên PostgreSQL.
+        $this->assertValidId($id);
+
         /** @var ImportReport|null $report */
         $report = $this->scopedQuery()->find($id);
         if (! $report) {

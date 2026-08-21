@@ -91,7 +91,10 @@ class CurrentBaselineDocumentController extends Controller
             // xuống 200 để thoả contract SRS mà vẫn nằm trong giới hạn cột của ERD.
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
-            'note' => ['nullable', 'string', 'max:2000'],
+            // note ghi thẳng vào stock_documents.note varchar(1000) (migration
+            // 2026_01_01_000032_create_stock_documents_table.php); max cũ (2000) rộng hơn cột
+            // DB nên note 1001-2000 ký tự sẽ vỡ ở QueryException 500 thay vì 422.
+            'note' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'uuid', 'exists:sku,sku_id'],
             'lines.*.import_batch_id' => ['nullable', 'uuid', 'exists:import_batches,import_batch_id'],
@@ -117,7 +120,8 @@ class CurrentBaselineDocumentController extends Controller
             'doc_date' => ['sometimes', 'date'],
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
-            'note' => ['nullable', 'string', 'max:2000'],
+            // note ghi thẳng vào stock_documents.note varchar(1000); xem lý do ở storeInbound().
+            'note' => ['nullable', 'string', 'max:1000'],
             'lines' => ['sometimes', 'array', 'min:1'],
             'lines.*.id' => ['nullable', 'uuid'],
             'lines.*.product_id' => ['required_with:lines', 'uuid', 'exists:sku,sku_id'],
@@ -423,7 +427,9 @@ class CurrentBaselineDocumentController extends Controller
 
     private function cancelDocument(Request $request, string $id, string $type)
     {
-        $validated = $request->validate(['reason' => ['required', 'string', 'max:2000']]);
+        // reason ghi vào stock_documents.cancel_reason varchar(1000); max cũ (2000) rộng
+        // hơn cột DB nên lý do 1001-2000 ký tự sẽ vỡ ở QueryException 500 thay vì 422.
+        $validated = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
         $expectedVersion = $this->expectedVersion($request);
 
         $payload = DB::transaction(function () use ($id, $type, $validated, $expectedVersion): array {

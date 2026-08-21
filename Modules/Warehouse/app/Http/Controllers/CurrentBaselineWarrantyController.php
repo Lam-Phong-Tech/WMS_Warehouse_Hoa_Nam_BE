@@ -107,7 +107,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'defect_id' => ['nullable', 'uuid'],
             'defect_code' => ['nullable', 'string', 'max:80'],
             'customer_name' => ['required', 'string', 'max:200'],
-            'customer_phone' => ['required', 'string', 'max:30'],
+            // Rà soát validate định dạng input (Flow04 Warranty): SĐT khách VN —
+            // bắt đầu bằng 0, đúng 10 chữ số. Không đổi required/max hiện có, chỉ
+            // thêm ràng buộc định dạng để chặn nhập chữ/độ dài sai lúc tiếp nhận.
+            'customer_phone' => ['required', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             // Annex A/D: customer_address tối đa 500 ký tự.
             'customer_address' => ['nullable', 'string', 'max:500'],
             'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
@@ -117,6 +120,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'received_condition' => ['nullable', 'string', 'max:500'],
             'missing_code_reason' => ['nullable', 'string', 'max:500'],
             'manual_product_description' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'customer_phone.regex' => 'Số điện thoại phải bắt đầu bằng số 0 và đủ 10 chữ số.',
         ]);
 
         $execute = function () use ($validated, $request): array {
@@ -332,9 +337,14 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'defect_id' => ['nullable', 'uuid'],
             'defect_code' => ['nullable', 'string', 'max:80'],
             'customer_name' => ['sometimes', 'string', 'max:200'],
-            'customer_phone' => ['sometimes', 'string', 'max:30'],
+            // Rà soát validate định dạng input (Flow04 Warranty): giữ nguyên
+            // 'sometimes' (PII sửa được sau tiếp nhận), chỉ thêm định dạng SĐT VN
+            // khi field này thực sự có mặt trong payload.
+            'customer_phone' => ['sometimes', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'customer_address' => ['nullable', 'string', 'max:500'],
             'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
+        ], [
+            'customer_phone.regex' => 'Số điện thoại phải bắt đầu bằng số 0 và đủ 10 chữ số.',
         ]);
         if ($validated === []) {
             ApiError::abort(422, 'EMPTY_UPDATE', 'Phải gửi ít nhất một field để cập nhật.');

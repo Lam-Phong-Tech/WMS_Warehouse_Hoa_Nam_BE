@@ -30,9 +30,16 @@ class StoreUserRequest extends FormRequest
             'username' => ['required', 'string', 'max:100', 'unique:app_user,username'],
             'display_name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', 'unique:app_user,email'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'password' => ['required', 'string', 'min:8'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE', 'LOCKED'])],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
         ];
     }
 }

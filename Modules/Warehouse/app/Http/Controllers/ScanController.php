@@ -90,6 +90,11 @@ use OpenApi\Attributes as OA;
                         new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
                         new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
                         new OA\Property(property: 'product_id', type: 'string', format: 'uuid', nullable: true),
+                        // Inbound Carton Scan v1.0 §3.1: classification=CONTAINER phải trả
+                        // container_id non-null để FE đặt carton làm "Thùng đang quét".
+                        new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, description: 'Identity của container khi classification=CONTAINER (non-null trong trường hợp đó); null cho ITEM/SKU.'),
+                        new OA\Property(property: 'container_code', type: 'string', nullable: true, description: 'Mã container hiển thị (ví dụ CTN-001) khi classification=CONTAINER.'),
+                        new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY'], nullable: true, description: 'Loại container theo ERD bảng 22; FE chỉ đặt active carton cho CARTON.'),
                         new OA\Property(property: 'stock_status', type: 'string'),
                         new OA\Property(property: 'object_status', type: 'string'),
                         new OA\Property(property: 'resolved_source', type: 'string', enum: [

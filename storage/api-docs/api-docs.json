@@ -7582,6 +7582,156 @@
                 ]
             }
         },
+        "/api/v1/inbound-documents/{id}/cartons/{containerId}/complete-scan": {
+            "post": {
+                "tags": [
+                    "09. Stock In (Inbound)"
+                ],
+                "summary": "Ghi nhận \"Đã quét xong thùng\" cho carton trong phiếu nhập (audit-only, stock-neutral)",
+                "description": "Inbound Carton Scan v1.0: đóng active carton context. Guard: document DRAFT/SCANNING, container loại CARTON, có ít nhất 1 ACTIVE inbound_scan_entry của carton trong phiếu. Không đổi container.status, không tạo movement/balance, không bump version. actual_item_qty = SUM quantity các ACTIVE scan entries của carton trong phiếu.",
+                "operationId": "inbound_carton_complete_scan",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "containerId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "example": {},
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Audit INBOUND_CARTON_SCAN_COMPLETED đã ghi; data gồm document_id, container_id, carton_code, actual_item_qty, completed_at, stock_effect=NONE, movement_created=false.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "x-permission": "inbound.scan"
+            }
+        },
         "/api/v1/inbound-documents/{id}/post-receipt": {
             "post": {
                 "tags": [
@@ -29932,6 +30082,27 @@
                                                     "type": "string",
                                                     "format": "uuid",
                                                     "nullable": true
+                                                },
+                                                "container_id": {
+                                                    "description": "Identity của container khi classification=CONTAINER (non-null trong trường hợp đó); null cho ITEM/SKU.",
+                                                    "type": "string",
+                                                    "format": "uuid",
+                                                    "nullable": true
+                                                },
+                                                "container_code": {
+                                                    "description": "Mã container hiển thị (ví dụ CTN-001) khi classification=CONTAINER.",
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "container_type": {
+                                                    "description": "Loại container theo ERD bảng 22; FE chỉ đặt active carton cho CARTON.",
+                                                    "type": "string",
+                                                    "nullable": true,
+                                                    "enum": [
+                                                        "CARTON",
+                                                        "BOX",
+                                                        "TRAY"
+                                                    ]
                                                 },
                                                 "stock_status": {
                                                     "type": "string"

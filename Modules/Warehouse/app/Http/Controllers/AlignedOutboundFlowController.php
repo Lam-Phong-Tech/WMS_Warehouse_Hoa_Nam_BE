@@ -222,7 +222,10 @@ class AlignedOutboundFlowController extends Controller
         // "Missing address/phone render blank" — không được chặn tạo nhãn khi thiếu SĐT.
         $validated = $request->validate([
             'outbound_document_id' => ['required', 'uuid', 'exists:stock_documents,id'],
-            'customer_phone' => ['nullable', 'string', 'max:50'],
+            // DEC-PHONE-VN-001: khi có SĐT bổ sung ở bước nhãn, phải đúng định dạng VN.
+            'customer_phone' => ['nullable', 'string', 'max:50', 'regex:/^0\d{9}$/'],
+        ], [
+            'customer_phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
         ]);
         $documentId = (string) $validated['outbound_document_id'];
         $phone = array_key_exists('customer_phone', $validated)

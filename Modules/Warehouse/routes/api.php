@@ -108,6 +108,10 @@ Route::prefix('v1')->group(function (): void {
         // đối xứng với outbound-documents/{id}/unmatch, stock-neutral.
         Route::post('inbound-documents/{id}/unscan', [CurrentBaselineStockFlowController::class, 'inboundUnscan'])
             ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
+        // Inbound Carton Scan v1.0 §3.3: mốc "Đã quét xong thùng" — audit-only,
+        // stock-neutral, không đổi container.status, không bump document version.
+        Route::post('inbound-documents/{id}/cartons/{containerId}/complete-scan', [CurrentBaselineStockFlowController::class, 'completeInboundCartonScan'])
+            ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
         Route::post('inbound-documents/{id}/post-receipt', [CurrentBaselineStockFlowController::class, 'postReceipt'])
             ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
         Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])

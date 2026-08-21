@@ -858,8 +858,10 @@ class CurrentBaselineOperationsController extends Controller
         if ($recipientName === '') {
             $errors[] = $this->rowError($rowNo, 'recipient_name', 'REQUIRED', 'recipient/customer name is required.');
         }
-        if ($recipientPhone !== null && ! preg_match('/^\+?[0-9]{6,20}$/', $recipientPhone)) {
-            $errors[] = $this->rowError($rowNo, 'recipient_contact_phone', 'INVALID_PHONE', 'recipient_contact_phone chỉ nhận số (6-20 chữ số).');
+        // DEC-PHONE-VN-001: SĐT người nhận, khi có, phải đúng định dạng VN (10 chữ số,
+        // bắt đầu bằng 0) — cùng quy tắc với StoreAgencyRequest/StoreWarehouseRequest.
+        if ($recipientPhone !== null && ! preg_match('/^0\d{9}$/', $recipientPhone)) {
+            $errors[] = $this->rowError($rowNo, 'recipient_contact_phone', 'INVALID_PHONE', 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.');
         }
         // SRS v1.12 §15 + REQ-SRS-014: recipient_address/phone nullable — không chặn
         // Confirm khi toa nguồn (vd. toa mẫu khách hàng) không có địa chỉ.
