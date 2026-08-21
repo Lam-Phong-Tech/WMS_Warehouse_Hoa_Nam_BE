@@ -53,7 +53,8 @@ class AuthLoginContractSecurityTest extends TestCase
         $this->assertIsString($source);
         $this->assertStringContainsString("private const DEFAULT_PASSWORD = 'Cntt@1234';", $source);
         $this->assertStringContainsString('return self::DEFAULT_PASSWORD;', $source);
-        $this->assertStringNotContainsString('WMS_SEED_ADMIN_PASSWORD', $source);
+        $this->assertStringNotContainsString("config('golive.seed.admin_password')", $source);
+        $this->assertStringNotContainsString('throw new RuntimeException', $source);
     }
 
     public function test_login_openapi_exposes_the_canonical_admin_credential(): void
