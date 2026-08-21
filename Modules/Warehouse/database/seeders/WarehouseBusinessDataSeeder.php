@@ -1089,7 +1089,12 @@ class WarehouseBusinessDataSeeder extends Seeder
             ->pluck('m.item_id')
             ->all();
 
-        DB::table('label_snapshots')->insert([
+        // Cùng quy ước với AlignedOutboundFlowController::createPackingLabelSnapshot()
+        // ('PL-'.doc_no) để nhãn seed không lệch contract với nhãn tạo qua API thật.
+        $docNo = (string) (DB::table('stock_documents')->where('id', $documentId)->value('doc_no') ?? $documentId);
+        $labelCode = 'PL-'.$docNo;
+
+        $insert = [
             'id' => (string) Str::uuid(),
             'outbound_item_match_id' => null,
             'outbound_document_id' => $documentId,
@@ -1097,6 +1102,8 @@ class WarehouseBusinessDataSeeder extends Seeder
             'item_id' => null,
             'label_payload' => json_encode([
                 'source' => 'seeder',
+                'label_code' => $labelCode,
+                'outbound_no' => $docNo,
                 'outbound_document_id' => $documentId,
                 'sku_id' => $skuId,
                 'item_ids' => $items,
@@ -1109,6 +1116,15 @@ class WarehouseBusinessDataSeeder extends Seeder
             'updated_by' => $this->actorId,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ];
+        // Phòng hờ môi trường đang có cột vật lý label_snapshots.label_code (khác
+        // schema hiện tại của repo — bảng canonical không khai cột này ở bất kỳ
+        // migration nào tính đến 2026_08_16_137000) mà seeder chưa gán được giá trị
+        // gây NOT NULL violation. Ghi thêm khi cột thật sự tồn tại, không giả định.
+        if (Schema::hasColumn('label_snapshots', 'label_code')) {
+            $insert['label_code'] = $labelCode;
+        }
+
+        DB::table('label_snapshots')->insert($insert);
     }
 }
