@@ -234,6 +234,44 @@ class InboundCartonScanTest extends TestCase
     }
 
     /**
+     * BA (2026-08-21): "một carton PRODUCT chỉ chứa các sản phẩm cùng một SKU".
+     * Carton chưa đăng ký primary_sku_id không được bỏ qua check vô thời hạn —
+     * Item PRODUCT đầu tiên quét vào carton khoá primary_sku_id theo SKU đó; Item
+     * khác SKU (kể cả từ một document khác) quét vào cùng carton sau khi đã khoá
+     * phải bị CARTON_SKU_MISMATCH.
+     */
+    public function test_first_scan_locks_carton_primary_sku_for_unregistered_carton(): void
+    {
+        $ctx = $this->draftProductInbound('CTN-LOCK-SKU-001', 2);
+        $cartonId = $this->cartonFixture('CTN-LOCK-001', null);
+        $this->assertDatabaseHas('containers', ['container_id' => $cartonId, 'primary_sku_id' => null]);
+
+        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 1, $cartonId)
+            ->assertOk();
+        $this->assertDatabaseHas('containers', [
+            'container_id' => $cartonId,
+            'primary_sku_id' => $ctx['sku_id'],
+        ]);
+
+        // Item cùng SKU vẫn quét bình thường vào carton đã khoá.
+        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 2, $cartonId)
+            ->assertOk()
+            ->assertJsonPath('data.scanned_quantity', 2);
+
+        // Một document khác, SKU khác, cùng cố quét vào carton đã khoá phải bị chặn.
+        $otherCtx = $this->draftProductInbound('CTN-LOCK-SKU-OTHER-001', 1);
+        $this->scanItemIntoDocument($otherCtx, $this->seedReceivableItem($otherCtx['sku_id']), 1, $cartonId)
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'CARTON_SKU_MISMATCH');
+
+        // Carton vẫn khoá đúng SKU ban đầu — lần reject không ghi đè.
+        $this->assertDatabaseHas('containers', [
+            'container_id' => $cartonId,
+            'primary_sku_id' => $ctx['sku_id'],
+        ]);
+    }
+
+    /**
      * CTN-T03 (§3.3): complete-scan là audit-only — actual_item_qty đếm ACTIVE
      * entries của carton trong phiếu; container.status và document version giữ
      * nguyên; không movement/balance. CTN-T11: gọi lại lần hai vẫn 200, không có

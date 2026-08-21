@@ -841,6 +841,13 @@ class CurrentBaselineStockService
      * CARTON và primary SKU khớp SKU của dòng nhập. Item lẻ (container_id null)
      * đi qua không đụng guard này. COMPONENT/BOX giữ nguyên guard riêng ở
      * EnsureInboundComponentBox nên không lặp lại tại đây.
+     *
+     * BA (2026-08-21, phản hồi cho luồng carton) xác nhận baseline: "một carton
+     * PRODUCT chỉ chứa các sản phẩm cùng một SKU". Carton chưa đăng ký primary SKU
+     * không được bỏ qua check — Item PRODUCT đầu tiên quét vào carton sẽ KHOÁ
+     * primary_sku_id của carton theo đúng SKU đó (lockForUpdate để chống race hai
+     * scan gần như đồng thời cùng khoá hai SKU khác nhau); mọi Item sau, kể cả từ
+     * document khác, phải khớp đúng SKU đã khoá.
      */
     private function assertReceiptCartonUsable(object $line, object $sku, array $payload): void
     {
@@ -849,7 +856,7 @@ class CurrentBaselineStockService
             return;
         }
 
-        $carton = DB::table('containers')->where('container_id', $containerId)->first();
+        $carton = DB::table('containers')->where('container_id', $containerId)->lockForUpdate()->first();
         if ($carton === null) {
             ApiError::abort(422, 'CARTON_NOT_FOUND', 'Không tìm thấy carton được gửi trong container_id.', [
                 'container_id' => $containerId,
@@ -869,10 +876,18 @@ class CurrentBaselineStockService
                 'status' => (string) $carton->status,
             ]);
         }
-        // §5: "Carton SKU ≠ inbound line SKU → Reject". Carton chưa đăng ký
-        // primary SKU thì không có cơ sở đối chiếu nên không chặn.
-        if ($carton->primary_sku_id !== null
-            && (string) $carton->primary_sku_id !== (string) $line->product_id) {
+
+        if ($carton->primary_sku_id === null) {
+            DB::table('containers')->where('container_id', $containerId)->update([
+                'primary_sku_id' => $line->product_id,
+                'updated_at' => now(),
+            ]);
+
+            return;
+        }
+
+        // §5: "Carton SKU ≠ inbound line SKU → Reject".
+        if ((string) $carton->primary_sku_id !== (string) $line->product_id) {
             ApiError::abort(422, 'CARTON_SKU_MISMATCH', 'Primary SKU của carton không khớp SKU của dòng nhập.', [
                 'container_id' => $containerId,
                 'carton_sku_id' => (string) $carton->primary_sku_id,
