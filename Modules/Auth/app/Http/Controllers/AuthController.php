@@ -28,16 +28,17 @@ class AuthController extends Controller
     #[OA\Post(
         path: '/api/v1/auth/login', operationId: 'auth_login',
         summary: 'Đăng nhập bằng email và password',
-        description: 'UAT/production không có mật khẩu mặc định. Dùng đúng credential được cấp cho môi trường hiện tại; mật khẩu fixture/local không phải credential UAT.',
+        description: 'Credential admin canonical dùng cho DEV/UAT: admin@gmail.com / Cntt@1234.',
         tags: ['01. Authentication'], security: [],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
             required: ['email', 'password'], properties: [
-                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'user@example.com'),
+                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'admin@gmail.com'),
                 new OA\Property(
                     property: 'password',
                     type: 'string',
                     format: 'password',
-                    description: 'Mật khẩu của tài khoản trên môi trường hiện tại. Không dùng mật khẩu fixture/local trên UAT/production.'
+                    example: 'Cntt@1234',
+                    description: 'Mật khẩu canonical của tài khoản admin được AuthDatabaseSeeder tạo/cập nhật.'
                 ),
             ]
         )),
