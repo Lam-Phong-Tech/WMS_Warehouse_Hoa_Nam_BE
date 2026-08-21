@@ -19,8 +19,15 @@ class UpdateWarehouseRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:200'],
             'address' => ['nullable', 'string', 'max:500'],
             'contact_person' => ['nullable', 'string', 'max:200'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'status' => ['sometimes', 'in:ACTIVE,INACTIVE'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
         ];
     }
 }

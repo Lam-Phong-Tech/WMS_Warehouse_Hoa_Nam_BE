@@ -36,10 +36,17 @@ class UpdateUserRequest extends FormRequest
                 'nullable', 'email', 'max:255',
                 Rule::unique('app_user', 'email')->ignore($this->route('id'), 'user_id'),
             ],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'password' => ['sometimes', 'string', 'min:8'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE', 'LOCKED'])],
             'version' => ['nullable', 'integer', 'min:1'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
         ];
     }
 }

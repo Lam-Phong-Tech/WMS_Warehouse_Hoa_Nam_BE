@@ -21,9 +21,16 @@ class UpdateAgencyRequest extends FormRequest
             ],
             'agency_name' => ['sometimes', 'string', 'max:255'],
             'contact_name' => ['nullable', 'string', 'max:200'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'address' => ['nullable', 'string', 'max:500'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
         ];
     }
 }
