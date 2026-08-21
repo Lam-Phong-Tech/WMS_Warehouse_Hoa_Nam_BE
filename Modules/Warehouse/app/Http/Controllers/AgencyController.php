@@ -66,10 +66,10 @@ class AgencyController extends Controller
                 properties: [
                     new OA\Property(property: 'agency_code', type: 'string', maxLength: 50, example: 'DL-0001'),
                     new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Đại lý Hoà Nam Q1'),
-                    new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
-                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
-                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
+                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
                 ]
             )
         ),
@@ -125,12 +125,12 @@ class AgencyController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'agency_code', type: 'string', maxLength: 50),
-                new OA\Property(property: 'agency_name', type: 'string', maxLength: 255),
-                new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
-                new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
-                new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                new OA\Property(property: 'agency_code', type: 'string', maxLength: 50, example: 'DL-0001'),
+                new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Đại lý Hòa Nam Miền Bắc'),
+                new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
+                new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
+                new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
             ])
         ),
         responses: [

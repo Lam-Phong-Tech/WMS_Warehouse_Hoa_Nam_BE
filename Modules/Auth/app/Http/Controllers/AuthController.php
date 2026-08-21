@@ -147,7 +147,8 @@ class AuthController extends Controller
                 property: 'refresh_token',
                 type: 'string',
                 nullable: true,
-                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie; bắt buộc nếu client không dùng cookie.'
+                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie; bắt buộc nếu client không dùng cookie.',
+                example: '4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f'
             )]
         )),
         responses: [
@@ -195,7 +196,8 @@ class AuthController extends Controller
                 property: 'refresh_token',
                 type: 'string',
                 nullable: true,
-                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie.'
+                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie.',
+                example: '4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f'
             ),
         ])),
         responses: [
@@ -253,9 +255,9 @@ class AuthController extends Controller
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
             required: ['current_password', 'new_password'],
             properties: [
-                new OA\Property(property: 'current_password', type: 'string', format: 'password'),
-                new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8),
-                new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password'),
+                new OA\Property(property: 'current_password', type: 'string', format: 'password', example: 'Cntt@1234'),
+                new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8, example: 'NewCntt@2026'),
+                new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password', example: 'NewCntt@2026'),
             ]
         )),
         responses: [
@@ -295,9 +297,9 @@ class AuthController extends Controller
         security: [['bearerAuth' => []]], tags: ['01. Authentication'],
         requestBody: new OA\RequestBody(content: new OA\JsonContent(
             properties: [
-                new OA\Property(property: 'context_type', type: 'string', maxLength: 50, nullable: true),
-                new OA\Property(property: 'context_id', type: 'string', maxLength: 100, nullable: true),
-                new OA\Property(property: 'scope_ref', type: 'string', maxLength: 100, nullable: true),
+                new OA\Property(property: 'context_type', type: 'string', maxLength: 50, nullable: true, example: 'WAREHOUSE'),
+                new OA\Property(property: 'context_id', type: 'string', maxLength: 100, nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'scope_ref', type: 'string', maxLength: 100, nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
             ]
         )),
         responses: [

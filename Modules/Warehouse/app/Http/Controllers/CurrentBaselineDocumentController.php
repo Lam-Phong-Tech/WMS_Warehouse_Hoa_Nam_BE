@@ -150,7 +150,7 @@ class CurrentBaselineDocumentController extends Controller
             content: new OA\JsonContent(
                 required: ['reason'],
                 properties: [
-                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, example: 'Khách hàng hủy đơn hàng trước khi xuất kho'),
                 ]
             )
         ),

@@ -62,13 +62,13 @@ class ItemInstanceController extends Controller
             content: new OA\JsonContent(
                 required: ['sku_id'],
                 properties: [
-                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid', nullable: true, description: 'Bắt buộc nếu SKU là PRODUCT + is_serial_tracked'),
-                    new OA\Property(property: 'serial_number', type: 'string', maxLength: 100, nullable: true),
-                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'item_status', type: 'string', nullable: true),
-                    new OA\Property(property: 'item_condition', type: 'string', nullable: true),
-                    new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
+                    new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid', nullable: true, description: 'Bắt buộc nếu SKU là PRODUCT + is_serial_tracked', example: '2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f'),
+                    new OA\Property(property: 'serial_number', type: 'string', maxLength: 100, nullable: true, example: 'SN00012345'),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),
+                    new OA\Property(property: 'item_status', type: 'string', nullable: true, example: 'NEW'),
+                    new OA\Property(property: 'item_condition', type: 'string', nullable: true, example: 'NORMAL'),
+                    new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true, example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
                 ]
             )
         ),
@@ -129,14 +129,14 @@ class ItemInstanceController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'sku_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'serial_number', type: 'string', maxLength: 100, nullable: true),
-                new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'item_status', type: 'string'),
-                new OA\Property(property: 'item_condition', type: 'string'),
-                new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking'),
+                new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
+                new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid', nullable: true, example: '2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f'),
+                new OA\Property(property: 'serial_number', type: 'string', maxLength: 100, nullable: true, example: 'SN00012345'),
+                new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),
+                new OA\Property(property: 'item_status', type: 'string', example: 'IN_STOCK'),
+                new OA\Property(property: 'item_condition', type: 'string', example: 'NORMAL'),
+                new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true, example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
+                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking', example: 1),
             ])
         ),
         responses: [

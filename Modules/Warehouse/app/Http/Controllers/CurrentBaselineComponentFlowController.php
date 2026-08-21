@@ -36,18 +36,18 @@ class CurrentBaselineComponentFlowController extends Controller
             content: new OA\JsonContent(
                 required: ['warehouse_id', 'warranty_case_id', 'lines'],
                 properties: [
-                    new OA\Property(property: 'component_issue_no', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để hệ thống tự sinh mã phiếu.'),
-                    new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'warranty_case_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'document_date', type: 'string', format: 'date', nullable: true, description: 'Thiếu thì lấy ngày lập phiếu = hôm nay.'),
-                    new OA\Property(property: 'purpose', type: 'string', enum: ['WARRANTY'], nullable: true),
-                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'component_issue_no', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để hệ thống tự sinh mã phiếu.', example: 'CID-20260821-0001'),
+                    new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'warranty_case_id', type: 'string', format: 'uuid', example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
+                    new OA\Property(property: 'document_date', type: 'string', format: 'date', nullable: true, description: 'Thiếu thì lấy ngày lập phiếu = hôm nay.', example: '2026-08-21'),
+                    new OA\Property(property: 'purpose', type: 'string', enum: ['WARRANTY'], nullable: true, example: 'WARRANTY'),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Xuất linh kiện thay thế theo phiếu bảo hành'),
                     new OA\Property(property: 'lines', type: 'array', minItems: 1, items: new OA\Items(
                         required: ['sku_id', 'required_qty'],
                         properties: [
-                            new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', description: 'Chỉ nhận SKU COMPONENT ACTIVE.'),
-                            new OA\Property(property: 'required_qty', type: 'integer', minimum: 1),
-                            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                            new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', description: 'Chỉ nhận SKU COMPONENT ACTIVE.', example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
+                            new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, example: 2),
+                            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Thay bo mạch nguồn'),
                         ]
                     )),
                 ]
@@ -150,11 +150,11 @@ class CurrentBaselineComponentFlowController extends Controller
             content: new OA\JsonContent(
                 required: ['line_id', 'quantity'],
                 properties: [
-                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Barcode/QR/RFID; resolve về đúng một item hoặc BOX container.'),
-                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Serial component bắt buộc quantity = 1.'),
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Barcode/QR/RFID; resolve về đúng một item hoặc BOX container.', example: 'HN1|DCH-DRILL-DJZ10A-220V-V1|IT000123'),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Serial component bắt buộc quantity = 1.', example: 1),
                 ]
             )
         ),
@@ -287,7 +287,7 @@ class CurrentBaselineComponentFlowController extends Controller
             content: new OA\JsonContent(
                 required: ['reason'],
                 properties: [
-                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, example: 'Huỷ do nhập sai warranty case'),
                 ]
             )
         ),

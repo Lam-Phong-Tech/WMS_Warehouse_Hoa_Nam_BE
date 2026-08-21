@@ -78,10 +78,10 @@ class WarehouseController extends Controller
                 properties: [
                     new OA\Property(property: 'code', type: 'string', maxLength: 50, example: 'KHO-TONG-HN'),
                     new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Kho tổng Hoà Nam'),
-                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
-                    new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true),
-                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
+                    new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
                 ]
             )
         ),
@@ -148,10 +148,10 @@ class WarehouseController extends Controller
         ],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
-                new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true),
-                new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
+                new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Kho tổng Hoà Nam'),
+                new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
+                new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
+                new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
             ])
         ),
         responses: [

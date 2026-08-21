@@ -52,15 +52,15 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['src_warehouse_id', 'dst_warehouse_id', 'lines'],
             properties: [
-                new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true),
-                new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
-                new OA\Property(property: 'src_warehouse_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'note', type: 'string', nullable: true),
+                new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true, example: 'TRF-2026-0001'),
+                new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true, example: '2026-08-21'),
+                new OA\Property(property: 'src_warehouse_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid', example: 'b3fa85f6-4571-4562-b3fc-2c963f66afa7'),
+                new OA\Property(property: 'note', type: 'string', nullable: true, example: 'Chuyển kho theo yêu cầu điều phối'),
                 new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
                     properties: [
-                        new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'qty_planned', type: 'number', format: 'float'),
+                        new OA\Property(property: 'product_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                        new OA\Property(property: 'qty_planned', type: 'number', format: 'float', example: 10),
                     ]
                 )),
             ]
@@ -195,8 +195,8 @@ use OpenApi\Attributes as OA;
             properties: [
                 new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
                     properties: [
-                        new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'qty_actual', type: 'number', format: 'float'),
+                        new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                        new OA\Property(property: 'qty_actual', type: 'number', format: 'float', example: 10),
                     ]
                 )),
             ]
@@ -230,9 +230,9 @@ use OpenApi\Attributes as OA;
             properties: [
                 new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
                     properties: [
-                        new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'qty_lost', type: 'number', format: 'float'),
-                        new OA\Property(property: 'reason', type: 'string'),
+                        new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                        new OA\Property(property: 'qty_lost', type: 'number', format: 'float', example: 2),
+                        new OA\Property(property: 'reason', type: 'string', example: 'Hư hỏng trong quá trình vận chuyển'),
                     ]
                 )),
             ]
@@ -260,7 +260,7 @@ use OpenApi\Attributes as OA;
         new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
     ],
     requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
-        new OA\Property(property: 'reason', type: 'string', nullable: true),
+        new OA\Property(property: 'reason', type: 'string', nullable: true, example: 'Hàng giao sai kho, yêu cầu trả lại'),
     ])),
     responses: [
         new OA\Response(response: 200, description: 'Đã đánh dấu trả lại hàng điều chuyển'),

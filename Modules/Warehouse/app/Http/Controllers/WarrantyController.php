@@ -71,12 +71,12 @@ class WarrantyController extends Controller
             content: new OA\JsonContent(
                 required: ['temporary_item_code', 'missing_code_reason', 'manual_product_description', 'condition_status'],
                 properties: [
-                    new OA\Property(property: 'temporary_item_code', type: 'string', maxLength: 150),
-                    new OA\Property(property: 'missing_code_reason', type: 'string', maxLength: 500),
-                    new OA\Property(property: 'manual_product_description', type: 'string', maxLength: 2000),
-                    new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'condition_status', type: 'string', enum: ['WAITING_CHECK', 'INSPECTING']),
-                    new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
+                    new OA\Property(property: 'temporary_item_code', type: 'string', maxLength: 150, example: 'TEMP-20260821-0001'),
+                    new OA\Property(property: 'missing_code_reason', type: 'string', maxLength: 500, example: 'Nhãn bị mờ không đọc được mã'),
+                    new OA\Property(property: 'manual_product_description', type: 'string', maxLength: 2000, example: 'Tivi Samsung 55 inch'),
+                    new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true, example: '2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f'),
+                    new OA\Property(property: 'condition_status', type: 'string', enum: ['WAITING_CHECK', 'INSPECTING'], example: 'WAITING_CHECK'),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true, example: 'Khách mang đến trực tiếp, không có hộp'),
                 ]
             )
         ),

@@ -57,10 +57,10 @@ class RoleController extends Controller
             content: new OA\JsonContent(
                 required: ['role_code', 'role_name'],
                 properties: [
-                    new OA\Property(property: 'role_code', type: 'string', maxLength: 100),
-                    new OA\Property(property: 'role_name', type: 'string', maxLength: 255),
-                    new OA\Property(property: 'scope_type', type: 'string', enum: ['SYSTEM', 'WAREHOUSE', 'FUNCTION'], nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'role_code', type: 'string', maxLength: 100, example: 'WAREHOUSE_MANAGER'),
+                    new OA\Property(property: 'role_name', type: 'string', maxLength: 255, example: 'Quản lý kho'),
+                    new OA\Property(property: 'scope_type', type: 'string', enum: ['SYSTEM', 'WAREHOUSE', 'FUNCTION'], nullable: true, example: 'SYSTEM'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
                 ]
             )
         ),
@@ -116,10 +116,10 @@ class RoleController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'role_code', type: 'string', maxLength: 100),
-                new OA\Property(property: 'role_name', type: 'string', maxLength: 255),
-                new OA\Property(property: 'scope_type', type: 'string', enum: ['SYSTEM', 'WAREHOUSE', 'FUNCTION'], nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                new OA\Property(property: 'role_code', type: 'string', maxLength: 100, example: 'WAREHOUSE_MANAGER'),
+                new OA\Property(property: 'role_name', type: 'string', maxLength: 255, example: 'Quản lý kho'),
+                new OA\Property(property: 'scope_type', type: 'string', enum: ['SYSTEM', 'WAREHOUSE', 'FUNCTION'], nullable: true, example: 'SYSTEM'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
             ])
         ),
         responses: [
@@ -220,7 +220,7 @@ class RoleController extends Controller
             content: new OA\JsonContent(
                 required: ['permission_ids'],
                 properties: [
-                    new OA\Property(property: 'permission_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid')),
+                    new OA\Property(property: 'permission_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6', '7c9e6679-7425-40de-944b-e07fc1f90ae7']),
                 ]
             )
         ),
@@ -244,7 +244,7 @@ class RoleController extends Controller
             content: new OA\JsonContent(
                 required: ['permission_ids'],
                 properties: [
-                    new OA\Property(property: 'permission_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid')),
+                    new OA\Property(property: 'permission_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6', '7c9e6679-7425-40de-944b-e07fc1f90ae7']),
                 ]
             )
         ),

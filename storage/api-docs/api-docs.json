@@ -192,21 +192,25 @@
                                     },
                                     "contact_name": {
                                         "type": "string",
+                                        "example": "Trần Thị B",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "address": {
                                         "type": "string",
+                                        "example": "123 Đường Láng, Hà Nội",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -498,29 +502,35 @@
                                 "properties": {
                                     "agency_code": {
                                         "type": "string",
+                                        "example": "DL-0001",
                                         "maxLength": 50
                                     },
                                     "agency_name": {
                                         "type": "string",
+                                        "example": "Đại lý Hòa Nam Miền Bắc",
                                         "maxLength": 255
                                     },
                                     "contact_name": {
                                         "type": "string",
+                                        "example": "Trần Thị B",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "address": {
                                         "type": "string",
+                                        "example": "123 Đường Láng, Hà Nội",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -796,16 +806,19 @@
                                 "properties": {
                                     "current_password": {
                                         "type": "string",
-                                        "format": "password"
+                                        "format": "password",
+                                        "example": "Cntt@1234"
                                     },
                                     "new_password": {
                                         "type": "string",
                                         "format": "password",
+                                        "example": "NewCntt@2026",
                                         "minLength": 8
                                     },
                                     "new_password_confirmation": {
                                         "type": "string",
-                                        "format": "password"
+                                        "format": "password",
+                                        "example": "NewCntt@2026"
                                     }
                                 },
                                 "type": "object"
@@ -1087,6 +1100,7 @@
                                     "refresh_token": {
                                         "description": "Tuỳ chọn với browser có HttpOnly refresh cookie.",
                                         "type": "string",
+                                        "example": "4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f",
                                         "nullable": true
                                     }
                                 },
@@ -1339,6 +1353,7 @@
                                     "refresh_token": {
                                         "description": "Tuỳ chọn với browser có HttpOnly refresh cookie; bắt buộc nếu client không dùng cookie.",
                                         "type": "string",
+                                        "example": "4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f",
                                         "nullable": true
                                     }
                                 },
@@ -1467,16 +1482,19 @@
                                 "properties": {
                                     "context_type": {
                                         "type": "string",
+                                        "example": "WAREHOUSE",
                                         "nullable": true,
                                         "maxLength": 50
                                     },
                                     "context_id": {
                                         "type": "string",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "scope_ref": {
                                         "type": "string",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true,
                                         "maxLength": 100
                                     }
@@ -1766,15 +1784,18 @@
                                     },
                                     "brand_name": {
                                         "type": "string",
+                                        "example": "Samsung",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Thương hiệu điện tử Samsung",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -1783,6 +1804,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -1947,19 +1969,23 @@
                                 "properties": {
                                     "brand_code": {
                                         "type": "string",
+                                        "example": "BR-0001",
                                         "maxLength": 80
                                     },
                                     "brand_name": {
                                         "type": "string",
+                                        "example": "Samsung",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Thương hiệu điện tử Samsung",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
@@ -1967,6 +1993,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -2246,19 +2273,23 @@
                                 "properties": {
                                     "code": {
                                         "type": "string",
+                                        "example": "BR-0001",
                                         "maxLength": 80
                                     },
                                     "name": {
                                         "type": "string",
+                                        "example": "Samsung",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Thương hiệu điện tử Samsung",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -2267,6 +2298,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     },
@@ -2274,6 +2306,7 @@
                                         "description": "Chỉ áp dụng cho product-models; brand tham chiếu phải ACTIVE",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     }
                                 },
@@ -2453,19 +2486,23 @@
                                 "properties": {
                                     "code": {
                                         "type": "string",
+                                        "example": "BR-0001",
                                         "maxLength": 80
                                     },
                                     "name": {
                                         "type": "string",
+                                        "example": "Samsung",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Thương hiệu điện tử Samsung",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
@@ -2473,6 +2510,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     },
@@ -2480,6 +2518,7 @@
                                         "description": "Chỉ áp dụng cho product-models",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     }
                                 },
@@ -2781,25 +2820,30 @@
                                     "component_issue_no": {
                                         "description": "Bỏ trống để hệ thống tự sinh mã phiếu.",
                                         "type": "string",
+                                        "example": "CID-20260821-0001",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "warehouse_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     },
                                     "warranty_case_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d"
                                     },
                                     "document_date": {
                                         "description": "Thiếu thì lấy ngày lập phiếu = hôm nay.",
                                         "type": "string",
                                         "format": "date",
+                                        "example": "2026-08-21",
                                         "nullable": true
                                     },
                                     "purpose": {
                                         "type": "string",
+                                        "example": "WARRANTY",
                                         "nullable": true,
                                         "enum": [
                                             "WARRANTY"
@@ -2807,6 +2851,7 @@
                                     },
                                     "note": {
                                         "type": "string",
+                                        "example": "Xuất linh kiện thay thế theo phiếu bảo hành",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
@@ -2821,14 +2866,17 @@
                                                 "sku_id": {
                                                     "description": "Chỉ nhận SKU COMPONENT ACTIVE.",
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "example": "4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c"
                                                 },
                                                 "required_qty": {
                                                     "type": "integer",
+                                                    "example": 2,
                                                     "minimum": 1
                                                 },
                                                 "note": {
                                                     "type": "string",
+                                                    "example": "Thay bo mạch nguồn",
                                                     "nullable": true,
                                                     "maxLength": 2000
                                                 }
@@ -3118,6 +3166,7 @@
                                 "properties": {
                                     "reason": {
                                         "type": "string",
+                                        "example": "Huỷ do nhập sai warranty case",
                                         "maxLength": 2000
                                     }
                                 },
@@ -3434,27 +3483,32 @@
                                 "properties": {
                                     "line_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     },
                                     "code_value": {
                                         "description": "Barcode/QR/RFID; resolve về đúng một item hoặc BOX container.",
                                         "type": "string",
+                                        "example": "HN1|DCH-DRILL-DJZ10A-220V-V1|IT000123",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "item_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d",
                                         "nullable": true
                                     },
                                     "container_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
                                         "nullable": true
                                     },
                                     "quantity": {
                                         "description": "Serial component bắt buộc quantity = 1.",
                                         "type": "integer",
+                                        "example": 1,
                                         "minimum": 1
                                     }
                                 },
@@ -3758,10 +3812,12 @@
                                 "properties": {
                                     "container_code": {
                                         "type": "string",
+                                        "example": "HN-CTN-000123",
                                         "maxLength": 120
                                     },
                                     "container_type": {
                                         "type": "string",
+                                        "example": "CARTON",
                                         "enum": [
                                             "CARTON",
                                             "BOX",
@@ -3772,21 +3828,25 @@
                                         "description": "Bắt buộc nếu container_type là CARTON hoặc BOX",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d",
                                         "nullable": true
                                     },
                                     "zone_code": {
                                         "type": "string",
+                                        "example": "A1-01",
                                         "nullable": true,
                                         "maxLength": 50
                                     },
                                     "location_hint": {
                                         "type": "string",
+                                        "example": "Kệ A1, tầng 1",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "status": {
                                         "description": "Chỉ EMPTY được khai lúc tạo; các trạng thái vòng đời khác do luồng nghiệp vụ đặt",
                                         "type": "string",
+                                        "example": "EMPTY",
                                         "nullable": true,
                                         "enum": [
                                             "EMPTY"
@@ -3795,12 +3855,14 @@
                                     "migration_run_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
                                         "nullable": true
                                     },
                                     "physical_code_id": {
                                         "description": "Physical code phải đang ACTIVE và chưa gán target khác",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
                                         "nullable": true
                                     }
                                 },
@@ -4089,32 +4151,38 @@
                                 "properties": {
                                     "container_code": {
                                         "type": "string",
+                                        "example": "HN-CTN-000123",
                                         "maxLength": 120
                                     },
                                     "primary_sku_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d",
                                         "nullable": true
                                     },
                                     "parent_container_id": {
                                         "description": "KHÔNG được đổi qua endpoint này — đổi placement BOX->TRAY phải dùng POST /putaway-tasks + confirm",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3d4e5f6a-7b8c-4d9e-0f1a-2b3c4d5e6f7a",
                                         "nullable": true
                                     },
                                     "zone_code": {
                                         "type": "string",
+                                        "example": "A1-01",
                                         "nullable": true,
                                         "maxLength": 50
                                     },
                                     "location_hint": {
                                         "type": "string",
+                                        "example": "Kệ A1, tầng 1",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "status": {
                                         "description": "RECEIVED_PENDING_PUTAWAY/STORED/ISSUED chỉ được đặt bởi luồng nghiệp vụ sở hữu sự kiện tương ứng, không set qua PATCH",
                                         "type": "string",
+                                        "example": "EMPTY",
                                         "nullable": true,
                                         "enum": [
                                             "EMPTY",
@@ -4279,21 +4347,25 @@
                                     "item_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d",
                                         "nullable": true
                                     },
                                     "sku_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
                                         "nullable": true
                                     },
                                     "quantity": {
                                         "description": "Bắt buộc khi dùng sku_id-mode",
                                         "type": "integer",
+                                        "example": 10,
                                         "nullable": true,
                                         "minimum": 1
                                     },
                                     "source_type": {
                                         "type": "string",
+                                        "example": "RECEIPT",
                                         "nullable": true,
                                         "enum": [
                                             "RECEIPT",
@@ -4305,6 +4377,7 @@
                                     "source_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
                                         "nullable": true
                                     }
                                 },
@@ -4480,6 +4553,7 @@
                                 "properties": {
                                     "reason": {
                                         "type": "string",
+                                        "example": "Xoá nhầm hàng, cần điều chỉnh lại container",
                                         "maxLength": 2000
                                     }
                                 },
@@ -4777,10 +4851,12 @@
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Màn hình bị nứt góc trái",
                                         "nullable": true
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -5072,18 +5148,22 @@
                                 "properties": {
                                     "defect_code": {
                                         "type": "string",
+                                        "example": "LOI-0001",
                                         "maxLength": 80
                                     },
                                     "defect_name": {
                                         "type": "string",
+                                        "example": "Chập cháy động cơ",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Màn hình bị nứt góc trái",
                                         "nullable": true
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -5350,10 +5430,12 @@
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Màn hình bị nứt góc trái",
                                         "nullable": true
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -5634,18 +5716,22 @@
                                 "properties": {
                                     "defect_code": {
                                         "type": "string",
+                                        "example": "LOI-0001",
                                         "maxLength": 80
                                     },
                                     "defect_name": {
                                         "type": "string",
+                                        "example": "Chập cháy động cơ",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Màn hình bị nứt góc trái",
                                         "nullable": true
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -6141,25 +6227,30 @@
                                 "properties": {
                                     "import_batch_code": {
                                         "type": "string",
+                                        "example": "HN-BATCH-2026-0021",
                                         "maxLength": 80
                                     },
                                     "shipment_container_code": {
                                         "type": "string",
+                                        "example": "CONT-HN-000123",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "supplier_batch_no": {
                                         "type": "string",
+                                        "example": "SUP-BATCH-0088",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "import_period": {
                                         "type": "string",
+                                        "example": "2026-Q3",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "supplier_name": {
                                         "type": "string",
+                                        "example": "Công ty TNHH Cung ứng Hòa Nam",
                                         "nullable": true,
                                         "maxLength": 200
                                     }
@@ -6438,30 +6529,36 @@
                                 "properties": {
                                     "import_batch_code": {
                                         "type": "string",
+                                        "example": "HN-BATCH-2026-0021",
                                         "maxLength": 80
                                     },
                                     "shipment_container_code": {
                                         "type": "string",
+                                        "example": "CONT-HN-000123",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "supplier_batch_no": {
                                         "type": "string",
+                                        "example": "SUP-BATCH-0088",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "import_period": {
                                         "type": "string",
+                                        "example": "2026-Q3",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "supplier_name": {
                                         "type": "string",
+                                        "example": "Công ty TNHH Cung ứng Hòa Nam",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -6766,25 +6863,30 @@
                                 "properties": {
                                     "doc_no": {
                                         "type": "string",
+                                        "example": "HN-IN-000123",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "doc_date": {
                                         "type": "string",
                                         "format": "date",
+                                        "example": "2026-08-21",
                                         "nullable": true
                                     },
                                     "dst_warehouse_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     },
                                     "source_name": {
                                         "type": "string",
+                                        "example": "Nhà cung cấp Hòa Nam",
                                         "nullable": true,
                                         "maxLength": 255
                                     },
                                     "note": {
                                         "type": "string",
+                                        "example": "Nhập hàng đợt 1",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
@@ -6798,11 +6900,13 @@
                                             "properties": {
                                                 "product_id": {
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "example": "4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c"
                                                 },
                                                 "import_batch_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "5c7d2e3b-9f4e-4a6b-8c3d-2e4f5a6b7c8d",
                                                     "nullable": true
                                                 },
                                                 "qty_planned": {
@@ -6812,6 +6916,7 @@
                                                 },
                                                 "note": {
                                                     "type": "string",
+                                                    "example": "Ghi chú dòng nhập",
                                                     "nullable": true,
                                                     "maxLength": 2000
                                                 }
@@ -7105,21 +7210,25 @@
                                 "properties": {
                                     "doc_no": {
                                         "type": "string",
+                                        "example": "HN-IN-000123",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "doc_date": {
                                         "type": "string",
                                         "format": "date",
+                                        "example": "2026-08-21",
                                         "nullable": true
                                     },
                                     "source_name": {
                                         "type": "string",
+                                        "example": "Nhà cung cấp Hòa Nam",
                                         "nullable": true,
                                         "maxLength": 255
                                     },
                                     "note": {
                                         "type": "string",
+                                        "example": "Điều chỉnh số lượng dự kiến",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
@@ -7134,23 +7243,28 @@
                                                 "id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "6d8e3f4c-1a5b-4c7d-9e2f-3a4b5c6d7e8f",
                                                     "nullable": true
                                                 },
                                                 "product_id": {
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "example": "4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c"
                                                 },
                                                 "import_batch_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "5c7d2e3b-9f4e-4a6b-8c3d-2e4f5a6b7c8d",
                                                     "nullable": true
                                                 },
                                                 "qty_planned": {
                                                     "type": "integer",
+                                                    "example": 15,
                                                     "minimum": 1
                                                 },
                                                 "note": {
                                                     "type": "string",
+                                                    "example": "Ghi chú dòng nhập",
                                                     "nullable": true,
                                                     "maxLength": 2000
                                                 }
@@ -7305,10 +7419,12 @@
                                 "properties": {
                                     "line_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     },
                                     "box_code": {
                                         "type": "string",
+                                        "example": "BOX-000123",
                                         "maxLength": 100
                                     }
                                 },
@@ -7465,6 +7581,7 @@
                                 "properties": {
                                     "reason": {
                                         "type": "string",
+                                        "example": "Nhập sai đơn hàng",
                                         "maxLength": 2000
                                     }
                                 },
@@ -7937,20 +8054,24 @@
                                     "reversal_document_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "reason_code": {
                                         "type": "string",
+                                        "example": "DAMAGED_ON_ARRIVAL",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "reason": {
                                         "description": "Bắt buộc khi không gửi reversal_document_id.",
                                         "type": "string",
+                                        "example": "Hàng nhập bị hư hỏng, hoàn trả nhà cung cấp",
                                         "maxLength": 2000
                                     },
                                     "condition_status": {
                                         "type": "string",
+                                        "example": "SELLABLE",
                                         "nullable": true,
                                         "enum": [
                                             "SELLABLE",
@@ -7960,6 +8081,7 @@
                                     },
                                     "physical_return_confirmed": {
                                         "type": "boolean",
+                                        "example": true,
                                         "nullable": true
                                     },
                                     "lines": {
@@ -7973,15 +8095,18 @@
                                             "properties": {
                                                 "movement_id": {
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                                 },
                                                 "quantity": {
                                                     "type": "integer",
+                                                    "example": 5,
                                                     "minimum": 1
                                                 },
                                                 "item_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                                     "nullable": true
                                                 }
                                             },
@@ -8312,7 +8437,8 @@
                                 "properties": {
                                     "line_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "6d8e3f4c-1a5b-4c7d-9e2f-3a4b5c6d7e8f"
                                     },
                                     "qty": {
                                         "type": "integer",
@@ -8321,16 +8447,19 @@
                                     },
                                     "code_value": {
                                         "type": "string",
+                                        "example": "HN1|SKU001|ITEM00001",
                                         "nullable": true
                                     },
                                     "item_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "7e9f4a5d-2b6c-4d8e-9f3a-4b5c6d7e8f9a",
                                         "nullable": true
                                     },
                                     "container_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "8f1a5b6e-3c7d-4e9f-8a4b-5c6d7e8f9a1b",
                                         "nullable": true
                                     }
                                 },
@@ -8642,6 +8771,7 @@
                                         "description": "Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU). Bắt buộc cho scan quantity-mode không kèm code_value.",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "quantity": {
@@ -8653,12 +8783,14 @@
                                     "qty": {
                                         "description": "Alias của quantity; bắt buộc khi không gửi quantity.",
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 1
                                     },
                                     "code_value": {
                                         "description": "RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse authoritative, FE không tự tách. Plain code legacy vẫn nhận theo transition flag.",
                                         "type": "string",
+                                        "example": "HN1|SKU-000123|ITEM-000456",
                                         "nullable": true,
                                         "maxLength": 512,
                                         "minLength": 1
@@ -8666,16 +8798,19 @@
                                     "item_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "container_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "printer_config_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     }
                                 },
@@ -8832,10 +8967,12 @@
                                 "properties": {
                                     "inbound_scan_entry_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "9a2b6c7f-4d8e-4f1a-9b5c-6d7e8f9a1b2c"
                                     },
                                     "reason": {
                                         "type": "string",
+                                        "example": "Quét nhầm mã, gỡ để quét lại",
                                         "nullable": true,
                                         "maxLength": 2000
                                     }
@@ -9702,35 +9839,42 @@
                                 "properties": {
                                     "sku_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c"
                                     },
                                     "physical_code_id": {
                                         "description": "Bắt buộc nếu SKU là PRODUCT + is_serial_tracked",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
                                         "nullable": true
                                     },
                                     "serial_number": {
                                         "type": "string",
+                                        "example": "SN00012345",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "container_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
                                         "nullable": true
                                     },
                                     "item_status": {
                                         "type": "string",
+                                        "example": "NEW",
                                         "nullable": true
                                     },
                                     "item_condition": {
                                         "type": "string",
+                                        "example": "NORMAL",
                                         "nullable": true
                                     },
                                     "import_batch_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d",
                                         "nullable": true
                                     }
                                 },
@@ -10008,37 +10152,45 @@
                                 "properties": {
                                     "sku_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c"
                                     },
                                     "physical_code_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
                                         "nullable": true
                                     },
                                     "serial_number": {
                                         "type": "string",
+                                        "example": "SN00012345",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "container_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
                                         "nullable": true
                                     },
                                     "item_status": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "example": "IN_STOCK"
                                     },
                                     "item_condition": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "example": "NORMAL"
                                     },
                                     "import_batch_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d",
                                         "nullable": true
                                     },
                                     "version": {
                                         "description": "Optimistic locking",
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true
                                     }
                                 },
@@ -10599,11 +10751,13 @@
                                 "properties": {
                                     "outbound_document_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     },
                                     "customer_phone": {
                                         "description": "SĐT hiển thị trên nhãn; thiếu thì nhãn render blank, không chặn tạo nhãn.",
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 50
                                     }
@@ -11041,7 +11195,8 @@
                                 "properties": {
                                     "printer_config_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     }
                                 },
                                 "type": "object"
@@ -11203,7 +11358,8 @@
                                 "properties": {
                                     "printer_config_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     }
                                 },
                                 "type": "object"
@@ -11634,6 +11790,7 @@
                                 "properties": {
                                     "reason": {
                                         "type": "string",
+                                        "example": "Khách hàng hủy đơn hàng trước khi xuất kho",
                                         "maxLength": 2000
                                     }
                                 },
@@ -11791,11 +11948,13 @@
                                     "code_value": {
                                         "description": "Bỏ trống thì lấy theo hardware_uid",
                                         "type": "string",
+                                        "example": "HN-RFID-000789",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "hardware_uid": {
                                         "type": "string",
+                                        "example": "RFID-UID-000456",
                                         "maxLength": 200
                                     }
                                 },
@@ -12124,7 +12283,8 @@
                                 "properties": {
                                     "printer_config_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     }
                                 },
                                 "type": "object"
@@ -12463,7 +12623,8 @@
                                 "properties": {
                                     "printer_config_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     }
                                 },
                                 "type": "object"
@@ -12787,21 +12948,25 @@
                                     "reversal_document_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "reason_code": {
                                         "type": "string",
+                                        "example": "CUSTOMER_RETURN",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "reason": {
                                         "description": "Bắt buộc khi không gửi reversal_document_id.",
                                         "type": "string",
+                                        "example": "Khách trả hàng do đặt nhầm SKU",
                                         "maxLength": 2000
                                     },
                                     "condition_status": {
                                         "description": "Bắt buộc khi không gửi reversal_document_id (hàng trả về phải khai điều kiện).",
                                         "type": "string",
+                                        "example": "SELLABLE",
                                         "enum": [
                                             "SELLABLE",
                                             "DEFECTIVE",
@@ -12810,6 +12975,7 @@
                                     },
                                     "physical_return_confirmed": {
                                         "type": "boolean",
+                                        "example": true,
                                         "nullable": true
                                     },
                                     "lines": {
@@ -12823,15 +12989,18 @@
                                             "properties": {
                                                 "movement_id": {
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                                 },
                                                 "quantity": {
                                                     "type": "integer",
+                                                    "example": 5,
                                                     "minimum": 1
                                                 },
                                                 "item_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                                     "nullable": true
                                                 }
                                             },
@@ -13299,6 +13468,7 @@
                                         "description": "Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU).",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "quantity": {
@@ -13310,28 +13480,33 @@
                                     "qty": {
                                         "description": "Alias của quantity; bắt buộc khi không gửi quantity.",
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 1
                                     },
                                     "code_value": {
                                         "description": "RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse + cross-check SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).",
                                         "type": "string",
+                                        "example": "HN1|SKU-000123|ITEM-000456",
                                         "nullable": true,
                                         "maxLength": 512
                                     },
                                     "item_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "container_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "scan_source": {
                                         "description": "Nguồn quét khai tường minh (ERD bảng 25); không gửi thì server suy luận và ghi scan_source_origin=INFERRED.",
                                         "type": "string",
+                                        "example": "CAMERA",
                                         "nullable": true,
                                         "enum": [
                                             "CAMERA",
@@ -13343,6 +13518,7 @@
                                         "description": "Chỉ nhận để tương thích client cũ; scan không in nhãn.",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     }
                                 },
@@ -13489,10 +13665,12 @@
                                 "properties": {
                                     "outbound_item_match_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     },
                                     "reason": {
                                         "type": "string",
+                                        "example": "Item scan sai SKU, gỡ để scan lại",
                                         "nullable": true,
                                         "maxLength": 2000
                                     }
@@ -13747,7 +13925,8 @@
                                     "file": {
                                         "description": "Excel .xlsx/.xls, tối đa 20MB; bắt buộc khi không gửi rows.",
                                         "type": "string",
-                                        "format": "binary"
+                                        "format": "binary",
+                                        "example": "toa-yeu-cau-xuat.xlsx"
                                     }
                                 },
                                 "type": "object"
@@ -13770,64 +13949,77 @@
                                             "properties": {
                                                 "request_no": {
                                                     "type": "string",
+                                                    "example": "REQ-20260821-001",
                                                     "maxLength": 80
                                                 },
                                                 "request_date": {
                                                     "type": "string",
+                                                    "example": "2026-08-21",
                                                     "nullable": true,
                                                     "maxLength": 20
                                                 },
                                                 "recipient_name": {
                                                     "type": "string",
+                                                    "example": "Nguyễn Văn A",
                                                     "nullable": true,
                                                     "maxLength": 200
                                                 },
                                                 "customer_name": {
                                                     "type": "string",
+                                                    "example": "Nguyễn Văn A",
                                                     "nullable": true,
                                                     "maxLength": 200
                                                 },
                                                 "recipient_address": {
                                                     "type": "string",
+                                                    "example": "Số 12 Hoàng Quốc Việt, Hà Nội",
                                                     "nullable": true,
                                                     "maxLength": 1000
                                                 },
                                                 "customer_address": {
                                                     "type": "string",
+                                                    "example": "Số 12 Hoàng Quốc Việt, Hà Nội",
                                                     "nullable": true,
                                                     "maxLength": 1000
                                                 },
                                                 "recipient_contact_phone": {
                                                     "type": "string",
+                                                    "example": "0912345678",
                                                     "nullable": true,
                                                     "maxLength": 50
                                                 },
                                                 "customer_phone": {
                                                     "type": "string",
+                                                    "example": "0912345678",
                                                     "nullable": true,
                                                     "maxLength": 50
                                                 },
                                                 "sku_code": {
                                                     "type": "string",
+                                                    "example": "DCH-DRILL-DJZ10A-220V-V1",
                                                     "nullable": true,
                                                     "maxLength": 100
                                                 },
                                                 "sku_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c",
                                                     "nullable": true
                                                 },
                                                 "agency_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                                     "nullable": true
                                                 },
                                                 "required_qty": {
                                                     "type": "integer",
+                                                    "example": 2,
                                                     "minimum": 1
                                                 },
                                                 "note": {
                                                     "type": "string",
+                                                    "example": "Giao theo yêu cầu đại lý",
                                                     "nullable": true,
                                                     "maxLength": 2000
                                                 }
@@ -13971,6 +14163,7 @@
                                         "description": "File Excel xlsx/xls, tối đa 20480 KB (gửi qua multipart/form-data); required_without:rows",
                                         "type": "string",
                                         "format": "binary",
+                                        "example": "outbound_requests.xlsx",
                                         "nullable": true
                                     },
                                     "rows": {
@@ -13984,64 +14177,77 @@
                                             "properties": {
                                                 "request_no": {
                                                     "type": "string",
+                                                    "example": "OUT-000123",
                                                     "maxLength": 80
                                                 },
                                                 "request_date": {
                                                     "type": "string",
+                                                    "example": "2026-08-21",
                                                     "nullable": true,
                                                     "maxLength": 20
                                                 },
                                                 "recipient_name": {
                                                     "type": "string",
+                                                    "example": "Nguyễn Văn A",
                                                     "nullable": true,
                                                     "maxLength": 200
                                                 },
                                                 "customer_name": {
                                                     "type": "string",
+                                                    "example": "Nguyễn Văn A",
                                                     "nullable": true,
                                                     "maxLength": 200
                                                 },
                                                 "recipient_address": {
                                                     "type": "string",
+                                                    "example": "123 Đường Lê Lợi, Quận 1, TP.HCM",
                                                     "nullable": true,
                                                     "maxLength": 1000
                                                 },
                                                 "customer_address": {
                                                     "type": "string",
+                                                    "example": "123 Đường Lê Lợi, Quận 1, TP.HCM",
                                                     "nullable": true,
                                                     "maxLength": 1000
                                                 },
                                                 "recipient_contact_phone": {
                                                     "type": "string",
+                                                    "example": "0912345678",
                                                     "nullable": true,
                                                     "maxLength": 50
                                                 },
                                                 "customer_phone": {
                                                     "type": "string",
+                                                    "example": "0912345678",
                                                     "nullable": true,
                                                     "maxLength": 50
                                                 },
                                                 "sku_code": {
                                                     "type": "string",
+                                                    "example": "SKU-000123",
                                                     "nullable": true,
                                                     "maxLength": 100
                                                 },
                                                 "sku_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                                     "nullable": true
                                                 },
                                                 "agency_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                                     "nullable": true
                                                 },
                                                 "required_qty": {
                                                     "type": "integer",
+                                                    "example": 5,
                                                     "minimum": 1
                                                 },
                                                 "note": {
                                                     "type": "string",
+                                                    "example": "Giao trong giờ hành chính",
                                                     "nullable": true,
                                                     "maxLength": 2000
                                                 }
@@ -14475,20 +14681,24 @@
                                             "properties": {
                                                 "row_no": {
                                                     "type": "integer",
+                                                    "example": 1,
                                                     "minimum": 1
                                                 },
                                                 "sku_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c",
                                                     "nullable": true
                                                 },
                                                 "sku_code": {
                                                     "type": "string",
+                                                    "example": "DCH-DRILL-DJZ10A-220V-V1",
                                                     "nullable": true,
                                                     "maxLength": 100
                                                 },
                                                 "required_qty": {
                                                     "type": "integer",
+                                                    "example": 2,
                                                     "nullable": true,
                                                     "minimum": 1
                                                 }
@@ -14501,16 +14711,19 @@
                                     "receiver_name": {
                                         "description": "Override người nhận áp cho mọi request_no không có override riêng.",
                                         "type": "string",
+                                        "example": "Nguyễn Văn A",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "receiver_address": {
                                         "type": "string",
+                                        "example": "Số 12 Hoàng Quốc Việt, Hà Nội",
                                         "nullable": true,
                                         "maxLength": 1000
                                     },
                                     "receiver_contact_phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 50
                                     },
@@ -14518,6 +14731,7 @@
                                         "description": "Định dạng Y-m-d.",
                                         "type": "string",
                                         "format": "date",
+                                        "example": "2026-08-21",
                                         "nullable": true
                                     },
                                     "requests": {
@@ -14530,26 +14744,31 @@
                                             "properties": {
                                                 "request_no": {
                                                     "type": "string",
+                                                    "example": "REQ-20260821-001",
                                                     "maxLength": 80
                                                 },
                                                 "receiver_name": {
                                                     "type": "string",
+                                                    "example": "Nguyễn Văn A",
                                                     "nullable": true,
                                                     "maxLength": 200
                                                 },
                                                 "receiver_address": {
                                                     "type": "string",
+                                                    "example": "Số 12 Hoàng Quốc Việt, Hà Nội",
                                                     "nullable": true,
                                                     "maxLength": 1000
                                                 },
                                                 "receiver_contact_phone": {
                                                     "type": "string",
+                                                    "example": "0912345678",
                                                     "nullable": true,
                                                     "maxLength": 50
                                                 },
                                                 "request_date": {
                                                     "type": "string",
                                                     "format": "date",
+                                                    "example": "2026-08-21",
                                                     "nullable": true
                                                 }
                                             },
@@ -15538,15 +15757,18 @@
                                     },
                                     "package_name": {
                                         "type": "string",
+                                        "example": "Đóng gói tiêu chuẩn",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Đóng gói tiêu chuẩn dạng hộp carton",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -15555,6 +15777,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -15719,19 +15942,23 @@
                                 "properties": {
                                     "package_code": {
                                         "type": "string",
+                                        "example": "PKG-0001",
                                         "maxLength": 80
                                     },
                                     "package_name": {
                                         "type": "string",
+                                        "example": "Đóng gói tiêu chuẩn",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Đóng gói tiêu chuẩn dạng hộp carton",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
@@ -15739,6 +15966,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -16306,10 +16534,12 @@
                                 "properties": {
                                     "code_value": {
                                         "type": "string",
+                                        "example": "HN1|SKU-0001|ITEM00001",
                                         "maxLength": 100
                                     },
                                     "code_type": {
                                         "type": "string",
+                                        "example": "ITEM",
                                         "enum": [
                                             "ITEM",
                                             "CARTON",
@@ -16322,6 +16552,7 @@
                                     },
                                     "carrier_type": {
                                         "type": "string",
+                                        "example": "QR",
                                         "enum": [
                                             "QR",
                                             "BARCODE",
@@ -16334,11 +16565,13 @@
                                     },
                                     "hardware_uid": {
                                         "type": "string",
+                                        "example": "RFID-A1B2C3D4E5",
                                         "nullable": true,
                                         "maxLength": 150
                                     },
                                     "encoded_payload_version": {
                                         "type": "string",
+                                        "example": "v1.1.0",
                                         "nullable": true,
                                         "maxLength": 30
                                     }
@@ -16627,6 +16860,7 @@
                                 "properties": {
                                     "status": {
                                         "type": "string",
+                                        "example": "LOST",
                                         "enum": [
                                             "ACTIVE",
                                             "LOST",
@@ -16637,6 +16871,7 @@
                                     "replaced_by_code_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
                                         "nullable": true
                                     }
                                 },
@@ -16925,15 +17160,18 @@
                                     },
                                     "power_source_name": {
                                         "type": "string",
+                                        "example": "Điện AC 220V",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Nguồn điện AC 220V tiêu chuẩn",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -16942,6 +17180,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -17106,19 +17345,23 @@
                                 "properties": {
                                     "power_source_code": {
                                         "type": "string",
+                                        "example": "PWR-0001",
                                         "maxLength": 80
                                     },
                                     "power_source_name": {
                                         "type": "string",
+                                        "example": "Điện AC 220V",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Nguồn điện AC 220V tiêu chuẩn",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
@@ -17126,6 +17369,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -17416,25 +17660,30 @@
                                     },
                                     "printer_name": {
                                         "type": "string",
+                                        "example": "Máy in Zebra kho HN1",
                                         "maxLength": 200
                                     },
                                     "agent_code": {
                                         "type": "string",
+                                        "example": "AGENT-HN1-01",
                                         "nullable": true,
                                         "maxLength": 120
                                     },
                                     "agent_endpoint": {
                                         "type": "string",
                                         "format": "uri",
+                                        "example": "http://192.168.1.50:9100/print",
                                         "maxLength": 500
                                     },
                                     "label_size": {
                                         "type": "string",
+                                        "example": "100x150mm",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -17593,25 +17842,30 @@
                                 "properties": {
                                     "printer_name": {
                                         "type": "string",
+                                        "example": "Máy in Zebra kho HN1",
                                         "maxLength": 200
                                     },
                                     "agent_code": {
                                         "type": "string",
+                                        "example": "AGENT-HN1-01",
                                         "nullable": true,
                                         "maxLength": 120
                                     },
                                     "agent_endpoint": {
                                         "type": "string",
                                         "format": "uri",
+                                        "example": "http://192.168.1.50:9100/print",
                                         "maxLength": 500
                                     },
                                     "label_size": {
                                         "type": "string",
+                                        "example": "100x150mm",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE",
@@ -17904,15 +18158,18 @@
                                     },
                                     "category_name": {
                                         "type": "string",
+                                        "example": "Điện thoại di động",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Danh mục điện thoại di động",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -17921,6 +18178,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -18085,19 +18343,23 @@
                                 "properties": {
                                     "category_code": {
                                         "type": "string",
+                                        "example": "CAT-0001",
                                         "maxLength": 80
                                     },
                                     "category_name": {
                                         "type": "string",
+                                        "example": "Điện thoại di động",
                                         "maxLength": 200
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Danh mục điện thoại di động",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
@@ -18105,6 +18367,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -18408,6 +18671,7 @@
                                 "properties": {
                                     "master_type": {
                                         "type": "string",
+                                        "example": "BRAND",
                                         "enum": [
                                             "BRAND",
                                             "CATEGORY",
@@ -18418,19 +18682,23 @@
                                     },
                                     "code": {
                                         "type": "string",
+                                        "example": "SAMSUNG",
                                         "maxLength": 80
                                     },
                                     "name": {
                                         "type": "string",
+                                        "example": "Samsung",
                                         "maxLength": 200
                                     },
                                     "parent_master_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "b2c3d4e5-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
                                         "nullable": true
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -18712,6 +18980,7 @@
                                 "properties": {
                                     "master_type": {
                                         "type": "string",
+                                        "example": "BRAND",
                                         "enum": [
                                             "BRAND",
                                             "CATEGORY",
@@ -18722,19 +18991,23 @@
                                     },
                                     "code": {
                                         "type": "string",
+                                        "example": "SAMSUNG",
                                         "maxLength": 80
                                     },
                                     "name": {
                                         "type": "string",
+                                        "example": "Samsung",
                                         "maxLength": 200
                                     },
                                     "parent_master_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "b2c3d4e5-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
                                         "nullable": true
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -19027,20 +19300,24 @@
                                     },
                                     "model_name": {
                                         "type": "string",
+                                        "example": "Galaxy S24",
                                         "maxLength": 200
                                     },
                                     "brand_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Model điện thoại Samsung Galaxy S24",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -19049,6 +19326,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -19213,24 +19491,29 @@
                                 "properties": {
                                     "model_code": {
                                         "type": "string",
+                                        "example": "MDL-0001",
                                         "maxLength": 80
                                     },
                                     "model_name": {
                                         "type": "string",
+                                        "example": "Galaxy S24",
                                         "maxLength": 200
                                     },
                                     "brand_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "nullable": true
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Model điện thoại Samsung Galaxy S24",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
@@ -19238,6 +19521,7 @@
                                     },
                                     "sort_order": {
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true,
                                         "minimum": 0
                                     }
@@ -19553,6 +19837,7 @@
                                     },
                                     "sku_type": {
                                         "type": "string",
+                                        "example": "PRODUCT",
                                         "nullable": true,
                                         "enum": [
                                             "PRODUCT",
@@ -19561,32 +19846,38 @@
                                     },
                                     "is_serial_tracked": {
                                         "type": "boolean",
+                                        "example": true,
                                         "nullable": true
                                     },
                                     "brand_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210",
                                         "nullable": true
                                     },
                                     "category_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "c7a3b2e5-4d0f-4b3c-9a2e-8f7d6c5b4321",
                                         "nullable": true
                                     },
                                     "model_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "d8b4c3f6-5e10-4c4d-ab3f-9a8e7d6c5432",
                                         "nullable": true
                                     },
                                     "power_source_id": {
                                         "description": "FK power_sources.id (ERD bảng 16)",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "e9c5d4a7-6f21-4d5e-bc40-ab9f8e7d6543",
                                         "nullable": true
                                     },
                                     "power_source_code": {
                                         "description": "Tiện ích: gán nguồn điện theo mã master ACTIVE",
                                         "type": "string",
+                                        "example": "AC-220V",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
@@ -19594,30 +19885,39 @@
                                         "description": "FK package_variants.id (ERD bảng 16)",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "fa06e5b8-7032-4e6f-cd51-bc0a9f8e7654",
                                         "nullable": true
                                     },
                                     "package_variant_code": {
                                         "description": "Tiện ích: gán quy cách đóng gói theo mã master ACTIVE",
                                         "type": "string",
+                                        "example": "HOP-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "package_variant": {
                                         "description": "Text legacy; khớp master thì tự gắn package_variant_id",
                                         "type": "string",
+                                        "example": "Hộp carton",
                                         "nullable": true,
                                         "maxLength": 50
                                     },
                                     "warranty_applicable": {
                                         "type": "boolean",
+                                        "example": true,
                                         "nullable": true
                                     },
                                     "specification": {
                                         "type": "object",
+                                        "example": {
+                                            "voltage": "220V",
+                                            "color": "Đỏ"
+                                        },
                                         "nullable": true
                                     },
                                     "published_to_app": {
                                         "type": "boolean",
+                                        "example": false,
                                         "nullable": true
                                     }
                                 },
@@ -19905,35 +20205,42 @@
                                 "properties": {
                                     "sku_code": {
                                         "type": "string",
+                                        "example": "SP-0001",
                                         "maxLength": 100
                                     },
                                     "sku_name": {
                                         "type": "string",
+                                        "example": "Máy khoan cầm tay",
                                         "maxLength": 255
                                     },
                                     "brand_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210",
                                         "nullable": true
                                     },
                                     "category_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "c7a3b2e5-4d0f-4b3c-9a2e-8f7d6c5b4321",
                                         "nullable": true
                                     },
                                     "model_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "d8b4c3f6-5e10-4c4d-ab3f-9a8e7d6c5432",
                                         "nullable": true
                                     },
                                     "power_source_id": {
                                         "description": "FK power_sources.id (ERD bảng 16)",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "e9c5d4a7-6f21-4d5e-bc40-ab9f8e7d6543",
                                         "nullable": true
                                     },
                                     "power_source_code": {
                                         "type": "string",
+                                        "example": "AC-220V",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
@@ -19941,32 +20248,42 @@
                                         "description": "FK package_variants.id (ERD bảng 16)",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "fa06e5b8-7032-4e6f-cd51-bc0a9f8e7654",
                                         "nullable": true
                                     },
                                     "package_variant_code": {
                                         "type": "string",
+                                        "example": "HOP-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "package_variant": {
                                         "type": "string",
+                                        "example": "Hộp carton",
                                         "nullable": true,
                                         "maxLength": 50
                                     },
                                     "warranty_applicable": {
                                         "type": "boolean",
+                                        "example": true,
                                         "nullable": true
                                     },
                                     "specification": {
                                         "type": "object",
+                                        "example": {
+                                            "voltage": "220V",
+                                            "color": "Đỏ"
+                                        },
                                         "nullable": true
                                     },
                                     "published_to_app": {
                                         "type": "boolean",
+                                        "example": false,
                                         "nullable": true
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -20501,20 +20818,24 @@
                                 "properties": {
                                     "box_container_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210"
                                     },
                                     "to_tray_id": {
                                         "description": "Phải khác box_container_id",
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "c7a3b2e5-4d0f-4b3c-9a2e-8f7d6c5b4321"
                                     },
                                     "location_hint": {
                                         "type": "string",
+                                        "example": "Kệ A1-Tầng 2",
                                         "nullable": true,
                                         "maxLength": 255
                                     },
                                     "note": {
                                         "type": "string",
+                                        "example": "Xếp khay theo lô nhập ngày 21/08",
                                         "nullable": true,
                                         "maxLength": 2000
                                     }
@@ -22577,7 +22898,8 @@
                                 "properties": {
                                     "published": {
                                         "description": "true = publish lên App PV, false = gỡ khỏi App PV.",
-                                        "type": "boolean"
+                                        "type": "boolean",
+                                        "example": true
                                     }
                                 },
                                 "type": "object"
@@ -23770,6 +24092,7 @@
                                 "properties": {
                                     "report_code": {
                                         "type": "string",
+                                        "example": "inventory-balance",
                                         "enum": [
                                             "inventory-balance",
                                             "inventory-ledger",
@@ -23784,6 +24107,7 @@
                                     },
                                     "format": {
                                         "type": "string",
+                                        "example": "xlsx",
                                         "default": "xlsx",
                                         "enum": [
                                             "xlsx",
@@ -23793,6 +24117,10 @@
                                     "filters": {
                                         "description": "Bộ lọc y hệt màn hình đang xem",
                                         "type": "object",
+                                        "example": {
+                                            "from_date": "2026-08-01",
+                                            "to_date": "2026-08-21"
+                                        },
                                         "additionalProperties": true
                                     }
                                 },
@@ -27788,22 +28116,27 @@
                                 "properties": {
                                     "reversal_type": {
                                         "type": "string",
+                                        "example": "issue",
                                         "nullable": true
                                     },
                                     "reference_document_id": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "example": "1"
                                     },
                                     "reference_document_type": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "example": "ISSUE"
                                     },
                                     "reason": {
                                         "type": "string",
+                                        "example": "Hoàn trả do nhập sai số lượng",
                                         "maxLength": 2000,
                                         "minLength": 5
                                     },
                                     "return_condition": {
                                         "description": "BR-REV-06/07: chỉ áp dụng cho Reverse Issue/Component Issue.",
                                         "type": "string",
+                                        "example": "SELLABLE",
                                         "nullable": true,
                                         "enum": [
                                             "SELLABLE",
@@ -27814,6 +28147,7 @@
                                     "physical_return_confirmed": {
                                         "description": "BR-REV-06: chỉ cộng tồn khi xác nhận tường minh hàng vật lý đã về.",
                                         "type": "boolean",
+                                        "example": true,
                                         "nullable": true
                                     },
                                     "lines": {
@@ -27825,19 +28159,23 @@
                                             ],
                                             "properties": {
                                                 "sku": {
-                                                    "type": "string"
+                                                    "type": "string",
+                                                    "example": "SKU-000123"
                                                 },
                                                 "reversal_qty": {
                                                     "type": "integer",
+                                                    "example": 10,
                                                     "minimum": 1
                                                 },
                                                 "item_id": {
                                                     "type": "string",
                                                     "format": "uuid",
+                                                    "example": "b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210",
                                                     "nullable": true
                                                 },
                                                 "reason": {
                                                     "type": "string",
+                                                    "example": "Hoàn trả do nhập sai số lượng",
                                                     "nullable": true
                                                 }
                                             },
@@ -28126,6 +28464,7 @@
                                 "properties": {
                                     "reason": {
                                         "type": "string",
+                                        "example": "Hoàn trả do nhập sai số lượng",
                                         "maxLength": 2000,
                                         "minLength": 5
                                     }
@@ -28281,6 +28620,7 @@
                                     "return_condition": {
                                         "description": "BR-REV-06/07: chỉ SELLABLE mới cộng available_qty khi Post.",
                                         "type": "string",
+                                        "example": "SELLABLE",
                                         "nullable": true,
                                         "enum": [
                                             "SELLABLE",
@@ -28859,14 +29199,17 @@
                                 "properties": {
                                     "role_code": {
                                         "type": "string",
+                                        "example": "WAREHOUSE_MANAGER",
                                         "maxLength": 100
                                     },
                                     "role_name": {
                                         "type": "string",
+                                        "example": "Quản lý kho",
                                         "maxLength": 255
                                     },
                                     "scope_type": {
                                         "type": "string",
+                                        "example": "SYSTEM",
                                         "nullable": true,
                                         "enum": [
                                             "SYSTEM",
@@ -28876,6 +29219,7 @@
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -29282,14 +29626,17 @@
                                 "properties": {
                                     "role_code": {
                                         "type": "string",
+                                        "example": "WAREHOUSE_MANAGER",
                                         "maxLength": 100
                                     },
                                     "role_name": {
                                         "type": "string",
+                                        "example": "Quản lý kho",
                                         "maxLength": 255
                                     },
                                     "scope_type": {
                                         "type": "string",
+                                        "example": "SYSTEM",
                                         "nullable": true,
                                         "enum": [
                                             "SYSTEM",
@@ -29299,6 +29646,7 @@
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -29452,7 +29800,11 @@
                                         "items": {
                                             "type": "string",
                                             "format": "uuid"
-                                        }
+                                        },
+                                        "example": [
+                                            "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                                            "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                                        ]
                                     }
                                 },
                                 "type": "object"
@@ -29599,7 +29951,11 @@
                                         "items": {
                                             "type": "string",
                                             "format": "uuid"
-                                        }
+                                        },
+                                        "example": [
+                                            "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                                            "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                                        ]
                                     }
                                 },
                                 "type": "object"
@@ -29985,10 +30341,12 @@
                                     "raw_code": {
                                         "description": "RAW scan payload: composite PRODUCT QR (HN1|SKU=<sku_code>|ITEM=<item_unique>) hoặc plain QR/barcode/serial/container/SKU code. Server parse authoritative — client không tự tách SKU/item.",
                                         "type": "string",
+                                        "example": "HN1|SKU-000123|ITEM-000456",
                                         "maxLength": 512
                                     },
                                     "context": {
                                         "type": "string",
+                                        "example": "INBOUND",
                                         "enum": [
                                             "INBOUND",
                                             "OUTBOUND",
@@ -30001,7 +30359,8 @@
                                     "warehouse_id": {
                                         "description": "Kho nằm trong data scope của người dùng",
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                                     }
                                 },
                                 "type": "object"
@@ -30634,30 +30993,36 @@
                                     "code": {
                                         "description": "Bắt buộc nếu thiếu sku_code",
                                         "type": "string",
+                                        "example": "SP-0001",
                                         "maxLength": 100
                                     },
                                     "sku_code": {
                                         "description": "Bắt buộc nếu thiếu code",
                                         "type": "string",
+                                        "example": "SP-0001",
                                         "maxLength": 100
                                     },
                                     "name": {
                                         "description": "Bắt buộc nếu thiếu sku_name",
                                         "type": "string",
+                                        "example": "Máy khoan cầm tay",
                                         "maxLength": 255
                                     },
                                     "sku_name": {
                                         "description": "Bắt buộc nếu thiếu name",
                                         "type": "string",
+                                        "example": "Máy khoan cầm tay",
                                         "maxLength": 255
                                     },
                                     "unit": {
                                         "type": "string",
+                                        "example": "cái",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "sku_type": {
                                         "type": "string",
+                                        "example": "PRODUCT",
                                         "enum": [
                                             "PRODUCT",
                                             "COMPONENT"
@@ -30666,81 +31031,101 @@
                                     "brand_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210",
                                         "nullable": true
                                     },
                                     "brand_code": {
                                         "type": "string",
+                                        "example": "BRAND-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "category_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "c7a3b2e5-4d0f-4b3c-9a2e-8f7d6c5b4321",
                                         "nullable": true
                                     },
                                     "category_code": {
                                         "type": "string",
+                                        "example": "CAT-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "model_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "d8b4c3f6-5e10-4c4d-ab3f-9a8e7d6c5432",
                                         "nullable": true
                                     },
                                     "model_code": {
                                         "type": "string",
+                                        "example": "MODEL-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "power_source_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "e9c5d4a7-6f21-4d5e-bc40-ab9f8e7d6543",
                                         "nullable": true
                                     },
                                     "power_source_code": {
                                         "type": "string",
+                                        "example": "AC-220V",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "power_or_voltage": {
                                         "type": "string",
+                                        "example": "220V",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "package_variant_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "fa06e5b8-7032-4e6f-cd51-bc0a9f8e7654",
                                         "nullable": true
                                     },
                                     "package_variant_code": {
                                         "type": "string",
+                                        "example": "HOP-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "package_variant": {
                                         "type": "string",
+                                        "example": "Hộp carton",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
                                         ]
                                     },
                                     "published_to_app": {
-                                        "type": "boolean"
+                                        "type": "boolean",
+                                        "example": false
                                     },
                                     "is_serial_tracked": {
-                                        "type": "boolean"
+                                        "type": "boolean",
+                                        "example": true
                                     },
                                     "warranty_applicable": {
-                                        "type": "boolean"
+                                        "type": "boolean",
+                                        "example": true
                                     },
                                     "specification": {
                                         "type": "object",
+                                        "example": {
+                                            "voltage": "220V",
+                                            "color": "Đỏ"
+                                        },
                                         "nullable": true
                                     },
                                     "components": {
@@ -30753,10 +31138,12 @@
                                             "properties": {
                                                 "component_id": {
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "example": "ab12cd34-ef56-4a78-9b01-c23d45e67f89"
                                                 },
                                                 "quantity": {
                                                     "type": "number",
+                                                    "example": 1,
                                                     "minimum": 0.001
                                                 }
                                             },
@@ -30773,18 +31160,22 @@
                                             "properties": {
                                                 "code_value": {
                                                     "type": "string",
+                                                    "example": "HN1|SP-0001|ITEM001",
                                                     "maxLength": 150
                                                 },
                                                 "code_type": {
                                                     "type": "string",
+                                                    "example": "QR",
                                                     "nullable": true
                                                 },
                                                 "carrier_type": {
                                                     "type": "string",
+                                                    "example": "LABEL",
                                                     "nullable": true
                                                 },
                                                 "status": {
                                                     "type": "string",
+                                                    "example": "ACTIVE",
                                                     "nullable": true
                                                 }
                                             },
@@ -30937,15 +31328,18 @@
                                 "properties": {
                                     "file": {
                                         "type": "string",
-                                        "format": "binary"
+                                        "format": "binary",
+                                        "example": "WWHN-172-SKU-import-template-v1.1.0.xlsx"
                                     },
                                     "update_existing": {
                                         "type": "boolean",
+                                        "example": false,
                                         "default": false
                                     },
                                     "dry_run": {
                                         "description": "true = chỉ kiểm tra thử, không ghi dữ liệu (WWHN-224)",
                                         "type": "boolean",
+                                        "example": false,
                                         "default": false
                                     }
                                 },
@@ -31843,27 +32237,33 @@
                                 "properties": {
                                     "code": {
                                         "type": "string",
+                                        "example": "SP-0001",
                                         "maxLength": 100
                                     },
                                     "sku_code": {
                                         "type": "string",
+                                        "example": "SP-0001",
                                         "maxLength": 100
                                     },
                                     "name": {
                                         "type": "string",
+                                        "example": "Máy khoan cầm tay",
                                         "maxLength": 255
                                     },
                                     "sku_name": {
                                         "type": "string",
+                                        "example": "Máy khoan cầm tay",
                                         "maxLength": 255
                                     },
                                     "unit": {
                                         "type": "string",
+                                        "example": "cái",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "sku_type": {
                                         "type": "string",
+                                        "example": "PRODUCT",
                                         "enum": [
                                             "PRODUCT",
                                             "COMPONENT"
@@ -31872,81 +32272,101 @@
                                     "brand_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210",
                                         "nullable": true
                                     },
                                     "brand_code": {
                                         "type": "string",
+                                        "example": "BRAND-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "category_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "c7a3b2e5-4d0f-4b3c-9a2e-8f7d6c5b4321",
                                         "nullable": true
                                     },
                                     "category_code": {
                                         "type": "string",
+                                        "example": "CAT-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "model_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "d8b4c3f6-5e10-4c4d-ab3f-9a8e7d6c5432",
                                         "nullable": true
                                     },
                                     "model_code": {
                                         "type": "string",
+                                        "example": "MODEL-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "power_source_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "e9c5d4a7-6f21-4d5e-bc40-ab9f8e7d6543",
                                         "nullable": true
                                     },
                                     "power_source_code": {
                                         "type": "string",
+                                        "example": "AC-220V",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "power_or_voltage": {
                                         "type": "string",
+                                        "example": "220V",
                                         "nullable": true,
                                         "maxLength": 100
                                     },
                                     "package_variant_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "fa06e5b8-7032-4e6f-cd51-bc0a9f8e7654",
                                         "nullable": true
                                     },
                                     "package_variant_code": {
                                         "type": "string",
+                                        "example": "HOP-01",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "package_variant": {
                                         "type": "string",
+                                        "example": "Hộp carton",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "enum": [
                                             "ACTIVE",
                                             "INACTIVE"
                                         ]
                                     },
                                     "published_to_app": {
-                                        "type": "boolean"
+                                        "type": "boolean",
+                                        "example": false
                                     },
                                     "is_serial_tracked": {
-                                        "type": "boolean"
+                                        "type": "boolean",
+                                        "example": true
                                     },
                                     "warranty_applicable": {
-                                        "type": "boolean"
+                                        "type": "boolean",
+                                        "example": true
                                     },
                                     "specification": {
                                         "type": "object",
+                                        "example": {
+                                            "voltage": "220V",
+                                            "color": "Đỏ"
+                                        },
                                         "nullable": true
                                     },
                                     "components": {
@@ -31959,10 +32379,12 @@
                                             "properties": {
                                                 "component_id": {
                                                     "type": "string",
-                                                    "format": "uuid"
+                                                    "format": "uuid",
+                                                    "example": "ab12cd34-ef56-4a78-9b01-c23d45e67f89"
                                                 },
                                                 "quantity": {
                                                     "type": "number",
+                                                    "example": 1,
                                                     "minimum": 0.001
                                                 }
                                             },
@@ -31979,18 +32401,22 @@
                                             "properties": {
                                                 "code_value": {
                                                     "type": "string",
+                                                    "example": "HN1|SP-0001|ITEM001",
                                                     "maxLength": 150
                                                 },
                                                 "code_type": {
                                                     "type": "string",
+                                                    "example": "QR",
                                                     "nullable": true
                                                 },
                                                 "carrier_type": {
                                                     "type": "string",
+                                                    "example": "LABEL",
                                                     "nullable": true
                                                 },
                                                 "status": {
                                                     "type": "string",
+                                                    "example": "ACTIVE",
                                                     "nullable": true
                                                 }
                                             },
@@ -32155,14 +32581,17 @@
                                 "properties": {
                                     "item_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d"
                                     },
                                     "code_value": {
                                         "type": "string",
+                                        "example": "HN-ITEM-000123",
                                         "maxLength": 200
                                     },
                                     "carrier_type": {
                                         "type": "string",
+                                        "example": "BARCODE",
                                         "enum": [
                                             "BARCODE",
                                             "QR",
@@ -32174,16 +32603,19 @@
                                     "hardware_uid": {
                                         "description": "Bắt buộc khi carrier_type=RFID",
                                         "type": "string",
+                                        "example": "RFID-UID-000456",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "encoded_payload_version": {
                                         "type": "string",
+                                        "example": "v1",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "is_primary": {
                                         "type": "boolean",
+                                        "example": true,
                                         "nullable": true
                                     }
                                 },
@@ -33420,28 +33852,34 @@
                                 "properties": {
                                     "username": {
                                         "type": "string",
+                                        "example": "nguyenvana",
                                         "maxLength": 100
                                     },
                                     "display_name": {
                                         "type": "string",
+                                        "example": "Nguyễn Văn A",
                                         "maxLength": 255
                                     },
                                     "email": {
                                         "type": "string",
                                         "format": "email",
+                                        "example": "nguyenvana@gmail.com",
                                         "nullable": true
                                     },
                                     "phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "password": {
                                         "type": "string",
+                                        "example": "Cntt@1234",
                                         "minLength": 8
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -33733,28 +34171,34 @@
                                 "properties": {
                                     "username": {
                                         "type": "string",
+                                        "example": "nguyenvana",
                                         "maxLength": 100
                                     },
                                     "display_name": {
                                         "type": "string",
+                                        "example": "Nguyễn Văn A",
                                         "maxLength": 255
                                     },
                                     "email": {
                                         "type": "string",
                                         "format": "email",
+                                        "example": "nguyenvana@gmail.com",
                                         "nullable": true
                                     },
                                     "phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "password": {
                                         "type": "string",
+                                        "example": "Cntt@1234",
                                         "minLength": 8
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -33765,6 +34209,7 @@
                                     "version": {
                                         "description": "Optimistic locking legacy; ưu tiên header If-Match theo §8.1 IAM",
                                         "type": "integer",
+                                        "example": 1,
                                         "nullable": true
                                     }
                                 },
@@ -33914,7 +34359,11 @@
                                         "items": {
                                             "type": "string",
                                             "format": "uuid"
-                                        }
+                                        },
+                                        "example": [
+                                            "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                                            "9b2e8f14-6c3a-4b7d-8e1f-2a5c9d3b7e4f"
+                                        ]
                                     }
                                 },
                                 "type": "object"
@@ -34211,21 +34660,25 @@
                                     },
                                     "address": {
                                         "type": "string",
+                                        "example": "123 Đường Láng, Hà Nội",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
                                     "contact_person": {
                                         "type": "string",
+                                        "example": "Trần Thị B",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "status": {
                                         "type": "string",
+                                        "example": "ACTIVE",
                                         "nullable": true,
                                         "enum": [
                                             "ACTIVE",
@@ -34507,20 +34960,24 @@
                                 "properties": {
                                     "name": {
                                         "type": "string",
+                                        "example": "Kho tổng Hoà Nam",
                                         "maxLength": 200
                                     },
                                     "address": {
                                         "type": "string",
+                                        "example": "123 Đường Láng, Hà Nội",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
                                     "contact_person": {
                                         "type": "string",
+                                        "example": "Trần Thị B",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "nullable": true,
                                         "maxLength": 30
                                     }
@@ -35091,12 +35548,14 @@
                                     "warranty_case_code": {
                                         "description": "Bỏ trống để hệ thống tự sinh mã phiếu.",
                                         "type": "string",
+                                        "example": "WC-20260821-AB12",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "case_no": {
                                         "description": "Alias của warranty_case_code.",
                                         "type": "string",
+                                        "example": "WC-20260821-AB12",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
@@ -35104,34 +35563,41 @@
                                         "description": "Item đã xuất cho khách; thiếu item thì case ở nhánh TEMP_ONLY.",
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d",
                                         "nullable": true
                                     },
                                     "item_code": {
                                         "type": "string",
+                                        "example": "SN-000123456",
                                         "nullable": true,
                                         "maxLength": 200
                                     },
                                     "defect_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
                                         "nullable": true
                                     },
                                     "defect_code": {
                                         "type": "string",
+                                        "example": "DEF-SCREEN-001",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "customer_name": {
                                         "description": "PII — mask theo quyền warranty.pii.view khi đọc lại.",
                                         "type": "string",
+                                        "example": "Nguyễn Văn A",
                                         "maxLength": 200
                                     },
                                     "customer_phone": {
                                         "type": "string",
+                                        "example": "0912345678",
                                         "maxLength": 30
                                     },
                                     "customer_address": {
                                         "type": "string",
+                                        "example": "123 Đường Lê Lợi, Quận 1, TP.HCM",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
@@ -35139,35 +35605,42 @@
                                         "description": "Không được sau ngày hiện tại.",
                                         "type": "string",
                                         "format": "date",
+                                        "example": "2026-06-15",
                                         "nullable": true
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Sản phẩm lỗi màn hình, khách yêu cầu bảo hành",
                                         "maxLength": 2000
                                     },
                                     "reported_defect": {
                                         "type": "string",
+                                        "example": "Màn hình bị sọc ngang khi khởi động",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "accessories_received": {
                                         "type": "string",
+                                        "example": "Sạc, hộp, dây cáp",
                                         "nullable": true,
                                         "maxLength": 1000
                                     },
                                     "received_condition": {
                                         "type": "string",
+                                        "example": "Máy còn nguyên vẹn, có trầy nhẹ ở góc",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
                                     "missing_code_reason": {
                                         "description": "Bắt buộc cùng manual_product_description khi không resolve được item (TEMP_ONLY).",
                                         "type": "string",
+                                        "example": "Mất tem serial do sử dụng lâu ngày",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
                                     "manual_product_description": {
                                         "type": "string",
+                                        "example": "Điện thoại Samsung Galaxy A54, màu đen",
                                         "nullable": true,
                                         "maxLength": 2000
                                     }
@@ -35458,6 +35931,7 @@
                                     "status": {
                                         "description": "Trạng thái đích theo ma trận DEC-WAR-STATE-001; bỏ trống nếu chỉ hiệu chỉnh dữ liệu.",
                                         "type": "string",
+                                        "example": "RECEIVED",
                                         "enum": [
                                             "RECEIVED",
                                             "CHECKING",
@@ -35469,65 +35943,77 @@
                                     },
                                     "condition_status": {
                                         "type": "string",
+                                        "example": "Bình thường",
                                         "nullable": true,
                                         "maxLength": 30
                                     },
                                     "description": {
                                         "type": "string",
+                                        "example": "Sản phẩm lỗi màn hình, khách yêu cầu bảo hành",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "note": {
                                         "description": "Ghi vào warranty_event.note, không ghi đè mô tả tiếp nhận gốc.",
                                         "type": "string",
+                                        "example": "Đã kiểm tra và sửa chữa xong, máy hoạt động bình thường",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "confirmed_defect": {
                                         "description": "Kết quả kiểm tra; bắt buộc khi rời CHECKING.",
                                         "type": "string",
+                                        "example": "Màn hình bị vỡ do rơi, cần thay thế",
                                         "nullable": true,
                                         "maxLength": 2000
                                     },
                                     "accessories_received": {
                                         "type": "string",
+                                        "example": "Sạc, hộp, dây cáp",
                                         "nullable": true,
                                         "maxLength": 1000
                                     },
                                     "received_condition": {
                                         "type": "string",
+                                        "example": "Máy còn nguyên vẹn, có trầy nhẹ ở góc",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
                                     "cancel_reason": {
                                         "description": "Bắt buộc khi CANCELLED.",
                                         "type": "string",
+                                        "example": "Khách hàng yêu cầu hủy bảo hành",
                                         "nullable": true,
                                         "maxLength": 1000
                                     },
                                     "defect_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
                                         "nullable": true
                                     },
                                     "defect_code": {
                                         "type": "string",
+                                        "example": "DEF-SCREEN-001",
                                         "nullable": true,
                                         "maxLength": 80
                                     },
                                     "customer_name": {
                                         "description": "PII — cần warranty.pii.view.",
                                         "type": "string",
+                                        "example": "Nguyễn Văn A",
                                         "maxLength": 200
                                     },
                                     "customer_phone": {
                                         "description": "PII — cần warranty.pii.view.",
                                         "type": "string",
+                                        "example": "0912345678",
                                         "maxLength": 30
                                     },
                                     "customer_address": {
                                         "description": "PII — cần warranty.pii.view.",
                                         "type": "string",
+                                        "example": "123 Đường Lê Lợi, Quận 1, TP.HCM",
                                         "nullable": true,
                                         "maxLength": 500
                                     },
@@ -35535,6 +36021,7 @@
                                         "description": "Không được sau ngày hiện tại.",
                                         "type": "string",
                                         "format": "date",
+                                        "example": "2026-06-15",
                                         "nullable": true
                                     }
                                 },
@@ -35811,6 +36298,7 @@
                                     "attachment_type": {
                                         "description": "Mặc định INTAKE.",
                                         "type": "string",
+                                        "example": "INTAKE",
                                         "nullable": true,
                                         "enum": [
                                             "INTAKE",
@@ -36133,6 +36621,7 @@
                                     "status": {
                                         "description": "Trạng thái đích; bỏ trống nếu chỉ hiệu chỉnh dữ liệu.",
                                         "type": "string",
+                                        "example": "RECEIVED",
                                         "enum": [
                                             "RECEIVED",
                                             "CHECKING",
@@ -36145,41 +36634,50 @@
                                     "confirmed_defect": {
                                         "description": "Kết quả kiểm tra; bắt buộc khi rời CHECKING.",
                                         "type": "string",
+                                        "example": "Màn hình bị vỡ do rơi, cần thay thế",
                                         "maxLength": 2000
                                     },
                                     "note": {
                                         "description": "Ghi vào warranty_event.note; bắt buộc cho COMPLETED (kết quả xử lý) và RETURNED (biên bản bàn giao/người nhận).",
                                         "type": "string",
+                                        "example": "Đã kiểm tra và sửa chữa xong, máy hoạt động bình thường",
                                         "maxLength": 2000
                                     },
                                     "cancel_reason": {
                                         "description": "Bắt buộc khi CANCELLED.",
                                         "type": "string",
+                                        "example": "Khách hàng yêu cầu hủy bảo hành",
                                         "maxLength": 1000
                                     },
                                     "condition_status": {
                                         "type": "string",
+                                        "example": "Bình thường",
                                         "maxLength": 30
                                     },
                                     "accessories_received": {
                                         "type": "string",
+                                        "example": "Sạc, hộp, dây cáp",
                                         "maxLength": 1000
                                     },
                                     "received_condition": {
                                         "type": "string",
+                                        "example": "Máy còn nguyên vẹn, có trầy nhẹ ở góc",
                                         "maxLength": 500
                                     },
                                     "defect_id": {
                                         "type": "string",
-                                        "format": "uuid"
+                                        "format": "uuid",
+                                        "example": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e"
                                     },
                                     "defect_code": {
                                         "type": "string",
+                                        "example": "DEF-SCREEN-001",
                                         "maxLength": 80
                                     },
                                     "customer_name": {
                                         "description": "PII — cần warranty.pii.view.",
                                         "type": "string",
+                                        "example": "Nguyễn Văn A",
                                         "maxLength": 200
                                     },
                                     "customer_phone": {
@@ -36191,11 +36689,13 @@
                                     "customer_address": {
                                         "description": "PII — cần warranty.pii.view.",
                                         "type": "string",
+                                        "example": "123 Đường Lê Lợi, Quận 1, TP.HCM",
                                         "maxLength": 500
                                     },
                                     "purchase_date": {
                                         "type": "string",
-                                        "format": "date"
+                                        "format": "date",
+                                        "example": "2026-06-15"
                                     }
                                 },
                                 "type": "object"
@@ -36355,23 +36855,28 @@
                                 "properties": {
                                     "temporary_item_code": {
                                         "type": "string",
+                                        "example": "TEMP-20260821-0001",
                                         "maxLength": 150
                                     },
                                     "missing_code_reason": {
                                         "type": "string",
+                                        "example": "Nhãn bị mờ không đọc được mã",
                                         "maxLength": 500
                                     },
                                     "manual_product_description": {
                                         "type": "string",
+                                        "example": "Tivi Samsung 55 inch",
                                         "maxLength": 2000
                                     },
                                     "defect_id": {
                                         "type": "string",
                                         "format": "uuid",
+                                        "example": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
                                         "nullable": true
                                     },
                                     "condition_status": {
                                         "type": "string",
+                                        "example": "WAITING_CHECK",
                                         "enum": [
                                             "WAITING_CHECK",
                                             "INSPECTING"
@@ -36379,6 +36884,7 @@
                                     },
                                     "note": {
                                         "type": "string",
+                                        "example": "Khách mang đến trực tiếp, không có hộp",
                                         "nullable": true,
                                         "maxLength": 1000
                                     }

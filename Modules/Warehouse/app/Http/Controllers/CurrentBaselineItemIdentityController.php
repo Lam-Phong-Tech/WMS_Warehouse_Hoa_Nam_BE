@@ -30,12 +30,12 @@ class CurrentBaselineItemIdentityController extends Controller
             content: new OA\JsonContent(
                 required: ['item_id', 'code_value', 'carrier_type'],
                 properties: [
-                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL']),
-                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 200, nullable: true, description: 'Bắt buộc khi carrier_type=RFID'),
-                    new OA\Property(property: 'encoded_payload_version', type: 'string', maxLength: 30, nullable: true),
-                    new OA\Property(property: 'is_primary', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, example: 'HN-ITEM-000123'),
+                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL'], example: 'BARCODE'),
+                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 200, nullable: true, description: 'Bắt buộc khi carrier_type=RFID', example: 'RFID-UID-000456'),
+                    new OA\Property(property: 'encoded_payload_version', type: 'string', maxLength: 30, nullable: true, example: 'v1'),
+                    new OA\Property(property: 'is_primary', type: 'boolean', nullable: true, example: true),
                 ]
             )
         ),

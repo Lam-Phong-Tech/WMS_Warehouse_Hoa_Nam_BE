@@ -51,18 +51,18 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['dst_warehouse_id', 'lines'],
             properties: [
-                new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true),
-                new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
-                new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'source_name', type: 'string', maxLength: 255, nullable: true),
-                new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true, example: 'HN-IN-000123'),
+                new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true, example: '2026-08-21'),
+                new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'source_name', type: 'string', maxLength: 255, nullable: true, example: 'Nhà cung cấp Hòa Nam'),
+                new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Nhập hàng đợt 1'),
                 new OA\Property(property: 'lines', type: 'array', minItems: 1, items: new OA\Items(
                     required: ['product_id', 'qty_planned'],
                     properties: [
-                        new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true),
+                        new OA\Property(property: 'product_id', type: 'string', format: 'uuid', example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
+                        new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true, example: '5c7d2e3b-9f4e-4a6b-8c3d-2e4f5a6b7c8d'),
                         new OA\Property(property: 'qty_planned', type: 'integer', minimum: 1, example: 10),
-                        new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                        new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Ghi chú dòng nhập'),
                     ]
                 )),
             ]
@@ -105,18 +105,18 @@ use OpenApi\Attributes as OA;
     ],
     requestBody: new OA\RequestBody(
         content: new OA\JsonContent(properties: [
-            new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true),
-            new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
-            new OA\Property(property: 'source_name', type: 'string', maxLength: 255, nullable: true),
-            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+            new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true, example: 'HN-IN-000123'),
+            new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true, example: '2026-08-21'),
+            new OA\Property(property: 'source_name', type: 'string', maxLength: 255, nullable: true, example: 'Nhà cung cấp Hòa Nam'),
+            new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Điều chỉnh số lượng dự kiến'),
             new OA\Property(property: 'lines', type: 'array', minItems: 1, nullable: true, items: new OA\Items(
                 required: ['product_id', 'qty_planned'],
                 properties: [
-                    new OA\Property(property: 'id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'qty_planned', type: 'integer', minimum: 1),
-                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'id', type: 'string', format: 'uuid', nullable: true, example: '6d8e3f4c-1a5b-4c7d-9e2f-3a4b5c6d7e8f'),
+                    new OA\Property(property: 'product_id', type: 'string', format: 'uuid', example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
+                    new OA\Property(property: 'import_batch_id', type: 'string', format: 'uuid', nullable: true, example: '5c7d2e3b-9f4e-4a6b-8c3d-2e4f5a6b7c8d'),
+                    new OA\Property(property: 'qty_planned', type: 'integer', minimum: 1, example: 15),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Ghi chú dòng nhập'),
                 ]
             )),
         ])
@@ -147,7 +147,7 @@ use OpenApi\Attributes as OA;
         required: true,
         content: new OA\JsonContent(
             required: ['reason'],
-            properties: [new OA\Property(property: 'reason', type: 'string', maxLength: 2000)]
+            properties: [new OA\Property(property: 'reason', type: 'string', maxLength: 2000, example: 'Nhập sai đơn hàng')]
         )
     ),
     responses: [
@@ -188,11 +188,11 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['line_id', 'qty'],
             properties: [
-                new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '6d8e3f4c-1a5b-4c7d-9e2f-3a4b5c6d7e8f'),
                 new OA\Property(property: 'qty', type: 'integer', minimum: 1, example: 1),
-                new OA\Property(property: 'code_value', type: 'string', nullable: true),
-                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'code_value', type: 'string', nullable: true, example: 'HN1|SKU001|ITEM00001'),
+                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '7e9f4a5d-2b6c-4d8e-9f3a-4b5c6d7e8f9a'),
+                new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '8f1a5b6e-3c7d-4e9f-8a4b-5c6d7e8f9a1b'),
             ]
         )
     ),
@@ -230,8 +230,8 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['inbound_scan_entry_id'],
             properties: [
-                new OA\Property(property: 'inbound_scan_entry_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true),
+                new OA\Property(property: 'inbound_scan_entry_id', type: 'string', format: 'uuid', example: '9a2b6c7f-4d8e-4f1a-9b5c-6d7e8f9a1b2c'),
+                new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true, example: 'Quét nhầm mã, gỡ để quét lại'),
             ]
         )
     ),

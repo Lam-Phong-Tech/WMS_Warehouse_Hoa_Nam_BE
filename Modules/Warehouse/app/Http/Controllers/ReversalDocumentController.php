@@ -146,7 +146,7 @@ class ReversalDocumentController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'return_condition', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true, description: 'BR-REV-06/07: chỉ SELLABLE mới cộng available_qty khi Post.'),
+                new OA\Property(property: 'return_condition', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true, description: 'BR-REV-06/07: chỉ SELLABLE mới cộng available_qty khi Post.', example: 'SELLABLE'),
             ])
         ),
         responses: [
@@ -215,7 +215,7 @@ class ReversalDocumentController extends Controller
             content: new OA\JsonContent(
                 required: ['reason'],
                 properties: [
-                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000),
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000, example: 'Hoàn trả do nhập sai số lượng'),
                 ]
             )
         ),
@@ -380,19 +380,19 @@ class ReversalDocumentController extends Controller
             content: new OA\JsonContent(
                 required: ['reference_document_id', 'reference_document_type', 'reason', 'lines'],
                 properties: [
-                    new OA\Property(property: 'reversal_type', type: 'string', nullable: true),
-                    new OA\Property(property: 'reference_document_id', type: 'string'),
-                    new OA\Property(property: 'reference_document_type', type: 'string'),
-                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000),
-                    new OA\Property(property: 'return_condition', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true, description: 'BR-REV-06/07: chỉ áp dụng cho Reverse Issue/Component Issue.'),
-                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true, description: 'BR-REV-06: chỉ cộng tồn khi xác nhận tường minh hàng vật lý đã về.'),
+                    new OA\Property(property: 'reversal_type', type: 'string', nullable: true, example: 'issue'),
+                    new OA\Property(property: 'reference_document_id', type: 'string', example: '1'),
+                    new OA\Property(property: 'reference_document_type', type: 'string', example: 'ISSUE'),
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000, example: 'Hoàn trả do nhập sai số lượng'),
+                    new OA\Property(property: 'return_condition', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true, description: 'BR-REV-06/07: chỉ áp dụng cho Reverse Issue/Component Issue.', example: 'SELLABLE'),
+                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true, description: 'BR-REV-06: chỉ cộng tồn khi xác nhận tường minh hàng vật lý đã về.', example: true),
                     new OA\Property(property: 'lines', type: 'array', minItems: 1, items: new OA\Items(
                         required: ['sku', 'reversal_qty'],
                         properties: [
-                            new OA\Property(property: 'sku', type: 'string'),
-                            new OA\Property(property: 'reversal_qty', type: 'integer', minimum: 1),
-                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                            new OA\Property(property: 'reason', type: 'string', nullable: true),
+                            new OA\Property(property: 'sku', type: 'string', example: 'SKU-000123'),
+                            new OA\Property(property: 'reversal_qty', type: 'integer', minimum: 1, example: 10),
+                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: 'b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210'),
+                            new OA\Property(property: 'reason', type: 'string', nullable: true, example: 'Hoàn trả do nhập sai số lượng'),
                         ]
                     )),
                 ]

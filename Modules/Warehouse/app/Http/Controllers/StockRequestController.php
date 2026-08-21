@@ -42,18 +42,18 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['request_type', 'request_date', 'lines'],
             properties: [
-                new OA\Property(property: 'request_type', type: 'string', enum: ['receipt', 'issue', 'transfer']),
-                new OA\Property(property: 'request_no', type: 'string', nullable: true),
-                new OA\Property(property: 'request_date', type: 'string', format: 'date'),
-                new OA\Property(property: 'src_warehouse_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'note', type: 'string', nullable: true),
+                new OA\Property(property: 'request_type', type: 'string', enum: ['receipt', 'issue', 'transfer'], example: 'issue'),
+                new OA\Property(property: 'request_no', type: 'string', nullable: true, example: 'SR-2026-0001'),
+                new OA\Property(property: 'request_date', type: 'string', format: 'date', example: '2026-08-21'),
+                new OA\Property(property: 'src_warehouse_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'note', type: 'string', nullable: true, example: 'Đề nghị cấp thêm hàng cho đại lý'),
                 new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
                     properties: [
-                        new OA\Property(property: 'product_id', type: 'string', format: 'uuid'),
-                        new OA\Property(property: 'qty_planned', type: 'number', format: 'float'),
-                        new OA\Property(property: 'unit_cost', type: 'number', format: 'float', nullable: true),
-                        new OA\Property(property: 'note', type: 'string', nullable: true),
+                        new OA\Property(property: 'product_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                        new OA\Property(property: 'qty_planned', type: 'number', format: 'float', example: 10),
+                        new OA\Property(property: 'unit_cost', type: 'number', format: 'float', nullable: true, example: 150000),
+                        new OA\Property(property: 'note', type: 'string', nullable: true, example: 'Hàng đóng thùng nguyên kiện'),
                     ]
                 )),
             ]
@@ -144,7 +144,7 @@ use OpenApi\Attributes as OA;
     tags: ['07. Inventory / Stock'],
     parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
     requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['reason'], properties: [
-        new OA\Property(property: 'reason', type: 'string'),
+        new OA\Property(property: 'reason', type: 'string', example: 'Thiếu thông tin toa hàng, cần bổ sung trước khi duyệt'),
     ])),
     responses: [
         new OA\Response(response: 200, description: 'Từ chối thành công'),
@@ -177,7 +177,7 @@ use OpenApi\Attributes as OA;
     tags: ['07. Inventory / Stock'],
     parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
     requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
-        new OA\Property(property: 'reason', type: 'string', nullable: true),
+        new OA\Property(property: 'reason', type: 'string', nullable: true, example: 'Không còn nhu cầu điều chuyển'),
     ])),
     responses: [
         new OA\Response(response: 200, description: 'Hủy thành công'),

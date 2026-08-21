@@ -70,14 +70,14 @@ class CurrentBaselineContainerFlowController extends Controller
             content: new OA\JsonContent(
                 required: ['container_code', 'container_type'],
                 properties: [
-                    new OA\Property(property: 'container_code', type: 'string', maxLength: 120),
-                    new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY']),
-                    new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true, description: 'Bắt buộc nếu container_type là CARTON hoặc BOX'),
-                    new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
-                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 200, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['EMPTY'], nullable: true, description: 'Chỉ EMPTY được khai lúc tạo; các trạng thái vòng đời khác do luồng nghiệp vụ đặt'),
-                    new OA\Property(property: 'migration_run_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid', nullable: true, description: 'Physical code phải đang ACTIVE và chưa gán target khác'),
+                    new OA\Property(property: 'container_code', type: 'string', maxLength: 120, example: 'HN-CTN-000123'),
+                    new OA\Property(property: 'container_type', type: 'string', enum: ['CARTON', 'BOX', 'TRAY'], example: 'CARTON'),
+                    new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true, description: 'Bắt buộc nếu container_type là CARTON hoặc BOX', example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
+                    new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true, example: 'A1-01'),
+                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 200, nullable: true, example: 'Kệ A1, tầng 1'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['EMPTY'], nullable: true, description: 'Chỉ EMPTY được khai lúc tạo; các trạng thái vòng đời khác do luồng nghiệp vụ đặt', example: 'EMPTY'),
+                    new OA\Property(property: 'migration_run_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),
+                    new OA\Property(property: 'physical_code_id', type: 'string', format: 'uuid', nullable: true, description: 'Physical code phải đang ACTIVE và chưa gán target khác', example: '2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f'),
                 ]
             )
         ),
@@ -189,12 +189,12 @@ class CurrentBaselineContainerFlowController extends Controller
         requestBody: new OA\RequestBody(
             required: false,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'container_code', type: 'string', maxLength: 120),
-                new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'parent_container_id', type: 'string', format: 'uuid', nullable: true, description: 'KHÔNG được đổi qua endpoint này — đổi placement BOX->TRAY phải dùng POST /putaway-tasks + confirm'),
-                new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true),
-                new OA\Property(property: 'location_hint', type: 'string', maxLength: 200, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['EMPTY', 'IN_STOCK', 'PARTIAL', 'ISSUED', 'RECEIVED_PENDING_PUTAWAY', 'STORED', 'CLOSED'], nullable: true, description: 'RECEIVED_PENDING_PUTAWAY/STORED/ISSUED chỉ được đặt bởi luồng nghiệp vụ sở hữu sự kiện tương ứng, không set qua PATCH'),
+                new OA\Property(property: 'container_code', type: 'string', maxLength: 120, example: 'HN-CTN-000123'),
+                new OA\Property(property: 'primary_sku_id', type: 'string', format: 'uuid', nullable: true, example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
+                new OA\Property(property: 'parent_container_id', type: 'string', format: 'uuid', nullable: true, description: 'KHÔNG được đổi qua endpoint này — đổi placement BOX->TRAY phải dùng POST /putaway-tasks + confirm', example: '3d4e5f6a-7b8c-4d9e-0f1a-2b3c4d5e6f7a'),
+                new OA\Property(property: 'zone_code', type: 'string', maxLength: 50, nullable: true, example: 'A1-01'),
+                new OA\Property(property: 'location_hint', type: 'string', maxLength: 200, nullable: true, example: 'Kệ A1, tầng 1'),
+                new OA\Property(property: 'status', type: 'string', enum: ['EMPTY', 'IN_STOCK', 'PARTIAL', 'ISSUED', 'RECEIVED_PENDING_PUTAWAY', 'STORED', 'CLOSED'], nullable: true, description: 'RECEIVED_PENDING_PUTAWAY/STORED/ISSUED chỉ được đặt bởi luồng nghiệp vụ sở hữu sự kiện tương ứng, không set qua PATCH', example: 'EMPTY'),
             ])
         ),
         responses: [
@@ -298,11 +298,11 @@ class CurrentBaselineContainerFlowController extends Controller
             content: new OA\JsonContent(
                 description: 'Chọn ĐÚNG MỘT trong hai chế độ: item_id (từng item) hoặc sku_id+quantity (theo số lượng)',
                 properties: [
-                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, nullable: true, description: 'Bắt buộc khi dùng sku_id-mode'),
-                    new OA\Property(property: 'source_type', type: 'string', enum: ['RECEIPT', 'PUTAWAY', 'MIGRATION', 'CORRECTION'], nullable: true),
-                    new OA\Property(property: 'source_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
+                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, nullable: true, description: 'Bắt buộc khi dùng sku_id-mode', example: 10),
+                    new OA\Property(property: 'source_type', type: 'string', enum: ['RECEIPT', 'PUTAWAY', 'MIGRATION', 'CORRECTION'], nullable: true, example: 'RECEIPT'),
+                    new OA\Property(property: 'source_id', type: 'string', format: 'uuid', nullable: true, example: '2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f'),
                 ]
             )
         ),
@@ -422,7 +422,7 @@ class CurrentBaselineContainerFlowController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(required: ['reason'], properties: [
-                new OA\Property(property: 'reason', type: 'string', maxLength: 2000),
+                new OA\Property(property: 'reason', type: 'string', maxLength: 2000, example: 'Xoá nhầm hàng, cần điều chỉnh lại container'),
             ])
         ),
         responses: [
