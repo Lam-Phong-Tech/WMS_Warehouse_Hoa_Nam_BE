@@ -390,10 +390,10 @@ class WmsContractController extends Controller
         tags: ['07. Inventory'],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(required: ['warehouse_id'], properties: [
-                new OA\Property(property: 'source_type', type: 'string', maxLength: 50, nullable: true),
-                new OA\Property(property: 'source_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid'),
-                new OA\Property(property: 'codes', type: 'array', nullable: true, items: new OA\Items(type: 'string', maxLength: 100)),
+                new OA\Property(property: 'source_type', type: 'string', maxLength: 50, nullable: true, example: 'MANUAL'),
+                new OA\Property(property: 'source_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'codes', type: 'array', nullable: true, items: new OA\Items(type: 'string', maxLength: 100, example: 'HN1|SKU001|ITEM0001')),
             ])
         ),
         responses: [

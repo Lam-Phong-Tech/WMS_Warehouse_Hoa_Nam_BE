@@ -61,7 +61,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
                     required: ['file'],
                     properties: [
                         new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Ảnh jpg/jpeg/png/webp, tối đa 10MB (Annex D SCR-WAR-01); tối đa 10 tệp ACTIVE mỗi case.'),
-                        new OA\Property(property: 'attachment_type', type: 'string', enum: ['INTAKE', 'DIAGNOSTIC', 'RETURN', 'OTHER'], nullable: true, description: 'Mặc định INTAKE.'),
+                        new OA\Property(property: 'attachment_type', type: 'string', enum: ['INTAKE', 'DIAGNOSTIC', 'RETURN', 'OTHER'], nullable: true, description: 'Mặc định INTAKE.', example: 'INTAKE'),
                     ]
                 )
             )

@@ -32,8 +32,8 @@ class CurrentBaselineInboundBoxController extends Controller
             content: new OA\JsonContent(
                 required: ['line_id', 'box_code'],
                 properties: [
-                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'box_code', type: 'string', maxLength: 100),
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'box_code', type: 'string', maxLength: 100, example: 'BOX-000123'),
                 ]
             )
         ),

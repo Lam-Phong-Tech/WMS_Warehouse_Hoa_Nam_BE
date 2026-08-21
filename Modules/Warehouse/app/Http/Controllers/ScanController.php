@@ -64,9 +64,9 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['raw_code', 'context', 'warehouse_id'],
             properties: [
-                new OA\Property(property: 'raw_code', type: 'string', maxLength: 512, description: 'RAW scan payload: composite PRODUCT QR (HN1|SKU=<sku_code>|ITEM=<item_unique>) hoặc plain QR/barcode/serial/container/SKU code. Server parse authoritative — client không tự tách SKU/item.'),
-                new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'INVENTORY', 'TRACE', 'WARRANTY_RECEIVE', 'WARRANTY_TEMP_ONLY']),
-                new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', description: 'Kho nằm trong data scope của người dùng'),
+                new OA\Property(property: 'raw_code', type: 'string', maxLength: 512, description: 'RAW scan payload: composite PRODUCT QR (HN1|SKU=<sku_code>|ITEM=<item_unique>) hoặc plain QR/barcode/serial/container/SKU code. Server parse authoritative — client không tự tách SKU/item.', example: 'HN1|SKU-000123|ITEM-000456'),
+                new OA\Property(property: 'context', type: 'string', enum: ['INBOUND', 'OUTBOUND', 'INVENTORY', 'TRACE', 'WARRANTY_RECEIVE', 'WARRANTY_TEMP_ONLY'], example: 'INBOUND'),
+                new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', description: 'Kho nằm trong data scope của người dùng', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
             ]
         )
     ),

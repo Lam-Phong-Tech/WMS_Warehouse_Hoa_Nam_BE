@@ -67,10 +67,10 @@ class CurrentBaselineMasterController extends Controller
                 required: ['brand_code', 'brand_name'],
                 properties: [
                     new OA\Property(property: 'brand_code', type: 'string', maxLength: 80, example: 'BR-0001'),
-                    new OA\Property(property: 'brand_name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                    new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
                 ]
             )
         ),
@@ -98,10 +98,10 @@ class CurrentBaselineMasterController extends Controller
                 required: ['category_code', 'category_name'],
                 properties: [
                     new OA\Property(property: 'category_code', type: 'string', maxLength: 80, example: 'CAT-0001'),
-                    new OA\Property(property: 'category_name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                    new OA\Property(property: 'category_name', type: 'string', maxLength: 200, example: 'Điện thoại di động'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Danh mục điện thoại di động'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
                 ]
             )
         ),
@@ -129,10 +129,10 @@ class CurrentBaselineMasterController extends Controller
                 required: ['power_source_code', 'power_source_name'],
                 properties: [
                     new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80, example: 'PWR-0001'),
-                    new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                    new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200, example: 'Điện AC 220V'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Nguồn điện AC 220V tiêu chuẩn'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
                 ]
             )
         ),
@@ -160,11 +160,11 @@ class CurrentBaselineMasterController extends Controller
                 required: ['model_code', 'model_name'],
                 properties: [
                     new OA\Property(property: 'model_code', type: 'string', maxLength: 80, example: 'MDL-0001'),
-                    new OA\Property(property: 'model_name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                    new OA\Property(property: 'model_name', type: 'string', maxLength: 200, example: 'Galaxy S24'),
+                    new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Model điện thoại Samsung Galaxy S24'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
                 ]
             )
         ),
@@ -208,10 +208,10 @@ class CurrentBaselineMasterController extends Controller
                 required: ['package_code', 'package_name'],
                 properties: [
                     new OA\Property(property: 'package_code', type: 'string', maxLength: 80, example: 'PKG-0001'),
-                    new OA\Property(property: 'package_name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                    new OA\Property(property: 'package_name', type: 'string', maxLength: 200, example: 'Đóng gói tiêu chuẩn'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Đóng gói tiêu chuẩn dạng hộp carton'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
                 ]
             )
         ),
@@ -252,11 +252,11 @@ class CurrentBaselineMasterController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'brand_code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'brand_name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                new OA\Property(property: 'brand_code', type: 'string', maxLength: 80, example: 'BR-0001'),
+                new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -284,11 +284,11 @@ class CurrentBaselineMasterController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'category_code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'category_name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                new OA\Property(property: 'category_code', type: 'string', maxLength: 80, example: 'CAT-0001'),
+                new OA\Property(property: 'category_name', type: 'string', maxLength: 200, example: 'Điện thoại di động'),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Danh mục điện thoại di động'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -316,11 +316,11 @@ class CurrentBaselineMasterController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                new OA\Property(property: 'power_source_code', type: 'string', maxLength: 80, example: 'PWR-0001'),
+                new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200, example: 'Điện AC 220V'),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Nguồn điện AC 220V tiêu chuẩn'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -348,12 +348,12 @@ class CurrentBaselineMasterController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'model_code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'model_name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                new OA\Property(property: 'model_code', type: 'string', maxLength: 80, example: 'MDL-0001'),
+                new OA\Property(property: 'model_name', type: 'string', maxLength: 200, example: 'Galaxy S24'),
+                new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Model điện thoại Samsung Galaxy S24'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -381,11 +381,11 @@ class CurrentBaselineMasterController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'package_code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'package_name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
+                new OA\Property(property: 'package_code', type: 'string', maxLength: 80, example: 'PKG-0001'),
+                new OA\Property(property: 'package_name', type: 'string', maxLength: 200, example: 'Đóng gói tiêu chuẩn'),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Đóng gói tiêu chuẩn dạng hộp carton'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -450,12 +450,12 @@ class CurrentBaselineMasterController extends Controller
             content: new OA\JsonContent(
                 required: ['code', 'name'],
                 properties: [
-                    new OA\Property(property: 'code', type: 'string', maxLength: 80),
-                    new OA\Property(property: 'name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
-                    new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models; brand tham chiếu phải ACTIVE'),
+                    new OA\Property(property: 'code', type: 'string', maxLength: 80, example: 'BR-0001'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Samsung'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models; brand tham chiếu phải ACTIVE', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                 ]
             )
         ),
@@ -492,12 +492,12 @@ class CurrentBaselineMasterController extends Controller
             required: true,
             description: 'Chấp nhận cặp code/name chung hoặc tên cột riêng của từng loại (brand_code/brand_name, category_code/category_name, model_code/model_name, power_source_code/power_source_name, package_code/package_name).',
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true),
-                new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models'),
+                new OA\Property(property: 'code', type: 'string', maxLength: 80, example: 'BR-0001'),
+                new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Samsung'),
+                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
             ])
         ),
         responses: [

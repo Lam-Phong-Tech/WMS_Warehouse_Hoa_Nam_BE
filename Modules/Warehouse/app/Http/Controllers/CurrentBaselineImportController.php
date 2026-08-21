@@ -89,7 +89,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                         type: 'object',
                         required: ['file'],
                         properties: [
-                            new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Excel .xlsx/.xls, tối đa 20MB; bắt buộc khi không gửi rows.'),
+                            new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Excel .xlsx/.xls, tối đa 20MB; bắt buộc khi không gửi rows.', example: 'toa-yeu-cau-xuat.xlsx'),
                         ]
                     )
                 ),
@@ -102,19 +102,19 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                             new OA\Property(property: 'rows', type: 'array', minItems: 1, maxItems: 10000, description: 'Bắt buộc khi không upload file.', items: new OA\Items(
                                 required: ['request_no', 'required_qty'],
                                 properties: [
-                                    new OA\Property(property: 'request_no', type: 'string', maxLength: 80),
-                                    new OA\Property(property: 'request_date', type: 'string', maxLength: 20, nullable: true),
-                                    new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
-                                    new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, nullable: true),
-                                    new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true),
-                                    new OA\Property(property: 'customer_address', type: 'string', maxLength: 1000, nullable: true),
-                                    new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true),
-                                    new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true),
-                                    new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true),
-                                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
-                                    new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
-                                    new OA\Property(property: 'required_qty', type: 'integer', minimum: 1),
-                                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                                    new OA\Property(property: 'request_no', type: 'string', maxLength: 80, example: 'REQ-20260821-001'),
+                                    new OA\Property(property: 'request_date', type: 'string', maxLength: 20, nullable: true, example: '2026-08-21'),
+                                    new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true, example: 'Nguyễn Văn A'),
+                                    new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, nullable: true, example: 'Nguyễn Văn A'),
+                                    new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true, example: 'Số 12 Hoàng Quốc Việt, Hà Nội'),
+                                    new OA\Property(property: 'customer_address', type: 'string', maxLength: 1000, nullable: true, example: 'Số 12 Hoàng Quốc Việt, Hà Nội'),
+                                    new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true, example: '0912345678'),
+                                    new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true, example: '0912345678'),
+                                    new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true, example: 'DCH-DRILL-DJZ10A-220V-V1'),
+                                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
+                                    new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                                    new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, example: 2),
+                                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Giao theo yêu cầu đại lý'),
                                 ]
                             )),
                         ]
@@ -247,24 +247,24 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                 new OA\Property(property: 'lines', type: 'array', maxItems: 10000, nullable: true, description: 'Mapping lại từng source line theo row_no.', items: new OA\Items(
                     required: ['row_no'],
                     properties: [
-                        new OA\Property(property: 'row_no', type: 'integer', minimum: 1),
-                        new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
-                        new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true),
-                        new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, nullable: true),
+                        new OA\Property(property: 'row_no', type: 'integer', minimum: 1, example: 1),
+                        new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
+                        new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true, example: 'DCH-DRILL-DJZ10A-220V-V1'),
+                        new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, nullable: true, example: 2),
                     ]
                 )),
-                new OA\Property(property: 'receiver_name', type: 'string', maxLength: 200, nullable: true, description: 'Override người nhận áp cho mọi request_no không có override riêng.'),
-                new OA\Property(property: 'receiver_address', type: 'string', maxLength: 1000, nullable: true),
-                new OA\Property(property: 'receiver_contact_phone', type: 'string', maxLength: 50, nullable: true),
-                new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true, description: 'Định dạng Y-m-d.'),
+                new OA\Property(property: 'receiver_name', type: 'string', maxLength: 200, nullable: true, description: 'Override người nhận áp cho mọi request_no không có override riêng.', example: 'Nguyễn Văn A'),
+                new OA\Property(property: 'receiver_address', type: 'string', maxLength: 1000, nullable: true, example: 'Số 12 Hoàng Quốc Việt, Hà Nội'),
+                new OA\Property(property: 'receiver_contact_phone', type: 'string', maxLength: 50, nullable: true, example: '0912345678'),
+                new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true, description: 'Định dạng Y-m-d.', example: '2026-08-21'),
                 new OA\Property(property: 'requests', type: 'array', maxItems: 500, nullable: true, description: 'Override người nhận theo từng request_no.', items: new OA\Items(
                     required: ['request_no'],
                     properties: [
-                        new OA\Property(property: 'request_no', type: 'string', maxLength: 80),
-                        new OA\Property(property: 'receiver_name', type: 'string', maxLength: 200, nullable: true),
-                        new OA\Property(property: 'receiver_address', type: 'string', maxLength: 1000, nullable: true),
-                        new OA\Property(property: 'receiver_contact_phone', type: 'string', maxLength: 50, nullable: true),
-                        new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true),
+                        new OA\Property(property: 'request_no', type: 'string', maxLength: 80, example: 'REQ-20260821-001'),
+                        new OA\Property(property: 'receiver_name', type: 'string', maxLength: 200, nullable: true, example: 'Nguyễn Văn A'),
+                        new OA\Property(property: 'receiver_address', type: 'string', maxLength: 1000, nullable: true, example: 'Số 12 Hoàng Quốc Việt, Hà Nội'),
+                        new OA\Property(property: 'receiver_contact_phone', type: 'string', maxLength: 50, nullable: true, example: '0912345678'),
+                        new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true, example: '2026-08-21'),
                     ]
                 )),
             ])

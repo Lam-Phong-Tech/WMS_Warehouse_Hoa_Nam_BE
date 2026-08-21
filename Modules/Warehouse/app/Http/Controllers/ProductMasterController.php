@@ -58,11 +58,11 @@ class ProductMasterController extends Controller
             content: new OA\JsonContent(
                 required: ['master_type', 'code', 'name'],
                 properties: [
-                    new OA\Property(property: 'master_type', type: 'string', enum: ['BRAND', 'CATEGORY', 'MODEL', 'PACKAGE', 'POWER']),
-                    new OA\Property(property: 'code', type: 'string', maxLength: 80),
-                    new OA\Property(property: 'name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'parent_master_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'master_type', type: 'string', enum: ['BRAND', 'CATEGORY', 'MODEL', 'PACKAGE', 'POWER'], example: 'BRAND'),
+                    new OA\Property(property: 'code', type: 'string', maxLength: 80, example: 'SAMSUNG'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Samsung'),
+                    new OA\Property(property: 'parent_master_id', type: 'string', format: 'uuid', nullable: true, example: 'b2c3d4e5-6f7a-4b8c-9d0e-1f2a3b4c5d6e'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
                 ]
             )
         ),
@@ -118,11 +118,11 @@ class ProductMasterController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'master_type', type: 'string', enum: ['BRAND', 'CATEGORY', 'MODEL', 'PACKAGE', 'POWER']),
-                new OA\Property(property: 'code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'parent_master_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                new OA\Property(property: 'master_type', type: 'string', enum: ['BRAND', 'CATEGORY', 'MODEL', 'PACKAGE', 'POWER'], example: 'BRAND'),
+                new OA\Property(property: 'code', type: 'string', maxLength: 80, example: 'SAMSUNG'),
+                new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Samsung'),
+                new OA\Property(property: 'parent_master_id', type: 'string', format: 'uuid', nullable: true, example: 'b2c3d4e5-6f7a-4b8c-9d0e-1f2a3b4c5d6e'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
             ])
         ),
         responses: [

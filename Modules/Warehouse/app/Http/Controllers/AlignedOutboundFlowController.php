@@ -40,14 +40,14 @@ class AlignedOutboundFlowController extends Controller
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU).'),
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU).', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                     new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
-                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.'),
-                    new OA\Property(property: 'code_value', type: 'string', maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse + cross-check SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).'),
-                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'MANUAL', 'HARDWARE'], nullable: true, description: 'Nguồn quét khai tường minh (ERD bảng 25); không gửi thì server suy luận và ghi scan_source_origin=INFERRED.'),
-                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ nhận để tương thích client cũ; scan không in nhãn.'),
+                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.', example: 1),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse + cross-check SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).', example: 'HN1|SKU-000123|ITEM-000456'),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'MANUAL', 'HARDWARE'], nullable: true, description: 'Nguồn quét khai tường minh (ERD bảng 25); không gửi thì server suy luận và ghi scan_source_origin=INFERRED.', example: 'CAMERA'),
+                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ nhận để tương thích client cũ; scan không in nhãn.', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                 ]
             )
         ),
@@ -140,8 +140,8 @@ class AlignedOutboundFlowController extends Controller
             content: new OA\JsonContent(
                 required: ['outbound_item_match_id'],
                 properties: [
-                    new OA\Property(property: 'outbound_item_match_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'outbound_item_match_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true, example: 'Item scan sai SKU, gỡ để scan lại'),
                 ]
             )
         ),
@@ -207,8 +207,8 @@ class AlignedOutboundFlowController extends Controller
             content: new OA\JsonContent(
                 required: ['outbound_document_id'],
                 properties: [
-                    new OA\Property(property: 'outbound_document_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true, description: 'SĐT hiển thị trên nhãn; thiếu thì nhãn render blank, không chặn tạo nhãn.'),
+                    new OA\Property(property: 'outbound_document_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true, description: 'SĐT hiển thị trên nhãn; thiếu thì nhãn render blank, không chặn tạo nhãn.', example: '0912345678'),
                 ]
             )
         ),

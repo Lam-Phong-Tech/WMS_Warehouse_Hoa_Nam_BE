@@ -63,13 +63,13 @@ class CurrentBaselineStockFlowController extends Controller
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU). Bắt buộc cho scan quantity-mode không kèm code_value.'),
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU). Bắt buộc cho scan quantity-mode không kèm code_value.', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                     new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
-                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.'),
-                    new OA\Property(property: 'code_value', type: 'string', minLength: 1, maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse authoritative, FE không tự tách. Plain code legacy vẫn nhận theo transition flag.'),
-                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.', example: 1),
+                    new OA\Property(property: 'code_value', type: 'string', minLength: 1, maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse authoritative, FE không tự tách. Plain code legacy vẫn nhận theo transition flag.', example: 'HN1|SKU-000123|ITEM-000456'),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                 ]
             )
         ),
@@ -426,17 +426,17 @@ class CurrentBaselineStockFlowController extends Controller
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'reversal_document_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'reason_code', type: 'string', maxLength: 80, nullable: true),
-                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, description: 'Bắt buộc khi không gửi reversal_document_id.'),
-                    new OA\Property(property: 'condition_status', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true),
-                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'reversal_document_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'reason_code', type: 'string', maxLength: 80, nullable: true, example: 'DAMAGED_ON_ARRIVAL'),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, description: 'Bắt buộc khi không gửi reversal_document_id.', example: 'Hàng nhập bị hư hỏng, hoàn trả nhà cung cấp'),
+                    new OA\Property(property: 'condition_status', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], nullable: true, example: 'SELLABLE'),
+                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true, example: true),
                     new OA\Property(property: 'lines', type: 'array', minItems: 1, description: 'Bắt buộc khi không gửi reversal_document_id.', items: new OA\Items(
                         required: ['movement_id', 'quantity'],
                         properties: [
-                            new OA\Property(property: 'movement_id', type: 'string', format: 'uuid'),
-                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1),
-                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                            new OA\Property(property: 'movement_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1, example: 5),
+                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                         ]
                     )),
                 ]
@@ -462,17 +462,17 @@ class CurrentBaselineStockFlowController extends Controller
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'reversal_document_id', type: 'string', format: 'uuid', nullable: true),
-                    new OA\Property(property: 'reason_code', type: 'string', maxLength: 80, nullable: true),
-                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, description: 'Bắt buộc khi không gửi reversal_document_id.'),
-                    new OA\Property(property: 'condition_status', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], description: 'Bắt buộc khi không gửi reversal_document_id (hàng trả về phải khai điều kiện).'),
-                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'reversal_document_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'reason_code', type: 'string', maxLength: 80, nullable: true, example: 'CUSTOMER_RETURN'),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, description: 'Bắt buộc khi không gửi reversal_document_id.', example: 'Khách trả hàng do đặt nhầm SKU'),
+                    new OA\Property(property: 'condition_status', type: 'string', enum: ['SELLABLE', 'DEFECTIVE', 'NON_SELLABLE'], description: 'Bắt buộc khi không gửi reversal_document_id (hàng trả về phải khai điều kiện).', example: 'SELLABLE'),
+                    new OA\Property(property: 'physical_return_confirmed', type: 'boolean', nullable: true, example: true),
                     new OA\Property(property: 'lines', type: 'array', minItems: 1, description: 'Bắt buộc khi không gửi reversal_document_id.', items: new OA\Items(
                         required: ['movement_id', 'quantity'],
                         properties: [
-                            new OA\Property(property: 'movement_id', type: 'string', format: 'uuid'),
-                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1),
-                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                            new OA\Property(property: 'movement_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1, example: 5),
+                            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                         ]
                     )),
                 ]

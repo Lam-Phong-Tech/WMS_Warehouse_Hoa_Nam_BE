@@ -56,11 +56,11 @@ class ImportBatchController extends Controller
             content: new OA\JsonContent(
                 required: ['import_batch_code'],
                 properties: [
-                    new OA\Property(property: 'import_batch_code', type: 'string', maxLength: 80),
-                    new OA\Property(property: 'shipment_container_code', type: 'string', maxLength: 100, nullable: true),
-                    new OA\Property(property: 'supplier_batch_no', type: 'string', maxLength: 100, nullable: true),
-                    new OA\Property(property: 'import_period', type: 'string', maxLength: 30, nullable: true),
-                    new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'import_batch_code', type: 'string', maxLength: 80, example: 'HN-BATCH-2026-0021'),
+                    new OA\Property(property: 'shipment_container_code', type: 'string', maxLength: 100, nullable: true, example: 'CONT-HN-000123'),
+                    new OA\Property(property: 'supplier_batch_no', type: 'string', maxLength: 100, nullable: true, example: 'SUP-BATCH-0088'),
+                    new OA\Property(property: 'import_period', type: 'string', maxLength: 30, nullable: true, example: '2026-Q3'),
+                    new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true, example: 'Công ty TNHH Cung ứng Hòa Nam'),
                 ]
             )
         ),
@@ -116,12 +116,12 @@ class ImportBatchController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'import_batch_code', type: 'string', maxLength: 80),
-                new OA\Property(property: 'shipment_container_code', type: 'string', maxLength: 100, nullable: true),
-                new OA\Property(property: 'supplier_batch_no', type: 'string', maxLength: 100, nullable: true),
-                new OA\Property(property: 'import_period', type: 'string', maxLength: 30, nullable: true),
-                new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                new OA\Property(property: 'import_batch_code', type: 'string', maxLength: 80, example: 'HN-BATCH-2026-0021'),
+                new OA\Property(property: 'shipment_container_code', type: 'string', maxLength: 100, nullable: true, example: 'CONT-HN-000123'),
+                new OA\Property(property: 'supplier_batch_no', type: 'string', maxLength: 100, nullable: true, example: 'SUP-BATCH-0088'),
+                new OA\Property(property: 'import_period', type: 'string', maxLength: 30, nullable: true, example: '2026-Q3'),
+                new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true, example: 'Công ty TNHH Cung ứng Hòa Nam'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
             ])
         ),
         responses: [

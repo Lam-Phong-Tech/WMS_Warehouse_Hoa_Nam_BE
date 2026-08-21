@@ -57,11 +57,11 @@ class PhysicalCodeController extends Controller
             content: new OA\JsonContent(
                 required: ['code_value', 'code_type', 'carrier_type'],
                 properties: [
-                    new OA\Property(property: 'code_value', type: 'string', maxLength: 100),
-                    new OA\Property(property: 'code_type', type: 'string', enum: ['ITEM', 'CARTON', 'COMPONENT_SERIAL', 'BOX', 'TRAY', 'TEMP_WARRANTY', 'UNKNOWN']),
-                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['QR', 'BARCODE', 'RFID', 'NFC', 'PLAIN_LABEL', 'MANUAL_CODE', 'TEMP_CODE']),
-                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 150, nullable: true),
-                    new OA\Property(property: 'encoded_payload_version', type: 'string', maxLength: 30, nullable: true),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 100, example: 'HN1|SKU-0001|ITEM00001'),
+                    new OA\Property(property: 'code_type', type: 'string', enum: ['ITEM', 'CARTON', 'COMPONENT_SERIAL', 'BOX', 'TRAY', 'TEMP_WARRANTY', 'UNKNOWN'], example: 'ITEM'),
+                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['QR', 'BARCODE', 'RFID', 'NFC', 'PLAIN_LABEL', 'MANUAL_CODE', 'TEMP_CODE'], example: 'QR'),
+                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 150, nullable: true, example: 'RFID-A1B2C3D4E5'),
+                    new OA\Property(property: 'encoded_payload_version', type: 'string', maxLength: 30, nullable: true, example: 'v1.1.0'),
                 ]
             )
         ),
@@ -117,8 +117,8 @@ class PhysicalCodeController extends Controller
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'LOST', 'REPLACED', 'INACTIVE']),
-                new OA\Property(property: 'replaced_by_code_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'LOST', 'REPLACED', 'INACTIVE'], example: 'LOST'),
+                new OA\Property(property: 'replaced_by_code_id', type: 'string', format: 'uuid', nullable: true, example: 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d'),
             ])
         ),
         responses: [

@@ -77,7 +77,7 @@ use OpenApi\Attributes as OA;
     ],
     requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
         required: ['reason'],
-        properties: [new OA\Property(property: 'reason', type: 'string', maxLength: 2000)]
+        properties: [new OA\Property(property: 'reason', type: 'string', maxLength: 2000, example: 'Khách hàng huỷ đơn hàng')]
     )),
     responses: [
         new OA\Response(response: 200, description: 'Huỷ phiếu thành công'),
@@ -105,12 +105,12 @@ use OpenApi\Attributes as OA;
         content: new OA\JsonContent(
             required: ['line_id', 'quantity'],
             properties: [
-                new OA\Property(property: 'line_id', type: 'string', format: 'uuid'),
+                new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                 new OA\Property(property: 'quantity', type: 'integer', example: 1),
-                new OA\Property(property: 'code_value', type: 'string', maxLength: 150, nullable: true),
-                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'MANUAL', 'HARDWARE'], nullable: true),
-                new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'code_value', type: 'string', maxLength: 150, nullable: true, example: 'HN1|SKU001|ITEM0001'),
+                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'MANUAL', 'HARDWARE'], nullable: true, example: 'MANUAL'),
+                new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
             ]
         )
     ),
@@ -137,8 +137,8 @@ use OpenApi\Attributes as OA;
     requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
         required: ['outbound_item_match_id'],
         properties: [
-            new OA\Property(property: 'outbound_item_match_id', type: 'string', format: 'uuid'),
-            new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true),
+            new OA\Property(property: 'outbound_item_match_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+            new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true, example: 'Quét nhầm item'),
         ]
     )),
     responses: [
@@ -184,7 +184,7 @@ use OpenApi\Attributes as OA;
         new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
     ],
     requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
-        new OA\Property(property: 'reason', type: 'string', nullable: true),
+        new OA\Property(property: 'reason', type: 'string', nullable: true, example: 'Đảo ngược do sai sót ghi nhận tồn kho'),
     ])),
     responses: [
         new OA\Response(response: 200, description: 'Đảo ngược chứng từ thành công'),

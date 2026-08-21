@@ -84,9 +84,9 @@ class ImportController extends Controller
                     type: 'object',
                     required: ['file'],
                     properties: [
-                        new OA\Property(property: 'file', type: 'string', format: 'binary'),
-                        new OA\Property(property: 'update_existing', type: 'boolean', default: false),
-                        new OA\Property(property: 'dry_run', type: 'boolean', default: false, description: 'true = chỉ kiểm tra thử, không ghi dữ liệu (WWHN-224)'),
+                        new OA\Property(property: 'file', type: 'string', format: 'binary', example: 'WWHN-172-SKU-import-template-v1.1.0.xlsx'),
+                        new OA\Property(property: 'update_existing', type: 'boolean', default: false, example: false),
+                        new OA\Property(property: 'dry_run', type: 'boolean', default: false, description: 'true = chỉ kiểm tra thử, không ghi dữ liệu (WWHN-224)', example: false),
                     ]
                 )
             )

@@ -118,8 +118,8 @@ class CurrentBaselinePhysicalCodeController extends Controller
             content: new OA\JsonContent(
                 required: ['hardware_uid'],
                 properties: [
-                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Bỏ trống thì lấy theo hardware_uid'),
-                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Bỏ trống thì lấy theo hardware_uid', example: 'HN-RFID-000789'),
+                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 200, example: 'RFID-UID-000456'),
                 ]
             )
         ),

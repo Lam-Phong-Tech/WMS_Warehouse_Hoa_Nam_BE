@@ -34,10 +34,10 @@ class CurrentBaselinePutawayTaskController extends Controller
             content: new OA\JsonContent(
                 required: ['box_container_id', 'to_tray_id'],
                 properties: [
-                    new OA\Property(property: 'box_container_id', type: 'string', format: 'uuid'),
-                    new OA\Property(property: 'to_tray_id', type: 'string', format: 'uuid', description: 'Phải khác box_container_id'),
-                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 255, nullable: true),
-                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'box_container_id', type: 'string', format: 'uuid', example: 'b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210'),
+                    new OA\Property(property: 'to_tray_id', type: 'string', format: 'uuid', description: 'Phải khác box_container_id', example: 'c7a3b2e5-4d0f-4b3c-9a2e-8f7d6c5b4321'),
+                    new OA\Property(property: 'location_hint', type: 'string', maxLength: 255, nullable: true, example: 'Kệ A1-Tầng 2'),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Xếp khay theo lô nhập ngày 21/08'),
                 ]
             )
         ),

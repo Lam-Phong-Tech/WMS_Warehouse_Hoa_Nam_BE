@@ -63,12 +63,12 @@ class UserController extends Controller
             content: new OA\JsonContent(
                 required: ['username', 'display_name', 'password'],
                 properties: [
-                    new OA\Property(property: 'username', type: 'string', maxLength: 100),
-                    new OA\Property(property: 'display_name', type: 'string', maxLength: 255),
-                    new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true),
-                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
-                    new OA\Property(property: 'password', type: 'string', minLength: 8),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true),
+                    new OA\Property(property: 'username', type: 'string', maxLength: 100, example: 'nguyenvana'),
+                    new OA\Property(property: 'display_name', type: 'string', maxLength: 255, example: 'Nguyễn Văn A'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true, example: 'nguyenvana@gmail.com'),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
+                    new OA\Property(property: 'password', type: 'string', minLength: 8, example: 'Cntt@1234'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true, example: 'ACTIVE'),
                 ]
             )
         ),
@@ -133,13 +133,13 @@ class UserController extends Controller
         ],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'username', type: 'string', maxLength: 100),
-                new OA\Property(property: 'display_name', type: 'string', maxLength: 255),
-                new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true),
-                new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true),
-                new OA\Property(property: 'password', type: 'string', minLength: 8),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true),
-                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking legacy; ưu tiên header If-Match theo §8.1 IAM'),
+                new OA\Property(property: 'username', type: 'string', maxLength: 100, example: 'nguyenvana'),
+                new OA\Property(property: 'display_name', type: 'string', maxLength: 255, example: 'Nguyễn Văn A'),
+                new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true, example: 'nguyenvana@gmail.com'),
+                new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
+                new OA\Property(property: 'password', type: 'string', minLength: 8, example: 'Cntt@1234'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true, example: 'ACTIVE'),
+                new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking legacy; ưu tiên header If-Match theo §8.1 IAM', example: 1),
             ])
         ),
         responses: [
@@ -230,7 +230,7 @@ class UserController extends Controller
             content: new OA\JsonContent(
                 required: ['role_ids'],
                 properties: [
-                    new OA\Property(property: 'role_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid')),
+                    new OA\Property(property: 'role_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6', '9b2e8f14-6c3a-4b7d-8e1f-2a5c9d3b7e4f']),
                 ]
             )
         ),

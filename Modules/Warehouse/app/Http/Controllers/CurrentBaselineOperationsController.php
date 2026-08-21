@@ -52,7 +52,7 @@ class CurrentBaselineOperationsController extends Controller
             description: 'Gửi MỘT trong hai: `file` (multipart, xlsx/xls, tối đa 20480 KB, required_without:rows) hoặc `rows` (JSON, required_without:file). Trùng source_checksum thì replay import cũ, không tạo bản ghi mới.',
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'file', type: 'string', format: 'binary', nullable: true, description: 'File Excel xlsx/xls, tối đa 20480 KB (gửi qua multipart/form-data); required_without:rows'),
+                    new OA\Property(property: 'file', type: 'string', format: 'binary', nullable: true, description: 'File Excel xlsx/xls, tối đa 20480 KB (gửi qua multipart/form-data); required_without:rows', example: 'outbound_requests.xlsx'),
                     new OA\Property(
                         property: 'rows',
                         type: 'array',
@@ -63,19 +63,19 @@ class CurrentBaselineOperationsController extends Controller
                         items: new OA\Items(
                             required: ['request_no', 'required_qty'],
                             properties: [
-                                new OA\Property(property: 'request_no', type: 'string', maxLength: 80),
-                                new OA\Property(property: 'request_date', type: 'string', maxLength: 20, nullable: true),
-                                new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true),
-                                new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, nullable: true),
-                                new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true),
-                                new OA\Property(property: 'customer_address', type: 'string', maxLength: 1000, nullable: true),
-                                new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true),
-                                new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true),
-                                new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true),
-                                new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
-                                new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
-                                new OA\Property(property: 'required_qty', type: 'integer', minimum: 1),
-                                new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                                new OA\Property(property: 'request_no', type: 'string', maxLength: 80, example: 'OUT-000123'),
+                                new OA\Property(property: 'request_date', type: 'string', maxLength: 20, nullable: true, example: '2026-08-21'),
+                                new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, nullable: true, example: 'Nguyễn Văn A'),
+                                new OA\Property(property: 'customer_name', type: 'string', maxLength: 200, nullable: true, example: 'Nguyễn Văn A'),
+                                new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true, example: '123 Đường Lê Lợi, Quận 1, TP.HCM'),
+                                new OA\Property(property: 'customer_address', type: 'string', maxLength: 1000, nullable: true, example: '123 Đường Lê Lợi, Quận 1, TP.HCM'),
+                                new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true, example: '0912345678'),
+                                new OA\Property(property: 'customer_phone', type: 'string', maxLength: 50, nullable: true, example: '0912345678'),
+                                new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true, example: 'SKU-000123'),
+                                new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                                new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                                new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, example: 5),
+                                new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Giao trong giờ hành chính'),
                             ]
                         )
                     ),
@@ -459,11 +459,11 @@ class CurrentBaselineOperationsController extends Controller
                 required: ['printer_code', 'printer_name', 'agent_endpoint'],
                 properties: [
                     new OA\Property(property: 'printer_code', type: 'string', maxLength: 80, example: 'PRN-0001'),
-                    new OA\Property(property: 'printer_name', type: 'string', maxLength: 200),
-                    new OA\Property(property: 'agent_code', type: 'string', maxLength: 120, nullable: true),
-                    new OA\Property(property: 'agent_endpoint', type: 'string', format: 'uri', maxLength: 500),
-                    new OA\Property(property: 'label_size', type: 'string', maxLength: 80, nullable: true),
-                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'printer_name', type: 'string', maxLength: 200, example: 'Máy in Zebra kho HN1'),
+                    new OA\Property(property: 'agent_code', type: 'string', maxLength: 120, nullable: true, example: 'AGENT-HN1-01'),
+                    new OA\Property(property: 'agent_endpoint', type: 'string', format: 'uri', maxLength: 500, example: 'http://192.168.1.50:9100/print'),
+                    new OA\Property(property: 'label_size', type: 'string', maxLength: 80, nullable: true, example: '100x150mm'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
                 ]
             )
         ),
@@ -515,11 +515,11 @@ class CurrentBaselineOperationsController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'printer_name', type: 'string', maxLength: 200),
-                new OA\Property(property: 'agent_code', type: 'string', maxLength: 120, nullable: true),
-                new OA\Property(property: 'agent_endpoint', type: 'string', format: 'uri', maxLength: 500),
-                new OA\Property(property: 'label_size', type: 'string', maxLength: 80, nullable: true),
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'UNHEALTHY']),
+                new OA\Property(property: 'printer_name', type: 'string', maxLength: 200, example: 'Máy in Zebra kho HN1'),
+                new OA\Property(property: 'agent_code', type: 'string', maxLength: 120, nullable: true, example: 'AGENT-HN1-01'),
+                new OA\Property(property: 'agent_endpoint', type: 'string', format: 'uri', maxLength: 500, example: 'http://192.168.1.50:9100/print'),
+                new OA\Property(property: 'label_size', type: 'string', maxLength: 80, nullable: true, example: '100x150mm'),
+                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'UNHEALTHY'], example: 'ACTIVE'),
             ])
         ),
         responses: [
@@ -622,7 +622,7 @@ class CurrentBaselineOperationsController extends Controller
             required: true,
             content: new OA\JsonContent(
                 required: ['printer_config_id'],
-                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6')]
             )
         ),
         responses: [
@@ -656,7 +656,7 @@ class CurrentBaselineOperationsController extends Controller
             required: true,
             content: new OA\JsonContent(
                 required: ['printer_config_id'],
-                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6')]
             )
         ),
         responses: [
@@ -695,7 +695,7 @@ class CurrentBaselineOperationsController extends Controller
             required: true,
             content: new OA\JsonContent(
                 required: ['printer_config_id'],
-                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6')]
             )
         ),
         responses: [
@@ -733,7 +733,7 @@ class CurrentBaselineOperationsController extends Controller
             required: true,
             content: new OA\JsonContent(
                 required: ['printer_config_id'],
-                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')]
+                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6')]
             )
         ),
         responses: [
