@@ -35,15 +35,30 @@ class DiagnosticCurrentBaselineStockService extends CurrentBaselineStockService
 
     private function assertNoActiveOutboundReservation(string $documentId, string $itemId): void
     {
-        $conflict = DB::table('outbound_item_matches as m')
+        // Chỉ enrich conflict trong cùng kho nguồn với document hiện tại để không
+        // làm lộ metadata của phiếu thuộc warehouse scope khác. Canonical guard ở
+        // parent vẫn là lớp chặn cuối cùng cho mọi race/cross-scope conflict.
+        $currentWarehouseId = DB::table('stock_documents')
+            ->where('id', $documentId)
+            ->where('doc_type', 'issue')
+            ->value('src_warehouse_id');
+
+        $conflictQuery = DB::table('outbound_item_matches as m')
             ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
             ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
             ->where('m.item_id', $itemId)
             ->where('d.id', '!=', $documentId)
+            ->where('d.doc_type', 'issue')
             ->whereIn('d.status', self::ACTIVE_OUTBOUND_STATUSES)
             ->where(function ($query): void {
                 $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
-            })
+            });
+
+        if ($currentWarehouseId !== null) {
+            $conflictQuery->where('d.src_warehouse_id', $currentWarehouseId);
+        }
+
+        $conflict = $conflictQuery
             ->select([
                 'm.id as match_id',
                 'd.id as document_id',
