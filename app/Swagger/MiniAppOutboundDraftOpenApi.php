@@ -23,7 +23,7 @@ final class MiniAppOutboundDraftOpenApi
                 in: 'header',
                 required: true,
                 description: 'Giữ nguyên key khi retry cùng một lần tạo phiếu.',
-                schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)
+                schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)
             ),
         ],
         requestBody: new OA\RequestBody(
