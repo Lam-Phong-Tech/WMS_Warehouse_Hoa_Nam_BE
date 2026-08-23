@@ -13,7 +13,7 @@ use OpenApi\Attributes as OA;
  */
 final class MiniAppInboundOpenApi
 {
-    private const TAG = '09. Stock In (Inbound)';
+    private const TAG = '22. Mini App';
 
     #[OA\Post(
         path: '/api/v1/mini-app/inbound/resolve-code',
