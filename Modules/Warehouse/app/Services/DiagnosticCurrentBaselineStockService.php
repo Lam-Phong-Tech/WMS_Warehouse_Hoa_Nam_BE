@@ -6,14 +6,14 @@ use App\Support\ApiError;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Thin diagnostic layer over the canonical stock service.
+ * Diagnostic extension of the CURRENT aligned outbound stock service.
  *
- * Business rules and stock mutations remain in CurrentBaselineStockService.
- * This class only enriches a known outbound reservation conflict before the
- * canonical guard runs, so FE/QA can identify the document currently holding
- * an item instead of receiving an opaque ITEM_ALREADY_MATCHED message.
+ * Important: this class must inherit AlignedOutboundStockService, not the older
+ * CurrentBaselineStockService directly. That preserves the current PRODUCT
+ * outbound semantics (full match, RFID optional, stock changes only at Post
+ * Issue) while enriching ITEM_ALREADY_MATCHED with the exact active document.
  */
-class DiagnosticCurrentBaselineStockService extends CurrentBaselineStockService
+class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
 {
     private const ACTIVE_OUTBOUND_STATUSES = ['DRAFT', 'SCANNING'];
 
@@ -35,9 +35,9 @@ class DiagnosticCurrentBaselineStockService extends CurrentBaselineStockService
 
     private function assertNoActiveOutboundReservation(string $documentId, string $itemId): void
     {
-        // Chỉ enrich conflict trong cùng kho nguồn với document hiện tại để không
-        // làm lộ metadata của phiếu thuộc warehouse scope khác. Canonical guard ở
-        // parent vẫn là lớp chặn cuối cùng cho mọi race/cross-scope conflict.
+        // Only enrich conflicts inside the current source warehouse so the error
+        // does not disclose metadata from another warehouse data scope. Parent
+        // canonical guards remain the last line of defense for races/conflicts.
         $currentWarehouseId = DB::table('stock_documents')
             ->where('id', $documentId)
             ->where('doc_type', 'issue')
