@@ -14,7 +14,7 @@ final class MiniAppOutboundOpenApi
         operationId: 'mini_app_outbound_documents_list',
         x: ['permission' => 'outbound.view'],
         summary: 'Mini App - danh sách phiếu xuất từ WMS',
-        description: 'Không tạo phiếu xuất tại Mini App. Phiếu DRAFT được sinh từ Confirm toa/yêu cầu xuất canonical. Mỗi item có progress, Packing Label, ready_for_issue và mini_app_status.',
+        description: 'Mini App có thể tự tạo phiếu xuất DRAFT qua POST cùng path hoặc đọc các phiếu đã có từ WMS. Mỗi item có progress, Packing Label, ready_for_issue và mini_app_status; backend WMS là source of truth sau khi DRAFT được tạo.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
         parameters: [
@@ -167,7 +167,7 @@ final class MiniAppOutboundOpenApi
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)),
         ],
         responses: [new OA\Response(response: 200, description: 'READY_TO_PRINT; stock_effect=NONE.')]
     )]
@@ -185,7 +185,7 @@ final class MiniAppOutboundOpenApi
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)),
         ],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['printer_config_id'], properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')])),
         responses: [new OA\Response(response: 200, description: 'PRINTED hoặc trạng thái lỗi in theo canonical contract.')]
@@ -204,7 +204,7 @@ final class MiniAppOutboundOpenApi
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)),
         ],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['printer_config_id'], properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')])),
         responses: [new OA\Response(response: 200, description: 'In lại thành công; stock_effect=NONE.')]
@@ -239,7 +239,7 @@ final class MiniAppOutboundOpenApi
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 8, maxLength: 100)),
         ],
         responses: [
             new OA\Response(response: 200, description: 'POSTED; tồn giảm đúng một lần; item -> ISSUED; replay trả Idempotent-Replay=true.'),
