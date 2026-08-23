@@ -24,7 +24,7 @@ final class MiniAppOutboundOpenApi
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 15)),
         ],
-        responses: [new OA\Response(response: 200, description: 'Danh sách phân trang; mini_app_status=PICKING/LABELING/WAITING_LABEL_APPLY/READY_TO_ISSUE/COMPLETED/CANCELLED.')]
+        responses: [new OA\Response(response: 200, description: 'Danh sách phân trang; semantic status PICKING/LABELING/WAITING_LABEL_APPLY/READY_TO_ISSUE/COMPLETED/CANCELLED.')]
     )]
     public function listDocuments(): void {}
 
@@ -63,25 +63,23 @@ final class MiniAppOutboundOpenApi
         operationId: 'mini_app_outbound_scan',
         x: ['permission' => 'outbound.scan'],
         summary: 'Mini App - quét QR/barcode và match PRODUCT vào phiếu xuất',
-        description: 'Gửi raw code; backend parse SKU/item authoritative và tự match line khi QR composite. Scan stock-neutral. Full match tự tạo/đảm bảo đúng 01 Packing Label DRAFT cho cả phiếu.',
+        description: 'Backend parse SKU/item authoritative và tự match line khi QR composite. Scan stock-neutral. Full match tự tạo/đảm bảo đúng 01 Packing Label DRAFT cho cả phiếu.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
         ],
-        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
-            properties: [
-                new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Có thể bỏ khi QR composite chứa SKU.'),
-                new OA\Property(property: 'quantity', type: 'integer', minimum: 1, default: 1),
-                new OA\Property(property: 'code_value', type: 'string', maxLength: 512, example: 'HN1|SKU=DCPL02-8|ITEM=DCPL02-8-000001'),
-                new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
-                new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'SCANNER', 'HARDWARE', 'MANUAL'], nullable: true, example: 'CAMERA'),
-            ]
-        )),
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Có thể bỏ khi QR composite chứa SKU.'),
+            new OA\Property(property: 'quantity', type: 'integer', minimum: 1, default: 1),
+            new OA\Property(property: 'code_value', type: 'string', maxLength: 512, example: 'HN1|SKU=DCPL02-8|ITEM=DCPL02-8-000001'),
+            new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+            new OA\Property(property: 'scan_source', type: 'string', enum: ['CAMERA', 'SCANNER', 'HARDWARE', 'MANUAL'], nullable: true, example: 'CAMERA'),
+        ])),
         responses: [
             new OA\Response(response: 200, description: 'Match thành công; stock_effect=NONE; full match có label_snapshot_id/label_status.'),
-            new OA\Response(response: 409, description: 'Duplicate hoặc item đang bị phiếu khác giữ; lỗi có conflicting_document_* khi xác định được.'),
+            new OA\Response(response: 409, description: 'Duplicate hoặc item đang bị phiếu khác giữ.'),
             new OA\Response(response: 422, description: 'Sai SKU/mã/item/quantity hoặc thiếu tồn tại thời điểm scan.'),
             new OA\Response(response: 412, description: 'STALE_VERSION.'),
             new OA\Response(response: 428, description: 'Thiếu If-Match.'),
@@ -148,7 +146,11 @@ final class MiniAppOutboundOpenApi
         description: 'DRAFT/PENDING_PRINT -> PREVIEWED; stock-neutral.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
-        parameters: self::labelVersionParameters,
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
         responses: [new OA\Response(response: 200, description: 'PREVIEWED; stock_effect=NONE.')]
     )]
     public function previewLabel(): void {}
@@ -161,7 +163,12 @@ final class MiniAppOutboundOpenApi
         description: 'PREVIEWED -> READY_TO_PRINT; bắt buộc If-Match + Idempotency-Key; stock-neutral.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
-        parameters: self::labelMutationParameters,
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
+        ],
         responses: [new OA\Response(response: 200, description: 'READY_TO_PRINT; stock_effect=NONE.')]
     )]
     public function readyLabel(): void {}
@@ -174,8 +181,13 @@ final class MiniAppOutboundOpenApi
         description: 'Chỉ in snapshot READY_TO_PRINT/PRINT_FAILED theo canonical print service; stock-neutral.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
-        parameters: self::labelMutationParameters,
-        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['printer_config_id'], properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')])) ,
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
+        ],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['printer_config_id'], properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')])),
         responses: [new OA\Response(response: 200, description: 'PRINTED hoặc trạng thái lỗi in theo canonical contract.')]
     )]
     public function printLabel(): void {}
@@ -188,7 +200,12 @@ final class MiniAppOutboundOpenApi
         description: 'Dùng lại đúng immutable snapshot đã PRINTED; stock-neutral.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
-        parameters: self::labelMutationParameters,
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
+        ],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['printer_config_id'], properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid')])),
         responses: [new OA\Response(response: 200, description: 'In lại thành công; stock_effect=NONE.')]
     )]
@@ -202,7 +219,11 @@ final class MiniAppOutboundOpenApi
         description: 'Chỉ sau PRINTED. Đây là gate bắt buộc trước Post Issue nhưng vẫn stock-neutral.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
-        parameters: self::labelVersionParameters,
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: false, schema: new OA\Schema(type: 'string')),
+        ],
         responses: [new OA\Response(response: 200, description: 'applied=true; stock_effect=NONE.')]
     )]
     public function applyLabel(): void {}
@@ -229,17 +250,4 @@ final class MiniAppOutboundOpenApi
         ]
     )]
     public function postIssue(): void {}
-
-    private const labelVersionParameters = [
-        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
-    ];
-
-    private const labelMutationParameters = [
-        new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'labelId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
-        new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
-        new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', minLength: 1, maxLength: 100)),
-    ];
 }
