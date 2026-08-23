@@ -79,7 +79,7 @@ class MiniAppOutboundAdapterTest extends TestCase
         // stock-neutral gates; their own lifecycle is covered by AnnexC tests.
         $this->markLabelsPrinted($documentId);
 
-        $detail = $this->getJson("/api/v1/mini-app/outbound-documents/{$documentId}", $headers)
+        $this->getJson("/api/v1/mini-app/outbound-documents/{$documentId}", $headers)
             ->assertOk()
             ->assertJsonPath('data.full_scan', true)
             ->assertJsonPath('data.ready_for_issue', true)
@@ -104,9 +104,9 @@ class MiniAppOutboundAdapterTest extends TestCase
 
         // Same business action replay must not create a second stock effect.
         $movementCountAfterFirstPost = DB::table('stock_movements')->count();
-        $replay = $this->postJson("/api/v1/mini-app/outbound-documents/{$documentId}/post-issue", [], $postHeaders);
-        $replay->assertOk();
-        $this->assertSame('true', $replay->headers->get('Idempotent-Replay'));
+        $this->postJson("/api/v1/mini-app/outbound-documents/{$documentId}/post-issue", [], $postHeaders)
+            ->assertOk()
+            ->assertHeader('Idempotent-Replay', 'true');
         $this->assertSame($movementCountAfterFirstPost, DB::table('stock_movements')->count());
     }
 }
