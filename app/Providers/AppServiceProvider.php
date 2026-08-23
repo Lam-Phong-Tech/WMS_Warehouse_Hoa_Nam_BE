@@ -29,6 +29,15 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
+        // Swagger/OpenAPI source is authoritative on local/dev/test. Regenerate the
+        // JSON consumed by Swagger UI on request so newly added runtime contracts
+        // (notably /api/v1/mini-app/*) cannot remain hidden behind a stale
+        // storage/api-docs/api-docs.json. Production stays static unless
+        // L5_SWAGGER_GENERATE_ALWAYS is explicitly enabled by operations.
+        if ($this->app->environment(['local', 'development', 'dev', 'testing'])) {
+            config()->set('l5-swagger.defaults.generate_always', true);
+        }
+
         $this->registerRateLimiters();
     }
 
