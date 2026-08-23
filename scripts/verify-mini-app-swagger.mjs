@@ -7,6 +7,8 @@ const specPath = path.join(root, 'storage', 'api-docs', 'api-docs.json');
 const expectedTag = '22. Mini App';
 
 const expectedOperations = new Map([
+  ['/api/v1/mini-app/printer-configs', ['get']],
+
   ['/api/v1/mini-app/inbound/resolve-code', ['post']],
   ['/api/v1/mini-app/inbound/record', ['post']],
   ['/api/v1/mini-app/inbound-documents', ['get', 'post']],
