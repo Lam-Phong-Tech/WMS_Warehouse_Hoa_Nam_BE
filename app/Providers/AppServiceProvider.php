@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Support\Cache\CacheService;
 use App\Support\RateLimitResponse;
+use App\Swagger\Processors\MiniAppTagProcessor;
+use App\Swagger\Processors\RouteSyncProcessor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -38,7 +40,37 @@ class AppServiceProvider extends ServiceProvider
             config()->set('l5-swagger.defaults.generate_always', true);
         }
 
+        $this->registerSwaggerProcessors();
         $this->registerRateLimiters();
+    }
+
+    /**
+     * RouteSyncProcessor intentionally owns route-derived grouping for the normal
+     * Web WMS API, but /api/v1/mini-app/* has an adapter prefix instead of a
+     * canonical resource prefix. RouteSyncProcessor therefore falls back to
+     * "00. Platform" for those routes and overwrites the handwritten Mini App tag.
+     *
+     * Register a focused post-processor after RouteSyncProcessor so Swagger UI
+     * always exposes the Mini App contract under its own deterministic section.
+     */
+    private function registerSwaggerProcessors(): void
+    {
+        $key = 'l5-swagger.defaults.scanOptions.processors';
+        $processors = (array) config($key, []);
+
+        foreach ($processors as $processor) {
+            $class = is_array($processor) ? ($processor['class'] ?? null) : $processor;
+            if ($class === MiniAppTagProcessor::class) {
+                return;
+            }
+        }
+
+        $processors[] = [
+            'class' => MiniAppTagProcessor::class,
+            'after' => RouteSyncProcessor::class,
+        ];
+
+        config()->set($key, $processors);
     }
 
     /**
