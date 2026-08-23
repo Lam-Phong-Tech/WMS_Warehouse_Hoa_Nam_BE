@@ -52,6 +52,7 @@ class RouteSyncProcessor
         '19. Label / Printer' => 'Ảnh chụp nhãn, in nhãn và bằng chứng in lại.',
         '20. System Operation' => 'Dự phòng cho các endpoint quản trị vận hành hệ thống.',
         '21. Public Catalog' => 'Các endpoint danh mục và gợi ý PV chỉ đọc.',
+        '22. Mini App' => 'API adapter riêng cho Warehouse Mini App; local staging, scan evidence, duyệt và Post Receipt dùng canonical inbound bên dưới.',
         '24. Putaway' => 'Xếp BOX linh kiện đã nhận vào TRAY; toàn bộ thao tác stock-neutral.',
     ];
 
@@ -919,6 +920,13 @@ class RouteSyncProcessor
 
     private function tag(string $uri): string
     {
+        // Mini App is an adapter surface with its own client lifecycle. Keep it
+        // separate from canonical Web WMS inbound routes in Swagger even though
+        // the adapter delegates stock mutations to the same inbound domain.
+        if (str_starts_with($uri, 'api/v1/mini-app/')) {
+            return '22. Mini App';
+        }
+
         $parts = explode('/', $uri);
         $resource = $parts[2] ?? 'platform';
 
