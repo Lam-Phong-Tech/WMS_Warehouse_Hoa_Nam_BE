@@ -13,7 +13,8 @@ use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 |
 | Adapter routes for the mobile/mini-app inbound workflow. These routes reuse
 | the canonical inbound services; they do not create a parallel stock state
-| machine. Only approve/post-receipt changes inventory.
+| machine. Only post-receipt changes inventory. The Mini App may label that
+| action "Phê duyệt", but the backend transition remains SCANNING -> POSTED.
 |
 */
 Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
@@ -44,10 +45,8 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     Route::post('inbound-documents/{id}/cartons/{containerId}/complete-scan', [MiniAppInboundController::class, 'completeCartonScan'])
         ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
 
-    // Semantic Mini App alias. Both paths execute the exact same canonical
-    // Full Post Receipt command and require inbound.post.
-    Route::post('inbound-documents/{id}/approve', [MiniAppInboundController::class, 'approve'])
-        ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
+    // UI action can be labelled "Phê duyệt". The API deliberately keeps the
+    // canonical Full Post Receipt path/state transition and requires inbound.post.
     Route::post('inbound-documents/{id}/post-receipt', [MiniAppInboundController::class, 'approve'])
         ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
 });
