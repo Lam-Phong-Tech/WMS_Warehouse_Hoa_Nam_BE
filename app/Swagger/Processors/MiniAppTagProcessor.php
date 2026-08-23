@@ -13,7 +13,7 @@ use OpenApi\Undefined;
  * RouteSyncProcessor already maps the Mini App adapter prefix to its own tag.
  * This post-processor intentionally runs after RouteSyncProcessor and reasserts
  * that presentation-only invariant so future generic grouping changes cannot
- * silently move Mini App operations back into Platform or canonical Stock In.
+ * silently move Mini App operations back into Platform or canonical Stock In/Out.
  *
  * It never adds/removes runtime routes and never changes request/response
  * contracts; it only protects Swagger tag metadata.
@@ -22,7 +22,7 @@ final class MiniAppTagProcessor
 {
     public const TAG = '22. Mini App';
 
-    private const DESCRIPTION = 'API adapter riêng cho Warehouse Mini App. Hiện gồm local staging, ghi nhận batch nhập kho, hàng chờ duyệt, scan evidence và Post Receipt qua canonical WMS inbound.';
+    private const DESCRIPTION = 'API adapter riêng cho Warehouse Mini App. Gồm inbound local staging/ghi nhận/duyệt Post Receipt và outbound queue/scan/Packing Label/Post Issue; mọi stock rule vẫn dùng canonical WMS.';
 
     /** @var array<int, string> */
     private const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'];
@@ -68,6 +68,10 @@ final class MiniAppTagProcessor
             if ($tag instanceof OA\Tag
                 && ! Undefined::isDefault($tag->name)
                 && $tag->name === self::TAG) {
+                // RouteSyncProcessor may have created the tag earlier with an
+                // older inbound-only description. Refresh it here because this
+                // processor is the final owner of Mini App presentation metadata.
+                $tag->description = self::DESCRIPTION;
                 return;
             }
         }
@@ -78,8 +82,6 @@ final class MiniAppTagProcessor
             '_context' => new Context(['generated' => true]),
         ]);
 
-        // Numeric fallback ordering: put Mini App after Public Catalog (21) and
-        // before later groups such as Putaway (24) when RouteSync did not create it.
         $ordered = [];
         $inserted = false;
 

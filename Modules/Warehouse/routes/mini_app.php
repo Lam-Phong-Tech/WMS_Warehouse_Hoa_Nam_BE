@@ -1,9 +1,12 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
+use Modules\Warehouse\Http\Controllers\MiniAppOutboundController;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
+use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
 use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 
@@ -12,12 +15,17 @@ use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 | Warehouse Mini App API
 |--------------------------------------------------------------------------
 |
-| Adapter routes for the mobile/mini-app inbound workflow. The camera staging
-| phase is local. resolve-code is read-only; inbound/record atomically creates
-| the WMS receipt + scan evidence. Only post-receipt changes inventory.
+| Thin mobile adapters over the canonical WMS domain. Mini App does not own a
+| second stock state machine. Inbound changes stock only at Post Receipt;
+| outbound changes stock only at Post Issue.
 |
 */
 Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
+    // ── Shared Mini App support ──────────────────────────────────────────
+    Route::get('printer-configs', [CanonicalMvpController::class, 'listPrinterConfigs'])
+        ->middleware('permission:label.print');
+
+    // ── Inbound ──────────────────────────────────────────────────────────
     Route::post('inbound/resolve-code', [MiniAppInboundStagingController::class, 'resolveCode'])
         ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
 
@@ -56,7 +64,49 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     Route::post('inbound-documents/{id}/cartons/{containerId}/complete-scan', [MiniAppInboundController::class, 'completeCartonScan'])
         ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
 
-    // UI can label this action "Phê duyệt"; backend keeps canonical Post Receipt.
     Route::post('inbound-documents/{id}/post-receipt', [MiniAppInboundController::class, 'approve'])
         ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
+
+    // ── Outbound ─────────────────────────────────────────────────────────
+    // No POST /outbound-documents here: canonical outbound DRAFT is created only
+    // by confirming an outbound request/import. Mini App consumes that queue.
+    Route::get('outbound-documents', [MiniAppOutboundController::class, 'index'])
+        ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+
+    Route::get('outbound-documents/{id}', [MiniAppOutboundController::class, 'show'])
+        ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/cancel', [MiniAppOutboundController::class, 'cancel'])
+        ->middleware(['permission:outbound.cancel', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/scan', [MiniAppOutboundController::class, 'scan'])
+        ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/unmatch', [MiniAppOutboundController::class, 'unmatch'])
+        ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
+
+    Route::get('outbound-documents/{id}/scan-entries', [MiniAppOutboundController::class, 'scanEntries'])
+        ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+
+    Route::get('outbound-documents/{id}/packing-label', [MiniAppOutboundController::class, 'packingLabel'])
+        ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/packing-labels/{labelId}/preview', [MiniAppOutboundController::class, 'previewPackingLabel'])
+        ->middleware(['permission:packing_label.preview|label.print', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/packing-labels/{labelId}/ready', [MiniAppOutboundController::class, 'readyPackingLabel'])
+        ->middleware(['permission:packing_label.ready|label.print', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/packing-labels/{labelId}/print', [MiniAppOutboundController::class, 'printPackingLabel'])
+        ->middleware(['permission:packing_label.print|label.print', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/packing-labels/{labelId}/reprint', [MiniAppOutboundController::class, 'reprintPackingLabel'])
+        ->middleware(['permission:packing_label.reprint|label.reprint', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound-documents/{id}/packing-labels/{labelId}/apply', [MiniAppOutboundController::class, 'applyPackingLabel'])
+        ->middleware(['permission:label.print', EnforceOutboundWarehouseScope::class]);
+
+    // This is the only Mini App outbound endpoint that decreases inventory.
+    Route::post('outbound-documents/{id}/post-issue', [MiniAppOutboundController::class, 'postIssue'])
+        ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
 });

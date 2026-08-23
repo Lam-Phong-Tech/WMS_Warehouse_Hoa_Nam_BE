@@ -5,8 +5,8 @@ namespace Modules\Warehouse\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
-use Modules\Warehouse\Services\AlignedOutboundStockService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Services\DiagnosticCurrentBaselineStockService;
 
 /**
  * Runtime overrides for the 2026-08-15 current business baseline.
@@ -17,7 +17,11 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(CurrentBaselineStockService::class, AlignedOutboundStockService::class);
+        // One final concrete service combines the aligned PRODUCT outbound rules
+        // (full match, RFID optional, Post Issue stock effect) with enriched
+        // reservation diagnostics. Keeping both providers on the same binding
+        // removes provider-order ambiguity.
+        $this->app->bind(CurrentBaselineStockService::class, DiagnosticCurrentBaselineStockService::class);
     }
 
     public function boot(): void
