@@ -17,6 +17,7 @@ class RouteServiceProvider extends ServiceProvider
     public function map(): void
     {
         $this->mapApiRoutes();
+        $this->mapMiniAppRoutes();
         $this->mapImportRoutes();
         $this->mapGovernanceRoutes();
         $this->mapWebRoutes();
@@ -30,6 +31,15 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapApiRoutes(): void
     {
         Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/api.php'));
+    }
+
+    /**
+     * Dedicated adapter routes for the Warehouse Mini App. They are loaded from a
+     * separate file so the established Web WMS API surface remains unchanged.
+     */
+    protected function mapMiniAppRoutes(): void
+    {
+        Route::middleware('api')->prefix('api')->name('api.mini-app.')->group(module_path($this->name, '/routes/mini_app.php'));
     }
 
     protected function mapImportRoutes(): void

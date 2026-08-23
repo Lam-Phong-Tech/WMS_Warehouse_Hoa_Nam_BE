@@ -118,6 +118,31 @@ class AuthController extends Controller
         /** @var User $user */
         $user = auth('api')->user();
 
+        if (! $this->credentialsMatchExactly($user, $credentials)) {
+            auth('api')->logout();
+            if ($maxAttempts > 0) {
+                RateLimiter::hit($throttleKey, 60);
+            }
+
+            $logData = $credentials;
+            unset($logData['password']);
+
+            $this->auditLogger->log(
+                'LOGIN_FAILED',
+                'app_user',
+                $user->user_id,
+                $user->user_id,
+                $this->currentRequestId(),
+                [],
+                $logData,
+                'Credential identifier case or value mismatch',
+                result: 'FAILED',
+                errorCode: 'UNAUTHENTICATED',
+            );
+
+            return $this->respondError('Email, tài khoản hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
+        }
+
         if ($user->status !== 'ACTIVE') {
             auth('api')->logout();
             // Tài khoản INACTIVE/LOCKED vẫn tính là lần thử hỏng: nếu không đếm,
@@ -254,11 +279,7 @@ class AuthController extends Controller
         $user = auth('api')->user();
 
         return $this->respondSuccess([
-            'user_id' => $user->user_id,
-            'username' => $user->username,
-            'display_name' => $user->display_name,
-            'email' => $user->email,
-            'status' => $user->status,
+            ...$this->userProfilePayload($user),
             ...$this->userAuthorizationPayload($user),
         ]);
     }
@@ -373,14 +394,41 @@ class AuthController extends Controller
         return 'auth-login:'.sha1($request->ip().'|'.$identifier);
     }
 
+    /**
+     * Guard against database collations that compare login identifiers
+     * case-insensitively. Password verification remains Laravel Hash::check().
+     *
+     * @param  array<string, string>  $credentials
+     */
+    private function credentialsMatchExactly(User $user, array $credentials): bool
+    {
+        if (array_key_exists('email', $credentials)) {
+            return hash_equals((string) $user->email, (string) $credentials['email']);
+        }
+
+        return hash_equals((string) $user->username, (string) ($credentials['username'] ?? ''));
+    }
+
     private function userPayload(User $user): array
+    {
+        return [
+            ...$this->userProfilePayload($user),
+            ...$this->userAuthorizationPayload($user),
+        ];
+    }
+
+    private function userProfilePayload(User $user): array
     {
         return [
             'user_id' => $user->user_id,
             'username' => $user->username,
             'display_name' => $user->display_name,
             'email' => $user->email,
-            ...$this->userAuthorizationPayload($user),
+            'phone' => $user->phone,
+            'status' => $user->status,
+            'created_at' => $user->created_at?->toIso8601String(),
+            'updated_at' => $user->updated_at?->toIso8601String(),
+            'version' => (int) $user->version,
         ];
     }
 

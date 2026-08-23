@@ -31,6 +31,9 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
         ->whereUuid('id')
         ->whereUuid('physicalCodeId')
         ->middleware('permission:physical_code.assign_rfid');
+    Route::post('skus/{id}/items', [CurrentBaselineItemIdentityController::class, 'issue'])
+        ->whereUuid('id')
+        ->middleware('permission:physical_code.create');
 
     Route::post('scan/classify', [ScanController::class, 'classify'])
         ->middleware('permission:scan.classify');

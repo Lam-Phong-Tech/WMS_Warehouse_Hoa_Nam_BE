@@ -9,6 +9,7 @@ use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
@@ -134,6 +135,203 @@ class CurrentBaselineItemIdentityController extends Controller
         );
 
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    /**
+     * Phát hành item mới: chưa hề có UI/API nào tạo được Item_Instance +
+     * Physical_Code cùng lúc trước đây — chỗ duy nhất trước đây chỉ gán code
+     * cho item ĐÃ tồn tại (assign() ở trên) hoặc tạo item nhưng bắt buộc
+     * physical_code_id đã có sẵn (ItemInstanceController@store). Endpoint này
+     * lấp khoảng trống: tạo cả hai cùng transaction, giống hệt cơ chế
+     * registerCandidateItems() dùng khi Post Receipt (CurrentBaselineStockService),
+     * kể cả cách điền cột driver-dependent (id/item_code/status/condition) qua
+     * Schema::hasColumn để tương thích cả sqlite test lẫn ERD PostgreSQL.
+     *
+     * Stock-neutral: item tạo ra ở item_status=NEW, KHÔNG cộng vào tồn kho —
+     * đúng ngữ nghĩa "đăng ký định danh trước", giống candidate item của luồng
+     * nhập kho trước khi Post Receipt chuyển sang IN_STOCK.
+     */
+    #[OA\Post(
+        path: '/api/v1/skus/{id}/items',
+        operationId: 'sku_item_issue',
+        summary: 'Tạo Item_Instance mới kèm Physical_Code mới (QR/Barcode) cho SKU serial-tracked, stock-neutral',
+        security: [['bearerAuth' => []]],
+        tags: ['21. Physical Code'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['QR', 'BARCODE'], nullable: true, description: 'Mặc định QR', example: 'QR'),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Bỏ trống thì server tự sinh theo pattern <SKU_CODE>-<timestamp>-<random>', example: 'SP-0001-20260822-AB12'),
+                    new OA\Property(property: 'serial_number', type: 'string', maxLength: 100, nullable: true, description: 'Bỏ trống thì server tự sinh SN-<SKU_CODE>-<random>', example: 'SN-SP-0001-8F3C1A2B'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo item + physical code thành công (stock_effect=NONE)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy SKU ACTIVE'),
+            new OA\Response(response: 422, description: 'SKU không phải PRODUCT/serial-tracked, hoặc code_value/serial_number trùng'),
+            new OA\Response(response: 428, description: 'PRECONDITION_REQUIRED — thiếu Idempotency-Key'),
+        ]
+    )]
+    public function issue(Request $request, string $skuId)
+    {
+        $validated = $request->validate([
+            'carrier_type' => ['nullable', Rule::in(['QR', 'BARCODE'])],
+            'code_value' => ['nullable', 'string', 'max:200', 'unique:physical_codes,code_value'],
+            'serial_number' => ['nullable', 'string', 'max:100', 'unique:item_instances,serial_number'],
+        ]);
+        $carrierType = strtoupper($validated['carrier_type'] ?? 'QR');
+
+        $key = IdempotencyKeyGuard::require($request);
+        [$code, $body, $replay] = IdempotencyStore::handle(
+            $key,
+            "item_identity_issue_{$skuId}",
+            $this->actorId(),
+            IdempotencyStore::requestHash($request),
+            function () use ($skuId, $validated, $carrierType, $request): array {
+                $data = DB::transaction(function () use ($skuId, $validated, $carrierType, $request): array {
+                    $sku = DB::table('sku')->where('sku_id', $skuId)->lockForUpdate()->first();
+                    if ($sku === null || strtoupper((string) $sku->status) !== 'ACTIVE') {
+                        ApiError::abort(404, 'SKU_NOT_FOUND', 'Không tìm thấy SKU ACTIVE.');
+                    }
+                    if (strtoupper((string) $sku->sku_type) !== 'PRODUCT' || ! (bool) $sku->is_serial_tracked) {
+                        ApiError::abort(422, 'SKU_NOT_SERIAL_TRACKED', 'Chỉ SKU loại PRODUCT có is_serial_tracked=true (tracking_mode=SERIAL) mới tạo được Item_Instance kèm mã định danh mới.');
+                    }
+                    $skuCode = strtoupper(trim((string) $sku->sku_code));
+
+                    $codeValue = isset($validated['code_value']) && trim((string) $validated['code_value']) !== ''
+                        ? strtoupper(trim((string) $validated['code_value']))
+                        : $this->generateUniqueCodeValue($skuCode);
+                    $serial = isset($validated['serial_number']) && trim((string) $validated['serial_number']) !== ''
+                        ? strtoupper(trim((string) $validated['serial_number']))
+                        : $this->generateUniqueSerialNumber($skuCode);
+
+                    if (DB::table('physical_codes')->where('code_value', $codeValue)->exists()) {
+                        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu đầu vào không hợp lệ.', ['code_value' => ['code_value đã tồn tại.']]);
+                    }
+                    if (DB::table('item_instances')->where('serial_number', $serial)->exists()) {
+                        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu đầu vào không hợp lệ.', ['serial_number' => ['serial_number đã tồn tại.']]);
+                    }
+
+                    $itemId = (string) Str::uuid();
+                    $itemRow = [
+                        'item_id' => $itemId,
+                        'sku_id' => $skuId,
+                        'serial_number' => $serial,
+                        'item_status' => 'NEW',
+                        'item_condition' => 'NORMAL',
+                        'version' => 1,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                    // Cột chỉ có trên nhánh ERD PostgreSQL (id/item_code/status/condition/
+                    // created_by/updated_by) — điền có điều kiện, giống registerCandidateItems()
+                    // trong CurrentBaselineStockService, để không vỡ trên sqlite test driver.
+                    foreach ([
+                        'id' => $itemId,
+                        'item_code' => $codeValue,
+                        'status' => 'NEW',
+                        'condition' => 'NORMAL',
+                        'created_by' => $this->actorId(),
+                        'updated_by' => $this->actorId(),
+                    ] as $column => $value) {
+                        if (Schema::hasColumn('item_instances', $column)) {
+                            $itemRow[$column] = $value;
+                        }
+                    }
+                    DB::table('item_instances')->insert($itemRow);
+
+                    $physicalCodeId = (string) Str::uuid();
+                    DB::table('physical_codes')->insert([
+                        'physical_code_id' => $physicalCodeId,
+                        'code_value' => $codeValue,
+                        'code_type' => 'ITEM',
+                        'carrier_type' => $carrierType,
+                        'hardware_uid' => null,
+                        'item_id' => $itemId,
+                        'container_id' => null,
+                        'assigned_object_type' => 'ITEM',
+                        'assigned_object_id' => $itemId,
+                        'is_primary' => true,
+                        'assigned_at' => now(),
+                        'assigned_by' => $this->actorId(),
+                        'encoded_payload_version' => null,
+                        'status' => 'ACTIVE',
+                        'version' => 1,
+                        'created_by' => $this->actorId(),
+                        'updated_by' => $this->actorId(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    DB::table('item_instances')->where('item_id', $itemId)->update([
+                        'physical_code_id' => $physicalCodeId,
+                        'updated_at' => now(),
+                    ]);
+
+                    AuditLogger::record(
+                        action: 'ITEM_ISSUE_NEW_CODE',
+                        objectType: 'item_instance',
+                        objectId: $itemId,
+                        actorId: $this->actorId(),
+                        requestId: $request->attributes->get('request_id'),
+                        afterData: [
+                            'sku_id' => $skuId,
+                            'serial_number' => $serial,
+                            'physical_code_id' => $physicalCodeId,
+                            'code_value' => $codeValue,
+                            'carrier_type' => $carrierType,
+                            'stock_effect' => 'NONE',
+                        ],
+                    );
+
+                    return [
+                        'item_id' => $itemId,
+                        'sku_id' => $skuId,
+                        'serial_number' => $serial,
+                        'item_status' => 'NEW',
+                        'item_condition' => 'NORMAL',
+                        'physical_code_id' => $physicalCodeId,
+                        'code_value' => $codeValue,
+                        'carrier_type' => $carrierType,
+                        'is_primary' => true,
+                        'status' => 'ACTIVE',
+                        'version' => 1,
+                        'stock_effect' => 'NONE',
+                    ];
+                }, 3);
+
+                return [201, $this->envelope('Đã tạo item mới kèm mã định danh.', $data)];
+            }
+        );
+
+        return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    private function generateUniqueCodeValue(string $skuCode): string
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $candidate = $skuCode.'-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4));
+            if (! DB::table('physical_codes')->where('code_value', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+        // Backstop cực hiếm khi 5 lần liền trùng: UUID đảm bảo duy nhất tuyệt đối.
+        return $skuCode.'-'.Str::upper(Str::uuid()->toString());
+    }
+
+    private function generateUniqueSerialNumber(string $skuCode): string
+    {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $candidate = 'SN-'.$skuCode.'-'.Str::upper(Str::random(8));
+            if (! DB::table('item_instances')->where('serial_number', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+        return 'SN-'.$skuCode.'-'.Str::upper(Str::uuid()->toString());
     }
 
     public function revoke(Request $request, string $skuId, string $physicalCodeId)

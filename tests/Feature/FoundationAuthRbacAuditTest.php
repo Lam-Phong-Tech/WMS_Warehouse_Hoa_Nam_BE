@@ -45,9 +45,17 @@ class FoundationAuthRbacAuditTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.token_type', 'bearer')
             ->assertJsonPath('data.user.username', 'manager')
+            ->assertJsonPath('data.user.phone', '0901234567')
+            ->assertJsonPath('data.user.status', 'ACTIVE')
+            ->assertJsonPath('data.user.version', 1)
             ->assertJsonPath('data.user.roles.0.role_code', 'WAREHOUSE_MANAGER')
             ->assertJsonStructure([
-                'data' => ['access_token', 'refresh_token', 'expires_in', 'user' => ['roles', 'permissions']],
+                'data' => [
+                    'access_token',
+                    'refresh_token',
+                    'expires_in',
+                    'user' => ['phone', 'status', 'created_at', 'updated_at', 'version', 'roles', 'permissions'],
+                ],
                 'meta' => ['request_id', 'timestamp'],
             ]);
         $this->assertContains('warehouse.view', $login->json('data.user.permissions'));
@@ -62,8 +70,12 @@ class FoundationAuthRbacAuditTest extends TestCase
         $me = $this->getJson('/api/v1/auth/me', $headers);
         $me->assertOk()
             ->assertJsonPath('data.username', 'manager')
+            ->assertJsonPath('data.phone', '0901234567')
             ->assertJsonPath('data.status', 'ACTIVE')
-            ->assertJsonPath('data.roles.0.role_code', 'WAREHOUSE_MANAGER');
+            ->assertJsonPath('data.version', 1)
+            ->assertJsonPath('data.roles.0.role_code', 'WAREHOUSE_MANAGER')
+            ->assertJsonStructure(['data' => ['phone', 'created_at', 'updated_at', 'version']])
+            ->assertJsonMissingPath('data.password_hash');
 
         $refresh = $this->postJson('/api/v1/auth/refresh', [
             'refresh_token' => $login->json('data.refresh_token'),
@@ -110,6 +122,45 @@ class FoundationAuthRbacAuditTest extends TestCase
 
         $this->assertDatabaseHas('audit_log', ['action' => 'LOGIN_FAILED']);
         $this->assertDatabaseHas('audit_log', ['action' => 'LOGIN_DENIED']);
+    }
+
+    public function test_login_validates_account_and_password_strictly(): void
+    {
+        User::create([
+            'username' => 'admin',
+            'display_name' => 'Admin',
+            'email' => 'admin@gmail.com',
+            'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@gmail.com',
+            'password' => 'secret123',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@gmaiL.com',
+            'password' => 'secret123',
+        ])->assertStatus(422);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@gmail.com',
+            'password' => 'Secret123',
+        ])->assertStatus(401)
+            ->assertJsonPath('error.code', 'UNAUTHENTICATED');
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@gmail.com',
+            'password' => 'secret123 ',
+        ])->assertStatus(422);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'admin@gmail.com',
+            'username' => 'admin',
+            'password' => 'secret123',
+        ])->assertStatus(422);
     }
 
     public function test_permission_middleware_blocks_and_allows_by_role_permission(): void
@@ -236,6 +287,7 @@ class FoundationAuthRbacAuditTest extends TestCase
             'username' => $username,
             'display_name' => Str::headline($username),
             'email' => "{$username}@wms-hoanam.test",
+            'phone' => '0901234567',
             'password_hash' => Hash::make('secret123'),
             'status' => $status,
             'version' => 1,
