@@ -68,6 +68,10 @@ final class MiniAppTagProcessor
             if ($tag instanceof OA\Tag
                 && ! Undefined::isDefault($tag->name)
                 && $tag->name === self::TAG) {
+                // RouteSyncProcessor may have created the tag earlier with an
+                // older inbound-only description. Refresh it here because this
+                // processor is the final owner of Mini App presentation metadata.
+                $tag->description = self::DESCRIPTION;
                 return;
             }
         }
