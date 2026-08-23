@@ -8,23 +8,21 @@ use OpenApi\Context;
 use OpenApi\Undefined;
 
 /**
- * Keep every /api/v1/mini-app/* operation in a dedicated Swagger group.
+ * Final guardrail for the dedicated /api/v1/mini-app/* Swagger group.
  *
- * RouteSyncProcessor derives its tag from the first resource segment after
- * api/v1. For Mini App routes that segment is "mini-app", which is not a
- * canonical WMS resource such as inbound-documents. Without this post-processor
- * RouteSyncProcessor falls back to "00. Platform" and Swagger UI appears to
- * "lose" all Mini App endpoints even though the paths are present in /docs.
+ * RouteSyncProcessor already maps the Mini App adapter prefix to its own tag.
+ * This post-processor intentionally runs after RouteSyncProcessor and reasserts
+ * that presentation-only invariant so future generic grouping changes cannot
+ * silently move Mini App operations back into Platform or canonical Stock In.
  *
- * This processor deliberately runs after RouteSyncProcessor and only changes
- * presentation metadata (tags). It never adds/removes runtime routes and never
- * changes request/response contracts.
+ * It never adds/removes runtime routes and never changes request/response
+ * contracts; it only protects Swagger tag metadata.
  */
 final class MiniAppTagProcessor
 {
-    public const TAG = '09A. Mini App';
+    public const TAG = '22. Mini App';
 
-    private const DESCRIPTION = 'Adapter API cho Warehouse Mini App. Hiện tại bao gồm local staging, ghi nhận batch nhập kho, hàng chờ duyệt, scan evidence và Post Receipt qua canonical WMS.';
+    private const DESCRIPTION = 'API adapter riêng cho Warehouse Mini App. Hiện gồm local staging, ghi nhận batch nhập kho, hàng chờ duyệt, scan evidence và Post Receipt qua canonical WMS inbound.';
 
     /** @var array<int, string> */
     private const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'];
@@ -80,8 +78,8 @@ final class MiniAppTagProcessor
             '_context' => new Context(['generated' => true]),
         ]);
 
-        // Keep the dedicated Mini App section directly after canonical inbound
-        // so Swagger UI remains easy to navigate and visually deterministic.
+        // Numeric fallback ordering: put Mini App after Public Catalog (21) and
+        // before later groups such as Putaway (24) when RouteSync did not create it.
         $ordered = [];
         $inserted = false;
 
@@ -91,7 +89,7 @@ final class MiniAppTagProcessor
             if (! $inserted
                 && $tag instanceof OA\Tag
                 && ! Undefined::isDefault($tag->name)
-                && $tag->name === '09. Stock In (Inbound)') {
+                && $tag->name === '21. Public Catalog') {
                 $ordered[] = $miniAppTag;
                 $inserted = true;
             }
