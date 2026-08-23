@@ -45,13 +45,11 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * RouteSyncProcessor intentionally owns route-derived grouping for the normal
-     * Web WMS API, but /api/v1/mini-app/* has an adapter prefix instead of a
-     * canonical resource prefix. RouteSyncProcessor therefore falls back to
-     * "00. Platform" for those routes and overwrites the handwritten Mini App tag.
-     *
-     * Register a focused post-processor after RouteSyncProcessor so Swagger UI
-     * always exposes the Mini App contract under its own deterministic section.
+     * Keep a final presentation guard after RouteSyncProcessor for the dedicated
+     * Warehouse Mini App API surface. RouteSyncProcessor already maps
+     * /api/v1/mini-app/* to "22. Mini App"; this post-processor reasserts the same
+     * invariant so later generic Swagger processor changes cannot silently move
+     * Mini App operations into Platform or canonical Stock In.
      */
     private function registerSwaggerProcessors(): void
     {
