@@ -25,6 +25,8 @@ use Modules\Warehouse\Repositories\ProductMasterRepository;
 use Modules\Warehouse\Repositories\ProductRepository;
 use Modules\Warehouse\Repositories\WarehouseRepository;
 use Modules\Warehouse\Services\CanonicalScanClassificationService;
+use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Services\DiagnosticCurrentBaselineStockService;
 use Modules\Warehouse\Services\ScanClassificationService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -70,6 +72,11 @@ class WarehouseServiceProvider extends ModuleServiceProvider
         $this->app->bind(ContainerRepositoryInterface::class, ContainerRepository::class);
         $this->app->bind(ItemInstanceRepositoryInterface::class, ItemInstanceRepository::class);
         $this->app->bind(ContainerItemRepositoryInterface::class, ContainerItemRepository::class);
+
+        // Keep all canonical stock rules/mutations in CurrentBaselineStockService,
+        // but enrich outbound ITEM_ALREADY_MATCHED conflicts with the exact active
+        // document holding the item so FE/QA can resolve the reservation directly.
+        $this->app->bind(CurrentBaselineStockService::class, DiagnosticCurrentBaselineStockService::class);
 
         // SQLite does not expose compatibility VIEWs through Schema::hasTable()
         // consistently. Bind the canonical fallback globally so scan/classify always
