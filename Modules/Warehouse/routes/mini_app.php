@@ -6,6 +6,7 @@ use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundDraftController;
+use Modules\Warehouse\Http\Controllers\MiniAppOutboundStagingController;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
@@ -69,9 +70,20 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
         ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
 
     // ── Outbound ─────────────────────────────────────────────────────────
-    // Mini App may create its own DRAFT. The adapter atomically materializes the
-    // canonical source chain (source import -> outbound request -> issue DRAFT),
-    // so all downstream scan/label/Post Issue rules remain unchanged.
+    // Preferred Mini App UX mirrors inbound: keep the camera batch local,
+    // resolve each code without a WMS document, then atomically record N/N.
+    Route::post('outbound/resolve-code', [MiniAppOutboundStagingController::class, 'resolveCode'])
+        ->middleware(['permission:outbound.scan', EnforceOutboundWarehouseScope::class]);
+
+    Route::post('outbound/record', [MiniAppOutboundStagingController::class, 'record'])
+        ->middleware([
+            'permission:outbound.request.manual_create|outbound.import',
+            'permission:outbound.scan',
+            EnforceOutboundWarehouseScope::class,
+        ]);
+
+    // Compatibility surface: clients may still create a SKU-planned DRAFT first.
+    // New Mini App screens should prefer outbound/resolve-code + outbound/record.
     Route::post('outbound-documents', [MiniAppOutboundDraftController::class, 'store'])
         ->middleware(['permission:outbound.request.manual_create|outbound.import', EnforceOutboundWarehouseScope::class]);
 
