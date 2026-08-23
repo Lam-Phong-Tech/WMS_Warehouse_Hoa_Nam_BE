@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundController;
@@ -20,6 +21,10 @@ use Modules\Warehouse\Http\Middleware\EnsureInboundComponentBox;
 |
 */
 Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
+    // ── Shared Mini App support ──────────────────────────────────────────
+    Route::get('printer-configs', [CanonicalMvpController::class, 'listPrinterConfigs'])
+        ->middleware('permission:label.print');
+
     // ── Inbound ──────────────────────────────────────────────────────────
     Route::post('inbound/resolve-code', [MiniAppInboundStagingController::class, 'resolveCode'])
         ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
