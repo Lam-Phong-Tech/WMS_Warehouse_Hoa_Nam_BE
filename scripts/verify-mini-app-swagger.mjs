@@ -21,6 +21,8 @@ const expectedOperations = new Map([
   ['/api/v1/mini-app/inbound-documents/{id}/cartons/{containerId}/complete-scan', ['post']],
   ['/api/v1/mini-app/inbound-documents/{id}/post-receipt', ['post']],
 
+  ['/api/v1/mini-app/outbound/resolve-code', ['post']],
+  ['/api/v1/mini-app/outbound/record', ['post']],
   ['/api/v1/mini-app/outbound-documents', ['get', 'post']],
   ['/api/v1/mini-app/outbound-documents/{id}', ['get']],
   ['/api/v1/mini-app/outbound-documents/{id}/cancel', ['post']],
