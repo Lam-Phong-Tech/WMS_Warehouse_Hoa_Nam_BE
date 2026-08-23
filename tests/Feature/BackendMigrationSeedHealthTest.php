@@ -54,8 +54,7 @@ class BackendMigrationSeedHealthTest extends TestCase
             ->assertJsonPath('data.checks.seed.markers.baseline_warehouse', true)
             ->assertJsonPath('data.checks.seed.markers.baseline_product', true)
             ->assertJsonStructure([
-                'success',
-                'message',
+                'success', 'message',
                 'data' => [
                     'status', 'version', 'environment', 'server_time', 'request_id',
                     'checks' => [
@@ -134,5 +133,44 @@ class BackendMigrationSeedHealthTest extends TestCase
         $this->assertTrue(DB::table('app_user')->where('username', 'admin')->exists());
         $this->assertTrue(DB::table('warehouses')->where('code', 'KHO-TONG-HN')->exists());
         $this->assertTrue(DB::table('products')->where('code', 'HN-PV-BASE-001')->exists());
+    }
+
+    public function test_postgres_packing_label_contract_accepts_final_scan_lifecycle(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('Packing Label drift guard is PostgreSQL-specific.');
+        }
+
+        $constraints = DB::select(<<<'SQL'
+            SELECT pg_get_constraintdef(oid) AS definition
+              FROM pg_constraint
+             WHERE contype = 'c'
+               AND conrelid = 'label_snapshots'::regclass
+               AND pg_get_constraintdef(oid) ILIKE '%status%'
+        SQL);
+
+        $this->assertNotEmpty($constraints, 'label_snapshots must have a status CHECK constraint.');
+        foreach ($constraints as $constraint) {
+            $definition = (string) $constraint->definition;
+            foreach (['DRAFT', 'PREVIEWED', 'READY_TO_PRINT', 'PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'] as $status) {
+                $this->assertStringContainsString(
+                    $status,
+                    $definition,
+                    "label_snapshots status CHECK must allow {$status}; otherwise the final outbound scan can return 500."
+                );
+            }
+        }
+
+        foreach (['outbound_item_match_id', 'sku_id', 'item_id'] as $column) {
+            $nullable = DB::table('information_schema.columns')
+                ->where('table_schema', 'public')
+                ->where('table_name', 'label_snapshots')
+                ->where('column_name', $column)
+                ->value('is_nullable');
+
+            if ($nullable !== null) {
+                $this->assertSame('YES', $nullable, "label_snapshots.{$column} must be nullable for document-level Packing Labels.");
+            }
+        }
     }
 }
