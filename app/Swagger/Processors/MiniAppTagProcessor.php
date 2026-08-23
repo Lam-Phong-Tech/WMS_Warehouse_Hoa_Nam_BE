@@ -22,7 +22,7 @@ final class MiniAppTagProcessor
 {
     public const TAG = '22. Mini App';
 
-    private const DESCRIPTION = 'API adapter riêng cho Warehouse Mini App. Gồm inbound local staging/ghi nhận/duyệt Post Receipt và outbound queue/scan/Packing Label/Post Issue; mọi stock rule vẫn dùng canonical WMS.';
+    private const DESCRIPTION = 'API adapter riêng cho Warehouse Mini App. Gồm inbound local staging/ghi nhận/duyệt Post Receipt và outbound tạo DRAFT trực tiếp/queue/scan/Packing Label/Post Issue; mọi stock rule vẫn dùng canonical WMS.';
 
     /** @var array<int, string> */
     private const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head', 'trace'];

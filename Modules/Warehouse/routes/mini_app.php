@@ -5,6 +5,7 @@ use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundController;
+use Modules\Warehouse\Http\Controllers\MiniAppOutboundDraftController;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
@@ -68,8 +69,12 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
         ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
 
     // ── Outbound ─────────────────────────────────────────────────────────
-    // No POST /outbound-documents here: canonical outbound DRAFT is created only
-    // by confirming an outbound request/import. Mini App consumes that queue.
+    // Mini App may create its own DRAFT. The adapter atomically materializes the
+    // canonical source chain (source import -> outbound request -> issue DRAFT),
+    // so all downstream scan/label/Post Issue rules remain unchanged.
+    Route::post('outbound-documents', [MiniAppOutboundDraftController::class, 'store'])
+        ->middleware(['permission:outbound.request.manual_create|outbound.import', EnforceOutboundWarehouseScope::class]);
+
     Route::get('outbound-documents', [MiniAppOutboundController::class, 'index'])
         ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
 
