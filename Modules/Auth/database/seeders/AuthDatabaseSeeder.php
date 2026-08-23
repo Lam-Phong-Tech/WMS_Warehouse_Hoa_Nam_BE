@@ -50,6 +50,7 @@ class AuthDatabaseSeeder extends Seeder
         ['inventory.trace', 'Trace inventory movements and item history'],
         ['inventory.reversal.post', 'Post controlled reversal/correction'],
         ['physical_code.assign_rfid', 'Assign or revoke RFID physical code'],
+        ['physical_code.create', 'Issue a brand-new item instance with a new Barcode/QR physical code'],
         ['label.print', 'Print labels'],
         ['label.reprint', 'Reprint labels'],
         ['warranty.manage', 'Manage warranty cases and events'],
@@ -117,7 +118,7 @@ class AuthDatabaseSeeder extends Seeder
                 'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
                 'outbound.view', 'outbound.import', 'outbound.create', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
-                'physical_code.assign_rfid', 'label.print', 'label.reprint',
+                'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
                 'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
                 'scan.classify', 'pv.publish', 'report.view', 'report.export', 'audit_log.view',
                 'physical_code.view', 'physical_code.manage', 'import_batch.view', 'import_batch.manage',
@@ -164,7 +165,7 @@ class AuthDatabaseSeeder extends Seeder
                 'inbound.view', 'inbound.scan', 'inbound.post', 'inbound.cancel',
                 'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
-                'physical_code.assign_rfid', 'label.print', 'label.reprint',
+                'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
                 'warranty.manage', 'warranty.component_issue', 'report.view',
                 'physical_code.view', 'physical_code.manage', 'import_batch.view',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
@@ -213,7 +214,7 @@ class AuthDatabaseSeeder extends Seeder
                 'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
                 'outbound.view', 'outbound.import', 'outbound.create', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
-                'physical_code.assign_rfid', 'label.print', 'label.reprint', 'pv.publish',
+                'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint', 'pv.publish',
                 // WWHN-249 D-04 — SRS §3, dòng "PV Industry/Tag/Product Mapping/Recommendation
                 // Rule manage" cho Quản lý kho mức A. Thiếu key này thì QL kho bị 403 ở
                 // /pv-admin/resources dù ma trận quyền nói được; pv.publish KHÔNG thay thế

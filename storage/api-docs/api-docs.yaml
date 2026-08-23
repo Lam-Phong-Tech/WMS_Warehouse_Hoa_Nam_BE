@@ -20979,6 +20979,127 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/skus/{id}/items':
+    post:
+      tags:
+        - '05. Product'
+      summary: 'Tạo Item_Instance mới kèm Physical_Code mới (QR/Barcode) cho SKU serial-tracked, stock-neutral'
+      description: "Phát hành item mới: chưa hề có UI/API nào tạo được Item_Instance +\nPhysical_Code cùng lúc trước đây — chỗ duy nhất trước đây chỉ gán code\ncho item ĐÃ tồn tại (assign() ở trên) hoặc tạo item nhưng bắt buộc\nphysical_code_id đã có sẵn (ItemInstanceController@store). Endpoint này\nlấp khoảng trống: tạo cả hai cùng transaction, giống hệt cơ chế\nregisterCandidateItems() dùng khi Post Receipt (CurrentBaselineStockService),\nkể cả cách điền cột driver-dependent (id/item_code/status/condition) qua\nSchema::hasColumn để tương thích cả sqlite test lẫn ERD PostgreSQL.\n\nStock-neutral: item tạo ra ở item_status=NEW, KHÔNG cộng vào tồn kho —\nđúng ngữ nghĩa \"đăng ký định danh trước\", giống candidate item của luồng\nnhập kho trước khi Post Receipt chuyển sang IN_STOCK."
+      operationId: sku_item_issue
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: Idempotency-Key
+          in: header
+          description: 'Bắt buộc. Chuỗi 8-100 ký tự do client sinh. Gửi lại cùng key trả về kết quả lần đầu (replay); dùng lại key cho payload khác trả 409.'
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              properties:
+                carrier_type:
+                  description: 'Mặc định QR'
+                  type: string
+                  example: QR
+                  nullable: true
+                  enum:
+                    - QR
+                    - BARCODE
+                code_value:
+                  description: 'Bỏ trống thì server tự sinh theo pattern <SKU_CODE>-<timestamp>-<random>'
+                  type: string
+                  example: SP-0001-20260822-AB12
+                  nullable: true
+                  maxLength: 200
+                serial_number:
+                  description: 'Bỏ trống thì server tự sinh SN-<SKU_CODE>-<random>'
+                  type: string
+                  example: SN-SP-0001-8F3C1A2B
+                  nullable: true
+                  maxLength: 100
+              type: object
+      responses:
+        201:
+          description: 'Tạo item + physical code thành công (stock_effect=NONE)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy SKU ACTIVE'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'SKU không phải PRODUCT/serial-tracked, hoặc code_value/serial_number trùng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'PRECONDITION_REQUIRED — thiếu Idempotency-Key'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/skus/{id}/physical-codes':
     post:
       tags:

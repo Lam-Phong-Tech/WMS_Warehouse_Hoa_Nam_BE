@@ -1,4 +1,4 @@
-<?php
+i<?php
 
 use App\Support\HoaNamErdSchema;
 use Illuminate\Database\Migrations\Migration;
