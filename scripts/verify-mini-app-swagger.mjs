@@ -18,6 +18,20 @@ const expectedOperations = new Map([
   ['/api/v1/mini-app/inbound-documents/{id}/scan-entries', ['get']],
   ['/api/v1/mini-app/inbound-documents/{id}/cartons/{containerId}/complete-scan', ['post']],
   ['/api/v1/mini-app/inbound-documents/{id}/post-receipt', ['post']],
+
+  ['/api/v1/mini-app/outbound-documents', ['get']],
+  ['/api/v1/mini-app/outbound-documents/{id}', ['get']],
+  ['/api/v1/mini-app/outbound-documents/{id}/cancel', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/scan', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/unmatch', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/scan-entries', ['get']],
+  ['/api/v1/mini-app/outbound-documents/{id}/packing-label', ['get']],
+  ['/api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/preview', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/ready', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/print', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/reprint', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/apply', ['post']],
+  ['/api/v1/mini-app/outbound-documents/{id}/post-issue', ['post']],
 ]);
 
 function fail(message) {
