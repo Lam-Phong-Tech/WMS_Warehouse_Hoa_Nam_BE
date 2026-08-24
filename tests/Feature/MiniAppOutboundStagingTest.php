@@ -62,7 +62,7 @@ class MiniAppOutboundStagingTest extends TestCase
         ], $recordHeaders)
             ->assertCreated()
             ->assertJsonPath('data.status', 'SCANNING')
-            ->assertJsonPath('data.mini_app_status', 'LABELING')
+            ->assertJsonPath('data.mini_app_status', 'READY_TO_ISSUE')
             ->assertJsonPath('data.full_scan', true)
             ->assertJsonPath('data.expected_total_qty', 2)
             ->assertJsonPath('data.scanned_total_qty', 2)

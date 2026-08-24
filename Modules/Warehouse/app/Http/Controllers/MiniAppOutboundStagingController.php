@@ -238,7 +238,7 @@ class MiniAppOutboundStagingController extends Controller
                         requestId: request()?->attributes->get('request_id'),
                         afterData: [
                             'status' => (string) $document->status,
-                            'mini_app_status' => 'LABELING',
+                            'mini_app_status' => 'READY_TO_ISSUE',
                             'expected_total_qty' => $progress['expected_total_qty'],
                             'scanned_total_qty' => $progress['scanned_total_qty'],
                             'scan_evidence_count' => count($scanResults),
@@ -257,7 +257,7 @@ class MiniAppOutboundStagingController extends Controller
                         'name' => trim((string) $validated['name']),
                         'src_warehouse_id' => $warehouseId,
                         'status' => (string) $document->status,
-                        'mini_app_status' => 'LABELING',
+                        'mini_app_status' => 'READY_TO_ISSUE',
                         'full_scan' => true,
                         'ready_for_issue' => false,
                         'expected_total_qty' => $progress['expected_total_qty'],

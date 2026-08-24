@@ -75,17 +75,13 @@ class MiniAppOutboundAdapterTest extends TestCase
         $this->assertSame($itemId, $entries->json('data.0.item_id'));
         $this->assertSame($rawCode, $entries->json('data.0.raw_code'));
 
-        // Simulate successful canonical label print + physical apply. These are
-        // stock-neutral gates; their own lifecycle is covered by AnnexC tests.
-        $this->markLabelsPrinted($documentId);
-
         $this->getJson("/api/v1/mini-app/outbound-documents/{$documentId}", $headers)
             ->assertOk()
             ->assertJsonPath('data.full_scan', true)
             ->assertJsonPath('data.ready_for_issue', true)
             ->assertJsonPath('data.mini_app_status', 'READY_TO_ISSUE')
-            ->assertJsonPath('data.packing_label.status', 'PRINTED')
-            ->assertJsonPath('data.packing_label.applied', true);
+            ->assertJsonPath('data.packing_label.status', 'DRAFT')
+            ->assertJsonPath('data.packing_label.applied', false);
 
         $postHeaders = $headers + [
             'If-Match' => '2',
@@ -94,7 +90,20 @@ class MiniAppOutboundAdapterTest extends TestCase
         $post = $this->postJson("/api/v1/mini-app/outbound-documents/{$documentId}/post-issue", [], $postHeaders);
         $post->assertOk()
             ->assertJsonPath('data.status', 'POSTED')
-            ->assertJsonPath('data.stock_effect', 'DECREASE');
+            ->assertJsonPath('data.stock_effect', 'DECREASE')
+            ->assertJsonPath('data.packing_label_required', false)
+            ->assertJsonPath('data.packing_label_bypassed', true)
+            ->assertJsonPath('data.packing_label_applied', false);
+
+        $auditRow = DB::table('audit_log')
+            ->where('object_type', 'stock_document')
+            ->where('object_id', $documentId)
+            ->where('action', 'POST_ISSUE')
+            ->first();
+        $this->assertNotNull($auditRow);
+        $afterData = json_decode((string) $auditRow->after_data, true);
+        $this->assertTrue((bool) $afterData['packing_label_bypassed']);
+        $this->assertSame('MINI_APP', $afterData['packing_label_bypass_source']);
 
         $this->assertSame(0, (int) DB::table('inventory_balances')
             ->where('warehouse_id', $warehouse->id)
