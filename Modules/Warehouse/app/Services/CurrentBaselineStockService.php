@@ -370,9 +370,10 @@ class CurrentBaselineStockService
         string $documentType,
         ?string $actorId,
         string $idempotencyKey,
-        string $requestHash
+        string $requestHash,
+        array $auditAfterData = []
     ): array {
-        return DB::transaction(function () use ($documentId, $documentType, $actorId, $idempotencyKey, $requestHash): array {
+        return DB::transaction(function () use ($documentId, $documentType, $actorId, $idempotencyKey, $requestHash, $auditAfterData): array {
             $document = $this->lockDocument($documentId, $documentType);
             if ($document->status !== 'SCANNING') {
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ chứng từ SCANNING mới được Post.');
@@ -472,7 +473,7 @@ class CurrentBaselineStockService
                 actorId: $actorId,
                 requestId: request()?->attributes->get('request_id'),
                 beforeData: ['status' => 'SCANNING'],
-                afterData: ['status' => 'POSTED', 'movement_ids' => $movementIds],
+                afterData: ['status' => 'POSTED', 'movement_ids' => $movementIds] + $auditAfterData,
             );
 
             return [
@@ -480,7 +481,7 @@ class CurrentBaselineStockService
                 'status' => 'POSTED',
                 'movement_ids' => $movementIds,
                 'stock_effect' => $documentType === 'receipt' ? 'INCREASE' : 'DECREASE',
-            ];
+            ] + $auditAfterData;
         }, 3);
     }
 

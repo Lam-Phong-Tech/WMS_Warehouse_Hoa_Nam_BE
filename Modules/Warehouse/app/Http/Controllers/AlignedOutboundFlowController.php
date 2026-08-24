@@ -553,7 +553,7 @@ class AlignedOutboundFlowController extends Controller
         return $this->respondSuccess($this->labelPayload($id), 'Đã xác nhận dán Packing Label; stock_effect=NONE.');
     }
 
-    public function postIssue(Request $request, string $id)
+    public function postIssue(Request $request, string $id, bool $bypassPackingLabelGate = false)
     {
         $expectedVersion = $this->expectedVersion($request);
         $key = IdempotencyKeyGuard::require($request);
@@ -564,8 +564,8 @@ class AlignedOutboundFlowController extends Controller
             'post_issue_'.$id,
             $this->actorId(),
             $hash,
-            function () use ($id, $expectedVersion, $key, $hash): array {
-                $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash): array {
+            function () use ($id, $expectedVersion, $key, $hash, $bypassPackingLabelGate): array {
+                $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash, $bypassPackingLabelGate): array {
                     $document = $this->lockDocument($id);
                     $this->assertVersion($document, $expectedVersion);
                     if ((string) $document->status !== 'SCANNING') {
@@ -579,19 +579,21 @@ class AlignedOutboundFlowController extends Controller
                     }
 
                     $label = DB::table('label_snapshots')->where('outbound_document_id', $id)->lockForUpdate()->first();
-                    if ($label === null) {
-                        ApiError::abort(422, 'PACKING_LABEL_REQUIRED', 'Phải tạo đúng 01 Packing Label cho lô trước Post Issue.');
-                    }
-                    if ((string) $label->status !== 'PRINTED') {
-                        ApiError::abort(422, 'LABEL_NOT_PRINTED', 'Packing Label phải PRINTED trước Post Issue.');
-                    }
-                    if ($label->applied_at === null) {
-                        ApiError::abort(422, 'PACKING_LABEL_NOT_APPLIED', 'Phải xác nhận đã dán Packing Label trước Post Issue.');
-                    }
-                    // §5.2: snapshot phải còn khớp outbound content tại thời điểm Post.
-                    $snapshotHash = (string) (json_decode((string) $label->label_payload, true)['content_hash'] ?? '');
-                    if ($snapshotHash !== '' && $snapshotHash !== $this->labelContentHash($id)) {
-                        ApiError::abort(409, 'LABEL_SNAPSHOT_STALE', 'Nội dung phiếu đã đổi sau khi in nhãn; phải in lại nhãn khớp nội dung mới.');
+                    if (! $bypassPackingLabelGate) {
+                        if ($label === null) {
+                            ApiError::abort(422, 'PACKING_LABEL_REQUIRED', 'Phải tạo đúng 01 Packing Label cho lô trước Post Issue.');
+                        }
+                        if ((string) $label->status !== 'PRINTED') {
+                            ApiError::abort(422, 'LABEL_NOT_PRINTED', 'Packing Label phải PRINTED trước Post Issue.');
+                        }
+                        if ($label->applied_at === null) {
+                            ApiError::abort(422, 'PACKING_LABEL_NOT_APPLIED', 'Phải xác nhận đã dán Packing Label trước Post Issue.');
+                        }
+                        // §5.2: snapshot phải còn khớp outbound content tại thời điểm Post.
+                        $snapshotHash = (string) (json_decode((string) $label->label_payload, true)['content_hash'] ?? '');
+                        if ($snapshotHash !== '' && $snapshotHash !== $this->labelContentHash($id)) {
+                            ApiError::abort(409, 'LABEL_SNAPSHOT_STALE', 'Nội dung phiếu đã đổi sau khi in nhãn; phải in lại nhãn khớp nội dung mới.');
+                        }
                     }
 
                     DB::table('stock_documents')->where('id', $id)->update([
@@ -599,10 +601,16 @@ class AlignedOutboundFlowController extends Controller
                         'updated_by' => $this->actorId(),
                         'updated_at' => now(),
                     ]);
-                    $posted = $this->stock->postStockDocument($id, 'issue', $this->actorId(), $key, $hash);
+                    $auditAfterData = $bypassPackingLabelGate ? [
+                        'packing_label_bypassed' => true,
+                        'packing_label_bypass_source' => 'MINI_APP',
+                    ] : [];
+                    $posted = $this->stock->postStockDocument($id, 'issue', $this->actorId(), $key, $hash, $auditAfterData);
                     $posted['version'] = $expectedVersion + 1;
-                    $posted['packing_label_id'] = (string) $label->id;
-                    $posted['packing_label_applied'] = true;
+                    $posted['packing_label_id'] = $label !== null ? (string) $label->id : null;
+                    $posted['packing_label_applied'] = $label !== null && $label->applied_at !== null;
+                    $posted['packing_label_required'] = ! $bypassPackingLabelGate;
+                    $posted['packing_label_bypassed'] = $bypassPackingLabelGate;
                     $posted['rfid_required'] = false;
 
                     return $posted;

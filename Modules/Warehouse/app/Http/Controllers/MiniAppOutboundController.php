@@ -50,26 +50,12 @@ class MiniAppOutboundController extends Controller
         if ($readyForIssue === true) {
             $query->where('status', StockDocument::STATUS_SCANNING)
                 ->whereHas('lines')
-                ->whereDoesntHave('lines', fn ($line) => $line->whereColumn('scanned_qty', '<>', 'qty_planned'))
-                ->whereExists(function ($sub): void {
-                    $sub->selectRaw('1')
-                        ->from('label_snapshots as ls')
-                        ->whereColumn('ls.outbound_document_id', 'stock_documents.id')
-                        ->where('ls.status', 'PRINTED')
-                        ->whereNotNull('ls.applied_at');
-                });
+                ->whereDoesntHave('lines', fn ($line) => $line->whereColumn('scanned_qty', '<>', 'qty_planned'));
         } elseif ($readyForIssue === false) {
             $query->where(function ($outer): void {
                 $outer->where('status', '<>', StockDocument::STATUS_SCANNING)
                     ->orWhereDoesntHave('lines')
-                    ->orWhereHas('lines', fn ($line) => $line->whereColumn('scanned_qty', '<>', 'qty_planned'))
-                    ->orWhereNotExists(function ($sub): void {
-                        $sub->selectRaw('1')
-                            ->from('label_snapshots as ls')
-                            ->whereColumn('ls.outbound_document_id', 'stock_documents.id')
-                            ->where('ls.status', 'PRINTED')
-                            ->whereNotNull('ls.applied_at');
-                    });
+                    ->orWhereHas('lines', fn ($line) => $line->whereColumn('scanned_qty', '<>', 'qty_planned'));
             });
         }
 
@@ -189,7 +175,7 @@ class MiniAppOutboundController extends Controller
     /** The only inventory-decreasing action in the Mini App outbound adapter. */
     public function postIssue(Request $request, string $id)
     {
-        return $this->flow->postIssue($request, $id);
+        return $this->flow->postIssue($request, $id, bypassPackingLabelGate: true);
     }
 
     private function requireDocument(string $id): object
@@ -214,9 +200,7 @@ class MiniAppOutboundController extends Controller
             && $lines->every(fn ($line): bool => (int) $line->qty_planned > 0 && (int) $line->qty_planned === (int) $line->scanned_qty);
         $label = $this->labelForDocument((string) $document->id);
         $readyForIssue = (string) $document->status === StockDocument::STATUS_SCANNING
-            && $fullScan
-            && ($label['status'] ?? null) === 'PRINTED'
-            && ($label['applied'] ?? false) === true;
+            && $fullScan;
 
         return [
             ...$document->toArray(),
@@ -244,15 +228,7 @@ class MiniAppOutboundController extends Controller
             return 'PICKING';
         }
 
-        $labelStatus = strtoupper((string) ($label['status'] ?? ''));
-        if ($labelStatus === 'PRINTED' && ($label['applied'] ?? false) === true) {
-            return 'READY_TO_ISSUE';
-        }
-        if ($labelStatus === 'PRINTED') {
-            return 'WAITING_LABEL_APPLY';
-        }
-
-        return 'LABELING';
+        return 'READY_TO_ISSUE';
     }
 
     private function labelForDocument(string $documentId): ?array

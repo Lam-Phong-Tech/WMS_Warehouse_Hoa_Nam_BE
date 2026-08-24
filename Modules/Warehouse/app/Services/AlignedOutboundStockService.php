@@ -26,13 +26,14 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
         string $documentType,
         ?string $actorId,
         string $idempotencyKey,
-        string $requestHash
+        string $requestHash,
+        array $auditAfterData = []
     ): array {
         if ($documentType !== 'issue') {
-            return parent::postStockDocument($documentId, $documentType, $actorId, $idempotencyKey, $requestHash);
+            return parent::postStockDocument($documentId, $documentType, $actorId, $idempotencyKey, $requestHash, $auditAfterData);
         }
 
-        return DB::transaction(function () use ($documentId, $actorId, $idempotencyKey, $requestHash): array {
+        return DB::transaction(function () use ($documentId, $actorId, $idempotencyKey, $requestHash, $auditAfterData): array {
             $document = $this->lockIssueDocument($documentId);
             if ($document->status !== 'SCANNING') {
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ chứng từ SCANNING mới được Post.');
@@ -93,7 +94,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
                 $documentId,
                 $movementIds[0] ?? null,
                 $actorId,
-                ['document_id' => $documentId, 'status' => 'POSTED', 'movement_ids' => $movementIds]
+                ['document_id' => $documentId, 'status' => 'POSTED', 'movement_ids' => $movementIds] + $auditAfterData
             );
 
             AuditLogger::record(
@@ -107,7 +108,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
                     'status' => 'POSTED',
                     'movement_ids' => $movementIds,
                     'rfid_gate' => 'OPTIONAL',
-                ],
+                ] + $auditAfterData,
             );
 
             return [
@@ -116,7 +117,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
                 'movement_ids' => $movementIds,
                 'stock_effect' => 'DECREASE',
                 'rfid_required' => false,
-            ];
+            ] + $auditAfterData;
         }, 3);
     }
 
