@@ -35,6 +35,18 @@ class MiniAppInboundStagingController extends Controller
     private const CANONICAL_WAREHOUSE_CODE = 'KHO-TONG-HN';
 
     private const MAX_BATCH_ITEMS = 1000;
+    private const RECORD_FIELDS = [
+        'name',
+        'dst_warehouse_id',
+        'expected_total_qty',
+        'doc_date',
+        'note',
+        'items',
+    ];
+    private const RECORD_ITEM_FIELDS = [
+        'raw_code',
+        'scan_source',
+    ];
 
     public function __construct(
         private readonly ProductQrPayloadParser $parser,
@@ -75,6 +87,8 @@ class MiniAppInboundStagingController extends Controller
      */
     public function record(Request $request)
     {
+        $this->assertRecordPayloadShape($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
@@ -82,6 +96,7 @@ class MiniAppInboundStagingController extends Controller
             'doc_date' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
+            'items.*' => ['required', 'array'],
             'items.*.raw_code' => ['required', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'items.*.scan_source' => ['nullable', 'string', 'in:CAMERA,SCANNER,HARDWARE,MANUAL'],
         ]);
@@ -314,6 +329,35 @@ class MiniAppInboundStagingController extends Controller
         }
 
         return ['items' => $prepared, 'sku_counts' => $skuCounts];
+    }
+
+    private function assertRecordPayloadShape(Request $request): void
+    {
+        $payload = $request->all();
+        $unexpected = array_values(array_diff(array_keys($payload), self::RECORD_FIELDS));
+
+        $items = $payload['items'] ?? null;
+        if (is_array($items)) {
+            foreach (array_values($items) as $index => $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                foreach (array_diff(array_keys($item), self::RECORD_ITEM_FIELDS) as $field) {
+                    $unexpected[] = 'items.'.($index + 1).'.'.$field;
+                }
+            }
+        }
+
+        if ($unexpected === []) {
+            return;
+        }
+
+        ApiError::abort(422, 'VALIDATION_ERROR', 'Payload inbound/record chi duoc gui cac field da khai bao trong contract.', [
+            'unexpected_fields' => array_values(array_unique($unexpected)),
+            'allowed_fields' => self::RECORD_FIELDS,
+            'allowed_item_fields' => self::RECORD_ITEM_FIELDS,
+        ]);
     }
 
     private function resolveRawCode(string $rawCode, bool $checkOpenReceiving): array
