@@ -2,11 +2,16 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentIssueQueryController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyAttachmentController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundDraftController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundStagingController;
+use Modules\Warehouse\Http\Controllers\MiniAppWarrantyController;
+use Modules\Warehouse\Http\Middleware\EnforceComponentIssueWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
@@ -126,4 +131,43 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     // This is the only Mini App outbound endpoint that decreases inventory.
     Route::post('outbound-documents/{id}/post-issue', [MiniAppOutboundController::class, 'postIssue'])
         ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
+
+    // â”€â”€ Warranty â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    Route::post('warranty/resolve-code', [MiniAppWarrantyController::class, 'resolveCode'])
+        ->middleware('permission:warranty.view|warranty.manage');
+
+    Route::get('warranty-cases', [MiniAppWarrantyController::class, 'index'])
+        ->middleware('permission:warranty.view|warranty.manage');
+    Route::post('warranty-cases', [MiniAppWarrantyController::class, 'store'])
+        ->middleware('permission:warranty.manage');
+    Route::get('warranty-cases/{id}', [MiniAppWarrantyController::class, 'show'])
+        ->middleware('permission:warranty.view|warranty.manage');
+    Route::patch('warranty-cases/{id}', [MiniAppWarrantyController::class, 'update'])
+        ->middleware('permission:warranty.manage');
+    Route::post('warranty-cases/{id}/status', [MiniAppWarrantyController::class, 'update'])
+        ->middleware('permission:warranty.manage');
+    Route::get('warranty-cases/{id}/events', [MiniAppWarrantyController::class, 'events'])
+        ->middleware('permission:warranty.view|warranty.manage');
+
+    Route::get('warranty-cases/{id}/attachments', [CurrentBaselineWarrantyAttachmentController::class, 'index'])
+        ->middleware('permission:warranty.view|warranty.manage');
+    Route::post('warranty-cases/{id}/attachments', [CurrentBaselineWarrantyAttachmentController::class, 'store'])
+        ->middleware('permission:warranty.manage');
+    Route::get('warranty-attachments/{attachmentId}/download', [CurrentBaselineWarrantyAttachmentController::class, 'download'])
+        ->middleware('permission:warranty.view|warranty.manage');
+    Route::delete('warranty-attachments/{attachmentId}', [CurrentBaselineWarrantyAttachmentController::class, 'destroy'])
+        ->middleware('permission:warranty.manage');
+
+    Route::get('warranty-component-issues', [CanonicalMvpController::class, 'listComponentIssueDocuments'])
+        ->middleware('permission:warranty.component_issue');
+    Route::post('warranty-component-issues', [CurrentBaselineComponentFlowController::class, 'store'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::get('warranty-component-issues/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::post('warranty-component-issues/{id}/scans', [CurrentBaselineComponentFlowController::class, 'scan'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::post('warranty-component-issues/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::post('warranty-component-issues/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
 });
