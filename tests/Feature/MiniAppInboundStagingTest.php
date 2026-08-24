@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -104,5 +106,97 @@ class MiniAppInboundStagingTest extends TestCase
             ->assertJsonPath('errors.unexpected_fields.1', 'items.1.resolved_item_id');
 
         $this->assertSame($documentsBefore, DB::table('stock_documents')->where('doc_type', 'receipt')->count());
+    }
+
+    public function test_inbound_create_surfaces_do_not_depend_on_dirty_outbound_agency_history(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->productSkuFixture('PROD-MINI-IN-AGENCY-ISO');
+        $this->seedDirtyOutboundAgencyHistory((string) $warehouse->id, (string) $headers['__user_id']);
+
+        $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => (string) $warehouse->id,
+            'source_name' => 'Canonical inbound isolated from outbound history',
+            'lines' => [[
+                'product_id' => (string) $sku->sku_id,
+                'qty_planned' => 1,
+            ]],
+        ], $headers + ['Idempotency-Key' => 'inbound-dirty-outbound-canonical'])
+            ->assertCreated()
+            ->assertJsonPath('data.doc_type', 'receipt');
+
+        $this->postJson('/api/v1/mini-app/inbound-documents', [
+            'dst_warehouse_id' => (string) $warehouse->id,
+            'source_name' => 'Mini app inbound adapter isolated from outbound history',
+            'expected_qty' => 1,
+            'product_id' => (string) $sku->sku_id,
+        ], $headers + ['Idempotency-Key' => 'inbound-dirty-outbound-mini-adapter'])
+            ->assertCreated()
+            ->assertJsonPath('data.doc_type', 'receipt');
+
+        $this->postJson('/api/v1/mini-app/inbound/record', [
+            'name' => 'Mini app inbound record isolated from outbound history',
+            'dst_warehouse_id' => (string) $warehouse->id,
+            'expected_total_qty' => 1,
+            'items' => [[
+                'raw_code' => 'HN1|SKU='.$sku->sku_code.'|ITEM=DIRTY-OUTBOUND-ISO-001|SER=DIRTY-OUTBOUND-ISO-001',
+                'scan_source' => 'CAMERA',
+            ]],
+        ], $headers + ['Idempotency-Key' => 'inbound-dirty-outbound-record'])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'SCANNING')
+            ->assertJsonPath('data.movement_created', false);
+    }
+
+    public function test_outbound_document_mirror_migration_is_row_scoped_to_issue_documents(): void
+    {
+        $source = (string) file_get_contents(base_path(
+            'Modules/Warehouse/database/migrations/2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document.php'
+        ));
+
+        $this->assertStringContainsString('FOR EACH ROW', $source);
+        $this->assertStringContainsString("NEW.doc_type IS DISTINCT FROM 'issue'", $source);
+        $this->assertStringContainsString("OLD.doc_type IS DISTINCT FROM 'issue'", $source);
+        $this->assertStringContainsString('WHERE "id" = v_document_id', $source);
+        $this->assertStringNotContainsString('FOR EACH STATEMENT', $source);
+    }
+
+    private function seedDirtyOutboundAgencyHistory(string $warehouseId, string $actorId): void
+    {
+        $inactiveAgencyId = (string) Str::uuid();
+        $agencyRow = [
+            'agency_id' => $inactiveAgencyId,
+            'agency_code' => 'AG-DIRTY-'.Str::upper(Str::random(6)),
+            'agency_name' => 'Inactive historical agency',
+            'status' => 'INACTIVE',
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+        if (Schema::hasColumn('agencies', 'id')) {
+            $agencyRow['id'] = $inactiveAgencyId;
+        }
+        DB::table('agencies')->insert($agencyRow);
+
+        foreach ([$inactiveAgencyId, null] as $index => $agencyId) {
+            DB::table('stock_documents')->insert([
+                'id' => (string) Str::uuid(),
+                'doc_type' => 'issue',
+                'doc_no' => 'PX-DIRTY-'.Str::upper(Str::random(8)),
+                'doc_date' => now()->toDateString(),
+                'status' => 'DRAFT',
+                'src_warehouse_id' => $warehouseId,
+                'dst_warehouse_id' => null,
+                'agency_id' => $agencyId,
+                'recipient_name' => 'Historical recipient '.$index,
+                'recipient_address' => 'Historical address',
+                'version' => 1,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }
