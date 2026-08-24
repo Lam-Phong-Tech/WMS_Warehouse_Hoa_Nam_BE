@@ -819,9 +819,22 @@ class CurrentBaselineStockService
             ->where(function ($query): void {
                 $query->whereNull('m.status')->orWhere('m.status', '!=', 'REMOVED');
             })
-            ->exists();
-        if ($conflict) {
-            ApiError::abort(409, 'ITEM_ALREADY_MATCHED', 'Item đang được match ở một outbound khác.');
+            ->first([
+                'd.id as conflict_document_id',
+                'd.status as conflict_document_status',
+                'l.id as conflict_line_id',
+            ]);
+        if ($conflict !== null) {
+            ApiError::abort(
+                409,
+                'ITEM_ALREADY_MATCHED',
+                'Item đang được giữ bởi một phiếu xuất khác chưa hoàn tất.',
+                [
+                    'conflict_document_id' => (string) $conflict->conflict_document_id,
+                    'conflict_document_status' => (string) $conflict->conflict_document_status,
+                    'conflict_line_id' => (string) $conflict->conflict_line_id,
+                ]
+            );
         }
     }
 
@@ -923,9 +936,13 @@ class CurrentBaselineStockService
                 $query->where('sku_id', $line->product_id)->orWhere('product_id', $line->product_id);
             })
             ->where('stock_status', self::AVAILABLE)
-            ->value('quantity') ?? 0);
+            ->value('available_qty') ?? 0);
         if ($available < $quantity) {
-            ApiError::abort(422, 'INSUFFICIENT_STOCK', 'Không đủ tồn khả dụng để scan outbound.');
+            ApiError::abort(422, 'INSUFFICIENT_STOCK', 'Không đủ tồn khả dụng để scan outbound.', [
+                'available_qty' => $available,
+                'requested_qty' => $quantity,
+                'sku_id' => (string) $line->product_id,
+            ]);
         }
     }
 
