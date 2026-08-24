@@ -10,6 +10,7 @@ use App\Support\IdempotentEnvelope;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
@@ -314,9 +315,12 @@ class AlignedOutboundFlowController extends Controller
             'source_request_no' => $sourceRequestNo,
             'recipient_name' => (string) ($document->recipient_name ?? ''),
             'recipient_address' => (string) ($document->recipient_address ?? ''),
+            'customer_name' => (string) ($document->recipient_name ?? ''),
+            'customer_address' => (string) ($document->recipient_address ?? ''),
             'customer_phone' => $customerPhone,
             'item_count' => (int) $activeMatches->sum('quantity'),
             'sku_count' => $lines->pluck('product_id')->unique()->count(),
+            'template_version' => 'v1',
             'sku_summary' => $lines->map(fn (object $line): array => [
                 'sku_id' => (string) $line->product_id,
                 'sku_code' => (string) ($line->sku_code ?? ''),
@@ -329,13 +333,20 @@ class AlignedOutboundFlowController extends Controller
         // kiểm tra "snapshot còn khớp outbound content".
         $payload['content_hash'] = $this->labelContentHash($documentId);
 
-        DB::table('label_snapshots')->insert([
+        $labelPayload = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $firstLine = $lines->first();
+        $firstItemId = (string) ($activeMatches->pluck('item_id')->filter()->first() ?? '');
+        $firstItemCode = $firstItemId !== ''
+            ? (string) (DB::table('item_instances')->where('item_id', $firstItemId)->value('item_code') ?? $firstItemId)
+            : '';
+
+        $insert = [
             'id' => $snapshotId,
             'outbound_document_id' => $documentId,
             'outbound_item_match_id' => null,
             'sku_id' => null,
             'item_id' => null,
-            'label_payload' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            'label_payload' => $labelPayload,
             // §6 State Model: nhãn khởi tạo ở DRAFT rồi mới PREVIEWED/READY_TO_PRINT.
             'status' => 'DRAFT',
             'applied_at' => null,
@@ -345,7 +356,25 @@ class AlignedOutboundFlowController extends Controller
             'created_by' => $this->actorId(),
             'updated_at' => now(),
             'updated_by' => $this->actorId(),
-        ]);
+        ];
+
+        foreach ([
+            'label_code' => $labelCode,
+            'customer_name' => (string) ($document->recipient_name ?? ''),
+            'customer_address' => (string) ($document->recipient_address ?? ''),
+            'product_name' => (string) ($firstLine->sku_name ?? ''),
+            'sku_code' => (string) ($firstLine->sku_code ?? ''),
+            'item_code_value' => $firstItemCode,
+            'outbound_no' => (string) $document->doc_no,
+            'template_version' => 'v1',
+            'payload' => $labelPayload,
+        ] as $column => $value) {
+            if (Schema::hasColumn('label_snapshots', $column)) {
+                $insert[$column] = $value;
+            }
+        }
+
+        DB::table('label_snapshots')->insert($insert);
 
         AuditLogger::record(
             action: 'PACKING_LABEL_CREATED',
