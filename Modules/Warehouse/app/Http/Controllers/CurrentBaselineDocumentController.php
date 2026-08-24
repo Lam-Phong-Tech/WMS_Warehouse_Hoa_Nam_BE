@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineDocumentController extends Controller
@@ -207,6 +208,9 @@ class CurrentBaselineDocumentController extends Controller
 
             if ($type === 'issue' && ! empty($validated['outbound_request_id'])) {
                 $validated = $this->hydrateOutboundRequest($validated);
+            }
+            if ($type === 'issue') {
+                MasterSelectionGuard::assertAgencySelectable($validated['agency_id'] ?? null);
             }
 
             $lines = array_values($validated['lines'] ?? []);
