@@ -161,7 +161,20 @@ class BackendMigrationSeedHealthTest extends TestCase
             }
         }
 
-        foreach (['outbound_item_match_id', 'sku_id', 'item_id'] as $column) {
+        foreach ([
+            'outbound_item_match_id',
+            'sku_id',
+            'item_id',
+            'label_code',
+            'customer_name',
+            'customer_address',
+            'product_name',
+            'sku_code',
+            'item_code_value',
+            'outbound_no',
+            'template_version',
+            'payload',
+        ] as $column) {
             $nullable = DB::table('information_schema.columns')
                 ->where('table_schema', 'public')
                 ->where('table_name', 'label_snapshots')
@@ -169,7 +182,7 @@ class BackendMigrationSeedHealthTest extends TestCase
                 ->value('is_nullable');
 
             if ($nullable !== null) {
-                $this->assertSame('YES', $nullable, "label_snapshots.{$column} must be nullable for document-level Packing Labels.");
+                $this->assertSame('YES', $nullable, "label_snapshots.{$column} must be nullable for document-level Packing Labels on upgraded databases.");
             }
         }
     }

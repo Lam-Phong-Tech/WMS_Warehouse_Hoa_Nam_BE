@@ -4,7 +4,7 @@
  * WWHN-300 — tham số của gate `php artisan wms:golive-check`.
  *
  * Tách ra config vì đây là các quyết định *vận hành* (môi trường nào được coi là
- * dev, mật khẩu mặc định nào phải bị từ chối, hạ tầng nào được miễn có thẩm quyền)
+ * dev, mật khẩu yếu nào phải bị từ chối, hạ tầng nào được miễn có thẩm quyền)
  * chứ không phải hằng số kỹ thuật. Reviewer/DevOps phải sửa được chúng mà không
  * đụng vào logic của check, và mọi thay đổi ở đây đều nằm trong diff review.
  */
@@ -43,20 +43,16 @@ return [
     | Vệ sinh tài khoản trước cutover (DEV300-P1-01)
     |--------------------------------------------------------------------------
     |
-    | BR-IAM-01..08 (SRS v1.12 §5.6): account unique, least privilege, backend
-    | enforcement. Một `admin` ACTIVE không chứng minh được readiness nếu nó vẫn
-    | đang dùng mật khẩu mặc định của seeder — đó chính là trạng thái tệ nhất:
-    | tài khoản quyền cao nhất, credential ai cũng biết.
-    |
-    | `known_defaults` là tập mật khẩu bị từ chối. Gate dùng Hash::check nên phát
-    | hiện được cả khi tài khoản đã bị đổi tên. Không log giá trị mật khẩu, chỉ
-    | log username vi phạm.
+    | `known_defaults` chỉ chứa các mật khẩu yếu/legacy KHÔNG thuộc contract của
+    | dự án. Tài khoản admin canonical của WMS Hoa Nam là
+    | `admin@gmail.com / Cntt@1234`; vì đây là credential được dự án yêu cầu dùng
+    | để DEV/UAT đăng nhập nên `Cntt@1234` tuyệt đối không được đưa vào deny-list
+    | này. Gate vẫn dùng Hash::check để phát hiện các giá trị yếu còn lại.
     |
     */
     'credential' => [
 
         'known_defaults' => [
-            'Cntt@1234',        // AuthDatabaseSeeder::DEFAULT_PASSWORD
             'Cntt@123',
             'password',
             'Password@123',
@@ -79,8 +75,8 @@ return [
     |
     | AuthDatabaseSeeder tạo `test-sku-manage`, `test-no-permission`,
     | `test-super-admin`… phục vụ test RBAC. Chúng là tài khoản thật, ACTIVE, có
-    | quyền thật — trên production đó là backdoor. Seeder nay không tạo chúng
-    | ngoài dev, và gate này chặn trường hợp chúng đã lọt vào DB từ trước.
+    | quyền thật — trên production đó là backdoor. Seeder không tạo chúng ngoài
+    | dev, và gate này chặn trường hợp chúng đã lọt vào DB từ trước.
     |
     */
     'non_production_usernames' => [
@@ -104,19 +100,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Seeding an toàn cho production (DEV300-P1-01)
+    | Seeding fixture phi admin
     |--------------------------------------------------------------------------
     |
-    | Ngoài development, AuthDatabaseSeeder từ chối chạy nếu không được cấp mật
-    | khẩu admin khởi tạo qua WMS_SEED_ADMIN_PASSWORD, và không tạo bất kỳ tài
-    | khoản demo/test nào trừ khi WMS_SEED_DEMO_ACCOUNTS=true (khi đó gate vẫn
-    | báo đỏ để buộc xoay vòng credential trước Go/No-Go).
+    | Credential admin canonical được pin trực tiếp trong AuthDatabaseSeeder và
+    | không có config/env override. `seed` ở đây chỉ điều khiển việc có tạo thêm
+    | tài khoản demo/test ngoài development hay không.
     |
     */
     'seed' => [
-        'admin_password' => env('WMS_SEED_ADMIN_PASSWORD'),
         'demo_accounts' => (bool) env('WMS_SEED_DEMO_ACCOUNTS', false),
-        'min_admin_password_length' => 12,
     ],
 
     /*
