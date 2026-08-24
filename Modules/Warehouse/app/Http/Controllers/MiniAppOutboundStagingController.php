@@ -31,6 +31,22 @@ class MiniAppOutboundStagingController extends Controller
     use ApiResponse;
 
     private const MAX_BATCH_ITEMS = 1000;
+    private const RECORD_FIELDS = [
+        'name',
+        'warehouse_id',
+        'request_no',
+        'request_date',
+        'recipient_name',
+        'recipient_address',
+        'recipient_contact_phone',
+        'note',
+        'expected_total_qty',
+        'items',
+    ];
+    private const RECORD_ITEM_FIELDS = [
+        'raw_code',
+        'scan_source',
+    ];
 
     public function __construct(
         private readonly ProductQrPayloadParser $parser,
@@ -74,6 +90,8 @@ class MiniAppOutboundStagingController extends Controller
      */
     public function record(Request $request): JsonResponse
     {
+        $this->assertRecordPayloadShape($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
@@ -85,6 +103,7 @@ class MiniAppOutboundStagingController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
             'expected_total_qty' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
             'items' => ['required', 'array', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
+            'items.*' => ['required', 'array'],
             'items.*.raw_code' => ['required', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'items.*.scan_source' => ['nullable', 'string', 'in:CAMERA,SCANNER,HARDWARE,MANUAL'],
         ], [
@@ -437,6 +456,35 @@ class MiniAppOutboundStagingController extends Controller
         }
     }
 
+    private function assertRecordPayloadShape(Request $request): void
+    {
+        $payload = $request->all();
+        $unexpected = array_values(array_diff(array_keys($payload), self::RECORD_FIELDS));
+
+        $items = $payload['items'] ?? null;
+        if (is_array($items)) {
+            foreach (array_values($items) as $index => $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                foreach (array_diff(array_keys($item), self::RECORD_ITEM_FIELDS) as $field) {
+                    $unexpected[] = 'items.'.($index + 1).'.'.$field;
+                }
+            }
+        }
+
+        if ($unexpected === []) {
+            return;
+        }
+
+        ApiError::abort(422, 'VALIDATION_ERROR', 'Payload outbound/record chi duoc gui cac field da khai bao trong contract.', [
+            'unexpected_fields' => array_values(array_unique($unexpected)),
+            'allowed_fields' => self::RECORD_FIELDS,
+            'allowed_item_fields' => self::RECORD_ITEM_FIELDS,
+        ]);
+    }
+
     private function availableQty(string $warehouseId, string $skuId): int
     {
         return (int) DB::table('inventory_balances')
@@ -532,7 +580,15 @@ class MiniAppOutboundStagingController extends Controller
     /** @param array<string,mixed> $payload @param array<string,string> $headers */
     private function childRequest(Request $parent, array $payload, array $headers = []): Request
     {
-        $child = Request::create($parent->getUri(), 'POST', $payload);
+        $child = Request::create(
+            $parent->getUri(),
+            'POST',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'],
+            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+        );
         $child->setUserResolver(fn () => $parent->user());
         foreach ($parent->attributes->all() as $key => $value) {
             $child->attributes->set($key, $value);

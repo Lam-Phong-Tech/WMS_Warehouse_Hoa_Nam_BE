@@ -136,4 +136,32 @@ class MiniAppOutboundStagingTest extends TestCase
 
         $this->assertSame($documentsBefore, DB::table('stock_documents')->where('doc_type', 'issue')->count());
     }
+
+    public function test_record_rejects_unexpected_payload_fields_before_creating_document(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $documentsBefore = DB::table('stock_documents')->where('doc_type', 'issue')->count();
+
+        $this->postJson('/api/v1/mini-app/outbound/record', [
+            'name' => 'Batch has extra FE state',
+            'warehouse_id' => (string) $warehouse->id,
+            'recipient_name' => 'Mini App',
+            'expected_total_qty' => 1,
+            'client_state' => ['screen' => 'review'],
+            'items' => [
+                [
+                    'raw_code' => 'HN1|SKU=PROD-MINI-STAGE-EXTRA|ITEM=ITEM-EXTRA',
+                    'scan_source' => 'CAMERA',
+                    'resolved_item_id' => 'client-only',
+                ],
+            ],
+        ], $headers + ['Idempotency-Key' => 'mini-outbound-stage-extra-fields'])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'VALIDATION_ERROR')
+            ->assertJsonPath('errors.unexpected_fields.0', 'client_state')
+            ->assertJsonPath('errors.unexpected_fields.1', 'items.1.resolved_item_id');
+
+        $this->assertSame($documentsBefore, DB::table('stock_documents')->where('doc_type', 'issue')->count());
+    }
 }
