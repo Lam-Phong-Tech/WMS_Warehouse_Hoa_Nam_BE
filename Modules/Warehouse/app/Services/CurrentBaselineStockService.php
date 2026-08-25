@@ -912,9 +912,12 @@ class CurrentBaselineStockService
 
     private function assertItemAvailableForReceipt(object $item, string $documentId): void
     {
-        if (! in_array((string) $item->item_status, ['NEW', 'ADJUSTED_OUT'], true)) {
-            ApiError::abort(422, 'ITEM_NOT_RECEIVABLE', 'Item đã nằm trong luồng tồn khác.');
-        }
+        // Normal receipt is only for a new identity. Any identity already in
+        // the database must go through a controlled reversal/return workflow.
+        ApiError::abort(409, 'ITEM_ALREADY_REGISTERED', 'Mã máy đã tồn tại trong hệ thống; hãy dùng luồng reversal/return được kiểm soát.', [
+            'item_id' => (string) $item->item_id,
+            'item_status' => (string) ($item->item_status ?? ''),
+        ]);
 
         $conflict = DB::table('inbound_scan_entries as e')
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
