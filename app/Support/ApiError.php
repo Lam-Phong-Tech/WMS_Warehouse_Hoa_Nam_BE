@@ -16,15 +16,16 @@ class ApiError
     public static function abort(int $httpCode, string $errorCode, string $message, array $details = [], ?array $data = null): void
     {
         $requestId = request()?->attributes->get('request_id');
+        $localizedDetails = UserFacingMessageLocalizer::translateDetails($details);
 
         $payload = [
             'success' => false,
-            'message' => $message,
+            'message' => UserFacingMessageLocalizer::translate($message),
             'error_code' => $errorCode,
-            'errors' => $details,
+            'errors' => $localizedDetails,
             'error' => [
                 'code' => $errorCode,
-                'details' => $details,
+                'details' => $localizedDetails,
             ],
             'meta' => [
                 'request_id' => is_string($requestId) ? $requestId : (string) Str::uuid(),

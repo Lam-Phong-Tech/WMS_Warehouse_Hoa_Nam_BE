@@ -2,6 +2,7 @@
 
 namespace App\Traits;
 
+use App\Support\UserFacingMessageLocalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -19,7 +20,7 @@ trait ApiResponse
 
         $payload = ['success' => true];
         if ($message !== null) {
-            $payload['message'] = $message;
+            $payload['message'] = UserFacingMessageLocalizer::translate($message);
         }
         $payload['data'] = $data;
         $payload['meta'] = [
@@ -46,7 +47,7 @@ trait ApiResponse
     {
         $payload = ['success' => true];
         if ($message !== null) {
-            $payload['message'] = $message;
+            $payload['message'] = UserFacingMessageLocalizer::translate($message);
         }
         $payload['data'] = $paginator->items();
         $payload['meta'] = [
@@ -84,12 +85,13 @@ trait ApiResponse
         ];
 
         $codeStr = $errorCode ?? ($defaultErrorCodes[$code] ?? 'ERROR');
+        $localizedErrors = UserFacingMessageLocalizer::translateDetails($errors);
         $payload = [
             'success' => false,
-            'message' => $message,
+            'message' => UserFacingMessageLocalizer::translate($message),
             'error_code' => $codeStr,
-            'errors' => $errors,
-            'error' => ['code' => $codeStr, 'details' => $errors],
+            'errors' => $localizedErrors,
+            'error' => ['code' => $codeStr, 'details' => $localizedErrors],
             'meta' => [
                 'request_id' => $this->currentRequestId(),
                 'timestamp' => now()->toIso8601String(),

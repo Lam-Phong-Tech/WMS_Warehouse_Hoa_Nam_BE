@@ -9,6 +9,7 @@ use App\Support\WarrantyPiiMasker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
@@ -105,7 +106,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             // Change Pack QR/SKU: item_code chấp nhận cả RAW composite QR (trần 512).
             'item_code' => ['nullable', 'string', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'defect_id' => ['nullable', 'uuid'],
+            'defect_ids' => ['nullable', 'array', 'min:1'],
+            'defect_ids.*' => ['uuid', 'distinct'],
             'defect_code' => ['nullable', 'string', 'max:80'],
+            'estimated_completion_date' => ['nullable', 'date', 'after_or_equal:today'],
             'customer_name' => ['required', 'string', 'max:200'],
             // Rà soát validate định dạng input (Flow04 Warranty): SĐT khách VN —
             // bắt đầu bằng 0, đúng 10 chữ số. Không đổi required/max hiện có, chỉ
@@ -149,7 +153,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
     {
         return DB::transaction(function () use ($validated, $request): string {
             $item = $this->resolveWarrantyItem($validated);
-            $defect = $this->resolveDefect($validated);
+            $defectIds = $this->resolveDefectIds($validated);
 
             if ($item !== null) {
                 if (! in_array((string) $item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true)) {
@@ -189,7 +193,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'sales_trace_status' => $item ? 'TRACEABLE' : 'NOT_TRACEABLE',
                 'missing_code_reason' => $validated['missing_code_reason'] ?? null,
                 'manual_product_description' => $validated['manual_product_description'] ?? null,
-                'defect_id' => $defect?->defect_id,
+                // Kept as the primary/legacy value during the contract transition.
+                'defect_id' => $defectIds[0] ?? null,
+                'estimated_completion_date' => $validated['estimated_completion_date'] ?? null,
                 'customer_name' => $validated['customer_name'],
                 'customer_phone' => $validated['customer_phone'],
                 'customer_address' => $validated['customer_address'] ?? null,
@@ -206,6 +212,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+            $this->syncWarrantyDefects($caseId, $defectIds);
 
             if ($item !== null) {
                 DB::table('item_instances')->where('item_id', $item->item_id)->update([
@@ -335,7 +342,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             // defect phải sửa được khi CHECKING kết luận khác, và PII sai lúc tiếp
             // nhận phải sửa được thay vì mở case mới.
             'defect_id' => ['nullable', 'uuid'],
+            'defect_ids' => ['nullable', 'array', 'min:1'],
+            'defect_ids.*' => ['uuid', 'distinct'],
             'defect_code' => ['nullable', 'string', 'max:80'],
+            'estimated_completion_date' => ['nullable', 'date', 'after_or_equal:today'],
             'customer_name' => ['sometimes', 'string', 'max:200'],
             // Rà soát validate định dạng input (Flow04 Warranty): giữ nguyên
             // 'sometimes' (PII sửa được sau tiếp nhận), chỉ thêm định dạng SĐT VN
@@ -412,7 +422,14 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ApiError::abort(409, 'INVALID_WARRANTY_TRANSITION', "Không cho phép {$case->status} -> {$target}.");
             }
 
-            $defect = $this->resolveDefect($validated);
+            if (array_key_exists('defect_ids', $validated)) {
+                $defectIds = $this->resolveDefectIds($validated);
+            } elseif (array_key_exists('defect_id', $validated) || array_key_exists('defect_code', $validated)) {
+                $singleDefect = $this->resolveDefect($validated);
+                $defectIds = $singleDefect !== null ? [(string) $singleDefect->defect_id] : [];
+            } else {
+                $defectIds = $this->currentDefectIds($id, $case->defect_id ?? null);
+            }
 
             $cancelReason = trim((string) ($validated['cancel_reason'] ?? $validated['note'] ?? $validated['description'] ?? ''));
             if ($target === 'CANCELLED' && $case->status !== 'CANCELLED' && $cancelReason === '') {
@@ -460,7 +477,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'confirmed_defect' => $validated['confirmed_defect'] ?? ($case->confirmed_defect ?? null),
                 'accessories_received' => $validated['accessories_received'] ?? ($case->accessories_received ?? null),
                 'received_condition' => $validated['received_condition'] ?? ($case->received_condition ?? null),
-                'defect_id' => $defect !== null ? $defect->defect_id : $case->defect_id,
+                'defect_id' => $defectIds[0] ?? null,
+                'estimated_completion_date' => array_key_exists('estimated_completion_date', $validated)
+                    ? $validated['estimated_completion_date']
+                    : ($case->estimated_completion_date ?? null),
                 'customer_name' => $validated['customer_name'] ?? $case->customer_name,
                 'customer_phone' => $validated['customer_phone'] ?? $case->customer_phone,
                 'customer_address' => array_key_exists('customer_address', $validated)
@@ -481,6 +501,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     : ($case->retention_until ?? null),
                 'updated_at' => now(),
             ]);
+            if (array_key_exists('defect_ids', $validated)) {
+                $this->syncWarrantyDefects($id, $defectIds);
+            }
 
             if ($target !== $case->status) {
                 DB::table('warranty_event')->insert([
@@ -639,6 +662,65 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         }
 
         return $defect;
+    }
+
+    /** @return list<string> */
+    private function resolveDefectIds(array $validated): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map('strval', $validated['defect_ids'] ?? []),
+            fn (string $id): bool => trim($id) !== ''
+        )));
+        if ($ids === []) {
+            $single = $this->resolveDefect($validated);
+
+            return $single === null ? [] : [(string) $single->defect_id];
+        }
+
+        $activeIds = DB::table('defect_catalogs')
+            ->where('status', 'ACTIVE')
+            ->whereIn('defect_id', $ids)
+            ->pluck('defect_id')
+            ->map(fn ($id): string => (string) $id)
+            ->all();
+        if (count($activeIds) !== count($ids)) {
+            ApiError::abort(422, 'WARRANTY_DEFECT_NOT_FOUND', 'Danh sách bệnh/lỗi phải gồm các mã ACTIVE hợp lệ.', [
+                'defect_ids' => $ids,
+            ]);
+        }
+
+        return $ids;
+    }
+
+    /** @return list<string> */
+    private function currentDefectIds(string $caseId, mixed $legacyDefectId): array
+    {
+        $ids = Schema::hasTable('warranty_case_defects')
+            ? DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->pluck('defect_id')->all()
+            : [];
+        if ($ids === [] && $legacyDefectId !== null) {
+            $ids[] = $legacyDefectId;
+        }
+
+        return array_values(array_filter(array_map('strval', $ids)));
+    }
+
+    /** @param list<string> $defectIds */
+    private function syncWarrantyDefects(string $caseId, array $defectIds): void
+    {
+        if (! Schema::hasTable('warranty_case_defects')) {
+            return;
+        }
+        DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->delete();
+        foreach ($defectIds as $defectId) {
+            DB::table('warranty_case_defects')->insert([
+                'warranty_case_defect_id' => (string) Str::uuid(),
+                'warranty_case_id' => $caseId,
+                'defect_id' => $defectId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     private function casePayload(string $id, Request $request): array
