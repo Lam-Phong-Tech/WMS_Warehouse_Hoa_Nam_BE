@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\IdempotencyStore;
+use App\Support\UserFacingMessageLocalizer;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
@@ -110,7 +111,8 @@ class ApiConventionMiddleware
                             ],
                         ];
 
-                        $newBody['message'] = $data['message'] ?? 'Thành công';
+                        $rawSuccessMessage = is_string($data['message'] ?? null) ? $data['message'] : 'Thành công';
+                        $newBody['message'] = UserFacingMessageLocalizer::translate($rawSuccessMessage) ?? 'Thành công';
 
                         $data = $newBody;
                     } else {
@@ -120,6 +122,9 @@ class ApiConventionMiddleware
 
                         if ($hasSuccess) {
                             $newBody = $data;
+                            if (isset($newBody['message']) && is_string($newBody['message'])) {
+                                $newBody['message'] = UserFacingMessageLocalizer::translate($newBody['message']);
+                            }
                             if (! isset($newBody['meta'])) {
                                 $newBody['meta'] = [];
                             }
@@ -130,9 +135,10 @@ class ApiConventionMiddleware
                                 $newBody['meta']['timestamp'] = now()->toIso8601String();
                             }
                         } else {
+                            $rawSuccessMessage = is_string($data['message'] ?? null) ? $data['message'] : 'Thành công';
                             $newBody = [
                                 'success' => true,
-                                'message' => $data['message'] ?? 'Thành công',
+                                'message' => UserFacingMessageLocalizer::translate($rawSuccessMessage) ?? 'Thành công',
                                 'meta' => [
                                     'request_id' => $data['meta']['request_id'] ?? ($data['request_id'] ?? $requestId),
                                     'timestamp' => $data['meta']['timestamp'] ?? now()->toIso8601String(),
@@ -153,7 +159,9 @@ class ApiConventionMiddleware
                     }
                 } elseif ($statusCode >= 400) {
                     $defaultErrorCode = 'BUSINESS_RULE_ERROR';
-                    $message = $data['message'] ?? 'Đã xảy ra lỗi.';
+                    $rawMessage = is_string($data['message'] ?? null) ? $data['message'] : 'Đã xảy ra lỗi.';
+                    $message = UserFacingMessageLocalizer::translate($rawMessage) ?? 'Đã xảy ra lỗi.';
+                    $rawMessageLower = strtolower($rawMessage);
 
                     switch ($statusCode) {
                         case 400:
@@ -182,7 +190,7 @@ class ApiConventionMiddleware
                             $defaultErrorCode = 'METHOD_NOT_ALLOWED';
                             break;
                         case 409:
-                            if (str_contains(strtolower($message), 'idempotency')) {
+                            if (str_contains($rawMessageLower, 'idempotency')) {
                                 // WWHN-289: §8.2 chỉ công nhận STATE_CONFLICT /
                                 // IDEMPOTENCY_CONFLICT / CONCURRENCY_CONFLICT /
                                 // DOWNSTREAM_DEPENDENCY_EXISTS cho 409. Đây là nguồn
@@ -190,14 +198,14 @@ class ApiConventionMiddleware
                                 // dùng chung hằng — nếu không, cùng một tình huống sẽ
                                 // trả hai mã khác nhau tuỳ đường đi của response.
                                 $defaultErrorCode = IdempotencyStore::CONFLICT_PAYLOAD_DIFFERS;
-                            } elseif (str_contains(strtolower($message), 'trùng') || str_contains(strtolower($message), 'duplicate') || str_contains(strtolower($message), 'unique') || str_contains(strtolower($message), 'đã tồn tại')) {
+                            } elseif (str_contains($rawMessageLower, 'trùng') || str_contains($rawMessageLower, 'duplicate') || str_contains($rawMessageLower, 'unique') || str_contains($rawMessageLower, 'đã tồn tại')) {
                                 $defaultErrorCode = 'DUPLICATE_RESOURCE';
                             } else {
                                 $defaultErrorCode = 'STATE_CONFLICT';
                             }
                             break;
                         case 422:
-                            if (str_contains(strtolower($message), 'tồn kho') || str_contains(strtolower($message), 'stock') || str_contains(strtolower($message), 'không đủ')) {
+                            if (str_contains($rawMessageLower, 'tồn kho') || str_contains($rawMessageLower, 'stock') || str_contains($rawMessageLower, 'không đủ')) {
                                 $defaultErrorCode = 'INSUFFICIENT_STOCK';
                             } else {
                                 $defaultErrorCode = 'BUSINESS_RULE_ERROR';
@@ -208,14 +216,16 @@ class ApiConventionMiddleware
                             break;
                     }
 
+                    $rawDetails = $data['error']['details'] ?? ($data['errors'] ?? []);
+                    $localizedDetails = UserFacingMessageLocalizer::translateDetails($rawDetails);
                     $newBody = [
                         'success' => false,
                         'message' => $message,
                         'error_code' => $data['error']['code'] ?? ($data['error_code'] ?? $defaultErrorCode),
-                        'errors' => $data['error']['details'] ?? ($data['errors'] ?? []),
+                        'errors' => $localizedDetails,
                         'error' => [
                             'code' => $data['error']['code'] ?? ($data['error_code'] ?? $defaultErrorCode),
-                            'details' => $data['error']['details'] ?? ($data['errors'] ?? []),
+                            'details' => $localizedDetails,
                         ],
                         'meta' => [
                             'request_id' => $data['meta']['request_id'] ?? $requestId,
