@@ -1,12 +1,13 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Modules\Warehouse\Http\Controllers\AgencyController;
 use Modules\Warehouse\Http\Controllers\AlignedImportMatchReportController;
 use Modules\Warehouse\Http\Controllers\AlignedLabelLogReportController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
 use Modules\Warehouse\Http\Controllers\AlignedWarrantyReportController;
+use Modules\Warehouse\Http\Controllers\BaM1RecipientController;
+use Modules\Warehouse\Http\Controllers\BaM1ReportController;
 use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\ContainerController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
@@ -204,12 +205,20 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/label-log/export-excel', [AlignedLabelLogReportController::class, 'export'])->middleware('permission:report.export');
         Route::get('reports/outbound-by-agency', [OperationalReportController::class, 'outboundByAgency'])->middleware('permission:report.view');
         Route::get('reports/outbound-by-agency/export-excel', [OperationalReportController::class, 'outboundByAgencyExport'])->middleware('permission:report.export');
+        // GĐ1 scope report (Nơi nhận/Thị trường/Khu vực/SKU) — trỏ thẳng controller GĐ1
+        // thay vì để Flow06AlignmentServiceProvider override runtime, cùng lý do với
+        // import-match/label-log/warranty-defects ở trên: route cụ thể đăng ký sau
+        // "reports/{report_code}" catch-all thì không bao giờ được match tới.
+        Route::get('reports/outbound-by-recipient', [BaM1ReportController::class, 'outboundByRecipient'])->middleware('permission:report.view');
+        Route::get('reports/warranty-defect-sku-breakdown', [BaM1ReportController::class, 'defectSkuBreakdown'])->middleware('permission:report.view');
         Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
         Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
-        // RPT-WAR-01/RPT-WAR-COMP-01: trỏ thẳng controller Aligned thay vì để
-        // Flow06AlignmentServiceProvider override một handler legacy — handler cũ dùng
-        // bộ status ngoài §6 nên summary.processing đếm thiếu CHECKING/REPAIRING/COMPLETED.
-        Route::get('reports/warranty-defects', [AlignedWarrantyReportController::class, 'index'])->middleware('permission:report.view');
+        // RPT-WAR-01/RPT-WAR-COMP-01 (GĐ1-REQ-003/009): BaM1ReportController đếm theo
+        // toàn bộ quan hệ warranty_case_defects (multi-defect) và giữ summary theo bộ
+        // status §6 — handler Aligned cũ chỉ join defect chính nên đếm thiếu case
+        // nhiều lỗi; trước đây BaM1 chỉ sống nhờ override runtime của
+        // Flow06AlignmentServiceProvider, nay trỏ thẳng tại đây.
+        Route::get('reports/warranty-defects', [BaM1ReportController::class, 'warrantyDefects'])->middleware('permission:report.view');
         Route::get('reports/warranty-defects/export-excel', [AlignedWarrantyReportController::class, 'export'])->middleware('permission:report.export');
         // Annex C REQ-SRS-031/032. "reports/{report_code}" là catch-all nên phải
         // đăng ký sau mọi route reports/* cụ thể ở trên.
@@ -217,10 +226,19 @@ Route::prefix('v1')->group(function (): void {
         Route::post('reports/export', [OperationalReportController::class, 'createExport'])->middleware('permission:report.export');
         Route::get('reports/{report_code}', [OperationalReportController::class, 'byCode'])->middleware('permission:report.view');
 
-        Route::get('agencies', [AgencyController::class, 'index'])->middleware('permission:agency.view');
-        Route::post('agencies', [AgencyController::class, 'store'])->middleware('permission:agency.manage');
-        Route::get('agencies/{id}', [AgencyController::class, 'show'])->middleware('permission:agency.view');
-        Route::patch('agencies/{id}', [AgencyController::class, 'update'])->middleware('permission:agency.manage');
+        // GĐ1-REQ-001: master "nơi nhận" 4 loại (DISTRIBUTOR/AGENCY/PROJECT_CUSTOMER/
+        // RETAIL_CUSTOMER) trên bảng agencies lịch sử — trỏ thẳng BaM1RecipientController
+        // thay vì để Flow06AlignmentServiceProvider override runtime (mong manh khi
+        // route:cache/gỡ provider). Alias /recipients là contract mới, /agencies giữ
+        // tương thích client cũ.
+        Route::get('agencies', [BaM1RecipientController::class, 'index'])->middleware('permission:agency.view');
+        Route::post('agencies', [BaM1RecipientController::class, 'store'])->middleware('permission:agency.manage');
+        Route::get('agencies/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
+        Route::patch('agencies/{id}', [BaM1RecipientController::class, 'update'])->middleware('permission:agency.manage');
+        Route::get('recipients', [BaM1RecipientController::class, 'index'])->middleware('permission:agency.view');
+        Route::post('recipients', [BaM1RecipientController::class, 'store'])->middleware('permission:agency.manage');
+        Route::get('recipients/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
+        Route::patch('recipients/{id}', [BaM1RecipientController::class, 'update'])->middleware('permission:agency.manage');
         // BR-AGY-01 + BR-MST "deactivate thay vì xóa": không có DELETE đại lý.
         // Ngừng dùng bằng PATCH status=INACTIVE để chứng từ lịch sử giữ nguyên FK.
 

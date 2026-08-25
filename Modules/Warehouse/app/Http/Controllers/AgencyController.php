@@ -49,7 +49,7 @@ class AgencyController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->agencies->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->agencies->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 

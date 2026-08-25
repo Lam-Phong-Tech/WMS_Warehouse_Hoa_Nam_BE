@@ -7,6 +7,7 @@ use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Auth\Support\AuthCache;
@@ -35,6 +36,12 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     public function getAuthPassword(): string
     {
         return $this->password_hash;
+    }
+
+    /** GĐ1-REQ-011: user thuộc một phòng ban (nullable). */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 
     public function roles(): BelongsToMany

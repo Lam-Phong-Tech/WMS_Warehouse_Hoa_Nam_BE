@@ -49,7 +49,7 @@ class ContainerController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->containers->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->containers->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 

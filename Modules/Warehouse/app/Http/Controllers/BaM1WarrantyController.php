@@ -101,16 +101,22 @@ class BaM1WarrantyController extends CurrentBaselineWarrantyController
 
         $defects = [];
         if (Schema::hasTable('warranty_case_defects')) {
+            $hasPrimaryColumn = Schema::hasColumn('warranty_case_defects', 'is_primary');
             $defects = DB::table('warranty_case_defects as wcd')
                 ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
                 ->where('wcd.warranty_case_id', $caseId)
                 ->orderBy('wcd.created_at')
-                ->get(['dc.defect_id', 'dc.defect_code', 'dc.defect_name'])
+                ->get(array_merge(
+                    ['dc.defect_id', 'dc.defect_code', 'dc.defect_name'],
+                    $hasPrimaryColumn ? ['wcd.is_primary'] : []
+                ))
                 ->map(fn (object $row): array => [
                     'defect_id' => (string) $row->defect_id,
                     'defect_code' => (string) $row->defect_code,
                     'defect_name' => (string) $row->defect_name,
-                    'is_primary' => (string) $row->defect_id === (string) ($case->defect_id ?? ''),
+                    'is_primary' => $hasPrimaryColumn
+                        ? (bool) $row->is_primary
+                        : (string) $row->defect_id === (string) ($case->defect_id ?? ''),
                 ])->values()->all();
         }
 

@@ -214,7 +214,11 @@ class CurrentBaselineDocumentController extends Controller
             }
 
             $lines = array_values($validated['lines'] ?? []);
-            if ($lines === []) {
+            // GĐ1-REQ-004: phiếu nhập scan-driven được tạo header-only — dòng SKU sinh
+            // từ quét thực tế. Chỉ phiếu xuất (đi từ toa/request) mới bắt buộc có dòng.
+            // Route receipt runtime đã trỏ BaM1InboundDocumentController; guard tại đây
+            // phải khớp contract đó để không sống lại nếu override bị gỡ.
+            if ($lines === [] && $type !== 'receipt') {
                 ApiError::abort(422, 'DOCUMENT_HAS_NO_LINES', 'Chứng từ phải có ít nhất một dòng.');
             }
             $this->assertLineSkus($type, $lines);

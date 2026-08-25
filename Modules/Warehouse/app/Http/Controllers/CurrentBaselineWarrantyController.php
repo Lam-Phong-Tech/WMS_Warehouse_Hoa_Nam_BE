@@ -243,7 +243,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'version' => 1,
                     'identification_status' => $item ? 'IDENTIFIED' : 'TEMP_ONLY',
                     'item_id' => $item?->item_id,
-                    'defect_id' => $defect?->defect_id,
+                    'defect_id' => $defectIds[0] ?? null,
+                    'defect_ids' => $defectIds,
                     'stock_effect' => 'NONE',
                 ],
             );
@@ -501,7 +502,13 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     : ($case->retention_until ?? null),
                 'updated_at' => now(),
             ]);
-            if (array_key_exists('defect_ids', $validated)) {
+            // GĐ1-REQ-009: warranty_case_defects là contract canonical — đồng bộ cả khi
+            // client chỉ gửi defect_id/defect_code đơn, nếu không hai nguồn sẽ lệch nhau.
+            if (
+                array_key_exists('defect_ids', $validated)
+                || array_key_exists('defect_id', $validated)
+                || array_key_exists('defect_code', $validated)
+            ) {
                 $this->syncWarrantyDefects($id, $defectIds);
             }
 
@@ -711,15 +718,21 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         if (! Schema::hasTable('warranty_case_defects')) {
             return;
         }
+        $hasPrimaryColumn = Schema::hasColumn('warranty_case_defects', 'is_primary');
         DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->delete();
-        foreach ($defectIds as $defectId) {
-            DB::table('warranty_case_defects')->insert([
+        foreach (array_values($defectIds) as $index => $defectId) {
+            $row = [
                 'warranty_case_defect_id' => (string) Str::uuid(),
                 'warranty_case_id' => $caseId,
                 'defect_id' => $defectId,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+            if ($hasPrimaryColumn) {
+                // Phần tử đầu là defect chính — khớp warranty_case.defect_id legacy.
+                $row['is_primary'] = $index === 0;
+            }
+            DB::table('warranty_case_defects')->insert($row);
         }
     }
 

@@ -42,7 +42,7 @@ class PhysicalCodeController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->physicalCodes->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->physicalCodes->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 

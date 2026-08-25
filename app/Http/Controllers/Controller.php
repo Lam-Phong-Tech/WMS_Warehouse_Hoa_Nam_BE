@@ -13,7 +13,7 @@ abstract class Controller
      * `per_page` là tên tham số client hiện hành nên được giữ; `page_size` là tên
      * chuẩn trong contract và phải được nhận đúng như nhau. Cap 200 theo contract.
      */
-    protected function perPage(Request $request, int $default = 15): int
+    protected function perPage(Request $request, int $default = 10): int
     {
         $requested = $request->input('per_page', $request->input('page_size', $default));
 

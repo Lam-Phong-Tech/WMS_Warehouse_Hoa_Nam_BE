@@ -94,7 +94,7 @@ class ImportReportController extends Controller
         tags: ['05. Product'],
         parameters: [
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
-            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 10)),
             new OA\Parameter(name: 'mode', in: 'query', description: 'DRY_RUN hoặc COMMIT', schema: new OA\Schema(type: 'string', enum: ['DRY_RUN', 'COMMIT'])),
             new OA\Parameter(name: 'status', in: 'query', description: 'VALID | REJECTED | COMMITTED', schema: new OA\Schema(type: 'string', enum: ['VALID', 'REJECTED', 'COMMITTED'])),
             new OA\Parameter(name: 'file_sha256', in: 'query', schema: new OA\Schema(type: 'string')),
@@ -127,7 +127,7 @@ class ImportReportController extends Controller
         }
 
         $reports = $query->orderByDesc('created_at')
-            ->paginate((int) ($validated['per_page'] ?? 15));
+            ->paginate((int) ($validated['per_page'] ?? 10));
 
         $response = $this->respondPaginated($reports);
 

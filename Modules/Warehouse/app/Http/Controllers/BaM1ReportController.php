@@ -18,7 +18,8 @@ use Illuminate\Validation\Rule;
  */
 class BaM1ReportController extends Controller
 {
-    private const RECIPIENT_TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
+    // Canonical source duy nhất cho 4 loại đối tượng nhận hàng (GĐ1-REQ-001).
+    private const RECIPIENT_TYPES = BaM1RecipientController::TYPES;
     private const WARRANTY_STATUSES = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'];
 
     public function outboundByRecipient(Request $request)
@@ -44,7 +45,9 @@ class BaM1ReportController extends Controller
 
         $query = DB::table('stock_documents as d')
             ->join('stock_document_lines as l', 'l.stock_document_id', '=', 'd.id')
-            ->join('sku as s', 's.sku_id', '=', 'l.product_id')
+            // leftJoin: dòng có product_id không match danh mục SKU vẫn phải hiện
+            // (thiếu tên) thay vì biến mất khỏi báo cáo.
+            ->leftJoin('sku as s', 's.sku_id', '=', 'l.product_id')
             ->leftJoin('agencies as a', 'a.agency_id', '=', 'd.agency_id')
             ->where('d.doc_type', 'issue')
             ->where('d.status', 'POSTED')
@@ -309,21 +312,34 @@ class BaM1ReportController extends Controller
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
             'sku_id' => ['nullable', 'uuid'],
+            'sku_ids' => ['nullable', 'array'],
+            'sku_ids.*' => ['uuid', 'distinct'],
             'defect_id' => ['nullable', 'uuid'],
+            'defect_ids' => ['nullable', 'array'],
+            'defect_ids.*' => ['uuid', 'distinct'],
         ]);
         $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
         $to = (string) ($validated['to_date'] ?? now()->toDateString());
+        // GĐ1-REQ-022: bộ lọc đa chọn; scalar sku_id/defect_id giữ làm alias tương thích.
+        $filterSkus = array_values(array_unique(array_filter(array_merge(
+            (array) ($validated['sku_ids'] ?? []),
+            ! empty($validated['sku_id']) ? [(string) $validated['sku_id']] : []
+        ))));
+        $filterDefects = array_values(array_unique(array_filter(array_merge(
+            (array) ($validated['defect_ids'] ?? []),
+            ! empty($validated['defect_id']) ? [(string) $validated['defect_id']] : []
+        ))));
 
         $query = DB::table('warranty_case_defects as wcd')
             ->join('warranty_case as wc', 'wc.warranty_case_id', '=', 'wcd.warranty_case_id')
             ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
-        if (! empty($validated['sku_id'])) {
-            $query->where('wc.product_id', $validated['sku_id']);
+        if ($filterSkus !== []) {
+            $query->whereIn('wc.product_id', $filterSkus);
         }
-        if (! empty($validated['defect_id'])) {
-            $query->where('wcd.defect_id', $validated['defect_id']);
+        if ($filterDefects !== []) {
+            $query->whereIn('wcd.defect_id', $filterDefects);
         }
         $rows = $query
             ->groupBy('wc.product_id', 's.sku_code', 's.sku_name', 'wcd.defect_id', 'dc.defect_code', 'dc.defect_name')

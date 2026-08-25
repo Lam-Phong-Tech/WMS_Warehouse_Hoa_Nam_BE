@@ -109,7 +109,13 @@ class BaM1RecipientController extends Controller
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy đối tượng nhận hàng.');
         }
         $validated = $this->validatePayload($request, $id, true);
+        // Annex C updateAgency + ERD agencies.version: If-Match là optimistic locking,
+        // chỉ enforce khi client gửi header (parity với AgencyController để việc chuyển
+        // handler runtime không làm mất guard).
+        $this->assertVersionIfProvided($request, $before);
+        $this->assertCodeImmutableAfterUse($id, $validated, $before);
         if ($validated !== []) {
+            $validated['version'] = (int) ($before->version ?? 0) + 1;
             $validated['updated_at'] = now();
             DB::table('agencies')->where('agency_id', $id)->update($validated);
         }
@@ -117,6 +123,41 @@ class BaM1RecipientController extends Controller
         $this->audit('RECIPIENT_UPDATE', $id, $request, $before, $after);
 
         return response()->json(['success' => true, 'data' => $after]);
+    }
+
+    private function assertVersionIfProvided(Request $request, object $current): void
+    {
+        $header = (string) $request->header('If-Match', '');
+        if ($header === '') {
+            return;
+        }
+        $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên.');
+        }
+        if ((int) $header !== (int) ($current->version ?? 0)) {
+            ApiError::abort(412, 'STALE_VERSION', 'Đối tượng nhận hàng đã được cập nhật bởi phiên khác; tải lại trước khi lưu.', [
+                'expected_version' => (int) $header,
+                'current_version' => (int) ($current->version ?? 0),
+            ]);
+        }
+    }
+
+    /**
+     * BR-AGY: mã nơi nhận đã xuất hiện trên chứng từ là bất biến — đổi mã sẽ làm
+     * lịch sử phiếu xuất trỏ sai định danh.
+     */
+    private function assertCodeImmutableAfterUse(string $id, array $validated, object $before): void
+    {
+        $newCode = $validated['agency_code'] ?? null;
+        if ($newCode === null || (string) $newCode === (string) $before->agency_code) {
+            return;
+        }
+        $used = DB::table('stock_documents')->where('agency_id', $id)->exists()
+            || DB::table('outbound_requests')->where('agency_id', $id)->exists();
+        if ($used) {
+            ApiError::abort(422, 'AGENCY_CODE_IMMUTABLE', 'Không thể đổi mã nơi nhận đã được dùng trên chứng từ.');
+        }
     }
 
     private function validatePayload(Request $request, ?string $id, bool $partial): array

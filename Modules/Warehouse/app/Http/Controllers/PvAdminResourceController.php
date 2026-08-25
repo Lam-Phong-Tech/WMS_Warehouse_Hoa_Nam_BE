@@ -870,7 +870,7 @@ class PvAdminResourceController extends Controller
 
     private function adminPageSize(Request $request): int
     {
-        $perPage = (int) $request->query('per_page', 20);
+        $perPage = (int) $request->query('per_page', 10);
 
         return max(1, min($perPage, 100));
     }

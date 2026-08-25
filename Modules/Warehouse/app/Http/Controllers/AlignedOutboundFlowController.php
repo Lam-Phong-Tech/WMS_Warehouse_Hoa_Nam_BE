@@ -564,8 +564,8 @@ class AlignedOutboundFlowController extends Controller
             'post_issue_'.$id,
             $this->actorId(),
             $hash,
-            function () use ($id, $expectedVersion, $key, $hash, $bypassPackingLabelGate): array {
-                $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash, $bypassPackingLabelGate): array {
+            function () use ($id, $expectedVersion, $key, $hash): array {
+                $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash): array {
                     $document = $this->lockDocument($id);
                     $this->assertVersion($document, $expectedVersion);
                     if ((string) $document->status !== 'SCANNING') {
@@ -586,10 +586,7 @@ class AlignedOutboundFlowController extends Controller
                     // BA-2026-08: stock post is independent of preview, printer
                     // availability and physical label application.
                     $posted = $this->stock->postStockDocument($id, 'issue', $this->actorId(), $key, $hash);
-                    $labelId = $this->ensurePackingLabel($id);
-                    $label = DB::table('label_snapshots')->where('id', $labelId)->first();
                     $posted['version'] = $expectedVersion + 1;
-                    $posted['packing_label_id'] = $labelId;
                     $posted['packing_label_applied'] = false;
                     $posted['packing_label_required'] = false;
                     $posted['packing_label_bypassed'] = true;
@@ -597,6 +594,18 @@ class AlignedOutboundFlowController extends Controller
 
                     return $posted;
                 }, 3);
+
+                // GĐ1-REQ-012: chuẩn bị nhãn nằm NGOÀI transaction trừ tồn — lỗi tạo
+                // snapshot nhãn không được rollback Post Issue; FE hiển thị cảnh báo và
+                // cho chuẩn bị/in lại nhãn sau.
+                try {
+                    $result['packing_label_id'] = $this->ensurePackingLabel($id);
+                } catch (\Throwable $labelError) {
+                    $result['packing_label_id'] = null;
+                    $result['packing_label_warning'] = 'Không chuẩn bị được nhãn đóng gói: '
+                        .$labelError->getMessage()
+                        .' Phiếu đã ghi nhận xuất kho; tồn kho không bị rollback.';
+                }
 
                 return [200, $this->envelope('Post Issue thành công; tồn được trừ tại bước hoàn tất này.', $result)];
             }

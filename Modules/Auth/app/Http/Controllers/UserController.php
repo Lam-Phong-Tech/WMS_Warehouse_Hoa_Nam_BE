@@ -48,7 +48,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->users->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->users->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 

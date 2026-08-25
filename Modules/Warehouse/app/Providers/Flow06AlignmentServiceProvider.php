@@ -10,7 +10,6 @@ use Modules\Warehouse\Http\Controllers\BaM1InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\BaM1InboundScanCorrectionController;
 use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
 use Modules\Warehouse\Http\Controllers\BaM1RecipientController;
-use Modules\Warehouse\Http\Controllers\BaM1ReportController;
 use Modules\Warehouse\Http\Controllers\BaM1WarrantyController;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
@@ -54,25 +53,15 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                 Route::post('warranty-cases/{id}/status', [BaM1WarrantyController::class, 'updateWarrantyCase'])
                     ->middleware('permission:warranty.manage');
 
-                // Exactly four recipient classes on the historical agencies master.
-                Route::get('agencies', [BaM1RecipientController::class, 'index'])->middleware('permission:agency.view');
-                Route::post('agencies', [BaM1RecipientController::class, 'store'])->middleware('permission:agency.manage');
-                Route::get('agencies/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
-                Route::patch('agencies/{id}', [BaM1RecipientController::class, 'update'])->middleware('permission:agency.manage');
-                Route::get('recipients', [BaM1RecipientController::class, 'index'])->middleware('permission:agency.view');
-                Route::post('recipients', [BaM1RecipientController::class, 'store'])->middleware('permission:agency.manage');
-                Route::get('recipients/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
-                Route::patch('recipients/{id}', [BaM1RecipientController::class, 'update'])->middleware('permission:agency.manage');
+                // GĐ1-REQ-001: agencies/recipients (4 loại nơi nhận) đã trỏ thẳng
+                // BaM1RecipientController trong routes/api.php — không override runtime
+                // ở đây nữa, cùng lý do với nhóm reports bên dưới.
 
-                // GĐ1 report dimensions.
-                Route::get('reports/outbound-by-agency', [BaM1ReportController::class, 'outboundByRecipient'])
-                    ->middleware('permission:report.view');
-                Route::get('reports/outbound-by-recipient', [BaM1ReportController::class, 'outboundByRecipient'])
-                    ->middleware('permission:report.view');
-                Route::get('reports/warranty-defects', [BaM1ReportController::class, 'warrantyDefects'])
-                    ->middleware('permission:report.view');
-                Route::get('reports/warranty-defect-sku-breakdown', [BaM1ReportController::class, 'defectSkuBreakdown'])
-                    ->middleware('permission:report.view');
+                // GĐ1 report dimensions (outbound-by-agency/outbound-by-recipient/
+                // warranty-defects/warranty-defect-sku-breakdown) đã chuyển thẳng vào
+                // routes/api.php, đăng ký trước "reports/{report_code}" catch-all —
+                // override runtime ở đây từng bị chính catch-all đó che khuất và không
+                // bao giờ chạy (xem WWHN-195, cùng root cause).
 
                 // No APPLY/"đã dán" business state in GĐ1.
                 Route::post('label-snapshots', [AlignedOutboundFlowController::class, 'storePackingLabel'])

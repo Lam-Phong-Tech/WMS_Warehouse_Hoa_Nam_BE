@@ -12,7 +12,9 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
 
     protected array $filterable = ['status', 'department_id'];
 
-    protected array $with = ['roles'];
+    // GĐ1-REQ-011: FE cột "Phòng ban" cần tên phòng ban ngay trong user list —
+    // eager-load để không trả UUID trần và không N+1.
+    protected array $with = ['roles', 'department'];
 
     public function __construct(User $model)
     {

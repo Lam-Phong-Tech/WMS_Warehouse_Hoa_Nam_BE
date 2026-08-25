@@ -604,7 +604,7 @@ class CurrentBaselineOperationsController extends Controller
             $query->where('status', strtoupper((string) $request->input('status')));
         }
 
-        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 15)))));
+        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 10)))));
     }
 
     #[OA\Post(

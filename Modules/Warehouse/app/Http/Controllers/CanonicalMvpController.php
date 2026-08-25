@@ -380,16 +380,39 @@ class CanonicalMvpController extends Controller
             // các product_id có mặt trong trang hiện tại (không phải N+1).
             function ($rows): void {
                 $productIds = $rows->pluck('product_id')->filter()->unique()->values()->all();
-                if ($productIds === []) {
-                    return;
+                if ($productIds !== []) {
+                    $skus = DB::table('sku')->whereIn('sku_id', $productIds)
+                        ->get(['sku_id', 'sku_code', 'sku_name'])
+                        ->keyBy('sku_id');
+                    foreach ($rows as $row) {
+                        $sku = $row->product_id !== null ? $skus->get($row->product_id) : null;
+                        $row->sku_code = $sku->sku_code ?? null;
+                        $row->sku_name = $sku->sku_name ?? null;
+                    }
                 }
-                $skus = DB::table('sku')->whereIn('sku_id', $productIds)
-                    ->get(['sku_id', 'sku_code', 'sku_name'])
-                    ->keyBy('sku_id');
+
+                // GĐ1-REQ-009: WAR-01 hiển thị đủ multi-defect — enrich sau phân trang,
+                // gom một query warranty_case_defects × defect_catalogs cho trang hiện tại.
+                $caseIds = $rows->pluck('warranty_case_id')->filter()->unique()->values()->all();
+                $defectsByCase = $caseIds === []
+                    ? collect()
+                    : DB::table('warranty_case_defects as wcd')
+                        ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
+                        ->whereIn('wcd.warranty_case_id', $caseIds)
+                        ->orderByDesc('wcd.is_primary')
+                        ->orderBy('dc.defect_code')
+                        ->get(['wcd.warranty_case_id', 'wcd.defect_id', 'wcd.is_primary', 'dc.defect_code', 'dc.defect_name'])
+                        ->groupBy('warranty_case_id');
                 foreach ($rows as $row) {
-                    $sku = $row->product_id !== null ? $skus->get($row->product_id) : null;
-                    $row->sku_code = $sku->sku_code ?? null;
-                    $row->sku_name = $sku->sku_name ?? null;
+                    $defects = collect($defectsByCase->get((string) $row->warranty_case_id) ?? [])
+                        ->map(fn (object $defect): array => [
+                            'defect_id' => (string) $defect->defect_id,
+                            'defect_code' => (string) $defect->defect_code,
+                            'defect_name' => (string) $defect->defect_name,
+                            'is_primary' => (bool) $defect->is_primary,
+                        ])->values();
+                    $row->defects = $defects->all();
+                    $row->defect_ids = $defects->pluck('defect_id')->values()->all();
                 }
             },
         );

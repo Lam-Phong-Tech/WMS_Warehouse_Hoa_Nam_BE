@@ -912,24 +912,13 @@ class CurrentBaselineStockService
 
     private function assertItemAvailableForReceipt(object $item, string $documentId): void
     {
-        // Normal receipt is only for a new identity. Any identity already in
+        // GĐ1-REQ-008: normal receipt is only for a new identity — bất kể
+        // item_status (IN_STOCK/ISSUED/IN_WARRANTY/...). Any identity already in
         // the database must go through a controlled reversal/return workflow.
         ApiError::abort(409, 'ITEM_ALREADY_REGISTERED', 'Mã máy đã tồn tại trong hệ thống; hãy dùng luồng reversal/return được kiểm soát.', [
             'item_id' => (string) $item->item_id,
             'item_status' => (string) ($item->item_status ?? ''),
         ]);
-
-        $conflict = DB::table('inbound_scan_entries as e')
-            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-            ->where('e.item_id', $item->item_id)
-            ->where('d.id', '!=', $documentId)
-            ->whereIn('d.status', self::ACTIVE_DOCUMENT_STATUSES)
-            ->where(fn ($query) => self::activeScanEntry($query))
-            ->exists();
-        if ($conflict) {
-            ApiError::abort(409, 'ITEM_ALREADY_RECEIVING', 'Item đang thuộc một inbound chưa Post khác.');
-        }
     }
 
     private function assertIssueAvailability(object $document, object $line, int $quantity): void

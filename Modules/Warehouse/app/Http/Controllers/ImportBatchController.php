@@ -41,7 +41,7 @@ class ImportBatchController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->importBatches->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->importBatches->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 

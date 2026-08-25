@@ -432,7 +432,7 @@ class AlignedImportMatchReportController extends Controller
             return $report;
         }
         $page = max(1, (int) $request->input('page', 1));
-        $perPage = min(100, max(1, (int) $request->input('per_page', 15)));
+        $perPage = min(100, max(1, (int) $request->input('per_page', 10)));
         $rows = collect($report['rows'] ?? []);
         $total = $rows->count();
         $report['rows'] = $rows->forPage($page, $perPage)->values()->all();

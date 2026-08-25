@@ -70,7 +70,7 @@ class OutboundRequestController extends Controller
             });
         }
 
-        $paginator = $query->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+        $paginator = $query->paginate(min(100, max(1, (int) $request->input('per_page', 10))));
         $requestIds = collect($paginator->items())->pluck('id')->map(fn ($id): string => (string) $id);
 
         $lineCounts = $requestIds->isEmpty() ? collect() : DB::table('outbound_request_lines')

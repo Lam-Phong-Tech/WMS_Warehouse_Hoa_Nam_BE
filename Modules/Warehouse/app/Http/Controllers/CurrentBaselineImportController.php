@@ -38,7 +38,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
             });
         }
 
-        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 15)))));
+        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 10)))));
     }
 
     /** Template Excel toa yêu cầu xuất — file mẫu bắt buộc cho Ready-for-UAT. */
