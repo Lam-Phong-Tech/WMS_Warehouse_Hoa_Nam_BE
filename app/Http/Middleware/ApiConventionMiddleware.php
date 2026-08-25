@@ -31,7 +31,7 @@ class ApiConventionMiddleware
                 if (json_last_error() !== JSON_ERROR_NONE) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Dữ liệu JSON không hợp lệ hoặc sai định dạng request.',
+                        'message' => 'Dữ liệu JSON không hợp lệ hoặc sai định dạng yêu cầu.',
                         'error_code' => 'MALFORMED_JSON',
                         'errors' => [],
                         'error' => [
