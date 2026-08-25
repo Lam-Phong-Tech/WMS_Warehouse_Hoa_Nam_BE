@@ -11,18 +11,19 @@ use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 
 /**
- * Recipient master backed by the historical `agencies` table so existing FKs in
- * outbound documents remain valid. `recipient_type` is authoritative for the four
- * business recipient classes confirmed on 2026-08-25.
+ * GĐ1 recipient master backed by historical agencies table.
+ * Exactly four business recipient classes are allowed.
  */
 class BaM1RecipientController extends Controller
 {
-    private const TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
+    public const TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
 
     public function index(Request $request)
     {
         $validated = $request->validate([
             'recipient_type' => ['nullable', Rule::in(self::TYPES)],
+            'market' => ['nullable', 'string', 'max:120'],
+            'region' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
             'keyword' => ['nullable', 'string', 'max:200'],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -30,11 +31,10 @@ class BaM1RecipientController extends Controller
         ]);
 
         $query = DB::table('agencies');
-        if (! empty($validated['recipient_type'])) {
-            $query->where('recipient_type', $validated['recipient_type']);
-        }
-        if (! empty($validated['status'])) {
-            $query->where('status', $validated['status']);
+        foreach (['recipient_type', 'market', 'region', 'status'] as $field) {
+            if (! empty($validated[$field])) {
+                $query->where($field, $validated[$field]);
+            }
         }
         if (! empty($validated['keyword'])) {
             $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
@@ -42,11 +42,13 @@ class BaM1RecipientController extends Controller
                 $nested->whereRaw('LOWER(agency_code) LIKE ?', [$keyword])
                     ->orWhereRaw('LOWER(agency_name) LIKE ?', [$keyword])
                     ->orWhereRaw("LOWER(COALESCE(contact_name, '')) LIKE ?", [$keyword])
-                    ->orWhereRaw("LOWER(COALESCE(phone, '')) LIKE ?", [$keyword]);
+                    ->orWhereRaw("LOWER(COALESCE(phone, '')) LIKE ?", [$keyword])
+                    ->orWhereRaw("LOWER(COALESCE(market, '')) LIKE ?", [$keyword])
+                    ->orWhereRaw("LOWER(COALESCE(region, '')) LIKE ?", [$keyword]);
             });
         }
 
-        $perPage = (int) ($validated['per_page'] ?? 50);
+        $perPage = (int) ($validated['per_page'] ?? 10);
         $page = (int) ($validated['page'] ?? 1);
         $total = (clone $query)->count();
         $rows = $query->orderBy('agency_name')->forPage($page, $perPage)->get();
@@ -75,6 +77,8 @@ class BaM1RecipientController extends Controller
             'agency_code' => $validated['agency_code'],
             'agency_name' => $validated['agency_name'],
             'recipient_type' => $validated['recipient_type'],
+            'market' => $validated['market'] ?? null,
+            'region' => $validated['region'] ?? null,
             'contact_name' => $validated['contact_name'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'address' => $validated['address'] ?? null,
@@ -82,9 +86,10 @@ class BaM1RecipientController extends Controller
             'created_at' => $now,
             'updated_at' => $now,
         ]);
-        $this->audit('RECIPIENT_CREATE', $id, $request, null, DB::table('agencies')->where('agency_id', $id)->first());
+        $after = DB::table('agencies')->where('agency_id', $id)->first();
+        $this->audit('RECIPIENT_CREATE', $id, $request, null, $after);
 
-        return response()->json(['success' => true, 'data' => DB::table('agencies')->where('agency_id', $id)->first()], 201);
+        return response()->json(['success' => true, 'data' => $after], 201);
     }
 
     public function show(string $id)
@@ -124,6 +129,8 @@ class BaM1RecipientController extends Controller
             ],
             'agency_name' => [$required, 'string', 'max:255'],
             'recipient_type' => [$required, Rule::in(self::TYPES)],
+            'market' => ['nullable', 'string', 'max:120'],
+            'region' => ['nullable', 'string', 'max:120'],
             'contact_name' => ['nullable', 'string', 'max:200'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'address' => ['nullable', 'string', 'max:500'],
