@@ -79,7 +79,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // ValidationException được Laravel xử lý ngoài middleware stack, vì vậy phải
         // Việt hóa ngay tại exception boundary để errors/details không rò câu mặc định
-        // tiếng Anh như "The ... field is required".
+        // tiếng Anh như "The ... field is required". Giữ nguyên BUSINESS_RULE_ERROR
+        // theo contract 422 hiện hành; chỉ thay message/details hiển thị.
         $exceptions->render(function (ValidationException $e, $request) {
             if (! ($request->is('api/*') || $request->expectsJson())) {
                 return null;
@@ -90,9 +91,9 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'success' => false,
                 'message' => 'Dữ liệu gửi lên không hợp lệ.',
-                'error_code' => 'VALIDATION_ERROR',
+                'error_code' => 'BUSINESS_RULE_ERROR',
                 'errors' => $details,
-                'error' => ['code' => 'VALIDATION_ERROR', 'details' => $details],
+                'error' => ['code' => 'BUSINESS_RULE_ERROR', 'details' => $details],
             ], 422);
         });
 
