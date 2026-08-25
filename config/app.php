@@ -72,17 +72,18 @@ return [
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |
-    | The application locale determines the default locale that will be used
-    | by Laravel's translation / localization methods. This option can be
-    | set to any locale for which you plan to have translation strings.
+    | Hoa Nam là hệ thống vận hành cho người dùng Việt Nam. Locale mặc định là
+    | tiếng Việt; deployment vẫn có thể ghi đè bằng APP_LOCALE khi thật sự cần.
+    | fallback_locale giữ en để không làm mất message của package chưa có bản dịch,
+    | sau đó API boundary sẽ Việt hóa message người dùng nếu package trả tiếng Anh.
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    'locale' => env('APP_LOCALE', 'vi'),
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
-    'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
+    'faker_locale' => env('APP_FAKER_LOCALE', 'vi_VN'),
 
     /*
     |--------------------------------------------------------------------------
@@ -90,8 +91,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | This key is utilized by Laravel's encryption services and should be set
-    | to a random, 32 character string to ensure that all encrypted values
-    | are secure. You should do this prior to deploying the application.
+    | to a random, 32 character string to ensure that all encrypted values are
+    | secure. You should generate this before deploying the application.
     |
     */
 
