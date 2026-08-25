@@ -75,14 +75,17 @@ class Wwhn184InboundContractParityTest extends TestCase
         ]);
     }
 
-    /** Tạo phiếu nhập DRAFT + BOX cho dòng COMPONENT, trả về id/line/box/version. */
-    private function draftWithBox(array $headers, string $warehouseId, string $skuId, int $qty, string $suffix): array
+    /**
+     * Hợp đồng GĐ1 scan-driven: phiếu nhập tạo HEADER-ONLY, dòng COMPONENT
+     * materialize qua /component-lines rồi đăng ký BOX qua /boxes. Số lượng là
+     * số thực quét — không còn qty_planned nhập tay.
+     */
+    private function draftWithBox(array $headers, string $warehouseId, string $skuId, string $suffix): array
     {
         $create = $this->postJson('/api/v1/inbound-documents', [
             'doc_no' => 'PN-W184-'.$suffix.'-'.Str::upper(Str::random(6)),
             'dst_warehouse_id' => $warehouseId,
             'source_reference' => 'WWHN-184 parity '.$suffix,
-            'lines' => [['product_id' => $skuId, 'qty_planned' => $qty]],
         ], $headers);
 
         $create->assertCreated()
@@ -91,14 +94,18 @@ class Wwhn184InboundContractParityTest extends TestCase
         $this->assertSame('"1"', $create->headers->get('ETag'), 'Create phải trả ETag khớp data.version.');
 
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+
+        $ensure = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => $skuId,
+        ], $headers)->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,
             'box_code' => 'BOX-W184-'.$suffix.'-'.Str::upper(Str::random(6)),
-        ], $headers)->assertCreated();
+        ], $headers)->assertSuccessful();
 
-        // Đăng ký BOX chỉ ghi bảng containers — không được bump version chứng từ.
+        // Materialize dòng + đăng ký BOX không được bump version chứng từ.
         $this->getJson("/api/v1/inbound-documents/{$documentId}", $headers)
             ->assertOk()
             ->assertJsonPath('data.status', 'DRAFT')
@@ -107,7 +114,7 @@ class Wwhn184InboundContractParityTest extends TestCase
         return [
             'id' => $documentId,
             'line_id' => $lineId,
-            'box_id' => (string) $box->json('data.container_id'),
+            'box_id' => (string) ($box->json('data.container_id') ?? $box->json('container_id')),
         ];
     }
 
@@ -120,7 +127,7 @@ class Wwhn184InboundContractParityTest extends TestCase
         $sku = $this->componentSku('COMP-W184-'.Str::upper(Str::random(6)));
 
         /* ---------- Nhánh A/B/C/D: Cancel ---------- */
-        $docA = $this->draftWithBox($manager, $warehouse->id, $sku->sku_id, 5, 'A');
+        $docA = $this->draftWithBox($manager, $warehouse->id, $sku->sku_id, 'A');
 
         // A02 — thiếu If-Match.
         $this->patchJson("/api/v1/inbound-documents/{$docA['id']}", ['note' => 'missing if-match'], $manager)
@@ -206,7 +213,7 @@ class Wwhn184InboundContractParityTest extends TestCase
             ->assertJsonPath('error.code', 'STALE_VERSION');
 
         /* ---------- Nhánh E: Post Receipt ---------- */
-        $docB = $this->draftWithBox($manager, $warehouse->id, $sku->sku_id, 3, 'B');
+        $docB = $this->draftWithBox($manager, $warehouse->id, $sku->sku_id, 'B');
         $this->postJson("/api/v1/inbound-documents/{$docB['id']}/scan", [
             'line_id' => $docB['line_id'],
             'qty' => 3,

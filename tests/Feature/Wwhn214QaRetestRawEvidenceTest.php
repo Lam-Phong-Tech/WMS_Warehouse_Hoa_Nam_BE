@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Modules\Warehouse\Models\Sku;
 use RuntimeException;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -48,6 +49,7 @@ use Tests\TestCase;
  */
 class Wwhn214QaRetestRawEvidenceTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -194,14 +196,22 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
+        // Contract GĐ1 scan-driven: header-only, dòng COMPONENT materialize qua
+        // /component-lines rồi ghi số đếm thực tế vào Box (vẫn capture từng cặp
+        // request/response thô cho gói evidence).
         $create = $this->capture($area, 'inbound.create', 'POST', '/api/v1/inbound-documents', [
             'dst_warehouse_id' => (string) $warehouse->id,
             'source_name' => 'NCC retest WWHN-214',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
         ], $headers);
         $create->assertCreated();
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $version = (int) ($create->json('data.version') ?? 1);
+
+        $ensure = $this->capture($area, 'inbound.component-line', 'POST', "/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $sku->sku_id,
+        ], $headers);
+        $ensure->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $box = $this->capture($area, 'inbound.box', 'POST', "/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,
@@ -209,11 +219,12 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         ], $headers);
         $box->assertSuccessful();
 
-        $this->capture($area, 'inbound.scan', 'POST', "/api/v1/inbound-documents/{$documentId}/scan", [
+        $scan = $this->capture($area, 'inbound.scan', 'POST', "/api/v1/inbound-documents/{$documentId}/scans", [
             'line_id' => $lineId,
             'quantity' => $qty,
             'container_id' => (string) $box->json('data.container_id'),
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        ], $headers + ['If-Match' => (string) $version]);
+        $scan->assertOk();
 
         return [
             'headers' => $headers,
@@ -221,7 +232,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
             'sku_id' => (string) $sku->sku_id,
             'document_id' => $documentId,
             'line_id' => $lineId,
-            'version' => 2,
+            'version' => (int) $scan->json('data.version'),
         ];
     }
 
@@ -301,13 +312,13 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         $key = 'w214-retry-'.Str::lower(Str::random(6));
 
         $first = $this->capture($area, 'post-receipt.first', 'POST', "/api/v1/inbound-documents/{$fx['document_id']}/post-receipt", [], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => $key,
         ]);
         $first->assertOk();
 
         $replay = $this->capture($area, 'post-receipt.replay-same-key', 'POST', "/api/v1/inbound-documents/{$fx['document_id']}/post-receipt", [], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => $key,
         ]);
         $replay->assertOk();
@@ -315,7 +326,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         $conflict = $this->capture($area, 'post-receipt.same-key-diff-payload', 'POST', "/api/v1/inbound-documents/{$fx['document_id']}/post-receipt", [
             'note' => 'payload-đã-đổi',
         ], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => $key,
         ]);
         $conflict->assertStatus(409);
@@ -352,7 +363,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         $missing->assertStatus(428);
 
         $stale = $this->capture($area, 'post-receipt.stale-if-match', 'POST', $uri, [], $fx['headers'] + [
-            'If-Match' => '1',
+            'If-Match' => (string) ($fx['version'] - 1),
             'Idempotency-Key' => 'w214-conc-stale',
         ]);
         $stale->assertStatus(412);
@@ -361,14 +372,14 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         $this->assertCount(0, $this->movementRows($fx['sku_id']), '428/412 không được tạo movement nào.');
 
         $win = $this->capture($area, 'post-receipt.current-version', 'POST', $uri, [], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => 'w214-conc-win',
         ]);
         $win->assertOk();
 
         // Người thứ hai bấm Post với key MỚI trên chứng từ đã POSTED.
         $repost = $this->capture($area, 'post-receipt.repost-new-key', 'POST', $uri, [], $fx['headers'] + [
-            'If-Match' => '3',
+            'If-Match' => (string) ($fx['version'] + 1),
             'Idempotency-Key' => 'w214-conc-repost',
         ]);
         $repost->assertStatus(409);
@@ -376,7 +387,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
 
         // Client chưa refresh sau khi thua: optimistic lock chặn trước state guard.
         $staleAfter = $this->capture($area, 'post-receipt.stale-after-post', 'POST', $uri, [], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => 'w214-conc-stale2',
         ]);
         $staleAfter->assertStatus(412);
@@ -422,7 +433,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         });
 
         $failed = $this->capture($area, 'post-receipt.injected-failure', 'POST', "/api/v1/inbound-documents/{$fx['document_id']}/post-receipt", [], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => 'w214-rollback',
         ]);
 
@@ -442,7 +453,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
 
         // Retry sau sự cố phải Post được — lease idempotency không kẹt vĩnh viễn.
         $retry = $this->capture($area, 'post-receipt.retry-after-failure', 'POST', "/api/v1/inbound-documents/{$fx['document_id']}/post-receipt", [], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => 'w214-rollback-retry',
         ]);
         $retry->assertOk();
@@ -486,7 +497,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         $unpermitted = $this->authHeadersWithRole('LEADERSHIP');
         $denied = $this->capture($area, 'post-receipt.no-permission', 'POST', $uri, [], [
             'Authorization' => $unpermitted['Authorization'],
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => 'w214-rbac-denied',
         ]);
         $this->assertContains($denied->getStatusCode(), [403, 404], 'Thiếu quyền phải là 403 hoặc 404 theo masking policy (TC-P1-003).');
@@ -515,7 +526,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         $fx = $this->scannedInbound(3, $area);
 
         $this->capture($area, 'post-receipt', 'POST', "/api/v1/inbound-documents/{$fx['document_id']}/post-receipt", [], $fx['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $fx['version'],
             'Idempotency-Key' => 'w214-append-only',
         ])->assertOk();
 
@@ -570,7 +581,7 @@ class Wwhn214QaRetestRawEvidenceTest extends TestCase
         // Chu trình 1: nhập 6 linh kiện qua ledger thật.
         $inbound = $this->scannedInbound(6, $area);
         $this->capture($area, 'post-receipt', 'POST', "/api/v1/inbound-documents/{$inbound['document_id']}/post-receipt", [], $inbound['headers'] + [
-            'If-Match' => '2',
+            'If-Match' => (string) $inbound['version'],
             'Idempotency-Key' => 'w214-recon-rcv',
         ])->assertOk();
 

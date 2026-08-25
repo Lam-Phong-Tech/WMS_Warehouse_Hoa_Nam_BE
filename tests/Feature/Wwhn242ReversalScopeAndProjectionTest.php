@@ -11,6 +11,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -41,6 +42,7 @@ use Tests\TestCase;
  */
 class Wwhn242ReversalScopeAndProjectionTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     /** Warehouse id nằm ngoài mọi phạm vi hợp lệ — dùng làm scope_ref của actor "kho khác". */
@@ -130,31 +132,23 @@ class Wwhn242ReversalScopeAndProjectionTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only + component-lines + Box + đếm thực tế.
+        $document = $this->createInboundHeader($adminHeaders, (string) $warehouse->id, [
             'source_name' => 'WWHN-242 scope fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 4]],
-        ], $adminHeaders);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
 
-        $register = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => 'BOX-'.Str::upper(Str::random(8)),
-        ], $adminHeaders);
-        $boxId = (string) $register->json('data.container_id');
+        $received = $this->receiveComponentQuantity(
+            $adminHeaders,
+            $documentId,
+            (string) $sku->sku_id,
+            4,
+            $document['version']
+        );
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => 4,
-            'container_id' => $boxId,
-        ], $adminHeaders + ['If-Match' => '1'])->assertOk();
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $adminHeaders + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'wwhn242-receipt-'.Str::random(12),
-        ])->assertOk();
+        $post = $this->postInboundReceipt($adminHeaders, $documentId, $received['version'], 'wwhn242-receipt-'.Str::random(12));
+        $post->assertOk();
+        $postedVersion = (int) ($post->json('data.version') ?? ($received['version'] + 1));
 
         $movementId = (string) DB::table('stock_movements')
             ->where('stock_document_id', $documentId)
@@ -165,7 +159,7 @@ class Wwhn242ReversalScopeAndProjectionTest extends TestCase
             'reason' => 'WWHN-242 fixture reversal',
             'lines' => [['movement_id' => $movementId, 'quantity' => 1]],
         ], $adminHeaders + [
-            'If-Match' => '3',
+            'If-Match' => (string) $postedVersion,
             'Idempotency-Key' => 'wwhn242-reverse-'.Str::random(12),
         ]);
         $reverse->assertOk();

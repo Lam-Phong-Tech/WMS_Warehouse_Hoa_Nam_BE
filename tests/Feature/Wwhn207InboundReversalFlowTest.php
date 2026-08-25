@@ -11,6 +11,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,7 @@ use Tests\TestCase;
  */
 class Wwhn207InboundReversalFlowTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     private function authHeaders(): array
@@ -100,35 +102,23 @@ class Wwhn207InboundReversalFlowTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only + component-lines + Box + đếm thực tế.
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'Reversal fixture',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => $qty,
-            ]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
-        $register = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => 'BOX-'.Str::upper(Str::random(8)),
-        ], $headers);
-        $boxId = (string) $register->json('data.container_id');
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => $qty,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
-
-        $post = $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'receipt-'.Str::random(12),
         ]);
+        $documentId = $document['document_id'];
+
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $documentId,
+            (string) $sku->sku_id,
+            $qty,
+            $document['version']
+        );
+
+        $post = $this->postInboundReceipt($headers, $documentId, $received['version'], 'receipt-'.Str::random(12));
         $post->assertOk()->assertJsonPath('data.status', 'POSTED');
+        $postedVersion = (int) ($post->json('data.version') ?? ($received['version'] + 1));
 
         $movementId = (string) DB::table('stock_movements')
             ->where('stock_document_id', $documentId)
@@ -137,12 +127,13 @@ class Wwhn207InboundReversalFlowTest extends TestCase
 
         return [
             'document_id' => $documentId,
-            'line_id' => $lineId,
-            'box_id' => $boxId,
+            'line_id' => $received['line_id'],
+            'box_id' => $received['container_id'],
             'movement_id' => $movementId,
             'sku_id' => (string) $sku->sku_id,
             'warehouse_id' => (string) $warehouse->id,
             'qty' => $qty,
+            'version' => $postedVersion,
         ];
     }
 
@@ -164,7 +155,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
                 'quantity' => 2,
             ]],
         ], $headers + [
-            'If-Match' => '3',
+            'If-Match' => (string) $fixture['version'],
             'Idempotency-Key' => 'reverse-partial-'.Str::random(12),
         ]);
 
@@ -205,7 +196,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
                 'quantity' => 3,
             ]],
         ], $headers + [
-            'If-Match' => '3',
+            'If-Match' => (string) $fixture['version'],
             'Idempotency-Key' => 'reverse-full-'.Str::random(12),
         ])->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
@@ -225,7 +216,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
                 'quantity' => 1,
             ]],
         ], $headers + [
-            'If-Match' => '3',
+            'If-Match' => (string) $fixture['version'],
             'Idempotency-Key' => 'reverse-overreverse-'.Str::random(12),
         ])
             ->assertStatus(422)
@@ -252,7 +243,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
                 'quantity' => 1,
             ]],
         ];
-        $requestHeaders = $headers + ['If-Match' => '3', 'Idempotency-Key' => $idempotencyKey];
+        $requestHeaders = $headers + ['If-Match' => (string) $fixture['version'], 'Idempotency-Key' => $idempotencyKey];
 
         $first = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", $payload, $requestHeaders);
         $first->assertOk()->assertHeader('Idempotent-Replay', 'false');
@@ -289,7 +280,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
                 'quantity' => 99,
             ]],
         ], $headers + [
-            'If-Match' => '3',
+            'If-Match' => (string) $fixture['version'],
             'Idempotency-Key' => 'reverse-overqty-'.Str::random(12),
         ])
             ->assertStatus(422)
@@ -303,7 +294,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
                 'quantity' => 1,
             ]],
         ], $headers + [
-            'If-Match' => '3',
+            'If-Match' => (string) $fixture['version'],
             'Idempotency-Key' => 'reverse-badmovement-'.Str::random(12),
         ])
             ->assertStatus(422)
@@ -329,7 +320,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
                 'quantity' => 1,
             ]],
         ], $noPermHeaders + [
-            'If-Match' => '3',
+            'If-Match' => (string) $fixture['version'],
             'Idempotency-Key' => 'reverse-noperm-'.Str::random(12),
         ])
             ->assertStatus(403)
@@ -358,7 +349,7 @@ class Wwhn207InboundReversalFlowTest extends TestCase
         $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
             'reason' => 'Thiếu Idempotency-Key',
             'lines' => [['movement_id' => $fixture['movement_id'], 'quantity' => 1]],
-        ], $headers + ['If-Match' => '3'])
+        ], $headers + ['If-Match' => (string) $fixture['version']])
             ->assertStatus(428);
     }
 }

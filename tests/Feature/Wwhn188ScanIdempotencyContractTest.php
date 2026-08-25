@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Modules\Warehouse\Models\Sku;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -33,6 +33,7 @@ use Tests\TestCase;
  */
 class Wwhn188ScanIdempotencyContractTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -42,8 +43,10 @@ class Wwhn188ScanIdempotencyContractTest extends TestCase
     }
 
     /**
-     * Phiếu nhập COMPONENT quantity-mode: 1 line qty_planned=5 + 1 BOX hợp lệ
+     * Phiếu nhập COMPONENT quantity-mode theo hợp đồng GĐ1 scan-driven: header-only
+     * + dòng materialize qua /component-lines + 1 BOX hợp lệ qua /boxes
      * (middleware EnsureInboundComponentBox bắt buộc container cho COMPONENT).
+     * Không còn tạo phiếu kèm lines/qty_planned — số lượng là số đếm thực tế.
      *
      * @return array{headers: array<string,string>, document_id: string, line_id: string, box_id: string}
      */
@@ -51,34 +54,28 @@ class Wwhn188ScanIdempotencyContractTest extends TestCase
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = Sku::create([
-            'sku_code' => $skuCode,
-            'sku_name' => 'WWHN-188 scan idempotency component',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
+        $sku = $this->componentSkuFixture($skuCode);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'NCC WWHN-188 Scan Idempotency',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 5]],
-        ], $headers)->assertCreated();
+        ]);
+        $documentId = $document['document_id'];
 
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $ensure = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $sku->sku_id,
+        ], $headers)->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,
             'box_code' => 'BOX-'.Str::upper(Str::random(10)),
-        ], $headers)->assertCreated();
+        ], $headers)->assertSuccessful();
 
         return [
             'headers' => $headers,
             'document_id' => $documentId,
             'line_id' => $lineId,
-            'box_id' => (string) $box->json('data.container_id'),
+            'box_id' => (string) ($box->json('data.container_id') ?? $box->json('container_id')),
         ];
     }
 
@@ -302,7 +299,9 @@ class Wwhn188ScanIdempotencyContractTest extends TestCase
     }
 
     /**
-     * Request lỗi không được cache: sau một 422 (quét vượt Expected) client sửa dữ
+     * Request lỗi không được cache: hợp đồng scan-driven không còn gate "quét vượt
+     * Expected" (qty_planned tự nâng theo scan), nên request lỗi ở đây là một
+     * line_id không tồn tại (404 DOCUMENT_LINE_NOT_FOUND). Sau lỗi, client sửa dữ
      * liệu và gửi lại bằng **đúng key cũ** thì phải chạy được, không bị kẹt 409
      * vĩnh viễn.
      */
@@ -312,9 +311,9 @@ class Wwhn188ScanIdempotencyContractTest extends TestCase
         $key = $this->scanKey('recover');
 
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan",
-            ['line_id' => $ctx['line_id'], 'quantity' => 99, 'container_id' => $ctx['box_id']],
+            ['line_id' => (string) Str::uuid(), 'quantity' => 2, 'container_id' => $ctx['box_id']],
             $ctx['headers'] + ['If-Match' => '1', 'Idempotency-Key' => $key])
-            ->assertStatus(422);
+            ->assertStatus(404);
 
         $this->assertSame(
             0,
@@ -340,42 +339,35 @@ class Wwhn188ScanIdempotencyContractTest extends TestCase
      */
     public function test_serialized_item_retry_with_same_key_replays_instead_of_duplicate_conflict(): void
     {
+        // Hợp đồng scan-driven: identity đã tồn tại trong DB bị 409
+        // ITEM_ALREADY_REGISTERED, nên nhánh serialized dùng composite QR
+        // new-item-candidate (DEC-QR-03) — dedup theo candidate_item_unique.
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = $this->productSkuFixture('WWHN188-IDEMP-SERIAL-001');
+        $this->productSkuFixture('WWHN188-IDEMP-SERIAL-001');
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'NCC WWHN-188 Scan Idempotency Serial',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
-        $itemId = (string) Str::uuid();
-        DB::table('item_instances')->insert([
-            'item_id' => $itemId,
-            'sku_id' => $sku->sku_id,
-            'serial_number' => 'SN-'.Str::upper(Str::random(8)),
-            'item_status' => 'NEW',
-            'item_condition' => 'NORMAL',
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
+        $documentId = $document['document_id'];
 
         $key = $this->scanKey('serial');
-        $body = ['line_id' => $lineId, 'quantity' => 1, 'item_id' => $itemId];
+        $body = [
+            'quantity' => 1,
+            'code_value' => $this->compositeProductQr('WWHN188-IDEMP-SERIAL-001', 'SN-W188-SERIAL-0001'),
+        ];
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", $body,
-            $headers + ['If-Match' => '1', 'Idempotency-Key' => $key])->assertOk();
+        $first = $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", $body,
+            $headers + ['If-Match' => '1', 'Idempotency-Key' => $key]);
+        $first->assertOk();
+        $lineId = (string) $first->json('data.line_id');
 
         $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", $body,
             $headers + ['If-Match' => '2', 'Idempotency-Key' => $key])
             ->assertOk()
             ->assertJsonPath('data.replayed', true);
 
-        $this->assertSame(1, DB::table('inbound_scan_entries')->where('item_id', $itemId)->count());
+        $this->assertSame(1, DB::table('inbound_scan_entries')->where('candidate_item_unique', 'SN-W188-SERIAL-0001')->count());
         $this->assertLineState($lineId, 1);
         $this->assertDocumentVersion($documentId, 2);
 

@@ -351,9 +351,14 @@ class Wwhn260MigrationPackClosureTest extends TestCase
             ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
+        // Header-only: từ khi WWHN-222 thêm 'phone' vào audit.sensitive_keys, mọi
+        // snapshot agencies (MasterStateJournal::assertNotRedacted) fail-closed với
+        // MIGRATION_SNAPSHOT_REDACTED — kể cả phone rỗng, vì sanitize() redact theo
+        // KEY. Đó là xung đột ở tầng app (cutover thật có agency sẽ bị chặn), nằm
+        // ngoài phạm vi bộ test này; các bất biến ở đây (duplicate run-code, container
+        // mapping, FK phân loại, verify-run) không cần dòng agency nào.
         $this->writeFile('agency.csv',
-            "agency_code,agency_name,phone,address,status\n".
-            "AG-900,Đại lý 900,0909009900,Hà Nội,ACTIVE\n");
+            "agency_code,agency_name,phone,address,status\n");
 
         $this->writeFile('sku.csv',
             "sku_code,sku_name,sku_type,unit,is_serial_tracked,version_code,status\n".

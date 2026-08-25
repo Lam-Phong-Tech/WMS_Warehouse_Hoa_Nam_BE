@@ -11,6 +11,7 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -21,6 +22,7 @@ use Tests\TestCase;
  */
 class Wwhn191BalanceMovementProjectionTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     private function authHeaders(): array
@@ -53,39 +55,30 @@ class Wwhn191BalanceMovementProjectionTest extends TestCase
         ]);
     }
 
-    /** Drives a full post-receipt HTTP flow and returns [document_id, line_id, sku, warehouse]. */
+    /**
+     * Drives a full post-receipt HTTP flow theo contract GĐ1 scan-driven
+     * (header-only + component-lines + Box + đếm thực tế) và trả về
+     * [document_id, line_id, box_id].
+     */
     private function postReceiptOf(array $headers, Warehouse $warehouse, Sku $sku, int $qty, string $boxCode, string $idemKey): array
     {
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'Nha cung cap WWHN-191',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => $qty,
-            ]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
 
-        $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => $boxCode,
-        ], $headers);
-        $boxId = (string) $box->json('data.container_id');
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $document['document_id'],
+            (string) $sku->sku_id,
+            $qty,
+            $document['version'],
+            $boxCode
+        );
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => $qty,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        $this->postInboundReceipt($headers, $document['document_id'], $received['version'], $idemKey)
+            ->assertOk()->assertJsonPath('data.status', 'POSTED');
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => $idemKey,
-        ])->assertOk()->assertJsonPath('data.status', 'POSTED');
-
-        return [$documentId, $lineId, $boxId];
+        return [$document['document_id'], $received['line_id'], $received['container_id']];
     }
 
     public function test_inventory_balances_list_reflects_ledger_after_post_receipt_and_matches(): void

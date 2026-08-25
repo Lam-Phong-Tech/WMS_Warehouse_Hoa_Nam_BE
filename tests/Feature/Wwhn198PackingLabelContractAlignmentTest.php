@@ -121,19 +121,43 @@ class Wwhn198PackingLabelContractAlignmentTest extends TestCase
             'STOCK_EFFECT', 'DEC_RFID_FALLBACK_001',
         ];
 
+        // GĐ1 2026-08-25: gate nhãn/label tại Post Issue đã bị gỡ khỏi runtime
+        // (BaM1OutboundFlowController bypassPackingLabelGate=true) nên các mã dưới
+        // đây không còn trong source. Hợp đồng WWHN-195-outbound-openapi.json chưa
+        // được regenerate (ngoài phạm vi tests/) — khoanh vùng tường minh thay vì
+        // để chúng đội lốt "mã ma" mới.
+        $declaredButRemovedByGd1 = [
+            'LABEL_SNAPSHOT_STALE',
+            'PACKING_LABEL_REQUIRED',
+            'PACKING_LABEL_NOT_APPLIED',
+        ];
+
+        // Quét source bằng readdir đệ quy: FilesystemIterator trên bind mount
+        // gRPC-FUSE (Docker Desktop/Windows) cắt cụt directory listing dài (chỉ
+        // trả ~37/73 entry của Controllers/) nên bỏ sót file chứa mã lỗi thật.
         $sources = '';
-        foreach ([base_path('app'), base_path('Modules')] as $root) {
-            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
-            foreach ($iterator as $file) {
-                if ($file->isFile() && $file->getExtension() === 'php') {
-                    $sources .= (string) file_get_contents($file->getPathname());
+        $stack = [base_path('app'), base_path('Modules')];
+        while ($stack !== []) {
+            $dir = array_pop($stack);
+            $handle = opendir($dir);
+            $this->assertNotFalse($handle, "Không mở được thư mục nguồn {$dir}.");
+            while (($entry = readdir($handle)) !== false) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                $path = $dir.DIRECTORY_SEPARATOR.$entry;
+                if (is_dir($path)) {
+                    $stack[] = $path;
+                } elseif (str_ends_with($entry, '.php')) {
+                    $sources .= (string) file_get_contents($path);
                 }
             }
+            closedir($handle);
         }
 
         $phantoms = [];
         foreach ($declared as $code => $locations) {
-            if (in_array($code, $notErrorCodes, true)) {
+            if (in_array($code, $notErrorCodes, true) || in_array($code, $declaredButRemovedByGd1, true)) {
                 continue;
             }
             if (! str_contains($sources, "'".$code."'") && ! str_contains($sources, '"'.$code.'"')) {
@@ -183,31 +207,34 @@ class Wwhn198PackingLabelContractAlignmentTest extends TestCase
         );
     }
 
-    public function test_post_issue_is_blocked_while_the_label_is_still_draft_with_the_documented_error_code(): void
+    public function test_post_issue_succeeds_while_the_label_is_still_draft_and_declares_the_bypass(): void
     {
-        $contract = $this->contract();
-        $documented = $contract['paths']['/api/v1/outbound-documents/{id}/post-issue']['post']['responses']['422']['description'];
-
+        // GĐ1 2026-08-25: Post Issue độc lập với lifecycle nhãn — nhãn DRAFT không
+        // còn chặn trừ tồn (BaM1OutboundFlowController bypassPackingLabelGate=true).
         $ctx = $this->documentNeedingTwoUnits('PL-CONTRACT-002');
         $this->scan($ctx, $ctx['item_a'], 1)->assertOk();
         $this->scan($ctx, $ctx['item_b'], 2)->assertOk();
+        $this->assertSame(
+            'DRAFT',
+            (string) DB::table('label_snapshots')->where('outbound_document_id', $ctx['document_id'])->value('status'),
+            'Fixture phải ở đúng trạng thái nhãn DRAFT trước Post Issue.'
+        );
 
         $response = $this->postJson("/api/v1/outbound-documents/{$ctx['document_id']}/post-issue", [], $ctx['headers'] + [
             'If-Match' => '3',
             'Idempotency-Key' => 'wwhn198-postissue-'.Str::random(12),
         ]);
 
-        $response->assertStatus(422);
-        $code = (string) $response->json('error.code');
-        $this->assertContains($code, ['LABEL_NOT_PRINTED', 'PACKING_LABEL_REQUIRED', 'PACKING_LABEL_NOT_APPLIED']);
-        $this->assertStringContainsString(
-            $code,
-            $documented,
-            "Mã {$code} do runtime trả về phải được khai trong OpenAPI 422 của post-issue."
-        );
+        $response->assertOk()
+            ->assertJsonPath('data.packing_label_bypassed', true)
+            ->assertJsonPath('data.rfid_required', false);
 
-        // Không được trừ tồn khi bị chặn.
-        $this->assertSame(0, DB::table('stock_movements')->where('stock_document_id', $ctx['document_id'])->count());
+        // Tồn được trừ ngay tại bước Post Issue dù nhãn chưa PRINTED.
+        $this->assertGreaterThan(0, DB::table('stock_movements')->where('stock_document_id', $ctx['document_id'])->count());
+        $this->assertSame(
+            'POSTED',
+            (string) DB::table('stock_documents')->where('id', $ctx['document_id'])->value('status')
+        );
     }
 
     public function test_unmatch_discards_the_unfrozen_draft_label_as_documented(): void

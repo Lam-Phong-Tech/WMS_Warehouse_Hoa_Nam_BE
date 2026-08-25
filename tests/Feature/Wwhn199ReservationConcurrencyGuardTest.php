@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -22,6 +22,7 @@ use Tests\TestCase;
  */
 class Wwhn199ReservationConcurrencyGuardTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -115,57 +116,45 @@ class Wwhn199ReservationConcurrencyGuardTest extends TestCase
     }
 
     /**
-     * Đối xứng phía inbound: assertItemAvailableForReceipt() chặn cùng 1 item vật lý
-     * (item_status NEW/ADJUSTED_OUT) bị scan vào 2 phiếu nhập đang mở cùng lúc — cùng
-     * cơ chế row-lock trên item_instances như phía outbound, chưa từng có test HTTP.
+     * Đối xứng phía inbound (contract GĐ1 scan-driven): assertCandidateAvailable() chặn
+     * cùng 1 item vật lý (composite QR HN1|SKU|ITEM, candidate chưa register) bị scan
+     * vào 2 phiếu nhập đang mở cùng lúc — winner giữ candidate, loser nhận
+     * ITEM_ALREADY_RECEIVING. (Item đã có sẵn trong item_instances thì thuộc guard khác:
+     * ITEM_ALREADY_REGISTERED, cover ở Gd1ScanDrivenInboundContractTest.)
      */
     public function test_scanning_same_item_into_two_different_inbound_documents_is_rejected(): void
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = $this->productSkuFixture('PROD-RESV-003');
+        $this->productSkuFixture('PROD-RESV-003');
+        $itemUnique = 'SN-RESV-003';
 
-        $itemId = (string) Str::uuid();
-        DB::table('item_instances')->insert([
-            'item_id' => $itemId,
-            'sku_id' => $sku->sku_id,
-            'serial_number' => 'SN-RESV-003',
-            'item_status' => 'NEW',
-            'item_condition' => 'NORMAL',
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $docA = $this->createInboundHeader($headers, (string) $warehouse->id);
+        $docB = $this->createInboundHeader($headers, (string) $warehouse->id);
 
-        $docA = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
-        ], $headers)->assertCreated();
-        $documentAId = (string) $docA->json('data.id');
-        $lineAId = (string) $docA->json('data.lines.0.id');
-
-        $docB = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
-        ], $headers)->assertCreated();
-        $documentBId = (string) $docB->json('data.id');
-        $lineBId = (string) $docB->json('data.lines.0.id');
-
-        $this->postJson("/api/v1/inbound-documents/{$documentAId}/scan", [
-            'line_id' => $lineAId,
+        $this->postJson("/api/v1/inbound-documents/{$docA['document_id']}/scans", [
             'quantity' => 1,
-            'item_id' => $itemId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
+            'code_value' => $this->compositeProductQr('PROD-RESV-003', $itemUnique),
+        ], $headers + ['If-Match' => (string) $docA['version']])->assertOk();
 
-        $loser = $this->postJson("/api/v1/inbound-documents/{$documentBId}/scan", [
-            'line_id' => $lineBId,
+        $loser = $this->postJson("/api/v1/inbound-documents/{$docB['document_id']}/scans", [
             'quantity' => 1,
-            'item_id' => $itemId,
-        ], $headers + ['If-Match' => '1']);
+            'code_value' => $this->compositeProductQr('PROD-RESV-003', $itemUnique),
+        ], $headers + ['If-Match' => (string) $docB['version']]);
         $loser->assertStatus(409)->assertJsonPath('error.code', 'ITEM_ALREADY_RECEIVING');
 
-        $this->assertSame(1, DB::table('inbound_scan_entries')->where('item_id', $itemId)->count());
-        $this->assertSame(0, (int) DB::table('stock_document_lines')->where('id', $lineBId)->value('scanned_qty'));
+        $this->assertSame(
+            1,
+            DB::table('inbound_scan_entries')->where('candidate_item_unique', $itemUnique)->count(),
+            'Candidate chỉ được ghi nhận đúng 1 lần dù 2 phiếu cùng cố scan.'
+        );
+        $this->assertSame(
+            0,
+            (int) DB::table('stock_document_lines')
+                ->where('stock_document_id', $docB['document_id'])
+                ->sum('scanned_qty'),
+            'Phiếu thua cuộc không được tăng scanned_qty khi bị chặn.'
+        );
     }
 
     /**

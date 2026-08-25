@@ -16,6 +16,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\InventoryProjectionRebuildService;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -37,6 +38,7 @@ use Tests\TestCase;
  */
 class Wwhn204LedgerProjectionRebuildTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     private function headers(): array
@@ -85,34 +87,27 @@ class Wwhn204LedgerProjectionRebuildTest extends TestCase
         ]);
     }
 
-    /** Nhập kho thật qua HTTP để ledger và projection cùng sinh ra trong một transaction. */
+    /**
+     * Nhập kho thật qua HTTP (contract GĐ1 scan-driven: header-only + component-lines +
+     * Box + đếm thực tế) để ledger và projection cùng sinh ra trong một transaction.
+     */
     private function postReceipt(array $headers, Warehouse $warehouse, Sku $sku, int $qty, string $boxCode, string $idemKey): void
     {
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'NCC WWHN-204 rebuild',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
 
-        $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => $boxCode,
-        ], $headers);
-        $boxId = (string) $box->json('data.container_id');
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $document['document_id'],
+            (string) $sku->sku_id,
+            $qty,
+            $document['version'],
+            $boxCode
+        );
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => $qty,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => $idemKey,
-        ])->assertOk()->assertJsonPath('data.status', 'POSTED');
+        $this->postInboundReceipt($headers, $document['document_id'], $received['version'], $idemKey)
+            ->assertOk()->assertJsonPath('data.status', 'POSTED');
     }
 
     private function balanceRow(Warehouse $warehouse, Sku $sku): ?object

@@ -7,6 +7,7 @@ use Modules\Warehouse\Http\Controllers\AlignedImportMatchReportController;
 use Modules\Warehouse\Http\Controllers\AlignedLabelLogReportController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
+use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
 use Modules\Warehouse\Services\AlignedOutboundStockService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Tests\TestCase;
@@ -26,11 +27,12 @@ class Flow06PackingLabelAlignmentTest extends TestCase
 
     public function test_runtime_routes_resolve_to_aligned_handlers(): void
     {
+        // GĐ1 2026-08-25: Post Issue chạy qua BaM1OutboundFlowController (kế thừa
+        // Aligned*, bypassPackingLabelGate=true) — nhãn không còn gate Post Issue.
         $expectations = [
             ['POST', 'api/v1/outbound-documents/{id}/scan', AlignedOutboundFlowController::class.'@outboundScan'],
-            ['POST', 'api/v1/outbound-documents/{id}/post-issue', AlignedOutboundFlowController::class.'@postIssue'],
+            ['POST', 'api/v1/outbound-documents/{id}/post-issue', BaM1OutboundFlowController::class.'@postIssue'],
             ['POST', 'api/v1/label-snapshots', AlignedOutboundFlowController::class.'@storePackingLabel'],
-            ['POST', 'api/v1/label-snapshots/{id}/apply', AlignedOutboundFlowController::class.'@applyPackingLabel'],
             ['GET', 'api/v1/outbound-documents', AlignedOutboundDocumentController::class.'@index'],
             ['GET', 'api/v1/reports/import-match', AlignedImportMatchReportController::class.'@index'],
             ['GET', 'api/v1/reports/label-log', AlignedLabelLogReportController::class.'@index'],
@@ -42,6 +44,12 @@ class Flow06PackingLabelAlignmentTest extends TestCase
             $this->assertNotNull($route, "Missing {$method} {$uri}");
             $this->assertSame($action, $route->getActionName(), "Wrong handler for {$method} {$uri}");
         }
+
+        // GĐ1: không còn business state "đã dán" — route apply KHÔNG được đăng ký.
+        $apply = collect(Route::getRoutes()->getRoutes())
+            ->first(fn ($candidate) => in_array('POST', $candidate->methods(), true)
+                && $candidate->uri() === 'api/v1/label-snapshots/{id}/apply');
+        $this->assertNull($apply, 'POST label-snapshots/{id}/apply đã bị gỡ khỏi hợp đồng GĐ1.');
     }
 
     public function test_packing_label_contract_is_one_per_outbound_document_and_stock_neutral_until_post(): void
@@ -52,11 +60,21 @@ class Flow06PackingLabelAlignmentTest extends TestCase
         $this->assertStringContainsString('outbound_document_id', $flow);
         $this->assertStringContainsString('customer_phone', $flow);
         $this->assertStringContainsString('FULL_SCAN_REQUIRED_FOR_LABEL', $flow);
-        $this->assertStringContainsString('PACKING_LABEL_NOT_APPLIED', $flow);
         $this->assertStringContainsString('stock_effect=NONE', $flow);
         $this->assertStringContainsString("unique('outbound_document_id'", $migration);
         $this->assertStringContainsString("'outbound_item_match_id' => null", $flow);
         $this->assertStringContainsString("'sku_id' => null", $flow);
+
+        // GĐ1 2026-08-25: Post Issue không còn bị nhãn gate — không được tái sinh
+        // chuỗi lỗi PACKING_LABEL_NOT_APPLIED; response khai bypass tường minh và
+        // bước chuẩn bị nhãn nằm NGOÀI transaction trừ tồn (fail → warning, không rollback).
+        $this->assertStringNotContainsString('PACKING_LABEL_NOT_APPLIED', $flow);
+        $this->assertStringContainsString("'packing_label_bypassed'", $flow);
+        $this->assertStringContainsString("'packing_label_warning'", $flow);
+
+        $baM1 = (string) file_get_contents(base_path('Modules/Warehouse/app/Http/Controllers/BaM1OutboundFlowController.php'));
+        $this->assertStringContainsString('extends AlignedOutboundFlowController', $baM1);
+        $this->assertStringContainsString('bool $bypassPackingLabelGate = true', $baM1);
     }
 
     public function test_report_contract_keeps_filter_parity_and_document_level_label_semantics(): void

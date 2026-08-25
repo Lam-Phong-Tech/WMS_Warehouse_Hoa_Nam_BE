@@ -17,8 +17,10 @@ class UserFacingMessageLocalizerTest extends TestCase
             'Số lượng quét phải lớn hơn 0.',
             UserFacingMessageLocalizer::translate('Scan quantity must be greater than zero.')
         );
+        // Localizer thay thuật ngữ "Post Issue" → "Hoàn tất xuất kho" giữ nguyên
+        // hoa/thường của cụm thuật ngữ (không hạ chữ cái đầu theo vị trí trong câu).
         $this->assertSame(
-            'Không thể hoàn tất xuất kho khi phiếu đang ở trạng thái "Đang quét".',
+            'Không thể Hoàn tất xuất kho khi phiếu đang ở trạng thái "Đang quét".',
             UserFacingMessageLocalizer::translate('Không thể Post Issue khi phiếu đang ở trạng thái "SCANNING".')
         );
     }

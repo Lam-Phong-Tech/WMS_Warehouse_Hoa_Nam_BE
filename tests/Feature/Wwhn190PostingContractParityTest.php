@@ -62,10 +62,14 @@ class Wwhn190PostingContractParityTest extends TestCase
         return ['Authorization' => 'Bearer '.auth('api')->login($user)];
     }
 
-    /** Phiếu nhập SCANNING đã scan đủ; sau scan document ở version 2. */
+    /**
+     * Phiếu nhập SCANNING theo hợp đồng GĐ1 scan-driven: header-only, dòng
+     * COMPONENT materialize qua /component-lines, BOX qua /boxes rồi ghi nhận số
+     * đếm thực tế; sau scan document ở version 2.
+     */
     private function readyToPostDocument(array $headers, string $skuCode, int $qty = 4): array
     {
-        $warehouse = Warehouse::firstOrCreate(
+        Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
             ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
         );
@@ -78,28 +82,52 @@ class Wwhn190PostingContractParityTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
+        $prepared = $this->componentScanningDocument($headers, $sku, $qty);
+
+        return ['document_id' => $prepared['document_id'], 'line_id' => $prepared['line_id'], 'sku_id' => $sku->sku_id, 'qty' => $qty];
+    }
+
+    /**
+     * Header-only + component-line + BOX; nếu $scanQty > 0 thì ghi nhận số đếm đó
+     * (quantity-mode). Trả về document/line/box id.
+     */
+    private function componentScanningDocument(array $headers, Sku $sku, int $scanQty): array
+    {
+        $warehouse = Warehouse::firstOrCreate(
+            ['code' => 'KHO-TONG-HN'],
+            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+        );
+
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_name' => 'WWHN-190 parity supplier',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
         ], $headers);
         $create->assertCreated();
-
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+
+        $ensure = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $sku->sku_id,
+        ], $headers)->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,
             'box_code' => 'BOX-W190-'.Str::upper(Str::random(6)),
         ], $headers);
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => $qty,
-            'container_id' => (string) $box->json('data.container_id'),
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        if ($scanQty > 0) {
+            $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
+                'line_id' => $lineId,
+                'quantity' => $scanQty,
+                'container_id' => (string) $box->json('data.container_id'),
+            ], $headers + ['If-Match' => '1'])->assertOk();
+        }
 
-        return ['document_id' => $documentId, 'line_id' => $lineId, 'sku_id' => $sku->sku_id, 'qty' => $qty];
+        return [
+            'document_id' => $documentId,
+            'line_id' => $lineId,
+            'box_id' => (string) $box->json('data.container_id'),
+        ];
     }
 
     /** Mã lỗi mà runtime trả về PHẢI nằm trong x-error-codes của status tương ứng. */
@@ -346,14 +374,16 @@ class Wwhn190PostingContractParityTest extends TestCase
         $this->assertSame($movements, DB::table('stock_movements')->count());
     }
 
-    public function test_partial_scan_is_blocked_by_full_post_rule(): void
+    /**
+     * Hợp đồng scan-driven GĐ1: KHÔNG còn FULL_POST gate theo expected — thực
+     * nhận bao nhiêu Post bấy nhiêu (chỉ cần ≥1 đơn vị đã scan); dòng
+     * scanned_qty=0 bị xóa lúc Post, không có stock effect cho dòng đó.
+     * (Thay cho test cũ assert 422 FULL_POST_REQUIRED cho scan 3/5.)
+     */
+    public function test_post_receipt_follows_actual_scans_and_drops_unscanned_lines(): void
     {
         $headers = $this->authHeaders();
-        $warehouse = Warehouse::firstOrCreate(
-            ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
-        );
-        $sku = Sku::create([
+        $scannedSku = Sku::create([
             'sku_code' => 'W190-PARTIAL',
             'sku_name' => 'WWHN-190 partial',
             'sku_type' => 'COMPONENT',
@@ -361,33 +391,34 @@ class Wwhn190PostingContractParityTest extends TestCase
             'is_serial_tracked' => false,
             'status' => 'ACTIVE',
         ]);
+        $untouchedSku = Sku::create([
+            'sku_code' => 'W190-PARTIAL-UNSCANNED',
+            'sku_name' => 'WWHN-190 partial unscanned',
+            'sku_type' => 'COMPONENT',
+            'unit' => 'cai',
+            'is_serial_tracked' => false,
+            'status' => 'ACTIVE',
+        ]);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'WWHN-190 partial supplier',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 5]],
-        ], $headers);
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $prepared = $this->componentScanningDocument($headers, $scannedSku, 3);
+        $documentId = $prepared['document_id'];
 
-        $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => 'BOX-W190-'.Str::upper(Str::random(6)),
-        ], $headers);
-
-        // Chỉ scan 3/5 => DEC-FULL-POST-001 chặn Post.
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => 3,
-            'container_id' => (string) $box->json('data.container_id'),
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        // Dòng thứ hai được materialize nhưng KHÔNG bao giờ scan.
+        $ensureUntouched = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $untouchedSku->sku_id,
+        ], $headers)->assertOk();
+        $untouchedLineId = (string) $ensureUntouched->json('data.line_id');
 
         $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
             'If-Match' => '2', 'Idempotency-Key' => 'w190-partial-001',
-        ])->assertStatus(422)->assertJsonPath('error_code', 'FULL_POST_REQUIRED');
+        ])->assertOk()->assertJsonPath('data.status', 'POSTED');
 
-        $this->assertDeclared('/api/v1/inbound-documents/{id}/post-receipt', 'post', 422, 'FULL_POST_REQUIRED');
-        $this->assertSame(0, DB::table('stock_movements')->count(), 'Post bị chặn thì không có stock effect.');
+        // Số thực nhận là nguồn sự thật duy nhất.
+        $this->assertSame(3, (int) DB::table('inventory_balances')->where('sku_id', $scannedSku->sku_id)->value('on_hand_qty'));
+        $this->assertSame(1, DB::table('stock_movements')->count(), 'Chỉ dòng đã scan mới sinh movement.');
+        // Dòng chưa từng scan bị xóa lúc Post, không có stock effect.
+        $this->assertDatabaseMissing('stock_document_lines', ['id' => $untouchedLineId]);
+        $this->assertSame(0, (int) (DB::table('inventory_balances')->where('sku_id', $untouchedSku->sku_id)->value('on_hand_qty') ?? 0));
     }
 
     /**

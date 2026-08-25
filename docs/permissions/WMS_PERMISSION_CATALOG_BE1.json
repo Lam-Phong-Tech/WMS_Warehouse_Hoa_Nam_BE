@@ -1,19 +1,19 @@
 {
     "schema_version": "1.2.0",
-    "generated_at_utc": "2026-08-20T02:55:25+00:00",
+    "generated_at_utc": "2026-08-25T14:45:00+00:00",
     "approval_status": "PENDING_FE_BA_REVIEW",
     "source_hashes": {
         "permission_seed": {
             "path": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php",
-            "sha256": "dbf62d70df17e9e87b75d0ed639e6bf5f2c746887f876fdf25f2f6f6d628a3af"
+            "sha256": "6b9b3c0d17c6086d0a3f69b5753d1b12d723cb549273fdf06835ea2e7c828bca"
         },
         "warehouse_routes": {
             "path": "Modules/Warehouse/routes/api.php",
-            "sha256": "64d4a8a389d1733196b5e4110fe5b77be3c4ccb8f9a9cf480d80f57eacf18336"
+            "sha256": "eee6208bd3468a0d04e29f08a8fa29ffe092954e733b6058f338a6c8c63b15aa"
         },
         "auth_routes": {
             "path": "Modules/Auth/routes/api.php",
-            "sha256": "a190cdcce2ac182489382ad1fa3f0aa40f81786f5ad7508c4591bc7072ae7f71"
+            "sha256": "4502dc3f10467b822313b446604da70eb70ffde536c2ed43c24181accd1851f1"
         },
         "audit_routes": {
             "path": "Modules/AuditLog/routes/api.php",
@@ -29,12 +29,12 @@
         },
         "user_permission_model": {
             "path": "Modules/Auth/app/Models/User.php",
-            "sha256": "eb7776e6baeaa5a792358787aa0d7677e8daf2d728c52c34a59c8320245d9623"
+            "sha256": "b8d1776b1ee99626b79952f084c18ee70d444e797f805d67ce13afe8180c922b"
         }
     },
     "integrity": {
-        "active_permission_count": 83,
-        "route_permission_count": 57,
+        "active_permission_count": 84,
+        "route_permission_count": 58,
         "missing_route_permissions": [],
         "status": "PASS"
     },
@@ -316,6 +316,12 @@
             "status": "ACTIVE"
         },
         {
+            "permission_key": "physical_code.create",
+            "permission_name": "Issue a brand-new item instance with a new Barcode/QR physical code",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
             "permission_key": "physical_code.manage",
             "permission_name": "Manage physical codes",
             "scope_type": "FUNCTION",
@@ -587,6 +593,7 @@
                 "packing_label.ready",
                 "packing_label.reprint",
                 "physical_code.assign_rfid",
+                "physical_code.create",
                 "physical_code.manage",
                 "physical_code.view",
                 "putaway.manage",
@@ -756,6 +763,7 @@
                 "packing_label.ready",
                 "packing_label.reprint",
                 "physical_code.assign_rfid",
+                "physical_code.create",
                 "physical_code.manage",
                 "physical_code.view",
                 "product.view",
@@ -823,6 +831,7 @@
                 "outbound.view",
                 "permission.view",
                 "physical_code.assign_rfid",
+                "physical_code.create",
                 "physical_code.manage",
                 "physical_code.view",
                 "product.manage",
@@ -924,7 +933,7 @@
                 "GET"
             ],
             "uri": "api/v1/agencies/{id}",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\AgencyController@show",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@show",
             "permission": "agency.view",
             "accepted_permissions": [
                 "agency.view"
@@ -940,7 +949,7 @@
                 "PATCH"
             ],
             "uri": "api/v1/agencies/{id}",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\AgencyController@update",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@update",
             "permission": "agency.manage",
             "accepted_permissions": [
                 "agency.manage"
@@ -956,7 +965,7 @@
                 "GET"
             ],
             "uri": "api/v1/agencies",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\AgencyController@index",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@index",
             "permission": "agency.view",
             "accepted_permissions": [
                 "agency.view"
@@ -972,7 +981,7 @@
                 "POST"
             ],
             "uri": "api/v1/agencies",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\AgencyController@store",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@store",
             "permission": "agency.manage",
             "accepted_permissions": [
                 "agency.manage"
@@ -1503,6 +1512,54 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/departments/{id}",
+            "action": "Modules\\Auth\\Http\\Controllers\\DepartmentController@update",
+            "permission": "iam.user.manage",
+            "accepted_permissions": [
+                "iam.user.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:iam.user.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/departments",
+            "action": "Modules\\Auth\\Http\\Controllers\\DepartmentController@index",
+            "permission": "iam.user.view",
+            "accepted_permissions": [
+                "iam.user.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:iam.user.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/departments",
+            "action": "Modules\\Auth\\Http\\Controllers\\DepartmentController@store",
+            "permission": "iam.user.manage",
+            "accepted_permissions": [
+                "iam.user.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:iam.user.manage"
+            ]
+        },
+        {
+            "methods": [
                 "GET"
             ],
             "uri": "api/v1/document-status-history",
@@ -1632,6 +1689,40 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/inbound-documents/{id}/cartons/{containerId}/complete-scan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineStockFlowController@completeInboundCartonScan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/component-lines",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1InboundComponentController@ensureLine",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/inbound-documents/{id}/post-receipt",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineStockFlowController@postReceipt",
             "permission": "inbound.post",
@@ -1737,7 +1828,7 @@
                 "POST"
             ],
             "uri": "api/v1/inbound-documents/{id}/unscan",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineStockFlowController@inboundUnscan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1InboundScanCorrectionController@unscan",
             "permission": "inbound.scan",
             "accepted_permissions": [
                 "inbound.scan"
@@ -1771,7 +1862,7 @@
                 "PATCH"
             ],
             "uri": "api/v1/inbound-documents/{id}",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineDocumentController@updateInbound",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1InboundDocumentController@update",
             "permission": "inbound.create",
             "accepted_permissions": [
                 "inbound.create"
@@ -1806,7 +1897,7 @@
                 "POST"
             ],
             "uri": "api/v1/inbound-documents",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineDocumentController@storeInbound",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1InboundDocumentController@store",
             "permission": "inbound.create",
             "accepted_permissions": [
                 "inbound.create"
@@ -1987,22 +2078,6 @@
             "methods": [
                 "POST"
             ],
-            "uri": "api/v1/label-snapshots/{id}/apply",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@applyPackingLabel",
-            "permission": "label.print",
-            "accepted_permissions": [
-                "label.print"
-            ],
-            "middleware": [
-                "api",
-                "auth:api",
-                "permission:label.print"
-            ]
-        },
-        {
-            "methods": [
-                "POST"
-            ],
             "uri": "api/v1/label-snapshots/{id}/print",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineOperationsController@printLabelSnapshot",
             "permission": "label.print",
@@ -2077,6 +2152,793 @@
                 "api",
                 "auth:api",
                 "permission:label.print"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/boxes",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@registerBox",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@cancel",
+            "permission": "inbound.cancel|inbound.create",
+            "accepted_permissions": [
+                "inbound.cancel",
+                "inbound.create"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.cancel|inbound.create",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/cartons/{containerId}/complete-scan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@completeCartonScan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/post-receipt",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@approve",
+            "permission": "inbound.post",
+            "accepted_permissions": [
+                "inbound.post"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.post",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/scan-entries",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@scanEntries",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/scan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@scan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\EnsureInboundComponentBox"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/unscan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@unscan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@show",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@index",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundController@store",
+            "permission": "inbound.create",
+            "accepted_permissions": [
+                "inbound.create"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.create",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\EnsureCanonicalInboundWarehouse"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/record",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundStagingController@record",
+            "permission": "inbound.create",
+            "accepted_permissions": [
+                "inbound.create"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.create",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\EnsureCanonicalInboundWarehouse"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/resolve-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppInboundStagingController@resolveCode",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@cancel",
+            "permission": "outbound.cancel",
+            "accepted_permissions": [
+                "outbound.cancel"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.cancel",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/apply",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@applyPackingLabel",
+            "permission": "label.print",
+            "accepted_permissions": [
+                "label.print"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:label.print",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/preview",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@previewPackingLabel",
+            "permission": "packing_label.preview|label.print",
+            "accepted_permissions": [
+                "packing_label.preview",
+                "label.print"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:packing_label.preview|label.print",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/print",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@printPackingLabel",
+            "permission": "packing_label.print|label.print",
+            "accepted_permissions": [
+                "packing_label.print",
+                "label.print"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:packing_label.print|label.print",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/ready",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@readyPackingLabel",
+            "permission": "packing_label.ready|label.print",
+            "accepted_permissions": [
+                "packing_label.ready",
+                "label.print"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:packing_label.ready|label.print",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/reprint",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@reprintPackingLabel",
+            "permission": "packing_label.reprint|label.reprint",
+            "accepted_permissions": [
+                "packing_label.reprint",
+                "label.reprint"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:packing_label.reprint|label.reprint",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-label",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@packingLabel",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/post-issue",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@postIssue",
+            "permission": "outbound.post",
+            "accepted_permissions": [
+                "outbound.post"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.post",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/scan-entries",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@scanEntries",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/scan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@scan",
+            "permission": "outbound.scan",
+            "accepted_permissions": [
+                "outbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/unmatch",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@unmatch",
+            "permission": "outbound.scan",
+            "accepted_permissions": [
+                "outbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@show",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundController@index",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundDraftController@store",
+            "permission": "outbound.request.manual_create|outbound.import",
+            "accepted_permissions": [
+                "outbound.request.manual_create",
+                "outbound.import"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.request.manual_create|outbound.import",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound/record",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundStagingController@record",
+            "permission": "outbound.request.manual_create|outbound.import",
+            "accepted_permissions": [
+                "outbound.request.manual_create",
+                "outbound.import"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.request.manual_create|outbound.import",
+                "permission:outbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound/resolve-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppOutboundStagingController@resolveCode",
+            "permission": "outbound.scan",
+            "accepted_permissions": [
+                "outbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/printer-configs",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CanonicalMvpController@listPrinterConfigs",
+            "permission": "label.print",
+            "accepted_permissions": [
+                "label.print"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:label.print"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-attachments/{attachmentId}/download",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyAttachmentController@download",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/mini-app/warranty-attachments/{attachmentId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyAttachmentController@destroy",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/attachments",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyAttachmentController@index",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/attachments",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyAttachmentController@store",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/events",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@events",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/status",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@update",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@show",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@update",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@index",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@store",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/post",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@post",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/scans",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@scan",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentIssueQueryController@show",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CanonicalMvpController@listComponentIssueDocuments",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@store",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty/resolve-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@resolveCode",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage"
             ]
         },
         {
@@ -2190,7 +3052,7 @@
                 "POST"
             ],
             "uri": "api/v1/outbound-documents/{id}/post-issue",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedOutboundFlowController@postIssue",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1OutboundFlowController@postIssue",
             "permission": "outbound.post",
             "accepted_permissions": [
                 "outbound.post"
@@ -3304,6 +4166,70 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/recipients/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@show",
+            "permission": "agency.view",
+            "accepted_permissions": [
+                "agency.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:agency.view"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/recipients/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@update",
+            "permission": "agency.manage",
+            "accepted_permissions": [
+                "agency.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:agency.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/recipients",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@index",
+            "permission": "agency.view",
+            "accepted_permissions": [
+                "agency.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:agency.view"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/recipients",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1RecipientController@store",
+            "permission": "agency.manage",
+            "accepted_permissions": [
+                "agency.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:agency.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/reports/dashboard-quick",
             "action": "Modules\\Warehouse\\Http\\Controllers\\OperationalReportController@dashboardQuick",
             "permission": "report.view",
@@ -3640,6 +4566,38 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/reports/outbound-by-recipient",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1ReportController@outboundByRecipient",
+            "permission": "report.view",
+            "accepted_permissions": [
+                "report.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:report.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/warranty-defect-sku-breakdown",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1ReportController@defectSkuBreakdown",
+            "permission": "report.view",
+            "accepted_permissions": [
+                "report.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:report.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/reports/warranty-defects/export-excel",
             "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedWarrantyReportController@export",
             "permission": "report.export",
@@ -3657,7 +4615,7 @@
                 "GET"
             ],
             "uri": "api/v1/reports/warranty-defects",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\AlignedWarrantyReportController@index",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1ReportController@warrantyDefects",
             "permission": "report.view",
             "accepted_permissions": [
                 "report.view"
@@ -4063,6 +5021,22 @@
                 "api",
                 "auth:api",
                 "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus/{id}/items",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineItemIdentityController@issue",
+            "permission": "physical_code.create",
+            "accepted_permissions": [
+                "physical_code.create"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:physical_code.create"
             ]
         },
         {
@@ -4479,7 +5453,7 @@
                 "POST"
             ],
             "uri": "api/v1/warranty-cases/{id}/status",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyController@updateWarrantyCase",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1WarrantyController@updateWarrantyCase",
             "permission": "warranty.manage",
             "accepted_permissions": [
                 "warranty.manage"
@@ -4511,7 +5485,7 @@
                 "GET"
             ],
             "uri": "api/v1/warranty-cases/{id}",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyController@showWarrantyCase",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1WarrantyController@showWarrantyCase",
             "permission": "warranty.view|warranty.manage",
             "accepted_permissions": [
                 "warranty.view",
@@ -4528,7 +5502,7 @@
                 "PATCH"
             ],
             "uri": "api/v1/warranty-cases/{id}",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyController@updateWarrantyCase",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1WarrantyController@updateWarrantyCase",
             "permission": "warranty.manage",
             "accepted_permissions": [
                 "warranty.manage"
@@ -4561,7 +5535,7 @@
                 "POST"
             ],
             "uri": "api/v1/warranty-cases",
-            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyController@storeWarrantyCase",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\BaM1WarrantyController@storeWarrantyCase",
             "permission": "warranty.manage",
             "accepted_permissions": [
                 "warranty.manage"
@@ -5303,6 +6277,54 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/departments/{id}",
+            "permission": "iam.user.manage",
+            "accepted_permissions": [
+                "iam.user.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/departments",
+            "permission": "iam.user.view",
+            "accepted_permissions": [
+                "iam.user.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/departments",
+            "permission": "iam.user.manage",
+            "accepted_permissions": [
+                "iam.user.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
                 "GET"
             ],
             "uri": "api/v1/document-status-history",
@@ -5437,6 +6459,42 @@
                 "ADMIN",
                 "SUPER_ADMIN",
                 "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/cartons/{containerId}/complete-scan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/component-lines",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
                 "WAREHOUSE_KEEPER",
                 "WAREHOUSE_MANAGER",
                 "WAREHOUSE_STAFF"
@@ -5846,23 +6904,6 @@
             "methods": [
                 "POST"
             ],
-            "uri": "api/v1/label-snapshots/{id}/apply",
-            "permission": "label.print",
-            "accepted_permissions": [
-                "label.print"
-            ],
-            "roles": [
-                "ADMIN",
-                "SUPER_ADMIN",
-                "WAREHOUSE_KEEPER",
-                "WAREHOUSE_MANAGER"
-            ],
-            "backend_enforced": true
-        },
-        {
-            "methods": [
-                "POST"
-            ],
             "uri": "api/v1/label-snapshots/{id}/print",
             "permission": "label.print",
             "accepted_permissions": [
@@ -5941,6 +6982,869 @@
                 "SUPER_ADMIN",
                 "WAREHOUSE_KEEPER",
                 "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/boxes",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/cancel",
+            "permission": "inbound.cancel|inbound.create",
+            "accepted_permissions": [
+                "inbound.cancel",
+                "inbound.create"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/cartons/{containerId}/complete-scan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/post-receipt",
+            "permission": "inbound.post",
+            "accepted_permissions": [
+                "inbound.post"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/scan-entries",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/scan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/unscan",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents",
+            "permission": "inbound.create",
+            "accepted_permissions": [
+                "inbound.create"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/record",
+            "permission": "inbound.create",
+            "accepted_permissions": [
+                "inbound.create"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/resolve-code",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/cancel",
+            "permission": "outbound.cancel",
+            "accepted_permissions": [
+                "outbound.cancel"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/apply",
+            "permission": "label.print",
+            "accepted_permissions": [
+                "label.print"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/preview",
+            "permission": "packing_label.preview|label.print",
+            "accepted_permissions": [
+                "packing_label.preview",
+                "label.print"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/print",
+            "permission": "packing_label.print|label.print",
+            "accepted_permissions": [
+                "packing_label.print",
+                "label.print"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/ready",
+            "permission": "packing_label.ready|label.print",
+            "accepted_permissions": [
+                "packing_label.ready",
+                "label.print"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/reprint",
+            "permission": "packing_label.reprint|label.reprint",
+            "accepted_permissions": [
+                "packing_label.reprint",
+                "label.reprint"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/packing-label",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/post-issue",
+            "permission": "outbound.post",
+            "accepted_permissions": [
+                "outbound.post"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/scan-entries",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/scan",
+            "permission": "outbound.scan",
+            "accepted_permissions": [
+                "outbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/unmatch",
+            "permission": "outbound.scan",
+            "accepted_permissions": [
+                "outbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents",
+            "permission": "outbound.request.manual_create|outbound.import",
+            "accepted_permissions": [
+                "outbound.request.manual_create",
+                "outbound.import"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound/record",
+            "permission": "outbound.request.manual_create|outbound.import",
+            "accepted_permissions": [
+                "outbound.request.manual_create",
+                "outbound.import"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/outbound/resolve-code",
+            "permission": "outbound.scan",
+            "accepted_permissions": [
+                "outbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/printer-configs",
+            "permission": "label.print",
+            "accepted_permissions": [
+                "label.print"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-attachments/{attachmentId}/download",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/mini-app/warranty-attachments/{attachmentId}",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/attachments",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/attachments",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/events",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/status",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases",
+            "permission": "warranty.manage",
+            "accepted_permissions": [
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/post",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/scans",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty/resolve-code",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
             ],
             "backend_enforced": true
         },
@@ -7307,6 +9211,78 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/recipients/{id}",
+            "permission": "agency.view",
+            "accepted_permissions": [
+                "agency.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/recipients/{id}",
+            "permission": "agency.manage",
+            "accepted_permissions": [
+                "agency.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/recipients",
+            "permission": "agency.view",
+            "accepted_permissions": [
+                "agency.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/recipients",
+            "permission": "agency.manage",
+            "accepted_permissions": [
+                "agency.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/reports/dashboard-quick",
             "permission": "report.view",
             "accepted_permissions": [
@@ -7683,6 +9659,48 @@
                 "GET"
             ],
             "uri": "api/v1/reports/outbound-by-agency",
+            "permission": "report.view",
+            "accepted_permissions": [
+                "report.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/outbound-by-recipient",
+            "permission": "report.view",
+            "accepted_permissions": [
+                "report.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/reports/warranty-defect-sku-breakdown",
             "permission": "report.view",
             "accepted_permissions": [
                 "report.view"
@@ -8168,6 +10186,23 @@
                 "ADMIN",
                 "SKU_MANAGER",
                 "SUPER_ADMIN",
+                "WAREHOUSE_MANAGER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/skus/{id}/items",
+            "permission": "physical_code.create",
+            "accepted_permissions": [
+                "physical_code.create"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
                 "WAREHOUSE_MANAGER"
             ],
             "backend_enforced": true

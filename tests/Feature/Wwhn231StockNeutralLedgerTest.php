@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Services\LedgerReconciliationService;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -29,6 +30,7 @@ use Tests\TestCase;
  */
 class Wwhn231StockNeutralLedgerTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -94,23 +96,18 @@ class Wwhn231StockNeutralLedgerTest extends TestCase
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = Sku::create([
-            'sku_code' => 'WWHN231-IN-01',
-            'sku_name' => 'Component WWHN231-IN-01',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
+        $sku = $this->componentSkuFixture('WWHN231-IN-01');
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only + component-lines + Box.
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'WWHN-231 scan stock-neutral fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 7]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
+        $lineId = (string) $this->postJson(
+            "/api/v1/inbound-documents/{$documentId}/component-lines",
+            ['sku_id' => $sku->sku_id],
+            $headers
+        )->assertOk()->json('data.line_id');
 
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,
@@ -120,20 +117,18 @@ class Wwhn231StockNeutralLedgerTest extends TestCase
 
         $before = $this->stockSnapshot();
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
+        $scan = $this->postJson("/api/v1/inbound-documents/{$documentId}/scans", [
             'line_id' => $lineId,
             'quantity' => 7,
             'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        ], $headers + ['If-Match' => (string) $document['version']])->assertOk();
 
         $this->assertSame($before, $this->stockSnapshot(), 'Scan inbound không được đổi movement/balance (SRS §5.1).');
 
         // Đối chứng: chính document đó Post mới đổi tồn — nếu không có vế này thì snapshot
         // bằng nhau có thể chỉ vì fixture chưa bao giờ chạm được tới tầng tồn.
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'wwhn231-'.Str::lower(Str::random(14)),
-        ])->assertOk()->assertJsonPath('data.status', 'POSTED');
+        $this->postInboundReceipt($headers, $documentId, (int) $scan->json('data.version'))
+            ->assertOk()->assertJsonPath('data.status', 'POSTED');
 
         $after = $this->stockSnapshot();
         $this->assertNotSame($before, $after, 'Post Receipt phải là action đổi tồn.');
@@ -375,39 +370,23 @@ class Wwhn231StockNeutralLedgerTest extends TestCase
     private function postedReceiptFixture(array $headers, string $skuCode, int $qty): array
     {
         $warehouse = $this->warehouseFixture();
-        $sku = Sku::create([
-            'sku_code' => $skuCode,
-            'sku_name' => "Component {$skuCode}",
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
+        $sku = $this->componentSkuFixture($skuCode);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only + component-lines + Box + đếm thực tế.
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'WWHN-231 ledger fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
 
-        $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => 'BOX-'.Str::upper(Str::random(8)),
-        ], $headers);
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $documentId,
+            (string) $sku->sku_id,
+            $qty,
+            $document['version']
+        );
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => $qty,
-            'container_id' => (string) $box->json('data.container_id'),
-        ], $headers + ['If-Match' => '1'])->assertOk();
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'wwhn231-'.Str::lower(Str::random(14)),
-        ])->assertOk();
+        $this->postInboundReceipt($headers, $documentId, $received['version'])->assertOk();
 
         return ['document_id' => $documentId, 'sku_id' => (string) $sku->sku_id, 'warehouse_id' => (string) $warehouse->id];
     }

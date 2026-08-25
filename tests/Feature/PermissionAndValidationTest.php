@@ -138,28 +138,44 @@ class PermissionAndValidationTest extends TestCase
             ->assertJsonPath('error.code', 'ACCESS_DENIED');
     }
 
-    public function test_inbound_document_create_without_lines_returns_422(): void
+    /**
+     * Hợp đồng GĐ1 scan-driven (2026-08-25): tạo phiếu HEADER-ONLY là luồng
+     * canonical — không còn bắt buộc lines (422 BUSINESS_RULE_ERROR cũ). Gửi
+     * lines có nội dung mới là lỗi nghiệp vụ: 422 INBOUND_SCAN_DRIVEN.
+     */
+    public function test_inbound_document_create_is_header_only_and_rejects_manual_lines(): void
     {
         $headers = $this->authHeadersWithPermissions(['inbound.create'], 'creator');
         $warehouse = Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tong Hoa Nam', 'status' => 'ACTIVE']);
+        $product = Sku::create(['sku_code' => 'SP-PERM3', 'sku_name' => 'San pham perm 3', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
+        // Header-only (lines rỗng) được chấp nhận — dòng materialize từ scan.
         $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'lines' => [],
         ], $headers + ['Idempotency-Key' => 'perm-create-no-lines'])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'DRAFT')
+            ->assertJsonPath('data.lines', []);
+
+        // Client cũ gửi lines/qty_planned bị chặn bằng lỗi nghiệp vụ rõ ràng.
+        $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'lines' => [['product_id' => $product->sku_id, 'qty_planned' => 1]],
+        ], $headers + ['Idempotency-Key' => 'perm-create-with-lines'])
             ->assertStatus(422)
-            ->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR');
+            ->assertJsonPath('error.code', 'INBOUND_SCAN_DRIVEN');
     }
 
     public function test_inbound_document_create_is_idempotent_when_key_reused(): void
     {
         $headers = $this->authHeadersWithPermissions(['inbound.create'], 'creator2');
         $warehouse = Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tong Hoa Nam', 'status' => 'ACTIVE']);
-        $product = Sku::create(['sku_code' => 'SP-PERM4', 'sku_name' => 'San pham perm 4', 'unit' => 'cai', 'sku_type' => 'PRODUCT', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
 
+        // GĐ1 scan-driven: payload header-only (không còn lines/qty_planned).
         $payload = [
             'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $product->sku_id, 'qty_planned' => 1]],
+            'source_name' => 'NCC idempotent create',
         ];
 
         $first = $this->postJson('/api/v1/inbound-documents', $payload, $headers + ['Idempotency-Key' => 'perm-create-idem']);

@@ -71,14 +71,19 @@ class StockCacheInvalidationTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
+        // Hợp đồng GĐ1 scan-driven: header-only + materialize dòng COMPONENT qua
+        // /component-lines (không còn tạo phiếu kèm lines/qty_planned).
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_name' => 'Stock cache test fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
         ], $headers);
         $create->assertCreated();
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+
+        $ensure = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $sku->sku_id,
+        ], $headers)->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $register = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,

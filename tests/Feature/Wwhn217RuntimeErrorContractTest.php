@@ -287,7 +287,7 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
     public function test_403_underprivileged_token_is_rejected_on_all_three_flows(): void
     {
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN217-RBAC', 3);
+        $fixture = $this->preparedReceipt($owner, 'WWHN217-RBAC');
         $movementsBefore = DB::table('stock_movements')->count();
 
         $inboundViewer = $this->headersForCustomRole(['inbound.view']);
@@ -364,22 +364,24 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
     }
 
     /**
-     * 422 — validation/business rule. Quét vượt Expected là ca người dùng gặp thật khi
-     * bấm nhanh hai lần trên thiết bị chậm, và §8.2 bắt buộc "state, stock and movement unchanged".
+     * 422 — validation/business rule. Hợp đồng GĐ1 scan-driven KHÔNG còn gate
+     * "quét vượt Expected" (qty_planned tự nâng theo scan), nên probe 422 là
+     * quantity không hợp lệ (0) — §8.2 vẫn bắt buộc "state, stock and movement
+     * unchanged".
      */
     public function test_422_validation_leaves_document_and_stock_unchanged(): void
     {
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN217-VALIDATION', 2);
+        $fixture = $this->preparedReceipt($owner, 'WWHN217-VALIDATION');
         $movementsBefore = DB::table('stock_movements')->count();
 
-        $overScan = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/scan", [
+        $invalidScan = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/scan", [
             'line_id' => $fixture['line_id'],
-            'quantity' => 999,
+            'quantity' => 0,
             'container_id' => $fixture['container_id'],
         ], $owner + ['If-Match' => $fixture['version']]);
 
-        $overScan->assertStatus(422);
+        $invalidScan->assertStatus(422);
 
         $this->assertSame(
             $movementsBefore,
@@ -397,10 +399,10 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
             'POST',
             '/api/v1/inbound-documents/{id}/scan',
             422,
-            $overScan->json('error.code'),
-            'Quét vượt Expected → 422; phiếu và tồn không đổi.',
+            $invalidScan->json('error.code'),
+            'Quantity 0 không hợp lệ → 422; phiếu và tồn không đổi.',
             [
-                'scenario' => 'scan quantity 999 vượt Expected 2',
+                'scenario' => 'scan quantity 0 (scan-driven: không còn gate quét vượt Expected)',
                 'document_status_after' => 'SCANNING',
                 'stock_effect_written' => false,
             ]
@@ -418,7 +420,7 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
     public function test_409_conflicts_do_not_double_apply_stock(): void
     {
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN217-CONFLICT', 2);
+        $fixture = $this->preparedReceipt($owner, 'WWHN217-CONFLICT');
 
         $sharedKey = 'wwhn217-conflict-'.Str::lower(Str::random(8));
         $first = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/scan", [
@@ -560,7 +562,7 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
      * @param  array<string,string>  $headers
      * @return array{document_id:string,line_id:string,container_id:string,sku_id:string,warehouse_id:string,version:string}
      */
-    private function preparedReceipt(array $headers, string $skuCodePrefix, int $qty): array
+    private function preparedReceipt(array $headers, string $skuCodePrefix): array
     {
         $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
         $sku = Sku::create([
@@ -572,15 +574,20 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
+        // Hợp đồng GĐ1 scan-driven: header-only + materialize dòng COMPONENT qua
+        // /component-lines (không còn tạo phiếu kèm lines/qty_planned).
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_name' => 'WWHN-217 runtime contract fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
         ], $headers);
         $create->assertCreated();
 
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+
+        $ensure = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $sku->sku_id,
+        ], $headers)->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,

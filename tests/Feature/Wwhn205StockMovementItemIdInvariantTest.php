@@ -4,8 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use Modules\Warehouse\Models\Sku;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -26,6 +25,7 @@ use Tests\TestCase;
  */
 class Wwhn205StockMovementItemIdInvariantTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -52,42 +52,20 @@ class Wwhn205StockMovementItemIdInvariantTest extends TestCase
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = $this->productSkuFixture('PRD-WWHN205-RECEIPT-001');
+        $this->productSkuFixture('PRD-WWHN205-RECEIPT-001');
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'WWHN-205 item_id invariant fixture',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => 1,
-            ]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
-        $itemId = (string) Str::uuid();
-        DB::table('item_instances')->insert([
-            'item_id' => $itemId,
-            'sku_id' => $sku->sku_id,
-            'serial_number' => 'SN-WWHN205-'.Str::upper(Str::random(6)),
-            'item_status' => 'NEW',
-            'item_condition' => 'NORMAL',
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
+        // Contract GĐ1 scan-driven: header-only + composite QR, item register-at-Post.
+        $fixture = $this->scanDrivenInboundFixture($headers, (string) $warehouse->id, [
+            ['sku_code' => 'PRD-WWHN205-RECEIPT-001', 'qty' => 1],
         ]);
+        $documentId = $fixture['document_id'];
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => 1,
-            'item_id' => $itemId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        $this->postInboundReceipt($headers, $documentId, $fixture['version'], 'wwhn205-receipt-item-id-001')
+            ->assertOk();
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'wwhn205-receipt-item-id-001',
-        ])->assertOk();
+        $itemUnique = $fixture['lines']['PRD-WWHN205-RECEIPT-001']['item_uniques'][0];
+        $itemId = (string) DB::table('item_instances')->where('serial_number', $itemUnique)->value('item_id');
+        $this->assertNotSame('', $itemId, 'Post Receipt phải register item candidate thành item_instances.');
 
         $movement = DB::table('stock_movements')
             ->where('stock_document_id', $documentId)
@@ -102,46 +80,17 @@ class Wwhn205StockMovementItemIdInvariantTest extends TestCase
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = $this->productSkuFixture('PRD-WWHN205-MULTI-001');
+        $this->productSkuFixture('PRD-WWHN205-MULTI-001');
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'WWHN-205 multi-item fixture',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => 2,
-            ]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        // 2 item composite QR cùng SKU → gom về đúng 1 dòng scanned_qty=2.
+        $fixture = $this->scanDrivenInboundFixture($headers, (string) $warehouse->id, [
+            ['sku_code' => 'PRD-WWHN205-MULTI-001', 'qty' => 2],
+        ]);
+        $documentId = $fixture['document_id'];
+        $lineId = $fixture['lines']['PRD-WWHN205-MULTI-001']['line_id'];
 
-        $itemIds = [];
-        foreach (range(1, 2) as $i) {
-            $itemId = (string) Str::uuid();
-            DB::table('item_instances')->insert([
-                'item_id' => $itemId,
-                'sku_id' => $sku->sku_id,
-                'serial_number' => 'SN-WWHN205-MULTI-'.$i.'-'.Str::upper(Str::random(6)),
-                'item_status' => 'NEW',
-                'item_condition' => 'NORMAL',
-                'version' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $itemIds[] = $itemId;
-
-            $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-                'line_id' => $lineId,
-                'quantity' => 1,
-                'item_id' => $itemId,
-            ], $headers + ['If-Match' => (string) $i])->assertOk();
-        }
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '3',
-            'Idempotency-Key' => 'wwhn205-receipt-multi-item-001',
-        ])->assertOk();
+        $this->postInboundReceipt($headers, $documentId, $fixture['version'], 'wwhn205-receipt-multi-item-001')
+            ->assertOk();
 
         $movement = DB::table('stock_movements')
             ->where('stock_document_id', $documentId)
@@ -152,15 +101,19 @@ class Wwhn205StockMovementItemIdInvariantTest extends TestCase
         $this->assertSame(2, (int) $movement->quantity);
         $this->assertNull(
             $movement->item_id,
-            'Khi 1 movement gộp nhiều item (qty_planned>1), item_id phải là null — không được gán nhầm 1 trong 2 item.'
+            'Khi 1 movement gộp nhiều item (scanned_qty>1), item_id phải là null — không được gán nhầm 1 trong 2 item.'
         );
 
-        foreach ($itemIds as $itemId) {
-            $this->assertContains($itemId, DB::table('inbound_scan_entries')
-                ->where('inbound_line_id', $lineId)
-                ->pluck('item_id')
-                ->map(fn ($id) => (string) $id)
-                ->all());
+        // Cả 2 item được register-at-Post và backfill vào scan entries của line.
+        $entryItemIds = DB::table('inbound_scan_entries')
+            ->where('inbound_line_id', $lineId)
+            ->pluck('item_id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+        foreach ($fixture['lines']['PRD-WWHN205-MULTI-001']['item_uniques'] as $itemUnique) {
+            $itemId = (string) DB::table('item_instances')->where('serial_number', $itemUnique)->value('item_id');
+            $this->assertNotSame('', $itemId);
+            $this->assertContains($itemId, $entryItemIds);
         }
     }
 
@@ -168,44 +121,24 @@ class Wwhn205StockMovementItemIdInvariantTest extends TestCase
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
-        $sku = Sku::create([
-            'sku_code' => 'COMP-WWHN205-001',
-            'sku_name' => 'Component WWHN-205 fixture',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cai',
-            'is_serial_tracked' => false,
-            'status' => 'ACTIVE',
-        ]);
+        $sku = $this->componentSkuFixture('COMP-WWHN205-001');
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'WWHN-205 component fixture',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => 3,
-            ]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
 
-        $register = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => 'BOX-WWHN205-001',
-        ], $headers);
-        $register->assertCreated();
-        $boxId = (string) $register->json('data.container_id');
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $documentId,
+            (string) $sku->sku_id,
+            3,
+            $document['version'],
+            'BOX-WWHN205-001'
+        );
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => 3,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'wwhn205-receipt-component-001',
-        ])->assertOk();
+        $this->postInboundReceipt($headers, $documentId, $received['version'], 'wwhn205-receipt-component-001')
+            ->assertOk();
 
         $movement = DB::table('stock_movements')
             ->where('stock_document_id', $documentId)

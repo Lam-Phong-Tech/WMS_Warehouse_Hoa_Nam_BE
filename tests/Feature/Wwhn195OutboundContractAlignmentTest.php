@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
+use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
 use Symfony\Component\Yaml\Yaml;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -52,8 +53,10 @@ class Wwhn195OutboundContractAlignmentTest extends TestCase
         'api/v1/outbound-documents/{id}/unmatch' => [
             'POST' => AlignedOutboundFlowController::class.'@outboundUnmatch',
         ],
+        // GĐ1 2026-08-25: Post Issue chạy qua BaM1OutboundFlowController (kế thừa
+        // Aligned*, bypassPackingLabelGate=true) — stock issue độc lập với nhãn.
         'api/v1/outbound-documents/{id}/post-issue' => [
-            'POST' => AlignedOutboundFlowController::class.'@postIssue',
+            'POST' => BaM1OutboundFlowController::class.'@postIssue',
         ],
     ];
 
@@ -171,11 +174,14 @@ class Wwhn195OutboundContractAlignmentTest extends TestCase
         // Không có lệnh in nào được bắn trong lúc scan.
         $this->assertSame(0, DB::table('label_print_events')->count());
 
-        // Post Issue bị chặn khi nhãn chưa PRINTED.
+        // GĐ1 2026-08-25: nhãn KHÔNG còn gate Post Issue — phiếu full-scan được
+        // Post ngay cả khi nhãn còn DRAFT; response khai bypass tường minh.
         $this->postJson("/api/v1/outbound-documents/{$fixture['document_id']}/post-issue", [], $headers + [
             'If-Match' => '2',
             'Idempotency-Key' => (string) Str::uuid(),
-        ])->assertStatus(422);
+        ])->assertOk()
+            ->assertJsonPath('data.packing_label_bypassed', true)
+            ->assertJsonPath('data.rfid_required', false);
 
         // Nguồn đã sạch model nhãn cũ (chỉ còn nhắc trong comment giải thích lý do gỡ).
         $legacy = (string) file_get_contents(base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'));

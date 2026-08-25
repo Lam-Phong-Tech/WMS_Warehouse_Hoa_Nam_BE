@@ -15,6 +15,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -39,6 +40,7 @@ use Tests\TestCase;
  */
 class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     private const EVIDENCE_PATH = 'build/evidence/wwhn-266/component-issue-core-transaction.json';
@@ -101,31 +103,24 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouseId,
+        // Contract GĐ1 scan-driven: header-only + component-lines + Box + đếm thực tế.
+        $document = $this->createInboundHeader($headers, $warehouseId, [
             'source_name' => 'NCC WWHN-266',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
-        ], $headers);
-        $create->assertCreated();
-        $inboundId = (string) $create->json('data.id');
-        $inboundLineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $inboundId = $document['document_id'];
 
-        $box = $this->postJson("/api/v1/inbound-documents/{$inboundId}/boxes", [
-            'line_id' => $inboundLineId,
-            'box_code' => 'BOX-266-'.Str::upper(Str::random(6)),
-        ], $headers);
-        $containerId = (string) $box->json('data.container_id');
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $inboundId,
+            (string) $sku->sku_id,
+            $qty,
+            $document['version'],
+            'BOX-266-'.Str::upper(Str::random(6))
+        );
+        $containerId = $received['container_id'];
 
-        $this->postJson("/api/v1/inbound-documents/{$inboundId}/scan", [
-            'line_id' => $inboundLineId,
-            'quantity' => $qty,
-            'container_id' => $containerId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
-
-        $this->postJson("/api/v1/inbound-documents/{$inboundId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'w266-rcv-'.(string) Str::uuid(),
-        ])->assertOk();
+        $this->postInboundReceipt($headers, $inboundId, $received['version'], 'w266-rcv-'.(string) Str::uuid())
+            ->assertOk();
 
         // Subledger nội dung BOX chỉ được ghi bởi route quản trị container;
         // luồng inbound không tự sinh `container_items` (xem NOTE trong hồ sơ

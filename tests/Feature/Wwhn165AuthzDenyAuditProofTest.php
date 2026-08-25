@@ -93,7 +93,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
     public function test_permission_denied_403_writes_denied_audit_row_without_business_side_effect(): void
     {
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN165-PERM', 2);
+        $fixture = $this->preparedReceipt($owner, 'WWHN165-PERM');
 
         $movementsBefore = DB::table('stock_movements')->count();
         $documentBefore = DB::table('stock_documents')
@@ -153,7 +153,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
     public function test_data_scope_denied_403_writes_denied_audit_row_without_business_side_effect(): void
     {
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN165-SCOPE', 2);
+        $fixture = $this->preparedReceipt($owner, 'WWHN165-SCOPE');
 
         $movementsBefore = DB::table('stock_movements')->count();
         $deniedBefore = DB::table('audit_log')->where('result', 'DENIED')->count();
@@ -202,7 +202,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
     public function test_positive_control_in_scope_user_with_permission_posts_successfully(): void
     {
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN165-POS', 1);
+        $fixture = $this->preparedReceipt($owner, 'WWHN165-POS');
 
         $inScope = $this->headersForCustomRole(
             ['inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post'],
@@ -241,7 +241,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
     public function test_deny_response_is_unchanged_when_audit_write_is_unavailable(): void
     {
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN165-BEST', 2);
+        $fixture = $this->preparedReceipt($owner, 'WWHN165-BEST');
         $viewer = $this->headersForCustomRole(['inbound.view']);
 
         // Đăng ký SAU khi fixture đã dựng xong để không giết audit của nghiệp vụ setup.
@@ -356,7 +356,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
         self::capture('401_UNAUTHENTICATED', $anonymous);
 
         $owner = $this->headersForRole('SUPER_ADMIN');
-        $fixture = $this->preparedReceipt($owner, 'WWHN165-SAMPLE', 2);
+        $fixture = $this->preparedReceipt($owner, 'WWHN165-SAMPLE');
 
         // 403 ACCESS_DENIED — thiếu permission.
         $viewer = $this->headersForCustomRole(['inbound.view']);
@@ -403,10 +403,11 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
         $this->assertSame('STALE_VERSION', $stale->json('error.code'));
         self::capture('412_STALE_VERSION', $stale);
 
-        // 422 VALIDATION — tạo phiếu thiếu lines.
+        // 422 VALIDATION — hợp đồng scan-driven: header-only là hợp lệ, nên probe
+        // validation là tạo phiếu THIẾU dst_warehouse_id (trường bắt buộc).
         $validation = $this->postJson(
             '/api/v1/inbound-documents',
-            ['dst_warehouse_id' => $fixture['warehouse_id']],
+            ['source_name' => 'WWHN-165 sample missing warehouse'],
             $owner
         );
         $validation->assertStatus(422);
@@ -525,7 +526,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
      * @param  array<string,string>  $headers
      * @return array{document_id:string,line_id:string,container_id:string,sku_id:string,warehouse_id:string,version:string}
      */
-    private function preparedReceipt(array $headers, string $skuCodePrefix, int $qty): array
+    private function preparedReceipt(array $headers, string $skuCodePrefix): array
     {
         $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
         $sku = Sku::create([
@@ -537,15 +538,20 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
+        // Hợp đồng GĐ1 scan-driven: header-only + materialize dòng COMPONENT qua
+        // /component-lines (không còn tạo phiếu kèm lines/qty_planned).
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_name' => 'WWHN-165 authz fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
         ], $headers);
         $create->assertCreated();
 
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+
+        $ensure = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $sku->sku_id,
+        ], $headers)->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,

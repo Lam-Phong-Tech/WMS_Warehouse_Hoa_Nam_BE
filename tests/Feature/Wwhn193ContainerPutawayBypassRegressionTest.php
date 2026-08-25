@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\UserFacingMessageLocalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -110,9 +111,11 @@ class Wwhn193ContainerPutawayBypassRegressionTest extends TestCase
                 'status' => $status,
             ], $headers);
 
+            // error.details đi qua UserFacingMessageLocalizer::translateDetails() ở
+            // boundary API nên enum thô được Việt hóa cho người dùng — error_code giữ nguyên.
             $response->assertStatus(422)
                 ->assertJsonPath('error.code', 'CONTAINER_STATUS_NOT_CREATABLE')
-                ->assertJsonPath('error.details.requested_status', $status);
+                ->assertJsonPath('error.details.requested_status', UserFacingMessageLocalizer::translate($status));
             $this->assertDatabaseMissing('containers', ['container_code' => 'BOX-BYPASS-STATUS-'.$index]);
         }
 
@@ -144,7 +147,7 @@ class Wwhn193ContainerPutawayBypassRegressionTest extends TestCase
         ], $headers + ['If-Match' => '1'])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'CONTAINER_STATUS_LIFECYCLE_MANAGED')
-            ->assertJsonPath('error.details.requested_status', 'STORED');
+            ->assertJsonPath('error.details.requested_status', UserFacingMessageLocalizer::translate('STORED'));
 
         $this->assertDatabaseHas('containers', [
             'container_id' => $containerId,
