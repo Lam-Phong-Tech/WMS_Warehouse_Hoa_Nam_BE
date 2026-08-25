@@ -87,17 +87,25 @@ final class UserFacingMessageLocalizer
 
         $replacements = [
             '/^The (.+) field is required\.$/i' => 'Trường $1 là bắt buộc.',
+            '/^The (.+) field is required when (.+) is not present\.$/i' => 'Trường $1 là bắt buộc khi không có $2.',
+            '/^The (.+) field prohibits (.+) from being present\.$/i' => 'Khi có trường $1 thì không được gửi đồng thời trường $2.',
             '/^The (.+) field must be true or false\.$/i' => 'Trường $1 phải là đúng hoặc sai.',
             '/^The (.+) must be true or false\.$/i' => 'Trường $1 phải là đúng hoặc sai.',
             '/^The (.+) must be a string\.$/i' => 'Trường $1 phải là chuỗi ký tự.',
             '/^The (.+) must be an integer\.$/i' => 'Trường $1 phải là số nguyên.',
             '/^The (.+) must be a number\.$/i' => 'Trường $1 phải là số.',
+            '/^The (.+) must be numeric\.$/i' => 'Trường $1 phải là số.',
             '/^The (.+) must be an array\.$/i' => 'Trường $1 phải là danh sách.',
             '/^The (.+) must be a valid email address\.$/i' => 'Trường $1 phải là địa chỉ email hợp lệ.',
+            '/^The (.+) must be a valid UUID\.$/i' => 'Trường $1 phải là UUID hợp lệ.',
+            '/^The (.+) must be a valid date\.$/i' => 'Trường $1 phải là ngày hợp lệ.',
             '/^The (.+) must be at least ([0-9]+) characters\.$/i' => 'Trường $1 phải có ít nhất $2 ký tự.',
+            '/^The (.+) may not be greater than ([0-9]+) characters\.$/i' => 'Trường $1 không được vượt quá $2 ký tự.',
+            '/^The (.+) must be greater than ([^\.]+)\.$/i' => 'Trường $1 phải lớn hơn $2.',
             '/^The selected (.+) is invalid\.$/i' => 'Giá trị đã chọn cho trường $1 không hợp lệ.',
             '/^The (.+) has already been taken\.$/i' => 'Giá trị trường $1 đã tồn tại.',
             '/^The (.+) format is invalid\.$/i' => 'Định dạng trường $1 không hợp lệ.',
+            '/^The (.+) field has a duplicate value\.$/i' => 'Trường $1 có giá trị bị trùng.',
             '/Scan quantity exceeds remaining quantity on line\s+([^\.]+)\./i' => 'Số lượng quét vượt quá số lượng còn lại ở dòng $1.',
             '/Full Post Receipt/i' => 'Hoàn tất nhập kho',
             '/Post Receipt/i' => 'Hoàn tất nhập kho',
@@ -123,12 +131,20 @@ final class UserFacingMessageLocalizer
             '/\bdry run\b/i' => 'kiểm tra trước',
             '/\bsku code\b/i' => 'mã SKU',
             '/\bsku name\b/i' => 'tên SKU',
+            '/\bdst warehouse id\b/i' => 'kho đích',
+            '/\bsrc warehouse id\b/i' => 'kho nguồn',
             '/\bwarehouse id\b/i' => 'kho',
             '/\bproduct id\b/i' => 'sản phẩm',
+            '/\bitem instance id\b/i' => 'sản phẩm cụ thể',
+            '/\bqty planned\b/i' => 'số lượng dự kiến',
+            '/\bdoc no\b/i' => 'mã chứng từ',
+            '/\bdoc date\b/i' => 'ngày chứng từ',
             '/\bquantity\b/i' => 'số lượng',
             '/\breason\b/i' => 'lý do',
             '/\bstatus\b/i' => 'trạng thái',
             '/\bphone\b/i' => 'số điện thoại',
+            '/\bpassword\b/i' => 'mật khẩu',
+            '/\busername\b/i' => 'tài khoản',
         ];
 
         foreach ($replacements as $pattern => $replacement) {
@@ -137,6 +153,17 @@ final class UserFacingMessageLocalizer
 
         foreach (self::STATUS_LABELS as $raw => $label) {
             $localized = preg_replace('/\b'.preg_quote($raw, '/').'\b/u', $label, $localized) ?? $localized;
+        }
+
+        // Package/legacy có thể trả một câu tiếng Anh chưa nằm trong bảng trên. Không
+        // để câu đó lọt lên UI: giữ error_code/field key cho máy, còn người dùng nhận
+        // message Việt fail-closed. Các acronym/mã kỹ thuật (SKU/RFID/error_code...) tự
+        // chúng không kích hoạt vì biểu thức chỉ tìm từ/cấu trúc câu tiếng Anh phổ biến.
+        if (self::stillLooksEnglish($localized)) {
+            return self::preserveWhitespace(
+                $message,
+                'Không thể thực hiện yêu cầu do dữ liệu hoặc trạng thái hiện tại không hợp lệ.'
+            );
         }
 
         return $localized;
@@ -162,6 +189,14 @@ final class UserFacingMessageLocalizer
         }
 
         return $localized;
+    }
+
+    private static function stillLooksEnglish(string $message): bool
+    {
+        return preg_match(
+            '/\b(the|field|must|should|cannot|failed|failure|required|invalid|only|when|without|already|exists|document|quantity|warehouse|product|permission|unauthorized|forbidden|server|error)\b/i',
+            $message
+        ) === 1;
     }
 
     private static function preserveWhitespace(string $source, string $replacement): string
