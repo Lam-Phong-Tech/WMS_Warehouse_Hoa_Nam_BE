@@ -86,6 +86,18 @@ final class UserFacingMessageLocalizer
         $localized = $message;
 
         $replacements = [
+            '/^The (.+) field is required\.$/i' => 'Trường $1 là bắt buộc.',
+            '/^The (.+) field must be true or false\.$/i' => 'Trường $1 phải là đúng hoặc sai.',
+            '/^The (.+) must be true or false\.$/i' => 'Trường $1 phải là đúng hoặc sai.',
+            '/^The (.+) must be a string\.$/i' => 'Trường $1 phải là chuỗi ký tự.',
+            '/^The (.+) must be an integer\.$/i' => 'Trường $1 phải là số nguyên.',
+            '/^The (.+) must be a number\.$/i' => 'Trường $1 phải là số.',
+            '/^The (.+) must be an array\.$/i' => 'Trường $1 phải là danh sách.',
+            '/^The (.+) must be a valid email address\.$/i' => 'Trường $1 phải là địa chỉ email hợp lệ.',
+            '/^The (.+) must be at least ([0-9]+) characters\.$/i' => 'Trường $1 phải có ít nhất $2 ký tự.',
+            '/^The selected (.+) is invalid\.$/i' => 'Giá trị đã chọn cho trường $1 không hợp lệ.',
+            '/^The (.+) has already been taken\.$/i' => 'Giá trị trường $1 đã tồn tại.',
+            '/^The (.+) format is invalid\.$/i' => 'Định dạng trường $1 không hợp lệ.',
             '/Scan quantity exceeds remaining quantity on line\s+([^\.]+)\./i' => 'Số lượng quét vượt quá số lượng còn lại ở dòng $1.',
             '/Full Post Receipt/i' => 'Hoàn tất nhập kho',
             '/Post Receipt/i' => 'Hoàn tất nhập kho',
@@ -107,6 +119,16 @@ final class UserFacingMessageLocalizer
             '/\binvalid\b/i' => 'không hợp lệ',
             '/\bduplicate\b/i' => 'trùng lặp',
             '/\bReversal\b/i' => 'điều chỉnh tồn kho',
+            '/\bupdate existing\b/i' => 'cho phép cập nhật dữ liệu hiện có',
+            '/\bdry run\b/i' => 'kiểm tra trước',
+            '/\bsku code\b/i' => 'mã SKU',
+            '/\bsku name\b/i' => 'tên SKU',
+            '/\bwarehouse id\b/i' => 'kho',
+            '/\bproduct id\b/i' => 'sản phẩm',
+            '/\bquantity\b/i' => 'số lượng',
+            '/\breason\b/i' => 'lý do',
+            '/\bstatus\b/i' => 'trạng thái',
+            '/\bphone\b/i' => 'số điện thoại',
         ];
 
         foreach ($replacements as $pattern => $replacement) {
@@ -115,6 +137,28 @@ final class UserFacingMessageLocalizer
 
         foreach (self::STATUS_LABELS as $raw => $label) {
             $localized = preg_replace('/\b'.preg_quote($raw, '/').'\b/u', $label, $localized) ?? $localized;
+        }
+
+        return $localized;
+    }
+
+    /**
+     * Việt hóa đệ quy value trong validation details nhưng giữ nguyên key field để
+     * FE vẫn map lỗi đúng input và contract API không đổi.
+     */
+    public static function translateDetails(mixed $details): mixed
+    {
+        if (is_string($details)) {
+            return self::translate($details);
+        }
+
+        if (! is_array($details)) {
+            return $details;
+        }
+
+        $localized = [];
+        foreach ($details as $key => $value) {
+            $localized[$key] = self::translateDetails($value);
         }
 
         return $localized;
