@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApiConventionMiddleware;
 use App\Http\Middleware\NoStoreApiResponses;
 use App\Http\Middleware\Wwhn172AggregateLock;
+use App\Support\UserFacingMessageLocalizer;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Database\QueryException;
@@ -66,7 +67,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $unauthenticated = static fn () => response()->json([
             'success' => false,
-            'message' => 'Chưa xác thực',
+            'message' => 'Chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.',
             'error_code' => 'UNAUTHENTICATED',
             'errors' => [],
             'error' => ['code' => 'UNAUTHENTICATED', 'details' => []],
@@ -76,10 +77,29 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(fn (UnauthorizedHttpException $e, $request) => $unauthenticated());
         $exceptions->render(fn (JWTException $e, $request) => $unauthenticated());
 
+        // ValidationException được Laravel xử lý ngoài middleware stack, vì vậy phải
+        // Việt hóa ngay tại exception boundary để errors/details không rò câu mặc định
+        // tiếng Anh như "The ... field is required".
+        $exceptions->render(function (ValidationException $e, $request) {
+            if (! ($request->is('api/*') || $request->expectsJson())) {
+                return null;
+            }
+
+            $details = UserFacingMessageLocalizer::translateDetails($e->errors());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu gửi lên không hợp lệ.',
+                'error_code' => 'VALIDATION_ERROR',
+                'errors' => $details,
+                'error' => ['code' => 'VALIDATION_ERROR', 'details' => $details],
+            ], 422);
+        });
+
         $exceptions->render(function (MethodNotAllowedHttpException $e, $request) {
             return response()->json([
                 'success' => false,
-                'message' => 'Phương thức HTTP không được hỗ trợ cho endpoint này.',
+                'message' => 'Phương thức HTTP không được hỗ trợ cho đường dẫn này.',
                 'error_code' => 'METHOD_NOT_ALLOWED',
                 'errors' => [],
                 'error' => ['code' => 'METHOD_NOT_ALLOWED', 'details' => []],
@@ -119,7 +139,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return response()->json([
                 'success' => false,
-                'message' => 'Dữ liệu đã được ghi bởi request khác hoặc vi phạm ràng buộc duy nhất.',
+                'message' => 'Dữ liệu đã được ghi bởi thao tác khác hoặc vi phạm ràng buộc duy nhất.',
                 'error_code' => 'UNIQUE_CONSTRAINT_CONFLICT',
                 'errors' => [],
                 'error' => [
@@ -127,6 +147,52 @@ return Application::configure(basePath: dirname(__DIR__))
                     'details' => [],
                 ],
             ], 409);
+        });
+
+        // Safety net cho HttpException framework/third-party còn lại. Giữ mã HTTP và
+        // error_code kỹ thuật, chỉ Việt hóa message hiển thị cho client.
+        $exceptions->render(function (HttpExceptionInterface $e, $request) {
+            if (! ($request->is('api/*') || $request->expectsJson())) {
+                return null;
+            }
+
+            $status = $e->getStatusCode();
+            $codes = [
+                400 => 'BAD_REQUEST',
+                401 => 'UNAUTHENTICATED',
+                403 => 'ACCESS_DENIED',
+                404 => 'RESOURCE_NOT_FOUND',
+                405 => 'METHOD_NOT_ALLOWED',
+                409 => 'STATE_CONFLICT',
+                412 => 'STALE_VERSION',
+                422 => 'BUSINESS_RULE_ERROR',
+                428 => 'PRECONDITION_REQUIRED',
+                500 => 'INTERNAL_SERVER_ERROR',
+            ];
+            $fallbacks = [
+                400 => 'Yêu cầu không hợp lệ.',
+                401 => 'Chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.',
+                403 => 'Bạn không có quyền thực hiện thao tác này.',
+                404 => 'Không tìm thấy dữ liệu.',
+                405 => 'Phương thức HTTP không được hỗ trợ.',
+                409 => 'Dữ liệu hoặc trạng thái hiện tại không cho phép thao tác này.',
+                412 => 'Dữ liệu đã thay đổi, vui lòng tải lại và thử lại.',
+                422 => 'Dữ liệu không đáp ứng quy tắc nghiệp vụ.',
+                428 => 'Thiếu điều kiện bắt buộc để thực hiện thao tác.',
+                500 => 'Hệ thống gặp lỗi nội bộ.',
+            ];
+            $rawMessage = trim($e->getMessage());
+            $message = $rawMessage !== ''
+                ? UserFacingMessageLocalizer::translate($rawMessage)
+                : ($fallbacks[$status] ?? 'Không thể thực hiện yêu cầu.');
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'error_code' => $codes[$status] ?? 'HTTP_ERROR',
+                'errors' => [],
+                'error' => ['code' => $codes[$status] ?? 'HTTP_ERROR', 'details' => []],
+            ], $status);
         });
 
         $exceptions->render(function (Throwable $e, $request) {
