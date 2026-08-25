@@ -85,12 +85,13 @@ trait ApiResponse
         ];
 
         $codeStr = $errorCode ?? ($defaultErrorCodes[$code] ?? 'ERROR');
+        $localizedErrors = UserFacingMessageLocalizer::translateDetails($errors);
         $payload = [
             'success' => false,
             'message' => UserFacingMessageLocalizer::translate($message),
             'error_code' => $codeStr,
-            'errors' => $errors,
-            'error' => ['code' => $codeStr, 'details' => $errors],
+            'errors' => $localizedErrors,
+            'error' => ['code' => $codeStr, 'details' => $localizedErrors],
             'meta' => [
                 'request_id' => $this->currentRequestId(),
                 'timestamp' => now()->toIso8601String(),
