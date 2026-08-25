@@ -6,19 +6,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-/**
- * Final GĐ1 contract normalization.
- *
- * This migration intentionally repairs the two BA migrations from 2026-08-25
- * without rewriting migration history that may already exist on DEV/UAT.
- */
+/** Repair schema drift between the two 2026-08-25 BA migrations. */
 return new class extends Migration
 {
     public function up(): void
     {
-        // Canonical warranty date = estimated_completion_date. The historical
-        // expected_completion_date alias is copied once and no runtime code should
-        // write it after this migration.
         if (Schema::hasTable('warranty_case')) {
             if (! Schema::hasColumn('warranty_case', 'estimated_completion_date')) {
                 Schema::table('warranty_case', function (Blueprint $table): void {
@@ -33,9 +25,6 @@ return new class extends Migration
             }
         }
 
-        // Make both previously-created variants of warranty_case_defects usable by
-        // the same runtime contract. We do not replace an existing primary key;
-        // instead every row gets a stable surrogate id when that column was absent.
         if (Schema::hasTable('warranty_case_defects')) {
             if (! Schema::hasColumn('warranty_case_defects', 'warranty_case_defect_id')) {
                 Schema::table('warranty_case_defects', function (Blueprint $table): void {
@@ -61,33 +50,39 @@ return new class extends Migration
                 });
 
             if (Schema::hasTable('warranty_case') && Schema::hasColumn('warranty_case', 'defect_id')) {
-                DB::table('warranty_case as wc')
-                    ->join('warranty_case_defects as wcd', function ($join): void {
-                        $join->on('wcd.warranty_case_id', '=', 'wc.warranty_case_id')
-                            ->on('wcd.defect_id', '=', 'wc.defect_id');
-                    })
-                    ->whereNotNull('wc.defect_id')
-                    ->update(['is_primary' => true]);
+                // Avoid DB-specific joined UPDATE syntax: the project runs both
+                // PostgreSQL and SQLite in its gates.
+                DB::table('warranty_case')
+                    ->whereNotNull('defect_id')
+                    ->orderBy('warranty_case_id')
+                    ->get(['warranty_case_id', 'defect_id'])
+                    ->each(function (object $case): void {
+                        DB::table('warranty_case_defects')
+                            ->where('warranty_case_id', $case->warranty_case_id)
+                            ->where('defect_id', $case->defect_id)
+                            ->update(['is_primary' => true]);
+                    });
             }
         }
 
         if (Schema::hasTable('agencies')) {
-            Schema::table('agencies', function (Blueprint $table): void {
-                if (! Schema::hasColumn('agencies', 'market')) {
-                    $table->string('market', 120)->nullable()->index();
-                }
-                if (! Schema::hasColumn('agencies', 'region')) {
-                    $table->string('region', 120)->nullable()->index();
-                }
-            });
+            $addMarket = ! Schema::hasColumn('agencies', 'market');
+            $addRegion = ! Schema::hasColumn('agencies', 'region');
+            if ($addMarket || $addRegion) {
+                Schema::table('agencies', function (Blueprint $table) use ($addMarket, $addRegion): void {
+                    if ($addMarket) {
+                        $table->string('market', 120)->nullable()->index();
+                    }
+                    if ($addRegion) {
+                        $table->string('region', 120)->nullable()->index();
+                    }
+                });
+            }
         }
     }
 
     public function down(): void
     {
-        // Corrective migration is intentionally conservative: do not remove
-        // normalized warranty data on rollback. Only optional reporting dimensions
-        // introduced here are reversible.
         if (Schema::hasTable('agencies')) {
             $columns = [];
             foreach (['market', 'region'] as $column) {
