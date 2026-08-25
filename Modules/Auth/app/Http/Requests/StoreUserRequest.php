@@ -13,10 +13,6 @@ class StoreUserRequest extends FormRequest
         return true;
     }
 
-    /**
-     * ERD app_user.username: "Chuẩn hóa lowercase/trim" — chuẩn hoá trước khi validate
-     * để rule unique và giá trị lưu xuống DB luôn nhất quán bất kể client gửi hoa/thường/khoảng trắng.
-     */
     protected function prepareForValidation(): void
     {
         if ($this->has('username')) {
@@ -31,6 +27,7 @@ class StoreUserRequest extends FormRequest
             'display_name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', 'unique:app_user,email'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
+            'department_id' => ['nullable', 'uuid', 'exists:department,department_id'],
             'password' => ['required', 'string', 'min:8'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE', 'LOCKED'])],
         ];
@@ -40,6 +37,7 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
+            'department_id.exists' => 'Phòng ban không tồn tại.',
         ];
     }
 }
