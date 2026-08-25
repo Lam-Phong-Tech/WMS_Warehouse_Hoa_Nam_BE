@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
+use Modules\Warehouse\Http\Controllers\BaM1InboundComponentController;
 use Modules\Warehouse\Http\Controllers\BaM1InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
 use Modules\Warehouse\Http\Controllers\BaM1RecipientController;
@@ -38,6 +39,10 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                     ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
                 Route::patch('inbound-documents/{id}', [BaM1InboundDocumentController::class, 'update'])
                     ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
+                // COMPONENT without serial/physical code is still scan-driven: the
+                // line is materialized only when an actual Box is being counted.
+                Route::post('inbound-documents/{id}/component-lines', [BaM1InboundComponentController::class, 'ensureLine'])
+                    ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
 
                 // Post Issue is the authoritative stock transaction. Packing Label
                 // is an optional operational action after Post and cannot gate or
