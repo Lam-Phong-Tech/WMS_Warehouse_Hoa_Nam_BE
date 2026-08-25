@@ -7,6 +7,7 @@ use Illuminate\Support\ServiceProvider;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
 use Modules\Warehouse\Http\Controllers\BaM1InboundComponentController;
 use Modules\Warehouse\Http\Controllers\BaM1InboundDocumentController;
+use Modules\Warehouse\Http\Controllers\BaM1InboundScanCorrectionController;
 use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
 use Modules\Warehouse\Http\Controllers\BaM1RecipientController;
 use Modules\Warehouse\Http\Controllers\BaM1ReportController;
@@ -17,11 +18,7 @@ use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
 use Modules\Warehouse\Services\BaM1StockService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 
-/**
- * Runtime overrides for the confirmed GĐ1 business baseline.
- * Registered after normal Warehouse routes so identical method/URI pairs resolve
- * to one canonical handler while legacy source remains available for migration.
- */
+/** Runtime overrides for the confirmed GĐ1 business baseline. */
 class Flow06AlignmentServiceProvider extends ServiceProvider
 {
     public function register(): void
@@ -33,25 +30,21 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
     {
         $this->app->booted(function (): void {
             Route::middleware(['api', 'auth:api'])->prefix('api/v1')->group(function (): void {
-                // GĐ1 inbound: create/update only document header. SKU lines and qty
-                // are derived from physical scans; no planned SKU/qty input remains.
+                // Inbound is scan-driven: header only, then actual scans/counts.
                 Route::post('inbound-documents', [BaM1InboundDocumentController::class, 'store'])
                     ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
                 Route::patch('inbound-documents/{id}', [BaM1InboundDocumentController::class, 'update'])
                     ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
-                // COMPONENT without serial/physical code is still scan-driven: the
-                // line is materialized only when an actual Box is being counted.
                 Route::post('inbound-documents/{id}/component-lines', [BaM1InboundComponentController::class, 'ensureLine'])
                     ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
+                Route::post('inbound-documents/{id}/unscan', [BaM1InboundScanCorrectionController::class, 'unscan'])
+                    ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
 
-                // Post Issue is the authoritative stock transaction. Packing Label
-                // is an optional operational action after Post and cannot gate or
-                // roll back inventory.
+                // Post Issue is the stock transaction; label printing is independent.
                 Route::post('outbound-documents/{id}/post-issue', [BaM1OutboundFlowController::class, 'postIssue'])
                     ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
 
-                // Multi-defect + canonical estimated_completion_date, with legacy
-                // expected_completion_date/defect_codes aliases only at API edge.
+                // Warranty: multi-defect + canonical estimated_completion_date.
                 Route::post('warranty-cases', [BaM1WarrantyController::class, 'storeWarrantyCase'])
                     ->middleware('permission:warranty.manage');
                 Route::get('warranty-cases/{id}', [BaM1WarrantyController::class, 'showWarrantyCase'])
@@ -61,8 +54,7 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                 Route::post('warranty-cases/{id}/status', [BaM1WarrantyController::class, 'updateWarrantyCase'])
                     ->middleware('permission:warranty.manage');
 
-                // Exactly four recipient classes share the historical agencies
-                // master so existing outbound FK/history remains valid.
+                // Exactly four recipient classes on the historical agencies master.
                 Route::get('agencies', [BaM1RecipientController::class, 'index'])->middleware('permission:agency.view');
                 Route::post('agencies', [BaM1RecipientController::class, 'store'])->middleware('permission:agency.manage');
                 Route::get('agencies/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
@@ -72,8 +64,7 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                 Route::get('recipients/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
                 Route::patch('recipients/{id}', [BaM1RecipientController::class, 'update'])->middleware('permission:agency.manage');
 
-                // GĐ1 reports: recipient dimensions and warranty multi-defect are
-                // canonical. Existing URL names are kept for FE compatibility.
+                // GĐ1 report dimensions.
                 Route::get('reports/outbound-by-agency', [BaM1ReportController::class, 'outboundByRecipient'])
                     ->middleware('permission:report.view');
                 Route::get('reports/outbound-by-recipient', [BaM1ReportController::class, 'outboundByRecipient'])
@@ -83,8 +74,7 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                 Route::get('reports/warranty-defect-sku-breakdown', [BaM1ReportController::class, 'defectSkuBreakdown'])
                     ->middleware('permission:report.view');
 
-                // Packing label remains available as its own transaction. GĐ1 no
-                // longer exposes an APPLY/"đã dán" mutation as a business state.
+                // No APPLY/"đã dán" business state in GĐ1.
                 Route::post('label-snapshots', [AlignedOutboundFlowController::class, 'storePackingLabel'])
                     ->middleware('permission:label.print');
             });
