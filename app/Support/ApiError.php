@@ -19,7 +19,7 @@ class ApiError
 
         $payload = [
             'success' => false,
-            'message' => $message,
+            'message' => UserFacingMessageLocalizer::translate($message),
             'error_code' => $errorCode,
             'errors' => $details,
             'error' => [
