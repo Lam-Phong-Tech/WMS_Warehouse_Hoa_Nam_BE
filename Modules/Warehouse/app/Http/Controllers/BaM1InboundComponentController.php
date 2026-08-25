@@ -10,12 +10,11 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 
 /**
- * GĐ1 quantity-mode COMPONENT materialization.
+ * GĐ1 COMPONENT materialization for an actual Box receipt.
  *
- * The receipt stays scan-driven: the operator selects a COMPONENT only when a
- * physical box is being received. This endpoint creates/fetches the technical
- * line required by the existing BOX + quantity scanner; it never stores a
- * planned quantity.
+ * This never captures an expected quantity. For serial-tracked components the
+ * operator scans each physical code; for non-serial components the operator
+ * enters the quantity physically counted in the Box.
  */
 class BaM1InboundComponentController extends Controller
 {
@@ -44,10 +43,7 @@ class BaM1InboundComponentController extends Controller
                 ApiError::abort(422, 'SKU_NOT_ACTIVE', 'SKU linh kiện không tồn tại hoặc không hoạt động.');
             }
             if (strtoupper((string) $sku->sku_type) !== 'COMPONENT') {
-                ApiError::abort(422, 'COMPONENT_SKU_REQUIRED', 'Chỉ được chọn SKU linh kiện cho luồng Box + số lượng.');
-            }
-            if ((bool) $sku->is_serial_tracked) {
-                ApiError::abort(422, 'SERIAL_COMPONENT_SCAN_REQUIRED', 'Linh kiện quản lý mã/serial phải quét mã từng đơn vị, không dùng nhập số lượng theo Box.');
+                ApiError::abort(422, 'COMPONENT_SKU_REQUIRED', 'Chỉ được chọn SKU linh kiện cho luồng nhận theo Box.');
             }
 
             $line = DB::table('stock_document_lines')
@@ -84,7 +80,9 @@ class BaM1InboundComponentController extends Controller
                     afterData: [
                         'stock_document_id' => $id,
                         'sku_id' => $validated['sku_id'],
-                        'quantity_source' => 'ACTUAL_BOX_COUNT',
+                        'quantity_source' => (bool) $sku->is_serial_tracked
+                            ? 'ACTUAL_CODE_SCAN'
+                            : 'ACTUAL_BOX_COUNT',
                         'qty_planned' => 0,
                     ],
                 );
@@ -96,8 +94,11 @@ class BaM1InboundComponentController extends Controller
                 'sku_id' => (string) $validated['sku_id'],
                 'sku_code' => (string) $sku->sku_code,
                 'sku_name' => (string) $sku->sku_name,
+                'is_serial_tracked' => (bool) $sku->is_serial_tracked,
                 'scanned_qty' => (int) $line->scanned_qty,
-                'quantity_source' => 'ACTUAL_BOX_COUNT',
+                'quantity_source' => (bool) $sku->is_serial_tracked
+                    ? 'ACTUAL_CODE_SCAN'
+                    : 'ACTUAL_BOX_COUNT',
             ];
         }, 3);
 
