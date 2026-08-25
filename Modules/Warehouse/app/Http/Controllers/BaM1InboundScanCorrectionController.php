@@ -22,8 +22,9 @@ class BaM1InboundScanCorrectionController extends Controller
         ]);
         $expectedVersion = $this->expectedVersion($request);
         $actorId = $request->user()?->user_id;
+        $requestId = $request->attributes->get('request_id');
 
-        $result = DB::transaction(function () use ($id, $payload, $expectedVersion, $actorId): array {
+        $result = DB::transaction(function () use ($id, $payload, $expectedVersion, $actorId, $requestId): array {
             $document = DB::table('stock_documents')
                 ->where('id', $id)
                 ->where('doc_type', 'receipt')
@@ -90,7 +91,7 @@ class BaM1InboundScanCorrectionController extends Controller
                 objectType: 'inbound_scan_entry',
                 objectId: (string) $entry->id,
                 actorId: $actorId !== null ? (string) $actorId : null,
-                requestId: $request->attributes->get('request_id'),
+                requestId: $requestId,
                 reason: $payload['reason'] ?? null,
                 beforeData: ['status' => 'ACTIVE', 'actual_qty' => $previous],
                 afterData: ['status' => 'REMOVED', 'actual_qty' => $newScanned],
