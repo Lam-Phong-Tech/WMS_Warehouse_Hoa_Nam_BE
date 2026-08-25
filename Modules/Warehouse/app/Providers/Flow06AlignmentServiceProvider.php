@@ -22,11 +22,18 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(CurrentBaselineStockService::class, BaM1StockService::class);
+        // Bind chuyển xuống boot(): provider này được register lồng trong
+        // parent::register() của WarehouseServiceProvider, nên bind tại đây bị
+        // chính dòng bind CurrentBaselineStockService → Diagnostic... của
+        // WarehouseServiceProvider (chạy SAU) đè mất — hậu quả runtime là
+        // BaM1StockService (auto-create SKU chưa tồn tại, GĐ1-REQ-007) không bao
+        // giờ được resolve. boot() chạy sau toàn bộ register() nên bind ở đó
+        // thắng một cách tất định.
     }
 
     public function boot(): void
     {
+        $this->app->bind(CurrentBaselineStockService::class, BaM1StockService::class);
         $this->app->booted(function (): void {
             Route::middleware(['api', 'auth:api'])->prefix('api/v1')->group(function (): void {
                 // Inbound is scan-driven: header only, then actual scans/counts.

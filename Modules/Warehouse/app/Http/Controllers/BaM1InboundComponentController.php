@@ -57,6 +57,8 @@ class BaM1InboundComponentController extends Controller
                 $lineNo = ((int) DB::table('stock_document_lines')
                     ->where('stock_document_id', $id)
                     ->max('line_no')) + 1;
+                // completion_type/shortage_reason đã bị gỡ khỏi schema (migration
+                // 2026_08_10_000620) — không được ghi vào.
                 DB::table('stock_document_lines')->insert([
                     'id' => $lineId,
                     'stock_document_id' => $id,
@@ -65,8 +67,6 @@ class BaM1InboundComponentController extends Controller
                     'qty_planned' => 0,
                     'qty_actual' => 0,
                     'scanned_qty' => 0,
-                    'completion_type' => 'full',
-                    'shortage_reason' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);

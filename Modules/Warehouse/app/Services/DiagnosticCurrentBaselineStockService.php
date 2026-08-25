@@ -77,11 +77,11 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
                     continue;
                 }
 
+                // completion_type/shortage_reason đã bị gỡ khỏi schema (migration
+                // 2026_08_10_000620) — ghi vào sẽ nổ SQL trên mọi DB đã migrate.
                 DB::table('stock_document_lines')->where('id', $line->id)->update([
                     'qty_planned' => $actual,
                     'qty_actual' => $actual,
-                    'completion_type' => 'full',
-                    'shortage_reason' => null,
                     'updated_at' => now(),
                 ]);
             }
@@ -170,8 +170,6 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
                             'qty_planned' => $quantity,
                             'qty_actual' => 0,
                             'scanned_qty' => 0,
-                            'completion_type' => 'full',
-                            'shortage_reason' => null,
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
