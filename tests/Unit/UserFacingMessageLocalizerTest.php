@@ -45,6 +45,16 @@ class UserFacingMessageLocalizerTest extends TestCase
         $this->assertSame('Trường mã SKU là bắt buộc.', $localized['sku_code'][0]);
     }
 
+    public function test_unknown_english_package_message_fails_closed_to_vietnamese(): void
+    {
+        $this->assertSame(
+            'Không thể thực hiện yêu cầu do dữ liệu hoặc trạng thái hiện tại không hợp lệ.',
+            UserFacingMessageLocalizer::translate(
+                'The external provider error should only be shown when the server is ready.'
+            )
+        );
+    }
+
     public function test_it_keeps_raw_contract_values_outside_user_facing_messages(): void
     {
         $payloadContract = [
