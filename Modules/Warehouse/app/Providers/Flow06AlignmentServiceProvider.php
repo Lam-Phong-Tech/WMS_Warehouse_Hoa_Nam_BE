@@ -5,11 +5,14 @@ namespace Modules\Warehouse\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
+use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
+use Modules\Warehouse\Http\Controllers\BaM1WarrantyController;
+use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Services\DiagnosticCurrentBaselineStockService;
 
 /**
- * Runtime overrides for the 2026-08-15 current business baseline.
+ * Runtime overrides for the current business baseline.
  * They are registered after the normal Warehouse routes so identical method/URI
  * pairs resolve to these canonical handlers without keeping two active semantics.
  */
@@ -17,10 +20,8 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // One final concrete service combines the aligned PRODUCT outbound rules
-        // (full match, RFID optional, Post Issue stock effect) with enriched
-        // reservation diagnostics. Keeping both providers on the same binding
-        // removes provider-order ambiguity.
+        // One final concrete service combines the aligned PRODUCT outbound rules,
+        // reservation diagnostics and BA 2026-08-25 scan-driven inbound behavior.
         $this->app->bind(CurrentBaselineStockService::class, DiagnosticCurrentBaselineStockService::class);
     }
 
@@ -28,25 +29,28 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
     {
         $this->app->booted(function (): void {
             Route::middleware(['api', 'auth:api'])->prefix('api/v1')->group(function (): void {
-                // WWHN-195 / DEV195-P1-05R2: bốn override outbound (GET danh sách,
-                // /scan, /unmatch, /post-issue) đã được đưa thẳng vào
-                // Modules/Warehouse/routes/api.php nên không khai lại ở đây. Giữ
-                // override ở hai nơi sẽ tái lập đúng cái bẫy cũ: bảng route tĩnh mô tả
-                // một handler còn runtime chạy handler khác, nên contract/Swagger dựng
-                // từ route bị sai mà không ai phát hiện.
-                //
-                // Hai route label-snapshots dưới đây VẪN phải override vì routes/api.php
-                // trỏ CurrentBaselineOperationsController (nhãn theo snapshot lẻ), còn
-                // baseline hiện hành là 01 Packing Label cho mỗi phiếu xuất (SRS §5.2).
-                // Override giữ nguyên permission theo §8.1 Enforcement standard.
+                // BA 2026-08-25: Post Issue is a stock transaction. Packing Label is
+                // an independent operational transaction and cannot gate/rollback it.
+                Route::post('outbound-documents/{id}/post-issue', [BaM1OutboundFlowController::class, 'postIssue'])
+                    ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
+
+                // Multi-defect + expected completion date, backward-compatible with
+                // legacy defect_id/defect_code clients.
+                Route::post('warranty-cases', [BaM1WarrantyController::class, 'storeWarrantyCase'])
+                    ->middleware('permission:warranty.manage');
+                Route::get('warranty-cases/{id}', [BaM1WarrantyController::class, 'showWarrantyCase'])
+                    ->middleware('permission:warranty.view|warranty.manage');
+                Route::patch('warranty-cases/{id}', [BaM1WarrantyController::class, 'updateWarrantyCase'])
+                    ->middleware('permission:warranty.manage');
+                Route::post('warranty-cases/{id}/status', [BaM1WarrantyController::class, 'updateWarrantyCase'])
+                    ->middleware('permission:warranty.manage');
+
+                // Packing label remains available as its own transaction; it no
+                // longer participates in the Post Issue commit boundary.
                 Route::post('label-snapshots', [AlignedOutboundFlowController::class, 'storePackingLabel'])
                     ->middleware('permission:label.print');
                 Route::post('label-snapshots/{id}/apply', [AlignedOutboundFlowController::class, 'applyPackingLabel'])
                     ->middleware('permission:label.print');
-
-                // Toàn bộ route Flow 06 (import-match, label-log, warranty-defects)
-                // đã trỏ thẳng controller Aligned trong routes/api.php nên không còn
-                // override runtime nào cho báo cáo ở đây — chỉ giữ override luồng xuất.
             });
         });
     }
